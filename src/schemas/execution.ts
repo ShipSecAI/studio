@@ -26,7 +26,7 @@ export const ExecutionLogSchema = z.object({
   level: ExecutionLogLevelEnum,
   message: z.string(),
   timestamp: z.string().datetime(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export type ExecutionLog = z.infer<typeof ExecutionLogSchema>
@@ -37,8 +37,8 @@ export const ExecutionSchema = z.object({
   status: ExecutionStatusEnum,
   startedAt: z.string().datetime(),
   completedAt: z.string().datetime().optional(),
-  logs: z.array(ExecutionLogSchema).optional(),
-  result: z.record(z.any()).optional(),
+  logs: z.array(ExecutionLogSchema).default([]),
+  result: z.record(z.string(), z.any()).optional(),
   error: z.string().optional(),
 })
 

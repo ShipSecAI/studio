@@ -21,7 +21,7 @@ export type NodeStatus = z.infer<typeof NodeStatusEnum>
 
 export const NodeDataSchema = z.object({
   label: z.string(),
-  config: z.record(z.any()).optional(),
+  config: z.record(z.string(), z.any()).optional(),
   status: NodeStatusEnum.default('idle'),
   executionTime: z.number().optional(),
   error: z.string().optional(),

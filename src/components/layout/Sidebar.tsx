@@ -1,4 +1,4 @@
-import { FileText, Scan, Cog, Download, Target, Filter, GitMerge, FileExport, Bell, FileBarChart } from 'lucide-react'
+import { FileText, Scan, Cog, Target, Filter, GitMerge, FileUp, Bell, FileBarChart } from 'lucide-react'
 
 interface NodeType {
   id: string
@@ -23,7 +23,7 @@ const nodeTypes: NodeType[] = [
   { id: 'merge', label: 'Merge', icon: GitMerge, category: 'process' },
   
   // Output nodes
-  { id: 'export', label: 'Export', icon: FileExport, category: 'output' },
+  { id: 'export', label: 'Export', icon: FileUp, category: 'output' },
   { id: 'alert', label: 'Alert', icon: Bell, category: 'output' },
   { id: 'report', label: 'Report', icon: FileBarChart, category: 'output' },
 ]
