@@ -40,21 +40,22 @@ export function Canvas({ className }: CanvasProps) {
 
   const onConnect: OnConnect = useCallback(
     (params) => {
-      const validation = validateConnection(params, nodes, edges)
-      
+      const validation = validateConnection(params, nodes, edges, getComponent)
+
       if (!validation.isValid) {
         console.warn('Invalid connection:', validation.error)
-        // TODO: Show toast notification
+        // TODO: Show toast notification with validation.error
+        alert(`Connection failed: ${validation.error}`)
         return
       }
-      
+
       setEdges((eds) => addEdge({
         ...params,
         type: 'smoothstep',
         animated: false,
       }, eds))
     },
-    [setEdges, nodes, edges]
+    [setEdges, nodes, edges, getComponent]
   )
 
   const onDragOver = useCallback((event: React.DragEvent) => {
