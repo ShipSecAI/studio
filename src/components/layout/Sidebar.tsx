@@ -1,75 +1,124 @@
-import { FileText, Scan, Cog, Target, Filter, GitMerge, FileUp, Bell, FileBarChart } from 'lucide-react'
+import { useEffect } from 'react'
+import * as LucideIcons from 'lucide-react'
+import { useComponentStore } from '@/store/componentStore'
+import { ComponentBadge } from '@/components/workflow/ComponentBadge'
+import type { ComponentMetadata } from '@/schemas/component'
+import { cn } from '@/lib/utils'
 
-interface NodeType {
-  id: string
-  label: string
-  icon: React.ElementType
-  category: 'input' | 'scan' | 'process' | 'output'
+const TYPE_CONFIG = {
+  input: { label: 'Input', color: 'text-blue-600' },
+  scan: { label: 'Security Tools', color: 'text-purple-600' },
+  process: { label: 'Processing', color: 'text-green-600' },
+  output: { label: 'Output', color: 'text-orange-600' },
+} as const
+
+interface ComponentItemProps {
+  component: ComponentMetadata
 }
 
-const nodeTypes: NodeType[] = [
-  // Input nodes
-  { id: 'target-input', label: 'Target Input', icon: Target, category: 'input' },
-  { id: 'file-upload', label: 'File Upload', icon: FileText, category: 'input' },
-  
-  // Scan nodes
-  { id: 'subdomain-scanner', label: 'Subdomain Scanner', icon: Scan, category: 'scan' },
-  { id: 'port-scanner', label: 'Port Scanner', icon: Scan, category: 'scan' },
-  { id: 'vuln-scanner', label: 'Vulnerability Scanner', icon: Scan, category: 'scan' },
-  
-  // Process nodes
-  { id: 'filter', label: 'Filter', icon: Filter, category: 'process' },
-  { id: 'transform', label: 'Transform', icon: Cog, category: 'process' },
-  { id: 'merge', label: 'Merge', icon: GitMerge, category: 'process' },
-  
-  // Output nodes
-  { id: 'export', label: 'Export', icon: FileUp, category: 'output' },
-  { id: 'alert', label: 'Alert', icon: Bell, category: 'output' },
-  { id: 'report', label: 'Report', icon: FileBarChart, category: 'output' },
-]
+function ComponentItem({ component }: ComponentItemProps) {
+  const IconComponent = (LucideIcons[component.icon as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>) || LucideIcons.Box
 
-const categories = [
-  { id: 'input', label: 'Input', color: 'text-blue-500' },
-  { id: 'scan', label: 'Scan', color: 'text-orange-500' },
-  { id: 'process', label: 'Process', color: 'text-purple-500' },
-  { id: 'output', label: 'Output', color: 'text-green-500' },
-]
-
-export function Sidebar() {
-  const onDragStart = (event: React.DragEvent, nodeType: string) => {
-    event.dataTransfer.setData('application/reactflow', nodeType)
+  const onDragStart = (event: React.DragEvent) => {
+    // Store component slug for canvas to create node
+    event.dataTransfer.setData('application/reactflow', component.slug)
     event.dataTransfer.effectAllowed = 'move'
   }
 
   return (
-    <div className="w-[280px] border-r bg-background p-4 overflow-y-auto">
-      <h2 className="font-semibold mb-4">Components</h2>
-      
-      {categories.map((category) => (
-        <div key={category.id} className="mb-6">
-          <h3 className={`text-sm font-medium mb-2 ${category.color}`}>
-            {category.label}
-          </h3>
-          <div className="space-y-2">
-            {nodeTypes
-              .filter((node) => node.category === category.id)
-              .map((nodeType) => {
-                const Icon = nodeType.icon
-                return (
-                  <div
-                    key={nodeType.id}
-                    className="flex items-center gap-2 p-2 border rounded-md cursor-move hover:bg-accent transition-colors"
-                    draggable
-                    onDragStart={(e) => onDragStart(e, nodeType.id)}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="text-sm">{nodeType.label}</span>
-                  </div>
-                )
-              })}
-          </div>
+    <div
+      className={cn(
+        'group relative flex items-start gap-2 p-3 border rounded-lg cursor-move',
+        'hover:bg-accent hover:border-primary/50 transition-all',
+        'bg-background',
+        component.deprecated && 'opacity-50'
+      )}
+      draggable={!component.deprecated}
+      onDragStart={onDragStart}
+      title={component.description}
+    >
+      <IconComponent className="h-5 w-5 mt-0.5 flex-shrink-0 text-foreground" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-sm font-medium truncate">{component.name}</span>
+          {component.author.type === 'shipsector' && (
+            <ComponentBadge type="official" />
+          )}
         </div>
-      ))}
+        <p className="text-xs text-muted-foreground line-clamp-2">
+          {component.description}
+        </p>
+        {component.deprecated && (
+          <div className="mt-2">
+            <ComponentBadge type="deprecated" />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function Sidebar() {
+  const { getAllComponents, getComponentsByType, fetchComponents } = useComponentStore()
+
+  // Fetch components on mount
+  useEffect(() => {
+    fetchComponents()
+  }, [fetchComponents])
+
+  const allComponents = getAllComponents()
+  const componentsByType = {
+    input: getComponentsByType('input'),
+    scan: getComponentsByType('scan'),
+    process: getComponentsByType('process'),
+    output: getComponentsByType('output'),
+  }
+
+  return (
+    <div className="w-[320px] border-r bg-background overflow-y-auto">
+      <div className="p-4">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold">Components</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Drag and drop to add to workflow
+          </p>
+        </div>
+
+        {allComponents.length === 0 ? (
+          <div className="text-sm text-muted-foreground text-center py-8">
+            No components available
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {(Object.keys(componentsByType) as Array<keyof typeof componentsByType>).map((type) => {
+              const components = componentsByType[type]
+              if (components.length === 0) return null
+
+              const config = TYPE_CONFIG[type]
+
+              return (
+                <div key={type}>
+                  <h3 className={cn('text-sm font-semibold mb-3', config.color)}>
+                    {config.label}
+                  </h3>
+                  <div className="space-y-2">
+                    {components.map((component) => (
+                      <ComponentItem key={component.id} component={component} />
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Component Count */}
+        <div className="mt-6 pt-4 border-t">
+          <p className="text-xs text-muted-foreground">
+            {allComponents.length} component{allComponents.length !== 1 ? 's' : ''} available
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
