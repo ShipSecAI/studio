@@ -1,52 +1,35 @@
-import { useState } from 'react'
-import { ChevronUp, ChevronDown, Terminal } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronUp, ChevronDown, Terminal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-
-interface LogEntry {
-  id: string
-  timestamp: string
-  level: 'info' | 'warn' | 'error'
-  message: string
-}
-
-const mockLogs: LogEntry[] = [
-  {
-    id: '1',
-    timestamp: '2025-01-04T10:30:00Z',
-    level: 'info',
-    message: 'Workflow execution started',
-  },
-  {
-    id: '2',
-    timestamp: '2025-01-04T10:30:01Z',
-    level: 'info',
-    message: 'Running subdomain scanner on target.com',
-  },
-  {
-    id: '3',
-    timestamp: '2025-01-04T10:30:05Z',
-    level: 'warn',
-    message: 'Rate limit approaching for API calls',
-  },
-  {
-    id: '4',
-    timestamp: '2025-01-04T10:30:10Z',
-    level: 'error',
-    message: 'Failed to connect to port scanner service',
-  },
-]
+import { useExecutionStore } from '@/store/executionStore'
 
 export function BottomPanel() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState<'logs' | 'results' | 'history'>('logs')
+  const { logs, status } = useExecutionStore()
+  const logsEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (isExpanded && activeTab === 'logs') {
+      logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [logs, isExpanded, activeTab])
+
+  // Auto-expand when execution starts
+  useEffect(() => {
+    if (status === 'running' && !isExpanded) {
+      setIsExpanded(true)
+    }
+  }, [status, isExpanded])
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
     return date.toLocaleTimeString()
   }
 
-  const getLevelColor = (level: LogEntry['level']) => {
+  const getLevelColor = (level: string) => {
     switch (level) {
       case 'info':
         return 'text-blue-500'
@@ -54,9 +37,26 @@ export function BottomPanel() {
         return 'text-yellow-500'
       case 'error':
         return 'text-red-500'
+      case 'debug':
+        return 'text-gray-500'
       default:
         return 'text-gray-500'
     }
+  }
+
+  const getLevelBadgeVariant = (level: string) => {
+    switch (level) {
+      case 'error':
+        return 'destructive' as const
+      case 'warn':
+        return 'warning' as const
+      default:
+        return 'secondary' as const
+    }
+  }
+
+  const clearLogs = () => {
+    useExecutionStore.getState().reset()
   }
 
   return (
@@ -76,6 +76,11 @@ export function BottomPanel() {
               }`}
             >
               Logs
+              {logs.length > 0 && (
+                <span className="ml-1.5 text-xs text-muted-foreground">
+                  ({logs.length})
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('results')}
@@ -98,46 +103,72 @@ export function BottomPanel() {
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto"
-          onClick={() => setIsExpanded(!isExpanded)}
-          aria-label={isExpanded ? 'Collapse panel' : 'Expand panel'}
-        >
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronUp className="h-4 w-4" />
+        <div className="flex items-center gap-2 ml-auto">
+          {logs.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={clearLogs}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear
+            </Button>
           )}
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsExpanded(!isExpanded)}
+            aria-label={isExpanded ? 'Collapse panel' : 'Expand panel'}
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {isExpanded && (
         <div className="h-[260px] overflow-y-auto p-4">
           {activeTab === 'logs' && (
             <div className="space-y-2 font-mono text-sm">
-              {mockLogs.map((log) => (
-                <div key={log.id} className="flex items-start gap-3">
-                  <span className="text-muted-foreground text-xs">
-                    {formatTime(log.timestamp)}
-                  </span>
-                  <Badge
-                    variant={log.level === 'error' ? 'destructive' : 'secondary'}
-                    className="text-xs px-1 py-0"
-                  >
-                    {log.level.toUpperCase()}
-                  </Badge>
-                  <span className={getLevelColor(log.level)}>{log.message}</span>
+              {logs.length === 0 ? (
+                <div className="text-muted-foreground text-center py-8">
+                  No logs yet. Run a workflow to see execution logs.
                 </div>
-              ))}
+              ) : (
+                <>
+                  {logs.map((log) => (
+                    <div key={log.id} className="flex items-start gap-3">
+                      <span className="text-muted-foreground text-xs whitespace-nowrap">
+                        {formatTime(log.timestamp)}
+                      </span>
+                      <Badge
+                        variant={getLevelBadgeVariant(log.level)}
+                        className="text-xs px-1.5 py-0 whitespace-nowrap"
+                      >
+                        {log.level.toUpperCase()}
+                      </Badge>
+                      {log.nodeId && (
+                        <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                          [{log.nodeId}]
+                        </span>
+                      )}
+                      <span className={getLevelColor(log.level)}>{log.message}</span>
+                    </div>
+                  ))}
+                  <div ref={logsEndRef} />
+                </>
+              )}
             </div>
           )}
-          
+
           {activeTab === 'results' && (
             <div className="text-muted-foreground">Results will appear here</div>
           )}
-          
+
           {activeTab === 'history' && (
             <div className="text-muted-foreground">Execution history will appear here</div>
           )}
