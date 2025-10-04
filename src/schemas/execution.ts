@@ -31,6 +31,42 @@ export const ExecutionLogSchema = z.object({
 
 export type ExecutionLog = z.infer<typeof ExecutionLogSchema>
 
+/**
+ * Node execution result
+ */
+export const NodeResultSchema = z.object({
+  nodeId: z.string(),
+  status: z.enum(['pending', 'running', 'success', 'error']),
+  startedAt: z.string().datetime().optional(),
+  completedAt: z.string().datetime().optional(),
+  outputs: z.record(z.string(), z.any()).optional(), // Output port values
+  error: z.string().optional(),
+})
+
+export type NodeResult = z.infer<typeof NodeResultSchema>
+
+/**
+ * Execution status response (used for polling)
+ */
+export const ExecutionStatusResponseSchema = z.object({
+  executionId: z.string().uuid(),
+  workflowId: z.string().uuid(),
+  status: ExecutionStatusEnum,
+  startedAt: z.string().datetime(),
+  completedAt: z.string().datetime().optional(),
+
+  // Node-level results
+  nodeResults: z.record(z.string(), NodeResultSchema),
+
+  // Logs
+  logs: z.array(ExecutionLogSchema).default([]),
+})
+
+export type ExecutionStatusResponse = z.infer<typeof ExecutionStatusResponseSchema>
+
+/**
+ * Full execution record
+ */
 export const ExecutionSchema = z.object({
   id: z.string().uuid(),
   workflowId: z.string().uuid(),
