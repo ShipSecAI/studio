@@ -18,6 +18,7 @@ import { WorkflowNode } from './WorkflowNode'
 import { ConfigPanel } from './ConfigPanel'
 import { validateConnection } from '@/utils/connectionValidation'
 import { useComponentStore } from '@/store/componentStore'
+import { useExecutionStore } from '@/store/executionStore'
 import type { NodeData } from '@/schemas/node'
 
 const nodeTypes = {
@@ -37,6 +38,26 @@ export function Canvas({ className }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
   const { getComponent } = useComponentStore()
+  const { nodeStates } = useExecutionStore()
+
+  // Sync execution node states to canvas nodes
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        const executionState = nodeStates[node.id]
+        if (executionState && executionState !== node.data.status) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              status: executionState,
+            },
+          }
+        }
+        return node
+      })
+    )
+  }, [nodeStates, setNodes])
 
   const onConnect: OnConnect = useCallback(
     (params) => {
