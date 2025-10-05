@@ -19,6 +19,7 @@ import { ConfigPanel } from './ConfigPanel'
 import { validateConnection } from '@/utils/connectionValidation'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
+import { useWorkflowStore } from '@/store/workflowStore'
 import type { NodeData } from '@/schemas/node'
 
 const nodeTypes = {
@@ -39,6 +40,7 @@ export function Canvas({ className }: CanvasProps) {
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
   const { getComponent } = useComponentStore()
   const { nodeStates } = useExecutionStore()
+  const { markDirty } = useWorkflowStore()
 
   // Enhanced edge change handler that also updates input mappings
   const onEdgesChange = useCallback((changes: any[]) => {
@@ -132,8 +134,11 @@ export function Canvas({ className }: CanvasProps) {
           )
         )
       }
+
+      // Mark workflow as dirty
+      markDirty()
     },
-    [setEdges, setNodes, nodes, edges, getComponent]
+    [setEdges, setNodes, nodes, edges, getComponent, markDirty]
   )
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -177,8 +182,11 @@ export function Canvas({ className }: CanvasProps) {
       }
 
       setNodes((nds) => nds.concat(newNode))
+
+      // Mark workflow as dirty
+      markDirty()
     },
-    [reactFlowInstance, setNodes, getComponent]
+    [reactFlowInstance, setNodes, getComponent, markDirty]
   )
 
 
@@ -201,7 +209,10 @@ export function Canvas({ className }: CanvasProps) {
           : node
       )
     )
-  }, [setNodes])
+
+    // Mark workflow as dirty
+    markDirty()
+  }, [setNodes, markDirty])
 
   // Sync selectedNode with the latest node data from nodes array
   useEffect(() => {
@@ -233,18 +244,20 @@ export function Canvas({ className }: CanvasProps) {
             !nodeIds.includes(edge.source) && !nodeIds.includes(edge.target)
           ))
           setSelectedNode(null)
+          markDirty()
         }
 
         if (selectedEdges.length > 0) {
           const edgeIds = selectedEdges.map((edge) => edge.id)
           setEdges((eds) => eds.filter((edge) => !edgeIds.includes(edge.id)))
+          markDirty()
         }
       }
     }
 
     document.addEventListener('keydown', handleKeyPress)
     return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [nodes, edges, setNodes, setEdges])
+  }, [nodes, edges, setNodes, setEdges, markDirty])
 
   return (
     <div className={className}>

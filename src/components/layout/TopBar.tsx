@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Save, Play, StopCircle } from 'lucide-react'
 import { useExecutionStore } from '@/store/executionStore'
+import { useWorkflowStore } from '@/store/workflowStore'
 
 interface TopBarProps {
   workflowId?: string
@@ -12,13 +13,11 @@ interface TopBarProps {
   onSave?: () => void
 }
 
-export function TopBar({ workflowId, isNew, onRun, onSave }: TopBarProps) {
+export function TopBar({ onRun, onSave }: TopBarProps) {
   const navigate = useNavigate()
-  const [workflowName, setWorkflowName] = useState(
-    isNew ? 'Untitled Workflow' : `Workflow ${workflowId}`
-  )
   const [isSaving, setIsSaving] = useState(false)
 
+  const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
   const { status, reset } = useExecutionStore()
   const isRunning = status === 'running'
 
@@ -60,7 +59,7 @@ export function TopBar({ workflowId, isNew, onRun, onSave }: TopBarProps) {
 
       <div className="flex-1 max-w-md">
         <Input
-          value={workflowName}
+          value={metadata.name}
           onChange={(e) => setWorkflowName(e.target.value)}
           className="font-semibold"
           placeholder="Workflow name"
@@ -68,6 +67,11 @@ export function TopBar({ workflowId, isNew, onRun, onSave }: TopBarProps) {
       </div>
 
       <div className="flex gap-2 ml-auto">
+        {isDirty && (
+          <span className="text-xs text-muted-foreground self-center">
+            Unsaved changes
+          </span>
+        )}
         <Button
           onClick={handleSave}
           disabled={isSaving || isRunning}
