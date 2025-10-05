@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { ReactFlowProvider, useReactFlow } from 'reactflow'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -10,6 +11,8 @@ import { api } from '@/services/api'
 import {
   serializeWorkflowForCreate,
   serializeWorkflowForUpdate,
+  deserializeNodes,
+  deserializeEdges,
 } from '@/utils/workflowSerializer'
 
 function WorkflowBuilderContent() {
@@ -17,8 +20,54 @@ function WorkflowBuilderContent() {
   const navigate = useNavigate()
   const isNewWorkflow = id === 'new'
   const { mockExecution } = useExecutionStore()
-  const { metadata, setWorkflowId, markClean } = useWorkflowStore()
-  const { getNodes, getEdges } = useReactFlow()
+  const { metadata, setMetadata, setWorkflowId, markClean, resetWorkflow } = useWorkflowStore()
+  const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Load workflow on mount (if not new)
+  useEffect(() => {
+    const loadWorkflow = async () => {
+      if (isNewWorkflow) {
+        // Reset store for new workflow
+        resetWorkflow()
+        setNodes([])
+        setEdges([])
+        return
+      }
+
+      if (!id) return
+
+      setIsLoading(true)
+      try {
+        const workflow = await api.workflows.get(id)
+
+        // Update workflow store
+        setMetadata({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+        })
+
+        // Deserialize and set nodes/edges
+        const nodes = deserializeNodes(workflow.nodes)
+        const edges = deserializeEdges(workflow.edges)
+
+        setNodes(nodes)
+        setEdges(edges)
+
+        // Mark as clean (no unsaved changes)
+        markClean()
+      } catch (error) {
+        console.error('Failed to load workflow:', error)
+        alert(`Failed to load workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        navigate('/')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadWorkflow()
+  }, [id, isNewWorkflow, navigate, setMetadata, setNodes, setEdges, resetWorkflow, markClean])
 
   const handleRun = () => {
     // Get all node IDs for mock execution
@@ -85,6 +134,17 @@ function WorkflowBuilderContent() {
       console.error('Failed to save workflow:', error)
       alert(`Failed to save workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading workflow...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
