@@ -17,7 +17,7 @@ interface BadgeConfig {
 
 const BADGE_CONFIGS: Record<BadgeType, BadgeConfig> = {
   official: {
-    label: 'ShipSector',
+    label: 'ShipSecAI',
     variant: 'default',
     icon: CheckCircle,
   },
@@ -77,7 +77,7 @@ export function getBadgeTypeFromComponent(
   if (component.deprecated) return 'deprecated'
   if (!component.isLatest) return 'outdated'
   if (component.isLatest) return 'latest'
-  return component.author.type === 'shipsector' ? 'official' : 'community'
+  return component.author.type === 'shipsecai' ? 'official' : 'community'
 }
 
 /**
@@ -87,7 +87,7 @@ export function ComponentBadges({ component }: { component: ComponentMetadata })
   const badges: Array<{ type: BadgeType; version?: string }> = []
 
   // Author badge (official or community)
-  if (component.author.type === 'shipsector') {
+  if (component.author.type === 'shipsecai') {
     badges.push({ type: 'official' })
   } else {
     badges.push({ type: 'community' })

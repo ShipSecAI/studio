@@ -7,8 +7,8 @@
   "type": "input",
 
   "author": {
-    "name": "ShipSector",
-    "type": "shipsector"
+    "name": "ShipSecAI",
+    "type": "shipsecai"
   },
 
   "description": "Load data from a file (TXT, JSON, CSV)",

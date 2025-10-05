@@ -60,8 +60,8 @@ Create `{ComponentName}.spec.json` with the following structure:
   "type": "input | scan | process | output",
 
   "author": {
-    "name": "ShipSector",
-    "type": "shipsector"
+    "name": "ShipSecAI",
+    "type": "shipsecai"
   },
 
   "description": "Brief description (max 200 chars)",

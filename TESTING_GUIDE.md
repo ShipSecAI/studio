@@ -11,7 +11,7 @@ The application is now running! Follow this guide to test all the features we bu
 ### 1. Component Palette (Sidebar) ✓
 - [x] Sidebar shows 3 components grouped by type
 - [x] Components display icons and descriptions
-- [x] "ShipSector" badges visible on official components
+- [x] "ShipSecAI" badges visible on official components
 - [x] Component count shows at bottom (3 components available)
 
 **What to look for:**
@@ -213,7 +213,7 @@ The application is now running! Follow this guide to test all the features we bu
 - **Output nodes:** Orange border
 
 ### Component Badges
-- **ShipSector:** Blue badge with checkmark
+- **ShipSecAI:** Blue badge with checkmark
 - **Latest:** Green badge with checkmark
 - **Community:** Gray badge with users icon
 

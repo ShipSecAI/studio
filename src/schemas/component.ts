@@ -63,7 +63,7 @@ export type Parameter = z.infer<typeof ParameterSchema>
  */
 export const ComponentAuthorSchema = z.object({
   name: z.string(),
-  type: z.enum(['shipsector', 'community']),
+  type: z.enum(['shipsecai', 'community']),
   url: z.string().url().optional(),
 })
 

@@ -91,8 +91,8 @@ GET /components
     "category": "security-tool",
     "type": "scan",
     "author": {
-      "name": "ShipSector",
-      "type": "shipsector"
+      "name": "ShipSecAI",
+      "type": "shipsecai"
     },
     "description": "Fast subdomain enumeration",
     "icon": "Network",

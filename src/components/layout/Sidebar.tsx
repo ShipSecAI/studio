@@ -41,7 +41,7 @@ function ComponentItem({ component }: ComponentItemProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-sm font-medium truncate">{component.name}</span>
-          {component.author.type === 'shipsector' && (
+          {component.author.type === 'shipsecai' && (
             <ComponentBadge type="official" />
           )}
         </div>
