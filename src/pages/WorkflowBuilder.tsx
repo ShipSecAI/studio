@@ -59,7 +59,17 @@ function WorkflowBuilderContent() {
         markClean()
       } catch (error) {
         console.error('Failed to load workflow:', error)
-        alert(`Failed to load workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+
+        // Check if it's a network error (backend not available)
+        const isNetworkError = error instanceof Error &&
+          (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'))
+
+        if (isNetworkError) {
+          alert('Cannot connect to backend server. Please ensure the backend is running at http://localhost:8080')
+        } else {
+          alert(`Failed to load workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+
         navigate('/')
       } finally {
         setIsLoading(false)
@@ -132,7 +142,16 @@ function WorkflowBuilderContent() {
       }
     } catch (error) {
       console.error('Failed to save workflow:', error)
-      alert(`Failed to save workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+
+      // Check if it's a network error (backend not available)
+      const isNetworkError = error instanceof Error &&
+        (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'))
+
+      if (isNetworkError) {
+        alert('Cannot connect to backend server. Please ensure the backend is running at http://localhost:8080\n\nYour workflow is still available in the browser.')
+      } else {
+        alert(`Failed to save workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     }
   }
 
