@@ -1,0 +1,16 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shipsec-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shipsec
+      POSTGRES_USER: shipsec
+      POSTGRES_PASSWORD: shipsec
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+volumes:
+  postgres-data:

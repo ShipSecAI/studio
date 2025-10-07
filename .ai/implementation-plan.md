@@ -7,11 +7,11 @@ This plan is written for an LLM coding agent (“Agent”). Each phase ends with
 
 **Goal:** Define backend data model and REST endpoints to store workflow graphs sent from the frontend.
 
-- [ ] **Step 1:** Define shared TypeScript DTOs for `WorkflowGraph`, with validation.
-- [ ] **Step 2:** Create a repository (in-memory for now) to persist workflows.
-- [ ] **Step 3:** Implement `WorkflowsModule`, `WorkflowsService`, `WorkflowsController` with CRUD endpoints.
+- [x] **Step 1:** Define shared TypeScript DTOs for `WorkflowGraph`, with validation.
+- [x] **Step 2:** Create a repository (in-memory for now) to persist workflows.
+- [x] **Step 3:** Implement `WorkflowsModule`, `WorkflowsService`, `WorkflowsController` with CRUD endpoints.
 - [ ] **Step 4:** (Optional) Add frontend API client stubs for workflows.
-- [ ] **Step 5:** Add minimal tests validating controller behavior.
+- [x] **Step 5:** Add minimal tests validating controller behavior.
 - [ ] **Step 6:** Commit `feat: add workflow storage CRUD`. ➜ **Human review before next phase**
 
 ---
