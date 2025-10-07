@@ -43,11 +43,11 @@ This plan is written for an LLM coding agent (“Agent”). Each phase ends with
 
 **Goal:** Integrate Temporal workflow skeleton with component registry (mocked execution if necessary).
 
-- [ ] **Step 1:** Add `src/temporal` with client/worker placeholders.
-- [ ] **Step 2:** Implement `ShipSecWorkflow.run` (topological sort, invoke components using registry).
-- [ ] **Step 3:** Wire activities via SDK `invoke` (even if stubbed).
-- [ ] **Step 4:** Add `POST /workflows/:id/run` endpoint executing workflow (mocked).
-- [ ] **Step 5:** Commit `feat: add temporal workflow skeleton`. ➜ **Human review before next phase**
+- [x] **Step 1:** Add `src/temporal` with client/worker placeholders.
+- [x] **Step 2:** Implement `ShipSecWorkflow.run` (topological sort, invoke components using registry).
+- [x] **Step 3:** Wire activities via SDK `invoke` (even if stubbed).
+- [x] **Step 4:** Add `POST /workflows/:id/run` endpoint executing workflow (mocked).
+- [x] **Step 5:** Commit `feat: add temporal workflow skeleton`. ➜ **Human review before next phase**
 
 ---
 ## Phase 5 – Runner Abstractions (Initial)
