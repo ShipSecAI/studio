@@ -19,12 +19,12 @@ This plan is written for an LLM coding agent (“Agent”). Each phase ends with
 
 **Goal:** Scaffold ShipSec SDK component registry and sample components.
 
-- [ ] **Step 1:** Set up backend directory structure under `src/components`.
-- [ ] **Step 2:** Implement component interfaces (`ComponentDefinition`, `RunnerConfig`, `ExecutionContext`).
-- [ ] **Step 3:** Build `ShipSecComponentRegistry` with register/get/list methods.
-- [ ] **Step 4:** Provide stubbed `ExecutionContext` (logger, secrets, artifacts).
-- [ ] **Step 5:** Create sample components (FileLoader, Subfinder, Webhook) with placeholder logic; register them.
-- [ ] **Step 6:** Add unit tests ensuring registry works.
+- [x] **Step 1:** Set up backend directory structure under `src/components`.
+- [x] **Step 2:** Implement component interfaces (`ComponentDefinition`, `RunnerConfig`, `ExecutionContext`).
+- [x] **Step 3:** Build `ShipSecComponentRegistry` with register/get/list methods.
+- [x] **Step 4:** Provide stubbed `ExecutionContext` (logger, secrets, artifacts).
+- [x] **Step 5:** Create sample components (FileLoader, Subfinder, Webhook) with placeholder logic; register them.
+- [x] **Step 6:** Add unit tests ensuring registry works.
 - [ ] **Step 7:** Commit `feat: scaffold component registry`. ➜ **Human review before next phase**
 
 ---
