@@ -36,7 +36,7 @@ This plan is written for an LLM coding agent (“Agent”). Each phase ends with
 - [x] **Step 2:** Implement `compileWorkflowGraph` function (validate, topological sort, build actions).
 - [x] **Step 3:** Add `POST /workflows/:id/commit` endpoint using compiler; store DSL.
 - [x] **Step 4:** Add tests verifying sample graph compiles correctly.
-- [ ] **Step 5:** Commit `feat: add workflow compiler`. ➜ **Human review before next phase**
+- [x] **Step 5:** Commit `feat: add workflow compiler`. ➜ **Human review before next phase**
 
 ---
 ## Phase 4 – Temporal Worker Skeleton
