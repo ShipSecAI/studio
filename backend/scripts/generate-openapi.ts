@@ -1,33 +1,33 @@
 import 'reflect-metadata';
 
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 
-import { AppModule } from './app.module';
+import { AppModule } from '../src/app.module';
 
-async function bootstrap() {
+async function generateOpenApi() {
   const app = await NestFactory.create(AppModule, {
-    logger: ['log', 'error', 'warn'],
+    logger: false,
   });
-
-  const port = Number(process.env.PORT ?? 3000);
-  const host = process.env.HOST ?? '0.0.0.0';
 
   const config = new DocumentBuilder()
     .setTitle('ShipSec Studio API')
-    .setDescription('ShipSec backend API')
+    .setDescription('ShipSec backend API specification')
     .setVersion('0.1.0')
     .build();
+
   const document = SwaggerModule.createDocument(app, config);
   const cleaned = cleanupOpenApiDoc(document);
-  SwaggerModule.setup('docs', app, cleaned);
-
-  await app.listen(port, host);
-  console.log(`🚀 ShipSec backend listening on http://${host}:${port}`);
+  const outputPath = join(__dirname, '..', 'openapi.json');
+  writeFileSync(outputPath, JSON.stringify(cleaned, null, 2));
+  await app.close();
 }
 
-bootstrap().catch((error) => {
-  console.error('Failed to bootstrap ShipSec backend', error);
+generateOpenApi().catch((error) => {
+  console.error('Failed to generate OpenAPI spec', error);
   process.exit(1);
 });

@@ -5,11 +5,15 @@
   "packageManager": "bun@1.1.20",
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "packages/backend-client"
   ],
   "scripts": {
     "dev:frontend": "bun --cwd frontend dev",
     "dev:backend": "bun --cwd backend run dev",
     "dev": "bun run dev:frontend"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.9.1"
   }
 }

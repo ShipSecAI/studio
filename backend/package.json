@@ -8,13 +8,15 @@
     "start": "bun run src/main.ts",
     "build": "bun build src/main.ts --outdir build --target bun",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate:openapi": "bun scripts/generate-openapi.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.2.0",
     "@nestjs/core": "^10.4.0",
     "@nestjs/platform-express": "^10.4.0",
+    "@nestjs/swagger": "^11.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^17.2.3",
@@ -22,6 +24,7 @@
     "nestjs-zod": "^5.0.1",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {

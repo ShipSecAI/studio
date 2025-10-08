@@ -40,37 +40,38 @@ This plan is written for an LLM coding agent (“Agent”). Each phase ends with
 - [x] **Step 5:** Commit `feat: add workflow compiler`. ➜ **Human review before next phase**
 
 ---
-## Phase 4 – Temporal Worker Skeleton
+## Phase 4 – Temporal Infrastructure & Client Integration
 
-**Goal:** Integrate Temporal workflow skeleton with component registry (mocked execution if necessary).
+**Goal:** Stand up Temporal + MinIO infrastructure locally and replace the stub runner with a real Temporal client in the Nest API.
 
-- [x] **Step 1:** Add `src/temporal` with client/worker placeholders.
-- [x] **Step 2:** Implement `ShipSecWorkflow.run` (topological sort, invoke components using registry).
-- [x] **Step 3:** Wire activities via SDK `invoke` (even if stubbed).
-- [x] **Step 4:** Add `POST /workflows/:id/run` endpoint executing workflow (mocked).
-- [x] **Step 5:** Commit `feat: add temporal workflow skeleton`. ➜ **Human review before next phase**
-
----
-## Phase 5 – Runner Abstractions (Initial)
-
-**Goal:** Implement inline runner and scaffold Docker runner support.
-
-- [ ] **Step 1:** For inline components, call `execute()` directly through SDK.
-- [ ] **Step 2:** Create Docker runner skeleton (spawn command, capture logs; stub output if no docker).
-- [ ] **Step 3:** Update sample components to use runners (FileLoader read file, Subfinder simulate output, Webhook log/send HTTP).
-- [ ] **Step 4:** Add tests covering inline runner and stubbed Docker logic.
-- [ ] **Step 5:** Commit `feat: implement initial runners`. ➜ **Human review before next phase**
+- [ ] **Step 1:** Expand `docker-compose.yml` to include Temporal server/UI and MinIO while reusing the existing Postgres service (new `temporal` database/schema).
+- [ ] **Step 2:** Document required env vars (`TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`, MinIO creds) in README/`.env.example`.
+- [ ] **Step 3:** Add Temporal SDK dependencies to the backend and create `TemporalModule`/`TemporalService` that manages connections, namespaces, and workflow starts.
+- [ ] **Step 4:** Update `WorkflowsService` to start workflows through Temporal (generate run IDs, call client) and expose status/result/cancel helpers.
+- [ ] **Step 5:** Commit `feat: add temporal infrastructure & client`. ➜ **Human review before next phase**
 
 ---
-## Phase 6 – Execution Trace Foundation
+## Phase 5 – Temporal Worker Execution
 
-**Goal:** Capture and expose component execution events.
+**Goal:** Move component execution into Temporal workers with dedicated task queues and activities.
+
+- [ ] **Step 1:** Implement worker entrypoints (e.g., `src/temporal/workers/dev.worker.ts`) that register workflows/activities and initialise the component registry.
+- [ ] **Step 2:** Port the existing inline runner into Temporal activities (invoke registry components, capture outputs/artifacts, emit trace events).
+- [ ] **Step 3:** Ensure namespace/queue naming is configurable (default to `shipsec-dev` namespace, `shipsec-default` task queue).
+- [ ] **Step 4:** Provide scripts (package.json targets) to run API + worker separately and update documentation.
+- [ ] **Step 5:** Commit `feat: add temporal worker execution`. ➜ **Human review before next phase**
+
+---
+## Phase 6 – Execution Trace Foundation (Temporal-backed)
+
+**Goal:** Extend trace capture to cover Temporal-driven runs and persist traces for retrieval.
 
 - [x] **Step 1:** Define trace event types (`NODE_STARTED`, `NODE_COMPLETED`, etc.).
 - [x] **Step 2:** Implement in-memory trace collector.
 - [x] **Step 3:** Emit trace events around component execution in SDK/workflow.
 - [x] **Step 4:** Add `GET /workflow-runs/:id/trace` endpoint.
-- [x] **Step 5:** Commit `feat: add execution trace foundation`. ➜ **Human review before next phase**
+- [ ] **Step 5:** Pipe Temporal activity/workflow events into the trace collector and persist runs for later querying.
+- [ ] **Step 6:** Commit `feat: augment trace persistence for temporal runs`. ➜ **Human review before next phase**
 
 ---
 ## Phase 7 – Frontend Integration (Initial) **(On Hold)**
