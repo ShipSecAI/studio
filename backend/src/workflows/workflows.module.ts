@@ -5,12 +5,12 @@ import { TemporalModule } from '../temporal/temporal.module';
 import { WorkflowRepository } from './repository/workflow.repository';
 import { WorkflowsController } from './workflows.controller';
 import { WorkflowsService } from './workflows.service';
-import { WorkflowsBootstrapService } from './workflows.bootstrap';
+// import { WorkflowsBootstrapService } from './workflows.bootstrap';
 
 @Module({
   imports: [DatabaseModule, TemporalModule],
   controllers: [WorkflowsController],
-  providers: [WorkflowsService, WorkflowRepository, WorkflowsBootstrapService],
+  providers: [WorkflowsService, WorkflowRepository], // Removed WorkflowsBootstrapService
   exports: [WorkflowsService],
 })
 export class WorkflowsModule {}
