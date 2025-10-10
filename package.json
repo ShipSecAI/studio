@@ -13,7 +13,9 @@
   "scripts": {
     "dev:frontend": "bun --cwd frontend dev",
     "dev:backend": "bun --cwd backend run dev",
-    "dev": "bun run dev:frontend"
+    "dev": "bun run dev:frontend",
+    "typecheck": "(cd packages/component-sdk && bun run typecheck) && (cd worker && bun run typecheck) && (cd backend && bun run typecheck)",
+    "test": "(cd packages/component-sdk && bun test) && (cd worker && bun test) && (cd backend && bun test)"
   },
   "devDependencies": {
     "openapi-typescript": "^7.9.1",

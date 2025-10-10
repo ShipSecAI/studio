@@ -31,12 +31,12 @@ describe('trigger-manual component', () => {
       },
     });
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(params, context) as any;
 
     expect(result.payload).toEqual({
       user: 'alice',
       action: 'start',
-      timestamp: params.payload.timestamp,
+      timestamp: (params as any).payload.timestamp,
     });
   });
 
@@ -51,7 +51,7 @@ describe('trigger-manual component', () => {
 
     const params = component.inputSchema.parse({});
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(params, context) as any;
 
     expect(result.payload).toEqual({});
   });

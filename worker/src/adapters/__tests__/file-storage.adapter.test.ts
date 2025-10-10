@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import { Client } from 'minio';
 import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
 import { FileStorageAdapter } from '../file-storage.adapter';
 import * as schema from '../schema/files.schema';
@@ -9,7 +9,7 @@ import * as schema from '../schema/files.schema';
 describe('FileStorageAdapter (Integration)', () => {
   let minioClient: Client;
   let pool: Pool;
-  let db: ReturnType<typeof drizzle>;
+  let db: NodePgDatabase<typeof schema>;
   let adapter: FileStorageAdapter;
   const bucketName = 'test-shipsec-files';
 
@@ -25,7 +25,7 @@ describe('FileStorageAdapter (Integration)', () => {
 
     // Initialize PostgreSQL connection
     const connectionString = process.env.DATABASE_URL || 
-      'postgresql://shipsec:shipsec@localhost:5432/shipsec_db';
+      'postgresql://shipsec:shipsec@localhost:5433/shipsec';
     pool = new Pool({ connectionString });
     db = drizzle(pool, { schema });
 

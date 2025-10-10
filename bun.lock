@@ -95,6 +95,7 @@
       },
       "devDependencies": {
         "@types/node": "^20.16.11",
+        "bun-types": "^1.2.23",
         "typescript": "^5.6.3",
       },
     },
@@ -102,7 +103,7 @@
       "name": "@shipsec/worker",
       "version": "0.1.0",
       "dependencies": {
-        "@shipsec/component-sdk": "workspace:*",
+        "@shipsec/component-sdk": "*",
         "@temporalio/client": "^1.11.3",
         "@temporalio/worker": "^1.11.3",
         "@temporalio/workflow": "^1.11.3",
@@ -116,6 +117,7 @@
         "@types/minio": "^7.1.1",
         "@types/node": "^20.16.11",
         "@types/pg": "^8.15.5",
+        "bun-types": "^1.2.23",
         "tsx": "^4.20.6",
         "typescript": "^5.6.3",
       },

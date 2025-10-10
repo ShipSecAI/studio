@@ -27,7 +27,7 @@ describe('subfinder component', () => {
       domain: 'example.com',
     });
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(params, context) as any;
 
     expect(result.subdomains).toEqual(['api.example.com', 'app.example.com']);
     expect(result.rawOutput).toBe('api.example.com\napp.example.com');

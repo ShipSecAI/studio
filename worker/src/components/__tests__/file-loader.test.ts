@@ -51,7 +51,7 @@ describe('file-loader component', () => {
       fileId: testFileId,
     });
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(params, context) as any;
 
     expect(result.fileId).toBe(testFileId);
     expect(result.fileName).toBe('test.txt');
@@ -111,7 +111,7 @@ describe('file-loader component', () => {
       fileId: imageFileId,
     });
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(params, context) as any;
 
     expect(result.mimeType).toBe('image/png');
     expect(result.content).toBe(binaryData.toString('base64'));

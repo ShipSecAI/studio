@@ -80,5 +80,29 @@ export class FileStorageAdapter implements IFileStorageService {
       uploadedAt: file.uploadedAt,
     };
   }
+
+  /**
+   * Helper method to upload files (for testing and internal use)
+   */
+  async uploadFile(
+    fileId: string,
+    fileName: string,
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<void> {
+    // Upload to MinIO using fileId as storage key
+    await this.minioClient.putObject(this.bucketName, fileId, buffer, buffer.length, {
+      'Content-Type': mimeType,
+    });
+
+    // Store metadata in database
+    await this.db.insert(schema.files).values({
+      id: fileId,
+      fileName,
+      mimeType,
+      size: buffer.length,
+      storageKey: fileId,
+    });
+  }
 }
 

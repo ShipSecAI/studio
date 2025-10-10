@@ -4,9 +4,13 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client } from 'minio';
 import { Worker, NativeConnection } from '@temporalio/worker';
+import { config } from 'dotenv';
 import { runWorkflowActivity, initializeActivityServices } from '../activities/run-workflow.activity';
 import { FileStorageAdapter, TraceAdapter } from '../../adapters';
 import * as schema from '../../adapters/schema/files.schema';
+
+// Load environment variables from .env file
+config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../..', '.env') });
 
 async function main() {
   const address = process.env.TEMPORAL_ADDRESS ?? 'localhost:7233';

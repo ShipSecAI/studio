@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import '@shipsec/worker/components'; // Register components
 import { WorkflowGraphSchema } from '../dto/workflow-graph.dto';
 import { compileWorkflowGraph } from '../../dsl/compiler';
 import { WorkflowDefinition } from '../../dsl/types';

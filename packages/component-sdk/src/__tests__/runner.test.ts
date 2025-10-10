@@ -22,7 +22,7 @@ describe('Component Runner', () => {
     });
 
     it('should pass context to component', async () => {
-      let capturedContext;
+      let capturedContext: any;
       const execute = async (_params: unknown, ctx: any) => {
         capturedContext = ctx;
         return { success: true };
@@ -36,8 +36,8 @@ describe('Component Runner', () => {
       await runComponentInline(execute, {}, context);
 
       expect(capturedContext).toBeDefined();
-      expect(capturedContext.runId).toBe('context-test');
-      expect(capturedContext.componentRef).toBe('context.component');
+      expect(capturedContext!.runId).toBe('context-test');
+      expect(capturedContext!.componentRef).toBe('context.component');
     });
 
     it('should propagate errors from component', async () => {

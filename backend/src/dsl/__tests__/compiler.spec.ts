@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import '../../../worker/src/components'; // Register components
+import '@shipsec/worker/components'; // Register components
 import { WorkflowGraph } from '../../workflows/dto/workflow-graph.dto';
 import { componentRegistry } from '@shipsec/component-sdk';
 import { compileWorkflowGraph } from '../compiler';

@@ -17,7 +17,7 @@ describe('ComponentRegistry', () => {
       runner: { kind: 'inline' },
       inputSchema: z.object({ input: z.string() }),
       outputSchema: z.object({ output: z.string() }),
-      execute: async (params) => ({ output: params.input }),
+      execute: async (params: any) => ({ output: params.input }),
     };
 
     componentRegistry.register(component);

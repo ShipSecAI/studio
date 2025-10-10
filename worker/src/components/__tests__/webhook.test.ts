@@ -31,7 +31,7 @@ describe('webhook component', () => {
       },
     });
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(params, context) as any;
 
     expect(result.status).toBe('sent');
   });
