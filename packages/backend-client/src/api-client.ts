@@ -16,7 +16,7 @@ export class ShipSecApiClient {
   private baseUrl: string;
 
   constructor(config: ClientConfig = {}) {
-    this.baseUrl = config.baseUrl || 'http://localhost:3001';
+    this.baseUrl = config.baseUrl || 'http://localhost:3211';
     
     this.client = createClient<paths>({
       baseUrl: this.baseUrl,
