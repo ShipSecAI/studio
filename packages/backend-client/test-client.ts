@@ -13,7 +13,7 @@ async function main() {
   console.log('🧪 Testing ShipSec API Client\n');
 
   const client = createShipSecClient({
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:3001',
   });
 
   try {

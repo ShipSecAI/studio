@@ -17,7 +17,7 @@ import { createShipSecClient } from '@shipsec/backend-client';
 
 // Create client instance
 const client = createShipSecClient({
-  baseUrl: 'http://localhost:3000',
+  baseUrl: 'http://localhost:3001',
 });
 
 // Make API calls with full type safety
