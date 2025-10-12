@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from 'axios'
+import { createShipSecClient } from '@shipsec/backend-client'
 import {
   WorkflowMetadataSchema,
   WorkflowSchema,
@@ -21,14 +21,11 @@ import {
 /**
  * API Client Configuration
  */
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
-const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  timeout: 30000, // 30 seconds
+// Create type-safe API client
+const apiClient = createShipSecClient({
+  baseUrl: API_BASE_URL,
 })
 
 /**
@@ -46,15 +43,19 @@ export const api = {
      * Get all workflows (metadata only)
      */
     list: async (): Promise<WorkflowMetadata[]> => {
-      const response = await apiClient.get('/workflows')
-      return response.data.map((w: unknown) => WorkflowMetadataSchema.parse(w))
+      const response = await apiClient.listWorkflows()
+      if (response.error) throw new Error('Failed to fetch workflows')
+      const workflows = response.data as unknown as any[]
+      if (!workflows || !Array.isArray(workflows)) return []
+      return workflows.map((w: unknown) => WorkflowMetadataSchema.parse(w))
     },
 
     /**
      * Get specific workflow
      */
     get: async (id: string): Promise<Workflow> => {
-      const response = await apiClient.get(`/workflows/${id}`)
+      const response = await apiClient.getWorkflow(id)
+      if (response.error) throw new Error('Failed to fetch workflow')
       return WorkflowSchema.parse(response.data)
     },
 
@@ -66,8 +67,25 @@ export const api = {
       description?: string
       nodes: Node[]
       edges: Edge[]
+      viewport?: { x: number; y: number; zoom: number }
     }): Promise<Workflow> => {
-      const response = await apiClient.post('/workflows', workflow)
+      // Transform frontend Node format to backend API format
+      const backendNodes = workflow.nodes.map((node) => ({
+        id: node.id,
+        type: node.type,
+        label: node.data.label || '',
+        position: node.position,
+        config: node.data.parameters,
+      }))
+
+      const response = await apiClient.createWorkflow({
+        name: workflow.name,
+        description: workflow.description,
+        nodes: backendNodes,
+        edges: workflow.edges,
+        viewport: workflow.viewport || { x: 0, y: 0, zoom: 1 },
+      })
+      if (response.error) throw new Error('Failed to create workflow')
       return WorkflowSchema.parse(response.data)
     },
 
@@ -75,7 +93,23 @@ export const api = {
      * Update workflow
      */
     update: async (id: string, workflow: Partial<Workflow>): Promise<Workflow> => {
-      const response = await apiClient.put(`/workflows/${id}`, workflow)
+      // Transform frontend Node format to backend API format
+      const backendNodes = (workflow.nodes || []).map((node) => ({
+        id: node.id,
+        type: node.type,
+        label: node.data.label || '',
+        position: node.position,
+        config: node.data.parameters,
+      }))
+
+      const response = await apiClient.updateWorkflow(id, {
+        name: workflow.name || '',
+        description: workflow.description,
+        nodes: backendNodes,
+        edges: workflow.edges || [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      })
+      if (response.error) throw new Error('Failed to update workflow')
       return WorkflowSchema.parse(response.data)
     },
 
@@ -83,7 +117,26 @@ export const api = {
      * Delete workflow
      */
     delete: async (id: string): Promise<void> => {
-      await apiClient.delete(`/workflows/${id}`)
+      const response = await apiClient.deleteWorkflow(id)
+      if (response.error) throw new Error('Failed to delete workflow')
+    },
+
+    /**
+     * Commit workflow (compile DSL)
+     */
+    commit: async (id: string) => {
+      const response = await apiClient.commitWorkflow(id)
+      if (response.error) throw new Error('Failed to commit workflow')
+      return response.data
+    },
+
+    /**
+     * Run workflow
+     */
+    run: async (id: string) => {
+      const response = await apiClient.runWorkflow(id)
+      if (response.error) throw new Error('Failed to run workflow')
+      return response.data
     },
   },
 
@@ -95,15 +148,17 @@ export const api = {
      * Get all available components
      */
     list: async (): Promise<ComponentMetadata[]> => {
-      const response = await apiClient.get('/components')
-      return response.data.map((c: unknown) => ComponentMetadataSchema.parse(c))
+      const response = await apiClient.listComponents()
+      if (response.error) throw new Error('Failed to fetch components')
+      return (response.data as any[]).map((c: unknown) => ComponentMetadataSchema.parse(c))
     },
 
     /**
      * Get specific component metadata
      */
     get: async (slug: string): Promise<ComponentMetadata> => {
-      const response = await apiClient.get(`/components/${slug}`)
+      const response = await apiClient.getComponent(slug)
+      if (response.error) throw new Error('Failed to fetch component')
       return ComponentMetadataSchema.parse(response.data)
     },
   },
@@ -117,19 +172,19 @@ export const api = {
      */
     start: async (
       workflowId: string,
-      parameters?: Record<string, any>
+      _parameters?: Record<string, any>
     ): Promise<{ executionId: string }> => {
-      const response = await apiClient.post(`/workflows/${workflowId}/execute`, {
-        parameters,
-      })
-      return response.data
+      const response = await apiClient.runWorkflow(workflowId)
+      if (response.error) throw new Error('Failed to start execution')
+      return { executionId: (response.data as any).runId }
     },
 
     /**
      * Get execution status (for polling)
      */
     getStatus: async (executionId: string): Promise<ExecutionStatusResponse> => {
-      const response = await apiClient.get(`/executions/${executionId}`)
+      const response = await apiClient.getWorkflowRunStatus(executionId)
+      if (response.error) throw new Error('Failed to fetch execution status')
       return ExecutionStatusResponseSchema.parse(response.data)
     },
 
@@ -137,39 +192,58 @@ export const api = {
      * Get execution logs
      */
     getLogs: async (executionId: string): Promise<ExecutionLog[]> => {
-      const response = await apiClient.get(`/executions/${executionId}/logs`)
-      return response.data.map((log: unknown) => ExecutionLogSchema.parse(log))
+      const response = await apiClient.getWorkflowRunTrace(executionId)
+      if (response.error) throw new Error('Failed to fetch execution logs')
+      return ((response.data as any).events || []).map((log: unknown) => ExecutionLogSchema.parse(log))
     },
 
     /**
      * Cancel running execution
      */
     cancel: async (executionId: string): Promise<{ success: boolean }> => {
-      const response = await apiClient.post(`/executions/${executionId}/cancel`)
+      const response = await apiClient.cancelWorkflowRun(executionId)
+      if (response.error) throw new Error('Failed to cancel execution')
+      return { success: true }
+    },
+  },
+
+  /**
+   * File endpoints
+   */
+  files: {
+    /**
+     * List all files
+     */
+    list: async () => {
+      const response = await apiClient.listFiles()
+      if (response.error) throw new Error('Failed to fetch files')
       return response.data
+    },
+
+    /**
+     * Upload file
+     */
+    upload: async (file: File) => {
+      const response = await apiClient.uploadFile(file)
+      if (response.error) throw new Error('Failed to upload file')
+      return response.data
+    },
+
+    /**
+     * Download file
+     */
+    download: async (id: string) => {
+      return apiClient.downloadFile(id)
+    },
+
+    /**
+     * Delete file
+     */
+    delete: async (id: string) => {
+      const response = await apiClient.deleteFile(id)
+      if (response.error) throw new Error('Failed to delete file')
     },
   },
 }
-
-/**
- * API Error Handler
- * Can be used to intercept and handle API errors globally
- */
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response) {
-      // Server responded with error status
-      console.error('API Error:', error.response.status, error.response.data)
-    } else if (error.request) {
-      // Request made but no response received
-      console.error('Network Error: No response from server')
-    } else {
-      // Error in request configuration
-      console.error('Request Error:', error.message)
-    }
-    return Promise.reject(error)
-  }
-)
 
 export default api
