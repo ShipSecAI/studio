@@ -15,12 +15,15 @@ This plan is written for an LLM coding agent ("Agent"). Each phase ends with a h
 | Phase 5.5 | ✅ Complete | File Storage & Component Registry API |
 | Phase 5.9 | ✅ Complete | Component SDK Package Separation |
 | Phase 5.10 | ✅ Complete | Testing Infrastructure & Unit Tests (72/72 tests ✅) |
-| Phase 5.11 | ⏳ Pending | Remove Stub Implementations |
+| Phase 5.11 | ✅ Complete | Remove Stub Implementations (Docker runner, real components) |
 | Phase 6 | ⏳ Partial | Execution Trace Foundation (in-memory only) |
+| Phase 6.5 | ✅ Complete | Component Metadata Sync |
+| Phase 6.6 | ✅ Complete | Dynamic Runtime Inputs & File Upload |
+| Phase 6.7 | ⏳ In Progress | Workflow Save Fix |
 | Phase 7 | ⏸️ On Hold | Frontend Integration |
 | Phase 8 | ⏳ Pending | Final Review & Roadmap |
 
-**Current Focus:** Phase 5.11 - Remove Stub Implementations (Docker runner, real components)
+**Current Focus:** Phase 6.7 - Workflow Save Fix (investigating Zod validation error)
 
 ---
 ## Phase 1 – Workflow Storage & CRUD API
@@ -467,5 +470,47 @@ Successfully implemented real HTTP POST/PUT/PATCH functionality:
 **Status**: ✅ COMPLETE - Frontend is 100% backend-driven for components
 
 See: `.ai/FRONTEND-CLEANUP-COMPLETE.md` for detailed documentation
+
+---
+## Phase 6.6 – Dynamic Runtime Inputs & File Upload ✅ **COMPLETE**
+
+**Goal:** Implement dynamic runtime inputs for Manual Trigger with file upload support.
+
+**Completed Features:**
+- [x] **Manual Trigger v2.0.0** - Dynamic output ports based on `runtimeInputs` parameter
+- [x] **RuntimeInputsEditor** - Visual editor for configuring runtime inputs (file, text, number, JSON, array)
+- [x] **RunWorkflowDialog** - UI for collecting runtime inputs before workflow execution
+- [x] **Connection Validation Fix** - Dynamic outputs properly recognized in validation (`file` → `string` mapping)
+- [x] **New Components** - Text Splitter and Console Log for data pipeline support
+- [x] **Component Enhancements**:
+  - File Loader: added `textContent` output for UTF-8 decoded content
+  - Subfinder: accepts array of domains, added domain/subdomain count outputs
+- [x] **Worker Runtime Integration** - Runtime inputs merged into `__runtimeData` for Manual Trigger
+- [x] **UI Primitives** - Created dialog, label, select, textarea components
+
+**Status**: ✅ COMPLETE - Dynamic runtime inputs fully functional
+
+**Commit**: `feat: implement dynamic runtime inputs for Manual Trigger with file upload support` (6c4005e)
+
+---
+## Phase 6.7 – Workflow Save Fix ⏳ **IN PROGRESS**
+
+**Goal:** Fix workflow save functionality that's currently failing with Zod validation errors.
+
+**Current Issue:**
+- Save operation fails with error: `nodes: expected array, received undefined`
+- Serialization passes correctly (logs show `nodes: Array(1), edges: []`)
+- Error occurs somewhere in the API layer between serialization and backend call
+
+**Investigation Steps:**
+- [x] Add debug logging to `serializeWorkflowForCreate`
+- [x] Add debug logging to `api.workflows.create`
+- [ ] Identify where `nodes` and `edges` become `undefined`
+- [ ] Fix the data flow issue
+- [ ] Verify save operation works end-to-end
+- [ ] Remove debug logging
+- [ ] Test with complex workflow (multiple nodes, edges, connections)
+
+**Status**: ⏳ IN PROGRESS - Currently investigating API layer
 
 ---
