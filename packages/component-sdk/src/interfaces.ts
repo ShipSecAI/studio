@@ -74,14 +74,17 @@ export interface ITraceService {
   record(event: TraceEvent): void;
 }
 
+export type TraceEventLevel = 'debug' | 'info' | 'warn' | 'error';
+
 export interface TraceEvent {
   type: 'NODE_STARTED' | 'NODE_COMPLETED' | 'NODE_FAILED' | 'NODE_PROGRESS';
   runId: string;
   nodeRef: string;
   timestamp: string;
+  level: TraceEventLevel;
   message?: string;
   error?: string;
   outputSummary?: unknown;
+  data?: unknown;
 }
-
 

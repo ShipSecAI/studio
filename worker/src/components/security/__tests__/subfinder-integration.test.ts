@@ -28,7 +28,8 @@ describe('Subfinder Integration (Docker)', () => {
           console.error(msg);
         },
       },
-      emitProgress: (message: string) => {
+      emitProgress: (progress) => {
+        const message = typeof progress === 'string' ? progress : progress.message;
         logs.push(`PROGRESS: ${message}`);
         console.log(`Progress: ${message}`);
       },

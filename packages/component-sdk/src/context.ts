@@ -1,4 +1,4 @@
-import type { ExecutionContext, Logger } from './types';
+import type { ExecutionContext, Logger, ProgressEventInput } from './types';
 import type {
   IFileStorageService,
   ISecretsService,
@@ -23,15 +23,22 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     error: (...args: unknown[]) => console.error(`[${componentRef}]`, ...args),
   };
 
-  const emitProgress = (message: string) => {
-    console.log(`[${componentRef}] progress: ${message}`);
+  const emitProgress = (progress: ProgressEventInput | string) => {
+    const normalized: ProgressEventInput =
+      typeof progress === 'string' ? { message: progress, level: 'info' } : progress;
+    const level = normalized.level ?? 'info';
+    const message = normalized.message;
+
+    console.log(`[${componentRef}] progress [${level}]: ${message}`);
     if (trace) {
       trace.record({
         type: 'NODE_PROGRESS',
         runId,
         nodeRef: componentRef,
         timestamp: new Date().toISOString(),
+        level,
         message,
+        data: normalized.data,
       });
     }
   };
@@ -47,5 +54,4 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     trace,
   };
 }
-
 

@@ -24,7 +24,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["bun-types"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

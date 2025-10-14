@@ -80,7 +80,40 @@ describe('ExecutionContext', () => {
     expect(recordedEvents[0].runId).toBe('test-run-789');
     expect(recordedEvents[0].nodeRef).toBe('progress.test');
     expect(recordedEvents[0].message).toBe('Processing step 1');
+    expect(recordedEvents[0].level).toBe('info');
     expect(recordedEvents[1].message).toBe('Processing step 2');
+    expect(recordedEvents[1].level).toBe('info');
+  });
+
+  it('should support structured progress payloads', () => {
+    const recordedEvents: TraceEvent[] = [];
+    const mockTrace = {
+      record: (event: TraceEvent) => {
+        recordedEvents.push(event);
+      },
+    };
+
+    const context = createExecutionContext({
+      runId: 'run-structured',
+      componentRef: 'structured.component',
+      trace: mockTrace,
+    });
+
+    context.emitProgress({
+      message: 'Retrying webhook',
+      level: 'warn',
+      data: { attempt: 2 },
+    });
+
+    expect(recordedEvents).toHaveLength(1);
+    expect(recordedEvents[0]).toMatchObject({
+      type: 'NODE_PROGRESS',
+      runId: 'run-structured',
+      nodeRef: 'structured.component',
+      level: 'warn',
+      message: 'Retrying webhook',
+      data: { attempt: 2 },
+    });
   });
 
   it('should work without optional services', () => {
@@ -98,4 +131,3 @@ describe('ExecutionContext', () => {
     expect(() => context.emitProgress('test')).not.toThrow();
   });
 });
-

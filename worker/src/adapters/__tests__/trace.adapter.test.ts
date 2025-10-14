@@ -31,6 +31,7 @@ describe('TraceAdapter', () => {
         runId: 'test-run-123',
         nodeRef: 'node-1',
         timestamp: new Date().toISOString(),
+        level: 'info',
       };
 
       adapter.record(event);
@@ -47,6 +48,7 @@ describe('TraceAdapter', () => {
           runId: 'run-456',
           nodeRef: 'node-1',
           timestamp: new Date().toISOString(),
+          level: 'info',
         },
         {
           type: 'NODE_PROGRESS',
@@ -54,6 +56,7 @@ describe('TraceAdapter', () => {
           nodeRef: 'node-1',
           timestamp: new Date().toISOString(),
           message: 'Processing...',
+          level: 'info',
         },
         {
           type: 'NODE_COMPLETED',
@@ -61,6 +64,7 @@ describe('TraceAdapter', () => {
           nodeRef: 'node-1',
           timestamp: new Date().toISOString(),
           outputSummary: { result: 'success' },
+          level: 'info',
         },
       ];
 
@@ -80,6 +84,7 @@ describe('TraceAdapter', () => {
         nodeRef: 'node-2',
         timestamp: new Date().toISOString(),
         message: 'Step 1 complete',
+        level: 'info',
       };
 
       const failedEvent: TraceEvent = {
@@ -88,6 +93,7 @@ describe('TraceAdapter', () => {
         nodeRef: 'node-3',
         timestamp: new Date().toISOString(),
         error: 'Timeout error',
+        level: 'error',
       };
 
       adapter.record(progressEvent);
@@ -106,6 +112,7 @@ describe('TraceAdapter', () => {
         runId: 'run-1',
         nodeRef: 'node-a',
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
 
       adapter.record({
@@ -113,6 +120,7 @@ describe('TraceAdapter', () => {
         runId: 'run-2',
         nodeRef: 'node-b',
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
 
       adapter.record({
@@ -120,6 +128,7 @@ describe('TraceAdapter', () => {
         runId: 'run-1',
         nodeRef: 'node-a',
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
 
       const run1Events = adapter.getEvents('run-1');
@@ -148,6 +157,7 @@ describe('TraceAdapter', () => {
         runId: 'run-order',
         nodeRef: 'node-1',
         timestamp: timestamps[0],
+        level: 'info',
       });
 
       adapter.record({
@@ -155,6 +165,7 @@ describe('TraceAdapter', () => {
         runId: 'run-order',
         nodeRef: 'node-1',
         timestamp: timestamps[1],
+        level: 'info',
       });
 
       adapter.record({
@@ -162,6 +173,7 @@ describe('TraceAdapter', () => {
         runId: 'run-order',
         nodeRef: 'node-1',
         timestamp: timestamps[2],
+        level: 'info',
       });
 
       const events = adapter.getEvents('run-order');
@@ -176,6 +188,7 @@ describe('TraceAdapter', () => {
         runId: 'run-clear-1',
         nodeRef: 'node-1',
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
 
       adapter.record({
@@ -183,6 +196,7 @@ describe('TraceAdapter', () => {
         runId: 'run-clear-2',
         nodeRef: 'node-2',
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
 
       expect(adapter.getEvents('run-clear-1')).toHaveLength(1);
@@ -202,6 +216,7 @@ describe('TraceAdapter', () => {
         runId: 'run-finalize',
         nodeRef: 'node-1',
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
       adapter.setRunMetadata('run-finalize', { workflowId: 'wf' });
 
@@ -213,6 +228,7 @@ describe('TraceAdapter', () => {
         runId: 'run-finalize',
         nodeRef: 'node-2',
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
       expect(adapter.getEvents('run-finalize')).toHaveLength(1);
     });
@@ -229,6 +245,7 @@ describe('TraceAdapter', () => {
         runId: 'test',
         nodeRef: 'ref',
         timestamp: new Date().toISOString(),
+        level: 'info',
       };
 
       const nodeCompleted: TraceEvent = {
@@ -237,6 +254,7 @@ describe('TraceAdapter', () => {
         nodeRef: 'ref',
         timestamp: new Date().toISOString(),
         outputSummary: { data: 'value' },
+        level: 'info',
       };
 
       const nodeFailed: TraceEvent = {
@@ -245,6 +263,7 @@ describe('TraceAdapter', () => {
         nodeRef: 'ref',
         timestamp: new Date().toISOString(),
         error: 'Error message',
+        level: 'error',
       };
 
       const nodeProgress: TraceEvent = {
@@ -253,6 +272,7 @@ describe('TraceAdapter', () => {
         nodeRef: 'ref',
         timestamp: new Date().toISOString(),
         message: 'Progress message',
+        level: 'info',
       };
 
       // Should not throw
@@ -276,6 +296,8 @@ describe('TraceAdapter', () => {
         nodeRef: 'node-p',
         timestamp,
         message: 'Persist me',
+        level: 'warn',
+        data: { attempt: 2 },
       });
 
       // Flush async persistence
@@ -289,6 +311,9 @@ describe('TraceAdapter', () => {
         type: 'NODE_PROGRESS',
         nodeRef: 'node-p',
         sequence: 1,
+        level: 'warn',
+        message: 'Persist me',
+        data: { attempt: 2 },
       });
     });
   });

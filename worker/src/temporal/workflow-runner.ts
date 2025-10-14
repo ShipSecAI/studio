@@ -43,6 +43,7 @@ export async function executeWorkflow(
         runId,
         nodeRef: action.ref,
         timestamp: new Date().toISOString(),
+        level: 'info',
       });
 
       // Merge params with inputs for entrypoint
@@ -60,6 +61,12 @@ export async function executeWorkflow(
             nodeRef: action.ref,
             timestamp: new Date().toISOString(),
             message: `Input '${targetKey}' mapped from ${mapping.sourceRef}.${mapping.sourceHandle} was undefined`,
+            level: 'warn',
+            data: {
+              target: targetKey,
+              sourceRef: mapping.sourceRef,
+              sourceHandle: mapping.sourceHandle,
+            },
           });
         }
       }
@@ -101,6 +108,7 @@ export async function executeWorkflow(
           nodeRef: action.ref,
           timestamp: new Date().toISOString(),
           outputSummary: output,
+          level: 'info',
         });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -110,6 +118,7 @@ export async function executeWorkflow(
           nodeRef: action.ref,
           timestamp: new Date().toISOString(),
           error: errorMsg,
+          level: 'error',
         });
         throw error;
       }

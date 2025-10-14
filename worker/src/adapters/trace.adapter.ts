@@ -20,7 +20,9 @@ export class TraceAdapter implements ITraceService {
     list.push(event);
     this.eventsByRun.set(event.runId, list);
 
-    console.log(`[TRACE] ${event.type} - ${event.nodeRef}:`, event.message || '');
+    const context =
+      event.message !== undefined ? `${event.type} - ${event.nodeRef}: ${event.message}` : `${event.type} - ${event.nodeRef}`;
+    console.log(`[TRACE][${event.level}] ${context}`);
 
     if (!this.db) {
       return;
@@ -70,23 +72,12 @@ export class TraceAdapter implements ITraceService {
       type: event.type,
       nodeRef: event.nodeRef,
       timestamp: new Date(event.timestamp),
-      message: 'message' in event ? event.message ?? null : null,
-      error: 'error' in event ? event.error ?? null : null,
-      outputSummary: 'outputSummary' in event ? event.outputSummary ?? null : null,
-      level: this.determineLevel(event),
-      data: null,
+      message: event.message ?? null,
+      error: event.error ?? null,
+      outputSummary: event.outputSummary ?? null,
+      level: event.level,
+      data: event.data ?? null,
       sequence,
     });
-  }
-
-  private determineLevel(event: TraceEvent): string {
-    switch (event.type) {
-      case 'NODE_FAILED':
-        return 'error';
-      case 'NODE_PROGRESS':
-        return event.message?.toLowerCase().includes('retry') ? 'warn' : 'info';
-      default:
-        return 'info';
-    }
   }
 }

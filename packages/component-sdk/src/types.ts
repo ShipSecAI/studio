@@ -5,6 +5,7 @@ import type {
   IFileStorageService,
   ISecretsService,
   ITraceService,
+  TraceEventLevel,
 } from './interfaces';
 
 export type RunnerKind = 'inline' | 'docker' | 'remote';
@@ -38,6 +39,12 @@ export type RunnerConfig =
 export interface Logger {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
+}
+
+export interface ProgressEventInput {
+  message: string;
+  level?: TraceEventLevel;
+  data?: unknown;
 }
 
 export type ComponentPortType = 'string' | 'array' | 'object' | 'file' | 'any';
@@ -126,7 +133,7 @@ export interface ExecutionContext {
   runId: string;
   componentRef: string;
   logger: Logger;
-  emitProgress: (message: string) => void;
+  emitProgress: (progress: ProgressEventInput | string) => void;
 
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;

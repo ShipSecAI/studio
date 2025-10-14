@@ -15,7 +15,10 @@ describe('Docker Runner', () => {
         info: (...args: unknown[]) => logs.push(`INFO: ${args.join(' ')}`),
         error: (...args: unknown[]) => logs.push(`ERROR: ${args.join(' ')}`),
       },
-      emitProgress: (message: string) => logs.push(`PROGRESS: ${message}`),
+      emitProgress: (progress) => {
+        const message = typeof progress === 'string' ? progress : progress.message;
+        logs.push(`PROGRESS: ${message}`);
+      },
     };
   });
 

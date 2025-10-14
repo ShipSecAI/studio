@@ -19,6 +19,7 @@
     "test": "(cd packages/component-sdk && bun test) && (cd worker && bun test) && (cd backend && bun test) && (cd frontend && bun run test)"
   },
   "devDependencies": {
+    "bun-types": "^1.3.0",
     "openapi-typescript": "^7.9.1",
     "pm2": "^6.0.13",
     "tsx": "^4.20.6"
