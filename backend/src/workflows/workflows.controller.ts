@@ -40,8 +40,10 @@ export class WorkflowsController {
   }
 
   @Put(':id')
-  @UsePipes(new ZodValidationPipe(WorkflowGraphSchema))
-  async update(@Param('id') id: string, @Body() body: UpdateWorkflowRequestDto) {
+  async update(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(WorkflowGraphSchema)) body: UpdateWorkflowRequestDto,
+  ) {
     return this.workflowsService.update(id, body);
   }
 

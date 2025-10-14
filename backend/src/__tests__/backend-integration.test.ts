@@ -10,6 +10,51 @@ import { randomUUID } from 'node:crypto';
 
 const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
 
+const baseUrl =
+  process.env.BACKEND_BASE_URL ??
+  `http://localhost:${process.env.BACKEND_PORT ?? process.env.PORT ?? '3211'}`;
+
+const api = (path: string) => `${baseUrl}${path}`;
+
+type WorkflowNodePayload = {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: { label: string; config: Record<string, unknown> };
+};
+
+type WorkflowPayload = {
+  name: string;
+  description?: string;
+  nodes: WorkflowNodePayload[];
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string;
+    targetHandle?: string;
+  }>;
+  viewport: { x: number; y: number; zoom: number };
+};
+
+const normalizeNode = (override: Partial<WorkflowNodePayload> = {}): WorkflowNodePayload => ({
+  id: override.id ?? 'node-1',
+  type: override.type ?? 'core.trigger.manual',
+  position: override.position ?? { x: 0, y: 0 },
+  data: {
+    label: override.data?.label ?? 'Manual Trigger',
+    config: override.data?.config ?? {},
+  },
+});
+
+const buildWorkflowGraph = (overrides: Partial<WorkflowPayload> = {}): WorkflowPayload => ({
+  name: overrides.name ?? `Test Workflow ${randomUUID().slice(0, 8)}`,
+  description: overrides.description ?? 'Integration test workflow',
+  nodes: (overrides.nodes ?? [normalizeNode()]).map((node) => normalizeNode(node)),
+  edges: overrides.edges ?? [],
+  viewport: overrides.viewport ?? { x: 0, y: 0, zoom: 1 },
+});
+
 (runIntegration ? describe : describe.skip)('Backend Integration Tests', () => {
   let app: INestApplication;
   let pool: Pool;
@@ -66,7 +111,7 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
 
   describe('Health Check', () => {
     it('should list workflows (basic connectivity test)', async () => {
-      const response = await fetch('http://localhost:3000/workflows');
+      const response = await fetch(api('/workflows'));
       expect(response.ok).toBe(true);
       const data = await response.json();
       expect(Array.isArray(data)).toBe(true);
@@ -75,25 +120,9 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
 
   describe('Workflow CRUD API', () => {
     it('should create a new workflow', async () => {
-      const workflowData = {
-        name: 'Test Workflow',
-        description: 'Integration test workflow',
-        nodes: [
-          {
-            id: 'node-1',
-            type: 'core.trigger.manual',
-            position: { x: 0, y: 0 },
-            data: {
-              label: 'Manual Trigger',
-              config: {},
-            },
-          },
-        ],
-        edges: [],
-        viewport: { x: 0, y: 0, zoom: 1 },
-      };
+      const workflowData = buildWorkflowGraph({ name: 'Test Workflow' });
 
-      const response = await fetch('http://localhost:3000/workflows', {
+      const response = await fetch(api('/workflows'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowData),
@@ -104,66 +133,61 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
       expect(workflow).toHaveProperty('id');
       expect(workflow.name).toBe(workflowData.name);
       expect(workflow.description).toBe(workflowData.description);
+      expect(workflow.nodes[0].data).toEqual(workflowData.nodes[0].data);
     });
 
     it('should list all workflows', async () => {
       // Create test workflows
-      const baseWorkflow = {
-        nodes: [{ id: 'n1', type: 'core.trigger.manual', label: 'Trigger', position: { x: 0, y: 0 } }],
-        edges: [],
-        viewport: { x: 0, y: 0, zoom: 1 },
-      };
-      await fetch('http://localhost:3000/workflows', {
+      await fetch(api('/workflows'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...baseWorkflow, name: 'Workflow 1' }),
+        body: JSON.stringify(buildWorkflowGraph({ name: 'Workflow 1' })),
       });
-      await fetch('http://localhost:3000/workflows', {
+      await fetch(api('/workflows'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...baseWorkflow, name: 'Workflow 2' }),
+        body: JSON.stringify(buildWorkflowGraph({ name: 'Workflow 2' })),
       });
 
-      const response = await fetch('http://localhost:3000/workflows');
+      const response = await fetch(api('/workflows'));
       expect(response.ok).toBe(true);
       const workflows = await response.json();
       expect(Array.isArray(workflows)).toBe(true);
       expect(workflows.length).toBeGreaterThanOrEqual(2);
+      workflows.forEach((w: any) => {
+        expect(Array.isArray(w.nodes)).toBe(true);
+        expect(w.nodes[0]).toHaveProperty('data');
+      });
     });
 
     it('should get a workflow by id', async () => {
       // Create a workflow first
-      const createResponse = await fetch('http://localhost:3000/workflows', {
+      const createResponse = await fetch(api('/workflows'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'Test Workflow',
-          nodes: [{ id: 'n1', type: 'core.trigger.manual', label: 'Trigger', position: { x: 0, y: 0 } }],
-          edges: [],
-          viewport: { x: 0, y: 0, zoom: 1 },
-        }),
+        body: JSON.stringify(buildWorkflowGraph({ name: 'Test Workflow' })),
       });
       const created = await createResponse.json();
 
       // Get the workflow
-      const response = await fetch(`http://localhost:3000/workflows/${created.id}`);
+      const response = await fetch(api(`/workflows/${created.id}`));
       expect(response.ok).toBe(true);
       const workflow = await response.json();
       expect(workflow.id).toBe(created.id);
       expect(workflow.name).toBe('Test Workflow');
+      expect(workflow.nodes[0].data.label).toBe('Manual Trigger');
     });
 
     it('should update a workflow', async () => {
       // Create a workflow first
-      const createResponse = await fetch('http://localhost:3000/workflows', {
+      const originalGraph = buildWorkflowGraph({
+        name: 'Original Title',
+        nodes: [{ id: 'node-update' }],
+      });
+      const createResponse = await fetch(api('/workflows'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'Original Title',
-          nodes: [{ id: 'n1', type: 'core.trigger.manual', label: 'Trigger', position: { x: 0, y: 0 } }],
-          edges: [],
-          viewport: { x: 0, y: 0, zoom: 1 },
-        }),
+        body: JSON.stringify(originalGraph),
       });
       const created = await createResponse.json();
 
@@ -171,113 +195,75 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
       expect(created).toHaveProperty('id');
       expect(created.name).toBe('Original Title');
 
-      // Note: Workflow updates may require all fields from the schema
-      // For now, verify we can fetch the created workflow
-      const getResponse = await fetch(`http://localhost:3000/workflows/${created.id}`);
-      expect(getResponse.ok).toBe(true);
-      const fetched = await getResponse.json();
-      expect(fetched.id).toBe(created.id);
+      const updatePayload = buildWorkflowGraph({
+        name: 'Updated Title',
+        description: 'Updated description',
+        nodes: [
+          {
+            id: originalGraph.nodes[0].id,
+            data: { label: 'Updated Trigger', config: { message: 'hello' } },
+            position: { x: 42, y: 24 },
+            type: originalGraph.nodes[0].type,
+          },
+        ],
+      });
+
+      const updateResponse = await fetch(api(`/workflows/${created.id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload),
+      });
+
+      expect(updateResponse.ok).toBe(true);
+      const updated = await updateResponse.json();
+      expect(updated.name).toBe('Updated Title');
+      expect(updated.description).toBe('Updated description');
+      expect(updated.nodes[0].data.label).toBe('Updated Trigger');
+      expect(updated.nodes[0].data.config).toEqual({ message: 'hello' });
     });
   });
 
   describe('Workflow Commit API', () => {
     it('should commit a workflow definition', async () => {
       // Create a workflow first
-      const createResponse = await fetch('http://localhost:3000/workflows', {
+      const createResponse = await fetch(api('/workflows'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'Test Workflow',
-          nodes: [{ id: 'n1', type: 'core.trigger.manual', label: 'Trigger', position: { x: 0, y: 0 } }],
-          edges: [],
-          viewport: { x: 0, y: 0, zoom: 1 },
-        }),
+        body: JSON.stringify(buildWorkflowGraph({ name: 'Commit Workflow' })),
       });
       const workflow = await createResponse.json();
 
-      // Commit a definition
-      const definition = {
-        title: 'Test Workflow',
-        description: 'A test workflow',
-        config: {
-          environment: 'test',
-          timeoutSeconds: 60,
-        },
-        entrypoint: {
-          ref: 'n1',
-        },
-        actions: [
-          {
-            ref: 'n1',
-            componentId: 'core.trigger.manual',
-            params: {},
-            dependsOn: [],
-          },
-        ],
-      };
-
-      const response = await fetch(`http://localhost:3000/workflows/${workflow.id}/commit`, {
+      const response = await fetch(api(`/workflows/${workflow.id}/commit`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(definition),
       });
 
       expect(response.ok).toBe(true);
       const compiled = await response.json();
-      
-      // The commit endpoint returns the compiled workflow definition
-      expect(compiled).toHaveProperty('title');
-      expect(compiled).toHaveProperty('entrypoint');
-      expect(compiled).toHaveProperty('actions');
-      expect(compiled.title).toBe(definition.title);
-      expect(compiled.entrypoint.ref).toBe(definition.entrypoint.ref);
-      expect(compiled.actions.length).toBe(definition.actions.length);
+      expect(compiled.title).toBe('Commit Workflow');
+      expect(compiled.entrypoint.ref).toBe(workflow.nodes[0].id);
+      expect(Array.isArray(compiled.actions)).toBe(true);
+      expect(compiled.actions[0].componentId).toBe(workflow.nodes[0].type);
     });
 
-    it('should reject invalid workflow definition', async () => {
-      // Create a workflow first
-      const createResponse = await fetch('http://localhost:3000/workflows', {
+    it('should fail to commit when workflow contains unknown components', async () => {
+      const invalidGraph = buildWorkflowGraph({
+        name: 'Invalid Component Workflow',
+        nodes: [{ id: 'bad-node', type: 'non.existent.component' }],
+      });
+
+      const createResponse = await fetch(api('/workflows'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'Test Workflow',
-          nodes: [{ id: 'n1', type: 'core.trigger.manual', label: 'Trigger', position: { x: 0, y: 0 } }],
-          edges: [],
-          viewport: { x: 0, y: 0, zoom: 1 },
-        }),
+        body: JSON.stringify(invalidGraph),
       });
       const workflow = await createResponse.json();
 
-      // Try to commit invalid definition (unknown component)
-      const definition = {
-        title: 'Test Workflow',
-        config: {
-          environment: 'test',
-        },
-        entrypoint: {
-          ref: 'invalid',
-        },
-        actions: [
-          {
-            ref: 'invalid',
-            componentId: 'non.existent.component',
-            params: {},
-            dependsOn: [],
-          },
-        ],
-      };
-
-      const response = await fetch(`http://localhost:3000/workflows/${workflow.id}/commit`, {
+      const response = await fetch(api(`/workflows/${workflow.id}/commit`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(definition),
       });
 
-      // Should succeed since the compiler only validates component IDs from the graph nodes
-      // The definition actions are what get committed, not validated against the graph
-      expect(response.ok).toBe(true);
-      const compiled = await response.json();
-      expect(compiled).toHaveProperty('actions');
+      expect(response.ok).toBe(false);
+      expect(response.status).toBeGreaterThanOrEqual(400);
     });
   });
 
@@ -290,7 +276,7 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
       const formData = new FormData();
       formData.append('file', blob, fileName);
 
-      const response = await fetch('http://localhost:3000/files/upload', {
+      const response = await fetch(api('/files/upload'), {
         method: 'POST',
         body: formData,
       });
@@ -312,14 +298,14 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
       const formData = new FormData();
       formData.append('file', blob, 'test.txt');
 
-      const uploadResponse = await fetch('http://localhost:3000/files/upload', {
+      const uploadResponse = await fetch(api('/files/upload'), {
         method: 'POST',
         body: formData,
       });
       const uploadedFile = await uploadResponse.json();
 
       // List files
-      const response = await fetch('http://localhost:3000/files');
+      const response = await fetch(api('/files'));
       expect(response.ok).toBe(true);
       const files = await response.json();
       expect(Array.isArray(files)).toBe(true);
@@ -337,14 +323,14 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
       const formData = new FormData();
       formData.append('file', blob, 'download-test.txt');
 
-      const uploadResponse = await fetch('http://localhost:3000/files/upload', {
+      const uploadResponse = await fetch(api('/files/upload'), {
         method: 'POST',
         body: formData,
       });
       const uploadedFile = await uploadResponse.json();
 
       // Download the file
-      const response = await fetch(`http://localhost:3000/files/${uploadedFile.id}/download`);
+      const response = await fetch(api(`/files/${uploadedFile.id}/download`));
       expect(response.ok).toBe(true);
       const downloadedContent = await response.text();
       expect(downloadedContent).toBe(content);
@@ -359,20 +345,20 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
       const formData = new FormData();
       formData.append('file', blob, 'delete-test.txt');
 
-      const uploadResponse = await fetch('http://localhost:3000/files/upload', {
+      const uploadResponse = await fetch(api('/files/upload'), {
         method: 'POST',
         body: formData,
       });
       const uploadedFile = await uploadResponse.json();
 
       // Delete the file
-      const response = await fetch(`http://localhost:3000/files/${uploadedFile.id}`, {
+      const response = await fetch(api(`/files/${uploadedFile.id}`), {
         method: 'DELETE',
       });
       expect(response.ok).toBe(true);
 
       // Verify it's deleted
-      const listResponse = await fetch('http://localhost:3000/files');
+      const listResponse = await fetch(api('/files'));
       const files = await listResponse.json();
       expect(files.some((f: any) => f.id === uploadedFile.id)).toBe(false);
     });
@@ -380,7 +366,7 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
 
   describe('Component Registry API', () => {
     it('should list all components', async () => {
-      const response = await fetch('http://localhost:3000/components');
+      const response = await fetch(api('/components'));
       expect(response.ok).toBe(true);
       const components = await response.json();
       expect(Array.isArray(components)).toBe(true);
@@ -395,17 +381,18 @@ const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
     });
 
     it('should get a specific component by id', async () => {
-      const response = await fetch('http://localhost:3000/components/core.trigger.manual');
+      const response = await fetch(api('/components/core.trigger.manual'));
       expect(response.ok).toBe(true);
       const component = await response.json();
       expect(component.id).toBe('core.trigger.manual');
       expect(component).toHaveProperty('name');
-      expect(component).toHaveProperty('inputSchema');
-      expect(component).toHaveProperty('outputSchema');
+      expect(Array.isArray(component.inputs)).toBe(true);
+      expect(Array.isArray(component.outputs)).toBe(true);
+      expect(Array.isArray(component.parameters)).toBe(true);
     });
 
     it('should return 404 for non-existent component', async () => {
-      const response = await fetch('http://localhost:3000/components/non.existent.component');
+      const response = await fetch(api('/components/non.existent.component'));
       expect(response.ok).toBe(false);
       expect(response.status).toBe(404);
     });

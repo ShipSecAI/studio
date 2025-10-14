@@ -10,6 +10,14 @@
 - **Frontend consumption:** `ExecutionStatusResponseSchema` requires UUIDs and lowercase statuses (`running`, `completed`, etc.), causing Zod validation failures when parsing backend responses (`shipsec-run-*`, uppercase). `ExecutionLogSchema` also enforces UUID IDs, so trace events fail parse. `useExecutionStore.startExecution` still mocks executions, while polling fetches backend endpoints but discards failures caused by schema mismatch.
 - **Tests:** `bun run test --filter workflows.service` fails because the monorepo `test` script chains multiple `bun test` commands before the `--filter` flag. No automated verification executed during this audit due to that wrapper. Dedicated backend test invocation will need a different command.
 
+## 2025-10-14 · Phase 2 Environment & Tests
+
+- **Infrastructure prerequisites:** Docker Engine 28.5.1 and Compose 2.40.0 available locally; `docker compose up -d` brings up Postgres, Temporal, Temporal UI, and MinIO (all healthy). This supersedes the earlier note about missing binaries.
+- **Runtime orchestration:** Backend + workers launched with `npx pm2 start pm2.config.cjs`. A lingering `bun --watch src/main.ts` process on port 3211 caused initial `EADDRINUSE`; killed PID 3153772 to stabilise the pm2-managed backend. Health check: `curl -sf http://localhost:3211/health` returns `{"status":"ok",...}`.
+- **Test execution:** Ran `bun test` inside `backend/`; contract-focused suites (`workflows.http.spec.ts`, `workflows.service.spec.ts`, `trace.service.spec.ts`, DSL compiler) pass. Legacy HTTP integration suite remains skipped pending dedicated fixtures.
+- **Integration suite:** Enabled via `RUN_BACKEND_INTEGRATION=true bun test` while backend runs under pm2. Updated fixtures to align with shared workflow schema and uncovered a validation bug—`PUT /workflows/:id` applied the Zod pipe to the `id` route param, returning 400. Fixed by moving the pipe onto `@Body(...)` so updates now succeed end-to-end.
+- **Observations:** `pm2.config.cjs` invokes `bun --watch`; pm2 restarts can stack if manual runs leave orphan processes. Always clean stray Bun processes (`lsof -i :3211`) before restarting pm2 to avoid port conflicts.
+
 ## Live Run UX
 - Canvas node states: idle, running (pulsing), success (green), failure (shaking red). Edges animate data flow.
 - Bottom console streams structured logs per node; supports filters and artifact previews.

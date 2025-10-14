@@ -222,7 +222,9 @@ Document project-specific shortcuts or scripts in this section as they evolve so
 
 **Change Log**
 
-- `2025-10-14` – Added workflow run metadata + trace level/data persistence; Phase 2 backend alignment underway.
+- `2025-10-14` – Refreshed backend integration suite to shared workflow schema; corrected `PUT /workflows/:id` Zod validation by scoping the pipe to the request body.
+- `2025-10-14` – Validated backend contract tests (`bun test` in `backend/`) with Docker stack + pm2-managed runtime; documented environment runbook updates.
+- `2025-10-14` – Added workflow run metadata + trace level/data persistence; Phase 2 backend alignment underway.
 - `2025-10-13` – Added execution contract spec (`docs/execution-contract.md`) and shared TypeScript schemas via `@shipsec/shared`.
 - `2025-10-13` – Added operational runbook and local environment guidance.
 - `2025-10-13` – Replaced legacy implementation plan with observability-focused roadmap (this document).
