@@ -80,9 +80,10 @@ export class ShipSecApiClient {
     });
   }
 
-  async runWorkflow(id: string) {
+  async runWorkflow(id: string, body?: paths['/workflows/{id}/run']['post']['requestBody']['content']['application/json']) {
     return this.client.POST('/workflows/{id}/run', {
       params: { path: { id } },
+      body,
     });
   }
 
@@ -92,16 +93,16 @@ export class ShipSecApiClient {
     return this.client.GET('/workflows/runs/{runId}/status', {
       params: { 
         path: { runId },
-        query: { temporalRunId: temporalRunId || '' } as any,
+        query: temporalRunId ? { temporalRunId } : {},
       },
     });
   }
 
   async getWorkflowRunResult(runId: string, temporalRunId?: string) {
     return this.client.GET('/workflows/runs/{runId}/result', {
-      params: { 
+      params: {
         path: { runId },
-        query: { temporalRunId: temporalRunId || '' } as any,
+        query: temporalRunId ? { temporalRunId } : {},
       },
     });
   }
@@ -191,4 +192,3 @@ export function createShipSecClient(config?: ClientConfig) {
 
 // Export types for consumers
 export type * from './client';
-

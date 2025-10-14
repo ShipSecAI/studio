@@ -58,7 +58,7 @@ This plan supersedes the previous implementation playbook. It focuses on deliver
 - [x] Add database migration extending `workflow_traces` with `level` and `data` columns.
 - [x] Normalize Temporal statuses → new enum; include timestamps and failure info in `WorkflowsService` responses.
 - [x] Persist workflow run metadata (run → workflow mapping, total actions) for progress calculations.
-- [ ] Ensure run IDs and Temporal IDs stay consistent (`shipsec-run-*`).
+- [x] Ensure run IDs and Temporal IDs stay consistent (`shipsec-run-*`).
 - [x] Update `TraceService` to emit deterministic event IDs (`${sequence}`) and attach new fields.
 - [x] Compute progress counters (completed/total actions) for status response.
 - [ ] Tests:

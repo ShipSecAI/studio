@@ -443,22 +443,62 @@
                         "type": "string",
                         "example": "core.file.loader"
                       },
+                      "slug": {
+                        "type": "string",
+                        "example": "file-loader"
+                      },
                       "name": {
                         "type": "string",
                         "example": "File Loader"
                       },
-                      "description": {
+                      "version": {
                         "type": "string",
-                        "example": "Load files from filesystem"
+                        "example": "1.0.0"
+                      },
+                      "type": {
+                        "type": "string",
+                        "example": "input"
                       },
                       "category": {
                         "type": "string",
                         "example": "input-output"
                       },
+                      "description": {
+                        "type": "string",
+                        "example": "Load files from filesystem"
+                      },
+                      "icon": {
+                        "type": "string",
+                        "example": "FileUp"
+                      },
+                      "logo": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "author": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "shipsecai",
+                              "community"
+                            ]
+                          },
+                          "url": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      },
                       "runner": {
                         "type": "object",
                         "properties": {
-                          "type": {
+                          "kind": {
                             "type": "string",
                             "enum": [
                               "inline",
@@ -466,16 +506,147 @@
                               "remote"
                             ],
                             "example": "inline"
+                          },
+                          "image": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "command": {
+                            "type": "array",
+                            "nullable": true,
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       },
-                      "inputSchema": {
-                        "type": "object",
-                        "description": "JSON Schema for component inputs"
+                      "inputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "string",
+                                "array",
+                                "object",
+                                "file",
+                                "any"
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "description": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        }
                       },
-                      "outputSchema": {
-                        "type": "object",
-                        "description": "JSON Schema for component outputs"
+                      "outputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "string",
+                                "array",
+                                "object",
+                                "file",
+                                "any"
+                              ]
+                            },
+                            "description": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        }
+                      },
+                      "parameters": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "textarea",
+                                "number",
+                                "boolean",
+                                "select",
+                                "multi-select",
+                                "json"
+                              ]
+                            },
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "default": {
+                              "nullable": true
+                            },
+                            "placeholder": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "description": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "helpText": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "options": {
+                              "type": "array",
+                              "nullable": true,
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "value": {}
+                                }
+                              }
+                            },
+                            "min": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "max": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "rows": {
+                              "type": "number",
+                              "nullable": true
+                            }
+                          }
+                        }
                       }
                     }
                   }
