@@ -9,7 +9,8 @@
     "build": "bun build src/main.ts --outdir build --target bun",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "generate:openapi": "bun scripts/generate-openapi.ts"
+    "generate:openapi": "bun scripts/generate-openapi.ts",
+    "migration:smoke": "bun scripts/migration-smoke.ts"
   },
   "dependencies": {
     "@shipsec/shared": "workspace:*",
@@ -42,6 +43,7 @@
     "@types/pg": "^8.15.5",
     "bun-types": "^1.2.23",
     "drizzle-kit": "^0.31.5",
+    "supertest": "^7.1.4",
     "typescript": "^5.6.3"
   }
 }

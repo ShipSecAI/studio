@@ -46,6 +46,8 @@ bun run test
 bun run --filter backend test
 bun run lint
 bun run typecheck
+# Migration smoke test (runs migrations inside a rollback transaction)
+bun --cwd backend run migration:smoke
 ```
 
 ## Shutting Down

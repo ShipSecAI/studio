@@ -61,10 +61,10 @@ This plan supersedes the previous implementation playbook. It focuses on deliver
 - [x] Ensure run IDs and Temporal IDs stay consistent (`shipsec-run-*`).
 - [x] Update `TraceService` to emit deterministic event IDs (`${sequence}`) and attach new fields.
 - [x] Compute progress counters (completed/total actions) for status response.
-- [ ] Tests:
-  - Unit tests for status normalization and trace mapping.
-  - Integration test hitting `/status` and `/trace`, asserting schema compliance.
-  - Migration smoke test (`bun run db:migrate && bun run db:rollback`).
+- [x] Tests:
+  - Unit tests for status normalization and trace mapping (`backend/src/workflows/__tests__/workflows.service.spec.ts`).
+  - Integration test hitting `/status` and `/trace`, asserting schema compliance (`backend/src/workflows/__tests__/workflows.http.spec.ts`).
+  - Migration smoke test script (`bun run migration:smoke`).
 
 ---
 
