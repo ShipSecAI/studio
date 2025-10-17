@@ -1,0 +1,16 @@
+{
+  "name": "@shipsec/backend-client",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "curl -s http://localhost:3001/docs-json > openapi.json && openapi-typescript openapi.json --output src/client.ts && echo '✅ Client types regenerated from OpenAPI spec'"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.12.2"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.9.1"
+  }
+}

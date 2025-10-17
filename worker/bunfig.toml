@@ -1,0 +1,9 @@
+[test]
+# Increase timeout for integration tests
+# Default is 5000ms, we need more for Temporal workflows
+timeout = 30000
+
+# Show verbose output
+verbose = true
+
+

@@ -1,0 +1,389 @@
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { NativeConnection } from '@temporalio/worker';
+import { Client } from '@temporalio/client';
+import { Client as MinioClient } from 'minio';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { randomUUID } from 'node:crypto';
+
+import { FileStorageAdapter } from '../adapters/file-storage.adapter';
+import { TraceAdapter } from '../adapters/trace.adapter';
+import * as schema from '../adapters/schema';
+import '../components'; // Register all components
+
+describe('Worker Integration Tests', () => {
+  let temporalClient: Client;
+  let minioClient: MinioClient;
+  let pool: Pool;
+  let fileStorageAdapter: FileStorageAdapter;
+  let traceAdapter: TraceAdapter;
+  
+  // Use the test task queue - tests submit workflows to the test worker (pm2: shipsec-test-worker)
+  // Main worker uses 'shipsec-default', test worker uses 'test-worker-integration'
+  const taskQueue = 'test-worker-integration';
+  const testNamespace = process.env.TEMPORAL_NAMESPACE || 'shipsec-dev';
+
+  beforeAll(async () => {
+    console.log('🚀 Starting worker integration test setup...');
+    console.log(`   Task Queue: ${taskQueue}`);
+    console.log(`   Namespace: ${testNamespace}`);
+    
+    // Connect to Temporal (running in docker-compose)
+    temporalClient = new Client({
+      connection: await NativeConnection.connect({
+        address: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
+      }),
+      namespace: testNamespace,
+    });
+
+    // Initialize MinIO
+    minioClient = new MinioClient({
+      endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+      port: parseInt(process.env.MINIO_PORT || '9000', 10),
+      useSSL: process.env.MINIO_USE_SSL === 'true',
+      accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+      secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+    });
+
+    // Initialize PostgreSQL
+    const connectionString =
+      process.env.DATABASE_URL || 'postgresql://shipsec:shipsec@localhost:5433/shipsec';
+    pool = new Pool({ connectionString });
+    const db = drizzle(pool, { schema });
+
+    // Initialize adapters
+    const bucketName = process.env.MINIO_BUCKET_NAME || 'shipsec-files';
+    fileStorageAdapter = new FileStorageAdapter(minioClient, db, bucketName);
+    traceAdapter = new TraceAdapter(db);
+
+    // Ensure bucket exists
+    const bucketExists = await minioClient.bucketExists(bucketName);
+    if (!bucketExists) {
+      await minioClient.makeBucket(bucketName, 'us-east-1');
+    }
+
+    console.log('✅ Worker integration test setup complete');
+    console.log(`   Tests will submit workflows to: ${taskQueue} queue`);
+    console.log('   Note: Worker should be running via pm2\n');
+  });
+
+  afterAll(async () => {
+    await pool.end();
+    temporalClient.connection.close();
+    console.log('✅ Worker integration test teardown complete');
+  });
+
+  describe('Workflow Execution', () => {
+    it('should execute a simple workflow with trigger component', async () => {
+      // Import workflow function dynamically
+      const { shipsecWorkflowRun } = await import('../temporal/workflows');
+
+      // Create a minimal workflow DSL
+      const workflowDSL = {
+        title: 'Test Workflow',
+        description: 'Integration test workflow',
+        config: {
+          environment: 'test',
+          timeoutSeconds: 30,
+        },
+        entrypoint: {
+          ref: 'trigger',
+        },
+        actions: [
+          {
+            ref: 'trigger',
+            componentId: 'core.trigger.manual',
+            params: {
+              payload: {
+                test: true,
+                message: 'Integration test',
+              },
+          },
+          dependsOn: [],
+          inputMappings: {},
+        },
+        ],
+      };
+
+      const workflowId = `test-workflow-${randomUUID()}`;
+      const runId = `test-run-${randomUUID()}`;
+
+      // Start workflow
+      const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
+        taskQueue,
+        workflowId,
+        args: [
+          {
+            runId,
+            workflowId,
+            definition: workflowDSL,
+            inputs: {},
+          },
+        ],
+      });
+
+      // Wait for result (with timeout)
+      const result = await handle.result();
+
+      // Verify result
+      expect(result).toBeDefined();
+      expect(result.success).toBe(true);
+      expect(result.outputs).toBeDefined();
+      expect((result.outputs as any).trigger).toEqual({});
+    });
+
+    it('should inject services into components during execution', async () => {
+      const { shipsecWorkflowRun } = await import('../temporal/workflows');
+
+      // Upload a test file first
+      const fileId = randomUUID();
+      const fileName = 'integration-test.txt';
+      const content = 'Integration test file content';
+      const buffer = Buffer.from(content);
+
+      await fileStorageAdapter.uploadFile(fileId, fileName, buffer, 'text/plain');
+
+      // Create workflow that uses file-loader
+      const workflowDSL = {
+        title: 'File Loader Test',
+        description: 'Test service injection',
+        config: {
+          environment: 'test',
+          timeoutSeconds: 30,
+        },
+        entrypoint: {
+          ref: 'trigger',
+        },
+        actions: [
+          {
+            ref: 'trigger',
+            componentId: 'core.trigger.manual',
+            params: {},
+            dependsOn: [],
+            inputMappings: {},
+          },
+          {
+            ref: 'loader',
+            componentId: 'core.file.loader',
+            params: {
+              fileId,
+            },
+            dependsOn: ['trigger'],
+            inputMappings: {},
+          },
+        ],
+      };
+
+      const workflowId = `test-file-workflow-${randomUUID()}`;
+      const runId = `test-file-run-${randomUUID()}`;
+
+      // Start workflow
+      const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
+        taskQueue,
+        workflowId,
+        args: [
+          {
+            runId,
+            workflowId,
+            definition: workflowDSL,
+            inputs: {},
+          },
+        ],
+      });
+
+      // Wait for result
+      const result = await handle.result();
+
+      // Verify file was loaded
+      expect(result.success).toBe(true);
+      const loader = (result.outputs as any).loader;
+      expect(loader).toBeDefined();
+      expect(loader.fileId).toBe(fileId);
+      expect(loader.fileName).toBe(fileName);
+      expect(loader.mimeType).toBe('text/plain');
+      expect(loader.size).toBe(buffer.length);
+
+      // Content should be base64 encoded
+      const decodedContent = Buffer.from(loader.content, 'base64').toString();
+      expect(decodedContent).toBe(content);
+
+      // Cleanup
+      await minioClient.removeObject(
+        process.env.MINIO_BUCKET_NAME || 'shipsec-files',
+        fileId,
+      );
+    }, 60000);
+
+    it('should handle workflow failures gracefully', async () => {
+      const { shipsecWorkflowRun } = await import('../temporal/workflows');
+
+      // Create workflow with non-existent file (valid UUID format)
+      const nonExistentFileId = randomUUID();
+      
+      const workflowDSL = {
+        title: 'Failing Workflow',
+        description: 'Test error handling',
+        config: {
+          environment: 'test',
+          timeoutSeconds: 30,
+        },
+        entrypoint: {
+          ref: 'loader',
+        },
+        actions: [
+          {
+            ref: 'loader',
+            componentId: 'core.file.loader',
+            params: {
+              fileId: nonExistentFileId,
+            },
+            dependsOn: [],
+            inputMappings: {},
+          },
+        ],
+      };
+
+      const workflowId = `test-fail-workflow-${randomUUID()}`;
+      const runId = `test-fail-run-${randomUUID()}`;
+
+      // Start workflow
+      const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
+        taskQueue,
+        workflowId,
+        args: [
+          {
+            runId,
+            workflowId,
+            definition: workflowDSL,
+            inputs: {},
+          },
+        ],
+      });
+
+      // Wait for result - should fail
+      const result = await handle.result();
+
+      // Verify failure is captured
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+      // Error should mention file not being found
+      expect(
+        result.error?.includes('not found') || 
+        result.error?.includes('does not exist') ||
+        result.error?.includes('NotFound')
+      ).toBe(true);
+    }, 60000);
+
+    it('should execute multi-step workflow with dependencies', async () => {
+      const { shipsecWorkflowRun } = await import('../temporal/workflows');
+
+      // Create workflow with multiple steps
+      const workflowDSL = {
+        title: 'Multi-Step Workflow',
+        description: 'Test dependency execution',
+        config: {
+          environment: 'test',
+          timeoutSeconds: 30,
+        },
+        entrypoint: {
+          ref: 'trigger',
+        },
+        actions: [
+          {
+            ref: 'trigger',
+            componentId: 'core.trigger.manual',
+            params: {
+              payload: { step: 1 },
+            },
+            dependsOn: [],
+            inputMappings: {},
+          },
+          {
+            ref: 'step2',
+            componentId: 'core.trigger.manual',
+            params: {
+              payload: { step: 2 },
+            },
+            dependsOn: ['trigger'],
+            inputMappings: {},
+          },
+          {
+            ref: 'step3',
+            componentId: 'core.trigger.manual',
+            params: {
+              payload: { step: 3 },
+            },
+            dependsOn: ['step2'],
+            inputMappings: {},
+          },
+        ],
+      };
+
+      const workflowId = `test-multi-workflow-${randomUUID()}`;
+      const runId = `test-multi-run-${randomUUID()}`;
+
+      // Start workflow
+      const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
+        taskQueue,
+        workflowId,
+        args: [
+          {
+            runId,
+            workflowId,
+            definition: workflowDSL,
+            inputs: {},
+          },
+        ],
+      });
+
+      // Wait for result
+      const result = await handle.result();
+
+      // Verify all steps executed
+      expect(result.success).toBe(true);
+      const outputs = result.outputs as any;
+      expect(outputs.trigger).toEqual({});
+      expect(outputs.step2).toEqual({});
+      expect(outputs.step3).toEqual({});
+    }, 60000);
+  });
+
+  describe('Worker Connection and Setup', () => {
+    it('should verify Temporal server is reachable', async () => {
+      // Try to get server info
+      const connection = temporalClient.connection;
+      expect(connection).toBeDefined();
+
+      // Verify we can list workflows (even if empty)
+      const workflows = temporalClient.workflow.list();
+      let count = 0;
+      for await (const workflow of workflows) {
+        count++;
+        if (count > 10) break; // Just verify we can iterate
+      }
+
+      // If we get here without errors, connection is good
+      expect(true).toBe(true);
+    });
+
+    it('should verify database connection is working', async () => {
+      // Simple query to verify DB is accessible
+      const result = await pool.query('SELECT NOW()');
+      expect(result.rows).toBeDefined();
+      expect(result.rows.length).toBeGreaterThan(0);
+    });
+
+    it('should verify MinIO connection is working', async () => {
+      const bucketName = process.env.MINIO_BUCKET_NAME || 'shipsec-files';
+      const exists = await minioClient.bucketExists(bucketName);
+
+      // Either bucket exists or we can create it
+      if (!exists) {
+        await minioClient.makeBucket(bucketName, 'us-east-1');
+      }
+
+      const finalCheck = await minioClient.bucketExists(bucketName);
+      expect(finalCheck).toBe(true);
+    });
+  });
+});

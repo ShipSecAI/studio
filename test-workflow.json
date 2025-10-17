@@ -1,0 +1,20 @@
+{
+  "name": "Test Streaming",
+  "description": "Workflow to test live streaming",
+  "entrypoint": {
+    "ref": "test-node"
+  },
+  "actions": [
+    {
+      "ref": "test-node",
+      "componentId": "console-log",
+      "params": {
+        "message": "Hello from streaming test!"
+      }
+    }
+  ],
+  "config": {
+    "environment": "node",
+    "timeoutSeconds": 60
+  }
+}
