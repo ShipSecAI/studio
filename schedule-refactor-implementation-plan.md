@@ -1,6 +1,6 @@
-# ShipSec Studio – Workflow Scheduler Refactor Plan
+# ShipSec Studio – Workflow Orchestration Refactor Plan
 
-This document lays out the refactor required to bring our workflow runtime on par with best-in-class orchestration engines (e.g., Tracecat). The focus is a deterministic, parallel-capable scheduler that preserves full DAG structure, emits rich traces, and keeps components isolated. Treat each phase as independently reviewable and insist on tests before advancing.
+We’re refitting the runtime so each workflow node executes with Temporal-grade isolation, while preserving DAG-driven scheduling, trace fidelity, and component ergonomics. The target state mirrors Tracecat’s approach: the workflow orchestrates, but each component runs inside its own Temporal activity (or child workflow), giving us retries, timeouts, and concurrency at the framework level.
 
 ---
 
@@ -8,160 +8,159 @@ This document lays out the refactor required to bring our workflow runtime on pa
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 0 | ⚪ Not Started | Baseline Audit & Gap Analysis |
-| Phase 1 | ⚪ Not Started | DSL & Schema Enrichment |
-| Phase 2 | ⚪ Not Started | Scheduler Core Implementation |
-| Phase 3 | ⚪ Not Started | Context, Services & Tracing Hardening |
-| Phase 4 | ⚪ Not Started | Error Handling & Join Semantics |
-| Phase 5 | ⚪ Not Started | Integration Tests & Temporal Validation |
-| Phase 6 | ⚪ Not Started | Frontend & API Alignment |
-| Phase 7 | ⚪ Not Started | Performance, Guardrails & Rollout |
+| Phase 0 | ✅ Completed | Baseline Audit & Gap Analysis |
+| Phase 1 | ✅ Completed | DSL & Schema Enrichment |
+| Phase 2 | ✅ Completed | Scheduler Core (in-activity parallelism) |
+| Phase 3 | ⚪ Not Started | Activity-per-Component Orchestration |
+| Phase 4 | ⚪ Not Started | Context, Services & Tracing Hardening |
+| Phase 5 | ⚪ Not Started | Error Handling & Join Semantics |
+| Phase 6 | ⚪ Not Started | Integration Tests & Temporal Validation |
+| Phase 7 | ⚪ Not Started | Frontend & API Alignment |
+| Phase 8 | ⚪ Not Started | Guardrails, Concurrency Caps & Rollout |
 
-**Primary Objective:** Execute workflows with true parallelism, deterministic joins, and structured trace/log output—without regressing current behaviour.
-
----
-
-## Phase 0 – Baseline Audit & Gap Analysis
-
-**Goal:** Document exactly how the current compiler/runtime behave and identify all blockers to parallel execution.
-
-- [x] Diagram current `WorkflowDefinition` (fields emitted by `compileWorkflowGraph`) and how edges/handles map to params.
-- [x] Trace the existing worker loop (`executeWorkflow`) to highlight serialization points, shared state, and trace emissions.
-- [x] Review Temporal worker setup to confirm activity boundaries, retry policies, and service injection.
-- [x] Capture findings in `.ai/visual-execution-notes.md`, especially pain points to resolve in later phases.
-- [x] Run `bun --cwd worker test` to validate current runtime.
-- [x] Manual dry-run of a multi-branch workflow via Temporal to observe baseline behaviour.
-
-**Deliverable:** Audit notes with explicit TODOs feeding into Phases 1–4.
+**Primary Objective:** Execute workflows with deterministic DAG semantics, Temporal activity isolation for every node, and rich observability—without regressing developer ergonomics or existing components.
 
 ---
 
-## Phase 1 – DSL & Schema Enrichment
+## Phase 0 – Baseline Audit & Gap Analysis ✅
 
-**Goal:** Have the DSL compiler emit the full DAG (nodes + edges + metadata) so the worker can schedule without guesswork.
+**Goal:** Document how the current compiler/runtime behave and identify blockers to parallel execution.
 
-- [x] Extend `WorkflowDefinition` (`worker/src/temporal/types.ts`) with:
-  - `edges` array (source, target, edgeType, handles).
-  - `incomingCounts` or equivalent indegree metadata.
-  - Optional `joinStrategy`, `groupId`, `runnerConfig` overrides.
-- [x] Update `backend/src/dsl/compiler.ts` to build the enriched structure (retain adjacency, join metadata).
-- [x] Ensure component metadata (e.g., concurrency hints) is passed through. *(Added metadata fields; runtime currently supplies labels only until richer hints exist.)*
-- [x] Version the schema (e.g., `definitionVersion`) so stored workflows can be migrated.
-- [x] Tests:
-  - Unit tests for compiler (`backend/src/dsl/__tests__/compiler.spec.ts` or new) with diamonds, scatter-like graphs.
-  - Validate Zod schema or shared type definitions.
+- Diagrammed current `WorkflowDefinition` and handle mapping.
+- Traced sequential loop (`executeWorkflow`) and shared state.
+- Reviewed Temporal worker setup (single `runWorkflowActivity`).
+- Captured findings in `.ai/visual-execution-notes.md`.
+- Validated baseline with `bun --cwd worker test`.
+- Ran manual multi-branch workflow to observe serialization.
 
-> **Implementation sketch:** Introduce `WorkflowEdge` (`{ id, sourceRef, targetRef, sourceHandle?, targetHandle?, kind: 'success' | 'error' }`) and `WorkflowNodeMetadata` (`{ ref, joinStrategy?: 'all' | 'any' | 'first', maxConcurrency?: number, groupId?: string }`). `WorkflowDefinition` should gain `version`, `nodes` (map of metadata), `edges`, and retain `actions` for backward compatibility during migration. Compiler must populate these structures directly from `WorkflowGraph`, preserving all handles and categories.
-
-**Deliverable:** New workflow definition type + compiler output validated by tests.
+**Deliverable:** Audit notes feeding phases 1–4.
 
 ---
 
-## Phase 2 – Scheduler Core Implementation
+## Phase 1 – DSL & Schema Enrichment ✅
 
-**Goal:** Replace the sequential loop with an indegree-driven scheduler that executes ready nodes concurrently.
+**Goal:** Emit full DAG metadata so the worker can schedule without guesswork.
 
-- [x] Introduce a `WorkflowScheduler` module in the worker:
-  - Maintain `pendingDeps`, `dependents`, `readyQueue`, and per-node status.
-  - Dequeue zero-incoming nodes, execute batches via `Promise.allSettled`.
-  - Update downstream indegrees as parents finish.
-- [x] Build `Deferred`/`ResultHandle` so each node’s output is stored as a promise that dependents can await.
-- [ ] Respect per-node concurrency caps (from component metadata or runner config).
-- [x] Ensure entrypoint nodes consume runtime inputs without blocking others.
-- [x] Tests:
-  - Unit tests for the scheduler with synthetic components (sleep/deterministic output).
-  - Validate parallel timing (e.g., two 500 ms sleeps complete in ~500 ms).
+- Extended `WorkflowDefinition` with `version`, node metadata, edges, and dependency counts.
+- Updated compiler to populate enriched structure.
+- Added unit tests (line/diamond graphs) verifying dependency counts/handles.
+- Synced worker types with the new schema.
 
-**Deliverable:** New scheduler class with unit tests demonstrating true parallelism.
+**Deliverable:** Enriched definitions + passing tests.
 
 ---
 
-## Phase 3 – Context, Services & Tracing Hardening
+## Phase 2 – Scheduler Core (In-Activity Parallelism) ✅
 
-**Goal:** Make execution contexts concurrency-safe and instrumented.
+**Goal:** Replace the sequential loop with an indegree-driven scheduler while still running inside a single activity.
 
-- [ ] Refactor `createExecutionContext` to produce immutable per-node contexts, including `streamId`/`branchId`.
-- [ ] Guard adapters (`TraceAdapter`, log adapter, storage) against concurrent access (per-run maps, locks, or clones).
-- [ ] Emit structured trace events (`NODE_STARTED`, `NODE_COMPLETED`, `NODE_FAILED`, `NODE_SKIPPED`) with timestamps and metadata.
-- [ ] Ensure log forwarding includes node metadata for downstream consumers.
-- [ ] Propagate runner config (`inline`, `docker`, `remote`) without breaking the new concurrency model.
+- Implemented `runWorkflowWithScheduler` (ready queue, indegree tracking).
+- Refactored `executeWorkflow` to delegate to the scheduler and maintain traces/results.
+- Added parallel timing test (twin sleep branches) validating concurrent execution.
+- Worker integration suite remains green.
+
+**Deliverable:** Deterministic parallel execution within the existing activity boundary.
+
+---
+
+## Phase 3 – Activity-per-Component Orchestration
+
+**Goal:** Run each workflow action inside its own Temporal activity (or child workflow) while reusing the scheduler for DAG ordering.
+
+- [ ] Introduce `runComponentActivity` mirroring Tracecat’s `run_action_activity` (encapsulate execution context, logging, retries, remote executor adapters).
+- [ ] Update worker bootstrap (`dev.worker.ts`) to register new activity handlers and propagate services.
+- [ ] Adapt scheduler to enqueue actions by calling `workflow.execute_activity` (or `start_child_workflow` for special nodes) instead of inline execution.
+- [ ] Determine strategy for synchronous vs asynchronous activities (e.g., triggers vs long-running Docker jobs).
+- [ ] Ensure entrypoint and runtime inputs flow through activity payloads.
 - [ ] Tests:
-  - Concurrent trace emission unit test.
-  - Verify logs include node refs in integration harness.
+  - Temporal workflow unit tests stubbing the activity to confirm orchestration order.
+  - Activity integration test verifying retries/timeouts are applied.
 
-**Deliverable:** Thread-safe context + adapters with structured tracing.
+**Deliverable:** Workflow orchestrates; each node executes as an isolated Temporal activity.
 
 ---
 
-## Phase 4 – Error Handling & Join Semantics
+## Phase 4 – Context, Services & Tracing Hardening
 
-**Goal:** Define deterministic behaviour for merges, failures, and skips.
+**Goal:** Make context and adapters safe across concurrent activities and branches.
 
-- [ ] Support join strategies (`all`, `any`, `first`, future-proof for `quorum`) and enforce them in the scheduler.
-- [ ] On node failure, propagate according to policy (fail workflow, skip dependents, or route to error edges when available).
+- [ ] Refactor `createExecutionContext` to emit immutable payloads suitable for serialization into activity inputs.
+- [ ] Provide per-activity trace/log adapters (no shared in-memory maps) and ensure trace events include activity IDs/stream IDs.
+- [ ] Preserve branch metadata (`streamId`, `joinStrategy`) across activity boundaries.
+- [ ] Tests:
+  - Concurrent activity trace/log emission.
+  - Adapter unit tests exercising multi-activity persistence.
+
+**Deliverable:** Thread-safe, activity-aware context + observability.
+
+---
+
+## Phase 5 – Error Handling & Join Semantics
+
+**Goal:** Define deterministic behaviour for merges, failures, and cancellation in the multi-activity world.
+
+- [ ] Implement join strategies (`all`, `any`, `first`, future `quorum`) in the scheduler; ensure activity results feed into join logic.
+- [ ] On activity failure, propagate according to policy (fail workflow, skip dependents, route to error edges).
+- [ ] Add cancellation hooks so upstream cancellation can short-circuit queued activities.
 - [ ] Ensure undefined inputs throw deterministic errors (no silent `warn` + continue).
-- [ ] Add cancellation hooks so upstream cancellation can short-circuit dependents.
 - [ ] Tests:
-  - Unit tests for join strategies (e.g., `any` continues after first success).
-  - Failure propagation tests for diamonds and scatter/gather.
+  - Unit tests for join strategies with mocked activity outcomes.
+  - Failure propagation tests (diamonds, scatter/gather) using activity stubs.
 
 **Deliverable:** Behaviour matrix documented + covered by tests.
 
 ---
 
-## Phase 5 – Integration Tests & Temporal Validation
+## Phase 6 – Integration Tests & Temporal Validation
 
-**Goal:** Validate the scheduler in the full Temporal worker.
+**Goal:** Validate the multi-activity architecture end-to-end.
 
-- [ ] Update `worker/src/temporal/workflow-runner.ts` to use the new scheduler and context.
-- [ ] Extend integration tests (`worker/src/temporal/__tests__/workflow-runner.test.ts`) with:
-  - Parallel fan-out/fan-in workflow.
-  - Scatter-like scenario (multiple dependents sharing a parent).
-  - Failure case ensuring run result includes error and trace data.
-- [ ] Run end-to-end Temporal workflow via `worker/scripts/workflow-runner.ts` to confirm logs/traces.
-- [ ] Benchmark simple workflows to confirm no regressions in serial cases.
+- [ ] Extend worker integration tests to assert parallel activities, retries, and failure reporting.
+- [ ] Add Temporal replay tests ensuring the workflow remains deterministic with activities.
+- [ ] Run long-lived workflows via `worker/scripts/workflow-runner.ts` to confirm logs/traces.
+- [ ] Benchmark serial vs parallel workflows and compare with pre-activity baseline.
 
-**Deliverable:** Passing Temporal integration suite demonstrating new behaviour.
+**Deliverable:** Passing integration suite demonstrating the new execution model.
 
 ---
 
-## Phase 6 – Frontend & API Alignment
+## Phase 7 – Frontend & API Alignment
 
-**Goal:** Surface the richer execution metadata to users.
+**Goal:** Surface the richer runtime metadata to users.
 
-- [ ] Update backend responses (status/trace endpoints) to emit new trace events and join info.
-- [ ] Adjust frontend stores (`executionTimelineStore`, canvas overlays) to render parallel branches and join outcomes.
-- [ ] Add UI indicators for node concurrency (e.g., multiple branches running) and improved error messaging.
-- [ ] Ensure API client shares typed definitions (via `@shipsec/shared`) reflecting schema changes.
+- [ ] Update backend status/trace APIs with activity IDs, join metadata, and failure semantics.
+- [ ] Adjust frontend stores (`executionTimelineStore`, canvas overlays) to render parallel activity states.
+- [ ] Add UI indicators for per-node retries and activity IDs.
+- [ ] Ensure `@shipsec/shared` exports updated models.
 - [ ] Tests:
-  - Frontend unit tests for timeline updates.
-  - Manual run to verify UI reflects parallelism.
+  - Frontend unit tests for activity timeline rendering.
+  - Manual workflow run verifying UI reflects parallel activities.
 
-**Deliverable:** UI + API operating with the new runtime metadata.
+**Deliverable:** UI + API aligned with activity-driven execution.
 
 ---
 
-## Phase 7 – Performance, Guardrails & Rollout
+## Phase 8 – Guardrails, Concurrency Caps & Rollout
 
-**Goal:** Harden the system for production loads and ship.
+**Goal:** Harden for production loads and deliver safely.
 
-- [ ] Add global concurrency caps and per-component rate limits (configurable).
-- [ ] Instrument metrics (queue depth, active nodes, failures) for observability.
-- [ ] Feature-flag rollout if needed (toggle between old/new scheduler during soak).
-- [ ] Write migration notes + runbook updates (e.g., how to debug runs under the new scheduler).
-- [ ] Regression suite: deterministic workflow run snapshot to guard against future changes.
+- [ ] Implement per-node and global concurrency caps (token buckets or semaphore) configured via node metadata/runner config.
+- [ ] Instrument metrics: queued activities, active activities, retries, failure rates.
+- [ ] Add feature flags to toggle between inline and activity-based execution during soak.
+- [ ] Document migration/rollback steps and update operational runbooks.
+- [ ] Build regression suite (deterministic workflow snapshot) guarding future changes.
 
-**Deliverable:** Production-ready runtime with guardrails, metrics, and documentation.
+**Deliverable:** Production-ready runtime with guardrails, observability, and rollout plan.
 
 ---
 
 ## Operational Checklist (All Phases)
 
 - Ensure Docker + pm2 stack is running (`docker compose up -d`, `pm2 start`).
-- Run targeted tests before/after major changes:
+- Run targeted tests after significant changes:
   - `bun run --filter backend test`
   - `bun --cwd worker test`
-  - `bun run test` (full suite)
+  - `bun run test`
 - Keep `.ai/visual-execution-notes.md` updated with discoveries and decisions.
 - Document partial progress in this plan (update statuses, add notes).
 
@@ -169,4 +168,5 @@ This document lays out the refactor required to bring our workflow runtime on pa
 
 ### Change Log
 
-- `2025-10-15` – Initial version drafted: parallel scheduler refactor plan.
+- `2025-10-15` – Plan updated to adopt activity-per-component orchestration following Tracecat semantics; Phases 0–2 marked completed.
+- `2025-10-15` – Initial plan drafted.
