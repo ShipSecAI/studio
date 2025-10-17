@@ -47,8 +47,8 @@ export function Canvas({ className }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
   const { getComponent } = useComponentStore()
-  const { nodeStates } = useExecutionStore()
-  const { markDirty } = useWorkflowStore()
+  const nodeStates = useExecutionStore((state) => state.nodeStates)
+  const markDirty = useWorkflowStore.use((state) => state.markDirty)
   const { selectedRunId, dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
   const { mode } = useWorkflowUiStore()
 

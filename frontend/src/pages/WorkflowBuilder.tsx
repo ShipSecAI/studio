@@ -24,7 +24,11 @@ function WorkflowBuilderContent() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const isNewWorkflow = id === 'new'
-  const { metadata, setMetadata, setWorkflowId, markClean, resetWorkflow } = useWorkflowStore()
+  const metadata = useWorkflowStore.use((state) => state.metadata)
+  const setMetadata = useWorkflowStore.use((state) => state.setMetadata)
+  const setWorkflowId = useWorkflowStore.use((state) => state.setWorkflowId)
+  const markClean = useWorkflowStore.use((state) => state.markClean)
+  const resetWorkflow = useWorkflowStore.use((state) => state.resetWorkflow)
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
   const { getComponent } = useComponentStore()
   const [isLoading, setIsLoading] = useState(false)

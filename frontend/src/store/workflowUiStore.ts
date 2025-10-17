@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { createSelectors } from './createSelectors'
 
 export type WorkflowMode = 'design' | 'review'
 
@@ -18,7 +19,7 @@ interface WorkflowUiActions {
   setInspectorWidth: (width: number) => void
 }
 
-export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
+const baseStore = create<WorkflowUiState & WorkflowUiActions>()(
   persist(
     (set) => ({
       mode: 'design',
@@ -47,3 +48,5 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
     }
   )
 )
+
+export const useWorkflowUiStore = createSelectors(baseStore)
