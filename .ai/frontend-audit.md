@@ -23,8 +23,8 @@
 - Execution timeline playback loop triggers `seek` on each frame, causing store writes and potential React Flow re-renders.
 
 ### Tooling & Config
-- `bun run lint` fails: ESLint 9 expects flat config (`eslint.config.js`) but repo still references legacy `.eslintrc` (missing in frontend).
-- No Storybook or component preview tooling configured.
+- ESLint flat-config scaffolded (`eslint.config.js`, `tsconfig.eslint.json`), plus lint plugins installed; current run still fails with 100+ import-order and unused-variable violations across UI/timeline/store modules.
+- Storybook or component preview tooling still absent.
 
 ### Tests & Quality
 - Store tests exist only for `executionStore` (`src/store/__tests__/executionStore.test.ts`).
@@ -35,5 +35,5 @@
 1. Introduce shared store selector helpers to reduce re-render pressure (`createSelectors`).
 2. Build `AppShell` layout with slots for top bar, side panels, canvas, inspector, timeline.
 3. Replace alert dialogs with toast system and consolidate error handling in services.
-4. Add ESLint flat config and ensure lint/typecheck/test commands run cleanly.
+4. Add ESLint flat config and ensure lint/typecheck/test commands run cleanly. `tsc --noEmit` currently reports 30+ issues (see Phase 0 command results).
 5. Plan Storybook (Phase 5) for complex components (Canvas, Inspector, Timeline).

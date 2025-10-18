@@ -1,8 +1,12 @@
-import { memo, useEffect, useRef, useState } from 'react'
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, EdgeProps } from 'reactflow'
-import { Package, FileText, Database, Code } from 'lucide-react'
-import { useExecutionTimelineStore, type DataPacket } from '@/store/executionTimelineStore'
+import type { ComponentType } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { EdgeProps } from 'reactflow'
+import { BaseEdge, EdgeLabelRenderer, getBezierPath } from 'reactflow'
+import { Code, Database, FileText, Package } from 'lucide-react'
+
 import { cn } from '@/lib/utils'
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
+import type { DataPacket } from '@/store/executionTimelineStore'
 
 // Data packet icon mapping
 const PACKET_ICONS = {
@@ -28,11 +32,14 @@ interface AnimatedPacket {
 }
 
 // Data packet visualization component
-const DataPacket = memo(({ packet, onHover }: {
-  packet: DataPacket;
+const DataPacketMarker = memo(({ packet, onHover }: {
+  packet: DataPacket
   onHover: (packet: DataPacket | null) => void
 }) => {
-  const IconComponent = PACKET_ICONS[packet.type] || Package
+  const IconComponent = useMemo<ComponentType<{ className?: string }>>(
+    () => PACKET_ICONS[packet.type] || Package,
+    [packet.type],
+  )
 
   const formatPayload = (payload: any): string => {
     if (typeof payload === 'string') return payload
@@ -195,7 +202,7 @@ export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data
               transform: 'translate(-50%, -50%)',
             }}
           >
-            <DataPacket
+            <DataPacketMarker
               packet={animatedPacket.packet}
               onHover={setHoveredPacket}
             />

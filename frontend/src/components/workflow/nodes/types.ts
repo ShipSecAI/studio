@@ -1,4 +1,4 @@
-import { ComponentMetadata } from '@/schemas/component'
+import type { ComponentMetadata } from '@/schemas/component'
 
 /**
  * Component category display configuration

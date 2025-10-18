@@ -1,6 +1,7 @@
 import type { Node, Edge, Connection } from 'reactflow'
-import type { NodeData } from '@/schemas/node'
+
 import type { ComponentMetadata } from '@/schemas/component'
+import type { NodeData } from '@/schemas/node'
 
 export interface ValidationResult {
   isValid: boolean

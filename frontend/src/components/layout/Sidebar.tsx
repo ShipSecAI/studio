@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
 import * as LucideIcons from 'lucide-react'
-import { useComponentStore } from '@/store/componentStore'
+import type { ComponentType, DragEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
 import { ComponentBadge } from '@/components/workflow/ComponentBadge'
 import { FileUpload } from '@/components/workflow/FileUpload'
-import type { ComponentMetadata } from '@/schemas/component'
 import { cn } from '@/lib/utils'
+import type { ComponentMetadata } from '@/schemas/component'
+import { useComponentStore } from '@/store/componentStore'
 
 const TYPE_CONFIG = {
   trigger: { label: 'Triggers', color: 'text-gray-500' },
@@ -19,11 +21,13 @@ interface ComponentItemProps {
 }
 
 function ComponentItem({ component }: ComponentItemProps) {
-  const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
-  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>
+  const IconComponent = useMemo(() => {
+    const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
+    return LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{ className?: string }>
+  }, [component.icon])
   const description = component.description || 'No description available yet.'
 
-  const onDragStart = (event: React.DragEvent) => {
+  const onDragStart = (event: DragEvent<HTMLDivElement>) => {
     // Store component ID for canvas to create node
     event.dataTransfer.setData('application/reactflow', component.id)
     event.dataTransfer.effectAllowed = 'move'

@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import {
   ExecutionStatusSchema as SharedExecutionStatusSchema,
   TraceEventSchema as SharedTraceEventSchema,
@@ -11,6 +10,7 @@ import {
   type TraceStreamEnvelope,
   type WorkflowRunStatusPayload,
 } from '@shipsec/shared'
+import { z } from 'zod'
 
 export const ExecutionStatusEnum = SharedExecutionStatusSchema
 export type ExecutionStatus = SharedExecutionStatus

@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
-import { RunSelector } from '@/components/timeline/RunSelector'
-import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
+
 import { EventInspector } from '@/components/timeline/EventInspector'
-import { Button } from '@/components/ui/button'
+import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
+import { RunSelector } from '@/components/timeline/RunSelector'
 import { Badge } from '@/components/ui/badge'
-import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
-import { useExecutionStore } from '@/store/executionStore'
-import { useWorkflowUiStore } from '@/store/workflowUiStore'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useExecutionStore } from '@/store/executionStore'
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
+import { useWorkflowUiStore } from '@/store/workflowUiStore'
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp)

@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
+
 import { Badge } from '@/components/ui/badge'
-import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { cn } from '@/lib/utils'
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   running: 'default',

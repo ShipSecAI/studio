@@ -1,7 +1,10 @@
-import { describe, it, beforeEach, expect } from 'bun:test'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { BottomPanel } from '../BottomPanel'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it } from 'bun:test'
+
 import { useExecutionStore } from '@/store/executionStore'
+
+import { BottomPanel } from '../BottomPanel'
+
 
 const iso = (offsetSeconds = 0) =>
   new Date(Date.now() + offsetSeconds * 1000).toISOString()

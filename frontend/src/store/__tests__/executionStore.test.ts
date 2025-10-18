@@ -63,8 +63,9 @@ vi.mock('@/services/api', () => ({
   },
 }))
 
-import { useExecutionStore } from '../executionStore'
 import type { ExecutionLog, ExecutionStatusResponse } from '@/schemas/execution'
+
+import { useExecutionStore } from '../executionStore'
 
 const baseStatus = (overrides: Partial<ExecutionStatusResponse> = {}): ExecutionStatusResponse => ({
   runId: 'run-1',

@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Input } from '@/components/ui/input'
+
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { RuntimeInputsEditor } from './RuntimeInputsEditor'
+import { Input } from '@/components/ui/input'
 import type { Parameter } from '@/schemas/component'
+
+import { RuntimeInputsEditor } from './RuntimeInputsEditor'
+
 
 interface ParameterFieldProps {
   parameter: Parameter

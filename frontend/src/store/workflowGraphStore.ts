@@ -1,7 +1,8 @@
-import { create } from 'zustand'
 import type { Edge } from 'reactflow'
-import type { CanvasNode, WorkflowGraphActions, WorkflowGraphState } from './workflowSlice'
+import { create } from 'zustand'
+
 import { createSelectors } from './createSelectors'
+import type { CanvasNode, WorkflowGraphActions, WorkflowGraphState } from './workflowSlice'
 
 const initialState: WorkflowGraphState = {
   nodes: [],

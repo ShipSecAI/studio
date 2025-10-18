@@ -1,9 +1,11 @@
-import { describe, it, beforeEach, expect, vi } from 'bun:test'
 import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'bun:test'
 import { MemoryRouter } from 'react-router-dom'
-import { TopBar } from '../TopBar'
+
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
+
+import { TopBar } from '../TopBar'
 
 const iso = () => new Date().toISOString()
 

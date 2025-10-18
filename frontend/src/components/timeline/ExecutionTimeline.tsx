@@ -1,4 +1,3 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Play,
   Pause,
@@ -9,17 +8,19 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState, useRef, useEffect, useCallback } from 'react'
+
 import { Badge } from '@/components/ui/badge'
-import { Slider } from '@/components/ui/slider'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
+import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 
 const PLAYBACK_SPEEDS = [
   { label: '0.1x', value: 0.1 },

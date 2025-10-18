@@ -1,14 +1,17 @@
+import type { ComponentType } from 'react'
 import { memo, useState } from 'react'
-import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow'
-import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle } from 'lucide-react'
+import { Activity, AlertCircle, CheckCircle, Clock, Loader2, XCircle } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
+import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow'
+
 import { cn } from '@/lib/utils'
+import type { NodeData } from '@/schemas/node'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
+import { useWorkflowUiStore } from '@/store/workflowUiStore'
+
 import { ComponentInfoButton } from './ComponentBadge'
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
-import type { NodeData } from '@/schemas/node'
-import { useWorkflowUiStore } from '@/store/workflowUiStore'
 
 const STATUS_ICONS = {
   running: Loader2,
@@ -66,7 +69,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
 
   // Get icon component from Lucide (only if no logo)
   const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
-  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>
+  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{ className?: string }>
 
   // Get styling based on visual state (prioritize timeline over node data)
   const effectiveStatus = mode === 'review' && selectedRunId

@@ -14,16 +14,19 @@ import {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
-import { WorkflowNode } from './WorkflowNode'
-import { ConfigPanel } from './ConfigPanel'
-import { DataFlowEdge } from '../timeline/DataFlowEdge'
-import { validateConnection } from '@/utils/connectionValidation'
+import type { NodeData } from '@/schemas/node'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
-import { useWorkflowStore } from '@/store/workflowStore'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
+import { useWorkflowStore } from '@/store/workflowStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
-import type { NodeData } from '@/schemas/node'
+import { validateConnection } from '@/utils/connectionValidation'
+
+import { DataFlowEdge } from '../timeline/DataFlowEdge'
+
+import { ConfigPanel } from './ConfigPanel'
+import { WorkflowNode } from './WorkflowNode'
+
 
 const nodeTypes = {
   workflow: WorkflowNode,

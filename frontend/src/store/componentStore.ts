@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { ComponentMetadata } from '@/schemas/component'
+
+import type { ComponentMetadata } from '@/schemas/component'
 import { api } from '@/services/api'
 
 interface ComponentStoreState {

@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { api } from '@/services/api'
+
 import type { ExecutionLog, ExecutionStatus } from '@/schemas/execution'
 import type { NodeStatus } from '@/schemas/node'
+import { api } from '@/services/api'
 
 // Types for the visual timeline system
 export interface TimelineEvent extends ExecutionLog {

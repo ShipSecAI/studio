@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { WorkflowList } from '@/pages/WorkflowList'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+
 import { WorkflowBuilder } from '@/pages/WorkflowBuilder'
+import { WorkflowList } from '@/pages/WorkflowList'
 
 function App() {
   return (

@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { NodeSchema } from './node'
+
 import { EdgeSchema } from './edge'
+import { NodeSchema } from './node'
 
 /**
  * Workflow metadata schema (for list endpoint)

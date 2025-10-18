@@ -1,4 +1,5 @@
 import type { Edge, Node } from 'reactflow'
+
 import type { NodeData } from '@/schemas/node'
 
 export interface CanvasNode extends Node<NodeData> {

@@ -11,7 +11,7 @@ This plan supersedes the previous observability roadmap for the frontend. It tar
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Phase 0 | ⚪ Not Started | Baseline Audit & UX Inventory |
-| Phase 1 | ⚪ Not Started | Architecture & Dependency Alignment |
+| Phase 1 | 🟡 In Progress | Architecture & Dependency Alignment |
 | Phase 2 | ⚪ Not Started | Core State Foundation (Zustand/Hooks) |
 | Phase 3 | ⚪ Not Started | Workflow Builder Shell & Layout System |
 | Phase 4 | ⚪ Not Started | Review Mode & Timeline Integration Cleanup |

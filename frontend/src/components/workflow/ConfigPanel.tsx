@@ -1,12 +1,15 @@
-import { X, ExternalLink } from 'lucide-react'
+import type { ComponentType } from 'react'
+import { ExternalLink, X } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
+import type { Node } from 'reactflow'
+
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import type { NodeData } from '@/schemas/node'
 import { useComponentStore } from '@/store/componentStore'
+
 import { ComponentInfoButton } from './ComponentBadge'
 import { ParameterFieldWrapper } from './ParameterField'
-import type { Node } from 'reactflow'
-import type { NodeData } from '@/schemas/node'
 
 interface ConfigPanelProps {
   selectedNode: Node<NodeData> | null
@@ -81,7 +84,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
   }
 
   const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
-  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>
+  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{ className?: string }>
 
   const componentInputs = component.inputs ?? []
   const componentParameters = component.parameters ?? []

@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
 import { ChevronDown, Clock, FileText, AlertCircle, CheckCircle, Activity } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+
 import { Badge } from '@/components/ui/badge'
-import { useExecutionTimelineStore, type TimelineEvent } from '@/store/executionTimelineStore'
 import { cn } from '@/lib/utils'
+import { useExecutionTimelineStore, type TimelineEvent } from '@/store/executionTimelineStore'
 
 const EVENT_ICONS = {
   STARTED: CheckCircle,

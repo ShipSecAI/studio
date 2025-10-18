@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
 import { ChevronDown, Play, Clock, CheckCircle, XCircle, Loader2, Wifi } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect } from 'react'
+
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,9 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useExecutionTimelineStore, type ExecutionRun } from '@/store/executionTimelineStore'
-import { useExecutionStore } from '@/store/executionStore'
 import { cn } from '@/lib/utils'
+import { useExecutionStore } from '@/store/executionStore'
+import { useExecutionTimelineStore, type ExecutionRun } from '@/store/executionTimelineStore'
 
 const STATUS_ICONS = {
   RUNNING: Loader2,

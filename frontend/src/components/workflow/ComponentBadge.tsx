@@ -1,8 +1,10 @@
+import type { ComponentType } from 'react'
+import { AlertCircle, AlertTriangle, CheckCircle, Info, Shield, Users } from 'lucide-react'
 import { useMemo } from 'react'
+
 import { Badge } from '@/components/ui/badge'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
-import { Info, CheckCircle, Users, AlertCircle, AlertTriangle, Shield } from 'lucide-react'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import type { ComponentMetadata } from '@/schemas/component'
 
@@ -16,7 +18,7 @@ interface ComponentBadgeProps {
 interface BadgeConfig {
   label: string
   variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline'
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
 }
 
 const BADGE_CONFIGS: Record<BadgeType, BadgeConfig> = {

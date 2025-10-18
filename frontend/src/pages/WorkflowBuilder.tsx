@@ -1,18 +1,19 @@
-import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { ReactFlowProvider, useReactFlow } from 'reactflow'
-import { TopBar } from '@/components/layout/TopBar'
+
 import { Sidebar } from '@/components/layout/Sidebar'
-import { Canvas } from '@/components/workflow/Canvas'
+import { TopBar } from '@/components/layout/TopBar'
 import { ReviewInspector } from '@/components/timeline/ReviewInspector'
 import { ReviewRunBanner } from '@/components/timeline/ReviewRunBanner'
+import { Canvas } from '@/components/workflow/Canvas'
 import { RunWorkflowDialog } from '@/components/workflow/RunWorkflowDialog'
+import { cn } from '@/lib/utils'
+import { api, API_BASE_URL } from '@/services/api'
+import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
-import { useComponentStore } from '@/store/componentStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
-import { api, API_BASE_URL } from '@/services/api'
-import { cn } from '@/lib/utils'
 import {
   serializeWorkflowForCreate,
   serializeWorkflowForUpdate,

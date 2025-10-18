@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api } from '@/services/api'
+
 import {
   ExecutionStatusResponseSchema,
   type ExecutionLog,
@@ -7,6 +7,7 @@ import {
   type ExecutionStatusResponse,
 } from '@/schemas/execution'
 import type { NodeStatus } from '@/schemas/node'
+import { api } from '@/services/api'
 
 type ExecutionLifecycle =
   | 'idle'

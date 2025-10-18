@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
-import { ChevronUp, ChevronDown, Terminal, X, ArrowDown, Pause, Play, Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowDown, ChevronDown, ChevronUp, Clock, Pause, Play, Terminal, X } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { EventInspector } from '@/components/timeline/EventInspector'
+import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
+import { RunSelector } from '@/components/timeline/RunSelector'
 import { useExecutionStore } from '@/store/executionStore'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
-import { RunSelector } from '@/components/timeline/RunSelector'
-import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
-import { EventInspector } from '@/components/timeline/EventInspector'
 
 export function BottomPanel() {
   const [isExpanded, setIsExpanded] = useState(false)

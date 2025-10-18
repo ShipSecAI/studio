@@ -1,7 +1,8 @@
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
-import type { NodeData } from '@/schemas/node'
+
 import type { Node, Edge } from '@/schemas'
 import { NodeSchema, EdgeSchema } from '@/schemas'
+import type { NodeData } from '@/schemas/node'
 import { CreateWorkflowSchema, UpdateWorkflowSchema } from '@/schemas/workflow'
 
 /**
