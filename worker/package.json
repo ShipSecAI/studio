@@ -19,11 +19,13 @@
   },
   "dependencies": {
     "@shipsec/component-sdk": "*",
+    "@grpc/grpc-js": "^1.14.0",
     "@temporalio/client": "^1.11.3",
     "@temporalio/worker": "^1.11.3",
     "@temporalio/workflow": "^1.11.3",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.6",
+    "long": "^5.3.2",
     "minio": "^8.0.6",
     "pg": "^8.16.3",
     "zod": "^4.1.12"

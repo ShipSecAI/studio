@@ -13,8 +13,8 @@
     "migration:smoke": "bun scripts/migration-smoke.ts"
   },
   "dependencies": {
-    "@shipsec/worker": "workspace:*",
     "@shipsec/component-sdk": "workspace:*",
+    "@shipsec/worker": "workspace:*",
     "@shipsec/shared": "workspace:*",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.2.0",

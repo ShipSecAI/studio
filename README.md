@@ -18,15 +18,18 @@ docker compose up -d
 
 # Quick health checks
 docker compose ps
-curl -f http://localhost:8080/health || echo "Temporal UI not ready yet"
+curl -f http://localhost:8081/health || echo "Temporal UI not ready yet"
 ```
+
+## Install bun
+`bun install`
 
 ## Start API & Worker with PM2
 
 The `pm2.config.cjs` file registers the backend API and Temporal worker processes.
 
 ```bash
-pm2 start
+pm2 start pm2.config.cjs
 pm2 status
 
 # Inspect logs without getting stuck in follow mode
@@ -35,6 +38,12 @@ timeout 5s pm2 logs worker --lines 50 || true
 ```
 
 > Always wrap `pm2 logs` with `timeout` (or use `--nostream`) so scripts do not hang when tailing output.
+
+To start the frontend :
+```sh
+cd frontend
+bun run dev
+```
 
 ## Running Tests and Quality Gates
 

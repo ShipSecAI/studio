@@ -23,5 +23,9 @@
     "openapi-typescript": "^7.9.1",
     "pm2": "^6.0.13",
     "tsx": "^4.20.6"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.0",
+    "long": "^5.3.2"
   }
 }

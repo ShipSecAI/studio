@@ -4,6 +4,9 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client } from 'minio';
 import { Worker, NativeConnection } from '@temporalio/worker';
+import { status as grpcStatus } from '@grpc/grpc-js';
+import Long from 'long';
+import { isGrpcServiceError } from '@temporalio/client';
 import { config } from 'dotenv';
 import { runWorkflowActivity, initializeActivityServices } from '../activities/run-workflow.activity';
 import {
@@ -31,6 +34,8 @@ async function main() {
   });
 
   console.log(`✅ Connected to Temporal`);
+
+  await ensureTemporalNamespace(connection, namespace);
 
   // Initialize database connection for worker
   const connectionString = process.env.DATABASE_URL;
@@ -109,3 +114,35 @@ main().catch((error) => {
   console.error('Temporal worker failed', error);
   process.exit(1);
 });
+
+async function ensureTemporalNamespace(connection: NativeConnection, namespace: string) {
+  try {
+    await connection.workflowService.describeNamespace({ namespace });
+    console.log(`✅ Temporal namespace "${namespace}" is ready`);
+    return;
+  } catch (error) {
+    if (!(isGrpcServiceError(error) && error.code === grpcStatus.NOT_FOUND)) {
+      throw error;
+    }
+  }
+
+  console.warn(`⚠️ Temporal namespace "${namespace}" not found; attempting to create it`);
+
+  try {
+    const defaultRetentionDays = 7;
+    await connection.workflowService.registerNamespace({
+      namespace,
+      workflowExecutionRetentionPeriod: {
+        seconds: Long.fromNumber(defaultRetentionDays * 24 * 60 * 60),
+        nanos: 0,
+      },
+    });
+    console.log(`✅ Temporal namespace "${namespace}" created`);
+  } catch (error) {
+    if (isGrpcServiceError(error) && error.code === grpcStatus.ALREADY_EXISTS) {
+      console.log(`✅ Temporal namespace "${namespace}" already exists`);
+      return;
+    }
+    throw error;
+  }
+}
