@@ -202,7 +202,7 @@ eval "$CMD"
     },
     isLatest: true,
     deprecated: false,
-    example: 'Scan hosts like scanme.sh to find exposed TCP services with Naabu.',
+    example: 'Run `naabu -host scanme.sh -top-ports 100` to quickly identify the most common open TCP ports on a target.',
     inputs: [
       {
         id: 'targets',

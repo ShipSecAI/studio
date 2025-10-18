@@ -98,7 +98,7 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
     },
     isLatest: true,
     deprecated: false,
-    example: 'Discover subdomains for example.com using passive sources before deeper scans.',
+    example: 'Run `subfinder -d example.com -silent` to passively gather subdomains before chaining into other discovery tools.',
     inputs: [
       {
         id: 'domains',
