@@ -91,6 +91,7 @@ export const ComponentMetadataSchema = z.object({
   inputs: z.array(InputPortSchema).default([]),
   outputs: z.array(OutputPortSchema).default([]),
   parameters: z.array(ParameterSchema).default([]),
+  examples: z.array(z.string()).optional().default([]),
 })
 
 export type ComponentMetadata = z.infer<typeof ComponentMetadataSchema>

@@ -133,6 +133,7 @@ export interface ComponentUiMetadata {
   inputs?: ComponentPortMetadata[];
   outputs?: ComponentPortMetadata[];
   parameters?: ComponentParameterMetadata[];
+  examples?: string[];
 }
 
 /**

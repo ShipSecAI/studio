@@ -73,6 +73,10 @@ const definition: ComponentDefinition<Input, Output> = {
         description: 'Decoded text content of the file (UTF-8).',
       },
     ],
+    examples: [
+      'Load a scope text file before passing content into Text Splitter or scanners.',
+      'Fetch uploaded configuration archives to hand off to downstream components.',
+    ],
     parameters: [],
   },
   async execute(params, context) {

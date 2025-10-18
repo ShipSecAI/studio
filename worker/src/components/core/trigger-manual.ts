@@ -47,6 +47,10 @@ const definition: ComponentDefinition<Input, Output> = {
     inputs: [],
     // Outputs are dynamic and determined by runtimeInputs parameter
     outputs: [],
+    examples: [
+      'Collect uploaded scope files or credentials before running security scans.',
+      'Prompt operators for runtime parameters such as target domains or API keys.',
+    ],
     parameters: [
       {
         id: 'runtimeInputs',
@@ -91,4 +95,3 @@ const definition: ComponentDefinition<Input, Output> = {
 };
 
 componentRegistry.register(definition);
-

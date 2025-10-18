@@ -56,6 +56,10 @@ const definition: ComponentDefinition<Input, Output> = {
         description: 'Confirmation that data was logged.',
       },
     ],
+    examples: [
+      'Preview component output before wiring into external systems.',
+      'Dump intermediate data structures while developing new workflows.',
+    ],
     parameters: [
       {
         id: 'label',
@@ -107,4 +111,3 @@ const definition: ComponentDefinition<Input, Output> = {
 };
 
 componentRegistry.register(definition);
-

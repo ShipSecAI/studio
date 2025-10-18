@@ -89,6 +89,10 @@ const definition: ComponentDefinition<Input, Output> = {
         description: 'Status information returned after sending the webhook.',
       },
     ],
+    examples: [
+      'Send scan results to Slack or Teams via incoming webhook.',
+      'POST discovered assets to a custom API for further processing.',
+    ],
     parameters: [
       {
         id: 'url',

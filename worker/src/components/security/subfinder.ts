@@ -89,7 +89,8 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
     type: 'scan',
     category: 'security-tool',
     description: 'Discover subdomains for a target domain using ProjectDiscovery subfinder.',
-    documentation: 'https://github.com/projectdiscovery/subfinder',
+    documentation: 'ProjectDiscovery Subfinder documentation details configuration, data sources, and usage examples.',
+    documentationUrl: 'https://github.com/projectdiscovery/subfinder',
     icon: 'Radar',
     author: {
       name: 'ShipSecAI',
@@ -119,6 +120,10 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
         type: 'string',
         description: 'Raw tool output for debugging.',
       },
+    ],
+    examples: [
+      'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
+      'Quick passive discovery during scope triage workflows.',
     ],
     parameters: [],
   },

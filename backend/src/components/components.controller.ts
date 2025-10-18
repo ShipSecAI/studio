@@ -36,6 +36,7 @@ function serializeComponent(component: ReturnType<typeof componentRegistry.get>)
     inputs: metadata.inputs ?? [],
     outputs: metadata.outputs ?? [],
     parameters: metadata.parameters ?? [],
+    examples: metadata.examples ?? [],
   };
 }
 
@@ -141,6 +142,10 @@ export class ComponentsController {
                 rows: { type: 'number', nullable: true },
               },
             },
+          },
+          examples: {
+            type: 'array',
+            items: { type: 'string' },
           },
         },
       },
