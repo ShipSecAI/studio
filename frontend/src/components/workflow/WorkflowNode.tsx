@@ -1,7 +1,7 @@
-import type { ComponentType } from 'react'
-import { memo, useState } from 'react'
 import { Activity, AlertCircle, CheckCircle, Clock, Loader2, XCircle } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
+import type { ComponentType } from 'react'
+import { memo, useState } from 'react'
 import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow'
 
 import { cn } from '@/lib/utils'
@@ -41,7 +41,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     startTime: 0,
     eventCount: 0,
     lastEvent: null,
-    dataFlow: { input: [], output: [] }
+    dataFlow: { input: [], output: [] },
   }
 
   // Get component metadata
@@ -433,3 +433,4 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     </div>
   )
 })
+WorkflowNode.displayName = 'WorkflowNode'

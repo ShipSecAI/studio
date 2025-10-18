@@ -1,6 +1,6 @@
-import type { ComponentType } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
+import type { ComponentType } from 'react'
 import type { Node } from 'reactflow'
 
 import { Button } from '@/components/ui/button'

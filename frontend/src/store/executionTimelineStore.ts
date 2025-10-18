@@ -81,36 +81,23 @@ export interface TimelineState {
 }
 
 export interface TimelineActions {
-  // Run management
   loadRuns: () => Promise<void>
-  selectRun: (runId: string) => Promise<void>
-
-  // Timeline loading
-  loadTimeline: (runId: string) => Promise<void>
-
-  // Playback controls
+  selectRun: (_runId: string) => Promise<void>
+  loadTimeline: (_runId: string) => Promise<void>
   play: () => void
   pause: () => void
-  seek: (timeMs: number) => void
-  setPlaybackSpeed: (speed: number) => void
+  seek: (_timeMs: number) => void
+  setPlaybackSpeed: (_speed: number) => void
   stepForward: () => void
   stepBackward: () => void
-
-  // Node interaction
-  selectNode: (nodeId: string) => void
-  selectEvent: (eventId: string | null) => void
-
-  // UI controls
+  selectNode: (_nodeId: string) => void
+  selectEvent: (_eventId: string | null) => void
   toggleTimeline: () => void
   toggleEventInspector: () => void
-  setTimelineZoom: (zoom: number) => void
-
-  // Live updates
-  updateFromLiveEvent: (event: ExecutionLog) => void
+  setTimelineZoom: (_zoom: number) => void
+  updateFromLiveEvent: (_event: ExecutionLog) => void
   switchToLiveMode: () => void
-  appendDataFlows: (packets: DataPacket[]) => void
-
-  // Cleanup
+  appendDataFlows: (_packets: DataPacket[]) => void
   reset: () => void
 }
 
@@ -480,26 +467,28 @@ export const initializeTimelineStore = () => {
   const { useExecutionStore } = require('./executionStore')
 
   unsubscribeExecutionStore = useExecutionStore.subscribe(
-    (state) => state.logs,
-    (logs) => {
+    (state: { logs: ExecutionLog[]; runId: string | null }) => ({
+      logs: state.logs,
+      runId: state.runId,
+    }),
+    ({ logs, runId }: { logs: ExecutionLog[]; runId: string | null }) => {
       const timelineStore = useExecutionTimelineStore.getState()
-      if (timelineStore.playbackMode === 'live' && timelineStore.selectedRunId === state.runId) {
-        // Update timeline with new logs
+      if (timelineStore.playbackMode === 'live' && timelineStore.selectedRunId === runId) {
         const {
           events,
           totalDuration,
-          timelineStartTime
+          timelineStartTime,
         } = prepareTimelineEvents(logs)
         const currentTime = totalDuration
 
-        timelineStore.setState({
+        useExecutionTimelineStore.setState({
           events,
           totalDuration,
           timelineStartTime,
           currentTime,
-          nodeStates: calculateNodeStates(events, currentTime, timelineStartTime)
+          nodeStates: calculateNodeStates(events, currentTime, timelineStartTime),
         })
       }
-    }
+    },
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ReactFlowProvider, useReactFlow } from 'reactflow'
 
@@ -25,11 +26,19 @@ function WorkflowBuilderContent() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const isNewWorkflow = id === 'new'
-  const metadata = useWorkflowStore.use((state) => state.metadata)
-  const setMetadata = useWorkflowStore.use((state) => state.setMetadata)
-  const setWorkflowId = useWorkflowStore.use((state) => state.setWorkflowId)
-  const markClean = useWorkflowStore.use((state) => state.markClean)
-  const resetWorkflow = useWorkflowStore.use((state) => state.resetWorkflow)
+  const {
+    metadata,
+    setMetadata,
+    setWorkflowId,
+    markClean,
+    resetWorkflow,
+  } = useWorkflowStore((state) => ({
+    metadata: state.metadata,
+    setMetadata: state.setMetadata,
+    setWorkflowId: state.setWorkflowId,
+    markClean: state.markClean,
+    resetWorkflow: state.resetWorkflow,
+  }))
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
   const { getComponent } = useComponentStore()
   const [isLoading, setIsLoading] = useState(false)
@@ -233,7 +242,7 @@ function WorkflowBuilderContent() {
     }
   }
 
-  const handleInspectorResizeStart = useCallback((event: React.MouseEvent) => {
+  const handleInspectorResizeStart = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     if (mode !== 'review') {
       return
     }

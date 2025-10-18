@@ -62,11 +62,7 @@ export function RunSelector() {
     switchToLiveMode,
   } = useExecutionTimelineStore()
 
-  const {
-    runId: currentLiveRunId,
-    status: currentLiveStatus,
-    workflowId: currentWorkflowId,
-  } = useExecutionStore()
+  const { runId: currentLiveRunId } = useExecutionStore()
 
   // Load runs on mount
   useEffect(() => {

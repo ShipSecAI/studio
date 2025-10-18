@@ -1,6 +1,12 @@
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths } from './client';
 
+type RunWorkflowRequestBody = paths['/workflows/{id}/run']['post']['requestBody'] extends {
+  content: { 'application/json': infer T }
+}
+  ? T
+  : Record<string, unknown>;
+
 export interface ClientConfig {
   baseUrl?: string;
   headers?: Record<string, string>;
@@ -80,30 +86,33 @@ export class ShipSecApiClient {
     });
   }
 
-  async runWorkflow(id: string, body?: paths['/workflows/{id}/run']['post']['requestBody']['content']['application/json']) {
-    return this.client.POST('/workflows/{id}/run', {
-      params: { path: { id } },
-      body,
-    });
+  async runWorkflow(id: string, body?: RunWorkflowRequestBody) {
+    const request = body !== undefined
+      ? { params: { path: { id } }, body }
+      : { params: { path: { id } } };
+
+    return this.client.POST('/workflows/{id}/run', request as any);
   }
 
   // ===== Workflow Runs =====
   
   async getWorkflowRunStatus(runId: string, temporalRunId?: string) {
+    const params = temporalRunId
+      ? { path: { runId }, query: { temporalRunId } }
+      : { path: { runId } };
+
     return this.client.GET('/workflows/runs/{runId}/status', {
-      params: { 
-        path: { runId },
-        query: temporalRunId ? { temporalRunId } : {},
-      },
+      params: params as any,
     });
   }
 
   async getWorkflowRunResult(runId: string, temporalRunId?: string) {
+    const params = temporalRunId
+      ? { path: { runId }, query: { temporalRunId } }
+      : { path: { runId } };
+
     return this.client.GET('/workflows/runs/{runId}/result', {
-      params: {
-        path: { runId },
-        query: temporalRunId ? { temporalRunId } : {},
-      },
+      params: params as any,
     });
   }
 
@@ -114,11 +123,12 @@ export class ShipSecApiClient {
   }
 
   async cancelWorkflowRun(runId: string, temporalRunId?: string) {
+    const params = temporalRunId
+      ? { path: { runId }, query: { temporalRunId } }
+      : { path: { runId } };
+
     return this.client.POST('/workflows/runs/{runId}/cancel', {
-      params: { 
-        path: { runId },
-        query: { temporalRunId: temporalRunId || '' } as any,
-      },
+      params: params as any,
     });
   }
 

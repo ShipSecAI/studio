@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
+import type { DragEvent } from 'react'
 import {
   ReactFlow,
   Background,
@@ -51,8 +52,8 @@ export function Canvas({ className }: CanvasProps) {
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
   const { getComponent } = useComponentStore()
   const nodeStates = useExecutionStore((state) => state.nodeStates)
-  const markDirty = useWorkflowStore.use((state) => state.markDirty)
-  const { selectedRunId, dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
+  const markDirty = useWorkflowStore((state) => state.markDirty)
+  const { dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
   const { mode } = useWorkflowUiStore()
 
   useEffect(() => {
@@ -83,7 +84,8 @@ export function Canvas({ className }: CanvasProps) {
           const edgeToRemove = removedEdges.find(edge => edge && edge.target === node.id)
           if (edgeToRemove && edgeToRemove.targetHandle && node.data.inputs?.[edgeToRemove.targetHandle]) {
             const targetHandle = edgeToRemove.targetHandle
-            const { [targetHandle]: removed, ...remainingInputs } = node.data.inputs
+            const remainingInputs = { ...node.data.inputs }
+            delete remainingInputs[targetHandle]
             return {
               ...node,
               data: {
@@ -176,14 +178,14 @@ export function Canvas({ className }: CanvasProps) {
     [setEdges, setNodes, nodes, edges, getComponent, markDirty, mode]
   )
 
-  const onDragOver = useCallback((event: React.DragEvent) => {
+  const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (mode !== 'design') return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
   }, [mode])
 
   const onDrop = useCallback(
-    (event: React.DragEvent) => {
+    (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault()
 
       if (mode !== 'design') return

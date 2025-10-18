@@ -1,7 +1,6 @@
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 
-import { createSelectors } from './createSelectors'
 import type { CanvasNode, WorkflowGraphActions, WorkflowGraphState } from './workflowSlice'
 
 const initialState: WorkflowGraphState = {
@@ -11,7 +10,7 @@ const initialState: WorkflowGraphState = {
 
 type WorkflowGraphStore = WorkflowGraphState & WorkflowGraphActions
 
-const baseStore = create<WorkflowGraphStore>()((set) => ({
+export const useWorkflowGraphStore = create<WorkflowGraphStore>()((set) => ({
   ...initialState,
 
   setNodes: (nodes: CanvasNode[]) => {
@@ -30,5 +29,3 @@ const baseStore = create<WorkflowGraphStore>()((set) => ({
     set(initialState)
   },
 }))
-
-export const useWorkflowGraphStore = createSelectors(baseStore)

@@ -1,8 +1,8 @@
+import { Code, Database, FileText, Package } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { EdgeProps } from 'reactflow'
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from 'reactflow'
-import { Code, Database, FileText, Package } from 'lucide-react'
+import { BaseEdge, EdgeLabelRenderer, Position, getBezierPath } from 'reactflow'
 
 import { cn } from '@/lib/utils'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
@@ -31,11 +31,13 @@ interface AnimatedPacket {
   element: HTMLDivElement | null
 }
 
-// Data packet visualization component
-const DataPacketMarker = memo(({ packet, onHover }: {
+interface DataPacketMarkerProps {
   packet: DataPacket
-  onHover: (packet: DataPacket | null) => void
-}) => {
+  onHover: (_packet: DataPacket | null) => void
+}
+
+// Data packet visualization component
+const DataPacketMarker = memo(({ packet, onHover }: DataPacketMarkerProps) => {
   const IconComponent = useMemo<ComponentType<{ className?: string }>>(
     () => PACKET_ICONS[packet.type] || Package,
     [packet.type],
@@ -63,18 +65,26 @@ const DataPacketMarker = memo(({ packet, onHover }: {
     </div>
   )
 })
+DataPacketMarker.displayName = 'DataPacketMarker'
 
 // Enhanced edge with data flow visualization
-export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data }: DataFlowEdgeProps) => {
+export const DataFlowEdge = memo(({
+  id,
+  source,
+  sourceX,
+  sourceY,
+  target,
+  targetX,
+  targetY,
+  data,
+}: DataFlowEdgeProps) => {
   const [hoveredPacket, setHoveredPacket] = useState<DataPacket | null>(null)
   const [animatedPackets, setAnimatedPackets] = useState<AnimatedPacket[]>([])
   const [edgePath, setEdgePath] = useState<string>('')
-  const containerRef = useRef<HTMLDivElement>(null)
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number | null>(null)
 
   const {
     currentTime,
-    totalDuration,
     isPlaying,
     playbackSpeed,
     playbackMode,
@@ -82,22 +92,28 @@ export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data
     selectedRunId,
   } = useExecutionTimelineStore()
 
-  const packets = data?.packets || dataFlows.filter(
-    packet =>
-      packet.sourceNode === source &&
-      packet.targetNode === target &&
-      new Date(packet.timestamp).getTime() <= currentTime
-  )
+  const packets = useMemo(() => {
+    if (data?.packets) {
+      return data.packets
+    }
+
+    return dataFlows.filter(
+      (packet) =>
+        packet.sourceNode === source &&
+        packet.targetNode === target &&
+        new Date(packet.timestamp).getTime() <= currentTime,
+    )
+  }, [currentTime, data?.packets, dataFlows, source, target])
 
   // Calculate Bezier path for the edge
   useEffect(() => {
     const [path] = getBezierPath({
       sourceX,
       sourceY,
-      sourcePosition: 'right',
+      sourcePosition: Position.Right,
       targetX,
       targetY,
-      targetPosition: 'left',
+      targetPosition: Position.Left,
     })
     setEdgePath(path)
   }, [sourceX, sourceY, targetX, targetY])
@@ -110,7 +126,7 @@ export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data
     }
 
     // Clear existing animation
-    if (animationRef.current) {
+    if (animationRef.current !== null) {
       cancelAnimationFrame(animationRef.current)
     }
 
@@ -142,7 +158,7 @@ export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data
     animate()
 
     return () => {
-      if (animationRef.current) {
+      if (animationRef.current !== null) {
         cancelAnimationFrame(animationRef.current)
       }
     }
@@ -179,13 +195,11 @@ export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data
       <BaseEdge
         id={id}
         path={edgePath}
-        className={cn(
-          "stroke-2 transition-all duration-300",
-          data?.isHighlighted
-            ? "stroke-blue-500 stroke-[3]"
-            : "stroke-gray-400",
-          packets.length > 0 && "stroke-blue-400"
-        )}
+        style={{
+          stroke: data?.isHighlighted ? '#3b82f6' : packets.length > 0 ? '#60a5fa' : '#9ca3af',
+          strokeWidth: data?.isHighlighted ? 3 : 2,
+          transition: 'stroke 0.3s ease, stroke-width 0.3s ease',
+        }}
         markerEnd="url(#arrowhead)"
       />
 
@@ -253,18 +267,6 @@ export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data
       )}
 
       {/* Container for positioning elements */}
-      <div
-        ref={containerRef}
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          zIndex: 5,
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0
-        }}
-      />
     </>
   )
 })

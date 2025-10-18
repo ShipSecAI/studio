@@ -1,5 +1,5 @@
-import type { ComponentType } from 'react'
 import { AlertCircle, AlertTriangle, CheckCircle, Info, Shield, Users } from 'lucide-react'
+import type { ComponentType } from 'react'
 import { useMemo } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -75,22 +75,9 @@ export function ComponentBadge({ type, version }: ComponentBadgeProps) {
 }
 
 /**
- * Get badge type from component metadata
- */
-export function getBadgeTypeFromComponent(
-  component: ComponentMetadata
-): BadgeType {
-  const isLatest = component.isLatest ?? true
-  if (component.deprecated) return 'deprecated'
-  if (!isLatest) return 'outdated'
-  if (isLatest) return 'latest'
-  return component.author?.type === 'shipsecai' ? 'official' : 'community'
-}
-
-/**
  * ComponentBadges - Display all relevant badges for a component
  */
-export function useComponentBadges(component: ComponentMetadata) {
+function useComponentBadges(component: ComponentMetadata) {
   return useMemo(() => {
     const badges: Array<{ type: BadgeType; version?: string }> = []
     const isLatest = component.isLatest ?? true

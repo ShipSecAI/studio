@@ -54,7 +54,7 @@ export function validateConnection(
   connection: Connection,
   nodes: Node<NodeData>[],
   edges: Edge[],
-  getComponent: (slug: string) => ComponentMetadata | null
+  getComponent: (_componentRef: string) => ComponentMetadata | null
 ): ValidationResult {
   const { source, target, sourceHandle, targetHandle } = connection
 

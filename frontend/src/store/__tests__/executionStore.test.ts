@@ -1,24 +1,29 @@
-import { describe, it, beforeEach, afterEach, expect, vi } from 'bun:test'
+import { describe, it, beforeEach, afterEach, expect, mock, vi } from 'bun:test'
 
 // Mock EventSource for streaming tests
+type EventCallback = (_event: MessageEvent) => void
+
 class MockEventSource {
-  static events: Record<string, ((event: MessageEvent) => void)[]> = {}
+  static events: Record<string, EventCallback[]> = {}
   url: string
   readyState: number = 0
+  onopen: ((_event: Event) => void) | null = null
+  onmessage: ((_event: MessageEvent) => void) | null = null
+  onerror: ((_event: Event) => void) | null = null
 
   constructor(url: string) {
     this.url = url
     this.readyState = 1 // OPEN
   }
 
-  addEventListener(event: string, callback: (event: MessageEvent) => void) {
+  addEventListener(event: string, callback: EventCallback) {
     if (!MockEventSource.events[event]) {
       MockEventSource.events[event] = []
     }
     MockEventSource.events[event].push(callback)
   }
 
-  removeEventListener(event: string, callback: (event: MessageEvent) => void) {
+  removeEventListener(event: string, callback: EventCallback) {
     if (MockEventSource.events[event]) {
       MockEventSource.events[event] = MockEventSource.events[event].filter(cb => cb !== callback)
     }
@@ -52,11 +57,11 @@ const mockExecutions = {
   stream: vi.fn(),
 }
 
-vi.mock('@/services/api', () => ({
+mock.module('@/services/api', () => ({
   api: {
     executions: {
       ...mockExecutions,
-      stream: vi.fn((runId: string, options?: any) => {
+      stream: vi.fn((runId: string) => {
         return new MockEventSource(`/api/workflows/runs/${runId}/stream`)
       }),
     },
@@ -90,7 +95,11 @@ const event = (overrides: Partial<ExecutionLog> = {}): ExecutionLog => ({
 
 beforeEach(() => {
   useExecutionStore.getState().reset()
-  vi.resetAllMocks()
+  Object.values(mockExecutions).forEach((fn) => {
+    if (typeof (fn as any).mockReset === 'function') {
+      ;(fn as any).mockReset()
+    }
+  })
   MockEventSource.reset()
 
   // Mock EventSource globally

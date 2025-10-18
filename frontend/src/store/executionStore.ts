@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { subscribeWithSelector } from 'zustand/middleware'
 
 import {
   ExecutionStatusResponseSchema,
@@ -25,9 +26,9 @@ interface ExecutionStoreState {
   logs: ExecutionLog[]
   nodeStates: Record<string, NodeStatus>
   cursor: string | null
-  pollingInterval: NodeJS.Timeout | null
+  pollingInterval: ReturnType<typeof setInterval> | null
   eventSource: EventSource | null
-  streamingMode: 'realtime' | 'polling' | 'none'
+  streamingMode: 'realtime' | 'polling' | 'connecting' | 'none'
 }
 
 interface ExecutionStoreActions {
@@ -118,7 +119,7 @@ const INITIAL_STATE: ExecutionStoreState = {
   streamingMode: 'none',
 }
 
-export const useExecutionStore = create<ExecutionStore>((set, get) => ({
+export const useExecutionStore = create<ExecutionStore>()(subscribeWithSelector((set, get) => ({
   ...INITIAL_STATE,
 
   startExecution: async (workflowId: string, inputs?: Record<string, unknown>) => {
@@ -377,4 +378,4 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     const lastLog = nodeLogs[nodeLogs.length - 1]
     return lastLog.message || lastLog.error?.message || `${lastLog.type}`
   },
-}))
+})))

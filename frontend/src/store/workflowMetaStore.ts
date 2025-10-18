@@ -1,7 +1,5 @@
 import { create } from 'zustand'
 
-import { createSelectors } from './createSelectors'
-
 export interface WorkflowMetadata {
   id: string | null
   name: string
@@ -14,13 +12,13 @@ export interface WorkflowMetaState {
 }
 
 export interface WorkflowMetaActions {
-  setWorkflowId: (id: string) => void
-  setWorkflowName: (name: string) => void
-  setWorkflowDescription: (description: string) => void
-  setMetadata: (metadata: Partial<WorkflowMetadata>) => void
-  markDirty: () => void
-  markClean: () => void
-  resetWorkflow: () => void
+  setWorkflowId(id: string): void
+  setWorkflowName(name: string): void
+  setWorkflowDescription(description: string): void
+  setMetadata(metadata: Partial<WorkflowMetadata>): void
+  markDirty(): void
+  markClean(): void
+  resetWorkflow(): void
 }
 
 const initialMetadata: WorkflowMetadata = {
@@ -31,7 +29,7 @@ const initialMetadata: WorkflowMetadata = {
 
 type WorkflowMetaStore = WorkflowMetaState & WorkflowMetaActions
 
-const baseStore = create<WorkflowMetaStore>()((set) => ({
+export const useWorkflowMetaStore = create<WorkflowMetaStore>()((set) => ({
   metadata: initialMetadata,
   isDirty: false,
 
@@ -73,5 +71,3 @@ const baseStore = create<WorkflowMetaStore>()((set) => ({
     set({ metadata: initialMetadata, isDirty: false })
   },
 }))
-
-export const useWorkflowMetaStore = createSelectors(baseStore)

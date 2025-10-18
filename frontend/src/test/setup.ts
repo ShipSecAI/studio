@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom/vitest'
 import globalJsdom from 'global-jsdom'
 
 if (typeof document === 'undefined') {
@@ -15,31 +15,34 @@ if (typeof window !== 'undefined' && window.HTMLElement) {
 }
 
 if (typeof globalThis.EventSource === 'undefined') {
-  function MockEventSource(this: any, url: string) {
-    this.url = url
-    this.readyState = 0
-    this.onopen = null
-    this.onmessage = null
-    this.onerror = null
+    class MockEventSource {
+      url: string
+      readyState = 0
+      onopen: (() => void) | null = null
+      onmessage: ((_message: MessageEvent) => void) | null = null
+      onerror: (() => void) | null = null
 
-    setTimeout(() => {
-      this.readyState = 1
-      this.onopen?.call(this, new Event('open'))
-    }, 0)
+    constructor(url: string) {
+      this.url = url
+
+      setTimeout(() => {
+        this.readyState = 1
+        this.onopen?.call(this)
+      }, 0)
+    }
+
+    addEventListener() {
+      /* no-op */
+    }
+
+    removeEventListener() {
+      /* no-op */
+    }
+
+    close() {
+      this.readyState = 2
+    }
   }
 
-  MockEventSource.prototype.addEventListener = function() {
-    /* no-op */
-  }
-
-  MockEventSource.prototype.removeEventListener = function() {
-    /* no-op */
-  }
-
-  MockEventSource.prototype.close = function() {
-    this.readyState = 2
-  }
-
-  // @ts-expect-error mock assignment for tests
-  globalThis.EventSource = MockEventSource as any
+  globalThis.EventSource = MockEventSource as unknown as typeof EventSource
 }

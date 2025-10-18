@@ -19,9 +19,11 @@ export function TopBar({ onRun, onSave }: TopBarProps) {
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
 
-  const metadata = useWorkflowStore.use((state) => state.metadata)
-  const isDirty = useWorkflowStore.use((state) => state.isDirty)
-  const setWorkflowName = useWorkflowStore.use((state) => state.setWorkflowName)
+  const { metadata, isDirty, setWorkflowName } = useWorkflowStore((state) => ({
+    metadata: state.metadata,
+    isDirty: state.isDirty,
+    setWorkflowName: state.setWorkflowName,
+  }))
   const status = useExecutionStore((state) => state.status)
   const runStatus = useExecutionStore((state) => state.runStatus)
   const reset = useExecutionStore((state) => state.reset)

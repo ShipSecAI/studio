@@ -129,7 +129,7 @@ export function ParameterField({ parameter, value, onChange }: ParameterFieldPro
         </select>
       )
 
-    case 'multi-select':
+    case 'multi-select': {
       const selectedValues = Array.isArray(currentValue) ? currentValue : []
       return (
         <div className="space-y-2">
@@ -173,6 +173,7 @@ export function ParameterField({ parameter, value, onChange }: ParameterFieldPro
           )}
         </div>
       )
+    }
 
     case 'file':
       return (
@@ -216,7 +217,7 @@ export function ParameterField({ parameter, value, onChange }: ParameterFieldPro
                 const parsed = JSON.parse(nextValue)
                 setJsonError(null)
                 onChange(parsed)
-              } catch (error) {
+              } catch {
                 setJsonError('Invalid JSON')
               }
             }}

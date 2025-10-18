@@ -1,4 +1,4 @@
-import { Upload, Play, Loader2 } from 'lucide-react'
+import { Play, Loader2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -82,10 +82,10 @@ export function RunWorkflowDialog({
     } else if (type === 'json') {
       try {
         parsedValue = value ? JSON.parse(value as string) : undefined
-      } catch (error) {
-        setErrors(prev => ({ 
-          ...prev, 
-          [inputId]: 'Invalid JSON format' 
+      } catch {
+        setErrors(prev => ({
+          ...prev,
+          [inputId]: 'Invalid JSON format'
         }))
         return
       }
@@ -115,9 +115,11 @@ export function RunWorkflowDialog({
   const renderInput = (input: RuntimeInputDefinition) => {
     const hasError = !!errors[input.id]
     const isUploading = uploading[input.id]
+    const currentValue = inputs[input.id]
 
     switch (input.type) {
-      case 'file':
+      case 'file': {
+        const hasUploadedFile = typeof currentValue === 'string' && currentValue.length > 0
         return (
           <div className="space-y-2">
             <Label htmlFor={input.id}>
@@ -139,9 +141,9 @@ export function RunWorkflowDialog({
               />
               {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
             </div>
-            {inputs[input.id] && (
+            {hasUploadedFile && (
               <p className="text-xs text-green-600">
-                ✓ File uploaded: {inputs[input.id] as string}
+                ✓ File uploaded: {currentValue}
               </p>
             )}
             {input.description && (
@@ -152,6 +154,7 @@ export function RunWorkflowDialog({
             )}
           </div>
         )
+      }
 
       case 'json':
         return (
@@ -232,8 +235,8 @@ export function RunWorkflowDialog({
           <DialogTitle>Run Workflow</DialogTitle>
           <DialogDescription>
             {runtimeInputs.length > 0
-              ? 'Provide the required inputs to start the workflow.'
-              : 'Click Run to start the workflow execution.'}
+              ? `Provide the required inputs to start ${workflowId ? `workflow ${workflowId}` : 'the workflow'}.`
+              : `Click Run to start ${workflowId ? `workflow ${workflowId}` : 'the workflow'} execution.`}
           </DialogDescription>
         </DialogHeader>
 

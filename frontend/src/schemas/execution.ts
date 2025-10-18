@@ -10,8 +10,6 @@ import {
   type TraceStreamEnvelope,
   type WorkflowRunStatusPayload,
 } from '@shipsec/shared'
-import { z } from 'zod'
-
 export const ExecutionStatusEnum = SharedExecutionStatusSchema
 export type ExecutionStatus = SharedExecutionStatus
 

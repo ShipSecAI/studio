@@ -11,6 +11,7 @@ const EVENT_ICONS = {
   FAILED: AlertCircle,
   RUNNING: Activity,
   WAITING: Clock,
+  PROGRESS: Activity,
 }
 
 const LEVEL_BADGE: Record<string, 'secondary' | 'warning' | 'destructive' | 'outline'> = {
@@ -122,13 +123,14 @@ export function EventInspector({ className }: EventInspectorProps) {
 
   const formatTimestamp = (timestamp: string): string => {
     const date = new Date(timestamp)
-    return date.toLocaleTimeString('en-US', {
+    const base = date.toLocaleTimeString('en-US', {
       hour12: false,
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      fractionalSecondDigits: 3
     })
+    const milliseconds = String(date.getMilliseconds()).padStart(3, '0')
+    return `${base}.${milliseconds}`
   }
 
   const formatDuration = (start: string, end?: string): string => {
@@ -141,7 +143,7 @@ export function EventInspector({ className }: EventInspectorProps) {
   const formatData = (data: Record<string, unknown>) => {
     try {
       return JSON.stringify(data, null, 2)
-    } catch (error) {
+    } catch {
       return 'Unable to render data payload'
     }
   }

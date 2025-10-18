@@ -34,10 +34,10 @@ export function ReviewInspector() {
 
   const statusBadge = selectedRun ? (
     <Badge
-      variant={selectedRun.status === 'running' ? 'default' : selectedRun.status === 'failed' ? 'destructive' : 'secondary'}
+      variant={selectedRun.status === 'RUNNING' ? 'default' : selectedRun.status === 'FAILED' ? 'destructive' : 'secondary'}
       className="text-xs"
     >
-      {selectedRun.status.toUpperCase()}
+      {selectedRun.status}
     </Badge>
   ) : null
 

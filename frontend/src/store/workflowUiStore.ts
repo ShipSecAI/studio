@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-import { createSelectors } from './createSelectors'
-
 export type WorkflowMode = 'design' | 'review'
 
 interface WorkflowUiState {
@@ -13,14 +11,14 @@ interface WorkflowUiState {
 }
 
 interface WorkflowUiActions {
-  setMode: (mode: WorkflowMode) => void
-  setInspectorTab: (tab: WorkflowUiState['inspectorTab']) => void
-  setLibraryOpen: (open: boolean) => void
-  toggleLibrary: () => void
-  setInspectorWidth: (width: number) => void
+  setMode(mode: WorkflowMode): void
+  setInspectorTab(tab: WorkflowUiState['inspectorTab']): void
+  setLibraryOpen(open: boolean): void
+  toggleLibrary(): void
+  setInspectorWidth(width: number): void
 }
 
-const baseStore = create<WorkflowUiState & WorkflowUiActions>()(
+export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
   persist(
     (set) => ({
       mode: 'design',
@@ -49,5 +47,3 @@ const baseStore = create<WorkflowUiState & WorkflowUiActions>()(
     }
   )
 )
-
-export const useWorkflowUiStore = createSelectors(baseStore)

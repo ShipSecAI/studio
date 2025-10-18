@@ -3,12 +3,12 @@ import {
   Pause,
   SkipBack,
   SkipForward,
-  Volume2,
   VolumeX,
   Maximize2,
   Minimize2,
 } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -41,19 +41,20 @@ const formatTime = (ms: number): string => {
 
 const formatTimestamp = (timestamp: string): string => {
   const date = new Date(timestamp)
-  return date.toLocaleTimeString('en-US', {
+  const base = date.toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    fractionalSecondDigits: 3
   })
+  const milliseconds = String(date.getMilliseconds()).padStart(3, '0')
+  return `${base}.${milliseconds}`
 }
 
 export function ExecutionTimeline() {
   const [isDragging, setIsDragging] = useState(false)
   const timelineRef = useRef<HTMLDivElement>(null)
-  const animationFrameRef = useRef<number>()
+  const animationFrameRef = useRef<number | null>(null)
 
   const {
     selectedRunId,
@@ -95,19 +96,19 @@ export function ExecutionTimeline() {
 
       animationFrameRef.current = requestAnimationFrame(animate)
     } else {
-      if (animationFrameRef.current) {
+      if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
 
     return () => {
-      if (animationFrameRef.current) {
+      if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
   }, [isPlaying, playbackMode, playbackSpeed, isDragging, totalDuration, seek, pause])
 
-  const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleTimelineClick = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current || playbackMode === 'live') return
 
     const rect = timelineRef.current.getBoundingClientRect()
@@ -158,7 +159,7 @@ export function ExecutionTimeline() {
   const progress = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0
 
   // Generate event markers
-  const eventMarkers = events.map((event, index) => {
+  const eventMarkers = events.map((event) => {
     const percentage = totalDuration > 0
       ? Math.min(100, Math.max(0, (event.offsetMs / totalDuration) * 100))
       : 0
@@ -168,7 +169,7 @@ export function ExecutionTimeline() {
     else if (event.type === 'FAILED') markerColor = 'bg-red-500'
     else if (event.type === 'STARTED') markerColor = 'bg-blue-500'
 
-    return { percentage, color: markerColor, event }
+    return { id: event.id, percentage, color: markerColor, event }
   })
 
   if (!selectedRunId || !showTimeline) {
@@ -326,9 +327,9 @@ export function ExecutionTimeline() {
             />
 
             {/* Event Markers */}
-            {eventMarkers.map((marker, index) => (
+            {eventMarkers.map((marker) => (
               <div
-                key={index}
+                key={marker.id}
                 className={cn(
                   "absolute top-1 bottom-1 w-1 rounded-full opacity-70",
                   marker.color
@@ -377,7 +378,6 @@ export function ExecutionTimeline() {
               max={totalDuration}
               step={100}
               className="w-full"
-              disabled={playbackMode === 'live'}
             />
           )}
         </div>

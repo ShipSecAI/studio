@@ -1,5 +1,6 @@
 import { Upload, File, X, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import type { ChangeEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/services/api'
@@ -14,7 +15,7 @@ export function FileUpload({ onFileUploaded }: FileUploadProps) {
   const [uploadedFileId, setUploadedFileId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
       setSelectedFile(file)

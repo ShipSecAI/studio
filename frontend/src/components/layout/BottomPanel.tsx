@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ChevronDown, ChevronUp, Clock, Pause, Play, Terminal, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { EventInspector } from '@/components/timeline/EventInspector'
 import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
 import { RunSelector } from '@/components/timeline/RunSelector'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useExecutionStore } from '@/store/executionStore'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 

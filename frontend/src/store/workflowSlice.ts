@@ -18,8 +18,8 @@ export interface WorkflowGraphState {
 }
 
 export interface WorkflowGraphActions {
-  setNodes: (nodes: CanvasNode[]) => void
-  setEdges: (edges: Edge[]) => void
-  importGraph: (graph: WorkflowGraphState) => void
-  resetGraph: () => void
+  setNodes(nodes: CanvasNode[]): void
+  setEdges(edges: Edge[]): void
+  importGraph(graph: WorkflowGraphState): void
+  resetGraph(): void
 }
