@@ -5,7 +5,7 @@ import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
-import { ComponentInfoButton } from './ComponentBadge'
+import { ComponentMetadataSummary } from './ComponentBadge'
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
 import type { NodeData } from '@/schemas/node'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
@@ -216,9 +216,13 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
           )} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="min-w-0">
                 <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
-                <ComponentInfoButton component={component} align="end" />
+                <ComponentMetadataSummary
+                  component={component}
+                  compact
+                  className="mt-1"
+                />
               </div>
               <div className="flex items-center gap-1">
                 {hasUnfilledRequired && !nodeData.status && (

@@ -32,8 +32,8 @@ function ComponentItem({ component }: ComponentItemProps) {
   return (
     <div
       className={cn(
-        'group relative flex items-start gap-2 p-3 border rounded-lg cursor-move',
-        'hover:bg-accent hover:border-primary/50 transition-all',
+        'group relative flex items-center gap-3 p-3 border rounded-lg cursor-move',
+        'hover:bg-accent hover:border-primary/50 transition-all text-left',
         'bg-background',
         component.deprecated && 'opacity-50'
       )}
@@ -58,19 +58,22 @@ function ComponentItem({ component }: ComponentItemProps) {
         component.logo && "hidden"
       )} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium truncate">{component.name}</span>
-          {component.author?.type === 'shipsecai' && (
-            <ComponentBadge type="official" />
-          )}
+          <div className="flex items-center gap-1">
+            {component.author?.type === 'shipsecai' && (
+              <ComponentBadge type="official" />
+            )}
+            {component.deprecated && <ComponentBadge type="deprecated" />}
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground line-clamp-2">
+        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
           {description}
         </p>
-        {component.deprecated && (
-          <div className="mt-2">
-            <ComponentBadge type="deprecated" />
-          </div>
+        {component.version && (
+          <span className="text-[11px] text-muted-foreground">
+            v{component.version}
+          </span>
         )}
       </div>
     </div>
@@ -98,15 +101,15 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-full max-w-[320px] border-r bg-background overflow-y-auto flex flex-col">
-      <div className="p-4 flex-1">
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold">Components</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Drag and drop to add to workflow
-          </p>
-        </div>
+    <div className="h-full w-full max-w-[320px] border-r bg-background flex flex-col">
+      <div className="p-4 border-b">
+        <h2 className="text-lg font-semibold">Components</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Drag and drop to add to workflow
+        </p>
+      </div>
 
+      <div className="flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
         {loading ? (
           <div className="text-sm text-muted-foreground text-center py-8">
             Loading components...
@@ -121,35 +124,36 @@ export function Sidebar() {
           </div>
         ) : (
           <div className="space-y-6">
-            {(Object.keys(componentsByType) as Array<keyof typeof componentsByType>).map((type) => {
-              const components = componentsByType[type]
-              if (components.length === 0) return null
+            <div className="space-y-6">
+              {(Object.keys(componentsByType) as Array<keyof typeof componentsByType>).map((type) => {
+                const components = componentsByType[type]
+                if (components.length === 0) return null
 
-              const config = TYPE_CONFIG[type as keyof typeof TYPE_CONFIG]
-              if (!config) return null
+                const config = TYPE_CONFIG[type as keyof typeof TYPE_CONFIG]
+                if (!config) return null
 
-              return (
-                <div key={type}>
-                  <h3 className={cn('text-sm font-semibold mb-3', config.color)}>
-                    {config.label}
-                  </h3>
-                  <div className="space-y-2">
-                    {components.map((component) => (
-                      <ComponentItem key={component.id} component={component} />
-                    ))}
+                return (
+                  <div key={type}>
+                    <h3 className={cn('text-sm font-semibold mb-3', config.color)}>
+                      {config.label}
+                    </h3>
+                    <div className="space-y-2">
+                      {components.map((component) => (
+                        <ComponentItem key={component.id} component={component} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
+
+            <div className="pt-4 border-t">
+              <p className="text-xs text-muted-foreground">
+                {allComponents.length} component{allComponents.length !== 1 ? 's' : ''} available
+              </p>
+            </div>
           </div>
         )}
-
-        {/* Component Count */}
-        <div className="mt-6 pt-4 border-t">
-          <p className="text-xs text-muted-foreground">
-            {allComponents.length} component{allComponents.length !== 1 ? 's' : ''} available
-          </p>
-        </div>
       </div>
 
       {/* File Upload Section */}

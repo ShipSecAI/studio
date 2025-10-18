@@ -1,8 +1,6 @@
 import { useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import { Button } from '@/components/ui/button'
-import { Info, CheckCircle, Users, AlertCircle, AlertTriangle, Shield } from 'lucide-react'
+import { CheckCircle, Users, AlertCircle, AlertTriangle, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ComponentMetadata } from '@/schemas/component'
 
@@ -11,6 +9,8 @@ type BadgeType = 'official' | 'community' | 'latest' | 'outdated' | 'deprecated'
 interface ComponentBadgeProps {
   type: BadgeType
   version?: string
+  compact?: boolean
+  className?: string
 }
 
 interface BadgeConfig {
@@ -55,7 +55,7 @@ const BADGE_CONFIGS: Record<BadgeType, BadgeConfig> = {
  * <ComponentBadge type="latest" />
  * <ComponentBadge type="outdated" version="1.1.0" />
  */
-export function ComponentBadge({ type, version }: ComponentBadgeProps) {
+export function ComponentBadge({ type, version, compact = false, className }: ComponentBadgeProps) {
   const config = BADGE_CONFIGS[type]
   const Icon = config.icon
 
@@ -65,7 +65,14 @@ export function ComponentBadge({ type, version }: ComponentBadgeProps) {
     : config.label
 
   return (
-    <Badge variant={config.variant} className="gap-1">
+    <Badge
+      variant={config.variant}
+      className={cn(
+        'gap-1',
+        compact && 'px-2 py-0 text-[10px] leading-4',
+        className
+      )}
+    >
       <Icon className="h-3 w-3" />
       {label}
     </Badge>
@@ -127,48 +134,62 @@ export function ComponentBadges({ component }: { component: ComponentMetadata })
   )
 }
 
-interface ComponentInfoButtonProps {
+interface ComponentMetadataSummaryProps {
   component: ComponentMetadata
-  buttonClassName?: string
-  align?: 'start' | 'center' | 'end'
+  className?: string
+  orientation?: 'horizontal' | 'vertical'
+  compact?: boolean
+  showVersion?: boolean
 }
 
-export function ComponentInfoButton({
+/**
+ * Renders badges and version inline so users don't need to open a popover
+ */
+export function ComponentMetadataSummary({
   component,
-  buttonClassName,
-  align = 'center',
-}: ComponentInfoButtonProps) {
+  className,
+  orientation = 'horizontal',
+  compact = false,
+  showVersion = true,
+}: ComponentMetadataSummaryProps) {
   const badges = useComponentBadges(component)
+  const hasVersion = Boolean(showVersion && component.version)
 
-  if (badges.length === 0) {
+  if (badges.length === 0 && !hasVersion) {
     return null
   }
 
+  const containerClass =
+    orientation === 'vertical'
+      ? 'flex flex-col gap-1'
+      : 'flex items-center gap-1 flex-wrap'
+
+  const versionClass = compact ? 'text-[10px]' : 'text-xs'
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn('h-6 w-6 p-0 text-muted-foreground hover:text-foreground', buttonClassName)}
-          title="Component metadata"
+    <div className={cn(containerClass, className)}>
+      {badges.length > 0 && (
+        <div
+          className={cn(
+            'flex flex-wrap gap-1',
+            orientation === 'vertical' ? 'items-start' : 'items-center'
+          )}
         >
-          <Info className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align={align} className="space-y-2">
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Component Metadata
-        </div>
-        <div className="flex flex-wrap gap-1.5">
           {badges.map((badge, index) => (
-            <ComponentBadge key={index} type={badge.type} version={badge.version} />
+            <ComponentBadge
+              key={index}
+              type={badge.type}
+              version={badge.version}
+              compact={compact}
+            />
           ))}
         </div>
-        <div className="text-xs text-muted-foreground">
-          Version <span className="font-mono">v{component.version}</span>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+      {hasVersion && (
+        <span className={cn('font-mono text-muted-foreground', versionClass)}>
+          v{component.version}
+        </span>
+      )}
+    </div>
   )
 }

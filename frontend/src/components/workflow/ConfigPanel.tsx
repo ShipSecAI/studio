@@ -3,7 +3,7 @@ import * as LucideIcons from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
-import { ComponentInfoButton } from './ComponentBadge'
+import { ComponentMetadataSummary } from './ComponentBadge'
 import { ParameterFieldWrapper } from './ParameterField'
 import type { Node } from 'reactflow'
 import type { NodeData } from '@/schemas/node'
@@ -85,6 +85,10 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
 
   const componentInputs = component.inputs ?? []
   const componentParameters = component.parameters ?? []
+  const exampleItems = [
+    component.example,
+    ...(component.examples ?? []),
+  ].filter((value): value is string => Boolean(value && value.trim().length > 0))
 
   return (
     <div className="config-panel w-[400px] border-l bg-background flex flex-col h-full overflow-hidden">
@@ -118,10 +122,12 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
             )} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-1">
-              <h4 className="font-semibold text-sm truncate">{component.name}</h4>
-              <ComponentInfoButton component={component} align="end" />
-            </div>
+            <h4 className="font-semibold text-sm truncate mb-1">{component.name}</h4>
+            <ComponentMetadataSummary
+              component={component}
+              compact
+              className="mb-2"
+            />
             <p className="text-xs text-muted-foreground mb-2">
               {component.description}
             </p>
@@ -211,6 +217,52 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                     onChange={(value) => handleParameterChange(param.id, value)}
                   />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Examples */}
+          {exampleItems.length > 0 && (
+            <div>
+              <h5 className="text-sm font-semibold mb-3 text-foreground">
+                Examples
+              </h5>
+              <div className="space-y-3">
+                {exampleItems.map((exampleText, index) => {
+                  const commandMatch = exampleText.match(/`([^`]+)`/)
+                  const command = commandMatch?.[1]?.trim()
+                  const description = commandMatch
+                    ? exampleText
+                        .replace(commandMatch[0], '')
+                        .replace(/^[\s\u2013\u2014-]+/, '')
+                        .trim()
+                    : exampleText.trim()
+
+                  return (
+                    <div
+                      key={`${exampleText}-${index}`}
+                      className="p-3 rounded-lg border bg-muted/40"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-background text-[11px] font-medium text-muted-foreground">
+                          {index + 1}
+                        </span>
+                        <div className="flex-1 space-y-2">
+                          {command && (
+                            <code className="block w-full overflow-x-auto rounded border bg-background px-2 py-1 text-[11px] font-mono text-foreground">
+                              {command}
+                            </code>
+                          )}
+                          {description && (
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

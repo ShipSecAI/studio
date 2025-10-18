@@ -32,10 +32,12 @@ function serializeComponent(component: ReturnType<typeof componentRegistry.get>)
     author: metadata.author ?? null,
     isLatest: metadata.isLatest ?? true,
     deprecated: metadata.deprecated ?? false,
+    example: metadata.example ?? null,
     runner: component.runner,
     inputs: metadata.inputs ?? [],
     outputs: metadata.outputs ?? [],
     parameters: metadata.parameters ?? [],
+    examples: metadata.examples ?? [],
   };
 }
 
@@ -57,8 +59,13 @@ export class ComponentsController {
           type: { type: 'string', example: 'input' },
           category: { type: 'string', example: 'input-output' },
           description: { type: 'string', example: 'Load files from filesystem' },
+          documentation: { type: 'string', nullable: true },
+          documentationUrl: { type: 'string', nullable: true },
           icon: { type: 'string', example: 'FileUp' },
           logo: { type: 'string', nullable: true },
+          isLatest: { type: 'boolean', nullable: true },
+          deprecated: { type: 'boolean', nullable: true },
+          example: { type: 'string', nullable: true },
           author: {
             type: 'object',
             nullable: true,
@@ -141,6 +148,10 @@ export class ComponentsController {
                 rows: { type: 'number', nullable: true },
               },
             },
+          },
+          examples: {
+            type: 'array',
+            items: { type: 'string' },
           },
         },
       },

@@ -62,6 +62,10 @@ const definition: ComponentDefinition<Input, Output> = {
         description: 'Number of items after splitting.',
       },
     ],
+    examples: [
+      'Split newline-delimited subdomains before enrichment components.',
+      'Break CSV exports into individual entries for looping workflows.',
+    ],
     parameters: [
       {
         id: 'separator',
@@ -101,4 +105,3 @@ const definition: ComponentDefinition<Input, Output> = {
 };
 
 componentRegistry.register(definition);
-
