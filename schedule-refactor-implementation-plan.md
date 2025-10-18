@@ -86,10 +86,10 @@ We’re refitting the runtime so each workflow node executes with Temporal-grade
 - [x] Provide per-activity trace/log adapters (no shared in-memory maps) and ensure trace events include activity IDs/stream IDs.
 - [x] Preserve branch metadata (`streamId`, `joinStrategy`) across activity boundaries.
 - [x] Harden secrets/files handles so activity retries cannot double-consume resources.
-- [ ] Tests:
-  - Concurrent activity trace/log emission.
-  - Adapter unit tests exercising multi-activity persistence.
-  - Temporal integration test proving traces remain ordered when two activities emit simultaneously.
+- [x] Tests:
+  - [x] Concurrent activity trace/log emission.
+  - [x] Adapter unit tests exercising multi-activity persistence.
+  - [x] Temporal integration test proving traces remain ordered when two activities emit simultaneously.
 
 **Implementation Steps**
 1. Introduce serializable context DTO + migration shim for existing components.
