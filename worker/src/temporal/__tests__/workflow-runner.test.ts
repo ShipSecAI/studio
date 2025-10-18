@@ -57,8 +57,8 @@ describe('executeWorkflow', () => {
         timeoutSeconds: 30,
       },
       nodes: {
-        'node-1': { ref: 'node-1' },
-        'node-2': { ref: 'node-2' },
+        'node-1': { ref: 'node-1', streamId: 'stream-node-1', joinStrategy: 'all' },
+        'node-2': { ref: 'node-2', streamId: 'stream-node-2', joinStrategy: 'any' },
       },
       edges: [
         {
@@ -127,6 +127,10 @@ describe('executeWorkflow', () => {
       sourceRef: 'node-1',
       sourceHandle: 'missing',
     });
+    expect(warnProgress.context).toMatchObject({
+      streamId: 'stream-node-2',
+      joinStrategy: 'any',
+    });
 
     const failureEvents = executionEvents.filter((event) => event.level === 'error');
     expect(failureEvents).toHaveLength(0);
@@ -134,6 +138,17 @@ describe('executeWorkflow', () => {
     const startedEvents = executionEvents.filter((event) => event.type === 'NODE_STARTED');
     startedEvents.forEach((event) => {
       expect(event.level).toBe('info');
+      if (event.nodeRef === 'node-1') {
+        expect(event.context).toMatchObject({
+          streamId: 'stream-node-1',
+          joinStrategy: 'all',
+        });
+      } else if (event.nodeRef === 'node-2') {
+        expect(event.context).toMatchObject({
+          streamId: 'stream-node-2',
+          joinStrategy: 'any',
+        });
+      }
     });
 
     expect(logEntries.length).toBeGreaterThan(0);
@@ -181,10 +196,10 @@ describe('executeWorkflow', () => {
         timeoutSeconds: 30,
       },
       nodes: {
-        start: { ref: 'start' },
-        branchA: { ref: 'branchA' },
-        branchB: { ref: 'branchB' },
-        merge: { ref: 'merge' },
+        start: { ref: 'start', streamId: 'stream-start', joinStrategy: 'all' },
+        branchA: { ref: 'branchA', streamId: 'stream-branchA', joinStrategy: 'all' },
+        branchB: { ref: 'branchB', streamId: 'stream-branchB', joinStrategy: 'all' },
+        merge: { ref: 'merge', streamId: 'stream-merge', joinStrategy: 'all' },
       },
       edges: [],
       dependencyCounts: {

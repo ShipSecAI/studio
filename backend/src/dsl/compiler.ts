@@ -77,15 +77,41 @@ export function compileWorkflowGraph(graph: WorkflowGraph): WorkflowDefinition {
 
   const nodesMetadata: Record<string, WorkflowNodeMetadata> = {};
   for (const node of graph.nodes) {
+    const config = (node.data?.config ?? {}) as Record<string, unknown>;
+    const joinStrategyValue = config.joinStrategy;
+    const joinStrategy =
+      typeof joinStrategyValue === 'string' && ['all', 'any', 'first'].includes(joinStrategyValue)
+        ? (joinStrategyValue as WorkflowNodeMetadata['joinStrategy'])
+        : undefined;
+
+    const streamIdValue = config.streamId;
+    const groupIdValue = config.groupId;
+    const maxConcurrencyValue = config.maxConcurrency;
+
     nodesMetadata[node.id] = {
       ref: node.id,
       label: node.data?.label,
+      joinStrategy,
+      streamId: typeof streamIdValue === 'string' && streamIdValue.length > 0 ? streamIdValue : undefined,
+      groupId: typeof groupIdValue === 'string' && groupIdValue.length > 0 ? groupIdValue : undefined,
+      maxConcurrency:
+        typeof maxConcurrencyValue === 'number' && Number.isFinite(maxConcurrencyValue)
+          ? maxConcurrencyValue
+          : undefined,
     };
   }
 
   const actions: WorkflowAction[] = orderedIds.map((id) => {
     const node = graph.nodes.find((n) => n.id === id)!;
-    const params = node.data?.config ?? {};
+    const config = (node.data?.config ?? {}) as Record<string, unknown>;
+    const {
+      joinStrategy: _joinStrategy,
+      streamId: _streamId,
+      groupId: _groupId,
+      maxConcurrency: _maxConcurrency,
+      ...componentParams
+    } = config;
+    const params = componentParams;
     const inputMappings: WorkflowAction['inputMappings'] = {};
 
     for (const edge of edgesByTarget.get(id) ?? []) {

@@ -35,6 +35,7 @@ export const WorkflowNodeMetadataSchema = z.object({
   joinStrategy: z.enum(['all', 'any', 'first']).optional(),
   maxConcurrency: z.number().int().positive().optional(),
   groupId: z.string().optional(),
+  streamId: z.string().optional(),
 });
 
 export type WorkflowNodeMetadata = z.infer<typeof WorkflowNodeMetadataSchema>;

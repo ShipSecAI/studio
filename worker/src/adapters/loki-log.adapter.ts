@@ -140,6 +140,10 @@ export class LokiLogAdapter implements WorkflowLogSink {
       labels.stream_id = entry.metadata.streamId;
     }
 
+    if (entry.metadata?.joinStrategy) {
+      labels.join_strategy = entry.metadata.joinStrategy;
+    }
+
     return labels;
   }
 

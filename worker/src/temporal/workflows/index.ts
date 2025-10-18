@@ -52,6 +52,10 @@ export async function shipsecWorkflowRun(
           }
         }
 
+        const nodeMetadata = input.definition.nodes?.[action.ref];
+        const streamId = nodeMetadata?.streamId ?? nodeMetadata?.groupId ?? action.ref;
+        const joinStrategy = nodeMetadata?.joinStrategy;
+
         const activityInput: RunComponentActivityInput = {
           runId: input.runId,
           workflowId: input.workflowId,
@@ -61,6 +65,11 @@ export async function shipsecWorkflowRun(
           },
           params: mergedParams,
           warnings,
+          metadata: {
+            streamId,
+            joinStrategy,
+            groupId: nodeMetadata?.groupId,
+          },
         };
 
         const output = await runComponentActivity(activityInput);

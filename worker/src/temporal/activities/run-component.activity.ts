@@ -58,6 +58,10 @@ export async function runComponentActivity(
   }
 
   const activityInfo = Context.current().info;
+  const nodeMetadata = input.metadata ?? {};
+  const streamId = nodeMetadata.streamId ?? nodeMetadata.groupId ?? action.ref;
+  const joinStrategy = nodeMetadata.joinStrategy;
+  const correlationId = `${input.runId}:${action.ref}:${activityInfo.activityId}`;
 
   const trace = globalTrace;
   trace?.record({
@@ -66,6 +70,15 @@ export async function runComponentActivity(
     nodeRef: action.ref,
     timestamp: new Date().toISOString(),
     level: 'info',
+    context: {
+      runId: input.runId,
+      componentRef: action.ref,
+      activityId: activityInfo.activityId,
+      attempt: activityInfo.attempt,
+      correlationId,
+      streamId,
+      joinStrategy,
+    },
   });
 
   for (const warning of warnings) {
@@ -77,6 +90,15 @@ export async function runComponentActivity(
       message: `Input '${warning.target}' mapped from ${warning.sourceRef}.${warning.sourceHandle} was undefined`,
       level: 'warn',
       data: warning,
+      context: {
+        runId: input.runId,
+        componentRef: action.ref,
+        activityId: activityInfo.activityId,
+        attempt: activityInfo.attempt,
+        correlationId,
+        streamId,
+        joinStrategy,
+      },
     });
   }
 
@@ -88,7 +110,9 @@ export async function runComponentActivity(
     metadata: {
       activityId: activityInfo.activityId,
       attempt: activityInfo.attempt,
-      correlationId: `${input.runId}:${action.ref}:${activityInfo.activityId}`,
+      correlationId,
+      streamId,
+      joinStrategy,
     },
     storage: globalStorage,
     secrets: globalSecrets,
@@ -128,6 +152,15 @@ export async function runComponentActivity(
       timestamp: new Date().toISOString(),
       outputSummary: output,
       level: 'info',
+      context: {
+        runId: input.runId,
+        componentRef: action.ref,
+        activityId: activityInfo.activityId,
+        attempt: activityInfo.attempt,
+        correlationId,
+        streamId,
+        joinStrategy,
+      },
     });
 
     return { output };
@@ -140,6 +173,15 @@ export async function runComponentActivity(
       timestamp: new Date().toISOString(),
       error: errorMsg,
       level: 'error',
+      context: {
+        runId: input.runId,
+        componentRef: action.ref,
+        activityId: activityInfo.activityId,
+        attempt: activityInfo.attempt,
+        correlationId,
+        streamId,
+        joinStrategy,
+      },
     });
     throw error;
   } finally {

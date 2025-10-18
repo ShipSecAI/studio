@@ -35,6 +35,7 @@ export interface WorkflowNodeMetadata {
   joinStrategy?: WorkflowJoinStrategy;
   maxConcurrency?: number;
   groupId?: string;
+  streamId?: string;
 }
 
 export interface WorkflowDefinition {
@@ -65,6 +66,11 @@ export interface RunComponentActivityInput {
     sourceRef: string;
     sourceHandle: string;
   }>;
+  metadata?: {
+    streamId?: string;
+    joinStrategy?: WorkflowJoinStrategy;
+    groupId?: string;
+  };
 }
 
 export interface RunComponentActivityOutput {
@@ -106,6 +112,7 @@ export interface WorkflowLogMetadata {
   attempt?: number;
   correlationId?: string;
   streamId?: string;
+  joinStrategy?: WorkflowJoinStrategy;
 }
 
 export interface WorkflowLogEntry {

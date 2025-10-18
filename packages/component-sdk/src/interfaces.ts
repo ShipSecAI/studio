@@ -83,6 +83,7 @@ export interface ExecutionContextMetadata {
   attempt?: number;
   correlationId?: string;
   streamId?: string;
+  joinStrategy?: 'all' | 'any' | 'first';
 }
 
 export interface TraceEvent {

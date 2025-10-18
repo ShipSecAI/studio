@@ -82,9 +82,9 @@ We’re refitting the runtime so each workflow node executes with Temporal-grade
 
 **Goal:** Make context and adapters safe across concurrent activities and branches.
 
-- [ ] Refactor `createExecutionContext` to emit immutable payloads suitable for serialization into activity inputs.
+- [x] Refactor `createExecutionContext` to emit immutable payloads suitable for serialization into activity inputs.
 - [ ] Provide per-activity trace/log adapters (no shared in-memory maps) and ensure trace events include activity IDs/stream IDs.
-- [ ] Preserve branch metadata (`streamId`, `joinStrategy`) across activity boundaries.
+- [x] Preserve branch metadata (`streamId`, `joinStrategy`) across activity boundaries.
 - [ ] Harden secrets/files handles so activity retries cannot double-consume resources.
 - [ ] Tests:
   - Concurrent activity trace/log emission.

@@ -72,6 +72,10 @@ export async function executeWorkflow(
         throw new Error(`Component not registered: ${action.componentId}`);
       }
 
+      const nodeMetadata = definition.nodes?.[action.ref];
+      const streamId = nodeMetadata?.streamId ?? nodeMetadata?.groupId ?? action.ref;
+      const joinStrategy = nodeMetadata?.joinStrategy;
+
       // Record trace event
       options.trace?.record({
         type: 'NODE_STARTED',
@@ -79,6 +83,12 @@ export async function executeWorkflow(
         nodeRef: action.ref,
         timestamp: new Date().toISOString(),
         level: 'info',
+        context: {
+          runId,
+          componentRef: action.ref,
+          streamId,
+          joinStrategy,
+        },
       });
 
       const { params, warnings } = buildActionParams(action, results);
@@ -92,6 +102,12 @@ export async function executeWorkflow(
           message: `Input '${warning.target}' mapped from ${warning.sourceRef}.${warning.sourceHandle} was undefined`,
           level: 'warn',
           data: warning,
+          context: {
+            runId,
+            componentRef: action.ref,
+            streamId,
+            joinStrategy,
+          },
         });
       }
 
@@ -111,6 +127,11 @@ export async function executeWorkflow(
       const context = createExecutionContext({
         runId,
         componentRef: action.ref,
+        metadata: {
+          streamId,
+          joinStrategy,
+          correlationId: `${runId}:${action.ref}`,
+        },
         storage: options.storage,
         secrets: options.secrets,
         artifacts: options.artifacts,
@@ -129,6 +150,12 @@ export async function executeWorkflow(
           timestamp: new Date().toISOString(),
           outputSummary: output,
           level: 'info',
+          context: {
+            runId,
+            componentRef: action.ref,
+            streamId,
+            joinStrategy,
+          },
         });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -139,6 +166,12 @@ export async function executeWorkflow(
           timestamp: new Date().toISOString(),
           error: errorMsg,
           level: 'error',
+          context: {
+            runId,
+            componentRef: action.ref,
+            streamId,
+            joinStrategy,
+          },
         });
         throw error;
       }
