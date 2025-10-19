@@ -62,7 +62,7 @@ function ComponentItem({ component }: ComponentItemProps) {
           <span className="text-sm font-medium truncate">{component.name}</span>
           <div className="flex items-center gap-1">
             {component.author?.type === 'shipsecai' && (
-              <ComponentBadge type="official" />
+              <ComponentBadge type="official" compact />
             )}
             {component.deprecated && <ComponentBadge type="deprecated" />}
           </div>

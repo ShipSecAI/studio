@@ -58,22 +58,28 @@ const BADGE_CONFIGS: Record<BadgeType, BadgeConfig> = {
 export function ComponentBadge({ type, version, compact = false, className }: ComponentBadgeProps) {
   const config = BADGE_CONFIGS[type]
   const Icon = config.icon
+  const isOfficial = type === 'official'
+  const effectiveCompact = compact || isOfficial
 
   // Customize label for outdated badge with version
-  const label = type === 'outdated' && version
+  let label = type === 'outdated' && version
     ? `v${version} available`
     : config.label
+
+  if (type === 'official' && compact) {
+    label = 'SSA'
+  }
 
   return (
     <Badge
       variant={config.variant}
       className={cn(
         'gap-1',
-        compact && 'px-2 py-0 text-[10px] leading-4',
+        effectiveCompact && 'px-2 py-0 text-[10px] leading-4',
         className
       )}
     >
-      <Icon className="h-3 w-3" />
+      <Icon className={cn(effectiveCompact ? 'h-2.5 w-2.5' : 'h-3 w-3')} />
       {label}
     </Badge>
   )
