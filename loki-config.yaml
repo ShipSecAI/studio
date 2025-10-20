@@ -2,7 +2,7 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
-  http_grpc_port: 9096
+  grpc_listen_port: 9096
   log_level: warn
 
 ingester:
@@ -15,6 +15,8 @@ ingester:
   chunk_idle_period: 5m
   chunk_retain_period: 30s
   max_transfer_retries: 0
+  wal:
+    enabled: false
 
 schema_config:
   configs:

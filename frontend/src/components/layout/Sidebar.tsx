@@ -5,6 +5,7 @@ import { ComponentBadge } from '@/components/workflow/ComponentBadge'
 import { FileUpload } from '@/components/workflow/FileUpload'
 import type { ComponentMetadata } from '@/schemas/component'
 import { cn } from '@/lib/utils'
+import { env } from '@/config/env'
 
 const TYPE_CONFIG = {
   trigger: { label: 'Triggers', color: 'text-gray-500' },
@@ -83,6 +84,9 @@ function ComponentItem({ component }: ComponentItemProps) {
 export function Sidebar() {
   const { getAllComponents, getComponentsByType, fetchComponents, loading, error } = useComponentStore()
   const [showFileUpload, setShowFileUpload] = useState(false)
+  const frontendBranch = env.VITE_FRONTEND_BRANCH.trim()
+  const backendBranch = env.VITE_BACKEND_BRANCH.trim()
+  const hasBranchInfo = Boolean(frontendBranch || backendBranch)
 
   // Fetch components on mount
   useEffect(() => {
@@ -107,6 +111,16 @@ export function Sidebar() {
         <p className="text-xs text-muted-foreground mt-1">
           Drag and drop to add to workflow
         </p>
+        {hasBranchInfo && (
+          <div className="mt-2 space-y-1">
+            {frontendBranch && (
+              <p className="text-xs text-muted-foreground">Frontend branch: {frontendBranch}</p>
+            )}
+            {backendBranch && (
+              <p className="text-xs text-muted-foreground">Backend branch: {backendBranch}</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">

@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, EdgeProps } from 'reactflow'
 import { Package, FileText, Database, Code } from 'lucide-react'
 import { useExecutionTimelineStore, type DataPacket } from '@/store/executionTimelineStore'
@@ -58,7 +58,7 @@ const DataPacket = memo(({ packet, onHover }: {
 })
 
 // Enhanced edge with data flow visualization
-export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data }: DataFlowEdgeProps) => {
+export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, targetX, targetY, data }: DataFlowEdgeProps) => {
   const [hoveredPacket, setHoveredPacket] = useState<DataPacket | null>(null)
   const [animatedPackets, setAnimatedPackets] = useState<AnimatedPacket[]>([])
   const [edgePath, setEdgePath] = useState<string>('')
@@ -75,12 +75,14 @@ export const DataFlowEdge = memo(({ id, sourceX, sourceY, targetX, targetY, data
     selectedRunId,
   } = useExecutionTimelineStore()
 
-  const packets = data?.packets || dataFlows.filter(
-    packet =>
-      packet.sourceNode === source &&
-      packet.targetNode === target &&
-      new Date(packet.timestamp).getTime() <= currentTime
-  )
+  const packets = useMemo(() => {
+    return data?.packets || dataFlows.filter(
+      packet =>
+        packet.sourceNode === source &&
+        packet.targetNode === target &&
+        new Date(packet.timestamp).getTime() <= currentTime
+    )
+  }, [data?.packets, dataFlows, source, target, currentTime])
 
   // Calculate Bezier path for the edge
   useEffect(() => {
