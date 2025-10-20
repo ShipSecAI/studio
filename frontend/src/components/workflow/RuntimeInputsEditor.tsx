@@ -32,7 +32,7 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
     const newInput: RuntimeInput = {
       id: `input${inputs.length + 1}`,
       label: `Input ${inputs.length + 1}`,
-      type: 'text',
+      type: 'array',
       required: true,
       description: '',
     }
@@ -230,4 +230,3 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
     </div>
   )
 }
-

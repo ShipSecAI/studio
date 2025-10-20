@@ -238,7 +238,7 @@ export function Canvas({
           {
             id: 'input1',
             label: 'Input 1',
-            type: 'text',
+            type: 'array',
             required: true,
             description: '',
           },
