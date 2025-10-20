@@ -286,13 +286,26 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                   </a>
                 )}
               </div>
-              {component.documentation && (
-                <div className="p-3 rounded-lg border bg-muted/50">
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                    {component.documentation}
-                  </p>
-                </div>
-              )}
+              <div className="space-y-2">
+                {component.documentationUrl && (
+                  <a
+                    href={component.documentationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between gap-2 p-3 rounded-lg border bg-muted/50 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <span className="break-all text-left">{component.documentationUrl}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                )}
+                {component.documentation && (
+                  <div className="p-3 rounded-lg border bg-muted/50">
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                      {component.documentation}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -21,7 +21,27 @@ import {
 /**
  * API Client Configuration
  */
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3211'
+type RuntimeImportMeta = ImportMeta & {
+  env?: Record<string, string | undefined>
+}
+
+function resolveApiBaseUrl() {
+  const metaEnv = (import.meta as RuntimeImportMeta).env
+  if (metaEnv?.VITE_API_URL && metaEnv.VITE_API_URL.trim().length > 0) {
+    return metaEnv.VITE_API_URL
+  }
+
+  if (typeof process !== 'undefined') {
+    const nodeEnv = (process.env ?? {}).VITE_API_URL
+    if (nodeEnv && nodeEnv.trim().length > 0) {
+      return nodeEnv
+    }
+  }
+
+  return 'http://localhost:3211'
+}
+
+export const API_BASE_URL = resolveApiBaseUrl()
 
 // Create type-safe API client
 const apiClient = createShipSecClient({

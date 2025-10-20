@@ -15,6 +15,7 @@ import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useComponentStore } from '@/store/componentStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { api, API_BASE_URL } from '@/services/api'
 import { cn } from '@/lib/utils'
 import {
@@ -36,9 +37,12 @@ function WorkflowBuilderContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [runtimeInputs, setRuntimeInputs] = useState<any[]>([])
-  const { mode, libraryOpen, inspectorWidth, setInspectorWidth } = useWorkflowUiStore()
+  const { mode, libraryOpen, inspectorWidth, setInspectorWidth, setMode } = useWorkflowUiStore()
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const inspectorResizingRef = useRef(false)
+  const selectRun = useExecutionTimelineStore((state) => state.selectRun)
+  const switchToLiveMode = useExecutionTimelineStore((state) => state.switchToLiveMode)
+  const loadRuns = useExecutionTimelineStore((state) => state.loadRuns)
 
   // Load workflow on mount (if not new)
   useEffect(() => {
@@ -158,7 +162,22 @@ function WorkflowBuilderContent() {
       )
 
       if (runId) {
-        alert(`Workflow started! Execution ID: ${runId}\n\nCheck the bottom panel for execution status.`)
+        setMode('review')
+
+        try {
+          await loadRuns()
+        } catch (runLoadError) {
+          console.warn('Failed to refresh runs list before switching to review mode', runLoadError)
+        }
+
+        try {
+          await selectRun(runId)
+          switchToLiveMode()
+        } catch (prepError) {
+          console.warn('Failed to prepare review mode for run', prepError)
+        }
+
+        alert(`Workflow started! Execution ID: ${runId}\n\nSwitched to the Review pane—watch the run in real time there.`)
       } else {
         alert('Workflow started but no run ID returned')
       }
