@@ -14,6 +14,7 @@ import './core/console-log';
 import './security/subfinder';
 import './security/amass';
 import './security/naabu';
+import './security/dnsx';
 
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';
