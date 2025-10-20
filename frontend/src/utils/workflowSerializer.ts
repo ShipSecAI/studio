@@ -106,7 +106,25 @@ export function serializeWorkflowForUpdate(
  * Backend sends: { id, type: componentId, position, data: { label, config } }
  * Frontend needs: { id, type: 'workflow', position, data: { componentId, componentSlug, label, parameters, status, config } }
  */
-export function deserializeNodes(nodes: Node[]): ReactFlowNode<NodeData>[] {
+export function deserializeNodes(nodes: Node[], edges?: Edge[]): ReactFlowNode<NodeData>[] {
+  const inputMappingsByNode = new Map<string, Record<string, { source: string; output: string }>>()
+
+  if (Array.isArray(edges)) {
+    for (const edge of edges) {
+      if (!edge.targetHandle) continue
+
+      const targetNodeId = edge.target
+      const existing = inputMappingsByNode.get(targetNodeId) ?? {}
+
+      existing[edge.targetHandle] = {
+        source: edge.source,
+        output: edge.sourceHandle ?? '',
+      }
+
+      inputMappingsByNode.set(targetNodeId, existing)
+    }
+  }
+
   return nodes.map((node) => ({
     id: node.id,
     type: 'workflow', // All nodes use the same React Flow type
@@ -121,6 +139,7 @@ export function deserializeNodes(nodes: Node[]): ReactFlowNode<NodeData>[] {
       componentVersion: '1.0.0', // Default version if not specified
       parameters: node.data.config || {}, // Map config to parameters for frontend
       status: 'idle', // Reset execution state
+      inputs: inputMappingsByNode.get(node.id) ?? {},
     },
   }))
 }

@@ -65,8 +65,8 @@ function WorkflowBuilderContent() {
         })
 
         // Deserialize and set nodes/edges
-        const workflowNodes = deserializeNodes(workflow.nodes)
         const workflowEdges = deserializeEdges(workflow.edges)
+        const workflowNodes = deserializeNodes(workflow.nodes, workflow.edges)
 
         setNodes(workflowNodes)
         setEdges(workflowEdges)
