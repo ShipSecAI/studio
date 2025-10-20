@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { MigrationGuard } from './migration.guard';
 
 export const DRIZZLE_TOKEN = Symbol('DRIZZLE_CONNECTION');
 
@@ -29,6 +30,7 @@ export const DRIZZLE_TOKEN = Symbol('DRIZZLE_CONNECTION');
       useFactory: (pool: Pool) => drizzle(pool),
       inject: [Pool],
     },
+    MigrationGuard,
   ],
   exports: [DRIZZLE_TOKEN],
 })
