@@ -2,7 +2,7 @@
 /**
  * Quick test script for the ShipSec API Client
  * 
- * Prerequisites: Backend must be running on http://localhost:3000
+ * Prerequisites: Backend must be running on http://localhost:3211
  * 
  * Usage: bun run test-client.ts
  */
@@ -13,7 +13,7 @@ async function main() {
   console.log('🧪 Testing ShipSec API Client\n');
 
   const client = createShipSecClient({
-    baseUrl: 'http://localhost:3001',
+    baseUrl: 'http://localhost:3211',
   });
 
   try {
@@ -91,4 +91,3 @@ async function main() {
 }
 
 main();
-

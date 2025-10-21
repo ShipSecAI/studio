@@ -112,12 +112,45 @@ bun run dev
 
 The application will be available at:
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3001
+- **Backend API**: http://localhost:3211
 - **Temporal UI**: http://localhost:8081
 - **MinIO Console**: http://localhost:9001
 
 ---
 
+## One-Command Dev Stack
+
+Prefer a single command? Run the entire development stack—Docker services, backend + worker, and the Vite dev server—via PM2:
+
+```bash
+# Start Temporal/Postgres/MinIO/Loki, backend, worker, and frontend dev server
+bun run dev:stack
+```
+
+The script performs the following steps:
+
+1. `docker compose up -d` to bring up Temporal, Postgres, MinIO, and Loki.
+2. `pm2 startOrReload pm2.config.cjs` to launch:
+   - `shipsec-backend` (Bun dev server for the API),
+   - `shipsec-worker` (Temporal worker, default task queue),
+   - `shipsec-frontend` (Vite dev server).
+3. `pm2 logs shipsec-frontend` streams the frontend output for live iteration. Press `Ctrl+C` to stop tailing; PM2 keeps the apps running in the background.
+
+### Stopping the stack
+
+```bash
+bun run dev:stack:stop
+```
+
+This shuts down the PM2 apps (backend, worker, frontend) and runs `docker compose down`.
+
+### Inspecting status or additional logs
+
+```bash
+pm2 status
+pm2 logs shipsec-backend
+pm2 logs shipsec-worker
+```
 ## Running Tests and Quality Gates
 
 ```bash

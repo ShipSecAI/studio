@@ -12,7 +12,7 @@ interface TopBarProps {
   workflowId?: string
   isNew?: boolean
   onRun?: () => void
-  onSave?: () => void
+  onSave: () => Promise<void> | void
 }
 
 export function TopBar({ onRun, onSave }: TopBarProps) {
@@ -25,17 +25,11 @@ export function TopBar({ onRun, onSave }: TopBarProps) {
   const { mode, setMode, libraryOpen, toggleLibrary } = useWorkflowUiStore()
 
   const handleSave = async () => {
-    if (onSave) {
-      setIsSaving(true)
-      try {
-        await onSave()
-      } finally {
-        setIsSaving(false)
-      }
-    } else {
-      setIsSaving(true)
-      // TODO: Implement save logic
-      setTimeout(() => setIsSaving(false), 1000)
+    setIsSaving(true)
+    try {
+      await Promise.resolve(onSave())
+    } finally {
+      setIsSaving(false)
     }
   }
 

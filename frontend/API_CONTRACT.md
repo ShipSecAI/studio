@@ -2,7 +2,7 @@
 
 This document defines the API contract between the frontend and backend.
 
-**Base URL:** `http://localhost:8080`
+**Base URL:** `http://localhost:3211`
 
 All requests should use `Content-Type: application/json`.
 

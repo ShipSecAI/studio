@@ -36,6 +36,18 @@ export interface DataPacket {
   visualTime: number // When this packet should appear in timeline
 }
 
+type RawDataPacket = {
+  id: string
+  sourceNode: string
+  targetNode: string
+  timestamp: string
+  inputKey?: string
+  payload?: any
+  size?: number
+  type?: string
+  visualTime?: number
+}
+
 export interface ExecutionRun {
   id: string
   workflowId: string
@@ -107,7 +119,7 @@ export interface TimelineActions {
   // Live updates
   updateFromLiveEvent: (event: ExecutionLog) => void
   switchToLiveMode: () => void
-  appendDataFlows: (packets: DataPacket[]) => void
+  appendDataFlows: (packets: RawDataPacket[]) => void
 
   // Cleanup
   reset: () => void
@@ -159,8 +171,44 @@ const prepareTimelineEvents = (
   }
 }
 
+const normalizeDataPackets = (
+  rawPackets: RawDataPacket[] = [],
+  timelineStartTime: number | null,
+  totalDuration: number
+): DataPacket[] => {
+  if (!rawPackets.length) {
+    return []
+  }
+
+  return rawPackets.map((packet) => {
+    const packetTimestamp = new Date(packet.timestamp).getTime()
+    const baseStart = timelineStartTime ?? packetTimestamp
+    const computedTotal = totalDuration > 0 ? totalDuration : Math.max(packetTimestamp - baseStart, 1)
+
+    const visualTime =
+      typeof packet.visualTime === 'number'
+        ? packet.visualTime
+        : computedTotal > 0
+          ? Math.max(0, Math.min(1, (packetTimestamp - baseStart) / computedTotal))
+          : 0
+
+    return {
+      id: packet.id,
+      sourceNode: packet.sourceNode,
+      targetNode: packet.targetNode,
+      inputKey: packet.inputKey,
+      payload: packet.payload,
+      timestamp: packetTimestamp,
+      size: typeof packet.size === 'number' ? packet.size : Number(packet.size ?? 0),
+      type: (packet.type as DataPacket['type']) ?? 'json',
+      visualTime,
+    }
+  })
+}
+
 const calculateNodeStates = (
   events: TimelineEvent[],
+  dataFlows: DataPacket[],
   currentTime: number,
   timelineStartTime?: number | null
 ): Record<string, NodeVisualState> => {
@@ -173,6 +221,25 @@ const calculateNodeStates = (
   const firstEventTimestamp = new Date(events[0].timestamp).getTime()
   const startTime = timelineStartTime ?? firstEventTimestamp
   const absoluteCurrentTime = startTime + currentTime
+  const filteredPackets = dataFlows.filter((packet) => {
+    const packetTime = new Date(packet.timestamp).getTime()
+    return packetTime <= absoluteCurrentTime
+  })
+
+  const inputPacketsByNode = new Map<string, DataPacket[]>()
+  const outputPacketsByNode = new Map<string, DataPacket[]>()
+
+  filteredPackets.forEach((packet) => {
+    if (!inputPacketsByNode.has(packet.targetNode)) {
+      inputPacketsByNode.set(packet.targetNode, [])
+    }
+    inputPacketsByNode.get(packet.targetNode)!.push(packet)
+
+    if (!outputPacketsByNode.has(packet.sourceNode)) {
+      outputPacketsByNode.set(packet.sourceNode, [])
+    }
+    outputPacketsByNode.get(packet.sourceNode)!.push(packet)
+  })
 
   // Group events by node
   const nodeEvents = new Map<string, TimelineEvent[]>()
@@ -236,12 +303,45 @@ const calculateNodeStates = (
 
     states[nodeId] = {
       status,
-      progress,
-      startTime: firstNodeEventTimestamp,
-      endTime: status === 'success' || status === 'error' ? lastEventTimestamp : undefined,
-      eventCount: relevantEvents.length,
-      lastEvent,
-      dataFlow: { input: [], output: [] } // TODO: Calculate from data flow events
+        progress,
+        startTime: firstNodeEventTimestamp,
+        endTime: status === 'success' || status === 'error' ? lastEventTimestamp : undefined,
+        eventCount: relevantEvents.length,
+        lastEvent,
+        dataFlow: {
+          input: inputPacketsByNode.get(nodeId) ?? [],
+          output: outputPacketsByNode.get(nodeId) ?? [],
+        }
+      }
+  })
+
+  // Ensure nodes that only appear in data flow packets are represented
+  filteredPackets.forEach((packet) => {
+    if (!states[packet.sourceNode]) {
+      states[packet.sourceNode] = {
+        status: 'idle',
+        progress: 0,
+        startTime: new Date(packet.timestamp).getTime(),
+        eventCount: 0,
+        lastEvent: null,
+        dataFlow: {
+          input: inputPacketsByNode.get(packet.sourceNode) ?? [],
+          output: outputPacketsByNode.get(packet.sourceNode) ?? [],
+        },
+      }
+    }
+    if (!states[packet.targetNode]) {
+      states[packet.targetNode] = {
+        status: 'idle',
+        progress: 0,
+        startTime: new Date(packet.timestamp).getTime(),
+        eventCount: 0,
+        lastEvent: null,
+        dataFlow: {
+          input: inputPacketsByNode.get(packet.targetNode) ?? [],
+          output: outputPacketsByNode.get(packet.targetNode) ?? [],
+        },
+      }
     }
   })
 
@@ -313,17 +413,11 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
         ])
 
         const { events, totalDuration, timelineStartTime } = prepareTimelineEvents(eventsResponse.events)
-        const dataFlows: DataPacket[] = (dataFlowResponse.packets ?? []).map((packet: any) => ({
-          id: packet.id,
-          sourceNode: packet.sourceNode,
-          targetNode: packet.targetNode,
-          inputKey: packet.inputKey,
-          payload: packet.payload,
-          timestamp: packet.timestamp,
-          size: packet.size,
-          type: packet.type,
-          visualTime: typeof packet.visualTime === 'number' ? packet.visualTime : 0,
-        }))
+        const dataFlows = normalizeDataPackets(
+          dataFlowResponse.packets ?? [],
+          timelineStartTime,
+          totalDuration,
+        )
 
         const initialCurrentTime = get().playbackMode === 'live' ? totalDuration : 0
 
@@ -333,7 +427,7 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
           totalDuration,
           currentTime: initialCurrentTime,
           timelineStartTime,
-          nodeStates: calculateNodeStates(events, initialCurrentTime, timelineStartTime)
+          nodeStates: calculateNodeStates(events, dataFlows, initialCurrentTime, timelineStartTime)
         })
       } catch (error) {
         console.error('Failed to load timeline:', error)
@@ -358,8 +452,8 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
       })
 
       // Recalculate node states for new time
-      const { events, timelineStartTime } = get()
-      const newStates = calculateNodeStates(events, clampedTime, timelineStartTime)
+      const { events, dataFlows, timelineStartTime } = get()
+      const newStates = calculateNodeStates(events, dataFlows, clampedTime, timelineStartTime)
       set({ nodeStates: newStates })
 
       // Clear seeking flag after a short delay
@@ -415,13 +509,30 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
       set({ timelineZoom: Math.max(0.5, Math.min(2.0, zoom)) })
     },
 
-    appendDataFlows: (packets: DataPacket[]) => {
+    appendDataFlows: (packets: RawDataPacket[]) => {
       if (!packets || packets.length === 0) {
         return
       }
-      set(state => ({
-        dataFlows: [...state.dataFlows, ...packets]
-      }))
+
+      set((state) => {
+        const derivedDuration =
+          state.totalDuration > 0
+            ? state.totalDuration
+            : state.events.length > 0 && state.timelineStartTime !== null
+              ? new Date(state.events[state.events.length - 1].timestamp).getTime() - state.timelineStartTime
+              : 0
+
+        const normalized = normalizeDataPackets(
+          packets,
+          state.timelineStartTime,
+          derivedDuration,
+        )
+        const dataFlows = [...state.dataFlows, ...normalized]
+        return {
+          dataFlows,
+          nodeStates: calculateNodeStates(state.events, dataFlows, state.currentTime, state.timelineStartTime),
+        }
+      })
     },
 
     updateFromLiveEvent: (event: ExecutionLog) => {
@@ -440,13 +551,13 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
       } = prepareTimelineEvents(combinedEvents)
       const currentTime = totalDuration
 
-      set({
+      set((state) => ({
         events: preparedEvents,
         totalDuration,
         timelineStartTime,
         currentTime,
-        nodeStates: calculateNodeStates(preparedEvents, currentTime, timelineStartTime)
-      })
+        nodeStates: calculateNodeStates(preparedEvents, state.dataFlows, currentTime, timelineStartTime)
+      }))
     },
 
     switchToLiveMode: () => {
@@ -480,9 +591,10 @@ export const initializeTimelineStore = () => {
 
   unsubscribeExecutionStore = useExecutionStore.subscribe(
     (state) => state.logs,
-    (logs) => {
+    (logs: ExecutionLog[]) => {
+      const executionState = useExecutionStore.getState()
       const timelineStore = useExecutionTimelineStore.getState()
-      if (timelineStore.playbackMode === 'live' && timelineStore.selectedRunId === state.runId) {
+      if (timelineStore.playbackMode === 'live' && timelineStore.selectedRunId === executionState.runId) {
         // Update timeline with new logs
         const {
           events,
@@ -491,13 +603,13 @@ export const initializeTimelineStore = () => {
         } = prepareTimelineEvents(logs)
         const currentTime = totalDuration
 
-        timelineStore.setState({
+        useExecutionTimelineStore.setState((state: TimelineState) => ({
           events,
           totalDuration,
           timelineStartTime,
           currentTime,
-          nodeStates: calculateNodeStates(events, currentTime, timelineStartTime)
-        })
+          nodeStates: calculateNodeStates(events, state.dataFlows, currentTime, timelineStartTime)
+        }))
       }
     }
   )

@@ -162,7 +162,7 @@ export function EventInspector({ className }: EventInspectorProps) {
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
+      <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
         {displayEvents.length === 0 ? (
           <div className="px-4 py-8 text-xs text-muted-foreground">
             No events available.
@@ -185,12 +185,17 @@ export function EventInspector({ className }: EventInspectorProps) {
                     type="button"
                     onClick={() => handleEventToggle(event)}
                     className="flex w-full items-start justify-between gap-3 text-left"
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
                   >
-                    <div className="flex flex-1 items-start gap-3">
+                    <div className="flex flex-1 items-start gap-3" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <div className="flex h-7 w-7 items-center justify-center rounded-full border bg-background">
                         <IconComponent className="h-4 w-4" />
                       </div>
-                      <div className="min-w-0 flex-1 space-y-1">
+                      <div className="min-w-0 flex-1 space-y-1 overflow-hidden" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium truncate">
                             {event.type}
@@ -198,15 +203,36 @@ export function EventInspector({ className }: EventInspectorProps) {
                           <Badge variant={LEVEL_BADGE[event.level] ?? 'outline'} className="text-[10px] uppercase">
                             {event.level}
                           </Badge>
+                          {typeof event.metadata?.attempt === 'number' && (
+                            <Badge
+                              variant={event.metadata.attempt > 1 ? 'warning' : 'outline'}
+                              className="text-[10px] uppercase"
+                            >
+                              Attempt {event.metadata.attempt}
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span>{formatTimestamp(event.timestamp)}</span>
                           {event.nodeId && (
                             <span className="truncate">Node {event.nodeId}</span>
                           )}
+                          {event.metadata?.activityId && (
+                            <span className="truncate font-mono text-[10px]">
+                              {event.metadata.activityId}
+                            </span>
+                          )}
                         </div>
                         {event.message && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">
+                          <p 
+                            className="text-xs text-muted-foreground"
+                            style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: '100%'
+                            }}
+                          >
                             {event.message}
                           </p>
                         )}
@@ -248,7 +274,34 @@ export function EventInspector({ className }: EventInspectorProps) {
                         <div>
                           <span className="font-medium">Message</span>
                           <div className="mt-1 rounded-md border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
-                            {event.message}
+                            <div className="truncate">
+                              {event.message}
+                            </div>
+                            {event.message.length > 100 && (
+                              <button 
+                                className="text-[10px] text-blue-500 hover:text-blue-700 mt-1"
+                                onClick={() => {
+                                  // Create a modal to show the full text
+                                  const modal = document.createElement('div');
+                                  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                                  modal.innerHTML = `
+                                    <div class="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-auto">
+                                      <div class="flex justify-between items-center mb-4">
+                                        <h3 class="text-lg font-semibold">Full Event Message</h3>
+                                        <button class="text-gray-500 hover:text-gray-700" onclick="this.closest('.fixed').remove()">×</button>
+                                      </div>
+                                      <pre class="text-xs font-mono whitespace-pre-wrap break-words">${event.message}</pre>
+                                    </div>
+                                  `;
+                                  document.body.appendChild(modal);
+                                  modal.addEventListener('click', (e) => {
+                                    if (e.target === modal) modal.remove();
+                                  });
+                                }}
+                              >
+                                View full message
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
@@ -259,6 +312,84 @@ export function EventInspector({ className }: EventInspectorProps) {
                           <pre className="mt-1 max-h-40 overflow-auto rounded border bg-muted/30 px-3 py-2 font-mono text-[11px]">
                             {formatData(event.data)}
                           </pre>
+                        </div>
+                      )}
+
+                      {event.metadata && (
+                        <div>
+                          <span className="font-medium">Execution metadata</span>
+                          <div className="mt-1 grid grid-cols-2 gap-3 text-muted-foreground">
+                            {event.metadata.activityId && (
+                              <div>
+                                <span className="block text-[10px] uppercase">Activity ID</span>
+                                <span className="font-mono text-[11px] break-all">{event.metadata.activityId}</span>
+                              </div>
+                            )}
+                            {typeof event.metadata.attempt === 'number' && (
+                              <div>
+                                <span className="block text-[10px] uppercase">Attempt</span>
+                                <span className="font-mono text-[11px]">{event.metadata.attempt}</span>
+                              </div>
+                            )}
+                            {event.metadata.correlationId && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase">Correlation</span>
+                                <span className="font-mono text-[11px] break-all">{event.metadata.correlationId}</span>
+                              </div>
+                            )}
+                            {event.metadata.streamId && (
+                              <div>
+                                <span className="block text-[10px] uppercase">Stream</span>
+                                <span className="font-mono text-[11px]">{event.metadata.streamId}</span>
+                              </div>
+                            )}
+                            {event.metadata.joinStrategy && (
+                              <div>
+                                <span className="block text-[10px] uppercase">Join</span>
+                                <span className="font-mono text-[11px]">{event.metadata.joinStrategy}</span>
+                              </div>
+                            )}
+                            {event.metadata.triggeredBy && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase">Triggered by</span>
+                                <span className="font-mono text-[11px] break-all">{event.metadata.triggeredBy}</span>
+                              </div>
+                            )}
+                            {event.metadata.retryPolicy && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase">Retry policy</span>
+                                <div className="mt-1 rounded border bg-muted/30 px-3 py-2 font-mono text-[10px] space-y-1">
+                                  {event.metadata.retryPolicy.maxAttempts !== undefined && (
+                                    <div>maxAttempts: {event.metadata.retryPolicy.maxAttempts}</div>
+                                  )}
+                                  {event.metadata.retryPolicy.initialIntervalSeconds !== undefined && (
+                                    <div>initialIntervalSeconds: {event.metadata.retryPolicy.initialIntervalSeconds}s</div>
+                                  )}
+                                  {event.metadata.retryPolicy.maximumIntervalSeconds !== undefined && (
+                                    <div>maximumIntervalSeconds: {event.metadata.retryPolicy.maximumIntervalSeconds}s</div>
+                                  )}
+                                  {event.metadata.retryPolicy.backoffCoefficient !== undefined && (
+                                    <div>backoffCoefficient: {event.metadata.retryPolicy.backoffCoefficient}</div>
+                                  )}
+                                  {event.metadata.retryPolicy.nonRetryableErrorTypes && event.metadata.retryPolicy.nonRetryableErrorTypes.length > 0 && (
+                                    <div>nonRetryableErrorTypes: {event.metadata.retryPolicy.nonRetryableErrorTypes.join(', ')}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {event.metadata.failure && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase">Failure context</span>
+                                <div className="mt-1 rounded border bg-destructive/10 px-3 py-2 text-destructive text-[11px] space-y-1">
+                                  <div>at: {event.metadata.failure.at}</div>
+                                  <div>message: {event.metadata.failure.reason.message}</div>
+                                  {event.metadata.failure.reason.name && (
+                                    <div>name: {event.metadata.failure.reason.name}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -287,6 +418,22 @@ export function EventInspector({ className }: EventInspectorProps) {
                               <span className="font-medium">Started</span>
                               <div className="mt-1 text-muted-foreground">
                                 {formatTimestamp(new Date(nodeState.startTime).toISOString())}
+                              </div>
+                            </div>
+                          )}
+                          {nodeState.retryCount > 0 && (
+                            <div>
+                              <span className="font-medium">Retries</span>
+                              <div className="mt-1 text-muted-foreground">
+                                {nodeState.retryCount}
+                              </div>
+                            </div>
+                          )}
+                          {nodeState.lastActivityId && (
+                            <div className="col-span-2">
+                              <span className="font-medium">Latest activity</span>
+                              <div className="mt-1 font-mono text-[11px] text-muted-foreground break-all">
+                                {nodeState.lastActivityId}
                               </div>
                             </div>
                           )}

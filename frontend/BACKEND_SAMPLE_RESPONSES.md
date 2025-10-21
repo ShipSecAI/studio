@@ -428,7 +428,7 @@ You can use these `curl` commands to test:
 
 ### Create Workflow
 ```bash
-curl -X POST http://localhost:8080/workflows \
+curl -X POST http://localhost:3211/workflows \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Test Workflow",
@@ -440,12 +440,12 @@ curl -X POST http://localhost:8080/workflows \
 
 ### Get Workflow
 ```bash
-curl http://localhost:8080/workflows/550e8400-e29b-41d4-a716-446655440000
+curl http://localhost:3211/workflows/550e8400-e29b-41d4-a716-446655440000
 ```
 
 ### Update Workflow
 ```bash
-curl -X PUT http://localhost:8080/workflows/550e8400-e29b-41d4-a716-446655440000 \
+curl -X PUT http://localhost:3211/workflows/550e8400-e29b-41d4-a716-446655440000 \
   -H "Content-Type: application/json" \
   -d '{
     "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -457,5 +457,5 @@ curl -X PUT http://localhost:8080/workflows/550e8400-e29b-41d4-a716-446655440000
 
 ### Delete Workflow
 ```bash
-curl -X DELETE http://localhost:8080/workflows/550e8400-e29b-41d4-a716-446655440000
+curl -X DELETE http://localhost:3211/workflows/550e8400-e29b-41d4-a716-446655440000
 ```

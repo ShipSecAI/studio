@@ -95,7 +95,7 @@ CREATE TABLE files (
 
 ### 1. Upload File
 ```bash
-curl -X POST http://localhost:3000/files/upload \
+curl -X POST http://localhost:3211/files/upload \
   -F "file=@myfile.txt"
 ```
 
@@ -164,4 +164,3 @@ All endpoints tested and working:
 5. **File Expiration** - Auto-cleanup of old files
 6. **Chunked Uploads** - Support for large files
 7. **File Processing** - Image resizing, PDF parsing, etc.
-
