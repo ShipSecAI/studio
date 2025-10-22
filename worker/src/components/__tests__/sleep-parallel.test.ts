@@ -2,8 +2,8 @@ import { beforeAll, describe, expect, it } from 'bun:test';
 import { componentRegistry, createExecutionContext } from '@shipsec/component-sdk';
 
 describe('test.sleep.parallel component', () => {
-  beforeAll(() => {
-    require('../index');
+  beforeAll(async () => {
+    await import('../index');
   });
 
   it('should be registered', () => {

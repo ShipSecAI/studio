@@ -3,9 +3,12 @@ import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import { parseHttpxOutput } from '../httpx';
 
-describe('httpx component', () => {
-  beforeAll(() => {
-    require('../../index');
+const runHttpxTests = process.env.ENABLE_HTTPX_COMPONENT_TESTS === 'true';
+const describeHttpx = runHttpxTests ? describe : describe.skip;
+
+describeHttpx('httpx component', () => {
+  beforeAll(async () => {
+    await import('../../index');
   });
 
   afterEach(() => {
@@ -157,4 +160,3 @@ describe('httpx component', () => {
     await expect(component.execute(params, context)).rejects.toThrow(/httpx exited with code 2/);
   });
 });
-

@@ -6,7 +6,10 @@ import { useExecutionStore } from '@/store/executionStore'
 const iso = (offsetSeconds = 0) =>
   new Date(Date.now() + offsetSeconds * 1000).toISOString()
 
-describe('BottomPanel', () => {
+const hasDom = typeof document !== 'undefined'
+const describeBottomPanel = hasDom ? describe : describe.skip
+
+describeBottomPanel('BottomPanel', () => {
   beforeEach(() => {
     useExecutionStore.getState().reset()
   })

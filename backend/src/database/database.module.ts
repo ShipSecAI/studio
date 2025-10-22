@@ -8,12 +8,7 @@ export const DRIZZLE_TOKEN = Symbol('DRIZZLE_CONNECTION');
 
 @Global()
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ['.env'],
-    }),
-  ],
+  imports: [ConfigModule],
   providers: [
     {
       provide: Pool,

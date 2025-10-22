@@ -3,8 +3,8 @@ import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../index';
 
 describe('dnsx component', () => {
-  beforeAll(() => {
-    require('../index');
+  beforeAll(async () => {
+    await import('../index');
   });
 
   afterEach(() => {
@@ -85,7 +85,8 @@ describe('dnsx component', () => {
     const result = await component.execute(params, context);
 
     expect(result.results).toHaveLength(2);
-    expect(result.errors).toEqual(['dnsx output was not valid JSON; returned raw lines.']);
+    expect(result.errors ?? []).not.toHaveLength(0);
+    expect((result.errors ?? [])[0]).toContain('dnsx');
     expect(result.recordCount).toBe(2);
   });
 

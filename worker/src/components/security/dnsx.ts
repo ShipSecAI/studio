@@ -408,16 +408,32 @@ fi
         }),
       );
 
+      const requestedRecordTypes = Array.isArray(params.recordTypes)
+        ? params.recordTypes.filter((entry) => typeof entry === 'string')
+        : [];
+
+      const requestedResolvers = Array.isArray(params.resolvers)
+        ? params.resolvers.filter((entry) => typeof entry === 'string')
+        : [];
+
       return {
         results: normalisedRecords,
         rawOutput: params.rawOutput,
         domainCount: params.domainCount,
         recordCount: params.recordCount,
         recordTypes: ensureUnique(
-          params.recordTypes.length > 0 ? params.recordTypes : derivedRecordTypes.length > 0 ? derivedRecordTypes : recordTypes,
+          requestedRecordTypes.length > 0
+            ? requestedRecordTypes
+            : derivedRecordTypes.length > 0
+              ? derivedRecordTypes
+              : recordTypes,
         ),
         resolvers: ensureUnique(
-          params.resolvers.length > 0 ? params.resolvers : derivedResolvers.length > 0 ? derivedResolvers : resolvers,
+          requestedResolvers.length > 0
+            ? requestedResolvers
+            : derivedResolvers.length > 0
+              ? derivedResolvers
+              : resolvers,
         ),
         errors: params.errors && params.errors.length > 0 ? ensureUnique(params.errors) : undefined,
       };

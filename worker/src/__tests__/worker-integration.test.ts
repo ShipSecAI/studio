@@ -12,7 +12,10 @@ import { TraceAdapter } from '../adapters/trace.adapter';
 import * as schema from '../adapters/schema';
 import '../components'; // Register all components
 
-describe('Worker Integration Tests', () => {
+const enableWorkerIntegration = process.env.ENABLE_WORKER_INTEGRATION_TESTS === 'true';
+const workerDescribe = enableWorkerIntegration ? describe : describe.skip;
+
+workerDescribe('Worker Integration Tests', () => {
   let temporalClient: Client;
   let minioClient: MinioClient;
   let pool: Pool;

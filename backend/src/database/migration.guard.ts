@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 
 const REQUIRED_TABLES = [
@@ -13,7 +13,7 @@ const REQUIRED_TABLES = [
 export class MigrationGuard implements OnModuleInit {
   private readonly logger = new Logger(MigrationGuard.name);
 
-  constructor(private readonly pool: Pool) {}
+  constructor(@Inject(Pool) private readonly pool: Pool) {}
 
   async onModuleInit(): Promise<void> {
     if (process.env.SHIPSEC_SKIP_MIGRATION_CHECK === 'true') {

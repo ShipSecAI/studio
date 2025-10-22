@@ -143,6 +143,9 @@ const definition: ComponentDefinition<Input, Output> = {
       '-c',
       String.raw`set -eo pipefail
 
+export HOME=/tmp
+mkdir -p "$HOME/.config/amass"
+
 INPUT=$(cat)
 
 DOMAINS_SECTION=$(printf "%s" "$INPUT" | tr -d '\n' | sed -n 's/.*"domains":[[:space:]]*\[\([^]]*\)\].*/\1/p')
@@ -307,7 +310,7 @@ eval "$AMASS_COMMAND" >"$RAW_FILE"
 STATUS=$?
 set -e
 
-if [ $STATUS -ne 0 ]; then
+if [ $STATUS -ne 0 ] && [ ! -s "$RAW_FILE" ]; then
   exit $STATUS
 fi
 

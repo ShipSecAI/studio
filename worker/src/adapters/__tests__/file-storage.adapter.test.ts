@@ -7,7 +7,10 @@ import { randomUUID } from 'node:crypto';
 import { FileStorageAdapter } from '../file-storage.adapter';
 import * as schema from '../schema';
 
-describe('FileStorageAdapter (Integration)', () => {
+const enableFileStorageIntegration = process.env.ENABLE_FILE_STORAGE_TESTS === 'true';
+const fileStorageDescribe = enableFileStorageIntegration ? describe : describe.skip;
+
+fileStorageDescribe('FileStorageAdapter (Integration)', () => {
   let minioClient: Client;
   let pool: Pool;
   let db: NodePgDatabase<typeof schema>;

@@ -15,7 +15,10 @@ const resetStores = () => {
   })
 }
 
-describe('TopBar', () => {
+const hasDom = typeof document !== 'undefined'
+const describeTopBar = hasDom ? describe : describe.skip
+
+describeTopBar('TopBar', () => {
   beforeEach(() => {
     resetStores()
   })

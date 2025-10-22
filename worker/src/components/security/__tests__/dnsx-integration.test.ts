@@ -7,7 +7,10 @@ import type { ExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry } from '@shipsec/component-sdk';
 import '../dnsx';
 
-describe('DNSX Integration (Docker)', () => {
+const enableDockerIntegration = process.env.ENABLE_DOCKER_TESTS === 'true';
+const dockerDescribe = enableDockerIntegration ? describe : describe.skip;
+
+dockerDescribe('DNSX Integration (Docker)', () => {
   let context: ExecutionContext;
   const logs: string[] = [];
 

@@ -7,7 +7,10 @@ import { componentRegistry } from '@shipsec/component-sdk';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import '../subfinder'; // Register the component
 
-describe('Subfinder Integration (Docker)', () => {
+const enableDockerIntegration = process.env.ENABLE_DOCKER_TESTS === 'true';
+const dockerDescribe = enableDockerIntegration ? describe : describe.skip;
+
+dockerDescribe('Subfinder Integration (Docker)', () => {
   let context: ExecutionContext;
   const logs: string[] = [];
 

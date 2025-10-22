@@ -2,7 +2,10 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import { runComponentWithRunner } from '../runner';
 import type { ExecutionContext, DockerRunnerConfig } from '../types';
 
-describe('Docker Runner', () => {
+const enableDockerRunnerTests = process.env.ENABLE_DOCKER_TESTS === 'true';
+const dockerDescribe = enableDockerRunnerTests ? describe : describe.skip;
+
+dockerDescribe('Docker Runner', () => {
   let context: ExecutionContext;
   const logs: string[] = [];
 
