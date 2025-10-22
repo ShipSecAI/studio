@@ -87,6 +87,8 @@ export class TraceAdapter implements ITraceService {
       return;
     }
 
+    const packedData = this.packData(event);
+
     await this.db.insert(workflowTraces).values({
       runId: event.runId,
       workflowId: this.metadataByRun.get(event.runId)?.workflowId ?? null,
@@ -97,8 +99,30 @@ export class TraceAdapter implements ITraceService {
       error: event.error ?? null,
       outputSummary: event.outputSummary ?? null,
       level: event.level,
-      data: event.data ?? null,
+      data: packedData,
       sequence,
     });
+  }
+
+  private packData(event: TraceEvent): Record<string, unknown> | null {
+    const hasData = event.data && typeof event.data === 'object' && !Array.isArray(event.data);
+    const hasMetadata =
+      event.context && typeof event.context === 'object' && !Array.isArray(event.context);
+
+    if (!hasData && !hasMetadata) {
+      return null;
+    }
+
+    const packed: Record<string, unknown> = {};
+
+    if (hasData) {
+      packed._payload = event.data as Record<string, unknown>;
+    }
+
+    if (hasMetadata) {
+      packed._metadata = event.context as Record<string, unknown>;
+    }
+
+    return packed;
   }
 }

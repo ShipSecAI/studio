@@ -22,6 +22,18 @@ export const FailureSummarySchema = z.object({
 
 export type FailureSummary = z.infer<typeof FailureSummarySchema>;
 
+export const ExecutionFailureReasonSchema = z.object({
+  message: z.string(),
+  name: z.string().optional(),
+});
+
+export const ExecutionFailureMetadataSchema = z.object({
+  at: z.string().datetime(),
+  reason: ExecutionFailureReasonSchema,
+});
+
+export type ExecutionFailureMetadata = z.infer<typeof ExecutionFailureMetadataSchema>;
+
 export const ProgressSummarySchema = z.object({
   completedActions: z.number().int().nonnegative(),
   totalActions: z.number().int().positive(),
@@ -60,6 +72,27 @@ export const TraceErrorSchema = z.object({
 
 export type TraceError = z.infer<typeof TraceErrorSchema>;
 
+export const TraceRetryPolicySchema = z.object({
+  maxAttempts: z.number().int().positive().optional(),
+  initialIntervalSeconds: z.number().nonnegative().optional(),
+  maximumIntervalSeconds: z.number().nonnegative().optional(),
+  backoffCoefficient: z.number().positive().optional(),
+  nonRetryableErrorTypes: z.array(z.string()).optional(),
+});
+
+export const TraceEventMetadataSchema = z.object({
+  activityId: z.string().optional(),
+  attempt: z.number().int().nonnegative().optional(),
+  correlationId: z.string().optional(),
+  streamId: z.string().optional(),
+  joinStrategy: z.enum(['all', 'any', 'first']).optional(),
+  triggeredBy: z.string().optional(),
+  failure: ExecutionFailureMetadataSchema.optional(),
+  retryPolicy: TraceRetryPolicySchema.optional(),
+}).strip();
+
+export type TraceEventMetadata = z.infer<typeof TraceEventMetadataSchema>;
+
 export const TraceEventSchema = z.object({
   id: z.string(),
   runId: z.string(),
@@ -71,6 +104,7 @@ export const TraceEventSchema = z.object({
   error: TraceErrorSchema.optional(),
   outputSummary: z.record(z.string(), z.unknown()).optional(),
   data: z.record(z.string(), z.unknown()).optional(),
+  metadata: TraceEventMetadataSchema.optional(),
 });
 
 export type TraceEventPayload = z.infer<typeof TraceEventSchema>;

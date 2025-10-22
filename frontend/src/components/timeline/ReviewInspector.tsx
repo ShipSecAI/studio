@@ -31,6 +31,22 @@ export function ReviewInspector() {
   ), [availableRuns, selectedRunId])
 
   const displayLogs = events.length > 0 ? events : logs
+  const retrySummary = useMemo(() => {
+    const states = Object.values(nodeStates)
+    if (states.length === 0) {
+      return { totalRetries: 0, nodesWithRetries: 0 }
+    }
+    return states.reduce(
+      (acc, state) => {
+        if (state.retryCount > 0) {
+          acc.totalRetries += state.retryCount
+          acc.nodesWithRetries += 1
+        }
+        return acc
+      },
+      { totalRetries: 0, nodesWithRetries: 0 }
+    )
+  }, [nodeStates])
 
   const retrySummary = useMemo(() => {
     const states = Object.values(nodeStates)

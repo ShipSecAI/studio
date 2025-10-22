@@ -323,6 +323,7 @@ export function EventInspector({ className }: EventInspectorProps) {
                               <div>
                                 <span className="block text-[10px] uppercase">Activity ID</span>
                                 <span className="font-mono text-[11px] break-all">{event.metadata.activityId}</span>
+                                <span className="font-mono text-[11px]">{event.metadata.activityId}</span>
                               </div>
                             )}
                             {typeof event.metadata.attempt === 'number' && (
@@ -413,19 +414,19 @@ export function EventInspector({ className }: EventInspectorProps) {
                               {nodeState.eventCount}
                             </div>
                           </div>
-                          {nodeState.startTime && (
-                            <div>
-                              <span className="font-medium">Started</span>
-                              <div className="mt-1 text-muted-foreground">
-                                {formatTimestamp(new Date(nodeState.startTime).toISOString())}
-                              </div>
-                            </div>
-                          )}
                           {nodeState.retryCount > 0 && (
                             <div>
                               <span className="font-medium">Retries</span>
                               <div className="mt-1 text-muted-foreground">
                                 {nodeState.retryCount}
+                              </div>
+                            </div>
+                          )}
+                          {nodeState.startTime && (
+                            <div>
+                              <span className="font-medium">Started</span>
+                              <div className="mt-1 text-muted-foreground">
+                                {formatTimestamp(new Date(nodeState.startTime).toISOString())}
                               </div>
                             </div>
                           )}

@@ -13,9 +13,11 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiConsumes, ApiBody, ApiOkResponse } from '@nestjs/swagger';
-import type { Response } from 'express';
+import { ZodValidationPipe } from 'nestjs-zod';
+import type { Response } from 'express-serve-static-core';
 
 import { FilesService } from './files.service';
+import { ListFilesQueryDto, ListFilesQuerySchema } from './dto/files.dto';
 
 @ApiTags('files')
 @Controller('files')
@@ -76,9 +78,10 @@ export class FilesController {
       },
     },
   })
-  async listFiles(@Query('limit') limit?: string) {
-    const parsedLimit = limit ? parseInt(limit, 10) : 100;
-    return this.filesService.listFiles(parsedLimit);
+  async listFiles(
+    @Query(new ZodValidationPipe(ListFilesQuerySchema)) query: ListFilesQueryDto,
+  ) {
+    return this.filesService.listFiles(query.limit);
   }
 
   @Get(':id')
@@ -122,4 +125,3 @@ export class FilesController {
     return { status: 'deleted', id };
   }
 }
-

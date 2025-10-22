@@ -369,7 +369,44 @@ describe('TraceAdapter', () => {
         sequence: 1,
         level: 'warn',
         message: 'Persist me',
-        data: { attempt: 2 },
+        data: { _payload: { attempt: 2 } },
+      });
+    });
+
+    it('packs metadata into persistence payload when context is provided', async () => {
+      const fakeDb = new FakeDb();
+      const persistentAdapter = new TraceAdapter(
+        fakeDb as unknown as NodePgDatabase<typeof schema>,
+        { logger: noopLogger },
+      );
+      const timestamp = new Date('2025-01-02T00:00:00Z').toISOString();
+
+      persistentAdapter.record({
+        type: 'NODE_COMPLETED',
+        runId: 'run-meta',
+        nodeRef: 'node-meta',
+        timestamp,
+        level: 'info',
+        context: {
+          activityId: 'activity-1',
+          attempt: 3,
+          correlationId: 'corr',
+        },
+      });
+
+      await Promise.resolve();
+
+      expect(fakeDb.inserts).toHaveLength(1);
+      expect(fakeDb.inserts[0].input).toMatchObject({
+        runId: 'run-meta',
+        nodeRef: 'node-meta',
+        data: {
+          _metadata: {
+            activityId: 'activity-1',
+            attempt: 3,
+            correlationId: 'corr',
+          },
+        },
       });
     });
   });

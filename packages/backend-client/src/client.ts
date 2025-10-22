@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workflows/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_listRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workflows/{id}/commit": {
         parameters: {
             query?: never;
@@ -140,6 +156,70 @@ export interface paths {
             cookie?: never;
         };
         get: operations["WorkflowsController_trace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflows/runs/{runId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflows/runs/{runId}/dataflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_dataflows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflows/runs/{runId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflows/runs/{runId}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_logs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -244,6 +324,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/testing/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TestingWebhookController_listRecords"];
+        put?: never;
+        post: operations["TestingWebhookController_acceptWebhook"];
+        delete: operations["TestingWebhookController_clearRecords"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/testing/webhooks/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TestingWebhookController_latestRecord"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/testing/webhooks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TestingWebhookController_getRecord"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -310,6 +438,11 @@ export interface components {
                 x: number;
                 y: number;
                 zoom: number;
+            };
+        };
+        RunWorkflowRequestDto: {
+            inputs?: {
+                [key: string]: unknown;
             };
         };
     };
@@ -437,6 +570,44 @@ export interface operations {
             };
         };
     };
+    WorkflowsController_listRuns: {
+        parameters: {
+            query?: {
+                workflowId?: string;
+                status?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List all workflow runs with metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        runs?: {
+                            id?: string;
+                            workflowId?: string;
+                            /** @enum {string} */
+                            status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
+                            /** Format: date-time */
+                            startTime?: string;
+                            /** Format: date-time */
+                            endTime?: string | null;
+                            temporalRunId?: string;
+                            workflowName?: string;
+                            eventCount?: number;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
     WorkflowsController_commit: {
         parameters: {
             query?: never;
@@ -486,7 +657,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunWorkflowRequestDto"];
+            };
+        };
         responses: {
             /** @description Workflow execution result */
             201: {
@@ -512,8 +687,8 @@ export interface operations {
     };
     WorkflowsController_status: {
         parameters: {
-            query: {
-                temporalRunId: string;
+            query?: {
+                temporalRunId?: string;
             };
             header?: never;
             path: {
@@ -534,8 +709,8 @@ export interface operations {
     };
     WorkflowsController_result: {
         parameters: {
-            query: {
-                temporalRunId: string;
+            query?: {
+                temporalRunId?: string;
             };
             header?: never;
             path: {
@@ -556,8 +731,8 @@ export interface operations {
     };
     WorkflowsController_cancel: {
         parameters: {
-            query: {
-                temporalRunId: string;
+            query?: {
+                temporalRunId?: string;
             };
             header?: never;
             path: {
@@ -596,16 +771,213 @@ export interface operations {
                     "application/json": {
                         runId?: string;
                         events?: {
-                            type?: string;
-                            nodeRef?: string;
+                            id?: string;
+                            runId?: string;
+                            nodeId?: string;
+                            /** @enum {string} */
+                            type?: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
+                            /** @enum {string} */
+                            level?: "info" | "warn" | "error" | "debug";
                             /** Format: date-time */
                             timestamp?: string;
-                            message?: string;
-                            error?: string;
-                            outputSummary?: Record<string, never>;
+                            message?: string | null;
+                            error?: {
+                                message?: string;
+                                stack?: string;
+                                code?: string;
+                            } | null;
+                            outputSummary?: {
+                                [key: string]: unknown;
+                            } | null;
+                            data?: {
+                                [key: string]: unknown;
+                            } | null;
+                            metadata?: {
+                                activityId?: string;
+                                attempt?: number;
+                                correlationId?: string;
+                                streamId?: string;
+                                /** @enum {string} */
+                                joinStrategy?: "all" | "any" | "first";
+                                triggeredBy?: string;
+                                failure?: {
+                                    /** Format: date-time */
+                                    at?: string;
+                                    reason?: {
+                                        message?: string;
+                                        name?: string;
+                                    };
+                                } | null;
+                                retryPolicy?: {
+                                    maxAttempts?: number;
+                                    initialIntervalSeconds?: number;
+                                    maximumIntervalSeconds?: number;
+                                    backoffCoefficient?: number;
+                                    nonRetryableErrorTypes?: string[];
+                                } | null;
+                            } | null;
+                        }[];
+                        cursor?: string | null;
+                    };
+                };
+            };
+        };
+    };
+    WorkflowsController_events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Full event timeline for a workflow run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        runId?: string;
+                        events?: {
+                            id?: string;
+                            runId?: string;
+                            nodeId?: string;
+                            /** @enum {string} */
+                            type?: "STARTED" | "PROGRESS" | "COMPLETED" | "FAILED";
+                            /** @enum {string} */
+                            level?: "info" | "warn" | "error" | "debug";
+                            /** Format: date-time */
+                            timestamp?: string;
+                            message?: string | null;
+                            error?: {
+                                message?: string;
+                                stack?: string;
+                                code?: string;
+                            } | null;
+                            outputSummary?: {
+                                [key: string]: unknown;
+                            } | null;
+                            data?: {
+                                [key: string]: unknown;
+                            } | null;
+                            metadata?: {
+                                activityId?: string;
+                                attempt?: number;
+                                correlationId?: string;
+                                streamId?: string;
+                                /** @enum {string} */
+                                joinStrategy?: "all" | "any" | "first";
+                                triggeredBy?: string;
+                                failure?: {
+                                    /** Format: date-time */
+                                    at?: string;
+                                    reason?: {
+                                        message?: string;
+                                        name?: string;
+                                    };
+                                } | null;
+                                retryPolicy?: {
+                                    maxAttempts?: number;
+                                    initialIntervalSeconds?: number;
+                                    maximumIntervalSeconds?: number;
+                                    backoffCoefficient?: number;
+                                    nonRetryableErrorTypes?: string[];
+                                } | null;
+                            } | null;
+                        }[];
+                        cursor?: string | null;
+                    };
+                };
+            };
+        };
+    };
+    WorkflowsController_dataflows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Derived data flow packets for a workflow run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        runId?: string;
+                        packets?: {
+                            id?: string;
+                            runId?: string;
+                            sourceNode?: string;
+                            targetNode?: string;
+                            inputKey?: string | null;
+                            payload?: {
+                                [key: string]: unknown;
+                            } | null;
+                            timestamp?: number;
+                            visualTime?: number;
+                            size?: number;
+                            /** @enum {string} */
+                            type?: "file" | "json" | "text" | "binary";
                         }[];
                     };
                 };
+            };
+        };
+    };
+    WorkflowsController_stream: {
+        parameters: {
+            query?: {
+                temporalRunId?: string;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-sent events stream for workflow run updates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WorkflowsController_logs: {
+        parameters: {
+            query?: {
+                nodeRef?: string;
+                stream?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Log streams for a workflow run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -627,23 +999,69 @@ export interface operations {
                     "application/json": {
                         /** @example core.file.loader */
                         id?: string;
+                        /** @example file-loader */
+                        slug?: string;
                         /** @example File Loader */
                         name?: string;
-                        /** @example Load files from filesystem */
-                        description?: string;
+                        /** @example 1.0.0 */
+                        version?: string;
+                        /** @example input */
+                        type?: string;
                         /** @example input-output */
                         category?: string;
+                        /** @example Load files from filesystem */
+                        description?: string;
+                        /** @example FileUp */
+                        icon?: string;
+                        logo?: string | null;
+                        author?: {
+                            name?: string;
+                            /** @enum {string} */
+                            type?: "shipsecai" | "community";
+                            url?: string | null;
+                        } | null;
                         runner?: {
                             /**
                              * @example inline
                              * @enum {string}
                              */
-                            type?: "inline" | "docker" | "remote";
+                            kind?: "inline" | "docker" | "remote";
+                            image?: string | null;
+                            command?: string[] | null;
                         };
-                        /** @description JSON Schema for component inputs */
-                        inputSchema?: Record<string, never>;
-                        /** @description JSON Schema for component outputs */
-                        outputSchema?: Record<string, never>;
+                        inputs?: {
+                            id?: string;
+                            label?: string;
+                            /** @enum {string} */
+                            type?: "string" | "array" | "object" | "file" | "any";
+                            required?: boolean;
+                            description?: string | null;
+                        }[];
+                        outputs?: {
+                            id?: string;
+                            label?: string;
+                            /** @enum {string} */
+                            type?: "string" | "array" | "object" | "file" | "any";
+                            description?: string | null;
+                        }[];
+                        parameters?: {
+                            id?: string;
+                            label?: string;
+                            /** @enum {string} */
+                            type?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json";
+                            required?: boolean;
+                            default?: unknown;
+                            placeholder?: string | null;
+                            description?: string | null;
+                            helpText?: string | null;
+                            options?: {
+                                label?: string;
+                                value?: unknown;
+                            }[] | null;
+                            min?: number | null;
+                            max?: number | null;
+                            rows?: number | null;
+                        }[];
                     }[];
                 };
             };
@@ -710,8 +1128,8 @@ export interface operations {
     };
     FilesController_listFiles: {
         parameters: {
-            query: {
-                limit: string;
+            query?: {
+                limit?: number;
             };
             header?: never;
             path?: never;
@@ -797,6 +1215,96 @@ export interface operations {
                 content: {
                     "application/octet-stream": string;
                 };
+            };
+        };
+    };
+    TestingWebhookController_listRecords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestingWebhookController_acceptWebhook: {
+        parameters: {
+            query?: {
+                status?: number;
+                delayMs?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestingWebhookController_clearRecords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestingWebhookController_latestRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestingWebhookController_getRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

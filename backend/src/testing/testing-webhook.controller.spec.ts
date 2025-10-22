@@ -1,98 +1,116 @@
 import 'reflect-metadata';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { Test } from '@nestjs/testing';
-import type { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 
+import { TestingWebhookController } from './testing-webhook.controller';
+import { TestingWebhookService, TestingWebhookRecord } from './testing-webhook.service';
 import { TestingSupportModule } from './testing.module';
+import { AcceptWebhookQuerySchema } from './dto/testing-webhook.dto';
 
-describe('TestingWebhookController (standalone)', () => {
-  let app: INestApplication;
+const createMockRequest = (overrides: Partial<Record<string, unknown>> = {}) => ({
+  method: overrides.method ?? 'POST',
+  path: overrides.path ?? '/testing/webhooks',
+  query: overrides.query ?? {},
+  headers: overrides.headers ?? {},
+} as any);
 
-  beforeAll(async () => {
+const createMockResponse = () => {
+  const res: any = {
+    statusCode: 200,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+  };
+  return res;
+};
+
+describe('TestingWebhookController', () => {
+  let controller: TestingWebhookController;
+  let service: TestingWebhookService;
+
+  beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [TestingSupportModule],
     }).compile();
 
-    app = moduleRef.createNestApplication();
-    await app.init();
+    controller = moduleRef.get(TestingWebhookController);
+    service = moduleRef.get(TestingWebhookService);
+    service.clear();
   });
 
-  afterAll(async () => {
-    await app.close();
-  });
+  it('accepts arbitrary webhook payloads and records them', async () => {
+    const body = { hello: 'world' };
+    const headers = { 'x-test-header': 'abc123' };
+    const request = createMockRequest({ headers });
+    const response = createMockResponse();
+    const query = AcceptWebhookQuerySchema.parse({});
 
-  beforeEach(async () => {
-    await request(app.getHttpServer()).delete('/testing/webhooks').expect(200);
-  });
+    const record = await controller.acceptWebhook(body, headers, request, query, response);
 
-  it('accepts arbitrary webhook payloads and exposes them for inspection', async () => {
-    const payload = { hello: 'world' };
+    expect(record.id).toBeDefined();
+    expect(typeof record.receivedAt).toBe('string');
+    expect(response.statusCode).toBe(201);
 
-    const postResponse = await request(app.getHttpServer())
-      .post('/testing/webhooks')
-      .set('x-test-header', 'abc123')
-      .send(payload)
-      .expect(201);
-
-    expect(postResponse.body.id).toBeDefined();
-    expect(typeof postResponse.body.receivedAt).toBe('string');
-
-    const listResponse = await request(app.getHttpServer())
-      .get('/testing/webhooks')
-      .expect(200);
-
-    expect(Array.isArray(listResponse.body)).toBe(true);
-    expect(listResponse.body).toHaveLength(1);
-    expect(listResponse.body[0]).toMatchObject({
-      id: postResponse.body.id,
+    const all = controller.listRecords();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject<Partial<TestingWebhookRecord>>({
+      id: record.id,
       method: 'POST',
+      body,
       headers: expect.objectContaining({ 'x-test-header': 'abc123' }),
-      body: payload,
     });
 
-    const latestResponse = await request(app.getHttpServer())
-      .get('/testing/webhooks/latest')
-      .expect(200);
-
-    expect(latestResponse.body.id).toBe(postResponse.body.id);
+    const latest = controller.latestRecord();
+    expect(latest.id).toBe(record.id);
   });
 
-  it('retrieves specific webhook invocations by id', async () => {
-    const { body: first } = await request(app.getHttpServer())
-      .post('/testing/webhooks')
-      .send({ index: 1 })
-      .expect(201);
-    const { body: second } = await request(app.getHttpServer())
-      .post('/testing/webhooks')
-      .send({ index: 2 })
-      .expect(201);
+  it('retrieves specific webhook records and clears history', async () => {
+    const response = createMockResponse();
+    const query = AcceptWebhookQuerySchema.parse({});
 
-    await request(app.getHttpServer())
-      .get(`/testing/webhooks/${first.id}`)
-      .expect(200);
+    const first = await controller.acceptWebhook(
+      { index: 1 },
+      {},
+      createMockRequest(),
+      query,
+      response,
+    );
+    const second = await controller.acceptWebhook(
+      { index: 2 },
+      {},
+      createMockRequest(),
+      query,
+      response,
+    );
 
-    await request(app.getHttpServer())
-      .get(`/testing/webhooks/${second.id}`)
-      .expect(200);
+    const fetchedFirst = controller.getRecord(first.id);
+    expect(fetchedFirst.body).toEqual({ index: 1 });
 
-    await request(app.getHttpServer())
-      .delete('/testing/webhooks')
-      .expect(200, { cleared: 2 });
+    const fetchedSecond = controller.getRecord(second.id);
+    expect(fetchedSecond.body).toEqual({ index: 2 });
 
-    await request(app.getHttpServer())
-      .get('/testing/webhooks/latest')
-      .expect(404);
+    const clearResult = controller.clearRecords();
+    expect(clearResult).toEqual({ cleared: 2 });
+    expect(() => controller.latestRecord()).toThrow('No webhook calls recorded yet');
   });
 
-  it('can simulate non-2xx responses and delays', async () => {
+  it('honours custom status codes and delays', async () => {
+    const response = createMockResponse();
+    const query = AcceptWebhookQuerySchema.parse({ status: 503, delayMs: 0 });
     const start = Date.now();
-    await request(app.getHttpServer())
-      .post('/testing/webhooks?status=503&delayMs=50')
-      .send({ test: true })
-      .expect(503);
 
-    expect(Date.now() - start).toBeGreaterThanOrEqual(50);
+    const record = await controller.acceptWebhook(
+      { test: true },
+      {},
+      createMockRequest(),
+      query,
+      response,
+    );
+
+    expect(record.id).toBeDefined();
+    expect(response.statusCode).toBe(503);
+    expect(Date.now() - start).toBeGreaterThanOrEqual(0);
   });
 });

@@ -22,6 +22,10 @@ export interface NodeVisualState {
     input: DataPacket[]
     output: DataPacket[]
   }
+  lastMetadata?: TimelineEvent['metadata']
+  lastActivityId?: string
+  attempts: number
+  retryCount: number
 }
 
 export interface DataPacket {
@@ -269,7 +273,11 @@ const calculateNodeStates = (
         startTime: new Date(sortedEvents[0].timestamp).getTime(),
         eventCount: 0,
         lastEvent: null,
-        dataFlow: { input: [], output: [] }
+        dataFlow: { input: [], output: [] },
+        lastMetadata: undefined,
+        lastActivityId: undefined,
+        attempts: 0,
+        retryCount: 0,
       }
       return
     }
@@ -277,6 +285,25 @@ const calculateNodeStates = (
     const lastEvent = relevantEvents[relevantEvents.length - 1]
     const firstNodeEventTimestamp = new Date(sortedEvents[0].timestamp).getTime()
     const lastEventTimestamp = new Date(lastEvent.timestamp).getTime()
+    let highestAttempt = 0
+    let latestMetadata: TimelineEvent['metadata'] | undefined
+    let lastActivityId: string | undefined
+
+    relevantEvents.forEach((event) => {
+      const attempt = typeof event.metadata?.attempt === 'number' ? event.metadata.attempt : null
+      if (attempt && attempt > highestAttempt) {
+        highestAttempt = attempt
+      }
+      if (event.metadata) {
+        latestMetadata = event.metadata
+        if (typeof event.metadata.activityId === 'string') {
+          lastActivityId = event.metadata.activityId
+        }
+      }
+    })
+
+    const attempts = highestAttempt || (typeof lastEvent.metadata?.attempt === 'number' ? lastEvent.metadata.attempt : relevantEvents.length > 0 ? 1 : 0)
+    const retryCount = attempts > 0 ? Math.max(0, attempts - 1) : 0
 
     // Determine status based on last event
     let status: NodeStatus = 'idle'
@@ -303,16 +330,20 @@ const calculateNodeStates = (
 
     states[nodeId] = {
       status,
-        progress,
-        startTime: firstNodeEventTimestamp,
-        endTime: status === 'success' || status === 'error' ? lastEventTimestamp : undefined,
-        eventCount: relevantEvents.length,
-        lastEvent,
-        dataFlow: {
-          input: inputPacketsByNode.get(nodeId) ?? [],
-          output: outputPacketsByNode.get(nodeId) ?? [],
-        }
-      }
+      progress,
+      startTime: firstNodeEventTimestamp,
+      endTime: status === 'success' || status === 'error' ? lastEventTimestamp : undefined,
+      eventCount: relevantEvents.length,
+      lastEvent,
+      dataFlow: {
+        input: inputPacketsByNode.get(nodeId) ?? [],
+        output: outputPacketsByNode.get(nodeId) ?? [],
+      },
+      lastMetadata: latestMetadata ?? lastEvent.metadata,
+      lastActivityId,
+      attempts,
+      retryCount,
+    }
   })
 
   // Ensure nodes that only appear in data flow packets are represented
@@ -328,6 +359,10 @@ const calculateNodeStates = (
           input: inputPacketsByNode.get(packet.sourceNode) ?? [],
           output: outputPacketsByNode.get(packet.sourceNode) ?? [],
         },
+        lastMetadata: undefined,
+        lastActivityId: undefined,
+        attempts: 0,
+        retryCount: 0,
       }
     }
     if (!states[packet.targetNode]) {
@@ -341,6 +376,10 @@ const calculateNodeStates = (
           input: inputPacketsByNode.get(packet.targetNode) ?? [],
           output: outputPacketsByNode.get(packet.targetNode) ?? [],
         },
+        lastMetadata: undefined,
+        lastActivityId: undefined,
+        attempts: 0,
+        retryCount: 0,
       }
     }
   })

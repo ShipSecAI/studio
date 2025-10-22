@@ -146,4 +146,55 @@ describe('TraceService', () => {
     const { events } = await service.listSince(runId, 2);
     expect(events.map((event) => event.id)).toEqual(['3', '4']);
   });
+
+  it('extracts metadata and payload when stored in packed form', async () => {
+    const metaRunId = 'service-run-meta';
+    repository.events = [
+      {
+        id: 10,
+        runId: metaRunId,
+        workflowId: 'workflow-id',
+        type: 'NODE_COMPLETED',
+        nodeRef: 'node-meta',
+        timestamp: new Date('2025-01-02T00:00:00.000Z'),
+        message: null,
+        error: null,
+        outputSummary: null,
+        level: 'info',
+        data: {
+          _metadata: {
+            activityId: 'activity-42',
+            attempt: 2,
+            correlationId: 'corr',
+          },
+          _payload: {
+            detail: 'value',
+          },
+        },
+        sequence: 10,
+        createdAt: new Date('2025-01-02T00:00:00.000Z'),
+      },
+    ];
+
+    const { events } = await service.list(metaRunId);
+    expect(events).toEqual([
+      {
+        id: '10',
+        type: 'COMPLETED',
+        level: 'info',
+        runId: metaRunId,
+        nodeId: 'node-meta',
+        timestamp: '2025-01-02T00:00:00.000Z',
+        message: undefined,
+        error: undefined,
+        outputSummary: undefined,
+        data: { detail: 'value' },
+        metadata: {
+          activityId: 'activity-42',
+          attempt: 2,
+          correlationId: 'corr',
+        },
+      },
+    ]);
+  });
 });

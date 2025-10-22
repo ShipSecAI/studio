@@ -126,6 +126,103 @@
         ]
       }
     },
+    "/workflows/runs": {
+      "get": {
+        "operationId": "WorkflowsController_listRuns",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List all workflow runs with metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "workflowId": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "RUNNING",
+                              "COMPLETED",
+                              "FAILED",
+                              "CANCELLED",
+                              "TERMINATED",
+                              "CONTINUED_AS_NEW",
+                              "TIMED_OUT",
+                              "UNKNOWN"
+                            ]
+                          },
+                          "startTime": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "endTime": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "temporalRunId": {
+                            "type": "string"
+                          },
+                          "workflowName": {
+                            "type": "string"
+                          },
+                          "eventCount": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
     "/workflows/{id}/commit": {
       "post": {
         "operationId": "WorkflowsController_commit",
@@ -221,6 +318,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunWorkflowRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "Workflow execution result",
@@ -283,9 +390,10 @@
           },
           {
             "name": "temporalRunId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
+              "minLength": 1,
               "type": "string"
             }
           }
@@ -314,9 +422,10 @@
           },
           {
             "name": "temporalRunId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
+              "minLength": 1,
               "type": "string"
             }
           }
@@ -345,9 +454,10 @@
           },
           {
             "name": "temporalRunId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
+              "minLength": 1,
               "type": "string"
             }
           }
@@ -391,33 +501,532 @@
                       "items": {
                         "type": "object",
                         "properties": {
-                          "type": {
+                          "id": {
                             "type": "string"
                           },
-                          "nodeRef": {
+                          "runId": {
                             "type": "string"
+                          },
+                          "nodeId": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "STARTED",
+                              "PROGRESS",
+                              "COMPLETED",
+                              "FAILED"
+                            ]
+                          },
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "info",
+                              "warn",
+                              "error",
+                              "debug"
+                            ]
                           },
                           "timestamp": {
                             "type": "string",
                             "format": "date-time"
                           },
                           "message": {
-                            "type": "string"
+                            "type": "string",
+                            "nullable": true
                           },
                           "error": {
-                            "type": "string"
+                            "type": "object",
+                            "properties": {
+                              "message": {
+                                "type": "string"
+                              },
+                              "stack": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true
                           },
                           "outputSummary": {
-                            "type": "object"
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "data": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "activityId": {
+                                "type": "string"
+                              },
+                              "attempt": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "correlationId": {
+                                "type": "string"
+                              },
+                              "streamId": {
+                                "type": "string"
+                              },
+                              "joinStrategy": {
+                                "type": "string",
+                                "enum": [
+                                  "all",
+                                  "any",
+                                  "first"
+                                ]
+                              },
+                              "triggeredBy": {
+                                "type": "string"
+                              },
+                              "failure": {
+                                "type": "object",
+                                "properties": {
+                                  "at": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "reason": {
+                                    "type": "object",
+                                    "properties": {
+                                      "message": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "nullable": true
+                              },
+                              "retryPolicy": {
+                                "type": "object",
+                                "properties": {
+                                  "maxAttempts": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "initialIntervalSeconds": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "maximumIntervalSeconds": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "backoffCoefficient": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "nonRetryableErrorTypes": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "nullable": true
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/workflows/runs/{runId}/events": {
+      "get": {
+        "operationId": "WorkflowsController_events",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full event timeline for a workflow run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "nodeId": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "STARTED",
+                              "PROGRESS",
+                              "COMPLETED",
+                              "FAILED"
+                            ]
+                          },
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "info",
+                              "warn",
+                              "error",
+                              "debug"
+                            ]
+                          },
+                          "timestamp": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "message": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "error": {
+                            "type": "object",
+                            "properties": {
+                              "message": {
+                                "type": "string"
+                              },
+                              "stack": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true
+                          },
+                          "outputSummary": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "data": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "activityId": {
+                                "type": "string"
+                              },
+                              "attempt": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "correlationId": {
+                                "type": "string"
+                              },
+                              "streamId": {
+                                "type": "string"
+                              },
+                              "joinStrategy": {
+                                "type": "string",
+                                "enum": [
+                                  "all",
+                                  "any",
+                                  "first"
+                                ]
+                              },
+                              "triggeredBy": {
+                                "type": "string"
+                              },
+                              "failure": {
+                                "type": "object",
+                                "properties": {
+                                  "at": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "reason": {
+                                    "type": "object",
+                                    "properties": {
+                                      "message": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "nullable": true
+                              },
+                              "retryPolicy": {
+                                "type": "object",
+                                "properties": {
+                                  "maxAttempts": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "initialIntervalSeconds": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "maximumIntervalSeconds": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "backoffCoefficient": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "nonRetryableErrorTypes": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "nullable": true
+                              }
+                            },
+                            "additionalProperties": false,
+                            "nullable": true
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/workflows/runs/{runId}/dataflows": {
+      "get": {
+        "operationId": "WorkflowsController_dataflows",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Derived data flow packets for a workflow run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "packets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "sourceNode": {
+                            "type": "string"
+                          },
+                          "targetNode": {
+                            "type": "string"
+                          },
+                          "inputKey": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "payload": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "nullable": true
+                          },
+                          "timestamp": {
+                            "type": "integer"
+                          },
+                          "visualTime": {
+                            "type": "number"
+                          },
+                          "size": {
+                            "type": "number"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "file",
+                              "json",
+                              "text",
+                              "binary"
+                            ]
                           }
                         },
                         "additionalProperties": false
                       }
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 }
               }
             }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/workflows/runs/{runId}/stream": {
+      "get": {
+        "operationId": "WorkflowsController_stream",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "temporalRunId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent events stream for workflow run updates"
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/workflows/runs/{runId}/logs": {
+      "get": {
+        "operationId": "WorkflowsController_logs",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nodeRef",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "stream",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Log streams for a workflow run"
           }
         },
         "tags": [
@@ -749,10 +1358,13 @@
         "parameters": [
           {
             "name": "limit",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100,
+              "type": "integer"
             }
           }
         ],
@@ -867,6 +1479,102 @@
         },
         "tags": [
           "files"
+        ]
+      }
+    },
+    "/testing/webhooks": {
+      "post": {
+        "operationId": "TestingWebhookController_acceptWebhook",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 100,
+              "maximum": 599,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "delayMs",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 60000,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TestingWebhook"
+        ]
+      },
+      "get": {
+        "operationId": "TestingWebhookController_listRecords",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TestingWebhook"
+        ]
+      },
+      "delete": {
+        "operationId": "TestingWebhookController_clearRecords",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TestingWebhook"
+        ]
+      }
+    },
+    "/testing/webhooks/latest": {
+      "get": {
+        "operationId": "TestingWebhookController_latestRecord",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TestingWebhook"
+        ]
+      }
+    },
+    "/testing/webhooks/{id}": {
+      "get": {
+        "operationId": "TestingWebhookController_getRecord",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TestingWebhook"
         ]
       }
     }
@@ -1124,6 +1832,18 @@
           "edges",
           "viewport"
         ]
+      },
+      "RunWorkflowRequestDto": {
+        "type": "object",
+        "properties": {
+          "inputs": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        }
       }
     }
   }
