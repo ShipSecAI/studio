@@ -9,6 +9,7 @@ const inputSchema = z.object({
   providerConfig: z
     .string()
     .min(1, 'Provider configuration is required')
+    .optional()
     .describe('YAML provider configuration content used by notify to reach third-party services.'),
   notifyConfig: z
     .string()
@@ -76,19 +77,6 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   rawOutput: z.string(),
-  messageCount: z.number(),
-  providers: z.array(z.string()),
-  recipientIds: z.array(z.string()),
-  options: z.object({
-    bulk: z.boolean(),
-    silent: z.boolean(),
-    verbose: z.boolean(),
-    charLimit: z.number().nullable(),
-    delaySeconds: z.number().nullable(),
-    rateLimit: z.number().nullable(),
-    messageFormat: z.string().nullable(),
-    proxy: z.string().nullable(),
-  }),
 });
 
 type Input = z.infer<typeof inputSchema>;
@@ -122,193 +110,70 @@ const definition: ComponentDefinition<Input, Output> = {
 
 INPUT=$(cat)
 
-escape_json() {
-  printf '%s' "$1" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\n/\\n/g'
-}
+# Extract fields from JSON using jq if available, fallback to sed
+if command -v jq >/dev/null 2>&1; then
+  MESSAGES=$(printf "%s" "$INPUT" | jq -r '.messages // ""')
+  PROVIDER_CONFIG=$(printf "%s" "$INPUT" | jq -r '.providerConfig // ""')
+  NOTIFY_CONFIG=$(printf "%s" "$INPUT" | jq -r '.notifyConfig // ""')
+else
+  MESSAGES=$(printf "%s" "$INPUT" | sed -n 's/.*"messages":"\([^"]*\)".*/\1/p')
+  PROVIDER_CONFIG=$(printf "%s" "$INPUT" | sed -n 's/.*"providerConfig":"\([^"]*\)".*/\1/p')
+  NOTIFY_CONFIG=$(printf "%s" "$INPUT" | sed -n 's/.*"notifyConfig":"\([^"]*\)".*/\1/p')
+fi
 
-extract_string() {
-  key="$1"
-  printf "%s" "$INPUT" | tr -d '\n' | sed -n "s/.*\"$key\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n1
-}
-
-extract_number() {
-  key="$1"
-  printf "%s" "$INPUT" | tr -d '\n' | sed -n "s/.*\"$key\":[[:space:]]*\\([-0-9][0-9]*\\).*/\\1/p" | head -n1
-}
-
-extract_bool() {
-  key="$1"
-  default="$2"
-  value=$(printf "%s" "$INPUT" | tr -d '\n' | sed -n "s/.*\"$key\":[[:space:]]*\\(true\\|false\\).*/\\1/p" | head -n1)
-  if [ -z "$value" ]; then
-    printf "%s" "$default"
-  else
-    printf "%s" "$value"
-  fi
-}
-
-MESSAGE_BASE64=$(extract_string "messageBase64")
-PROVIDER_CONFIG_BASE64=$(extract_string "providerConfigBase64")
-NOTIFY_CONFIG_BASE64=$(extract_string "notifyConfigBase64")
-PROVIDER_IDS_CSV=$(extract_string "providerIdsCsv")
-RECIPIENT_IDS_CSV=$(extract_string "recipientIdsCsv")
-MESSAGE_FORMAT_BASE64=$(extract_string "messageFormatBase64")
-PROXY_VALUE=$(extract_string "proxy")
-MESSAGE_COUNT_RAW=$(extract_number "messageCount")
-CHAR_LIMIT_VALUE=$(extract_number "charLimit")
-DELAY_VALUE=$(extract_number "delaySeconds")
-RATE_LIMIT_VALUE=$(extract_number "rateLimit")
-BULK_VALUE=$(extract_bool "bulk" "true")
-SILENT_VALUE=$(extract_bool "silent" "true")
-VERBOSE_VALUE=$(extract_bool "verbose" "false")
-
-if [ -z "$PROVIDER_CONFIG_BASE64" ]; then
-  echo "Provider configuration payload is required" >&2
+# Validate required fields
+if [ -z "$PROVIDER_CONFIG" ]; then
+  echo "Provider configuration is required" >&2
   exit 1
 fi
 
-CONFIG_DIR="\${HOME:-/root}/.config/notify"
-mkdir -p "$CONFIG_DIR"
-umask 077
+# Create temporary files for configs and messages
+PROVIDER_CONFIG_FILE=$(mktemp)
+MESSAGE_FILE=$(mktemp)
+NOTIFY_CONFIG_FILE=""
 
-printf "%s" "$PROVIDER_CONFIG_BASE64" | base64 -d > "$CONFIG_DIR/provider-config.yaml"
-
-if [ -n "$NOTIFY_CONFIG_BASE64" ]; then
-  printf "%s" "$NOTIFY_CONFIG_BASE64" | base64 -d > "$CONFIG_DIR/config.yaml"
+if [ -n "$NOTIFY_CONFIG" ]; then
+  NOTIFY_CONFIG_FILE=$(mktemp)
 fi
 
-MESSAGE_PAYLOAD=""
-if [ -n "$MESSAGE_BASE64" ]; then
-  MESSAGE_PAYLOAD=$(printf "%s" "$MESSAGE_BASE64" | base64 -d)
+trap 'rm -f "$PROVIDER_CONFIG_FILE" "$MESSAGE_FILE" "$NOTIFY_CONFIG_FILE"' EXIT
+
+# Write provider config to temp file
+printf "%s" "$PROVIDER_CONFIG" | base64 -d > "$PROVIDER_CONFIG_FILE"
+
+# Write notify config to temp file if provided
+if [ -n "$NOTIFY_CONFIG" ]; then
+  printf "%s" "$NOTIFY_CONFIG" | base64 -d > "$NOTIFY_CONFIG_FILE"
 fi
 
-MESSAGE_FORMAT_VALUE=""
-if [ -n "$MESSAGE_FORMAT_BASE64" ]; then
-  MESSAGE_FORMAT_VALUE=$(printf "%s" "$MESSAGE_FORMAT_BASE64" | base64 -d)
-fi
+# Write messages to temp file
+printf "%s" "$MESSAGES" | base64 -d > "$MESSAGE_FILE"
 
-set -- notify -provider-config "$CONFIG_DIR/provider-config.yaml"
-
-if [ -n "$NOTIFY_CONFIG_BASE64" ]; then
-  set -- "$@" -config "$CONFIG_DIR/config.yaml"
-fi
-
-if [ "$(printf "%s" "$BULK_VALUE" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
-  set -- "$@" -bulk
-fi
-
-if [ "$(printf "%s" "$SILENT_VALUE" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
-  set -- "$@" -silent
-fi
-
-if [ "$(printf "%s" "$VERBOSE_VALUE" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
-  set -- "$@" -verbose
-fi
-
-if [ -n "$CHAR_LIMIT_VALUE" ]; then
-  set -- "$@" -char-limit "$CHAR_LIMIT_VALUE"
-fi
-
-if [ -n "$DELAY_VALUE" ]; then
-  set -- "$@" -delay "$DELAY_VALUE"
-fi
-
-if [ -n "$RATE_LIMIT_VALUE" ]; then
-  set -- "$@" -rate-limit "$RATE_LIMIT_VALUE"
-fi
-
-if [ -n "$PROXY_VALUE" ]; then
-  set -- "$@" -proxy "$PROXY_VALUE"
-fi
-
-if [ -n "$PROVIDER_IDS_CSV" ]; then
-  set -- "$@" -provider "$PROVIDER_IDS_CSV"
-fi
-
-if [ -n "$RECIPIENT_IDS_CSV" ]; then
-  set -- "$@" -id "$RECIPIENT_IDS_CSV"
-fi
-
-if [ -n "$MESSAGE_FORMAT_VALUE" ]; then
-  set -- "$@" -msg-format "$MESSAGE_FORMAT_VALUE"
-fi
-
-OUTPUT_FILE=$(mktemp)
-trap 'rm -f "$OUTPUT_FILE"' EXIT
-
-if ! printf "%s" "$MESSAGE_PAYLOAD" | "$@" >"$OUTPUT_FILE" 2>&1; then
-  RAW_OUTPUT=$(cat "$OUTPUT_FILE")
-  printf "%s" "$RAW_OUTPUT" >&2
-  exit 1
-fi
-
-RAW_OUTPUT=$(cat "$OUTPUT_FILE")
-
-providers_json='[]'
-if [ -n "$PROVIDER_IDS_CSV" ]; then
-  providers_json=$(printf "%s" "$PROVIDER_IDS_CSV" | tr ',' '\n' | sed '/^$/d' | awk 'BEGIN{printf("["); first=1} { if (!first) printf(","); printf("\"%s\"", $0); first=0 } END{ if (first) printf("]"); else printf("]") }')
-fi
-
-recipients_json='[]'
-if [ -n "$RECIPIENT_IDS_CSV" ]; then
-  recipients_json=$(printf "%s" "$RECIPIENT_IDS_CSV" | tr ',' '\n' | sed '/^$/d' | awk 'BEGIN{printf("["); first=1} { if (!first) printf(","); printf("\"%s\"", $0); first=0 } END{ if (first) printf("]"); else printf("]") }')
-fi
-
-if [ -n "$MESSAGE_COUNT_RAW" ]; then
-  MESSAGE_COUNT="$MESSAGE_COUNT_RAW"
+# Build command from args array
+if command -v jq >/dev/null 2>&1; then
+  ARGS=$(printf "%s" "$INPUT" | jq -r '.args[]' 2>/dev/null || echo "")
 else
-  MESSAGE_COUNT=$(printf "%s" "$MESSAGE_PAYLOAD" | awk 'NF {count++} END {print count+0}')
+  ARGS_JSON=$(printf "%s" "$INPUT" | sed -n 's/.*"args":\[\([^]]*\)\].*/\1/p')
+  ARGS=$(printf "%s" "$ARGS_JSON" | tr ',' '\n' | sed 's/^"//; s/"$//' | grep -v '^$')
 fi
 
-RAW_ESCAPED=$(escape_json "$RAW_OUTPUT")
+# Build command with provider config
+set -- notify -provider-config "$PROVIDER_CONFIG_FILE"
 
-if [ -n "$MESSAGE_FORMAT_VALUE" ]; then
-  MESSAGE_FORMAT_JSON="\"$(escape_json "$MESSAGE_FORMAT_VALUE")\""
-else
-  MESSAGE_FORMAT_JSON="null"
+# Add notify config if provided
+if [ -n "$NOTIFY_CONFIG_FILE" ]; then
+  set -- "$@" -config "$NOTIFY_CONFIG_FILE"
 fi
 
-if [ -n "$PROXY_VALUE" ]; then
-  PROXY_JSON="\"$(escape_json "$PROXY_VALUE")\""
-else
-  PROXY_JSON="null"
-fi
+# Add arguments from TypeScript
+while IFS= read -r arg; do
+  [ -n "$arg" ] && set -- "$@" "$arg"
+done << EOF
+$ARGS
+EOF
 
-if [ -n "$CHAR_LIMIT_VALUE" ]; then
-  CHAR_LIMIT_JSON="$CHAR_LIMIT_VALUE"
-else
-  CHAR_LIMIT_JSON="null"
-fi
-
-if [ -n "$DELAY_VALUE" ]; then
-  DELAY_JSON="$DELAY_VALUE"
-else
-  DELAY_JSON="null"
-fi
-
-if [ -n "$RATE_LIMIT_VALUE" ]; then
-  RATE_JSON="$RATE_LIMIT_VALUE"
-else
-  RATE_JSON="null"
-fi
-
-BULK_JSON=$(printf "%s" "$BULK_VALUE" | tr '[:upper:]' '[:lower:]')
-SILENT_JSON=$(printf "%s" "$SILENT_VALUE" | tr '[:upper:]' '[:lower:]')
-VERBOSE_JSON=$(printf "%s" "$VERBOSE_VALUE" | tr '[:upper:]' '[:lower:]')
-
-printf '{"rawOutput":"%s","messageCount":%s,"providers":%s,"recipientIds":%s,"options":{"bulk":%s,"silent":%s,"verbose":%s,"charLimit":%s,"delaySeconds":%s,"rateLimit":%s,"messageFormat":%s,"proxy":%s}}' \
-  "$RAW_ESCAPED" \
-  "$MESSAGE_COUNT" \
-  "$providers_json" \
-  "$recipients_json" \
-  "$BULK_JSON" \
-  "$SILENT_JSON" \
-  "$VERBOSE_JSON" \
-  "$CHAR_LIMIT_JSON" \
-  "$DELAY_JSON" \
-  "$RATE_JSON" \
-  "$MESSAGE_FORMAT_JSON" \
-  "$PROXY_JSON"
+# Execute notify
+cat "$MESSAGE_FILE" | "$@"
 `,
     ],
   },
@@ -354,128 +219,144 @@ printf '{"rawOutput":"%s","messageCount":%s,"providers":%s,"recipientIds":%s,"op
         type: 'string',
         description: 'Raw CLI output returned by notify.',
       },
-      {
-        id: 'messageCount',
-        label: 'Messages Sent',
-        type: 'string',
-        description: 'Count of messages forwarded to notify.',
-      },
     ],
     examples: [
       'Forward a consolidated reconnaissance summary to Slack and Telegram.',
       'Send high-priority vulnerability findings to multiple notification channels in bulk.',
     ],
-    parameters: [],
+    parameters: [
+      {
+        id: 'providerIds',
+        label: 'Notification Providers',
+        type: 'multi-select',
+        required: false,
+        description: 'Select which notification providers to use. Make sure they are configured in your provider config.',
+        helpText: 'If not specified, all configured providers will be used.',
+        options: [
+          { label: 'Telegram', value: 'telegram' },
+          { label: 'Slack', value: 'slack' },
+          { label: 'Discord', value: 'discord' },
+          { label: 'Microsoft Teams', value: 'teams' },
+          { label: 'Email', value: 'email' },
+          { label: 'Pushover', value: 'pushover' },
+          { label: 'Custom', value: 'custom' },
+        ],
+      },
+      {
+        id: 'providerConfig',
+        label: 'Provider Configuration (YAML)',
+        type: 'textarea',
+        required: false,
+        rows: 8,
+        placeholder: `telegram:
+  - id: "telegram"
+    telegram_api_key: "YOUR_BOT_TOKEN"
+    telegram_chat_id: "YOUR_CHAT_ID"`,
+        description: 'YAML configuration for your notification providers. Include API keys and channel/chat IDs here.',
+        helpText: 'You can also connect this from another component output.',
+      },
+      {
+        id: 'messageFormat',
+        label: 'Message Format Template',
+        type: 'text',
+        required: false,
+        placeholder: '{{data}}',
+        description: 'Custom template for formatting messages. Use {{data}} as a placeholder.',
+        helpText: 'Example: "Finding: {{data}}" or "Alert: {{data}}"',
+      },
+      {
+        id: 'verbose',
+        label: 'Verbose Logging',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Enable detailed logging from the notify tool.',
+      },
+    ],
   },
   async execute(input, context) {
+    // Validate that providerConfig is provided
+    if (!input.providerConfig || input.providerConfig.trim() === '') {
+      throw new Error('Provider configuration is required. Please provide it via the parameter field or as an input.');
+    }
+
+    const { messages, providerIds, recipientIds } = input;
+
+    context.logger.info(
+      `[Notify] Sending ${messages.length} message(s) via ${providerIds && providerIds.length > 0 ? providerIds.join(', ') : 'all configured providers'}`,
+    );
+    context.emitProgress(
+      `Sending ${messages.length} notification${messages.length > 1 ? 's' : ''}`,
+    );
+
+    // Build notify command arguments (all logic in TypeScript!)
+    // Note: Config file paths will be added by bash script using temp files
+    const args: string[] = [];
+
+    // Boolean flags
+    if (input.bulk ?? true) {
+      args.push('-bulk');
+    }
+
+    // Verbose and silent are mutually exclusive - verbose takes precedence
+    if (input.verbose ?? false) {
+      args.push('-verbose');
+    } else if (input.silent ?? true) {
+      args.push('-silent');
+    }
+
+    // Numeric options
+    if (input.charLimit != null) {
+      args.push('-char-limit', String(input.charLimit));
+    }
+    if (input.delaySeconds != null) {
+      args.push('-delay', String(input.delaySeconds));
+    }
+    if (input.rateLimit != null) {
+      args.push('-rate-limit', String(input.rateLimit));
+    }
+
+    // String options
+    if (input.proxy) {
+      args.push('-proxy', input.proxy);
+    }
+    if (input.messageFormat) {
+      args.push('-msg-format', input.messageFormat);
+    }
+
+    // Provider and recipient filtering
+    if (providerIds && providerIds.length > 0) {
+      args.push('-provider', providerIds.join(','));
+    }
+    if (recipientIds && recipientIds.length > 0) {
+      args.push('-id', recipientIds.join(','));
+    }
+
+    // Build docker payload (minimal, just data for bash)
     const dockerPayload = {
-      messageBase64: Buffer.from(input.messages.join('\n'), 'utf8').toString('base64'),
-      providerConfigBase64: Buffer.from(input.providerConfig, 'utf8').toString('base64'),
-      notifyConfigBase64: input.notifyConfig
+      messages: Buffer.from(messages.join('\n'), 'utf8').toString('base64'),
+      providerConfig: Buffer.from(input.providerConfig, 'utf8').toString('base64'),
+      notifyConfig: input.notifyConfig
         ? Buffer.from(input.notifyConfig, 'utf8').toString('base64')
         : '',
-      providerIdsCsv: (input.providerIds ?? []).join(','),
-      recipientIdsCsv: (input.recipientIds ?? []).join(','),
-      messageFormatBase64: input.messageFormat ? Buffer.from(input.messageFormat, 'utf8').toString('base64') : '',
-      bulk: input.bulk ?? true,
-      silent: input.silent ?? true,
-      verbose: input.verbose ?? false,
-      charLimit: typeof input.charLimit === 'number' ? input.charLimit : null,
-      delaySeconds: typeof input.delaySeconds === 'number' ? input.delaySeconds : null,
-      rateLimit: typeof input.rateLimit === 'number' ? input.rateLimit : null,
-      proxy: input.proxy ?? '',
-      messageCount: input.messages.length,
+      args, // TypeScript-built command arguments!
     };
 
-    const result = await runComponentWithRunner<typeof dockerPayload, Output>(
+    // Execute notify via Docker
+    const rawResult = await runComponentWithRunner<typeof dockerPayload, string>(
       this.runner,
-      async () => ({} as Output),
+      async () => '',
       dockerPayload,
       context,
     );
 
-    const baseOutput = {
-      messageCount: input.messages.length,
-      providers: input.providerIds ?? [],
-      recipientIds: input.recipientIds ?? [],
-      options: {
-        bulk: dockerPayload.bulk,
-        silent: dockerPayload.silent,
-        verbose: dockerPayload.verbose,
-        charLimit: dockerPayload.charLimit,
-        delaySeconds: dockerPayload.delaySeconds,
-        rateLimit: dockerPayload.rateLimit,
-        messageFormat: input.messageFormat ?? null,
-        proxy: input.proxy ?? null,
-      },
-    };
+    // Return raw output
+    const rawOutput = typeof rawResult === 'string' ? rawResult.trim() : '';
 
-    if (typeof result === 'string') {
-      return {
-        rawOutput: result,
-        ...baseOutput,
-      };
-    }
-
-    if (result && typeof result === 'object') {
-      const parsed = outputSchema.safeParse(result);
-      if (parsed.success) {
-        return parsed.data;
-      }
-
-      const rawOutput =
-        'rawOutput' in result && typeof (result as any).rawOutput === 'string'
-          ? (result as any).rawOutput
-          : JSON.stringify(result);
-
-      const providers = Array.isArray((result as any).providers)
-        ? ((result as any).providers as unknown[])
-            .filter((value): value is string => typeof value === 'string' && value.length > 0)
-        : baseOutput.providers;
-
-      const recipientIds = Array.isArray((result as any).recipientIds)
-        ? ((result as any).recipientIds as unknown[])
-            .filter((value): value is string => typeof value === 'string' && value.length > 0)
-        : baseOutput.recipientIds;
-
-      const options = (result as any).options && typeof (result as any).options === 'object'
-        ? (result as any).options
-        : {};
-
-      const ensureNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
-      const ensureString = (value: unknown) => (typeof value === 'string' && value.length > 0 ? value : null);
-
-      return {
-        rawOutput,
-        messageCount:
-          typeof (result as any).messageCount === 'number'
-            ? (result as any).messageCount
-            : baseOutput.messageCount,
-        providers,
-        recipientIds,
-        options: {
-          bulk: typeof (options as any).bulk === 'boolean' ? (options as any).bulk : baseOutput.options.bulk,
-          silent: typeof (options as any).silent === 'boolean' ? (options as any).silent : baseOutput.options.silent,
-          verbose:
-            typeof (options as any).verbose === 'boolean'
-              ? (options as any).verbose
-              : baseOutput.options.verbose,
-          charLimit:
-            ensureNumber((options as any).charLimit) ?? baseOutput.options.charLimit,
-          delaySeconds:
-            ensureNumber((options as any).delaySeconds) ?? baseOutput.options.delaySeconds,
-          rateLimit:
-            ensureNumber((options as any).rateLimit) ?? baseOutput.options.rateLimit,
-          messageFormat:
-            ensureString((options as any).messageFormat) ?? baseOutput.options.messageFormat,
-          proxy: ensureString((options as any).proxy) ?? baseOutput.options.proxy,
-        },
-      };
-    }
+    context.logger.info(`[Notify] Notifications sent successfully`);
 
     return {
-      rawOutput: '',
-      ...baseOutput,
+      rawOutput,
     };
   },
 };
