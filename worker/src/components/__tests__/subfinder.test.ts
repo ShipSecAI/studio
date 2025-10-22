@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../index';
+import type { SubfinderInput, SubfinderOutput } from '../security/subfinder';
 
 describe('subfinder component', () => {
   beforeAll(async () => {
@@ -12,14 +13,14 @@ describe('subfinder component', () => {
   });
 
   it('should be registered', () => {
-    const component = componentRegistry.get('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
     expect(component).toBeDefined();
-    expect(component?.label).toBe('Subfinder');
-    expect(component?.category).toBe('discovery');
+    expect(component!.label).toBe('Subfinder');
+    expect(component!.category).toBe('discovery');
   });
 
   it('should normalise raw output returned as plain text', async () => {
-    const component = componentRegistry.get('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -33,7 +34,7 @@ describe('subfinder component', () => {
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('api.example.com\napp.example.com');
 
-    const result = await component.execute(params, context) as any;
+    const result = component.outputSchema.parse(await component.execute(params, context));
 
     expect(result.subdomains).toEqual(['api.example.com', 'app.example.com']);
     expect(result.rawOutput).toBe('api.example.com\napp.example.com');
@@ -42,7 +43,7 @@ describe('subfinder component', () => {
   });
 
   it('should return structured output when docker emits JSON', async () => {
-    const component = componentRegistry.get('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -63,29 +64,29 @@ describe('subfinder component', () => {
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(payload);
 
-    const result = await component.execute(params, context) as any;
+    const result = component.outputSchema.parse(await component.execute(params, context));
 
-    expect(result).toEqual(payload);
+    expect(result).toEqual(component.outputSchema.parse(payload as SubfinderOutput));
   });
 
   it('should accept a single domain string and normalise to array', () => {
-    const component = componentRegistry.get('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
     if (!component) throw new Error('Component not registered');
 
-    const params = component.inputSchema.parse({ domains: 'example.com' });
+    const params = component.inputSchema.parse({ domains: 'example.com' }) as { domains: string[] };
     expect(params.domains).toEqual(['example.com']);
   });
 
   it('should accept legacy "domain" key from older workflows', () => {
-    const component = componentRegistry.get('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
     if (!component) throw new Error('Component not registered');
 
-    const params = component.inputSchema.parse({ domain: 'legacy.example.com' });
+    const params = component.inputSchema.parse({ domain: 'legacy.example.com' }) as { domains: string[] };
     expect(params.domains).toEqual(['legacy.example.com']);
   });
 
   it('should inject provider config secret into docker environment when configured', async () => {
-    const component = componentRegistry.get('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
     if (!component) throw new Error('Component not registered');
 
     const secretId = '123e4567-e89b-42d3-a456-426614174000';
@@ -136,7 +137,7 @@ describe('subfinder component', () => {
   });
 
   it('should use docker runner config', () => {
-    const component = componentRegistry.get('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
     if (!component) throw new Error('Component not registered');
 
     expect(component.runner.kind).toBe('docker');

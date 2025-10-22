@@ -55,7 +55,7 @@ describe('TestingWebhookController', () => {
 
     const all = controller.listRecords();
     expect(all).toHaveLength(1);
-    expect(all[0]).toMatchObject<Partial<TestingWebhookRecord>>({
+    expect(all[0]).toMatchObject({
       id: record.id,
       method: 'POST',
       body,

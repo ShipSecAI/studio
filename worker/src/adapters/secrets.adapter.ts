@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ISecretsService } from '@shipsec/component-sdk';
 import { SecretEncryption, parseMasterKey } from '@shipsec/shared';
@@ -19,12 +19,12 @@ export class SecretsAdapter implements ISecretsService {
     key: string,
     options?: { version?: number },
   ): Promise<{ value: string; version: number } | null> {
-    let condition = eq(schema.secretVersions.secretId, key);
+    const conditions: SQL[] = [eq(schema.secretVersions.secretId, key)];
 
     if (typeof options?.version === 'number') {
-      condition = and(condition, eq(schema.secretVersions.version, options.version));
+      conditions.push(eq(schema.secretVersions.version, options.version));
     } else {
-      condition = and(condition, eq(schema.secretVersions.isActive, true));
+      conditions.push(eq(schema.secretVersions.isActive, true));
     }
 
     const [record] = await this.db
@@ -36,7 +36,7 @@ export class SecretsAdapter implements ISecretsService {
         versionNumber: schema.secretVersions.version,
       })
       .from(schema.secretVersions)
-      .where(condition)
+      .where(and(...conditions))
       .limit(1);
 
     if (!record) {

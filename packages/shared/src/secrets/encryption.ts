@@ -20,13 +20,17 @@ export class SecretEncryption {
   }
 
   static async importKey(rawKey: ArrayBuffer | ArrayBufferView): Promise<CryptoKey> {
-    const keyData = ArrayBuffer.isView(rawKey)
-      ? rawKey.buffer.slice(rawKey.byteOffset, rawKey.byteOffset + rawKey.byteLength)
-      : rawKey;
+    const keyBuffer =
+      rawKey instanceof ArrayBuffer
+        ? rawKey
+        : (rawKey.buffer.slice(
+            rawKey.byteOffset,
+            rawKey.byteOffset + rawKey.byteLength,
+          ) as ArrayBuffer);
 
     return await crypto.subtle.importKey(
       'raw',
-      keyData,
+      keyBuffer,
       { name: 'AES-GCM' },
       false,
       ['encrypt', 'decrypt']
@@ -40,9 +44,9 @@ export class SecretEncryption {
     const encoded = encoder.encode(plaintext);
 
     const ciphertext = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
+      { name: 'AES-GCM', iv: SecretEncryption.toArrayBuffer(iv) },
       masterKey,
-      encoded
+      SecretEncryption.toArrayBuffer(encoded)
     );
 
     const ciphertextBytes = new Uint8Array(ciphertext);
@@ -72,9 +76,9 @@ export class SecretEncryption {
     payload.set(authTag, ciphertext.length);
 
     const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
+      { name: 'AES-GCM', iv: SecretEncryption.toArrayBuffer(iv) },
       masterKey,
-      payload
+      SecretEncryption.toArrayBuffer(payload)
     );
 
     return new TextDecoder().decode(decrypted);
@@ -107,6 +111,10 @@ export class SecretEncryption {
   private static decode(payload: string): Uint8Array {
     return Uint8Array.from(atob(payload), (char) => char.charCodeAt(0));
   }
+
+  private static toArrayBuffer(view: ArrayBufferView): ArrayBuffer {
+    return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
+  }
 }
 
 // Helper to prepare a 32-byte master key
@@ -115,5 +123,5 @@ export function parseMasterKey(raw: string): ArrayBuffer {
   if (bytes.byteLength !== 32) {
     throw new Error('Key must be exactly 32 bytes.');
   }
-  return bytes.buffer;
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }

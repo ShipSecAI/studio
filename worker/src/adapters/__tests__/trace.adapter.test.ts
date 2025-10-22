@@ -388,6 +388,8 @@ describe('TraceAdapter', () => {
         timestamp,
         level: 'info',
         context: {
+          runId: 'run-meta',
+          componentRef: 'node-meta',
           activityId: 'activity-1',
           attempt: 3,
           correlationId: 'corr',
@@ -401,11 +403,11 @@ describe('TraceAdapter', () => {
         runId: 'run-meta',
         nodeRef: 'node-meta',
         data: {
-          _metadata: {
+          _metadata: expect.objectContaining({
             activityId: 'activity-1',
             attempt: 3,
             correlationId: 'corr',
-          },
+          }),
         },
       });
     });

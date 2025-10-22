@@ -4,7 +4,7 @@
  * Enable by setting RUN_SECURITY_DOCKER_TESTS=1 or RUN_AMASS_TESTS=1.
  */
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { componentRegistry, type ExecutionContext } from '@shipsec/component-sdk';
+import { componentRegistry, createExecutionContext, type ExecutionContext } from '@shipsec/component-sdk';
 import '../amass';
 
 const shouldRunIntegration =
@@ -16,27 +16,13 @@ const shouldRunIntegration =
 
   beforeEach(() => {
     logs.length = 0;
-    context = {
+    context = createExecutionContext({
       runId: 'test-run',
       componentRef: 'shipsec.amass.enum',
-      logger: {
-        info: (...args: unknown[]) => {
-          const msg = args.join(' ');
-          logs.push(`INFO: ${msg}`);
-          console.log(msg);
-        },
-        error: (...args: unknown[]) => {
-          const msg = args.join(' ');
-          logs.push(`ERROR: ${msg}`);
-          console.error(msg);
-        },
+      logCollector: (entry) => {
+        logs.push(`${entry.stream.toUpperCase()}: ${entry.message}`);
       },
-      emitProgress: (progress) => {
-        const message = typeof progress === 'string' ? progress : progress.message;
-        logs.push(`PROGRESS: ${message}`);
-        console.log(`Progress: ${message}`);
-      },
-    };
+    });
   });
 
   test(

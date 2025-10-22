@@ -4,7 +4,7 @@ import { componentRegistry, type ComponentDefinition } from '@shipsec/component-
 const inputSchema = z.object({
   secretId: z.string().uuid().describe('Secret ID from the ShipSec secret store'),
   version: z
-    .number({ invalid_type_error: 'Version must be a number' })
+    .number()
     .int()
     .positive()
     .optional()

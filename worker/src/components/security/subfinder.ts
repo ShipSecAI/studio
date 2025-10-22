@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, runComponentWithRunner } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, runComponentWithRunner, type DockerRunnerConfig } from '@shipsec/component-sdk';
 
 const domainValueSchema = z.union([z.string(), z.array(z.string())]);
 
@@ -193,11 +193,14 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
     ],
   },
   async execute(input, context) {
-    const runnerConfig: typeof definition.runner = {
-      ...this.runner,
-      env: {
-        ...(this.runner.kind === 'docker' ? this.runner.env ?? {} : {}),
-      },
+    const baseRunner = definition.runner;
+    if (baseRunner.kind !== 'docker') {
+      throw new Error('Subfinder runner is expected to be docker-based.');
+    }
+
+    const runnerConfig: DockerRunnerConfig = {
+      ...baseRunner,
+      env: { ...(baseRunner.env ?? {}) },
     };
 
     if (input.providerConfigSecretId) {
@@ -285,3 +288,5 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
 };
 
 componentRegistry.register(definition);
+
+export type { Input as SubfinderInput, Output as SubfinderOutput };

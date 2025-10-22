@@ -300,7 +300,7 @@ fi
       rateLimit,
     };
 
-    let rawResult = await runComponentWithRunner(
+    let rawPayload: unknown = await runComponentWithRunner(
       this.runner,
       async () => ({} as Output),
       runnerInput,
@@ -308,26 +308,26 @@ fi
     );
 
     if (
-      rawResult &&
-      typeof rawResult === 'object' &&
-      !Array.isArray(rawResult)
+      rawPayload &&
+      typeof rawPayload === 'object' &&
+      !Array.isArray(rawPayload)
     ) {
-      const record = rawResult as Record<string, unknown>;
+      const record = rawPayload as Record<string, unknown>;
       const appearsNormalised =
         Object.prototype.hasOwnProperty.call(record, 'results') &&
         Object.prototype.hasOwnProperty.call(record, 'rawOutput');
 
       if (!appearsNormalised) {
         try {
-          rawResult = JSON.stringify(record);
+          rawPayload = JSON.stringify(record);
         } catch {
-          rawResult = '';
+          rawPayload = '';
         }
       }
     }
 
-    if (rawResult === undefined || rawResult === null) {
-      rawResult = '';
+    if (rawPayload === undefined || rawPayload === null) {
+      rawPayload = '';
     }
 
     const ensureUnique = (values: string[]) =>
@@ -439,8 +439,8 @@ fi
       };
     };
 
-    if (typeof rawResult === 'string') {
-      const rawOutput = rawResult;
+    if (typeof rawPayload === 'string') {
+      const rawOutput = rawPayload;
       const trimmed = rawOutput.trim();
 
       if (trimmed.length === 0) {
@@ -454,10 +454,10 @@ fi
         };
       }
 
-      const lines = trimmed
+      const lines: string[] = trimmed
         .split(/\r?\n/g)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
+        .map((line: string) => line.trim())
+        .filter((line: string) => line.length > 0);
 
       const parseErrors: string[] = [];
       const parsedRecords: Array<z.infer<typeof dnsxLineSchema>> = [];
@@ -488,8 +488,8 @@ fi
 
       if (parsedRecords.length === 0) {
         context.logger.error('[DNSX] No valid JSON lines returned from dnsx; falling back to raw output.');
-        const fallbackLines = lines.length > 0 ? lines : trimmed.split('\n');
-        const fallbackResults: DnsxRecord[] = fallbackLines.map((line) => ({
+        const fallbackLines: string[] = lines.length > 0 ? lines : trimmed.split('\n');
+        const fallbackResults: DnsxRecord[] = fallbackLines.map((line: string) => ({
           host: line,
           answers: { raw: [line] },
         }));
@@ -519,15 +519,15 @@ fi
       });
     }
 
-    const safeResult = outputSchema.safeParse(rawResult);
+    const safeResult = outputSchema.safeParse(rawPayload);
 
     if (!safeResult.success) {
       context.logger.error(`[DNSX] Output validation failed: ${safeResult.error.message}`);
 
       const rawOutput =
-        typeof rawResult === 'string'
-          ? rawResult
-          : JSON.stringify(rawResult, null, 2).slice(0, 5000);
+        typeof rawPayload === 'string'
+          ? rawPayload
+          : JSON.stringify(rawPayload, null, 2).slice(0, 5000);
 
       return {
         results: [],
@@ -553,3 +553,5 @@ fi
 };
 
 componentRegistry.register(definition);
+
+export type { Input as DnsxInput, Output as DnsxOutput };

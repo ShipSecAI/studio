@@ -1,6 +1,6 @@
 import { Inject, Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import { secrets, secretVersions, type NewSecret, type NewSecretVersion } from '../database/schema';
@@ -97,12 +97,12 @@ export class SecretsRepository {
   }
 
   async findValueBySecretId(secretId: string, version?: number): Promise<SecretValueRecord> {
-    let condition = eq(secretVersions.secretId, secretId);
+    const conditions: SQL[] = [eq(secretVersions.secretId, secretId)];
 
     if (typeof version === 'number') {
-      condition = and(condition, eq(secretVersions.version, version));
+      conditions.push(eq(secretVersions.version, version));
     } else {
-      condition = and(condition, eq(secretVersions.isActive, true));
+      conditions.push(eq(secretVersions.isActive, true));
     }
 
     const rows = await this.db
@@ -115,7 +115,7 @@ export class SecretsRepository {
         encryptionKeyId: secretVersions.encryptionKeyId,
       })
       .from(secretVersions)
-      .where(condition)
+      .where(and(...conditions))
       .limit(1);
 
     const record = rows[0];

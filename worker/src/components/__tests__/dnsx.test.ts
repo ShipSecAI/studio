@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../index';
+import type { DnsxInput, DnsxOutput } from '../security/dnsx';
 
 describe('dnsx component', () => {
   beforeAll(async () => {
@@ -12,15 +13,15 @@ describe('dnsx component', () => {
   });
 
   it('should be registered with metadata', () => {
-    const component = componentRegistry.get('shipsec.dnsx.run');
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
     expect(component).toBeDefined();
-    expect(component?.label).toBe('DNSX Resolver');
-    expect(component?.category).toBe('discovery');
-    expect(component?.metadata?.slug).toBe('dnsx');
+    expect(component!.label).toBe('DNSX Resolver');
+    expect(component!.category).toBe('discovery');
+    expect(component!.metadata?.slug).toBe('dnsx');
   });
 
   it('should normalise structured JSON output from dnsx', async () => {
-    const component = componentRegistry.get('shipsec.dnsx.run');
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -55,7 +56,7 @@ describe('dnsx component', () => {
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(payload);
 
-    const result = await component.execute(params, context);
+    const result = component.outputSchema.parse(await component.execute(params, context));
 
     expect(result.domainCount).toBe(1);
     expect(result.recordCount).toBe(2);
@@ -66,7 +67,7 @@ describe('dnsx component', () => {
   });
 
   it('should gracefully fallback when dnsx returns non-JSON output', async () => {
-    const component = componentRegistry.get('shipsec.dnsx.run');
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -82,7 +83,7 @@ describe('dnsx component', () => {
       'example.com [23.215.0.138]\nexample.com [23.215.0.136]',
     );
 
-    const result = await component.execute(params, context);
+    const result = component.outputSchema.parse(await component.execute(params, context));
 
     expect(result.results).toHaveLength(2);
     expect(result.errors ?? []).not.toHaveLength(0);
@@ -91,7 +92,7 @@ describe('dnsx component', () => {
   });
 
   it('should use docker runner config for dnsx image', () => {
-    const component = componentRegistry.get('shipsec.dnsx.run');
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
     if (!component) throw new Error('Component not registered');
 
     expect(component.runner.kind).toBe('docker');

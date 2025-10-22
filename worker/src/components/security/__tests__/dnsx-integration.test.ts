@@ -4,7 +4,8 @@
  */
 import { describe, test, expect, beforeEach } from 'bun:test';
 import type { ExecutionContext } from '@shipsec/component-sdk';
-import { componentRegistry } from '@shipsec/component-sdk';
+import { componentRegistry, createExecutionContext } from '@shipsec/component-sdk';
+import type { DnsxInput, DnsxOutput } from '../dnsx';
 import '../dnsx';
 
 const enableDockerIntegration = process.env.ENABLE_DOCKER_TESTS === 'true';
@@ -16,37 +17,24 @@ dockerDescribe('DNSX Integration (Docker)', () => {
 
   beforeEach(() => {
     logs.length = 0;
-    context = {
+    context = createExecutionContext({
       runId: 'test-run',
       componentRef: 'shipsec.dnsx.run',
-      logger: {
-        info: (...args: unknown[]) => {
-          const msg = args.join(' ');
-          logs.push(`INFO: ${msg}`);
-          console.log(msg);
-        },
-        error: (...args: unknown[]) => {
-          const msg = args.join(' ');
-          logs.push(`ERROR: ${msg}`);
-          console.error(msg);
-        },
+      logCollector: (entry) => {
+        logs.push(`${entry.stream.toUpperCase()}: ${entry.message}`);
       },
-      emitProgress: (progress) => {
-        const message = typeof progress === 'string' ? progress : progress.message;
-        logs.push(`PROGRESS: ${message}`);
-        console.log(`Progress: ${message}`);
-      },
-    };
+    });
   });
 
   test(
     'should resolve DNS records for a known domain using real dnsx',
     async () => {
-      const component = componentRegistry.get('shipsec.dnsx.run');
+      const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
       expect(component).toBeDefined();
 
-      const params = { domains: ['example.com'], recordTypes: ['A'] };
-      const result = await component!.execute(params as any, context);
+      const typedComponent = component!;
+      const params = typedComponent.inputSchema.parse({ domains: ['example.com'], recordTypes: ['A'] });
+      const result = typedComponent.outputSchema.parse(await typedComponent.execute(params, context));
 
       expect(result).toHaveProperty('results');
       expect(result.results.length).toBeGreaterThan(0);
@@ -61,15 +49,16 @@ dockerDescribe('DNSX Integration (Docker)', () => {
   test(
     'should handle non-existent domains gracefully',
     async () => {
-      const component = componentRegistry.get('shipsec.dnsx.run');
+      const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
       expect(component).toBeDefined();
 
-      const params = {
+      const typedComponent = component!;
+      const params = typedComponent.inputSchema.parse({
         domains: ['this-domain-definitely-does-not-exist-12345.invalid'],
         recordTypes: ['A'],
-      };
+      });
 
-      const result = await component!.execute(params as any, context);
+      const result = typedComponent.outputSchema.parse(await typedComponent.execute(params, context));
 
       expect(result.domainCount).toBe(1);
       expect(result.recordTypes).toContain('A');

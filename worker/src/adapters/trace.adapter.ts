@@ -116,11 +116,13 @@ export class TraceAdapter implements ITraceService {
     const packed: Record<string, unknown> = {};
 
     if (hasData) {
-      packed._payload = event.data as Record<string, unknown>;
+      packed._payload = { ...(event.data as Record<string, unknown>) };
     }
 
     if (hasMetadata) {
-      packed._metadata = event.context as Record<string, unknown>;
+      packed._metadata = {
+        ...((event.context as unknown) as Record<string, unknown>),
+      };
     }
 
     return packed;

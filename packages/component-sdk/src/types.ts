@@ -68,7 +68,8 @@ export type ComponentPortType =
   | 'file'
   | 'any'
   | 'secret'
-  | 'number';
+  | 'number'
+  | 'boolean';
 
 export interface ComponentPortMetadata {
   id: string;
@@ -86,7 +87,8 @@ export type ComponentParameterType =
   | 'boolean'
   | 'select'
   | 'multi-select'
-  | 'json';
+  | 'json'
+  | 'secret';
 
 export interface ComponentParameterOption {
   label: string;
