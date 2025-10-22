@@ -3,20 +3,25 @@ import { NativeConnection } from '@temporalio/worker';
 import { Client } from '@temporalio/client';
 import { Client as MinioClient } from 'minio';
 import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 
 import { FileStorageAdapter } from '../adapters/file-storage.adapter';
 import { TraceAdapter } from '../adapters/trace.adapter';
 import * as schema from '../adapters/schema';
 import '../components'; // Register all components
 
-describe('Worker Integration Tests', () => {
+const enableWorkerIntegration = process.env.ENABLE_WORKER_INTEGRATION_TESTS === 'true';
+const workerDescribe = enableWorkerIntegration ? describe : describe.skip;
+
+workerDescribe('Worker Integration Tests', () => {
   let temporalClient: Client;
   let minioClient: MinioClient;
   let pool: Pool;
   let fileStorageAdapter: FileStorageAdapter;
   let traceAdapter: TraceAdapter;
+  let db: NodePgDatabase<typeof schema>;
   
   // Use the test task queue - tests submit workflows to the test worker (pm2: shipsec-test-worker)
   // Main worker uses 'shipsec-default', test worker uses 'test-worker-integration'
@@ -49,7 +54,7 @@ describe('Worker Integration Tests', () => {
     const connectionString =
       process.env.DATABASE_URL || 'postgresql://shipsec:shipsec@localhost:5433/shipsec';
     pool = new Pool({ connectionString });
-    const db = drizzle(pool, { schema });
+    db = drizzle(pool, { schema });
 
     // Initialize adapters
     const bucketName = process.env.MINIO_BUCKET_NAME || 'shipsec-files';
@@ -80,6 +85,7 @@ describe('Worker Integration Tests', () => {
 
       // Create a minimal workflow DSL
       const workflowDSL = {
+        version: 1,
         title: 'Test Workflow',
         description: 'Integration test workflow',
         config: {
@@ -88,6 +94,13 @@ describe('Worker Integration Tests', () => {
         },
         entrypoint: {
           ref: 'trigger',
+        },
+        nodes: {
+          trigger: { ref: 'trigger' },
+        },
+        edges: [],
+        dependencyCounts: {
+          trigger: 0,
         },
         actions: [
           {
@@ -98,10 +111,10 @@ describe('Worker Integration Tests', () => {
                 test: true,
                 message: 'Integration test',
               },
+            },
+            dependsOn: [],
+            inputMappings: {},
           },
-          dependsOn: [],
-          inputMappings: {},
-        },
         ],
       };
 
@@ -145,6 +158,7 @@ describe('Worker Integration Tests', () => {
 
       // Create workflow that uses file-loader
       const workflowDSL = {
+        version: 1,
         title: 'File Loader Test',
         description: 'Test service injection',
         config: {
@@ -153,6 +167,22 @@ describe('Worker Integration Tests', () => {
         },
         entrypoint: {
           ref: 'trigger',
+        },
+        nodes: {
+          trigger: { ref: 'trigger' },
+          loader: { ref: 'loader' },
+        },
+        edges: [
+          {
+            id: 'trigger->loader',
+            sourceRef: 'trigger',
+            targetRef: 'loader',
+            kind: 'success' as const,
+          },
+        ],
+        dependencyCounts: {
+          trigger: 0,
+          loader: 1,
         },
         actions: [
           {
@@ -198,14 +228,16 @@ describe('Worker Integration Tests', () => {
       expect(result.success).toBe(true);
       const loader = (result.outputs as any).loader;
       expect(loader).toBeDefined();
-      expect(loader.fileId).toBe(fileId);
-      expect(loader.fileName).toBe(fileName);
-      expect(loader.mimeType).toBe('text/plain');
-      expect(loader.size).toBe(buffer.length);
+      expect(loader.file).toBeDefined();
+      expect(loader.file.id).toBe(fileId);
+      expect(loader.file.name).toBe(fileName);
+      expect(loader.file.mimeType).toBe('text/plain');
+      expect(loader.file.size).toBe(buffer.length);
 
       // Content should be base64 encoded
-      const decodedContent = Buffer.from(loader.content, 'base64').toString();
+      const decodedContent = Buffer.from(loader.file.content, 'base64').toString();
       expect(decodedContent).toBe(content);
+      expect(loader.textContent).toBe(content);
 
       // Cleanup
       await minioClient.removeObject(
@@ -221,6 +253,7 @@ describe('Worker Integration Tests', () => {
       const nonExistentFileId = randomUUID();
       
       const workflowDSL = {
+        version: 1,
         title: 'Failing Workflow',
         description: 'Test error handling',
         config: {
@@ -229,6 +262,13 @@ describe('Worker Integration Tests', () => {
         },
         entrypoint: {
           ref: 'loader',
+        },
+        nodes: {
+          loader: { ref: 'loader' },
+        },
+        edges: [],
+        dependencyCounts: {
+          loader: 0,
         },
         actions: [
           {
@@ -279,6 +319,7 @@ describe('Worker Integration Tests', () => {
 
       // Create workflow with multiple steps
       const workflowDSL = {
+        version: 1,
         title: 'Multi-Step Workflow',
         description: 'Test dependency execution',
         config: {
@@ -287,6 +328,30 @@ describe('Worker Integration Tests', () => {
         },
         entrypoint: {
           ref: 'trigger',
+        },
+        nodes: {
+          trigger: { ref: 'trigger' },
+          step2: { ref: 'step2' },
+          step3: { ref: 'step3' },
+        },
+        edges: [
+          {
+            id: 'trigger->step2',
+            sourceRef: 'trigger',
+            targetRef: 'step2',
+            kind: 'success' as const,
+          },
+          {
+            id: 'step2->step3',
+            sourceRef: 'step2',
+            targetRef: 'step3',
+            kind: 'success' as const,
+          },
+        ],
+        dependencyCounts: {
+          trigger: 0,
+          step2: 1,
+          step3: 1,
         },
         actions: [
           {
@@ -346,6 +411,216 @@ describe('Worker Integration Tests', () => {
       expect(outputs.step2).toEqual({});
       expect(outputs.step3).toEqual({});
     }, 60000);
+
+    it('should route error edges when an activity fails', async () => {
+      const { shipsecWorkflowRun } = await import('../temporal/workflows');
+
+      const missingFileId = randomUUID();
+
+      const workflowDSL = {
+        version: 1,
+        title: 'Error Edge Workflow',
+        description: 'Failure should schedule error handler',
+        config: {
+          environment: 'test',
+          timeoutSeconds: 30,
+        },
+        entrypoint: {
+          ref: 'trigger',
+        },
+        nodes: {
+          trigger: { ref: 'trigger' },
+          willFail: { ref: 'willFail' },
+          errorHandler: { ref: 'errorHandler' },
+        },
+        edges: [
+          {
+            id: 'trigger->willFail',
+            sourceRef: 'trigger',
+            targetRef: 'willFail',
+            kind: 'success' as const,
+          },
+          {
+            id: 'willFail->errorHandler',
+            sourceRef: 'willFail',
+            targetRef: 'errorHandler',
+            kind: 'error' as const,
+          },
+        ],
+        dependencyCounts: {
+          trigger: 0,
+          willFail: 1,
+          errorHandler: 0,
+        },
+        actions: [
+          {
+            ref: 'trigger',
+            componentId: 'core.trigger.manual',
+            params: {},
+            dependsOn: [],
+            inputMappings: {},
+          },
+          {
+            ref: 'willFail',
+            componentId: 'core.file.loader',
+            params: { fileId: missingFileId },
+            dependsOn: ['trigger'],
+            inputMappings: {},
+          },
+          {
+            ref: 'errorHandler',
+            componentId: 'core.console.log',
+            params: {
+              data: 'handled upstream failure',
+              label: 'error-handler',
+            },
+            dependsOn: [],
+            inputMappings: {},
+          },
+        ],
+      };
+
+      const workflowId = `error-edge-workflow-${randomUUID()}`;
+      const runId = `error-edge-run-${randomUUID()}`;
+
+      const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
+        taskQueue,
+        workflowId,
+        args: [
+          {
+            runId,
+            workflowId,
+            definition: workflowDSL,
+            inputs: {},
+          },
+        ],
+      });
+
+      const result = await handle.result();
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const traces = await db
+        .select()
+        .from(schema.workflowTraces)
+        .where(eq(schema.workflowTraces.runId, runId))
+        .orderBy(schema.workflowTraces.sequence);
+
+      const failureEvent = traces.find(
+        (trace) => trace.nodeRef === 'willFail' && trace.type === 'NODE_FAILED',
+      );
+
+      expect(failureEvent).toBeDefined();
+      expect(failureEvent?.error ?? '').toMatch(/not found|does not exist|NotFound/i);
+    }, 60000);
+
+  it('should persist ordered traces for parallel branches', async () => {
+    const { shipsecWorkflowRun } = await import('../temporal/workflows');
+
+    const workflowDSL = {
+      version: 1,
+      title: 'Trace Order Workflow',
+      description: 'Ensures trace events remain ordered across concurrent branches',
+      config: {
+        environment: 'test',
+        timeoutSeconds: 30,
+      },
+      entrypoint: {
+        ref: 'trigger',
+      },
+      nodes: {
+        trigger: { ref: 'trigger' },
+        branchA: { ref: 'branchA' },
+        branchB: { ref: 'branchB' },
+      },
+      edges: [
+        {
+          id: 'trigger->branchA',
+          sourceRef: 'trigger',
+          targetRef: 'branchA',
+          kind: 'success' as const,
+        },
+        {
+          id: 'trigger->branchB',
+          sourceRef: 'trigger',
+          targetRef: 'branchB',
+          kind: 'success' as const,
+        },
+      ],
+      dependencyCounts: {
+        trigger: 0,
+        branchA: 1,
+        branchB: 1,
+      },
+      actions: [
+        {
+          ref: 'trigger',
+          componentId: 'core.trigger.manual',
+          params: {},
+          dependsOn: [],
+          inputMappings: {},
+        },
+        {
+          ref: 'branchA',
+          componentId: 'core.console.log',
+          params: { data: 'branchA' },
+          dependsOn: ['trigger'],
+          inputMappings: {},
+        },
+        {
+          ref: 'branchB',
+          componentId: 'core.console.log',
+          params: { data: 'branchB' },
+          dependsOn: ['trigger'],
+          inputMappings: {},
+        },
+      ],
+    };
+
+    const workflowId = `trace-order-workflow-${randomUUID()}`;
+    const runId = `trace-order-run-${randomUUID()}`;
+
+    const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
+      taskQueue,
+      workflowId,
+      args: [
+        {
+          runId,
+          workflowId,
+          definition: workflowDSL,
+          inputs: {},
+        },
+      ],
+    });
+
+    const result = await handle.result();
+    expect(result.success).toBe(true);
+
+    // allow asynchronous persistence to flush
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const traces = await db
+      .select()
+      .from(schema.workflowTraces)
+      .where(eq(schema.workflowTraces.runId, runId))
+      .orderBy(schema.workflowTraces.sequence);
+
+    expect(traces.length).toBeGreaterThanOrEqual(6);
+
+    const sequences = traces.map((trace) => trace.sequence);
+    sequences.forEach((sequence, index) => {
+      expect(sequence).toBe(index + 1);
+    });
+
+    const completedNodes = new Set(
+      traces.filter((trace) => trace.type === 'NODE_COMPLETED').map((trace) => trace.nodeRef),
+    );
+
+    expect(completedNodes.has('branchA')).toBe(true);
+    expect(completedNodes.has('branchB')).toBe(true);
+  }, 60000);
   });
 
   describe('Worker Connection and Setup', () => {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const EnvSchema = z.object({
-  VITE_BACKEND_URL: z.string().url().default('http://localhost:8080'),
+  VITE_BACKEND_URL: z.string().url().default('http://localhost:3211'),
   VITE_FRONTEND_BRANCH: z.string().optional().default(''),
   VITE_BACKEND_BRANCH: z.string().optional().default(''),
 })

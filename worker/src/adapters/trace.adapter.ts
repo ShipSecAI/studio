@@ -5,24 +5,38 @@ import { workflowTraces } from './schema';
 import * as schema from './schema';
 
 /**
- * Trace adapter that keeps an in-memory view for local reads and optionally persists
- * events to PostgreSQL via Drizzle when a database instance is provided.
+ * Trace adapter that optionally buffers trace events in-memory for local reads and
+ * can persist events to PostgreSQL via Drizzle when a database instance is provided.
  */
 export class TraceAdapter implements ITraceService {
-  private readonly eventsByRun = new Map<string, TraceEvent[]>();
+  private readonly bufferEnabled: boolean;
+  private readonly eventsByRun: Map<string, TraceEvent[]> | undefined;
   private readonly sequenceByRun = new Map<string, number>();
   private readonly metadataByRun = new Map<string, { workflowId?: string }>();
+  private readonly logger: Pick<Console, 'log' | 'error'>;
 
-  constructor(private readonly db?: NodePgDatabase<typeof schema>) {}
+  constructor(
+    private readonly db?: NodePgDatabase<typeof schema>,
+    options: {
+      buffer?: boolean;
+      logger?: Pick<Console, 'log' | 'error'>;
+    } = {},
+  ) {
+    this.bufferEnabled = options.buffer ?? false;
+    this.eventsByRun = this.bufferEnabled ? new Map<string, TraceEvent[]>() : undefined;
+    this.logger = options.logger ?? console;
+  }
 
   record(event: TraceEvent): void {
-    const list = this.eventsByRun.get(event.runId) ?? [];
-    list.push(event);
-    this.eventsByRun.set(event.runId, list);
+    if (this.bufferEnabled && this.eventsByRun) {
+      const list = this.eventsByRun.get(event.runId) ?? [];
+      list.push(event);
+      this.eventsByRun.set(event.runId, list);
+    }
 
     const context =
       event.message !== undefined ? `${event.type} - ${event.nodeRef}: ${event.message}` : `${event.type} - ${event.nodeRef}`;
-    console.log(`[TRACE][${event.level}] ${context}`);
+    this.logger.log(`[TRACE][${event.level}] ${context}`);
 
     if (!this.db) {
       return;
@@ -30,16 +44,21 @@ export class TraceAdapter implements ITraceService {
 
     const sequence = this.nextSequence(event.runId);
     void this.persist(event, sequence).catch((error) => {
-      console.error('[TRACE] Failed to persist trace event', error);
+      this.logger.error('[TRACE] Failed to persist trace event', error);
     });
   }
 
   getEvents(runId: string): TraceEvent[] {
+    if (!this.bufferEnabled || !this.eventsByRun) {
+      return [];
+    }
     return this.eventsByRun.get(runId) ?? [];
   }
 
   clear(): void {
-    this.eventsByRun.clear();
+    if (this.eventsByRun) {
+      this.eventsByRun.clear();
+    }
     this.sequenceByRun.clear();
     this.metadataByRun.clear();
   }
@@ -49,7 +68,9 @@ export class TraceAdapter implements ITraceService {
   }
 
   finalizeRun(runId: string): void {
-    this.eventsByRun.delete(runId);
+    if (this.eventsByRun) {
+      this.eventsByRun.delete(runId);
+    }
     this.sequenceByRun.delete(runId);
     this.metadataByRun.delete(runId);
   }
@@ -66,6 +87,8 @@ export class TraceAdapter implements ITraceService {
       return;
     }
 
+    const packedData = this.packData(event);
+
     await this.db.insert(workflowTraces).values({
       runId: event.runId,
       workflowId: this.metadataByRun.get(event.runId)?.workflowId ?? null,
@@ -76,8 +99,30 @@ export class TraceAdapter implements ITraceService {
       error: event.error ?? null,
       outputSummary: event.outputSummary ?? null,
       level: event.level,
-      data: event.data ?? null,
+      data: packedData,
       sequence,
     });
+  }
+
+  private packData(event: TraceEvent): Record<string, unknown> | null {
+    const hasData = event.data && typeof event.data === 'object' && !Array.isArray(event.data);
+    const hasMetadata =
+      event.context && typeof event.context === 'object' && !Array.isArray(event.context);
+
+    if (!hasData && !hasMetadata) {
+      return null;
+    }
+
+    const packed: Record<string, unknown> = {};
+
+    if (hasData) {
+      packed._payload = event.data as Record<string, unknown>;
+    }
+
+    if (hasMetadata) {
+      packed._metadata = event.context as Record<string, unknown>;
+    }
+
+    return packed;
   }
 }

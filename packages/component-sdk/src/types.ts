@@ -5,8 +5,11 @@ import type {
   IFileStorageService,
   ISecretsService,
   ITraceService,
+  ExecutionContextMetadata,
   TraceEventLevel,
 } from './interfaces';
+
+export type { ExecutionContextMetadata } from './interfaces';
 
 export type RunnerKind = 'inline' | 'docker' | 'remote';
 
@@ -55,6 +58,7 @@ export interface LogEventInput {
   level?: TraceEventLevel;
   timestamp: string;
   data?: unknown;
+  metadata?: ExecutionContextMetadata;
 }
 
 export type ComponentPortType = 'string' | 'array' | 'object' | 'file' | 'any';
@@ -137,16 +141,13 @@ export interface ComponentUiMetadata {
   examples?: string[];
 }
 
-/**
- * Execution context provided to components during execution
- * Contains service interfaces (not concrete implementations)
- */
 export interface ExecutionContext {
   runId: string;
   componentRef: string;
   logger: Logger;
   emitProgress: (progress: ProgressEventInput | string) => void;
   logCollector?: (entry: LogEventInput) => void;
+  metadata: ExecutionContextMetadata;
 
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;

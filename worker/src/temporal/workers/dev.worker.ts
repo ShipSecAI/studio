@@ -8,11 +8,17 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 import Long from 'long';
 import { isGrpcServiceError } from '@temporalio/client';
 import { config } from 'dotenv';
-import { runWorkflowActivity, initializeActivityServices } from '../activities/run-workflow.activity';
+import {
+  runComponentActivity,
+  setRunMetadataActivity,
+  finalizeRunActivity,
+  initializeComponentActivityServices,
+} from '../activities/run-component.activity';
 import {
   FileStorageAdapter,
   LokiLogAdapter,
   LokiLogClient,
+  SecretsAdapter,
   TraceAdapter,
 } from '../../adapters';
 import * as schema from '../../adapters/schema';
@@ -67,6 +73,7 @@ async function main() {
   // Create service adapters (implementing SDK interfaces)
   const storageAdapter = new FileStorageAdapter(minioClient, db, minioBucketName);
   const traceAdapter = new TraceAdapter(db);
+  const secretsAdapter = new SecretsAdapter();
 
   const lokiUrl = process.env.LOKI_URL;
   let logAdapter: LokiLogAdapter | undefined;
@@ -88,7 +95,12 @@ async function main() {
   }
 
   // Initialize global services for activities
-  initializeActivityServices(storageAdapter, traceAdapter, logAdapter);
+  initializeComponentActivityServices({
+    storage: storageAdapter,
+    trace: traceAdapter,
+    logs: logAdapter,
+    secrets: secretsAdapter,
+  });
 
   console.log(`✅ Service adapters initialized`);
 
@@ -98,7 +110,9 @@ async function main() {
     taskQueue,
     workflowsPath,
     activities: {
-      runWorkflowActivity,
+      runComponentActivity,
+      setRunMetadataActivity,
+      finalizeRunActivity,
     },
   });
 

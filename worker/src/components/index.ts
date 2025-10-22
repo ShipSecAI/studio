@@ -18,5 +18,8 @@ import './security/dnsx';
 import './security/httpx';
 import './security/notify';
 
+// Test utility components
+import './test/sleep-parallel';
+
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';

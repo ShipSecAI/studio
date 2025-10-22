@@ -7,6 +7,10 @@ import * as schema from '../schema';
 
 describe('TraceAdapter', () => {
   let adapter: TraceAdapter;
+  const noopLogger = {
+    log: () => {},
+    error: () => {},
+  };
 
   class FakeDb {
     public inserts: Array<{ table: unknown; input: unknown }> = [];
@@ -21,7 +25,7 @@ describe('TraceAdapter', () => {
   }
 
   beforeEach(() => {
-    adapter = new TraceAdapter();
+    adapter = new TraceAdapter(undefined, { buffer: true, logger: noopLogger });
   });
 
   describe('record', () => {
@@ -103,6 +107,40 @@ describe('TraceAdapter', () => {
       expect(events[0].message).toBe('Step 1 complete');
       expect(events[1].error).toBe('Timeout error');
     });
+
+    it('should handle concurrent event recording without loss', async () => {
+      const runId = 'concurrent-run';
+      const total = 50;
+      const timestamps = Array.from({ length: total }, (_, index) =>
+        new Date(Date.now() + index).toISOString(),
+      );
+
+      await Promise.all(
+        timestamps.map(
+          (timestamp, index) =>
+            new Promise<void>((resolve) => {
+              setTimeout(() => {
+                adapter.record({
+                  type: index % 2 === 0 ? 'NODE_PROGRESS' : 'NODE_COMPLETED',
+                  runId,
+                  nodeRef: `node-${index % 5}`,
+                  timestamp,
+                  level: 'info',
+                  message: `event-${index}`,
+                });
+                resolve();
+              }, Math.floor(Math.random() * 5));
+            }),
+        ),
+      );
+
+      const recorded = adapter.getEvents(runId);
+      expect(recorded).toHaveLength(total);
+      const messages = recorded.map((event) => event.message);
+      timestamps.forEach((_, index) => {
+        expect(messages).toContain(`event-${index}`);
+      });
+    });
   });
 
   describe('getEvents', () => {
@@ -178,6 +216,21 @@ describe('TraceAdapter', () => {
 
       const events = adapter.getEvents('run-order');
       expect(events.map((e) => e.timestamp)).toEqual(timestamps);
+    });
+
+    it('should return empty array when buffering is disabled', () => {
+      const nonBuffered = new TraceAdapter(undefined, { buffer: false, logger: noopLogger });
+      nonBuffered.record({
+        type: 'NODE_STARTED',
+        runId: 'run-no-buffer',
+        nodeRef: 'node-1',
+        timestamp: new Date().toISOString(),
+        level: 'info',
+      });
+
+      expect(nonBuffered.getEvents('run-no-buffer')).toHaveLength(0);
+      nonBuffered.clear();
+      nonBuffered.finalizeRun('run-no-buffer');
     });
   });
 
@@ -286,7 +339,10 @@ describe('TraceAdapter', () => {
   describe('persistence', () => {
     it('persists events when database is provided', async () => {
       const fakeDb = new FakeDb();
-      const persistentAdapter = new TraceAdapter(fakeDb as unknown as NodePgDatabase<typeof schema>);
+      const persistentAdapter = new TraceAdapter(
+        fakeDb as unknown as NodePgDatabase<typeof schema>,
+        { logger: noopLogger },
+      );
       const timestamp = new Date('2025-01-01T00:00:00Z').toISOString();
 
       persistentAdapter.setRunMetadata('run-persist', { workflowId: 'workflow-123' });
@@ -313,7 +369,44 @@ describe('TraceAdapter', () => {
         sequence: 1,
         level: 'warn',
         message: 'Persist me',
-        data: { attempt: 2 },
+        data: { _payload: { attempt: 2 } },
+      });
+    });
+
+    it('packs metadata into persistence payload when context is provided', async () => {
+      const fakeDb = new FakeDb();
+      const persistentAdapter = new TraceAdapter(
+        fakeDb as unknown as NodePgDatabase<typeof schema>,
+        { logger: noopLogger },
+      );
+      const timestamp = new Date('2025-01-02T00:00:00Z').toISOString();
+
+      persistentAdapter.record({
+        type: 'NODE_COMPLETED',
+        runId: 'run-meta',
+        nodeRef: 'node-meta',
+        timestamp,
+        level: 'info',
+        context: {
+          activityId: 'activity-1',
+          attempt: 3,
+          correlationId: 'corr',
+        },
+      });
+
+      await Promise.resolve();
+
+      expect(fakeDb.inserts).toHaveLength(1);
+      expect(fakeDb.inserts[0].input).toMatchObject({
+        runId: 'run-meta',
+        nodeRef: 'node-meta',
+        data: {
+          _metadata: {
+            activityId: 'activity-1',
+            attempt: 3,
+            correlationId: 'corr',
+          },
+        },
       });
     });
   });

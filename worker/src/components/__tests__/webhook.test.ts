@@ -3,8 +3,8 @@ import { createExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry } from '../index';
 
 describe('webhook component', () => {
-  beforeAll(() => {
-    require('../index');
+  beforeAll(async () => {
+    await import('../index');
   });
 
   afterEach(() => {

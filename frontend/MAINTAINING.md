@@ -567,7 +567,7 @@ markClean()
 - Connection data preserved in input mappings for backend execution
 
 **Testing Notes**:
-- Requires backend running at http://localhost:8080
+- Requires backend running at http://localhost:3211
 - Create workflow: Navigate to /workflows/new, add nodes, click Save
 - Update workflow: Load existing workflow, modify, click Save
 - Dirty state: Make changes and verify "Unsaved changes" appears

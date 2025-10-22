@@ -3,8 +3,8 @@ import { createExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry } from '../index';
 
 describe('trigger-manual component', () => {
-  beforeAll(() => {
-    require('../index');
+  beforeAll(async () => {
+    await import('../index');
   });
 
   it('should be registered', () => {

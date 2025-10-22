@@ -4,9 +4,8 @@ import type { IFileStorageService } from '@shipsec/component-sdk';
 import { componentRegistry } from '../index';
 
 describe('file-loader component', () => {
-  beforeAll(() => {
-    // Import to register components
-    require('../index');
+  beforeAll(async () => {
+    await import('../index');
   });
 
   it('should be registered', () => {

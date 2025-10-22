@@ -1,6 +1,12 @@
 import { format } from 'node:util';
 
-import type { ExecutionContext, Logger, ProgressEventInput, LogEventInput } from './types';
+import type {
+  ExecutionContext,
+  ExecutionContextMetadata,
+  Logger,
+  ProgressEventInput,
+  LogEventInput,
+} from './types';
 import type {
   IFileStorageService,
   ISecretsService,
@@ -11,6 +17,7 @@ import type {
 export interface CreateContextOptions {
   runId: string;
   componentRef: string;
+  metadata?: Partial<Omit<ExecutionContextMetadata, 'runId' | 'componentRef'>>;
   storage?: IFileStorageService;
   secrets?: ISecretsService;
   artifacts?: IArtifactService;
@@ -19,7 +26,10 @@ export interface CreateContextOptions {
 }
 
 export function createExecutionContext(options: CreateContextOptions): ExecutionContext {
-  const { runId, componentRef, storage, secrets, artifacts, trace, logCollector } = options;
+  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector } =
+    options;
+  const metadata = createMetadata(runId, componentRef, metadataInput);
+  const scopedTrace = trace ? createScopedTrace(trace, metadata) : undefined;
 
   const pushLog = (
     stream: LogEventInput['stream'],
@@ -40,14 +50,15 @@ export function createExecutionContext(options: CreateContextOptions): Execution
       level,
       message,
       timestamp: new Date().toISOString(),
+      metadata,
     };
 
     if (logCollector) {
       logCollector(entry);
     }
 
-    if (trace) {
-      trace.record({
+    if (scopedTrace) {
+      scopedTrace.record({
         type: 'NODE_PROGRESS',
         runId,
         nodeRef: componentRef,
@@ -59,7 +70,7 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     }
   };
 
-  const logger: Logger = {
+  const logger: Logger = Object.freeze({
     info: (...args: unknown[]) => {
       pushLog('stdout', 'info', args);
       console.log(`[${componentRef}]`, ...args);
@@ -68,7 +79,7 @@ export function createExecutionContext(options: CreateContextOptions): Execution
       pushLog('stderr', 'error', args);
       console.error(`[${componentRef}]`, ...args);
     },
-  };
+  }) as Logger;
 
   const emitProgress = (progress: ProgressEventInput | string) => {
     const normalized: ProgressEventInput =
@@ -77,8 +88,8 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     const message = normalized.message;
 
     console.log(`[${componentRef}] progress [${level}]: ${message}`);
-    if (trace) {
-      trace.record({
+    if (scopedTrace) {
+      scopedTrace.record({
         type: 'NODE_PROGRESS',
         runId,
         nodeRef: componentRef,
@@ -90,7 +101,7 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     }
   };
 
-  return {
+  const context: ExecutionContext = {
     runId,
     componentRef,
     logger,
@@ -98,7 +109,48 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     storage,
     secrets,
     artifacts,
-    trace,
+    trace: scopedTrace,
     logCollector,
+    metadata,
+  };
+
+  return Object.freeze(context) as ExecutionContext;
+}
+
+function createMetadata(
+  runId: string,
+  componentRef: string,
+  metadata?: Partial<Omit<ExecutionContextMetadata, 'runId' | 'componentRef'>>,
+): ExecutionContextMetadata {
+  const scoped: ExecutionContextMetadata = {
+    runId,
+    componentRef,
+    activityId: metadata?.activityId,
+    attempt: metadata?.attempt,
+    correlationId: metadata?.correlationId,
+    streamId: metadata?.streamId,
+    joinStrategy: metadata?.joinStrategy,
+    triggeredBy: metadata?.triggeredBy,
+    failure: metadata?.failure,
+  };
+
+  return Object.freeze(scoped);
+}
+
+function createScopedTrace(
+  trace: ITraceService,
+  metadata: ExecutionContextMetadata,
+): ITraceService {
+  return {
+    record(event) {
+      const enriched = {
+        ...event,
+        runId: metadata.runId,
+        nodeRef: metadata.componentRef,
+        context: metadata,
+      };
+
+      trace.record(enriched);
+    },
   };
 }

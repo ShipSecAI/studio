@@ -135,7 +135,7 @@ export class WorkflowsService {
 
   async listRuns(options: {
     workflowId?: string;
-    status?: string;
+    status?: ExecutionStatus;
     limit?: number;
   } = {}) {
     const runs = await this.runRepository.list(options);

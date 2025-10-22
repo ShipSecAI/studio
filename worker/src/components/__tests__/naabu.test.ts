@@ -3,8 +3,8 @@ import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../index';
 
 describe('naabu component', () => {
-  beforeAll(() => {
-    require('../index');
+  beforeAll(async () => {
+    await import('../index');
   });
 
   afterEach(() => {

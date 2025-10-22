@@ -52,3 +52,40 @@ Each stores `runId`, `nodeId`, timestamp, payload.
 ## Developer Hooks
 - Module SDK exposes `context.log()`, `context.progress()`, `context.emitArtifact()` to emit trace events.
 - Worker handles retries and heartbeats, preserving trace continuity.
+
+## 2025-10-15 · Scheduler Phase 0 Audit
+
+- **DSL compiler:** `backend/src/dsl/compiler.ts` topologically sorts nodes then emits a flattened `actions` array. Edge metadata is reduced to per-action `inputMappings` and a `dependsOn` list, losing adjacency, edge typing, or join semantics required for parallel scheduling.
+- **Worker runtime:** `worker/src/temporal/workflow-runner.ts` iterates the `actions` array sequentially. Outputs are stored in a shared `Map`, so independent branches block on previous nodes even when no dependency exists; there is no ready queue or future-based coordination.
+- **Trace/log context:** Shared adapters (`TraceAdapter`, log collector) are reused per iteration without branch isolation. Trace emission assumes in-order execution and would race once nodes run concurrently.
+- **Join handling:** Input resolution silently warns when a mapped value is `undefined` and continues execution. There are no explicit join strategies; multi-parent nodes expect predecessors to have already completed successfully.
+- **Tests:** Existing unit tests (`worker/src/temporal/__tests__/workflow-runner.test.ts`) assert sequential event ordering, reflecting—and cementing—the serialized execution model.
+- **Verification:** Ran `bun --cwd worker test`; updated the file-loader integration expectation so the suite passes. Manual multi-branch dry-run captured below.
+
+### Temporal Worker Boundary Review
+- `shipsecWorkflowRun` proxies a single activity (`runWorkflowActivity`) with a 10 minute start-to-close timeout; scheduling/branching occurs entirely inside that activity, not across multiple activities or child workflows.
+- `runWorkflowActivity` injects storage/trace/log adapters via module-level globals initialised in `dev.worker.ts` (`initializeActivityServices`), so every component execution shares the same adapters; retries rely on Temporal’s proxy timeout only.
+- Worker bootstrap (`dev.worker.ts`) wires Temporal `Worker.create` with just this activity set; no per-component activities exist. Failure in any component propagates out of `executeWorkflow` and causes the lone activity to fail.
+- Manual sequential dry-run: executing two independent “sleep” components confirmed branch `b` waits for `a` to finish (start times ~406 ms apart), validating the serialized loop observed in code.
+
+## 2025-10-15 · Phase 1 Schema Enrichment
+
+- Updated DSL schemas to include `version`, node metadata map, explicit edges (with handles + kind), and per-node dependency counts (`backend/src/dsl/types.ts`).
+- Compiler now emits the enriched structure while preserving action order; labels flow into node metadata and dependency counts capture indegree (default edge kind `success`).
+- Worker definition types mirror the new schema (`worker/src/temporal/types.ts`), preparing the runtime for a graph-driven scheduler.
+- Added compiler unit test covering a diamond graph to verify dependency counts and edge metadata; backend test suite passes with the new schema.
+
+## 2025-10-15 · Phase 2 Scheduler Core
+
+- Added `runWorkflowWithScheduler` (worker/src/temporal/workflow-scheduler.ts) implementing an indegree-driven ready queue; batches of ready nodes execute via Promise.all and unlock dependents.
+- `executeWorkflow` now delegates action sequencing to the scheduler while reusing existing trace/log logic; results map stores outputs for downstream nodes.
+- Introduced a concurrency-focused test (`executeWorkflow > executes independent branches in parallel`) that registers a synthetic sleep component and asserts branch start times differ by <60 ms, confirming real parallel execution.
+- Worker integration suite still passes; overall runtime now supports concurrent branch execution without altering component contracts.
+
+## 2025-10-16 · Phase 3 Activity Orchestration
+
+- Temporal workflow (`shipsecWorkflowRun`) now orchestrates the DAG directly, using `runWorkflowWithScheduler` to determine ready nodes and invoking `runComponentActivity` via `workflow.executeActivity`.
+- Introduced `runComponentActivity` plus lifecycle helpers (`setRunMetadataActivity`, `finalizeRunActivity`) so trace adapters receive run metadata while each component executes in its own activity with full retries/timeouts.
+- Workflow resolves input mappings before scheduling the activity; unresolved mappings are passed as warnings so the activity emits `NODE_PROGRESS` warnings before execution.
+- Manual trigger inputs continue to flow (`__runtimeData` for trigger component, merged params for others).
+- Scheduler remains for inline execution (`executeWorkflow` tests) while the Temporal workflow leverages the same logic with activity isolation; worker integration tests confirm the new orchestration.

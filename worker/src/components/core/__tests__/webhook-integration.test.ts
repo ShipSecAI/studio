@@ -11,6 +11,9 @@ import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sd
 import type { ComponentDefinition, ExecutionContext } from '@shipsec/component-sdk';
 import '../../index'; // Register all components
 
+const enableWebhookIntegration = process.env.ENABLE_WEBHOOK_TESTS === 'true';
+const webhookDescribe = enableWebhookIntegration ? describe : describe.skip;
+
 type WebhookTestTarget = { baseUrl: string };
 
 type WebhookComponentInput = {
@@ -49,7 +52,7 @@ interface ResolvedTarget {
   cleanup?: () => Promise<void>;
 }
 
-describe('Webhook Integration (Real HTTP)', () => {
+webhookDescribe('Webhook Integration (Real HTTP)', () => {
   let target: WebhookTestTarget;
   let cleanup: (() => Promise<void>) | undefined;
   let component!: ComponentDefinition<WebhookComponentInput, WebhookComponentOutput>;
@@ -82,6 +85,10 @@ describe('Webhook Integration (Real HTTP)', () => {
   const context: ExecutionContext = {
     runId: 'test-run',
     componentRef: 'core.webhook.post',
+    metadata: {
+      runId: 'test-run',
+      componentRef: 'core.webhook.post',
+    },
     logger: {
       info: (...args: unknown[]) => console.log('[INFO]', ...args),
       error: (...args: unknown[]) => console.error('[ERROR]', ...args),

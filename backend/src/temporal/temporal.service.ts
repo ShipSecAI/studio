@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
 import Long from 'long';
@@ -55,7 +55,7 @@ export class TemporalService implements OnModuleDestroy {
   private clientPromise?: Promise<WorkflowClient>;
   private connection?: Connection;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     this.address = this.configService.get<string>('TEMPORAL_ADDRESS', 'localhost:7233');
     this.namespace = this.configService.get<string>('TEMPORAL_NAMESPACE', 'shipsec-dev');
     this.defaultTaskQueue = this.configService.get<string>(

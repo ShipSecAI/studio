@@ -15,9 +15,15 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import type { Response } from 'express';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import type { TestingWebhookRecord } from './testing-webhook.service';
 import { TestingWebhookService } from './testing-webhook.service';
+import {
+  AcceptWebhookQueryDto,
+  AcceptWebhookQuerySchema,
+} from './dto/testing-webhook.dto';
+import { z } from 'zod';
 
 @Controller('testing/webhooks')
 export class TestingWebhookController {
@@ -28,11 +34,11 @@ export class TestingWebhookController {
 
   @Post()
   async acceptWebhook(
-    @Body() body: unknown,
+    @Body(new ZodValidationPipe(z.unknown())) body: unknown,
     @Headers() headers: Record<string, string | string[]>,
     @Req() request: Request,
-    @Query('status') statusParam: string | undefined,
-    @Query('delayMs') delayParam: string | undefined,
+    @Query(new ZodValidationPipe(AcceptWebhookQuerySchema))
+    query: AcceptWebhookQueryDto,
     @Res({ passthrough: true }) response: Response,
   ): Promise<{ id: string; receivedAt: string }> {
     const id = randomUUID();
@@ -79,21 +85,8 @@ export class TestingWebhookController {
 
     this.service.record(record);
 
-    const status = (() => {
-      const parsed = Number.parseInt(statusParam ?? '', 10);
-      if (Number.isNaN(parsed) || parsed < 100 || parsed > 599) {
-        return 201;
-      }
-      return parsed;
-    })();
-
-    const delayMs = (() => {
-      const parsed = Number.parseInt(delayParam ?? '', 10);
-      if (Number.isNaN(parsed) || parsed <= 0) {
-        return 0;
-      }
-      return Math.min(parsed, 60_000);
-    })();
+    const status = query.status ?? 201;
+    const delayMs = query.delayMs ?? 0;
 
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));

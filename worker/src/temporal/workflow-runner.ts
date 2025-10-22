@@ -14,6 +14,12 @@ import type {
   WorkflowRunResult,
   WorkflowLogSink,
 } from './types';
+import {
+  runWorkflowWithScheduler,
+  type WorkflowSchedulerRunContext,
+  WorkflowSchedulerError,
+} from './workflow-scheduler';
+import { buildActionParams } from './input-resolver';
 
 export interface ExecuteWorkflowOptions {
   runId?: string;
@@ -35,6 +41,9 @@ export async function executeWorkflow(
 ): Promise<WorkflowRunResult> {
   const runId = options.runId ?? randomUUID();
   const results = new Map<string, unknown>();
+  const actionsByRef = new Map<string, typeof definition.actions[number]>(
+    definition.actions.map((action) => [action.ref, action]),
+  );
 
   const forwardLog: ((entry: LogEventInput) => void) | undefined = options.logs
     ? (entry) => {
@@ -56,11 +65,25 @@ export async function executeWorkflow(
     : undefined;
 
   try {
-    for (const action of definition.actions) {
+    const runAction = async (
+      actionRef: string,
+      schedulerContext: WorkflowSchedulerRunContext,
+    ): Promise<void> => {
+      const action = actionsByRef.get(actionRef);
+      if (!action) {
+        throw new Error(`Action not found: ${actionRef}`);
+      }
+
+      const { triggeredBy, failure } = schedulerContext;
+
       const component = componentRegistry.get(action.componentId);
       if (!component) {
         throw new Error(`Component not registered: ${action.componentId}`);
       }
+
+      const nodeMetadata = definition.nodes?.[action.ref];
+      const streamId = nodeMetadata?.streamId ?? nodeMetadata?.groupId ?? action.ref;
+      const joinStrategy = nodeMetadata?.joinStrategy ?? schedulerContext.joinStrategy;
 
       // Record trace event
       options.trace?.record({
@@ -69,31 +92,43 @@ export async function executeWorkflow(
         nodeRef: action.ref,
         timestamp: new Date().toISOString(),
         level: 'info',
+        context: {
+          runId,
+          componentRef: action.ref,
+          streamId,
+          joinStrategy,
+          triggeredBy,
+          failure,
+        },
       });
 
-      // Merge params with inputs for entrypoint
-      const params = { ...action.params } as Record<string, unknown>;
-      for (const [targetKey, mapping] of Object.entries(action.inputMappings ?? {})) {
-        const sourceOutput = results.get(mapping.sourceRef);
-        const resolved = resolveInputValue(sourceOutput, mapping.sourceHandle);
+      const { params, warnings } = buildActionParams(action, results);
 
-        if (resolved !== undefined) {
-          params[targetKey] = resolved;
-        } else {
-          options.trace?.record({
-            type: 'NODE_PROGRESS',
+      for (const warning of warnings) {
+        options.trace?.record({
+          type: 'NODE_PROGRESS',
+          runId,
+          nodeRef: action.ref,
+          timestamp: new Date().toISOString(),
+          message: `Input '${warning.target}' mapped from ${warning.sourceRef}.${warning.sourceHandle} was undefined`,
+          level: 'warn',
+          data: warning,
+          context: {
             runId,
-            nodeRef: action.ref,
-            timestamp: new Date().toISOString(),
-            message: `Input '${targetKey}' mapped from ${mapping.sourceRef}.${mapping.sourceHandle} was undefined`,
-            level: 'warn',
-            data: {
-              target: targetKey,
-              sourceRef: mapping.sourceRef,
-              sourceHandle: mapping.sourceHandle,
-            },
-          });
-        }
+            componentRef: action.ref,
+            streamId,
+            joinStrategy,
+            triggeredBy,
+            failure,
+          },
+        });
+      }
+
+      if (warnings.length > 0) {
+        const missing = warnings.map((warning) => `'${warning.target}'`).join(', ');
+        throw new WorkflowSchedulerError(
+          `Missing required inputs for ${action.ref}: ${missing}`,
+        );
       }
 
       if (definition.entrypoint.ref === action.ref && request.inputs) {
@@ -112,6 +147,13 @@ export async function executeWorkflow(
       const context = createExecutionContext({
         runId,
         componentRef: action.ref,
+        metadata: {
+          streamId,
+          joinStrategy,
+          correlationId: `${runId}:${action.ref}`,
+          triggeredBy,
+          failure,
+        },
         storage: options.storage,
         secrets: options.secrets,
         artifacts: options.artifacts,
@@ -130,6 +172,14 @@ export async function executeWorkflow(
           timestamp: new Date().toISOString(),
           outputSummary: output,
           level: 'info',
+          context: {
+            runId,
+            componentRef: action.ref,
+            streamId,
+            joinStrategy,
+            triggeredBy,
+            failure,
+          },
         });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -140,10 +190,22 @@ export async function executeWorkflow(
           timestamp: new Date().toISOString(),
           error: errorMsg,
           level: 'error',
+          context: {
+            runId,
+            componentRef: action.ref,
+            streamId,
+            joinStrategy,
+            triggeredBy,
+            failure,
+          },
         });
         throw error;
       }
-    }
+    };
+
+    await runWorkflowWithScheduler(definition, {
+      run: runAction,
+    });
 
     const outputsObject: Record<string, unknown> = {};
     results.forEach((value, key) => {
@@ -158,23 +220,4 @@ export async function executeWorkflow(
       error: error instanceof Error ? error.message : String(error),
     };
   }
-}
-
-function resolveInputValue(sourceOutput: unknown, sourceHandle: string): unknown {
-  if (sourceOutput === null || sourceOutput === undefined) {
-    return undefined;
-  }
-
-  if (sourceHandle === '__self__') {
-    return sourceOutput;
-  }
-
-  if (typeof sourceOutput === 'object') {
-    const record = sourceOutput as Record<string, unknown>;
-    if (Object.prototype.hasOwnProperty.call(record, sourceHandle)) {
-      return record[sourceHandle];
-    }
-  }
-
-  return undefined;
 }

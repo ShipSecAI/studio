@@ -79,6 +79,10 @@ describe('ExecutionContext', () => {
     expect(recordedEvents[0].type).toBe('NODE_PROGRESS');
     expect(recordedEvents[0].runId).toBe('test-run-789');
     expect(recordedEvents[0].nodeRef).toBe('progress.test');
+    expect(recordedEvents[0].context).toMatchObject({
+      runId: 'test-run-789',
+      componentRef: 'progress.test',
+    });
     expect(recordedEvents[0].message).toBe('Processing step 1');
     expect(recordedEvents[0].level).toBe('info');
     expect(recordedEvents[1].message).toBe('Processing step 2');
@@ -172,12 +176,20 @@ describe('ExecutionContext', () => {
       level: 'info',
       message: 'log message',
       data: { stream: 'stdout', origin: 'log' },
+      context: {
+        runId: 'run-trace-log',
+        componentRef: 'log.component',
+      },
     });
     expect(recorded[1]).toMatchObject({
       type: 'NODE_PROGRESS',
       level: 'error',
       message: 'log error',
       data: { stream: 'stderr', origin: 'log' },
+      context: {
+        runId: 'run-trace-log',
+        componentRef: 'log.component',
+      },
     });
   });
 
@@ -194,5 +206,55 @@ describe('ExecutionContext', () => {
 
     // Should not throw when emitting progress without trace
     expect(() => context.emitProgress('test')).not.toThrow();
+  });
+
+  it('provides immutable metadata with scoped trace context', () => {
+    const events: TraceEvent[] = [];
+    const context = createExecutionContext({
+      runId: 'run-meta',
+      componentRef: 'meta.component',
+      metadata: {
+        activityId: 'activity-123',
+        attempt: 2,
+        correlationId: 'run-meta:meta.component:activity-123',
+        streamId: 'stream-42',
+        joinStrategy: 'all',
+        triggeredBy: 'parent-node',
+      },
+      trace: {
+        record: (event: TraceEvent) => {
+          events.push(event);
+        },
+      },
+    });
+
+    expect(context.metadata).toMatchObject({
+      runId: 'run-meta',
+      componentRef: 'meta.component',
+      activityId: 'activity-123',
+      attempt: 2,
+      correlationId: 'run-meta:meta.component:activity-123',
+      streamId: 'stream-42',
+      joinStrategy: 'all',
+      triggeredBy: 'parent-node',
+    });
+    expect(Object.isFrozen(context.metadata)).toBe(true);
+
+    expect(() => {
+      (context.metadata as any).activityId = 'changed';
+    }).toThrow(TypeError);
+
+    context.emitProgress('checking scope');
+    expect(events).toHaveLength(1);
+    expect(events[0].context).toMatchObject({
+      runId: 'run-meta',
+      componentRef: 'meta.component',
+      activityId: 'activity-123',
+      attempt: 2,
+      correlationId: 'run-meta:meta.component:activity-123',
+      streamId: 'stream-42',
+      joinStrategy: 'all',
+      triggeredBy: 'parent-node',
+    });
   });
 });

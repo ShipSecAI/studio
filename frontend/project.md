@@ -80,7 +80,7 @@ security-workflow-builder/          (Frontend - THIS repo)
 │   ├── styles/                     (globals.css with CSS variables)
 │   ├── config/                     (env.ts for environment variables)
 │   └── utils/                      (Helper functions)
-├── .env                            (VITE_BACKEND_URL=http://localhost:8080)
+├── .env                            (VITE_BACKEND_URL=http://localhost:3211)
 ├── package.json
 └── README.md
 ```
@@ -151,7 +151,7 @@ security-workflow-builder/          (Frontend - THIS repo)
 
 ## 📌 Backend
 
-You are to assume the backend is on http://localhost:8080
+You are to assume the backend is on http://localhost:3211
 
 ### API Contract (Expected Endpoints)
 
@@ -322,7 +322,7 @@ const { data } = await api.workflows.list()
 
 // ❌ Wrong - don't import axios directly
 import axios from 'axios'
-const { data } = await axios.get('http://localhost:8080/workflows')
+const { data } = await axios.get('http://localhost:3211/workflows')
 ```
 
 **Why:** Centralized error handling, easy to switch protocols (REST → GraphQL), typed responses
@@ -945,7 +945,7 @@ pnpm run dev
 
 **Verify:**
 - Frontend runs without errors
-- Mock backend responds: `curl http://localhost:8080/workflows`
+- Mock backend responds: `curl http://localhost:3211/workflows`
 - Can see Vite + React default page
 
 ---

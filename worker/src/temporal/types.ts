@@ -16,15 +16,75 @@ export interface WorkflowAction {
   >;
 }
 
+export type WorkflowEdgeKind = 'success' | 'error';
+
+export interface WorkflowEdge {
+  id: string;
+  sourceRef: string;
+  targetRef: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  kind: WorkflowEdgeKind;
+}
+
+export type WorkflowJoinStrategy = 'all' | 'any' | 'first';
+
+export interface WorkflowNodeMetadata {
+  ref: string;
+  label?: string;
+  joinStrategy?: WorkflowJoinStrategy;
+  maxConcurrency?: number;
+  groupId?: string;
+  streamId?: string;
+}
+
+export interface WorkflowFailureMetadata {
+  at: string;
+  reason: {
+    message: string;
+    name?: string;
+  };
+}
+
 export interface WorkflowDefinition {
+  version: number;
   title: string;
   description?: string;
   entrypoint: { ref: string };
+  nodes: Record<string, WorkflowNodeMetadata>;
+  edges: WorkflowEdge[];
+  dependencyCounts: Record<string, number>;
   actions: WorkflowAction[];
   config: {
     environment: string;
-    timeoutSeconds: number;
+  timeoutSeconds: number;
   };
+}
+
+export interface RunComponentActivityInput {
+  runId: string;
+  workflowId: string;
+  action: {
+    ref: string;
+    componentId: string;
+  };
+  params: Record<string, unknown>;
+  warnings?: Array<{
+    target: string;
+    sourceRef: string;
+    sourceHandle: string;
+  }>;
+  metadata?: {
+    streamId?: string;
+    joinStrategy?: WorkflowJoinStrategy;
+    groupId?: string;
+    triggeredBy?: string;
+    failure?: WorkflowFailureMetadata;
+  };
+}
+
+export interface RunComponentActivityOutput {
+  output: unknown;
 }
 
 export interface WorkflowRunRequest {
@@ -57,6 +117,16 @@ export interface RunWorkflowActivityOutput {
 
 export type WorkflowLogStream = 'stdout' | 'stderr' | 'console';
 
+export interface WorkflowLogMetadata {
+  activityId?: string;
+  attempt?: number;
+  correlationId?: string;
+  streamId?: string;
+  joinStrategy?: WorkflowJoinStrategy;
+  triggeredBy?: string;
+  failure?: WorkflowFailureMetadata;
+}
+
 export interface WorkflowLogEntry {
   runId: string;
   nodeRef: string;
@@ -64,6 +134,7 @@ export interface WorkflowLogEntry {
   message: string;
   level?: 'debug' | 'info' | 'warn' | 'error';
   timestamp?: Date;
+  metadata?: WorkflowLogMetadata;
 }
 
 export interface WorkflowLogSink {

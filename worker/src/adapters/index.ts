@@ -10,4 +10,4 @@ export {
   LokiLogClient,
   type LokiLogClientConfig,
 } from './loki-log.adapter';
-
+export { SecretsAdapter } from './secrets.adapter';

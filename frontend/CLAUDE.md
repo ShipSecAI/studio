@@ -72,7 +72,7 @@ src/
 └── utils/          (Helper functions)
 ```
 
-Backend assumed at: `http://localhost:8080`
+Backend assumed at: `http://localhost:3211`
 
 ### Schema-First Development with Zod
 

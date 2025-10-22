@@ -24,6 +24,7 @@ import { useWorkflowStore } from '@/store/workflowStore'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import type { NodeData } from '@/schemas/node'
+import { useToast } from '@/components/ui/use-toast'
 
 const nodeTypes = {
   workflow: WorkflowNode,
@@ -58,8 +59,9 @@ export function Canvas({
   const { getComponent } = useComponentStore()
   const { nodeStates } = useExecutionStore()
   const { markDirty } = useWorkflowStore()
-  const { selectedRunId, dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
+  const { dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
   const { mode } = useWorkflowUiStore()
+  const { toast } = useToast()
   const applyEdgesChange = onEdgesChange
 
   useEffect(() => {
@@ -136,8 +138,11 @@ export function Canvas({
 
       if (!validation.isValid) {
         console.warn('Invalid connection:', validation.error)
-        // TODO: Show toast notification with validation.error
-        alert(`Connection failed: ${validation.error}`)
+        toast({
+          variant: 'destructive',
+          title: 'Invalid connection',
+          description: validation.error,
+        })
         return
       }
 
@@ -180,7 +185,7 @@ export function Canvas({
       // Mark workflow as dirty
       markDirty()
     },
-    [setEdges, setNodes, nodes, edges, getComponent, markDirty, mode]
+    [setEdges, setNodes, nodes, edges, getComponent, markDirty, mode, toast]
   )
 
   const onDragOver = useCallback((event: React.DragEvent) => {

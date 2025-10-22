@@ -20,14 +20,163 @@ import { ZodValidationPipe } from 'nestjs-zod';
 
 import {
   CreateWorkflowRequestDto,
+  ListRunsQueryDto,
+  ListRunsQuerySchema,
+  RunWorkflowRequestDto,
+  RunWorkflowRequestSchema,
+  StreamRunQueryDto,
+  StreamRunQuerySchema,
+  TemporalRunQueryDto,
+  TemporalRunQuerySchema,
+  WorkflowLogsQueryDto,
+  WorkflowLogsQuerySchema,
   UpdateWorkflowRequestDto,
-  WorkflowGraphDto,
   WorkflowGraphSchema,
 } from './dto/workflow-graph.dto';
 import { TraceService } from '../trace/trace.service';
 import { WorkflowsService } from './workflows.service';
 import { LogStreamService } from '../trace/log-stream.service';
 import type { Request, Response } from 'express';
+
+const traceFailureSchema = {
+  type: 'object',
+  properties: {
+    at: { type: 'string', format: 'date-time' },
+    reason: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        name: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+};
+
+const traceRetryPolicySchema = {
+  type: 'object',
+  properties: {
+    maxAttempts: { type: 'integer', minimum: 1 },
+    initialIntervalSeconds: { type: 'number', minimum: 0 },
+    maximumIntervalSeconds: { type: 'number', minimum: 0 },
+    backoffCoefficient: { type: 'number', minimum: 0 },
+    nonRetryableErrorTypes: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+  },
+  additionalProperties: false,
+};
+
+const traceMetadataSchema = {
+  type: 'object',
+  properties: {
+    activityId: { type: 'string' },
+    attempt: { type: 'integer', minimum: 0 },
+    correlationId: { type: 'string' },
+    streamId: { type: 'string' },
+    joinStrategy: {
+      type: 'string',
+      enum: ['all', 'any', 'first'],
+    },
+    triggeredBy: { type: 'string' },
+    failure: { ...traceFailureSchema, nullable: true },
+    retryPolicy: { ...traceRetryPolicySchema, nullable: true },
+  },
+  additionalProperties: false,
+};
+
+const traceErrorSchema = {
+  type: 'object',
+  properties: {
+    message: { type: 'string' },
+    stack: { type: 'string' },
+    code: { type: 'string' },
+  },
+  additionalProperties: false,
+};
+
+const traceEventSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    runId: { type: 'string' },
+    nodeId: { type: 'string' },
+    type: {
+      type: 'string',
+      enum: ['STARTED', 'PROGRESS', 'COMPLETED', 'FAILED'],
+    },
+    level: {
+      type: 'string',
+      enum: ['info', 'warn', 'error', 'debug'],
+    },
+    timestamp: { type: 'string', format: 'date-time' },
+    message: { type: 'string', nullable: true },
+    error: { ...traceErrorSchema, nullable: true },
+    outputSummary: {
+      type: 'object',
+      additionalProperties: true,
+      nullable: true,
+    },
+    data: {
+      type: 'object',
+      additionalProperties: true,
+      nullable: true,
+    },
+    metadata: { ...traceMetadataSchema, nullable: true },
+  },
+  additionalProperties: false,
+};
+
+const traceEnvelopeSchema = {
+  type: 'object',
+  properties: {
+    runId: { type: 'string' },
+    events: {
+      type: 'array',
+      items: traceEventSchema,
+    },
+    cursor: { type: 'string', nullable: true },
+  },
+  additionalProperties: false,
+};
+
+const dataFlowPacketSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    runId: { type: 'string' },
+    sourceNode: { type: 'string' },
+    targetNode: { type: 'string' },
+    inputKey: { type: 'string', nullable: true },
+    payload: {
+      type: 'object',
+      additionalProperties: true,
+      nullable: true,
+    },
+    timestamp: { type: 'integer' },
+    visualTime: { type: 'number' },
+    size: { type: 'number' },
+    type: {
+      type: 'string',
+      enum: ['file', 'json', 'text', 'binary'],
+    },
+  },
+  additionalProperties: false,
+};
+
+const dataFlowEnvelopeSchema = {
+  type: 'object',
+  properties: {
+    runId: { type: 'string' },
+    packets: {
+      type: 'array',
+      items: dataFlowPacketSchema,
+    },
+  },
+  additionalProperties: false,
+};
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -81,17 +230,12 @@ export class WorkflowsController {
     },
   })
   async listRuns(
-    @Query('workflowId') workflowId?: string,
-    @Query('status') status?: string,
-    @Query('limit') limit?: string,
+    @Query(new ZodValidationPipe(ListRunsQuerySchema)) query: ListRunsQueryDto,
   ) {
-    const parsedLimit = limit ? Number.parseInt(limit, 10) : 50;
-    const safeLimit = Number.isNaN(parsedLimit) ? 50 : Math.min(parsedLimit, 200);
-
     return this.workflowsService.listRuns({
-      workflowId,
-      status,
-      limit: safeLimit,
+      workflowId: query.workflowId,
+      status: query.status,
+      limit: query.limit,
     });
   }
 
@@ -186,9 +330,12 @@ export class WorkflowsController {
   })
   async run(
     @Param('id') id: string,
-    @Body() body: { inputs?: Record<string, unknown> } = {},
+    @Body(new ZodValidationPipe(RunWorkflowRequestSchema))
+    body: RunWorkflowRequestDto,
   ) {
-    return this.workflowsService.run(id, body);
+    return this.workflowsService.run(id, {
+      inputs: body.inputs,
+    });
   }
 
   @Get('/runs/:runId/status')
@@ -197,9 +344,9 @@ export class WorkflowsController {
   })
   async status(
     @Param('runId') runId: string,
-    @Query('temporalRunId') temporalRunId?: string,
+    @Query(new ZodValidationPipe(TemporalRunQuerySchema)) query: TemporalRunQueryDto,
   ) {
-    return this.workflowsService.getRunStatus(runId, temporalRunId);
+    return this.workflowsService.getRunStatus(runId, query.temporalRunId);
   }
 
   @Get('/runs/:runId/result')
@@ -208,9 +355,9 @@ export class WorkflowsController {
   })
   async result(
     @Param('runId') runId: string,
-    @Query('temporalRunId') temporalRunId?: string,
+    @Query(new ZodValidationPipe(TemporalRunQuerySchema)) query: TemporalRunQueryDto,
   ) {
-    const result = await this.workflowsService.getRunResult(runId, temporalRunId);
+    const result = await this.workflowsService.getRunResult(runId, query.temporalRunId);
     return { runId, result };
   }
 
@@ -220,36 +367,16 @@ export class WorkflowsController {
   })
   async cancel(
     @Param('runId') runId: string,
-    @Query('temporalRunId') temporalRunId?: string,
+    @Query(new ZodValidationPipe(TemporalRunQuerySchema)) query: TemporalRunQueryDto,
   ) {
-    await this.workflowsService.cancelRun(runId, temporalRunId);
+    await this.workflowsService.cancelRun(runId, query.temporalRunId);
     return { status: 'cancelled', runId };
   }
 
   @Get('/runs/:runId/trace')
   @ApiOkResponse({
     description: 'Trace events for a workflow run',
-    schema: {
-      type: 'object',
-      properties: {
-        runId: { type: 'string' },
-        events: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              type: { type: 'string' },
-              nodeRef: { type: 'string' },
-              timestamp: { type: 'string', format: 'date-time' },
-              message: { type: 'string' },
-              error: { type: 'string' },
-              outputSummary: { type: 'object' },
-            },
-            additionalProperties: false,
-          },
-        },
-      },
-    },
+    schema: traceEnvelopeSchema,
   })
   async trace(@Param('runId') runId: string) {
     const { events, cursor } = await this.traceService.list(runId);
@@ -257,14 +384,20 @@ export class WorkflowsController {
   }
 
   @Get('/runs/:runId/events')
-  @ApiOkResponse({ description: 'Full event timeline for a workflow run' })
+  @ApiOkResponse({
+    description: 'Full event timeline for a workflow run',
+    schema: traceEnvelopeSchema,
+  })
   async events(@Param('runId') runId: string) {
     const { events, cursor } = await this.traceService.list(runId);
     return { runId, events, cursor };
   }
 
   @Get('/runs/:runId/dataflows')
-  @ApiOkResponse({ description: 'Derived data flow packets for a workflow run' })
+  @ApiOkResponse({
+    description: 'Derived data flow packets for a workflow run',
+    schema: dataFlowEnvelopeSchema,
+  })
   async dataflows(@Param('runId') runId: string) {
     const { events } = await this.traceService.list(runId);
     const packets = await this.workflowsService.buildDataFlows(runId, events);
@@ -275,8 +408,7 @@ export class WorkflowsController {
   @ApiOkResponse({ description: 'Server-sent events stream for workflow run updates' })
   async stream(
     @Param('runId') runId: string,
-    @Query('temporalRunId') temporalRunId: string | undefined,
-    @Query('cursor') cursorParam: string | undefined,
+    @Query(new ZodValidationPipe(StreamRunQuerySchema)) query: StreamRunQueryDto,
     @Res() res: Response,
     @Req() req: Request,
   ): Promise<void> {
@@ -287,7 +419,7 @@ export class WorkflowsController {
       (res as any).flushHeaders();
     }
 
-    let lastSequence = Number.parseInt(cursorParam ?? '0', 10);
+    let lastSequence = Number.parseInt(query.cursor ?? '0', 10);
     if (Number.isNaN(lastSequence) || lastSequence < 0) {
       lastSequence = 0;
     }
@@ -384,7 +516,7 @@ export class WorkflowsController {
       }
 
       try {
-        const status = await this.workflowsService.getRunStatus(runId, temporalRunId);
+        const status = await this.workflowsService.getRunStatus(runId, query.temporalRunId);
         const signature = JSON.stringify(status);
         if (signature !== lastStatusSignature) {
           lastStatusSignature = signature;
@@ -489,18 +621,13 @@ export class WorkflowsController {
   })
   async logs(
     @Param('runId') runId: string,
-    @Query('nodeRef') nodeRef?: string,
-    @Query('stream') stream?: string,
-    @Query('limit') limit?: string,
+    @Query(new ZodValidationPipe(WorkflowLogsQuerySchema))
+    query: WorkflowLogsQueryDto,
   ) {
-    const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
-    const safeLimit = Number.isNaN(parsedLimit ?? NaN) ? undefined : parsedLimit;
-    const normalizedLimit = safeLimit && safeLimit > 0 ? safeLimit : undefined;
-
     return this.logStreamService.fetch(runId, {
-      nodeRef,
-      stream,
-      limit: normalizedLimit,
+      nodeRef: query.nodeRef,
+      stream: query.stream,
+      limit: query.limit,
     });
   }
 

@@ -76,6 +76,26 @@ export interface ITraceService {
 
 export type TraceEventLevel = 'debug' | 'info' | 'warn' | 'error';
 
+export interface ExecutionFailureMetadata {
+  at: string;
+  reason: {
+    message: string;
+    name?: string;
+  };
+}
+
+export interface ExecutionContextMetadata {
+  runId: string;
+  componentRef: string;
+  activityId?: string;
+  attempt?: number;
+  correlationId?: string;
+  streamId?: string;
+  joinStrategy?: 'all' | 'any' | 'first';
+  triggeredBy?: string;
+  failure?: ExecutionFailureMetadata;
+}
+
 export interface TraceEvent {
   type: 'NODE_STARTED' | 'NODE_COMPLETED' | 'NODE_FAILED' | 'NODE_PROGRESS';
   runId: string;
@@ -86,5 +106,5 @@ export interface TraceEvent {
   error?: string;
   outputSummary?: unknown;
   data?: unknown;
+  context?: ExecutionContextMetadata;
 }
-

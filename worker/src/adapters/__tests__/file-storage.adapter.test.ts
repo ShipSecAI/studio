@@ -2,11 +2,15 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test'
 import { Client } from 'minio';
 import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { FileStorageAdapter } from '../file-storage.adapter';
 import * as schema from '../schema';
 
-describe('FileStorageAdapter (Integration)', () => {
+const enableFileStorageIntegration = process.env.ENABLE_FILE_STORAGE_TESTS === 'true';
+const fileStorageDescribe = enableFileStorageIntegration ? describe : describe.skip;
+
+fileStorageDescribe('FileStorageAdapter (Integration)', () => {
   let minioClient: Client;
   let pool: Pool;
   let db: NodePgDatabase<typeof schema>;
@@ -225,6 +229,34 @@ describe('FileStorageAdapter (Integration)', () => {
       await expect(adapter.getFileMetadata(nonExistentId)).rejects.toThrow(
         `File not found: ${nonExistentId}`
       );
+    });
+  });
+
+  describe('uploadFile helper', () => {
+    it('should be idempotent when uploading the same file multiple times', async () => {
+      const fileId = randomUUID();
+      const initialContent = Buffer.from('initial payload');
+      const updatedContent = Buffer.from('updated payload');
+      const fileName = 'idempotent.txt';
+      const mimeType = 'text/plain';
+
+      await adapter.uploadFile(fileId, fileName, initialContent, mimeType);
+      await adapter.uploadFile(fileId, fileName, updatedContent, mimeType);
+
+      const [record] = await db
+        .select()
+        .from(schema.files)
+        .where(eq(schema.files.id, fileId));
+
+      expect(record).toBeTruthy();
+      expect(record?.fileName).toBe(fileName);
+      expect(record?.mimeType).toBe(mimeType);
+      expect(record?.size).toBe(updatedContent.length);
+
+      const downloaded = await adapter.downloadFile(fileId);
+      expect(downloaded.buffer.toString('utf-8')).toBe(updatedContent.toString('utf-8'));
+
+      await minioClient.removeObject(bucketName, fileId);
     });
   });
 

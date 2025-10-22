@@ -57,6 +57,32 @@ describe('compileWorkflowGraph', () => {
     ]);
     expect(definition.actions[1].dependsOn).toEqual(['trigger']);
     expect(definition.actions[2].dependsOn).toEqual(['loader']);
+    expect(definition.version).toBe(2);
+    expect(Object.keys(definition.nodes)).toEqual(['trigger', 'loader', 'webhook']);
+    expect(definition.nodes.trigger.label).toBe('Trigger');
+    expect(definition.dependencyCounts).toMatchObject({
+      trigger: 0,
+      loader: 1,
+      webhook: 1,
+    });
+    expect(definition.edges).toEqual([
+      {
+        id: 'e1',
+        sourceRef: 'trigger',
+        targetRef: 'loader',
+        sourceHandle: undefined,
+        targetHandle: undefined,
+        kind: 'success',
+      },
+      {
+        id: 'e2',
+        sourceRef: 'loader',
+        targetRef: 'webhook',
+        sourceHandle: undefined,
+        targetHandle: undefined,
+        kind: 'success',
+      },
+    ]);
   });
 
   it('throws when referencing an unknown component', () => {
@@ -120,5 +146,71 @@ describe('compileWorkflowGraph', () => {
     expect(() => compileWorkflowGraph(graph)).toThrow(
       'Workflow graph contains a cycle',
     );
+  });
+
+  it('tracks dependency counts and metadata for converging branches', () => {
+    const graph: WorkflowGraph = {
+      name: 'Diamond workflow',
+      nodes: [
+        {
+          id: 'start',
+          type: 'core.trigger.manual',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Start',
+            config: {},
+          },
+        },
+        {
+          id: 'branchA',
+          type: 'core.trigger.manual',
+          position: { x: -100, y: 100 },
+          data: {
+            label: 'Branch A',
+            config: {},
+          },
+        },
+        {
+          id: 'branchB',
+          type: 'core.trigger.manual',
+          position: { x: 100, y: 100 },
+          data: {
+            label: 'Branch B',
+            config: {},
+          },
+        },
+        {
+          id: 'merge',
+          type: 'core.trigger.manual',
+          position: { x: 0, y: 200 },
+          data: {
+            label: 'Merge',
+            config: {},
+          },
+        },
+      ],
+      edges: [
+        { id: 'start-a', source: 'start', target: 'branchA', sourceHandle: 'out', targetHandle: 'inA' },
+        { id: 'start-b', source: 'start', target: 'branchB', sourceHandle: 'out', targetHandle: 'inB' },
+        { id: 'a-merge', source: 'branchA', target: 'merge' },
+        { id: 'b-merge', source: 'branchB', target: 'merge' },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    };
+
+    const definition = compileWorkflowGraph(graph);
+
+    const mergeAction = definition.actions.find((action) => action.ref === 'merge');
+    expect(mergeAction?.dependsOn.sort()).toEqual(['branchA', 'branchB']);
+    expect(definition.dependencyCounts.merge).toBe(2);
+    expect(definition.nodes.merge.label).toBe('Merge');
+    expect(definition.edges.find((edge) => edge.id === 'start-a')).toEqual({
+      id: 'start-a',
+      sourceRef: 'start',
+      targetRef: 'branchA',
+      sourceHandle: 'out',
+      targetHandle: 'inA',
+      kind: 'success',
+    });
   });
 });

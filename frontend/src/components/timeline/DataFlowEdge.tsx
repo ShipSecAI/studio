@@ -77,11 +77,16 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
   const { mode } = useWorkflowUiStore()
 
   const packets = useMemo(() => {
-    return data?.packets || dataFlows.filter(
-      packet =>
+    if (data?.packets) {
+      return data.packets.filter(
+        (packet) => new Date(packet.timestamp).getTime() <= currentTime,
+      )
+    }
+    return dataFlows.filter(
+      (packet) =>
         packet.sourceNode === source &&
         packet.targetNode === target &&
-        new Date(packet.timestamp).getTime() <= currentTime
+        new Date(packet.timestamp).getTime() <= currentTime,
     )
   }, [data?.packets, dataFlows, source, target, currentTime])
 

@@ -11,6 +11,7 @@ import { Canvas } from '@/components/workflow/Canvas'
 import { ReviewInspector } from '@/components/timeline/ReviewInspector'
 import { ReviewRunBanner } from '@/components/timeline/ReviewRunBanner'
 import { RunWorkflowDialog } from '@/components/workflow/RunWorkflowDialog'
+import { useToast } from '@/components/ui/use-toast'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useComponentStore } from '@/store/componentStore'
@@ -37,12 +38,17 @@ function WorkflowBuilderContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [runtimeInputs, setRuntimeInputs] = useState<any[]>([])
-  const { mode, libraryOpen, inspectorWidth, setInspectorWidth, setMode } = useWorkflowUiStore()
-  const layoutRef = useRef<HTMLDivElement | null>(null)
-  const inspectorResizingRef = useRef(false)
+  const mode = useWorkflowUiStore((state) => state.mode)
+  const libraryOpen = useWorkflowUiStore((state) => state.libraryOpen)
+  const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
+  const setInspectorWidth = useWorkflowUiStore((state) => state.setInspectorWidth)
+  const setMode = useWorkflowUiStore((state) => state.setMode)
+  const loadRuns = useExecutionTimelineStore((state) => state.loadRuns)
   const selectRun = useExecutionTimelineStore((state) => state.selectRun)
   const switchToLiveMode = useExecutionTimelineStore((state) => state.switchToLiveMode)
-  const loadRuns = useExecutionTimelineStore((state) => state.loadRuns)
+  const { toast } = useToast()
+  const layoutRef = useRef<HTMLDivElement | null>(null)
+  const inspectorResizingRef = useRef(false)
 
   // Load workflow on mount (if not new)
   useEffect(() => {
@@ -85,9 +91,17 @@ function WorkflowBuilderContent() {
           (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'))
 
         if (isNetworkError) {
-          alert(`Cannot connect to backend server. Please ensure the backend is running at ${API_BASE_URL}`)
+          toast({
+            variant: 'destructive',
+            title: 'Cannot connect to backend',
+            description: `Ensure the backend is running at ${API_BASE_URL}.`,
+          })
         } else {
-          alert(`Failed to load workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+          toast({
+            variant: 'destructive',
+            title: 'Failed to load workflow',
+            description: error instanceof Error ? error.message : 'Unknown error',
+          })
         }
 
         navigate('/')
@@ -101,14 +115,22 @@ function WorkflowBuilderContent() {
 
   const handleRun = async () => {
     if (nodes.length === 0) {
-      alert('Add some nodes to the workflow first!')
+      toast({
+        variant: 'destructive',
+        title: 'Cannot run workflow',
+        description: 'Add components to the canvas before running the workflow.',
+      })
       return
     }
 
     // Ensure workflow is saved before running
     const workflowId = metadata.id
     if (!workflowId || isNewWorkflow) {
-      alert('Please save the workflow before running it.')
+      toast({
+        variant: 'warning',
+        title: 'Save workflow to run',
+        description: 'Save the workflow before starting an execution.',
+      })
       return
     }
 
@@ -163,27 +185,36 @@ function WorkflowBuilderContent() {
 
       if (runId) {
         setMode('review')
-
-        try {
-          await loadRuns()
-        } catch (runLoadError) {
-          console.warn('Failed to refresh runs list before switching to review mode', runLoadError)
-        }
-
+        await loadRuns().catch(() => undefined)
+        let selected = true
         try {
           await selectRun(runId)
-          switchToLiveMode()
-        } catch (prepError) {
-          console.warn('Failed to prepare review mode for run', prepError)
+        } catch (error) {
+          selected = false
         }
-
-        alert(`Workflow started! Execution ID: ${runId}\n\nSwitched to the Review pane—watch the run in real time there.`)
+        if (!selected) {
+          useExecutionTimelineStore.setState({ selectedRunId: runId })
+        }
+        switchToLiveMode()
+        toast({
+          variant: 'success',
+          title: 'Workflow started',
+          description: `Execution ID: ${runId}. Check the review tab for live status.`,
+        })
       } else {
-        alert('Workflow started but no run ID returned')
+        toast({
+          variant: 'warning',
+          title: 'Workflow started',
+          description: 'Execution initiated, but no run ID was returned.',
+        })
       }
     } catch (error) {
       console.error('Failed to run workflow:', error)
-      alert(`Failed to run workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast({
+        variant: 'destructive',
+        title: 'Failed to run workflow',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -192,7 +223,11 @@ function WorkflowBuilderContent() {
   const handleSave = async () => {
     try {
       if (nodes.length === 0) {
-        alert('Add some nodes to the workflow before saving!')
+        toast({
+          variant: 'destructive',
+          title: 'Cannot save workflow',
+          description: 'Add at least one component before saving.',
+        })
         return
       }
 
@@ -217,7 +252,11 @@ function WorkflowBuilderContent() {
         // Navigate to the new workflow URL
         navigate(`/workflows/${savedWorkflow.id}`, { replace: true })
 
-        alert('Workflow created successfully!')
+        toast({
+          variant: 'success',
+          title: 'Workflow created',
+          description: 'Your workflow has been saved and is ready to run.',
+        })
       } else {
         // Update existing workflow
         const payload = serializeWorkflowForUpdate(
@@ -231,7 +270,11 @@ function WorkflowBuilderContent() {
         await api.workflows.update(workflowId, payload)
         markClean()
 
-        alert('Workflow saved successfully!')
+        toast({
+          variant: 'success',
+          title: 'Workflow saved',
+          description: 'All changes have been saved.',
+        })
       }
     } catch (error) {
       console.error('Failed to save workflow:', error)
@@ -241,9 +284,17 @@ function WorkflowBuilderContent() {
         (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'))
 
       if (isNetworkError) {
-        alert(`Cannot connect to backend server. Please ensure the backend is running at ${API_BASE_URL}\n\nYour workflow is still available in the browser.`)
+        toast({
+          variant: 'destructive',
+          title: 'Cannot connect to backend',
+          description: `Ensure the backend is running at ${API_BASE_URL}. Your workflow remains available locally.`,
+        })
       } else {
-        alert(`Failed to save workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        toast({
+          variant: 'destructive',
+          title: 'Failed to save workflow',
+          description: error instanceof Error ? error.message : 'Unknown error',
+        })
       }
     }
   }

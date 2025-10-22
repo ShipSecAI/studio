@@ -1,5 +1,5 @@
 import { Client } from 'minio';
-import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { IFileStorageService } from '@shipsec/component-sdk';
 import * as schema from './schema';
@@ -96,12 +96,24 @@ export class FileStorageAdapter implements IFileStorageService {
     });
 
     // Store metadata in database
-    await this.db.insert(schema.files).values({
-      id: fileId,
-      fileName,
-      mimeType,
-      size: buffer.length,
-      storageKey: fileId,
-    });
+    await this.db
+      .insert(schema.files)
+      .values({
+        id: fileId,
+        fileName,
+        mimeType,
+        size: buffer.length,
+        storageKey: fileId,
+      })
+      .onConflictDoUpdate({
+        target: schema.files.id,
+        set: {
+          fileName,
+          mimeType,
+          size: buffer.length,
+          storageKey: fileId,
+          uploadedAt: schema.files.uploadedAt,
+        },
+      });
   }
 }

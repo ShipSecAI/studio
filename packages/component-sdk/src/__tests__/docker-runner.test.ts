@@ -2,7 +2,10 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import { runComponentWithRunner } from '../runner';
 import type { ExecutionContext, DockerRunnerConfig } from '../types';
 
-describe('Docker Runner', () => {
+const enableDockerRunnerTests = process.env.ENABLE_DOCKER_TESTS === 'true';
+const dockerDescribe = enableDockerRunnerTests ? describe : describe.skip;
+
+dockerDescribe('Docker Runner', () => {
   let context: ExecutionContext;
   const logs: string[] = [];
 
@@ -11,6 +14,10 @@ describe('Docker Runner', () => {
     context = {
       runId: 'test-run',
       componentRef: 'test-component',
+      metadata: {
+        runId: 'test-run',
+        componentRef: 'test-component',
+      },
       logger: {
         info: (...args: unknown[]) => logs.push(`INFO: ${args.join(' ')}`),
         error: (...args: unknown[]) => logs.push(`ERROR: ${args.join(' ')}`),

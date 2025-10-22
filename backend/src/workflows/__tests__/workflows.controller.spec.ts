@@ -236,19 +236,19 @@ describe('WorkflowsController', () => {
     expect(run.status).toBe('RUNNING');
     expect(run.taskQueue).toBe('shipsec-default');
 
-    const status = await controller.status(run.runId, run.temporalRunId);
+    const status = await controller.status(run.runId, { temporalRunId: run.temporalRunId });
     expect(status.runId).toBe(run.runId);
     expect(status.workflowId).toBe(created.id);
     expect(status.status).toBe('RUNNING');
     expect(status.progress).toEqual({ completedActions: 1, totalActions: 2 });
 
-    const result = await controller.result(run.runId, run.temporalRunId);
+    const result = await controller.result(run.runId, { temporalRunId: run.temporalRunId });
     expect(result).toEqual({
       runId: run.runId,
       result: { workflowId: run.runId, success: true },
     });
 
-    const cancelResponse = await controller.cancel(run.runId, run.temporalRunId);
+    const cancelResponse = await controller.cancel(run.runId, { temporalRunId: run.temporalRunId });
     expect(cancelResponse).toEqual({ status: 'cancelled', runId: run.runId });
     expect(lastCancelledRun).toEqual({
       workflowId: run.runId,

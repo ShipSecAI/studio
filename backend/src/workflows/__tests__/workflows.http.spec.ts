@@ -1,16 +1,10 @@
-import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
-import { describe, it, beforeAll, afterAll, expect, vi } from 'bun:test';
-import {
-  WorkflowRunStatusSchema,
-  TraceStreamEnvelopeSchema,
-} from '@shipsec/shared';
+import 'reflect-metadata';
+
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
+import { WorkflowRunStatusSchema, TraceStreamEnvelopeSchema } from '@shipsec/shared';
 
 import { WorkflowsController } from '../workflows.controller';
-import { WorkflowsService } from '../workflows.service';
-import { TraceService } from '../../trace/trace.service';
-import { LogStreamService } from '../../trace/log-stream.service';
+import { WorkflowLogsQuerySchema } from '../dto/workflow-graph.dto';
 
 const sampleStatus = WorkflowRunStatusSchema.parse({
   runId: 'shipsec-run-123',
@@ -19,7 +13,7 @@ const sampleStatus = WorkflowRunStatusSchema.parse({
   startedAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   taskQueue: 'shipsec-default',
-  historyLength: 0,
+  historyLength: 42,
 });
 
 const sampleTrace = TraceStreamEnvelopeSchema.parse({
@@ -57,80 +51,54 @@ const sampleLogs = {
   ],
 };
 
-describe('WorkflowsController HTTP', () => {
-  let app: INestApplication;
+describe('WorkflowsController contract coverage', () => {
+  let controller: WorkflowsController;
   const workflowService = {
-    run: vi.fn(),
-    status: vi.fn(),
-    commit: vi.fn(),
     getRunStatus: vi.fn().mockResolvedValue(sampleStatus),
     getRunResult: vi.fn(),
     cancelRun: vi.fn(),
-  } as unknown as WorkflowsService;
+  } as const;
 
   const traceService = {
     list: vi.fn().mockResolvedValue(sampleTrace),
-  } as unknown as TraceService;
+  } as const;
 
   const logStreamService = {
     fetch: vi.fn().mockResolvedValue(sampleLogs),
-  } as unknown as LogStreamService;
+  } as const;
 
-  beforeAll(async () => {
-    const moduleRef: TestingModule = await Test.createTestingModule({
-      controllers: [WorkflowsController],
-      providers: [
-        { provide: WorkflowsService, useValue: workflowService },
-        { provide: TraceService, useValue: traceService },
-        { provide: LogStreamService, useValue: logStreamService },
-      ],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    await app.init();
-  });
-
-  afterAll(async () => {
-    await app.close();
+  beforeEach(() => {
+    controller = new WorkflowsController(
+      workflowService as any,
+      traceService as any,
+      logStreamService as any,
+    );
+    vi.clearAllMocks();
   });
 
   it('returns status payload matching the shared contract', async () => {
-    await request(app.getHttpServer())
-      .get('/workflows/runs/shipsec-run-123/status')
-      .expect(200)
-      .expect(({ body }: { body: unknown }) => {
-        const parsed = WorkflowRunStatusSchema.parse(body);
-        expect(parsed.runId).toBe(sampleStatus.runId);
-        expect(parsed.workflowId).toBe(sampleStatus.workflowId);
-      });
-
+    const result = await controller.status('shipsec-run-123', { temporalRunId: undefined });
+    const parsed = WorkflowRunStatusSchema.parse(result);
+    expect(parsed.runId).toBe(sampleStatus.runId);
+    expect(parsed.workflowId).toBe(sampleStatus.workflowId);
     expect(workflowService.getRunStatus).toHaveBeenCalledWith('shipsec-run-123', undefined);
   });
 
   it('returns trace payload matching the shared contract', async () => {
-    await request(app.getHttpServer())
-      .get('/workflows/runs/shipsec-run-123/trace')
-      .expect(200)
-      .expect(({ body }: { body: unknown }) => {
-        const parsed = TraceStreamEnvelopeSchema.parse(body);
-        expect(parsed.events).toHaveLength(1);
-      });
-
+    const result = await controller.trace('shipsec-run-123');
+    const parsed = TraceStreamEnvelopeSchema.parse(result);
+    expect(parsed.events).toHaveLength(1);
     expect(traceService.list).toHaveBeenCalledWith('shipsec-run-123');
   });
 
-  it('returns logs payload from Loki metadata', async () => {
-    await request(app.getHttpServer())
-      .get('/workflows/runs/shipsec-run-123/logs')
-      .expect(200)
-      .expect(({ body }: { body: unknown }) => {
-        expect(body).toEqual(sampleLogs);
-      });
-
+  it('retrieves logs with validated query parameters', async () => {
+    const query = WorkflowLogsQuerySchema.parse({ nodeRef: 'node-1', stream: 'stdout', limit: 10 });
+    const result = await controller.logs('shipsec-run-123', query);
+    expect(result).toEqual(sampleLogs);
     expect(logStreamService.fetch).toHaveBeenCalledWith('shipsec-run-123', {
-      nodeRef: undefined,
-      stream: undefined,
-      limit: undefined,
+      nodeRef: 'node-1',
+      stream: 'stdout',
+      limit: 10,
     });
   });
 });

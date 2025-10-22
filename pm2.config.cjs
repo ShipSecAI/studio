@@ -8,9 +8,19 @@ module.exports = {
       env_file: __dirname + '/backend/.env',
     },
     {
+      name: 'shipsec-frontend',
+      cwd: __dirname + '/frontend',
+      script: 'bun',
+      args: 'run dev',
+      env_file: __dirname + '/frontend/.env',
+      env: {
+        NODE_ENV: 'development',
+      },
+    },
+    {
       name: 'shipsec-worker',
       cwd: __dirname + '/worker',
-      script: 'npm',
+      script: 'bun',
       args: 'run dev',
       env_file: __dirname + '/worker/.env',
       env: {
@@ -20,7 +30,7 @@ module.exports = {
     {
       name: 'shipsec-test-worker',
       cwd: __dirname + '/worker',
-      script: 'npm',
+      script: 'bun',
       args: 'run dev',
       env_file: __dirname + '/worker/.env',
       env: {

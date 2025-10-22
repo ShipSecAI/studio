@@ -4,6 +4,8 @@ import { TraceRepository } from './trace.repository';
 import type { TraceEventType as PersistedTraceEventType } from './types';
 import {
   TraceEventLevel,
+  TraceEventMetadata,
+  TraceEventMetadataSchema,
   TraceEventPayload,
   TraceEventType,
 } from '@shipsec/shared';
@@ -48,7 +50,7 @@ export class TraceService {
     const type = this.mapEventType(record.type);
     const level = this.mapEventLevel(type, record.level);
 
-    const mappedData = this.toRecord(record.data);
+    const { payload, metadata } = this.extractPayloadAndMetadata(record.data);
 
     const outputSummary = this.toRecord(record.outputSummary);
 
@@ -64,8 +66,12 @@ export class TraceService {
       outputSummary,
     };
 
-    if (mappedData) {
-      event.data = mappedData;
+    if (payload) {
+      event.data = payload;
+    }
+
+    if (metadata) {
+      event.metadata = metadata;
     }
 
     return event;
@@ -104,5 +110,41 @@ export class TraceService {
       result[key] = value;
     }
     return result;
+  }
+
+  private extractPayloadAndMetadata(
+    rawData: unknown,
+  ): { payload?: Record<string, unknown>; metadata?: TraceEventMetadata } {
+    if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
+      return { payload: this.toRecord(rawData) };
+    }
+
+    const dataObject = rawData as Record<string, unknown>;
+    const hasPackedFields = '_payload' in dataObject || '_metadata' in dataObject;
+
+    if (!hasPackedFields) {
+      return { payload: this.toRecord(rawData) };
+    }
+
+    const payloadRaw = dataObject._payload as unknown;
+    const metadataRaw = dataObject._metadata as unknown;
+
+    const payload = this.toRecord(payloadRaw);
+    const metadata = this.parseMetadata(metadataRaw);
+
+    return { payload, metadata };
+  }
+
+  private parseMetadata(metadataRaw: unknown): TraceEventMetadata | undefined {
+    if (!metadataRaw || typeof metadataRaw !== 'object' || Array.isArray(metadataRaw)) {
+      return undefined;
+    }
+
+    const parsed = TraceEventMetadataSchema.safeParse(metadataRaw);
+    if (!parsed.success) {
+      return undefined;
+    }
+
+    return parsed.data;
   }
 }
