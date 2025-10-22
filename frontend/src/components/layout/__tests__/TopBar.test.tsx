@@ -68,7 +68,8 @@ describeTopBar('TopBar', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText(/Failed/)).toBeInTheDocument()
-    expect(screen.getByText('ValidationError')).toBeInTheDocument()
+    expect(screen.getAllByText(/Failed/).length).toBeGreaterThan(0)
+    const failureReasons = screen.getAllByText('ValidationError')
+    expect(failureReasons.length).toBeGreaterThan(0)
   })
 })

@@ -20,12 +20,15 @@ export class SecretsEncryptionService {
     this.encryptor = new SecretEncryption(masterKey);
   }
 
-  encrypt(value: string): SecretEncryptionMaterial {
+  async encrypt(value: string): Promise<SecretEncryptionMaterial> {
     return this.encryptor.encrypt(value);
   }
 
-  decrypt(material: SecretEncryptionMaterial): string {
-    return this.encryptor.decrypt(material);
+  async decrypt(material: SecretEncryptionMaterial): Promise<string> {
+    this.logger.debug(`Decrypting secret material with key ${material.keyId ?? 'unknown'}`);
+    const value = await this.encryptor.decrypt(material);
+    this.logger.debug(`Decrypted secret value: ${value}`);
+    return value;
   }
 
   get keyId(): string {

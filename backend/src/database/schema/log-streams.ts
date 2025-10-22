@@ -31,6 +31,11 @@ export const workflowLogStreamsTable = pgTable(
       table.nodeRef,
       table.stream,
     ),
+    runNodeStreamUnique: uniqueIndex('workflow_log_streams_run_node_stream_uidx').on(
+      table.runId,
+      table.nodeRef,
+      table.stream,
+    ),
   }),
 );
 

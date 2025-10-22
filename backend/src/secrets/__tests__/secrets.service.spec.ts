@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
 import { SecretsService } from '../secrets.service';
-import type { SecretsRepository, SecretSummary, SecretValueRecord } from '../secrets.repository';
+import type {
+  SecretsRepository,
+  SecretSummary,
+  SecretUpdateData,
+  SecretValueRecord,
+} from '../secrets.repository';
 import type { SecretsEncryptionService } from '../secrets.encryption';
 
 const sampleSummary: SecretSummary = {
@@ -26,6 +31,8 @@ describe('SecretsService', () => {
     createSecret: ReturnType<typeof vi.fn>;
     rotateSecret: ReturnType<typeof vi.fn>;
     findValueBySecretId: ReturnType<typeof vi.fn>;
+    updateSecret: ReturnType<typeof vi.fn>;
+    deleteSecret: ReturnType<typeof vi.fn>;
   };
   let encryption: {
     encrypt: ReturnType<typeof vi.fn>;
@@ -40,6 +47,8 @@ describe('SecretsService', () => {
       createSecret: vi.fn(),
       rotateSecret: vi.fn(),
       findValueBySecretId: vi.fn(),
+      updateSecret: vi.fn(),
+      deleteSecret: vi.fn(),
     };
 
     encryption = {
@@ -72,7 +81,7 @@ describe('SecretsService', () => {
   });
 
   it('encrypts and stores a new secret with optional metadata', async () => {
-    encryption.encrypt.mockReturnValue({
+    encryption.encrypt.mockResolvedValue({
       ciphertext: 'ciphertext',
       iv: 'iv',
       authTag: 'tag',
@@ -107,7 +116,7 @@ describe('SecretsService', () => {
   });
 
   it('fills optional fields with nulls when creating a secret', async () => {
-    encryption.encrypt.mockReturnValue({
+    encryption.encrypt.mockResolvedValue({
       ciphertext: 'ciphertext',
       iv: 'iv',
       authTag: 'tag',
@@ -130,7 +139,7 @@ describe('SecretsService', () => {
   });
 
   it('rotates a secret using encrypted material', async () => {
-    encryption.encrypt.mockReturnValue({
+    encryption.encrypt.mockResolvedValue({
       ciphertext: 'newcipher',
       iv: 'newiv',
       authTag: 'newtag',
@@ -155,7 +164,7 @@ describe('SecretsService', () => {
   });
 
   it('defaults rotate metadata when not provided', async () => {
-    encryption.encrypt.mockReturnValue({
+    encryption.encrypt.mockResolvedValue({
       ciphertext: 'cipher',
       iv: 'iv',
       authTag: 'tag',
@@ -184,7 +193,7 @@ describe('SecretsService', () => {
       encryptionKeyId: 'master-key',
     };
     repository.findValueBySecretId.mockResolvedValue(record);
-    encryption.decrypt.mockReturnValue('decrypted-value');
+    encryption.decrypt.mockResolvedValue('decrypted-value');
 
     const result = await service.getSecretValue('secret-1');
 
@@ -212,10 +221,57 @@ describe('SecretsService', () => {
       encryptionKeyId: 'master-key',
     };
     repository.findValueBySecretId.mockResolvedValue(record);
-    encryption.decrypt.mockReturnValue('v1');
+    encryption.decrypt.mockResolvedValue('v1');
 
     await service.getSecretValue('secret-1', 1);
 
     expect(repository.findValueBySecretId).toHaveBeenCalledWith('secret-1', 1);
+  });
+
+  it('normalizes and forwards update payload to the repository', async () => {
+    const updatedSummary = { ...sampleSummary, name: 'renamed', description: 'Trimmed', tags: ['tag1'] };
+    repository.updateSecret.mockResolvedValue(updatedSummary);
+
+    const result = await service.updateSecret('secret-1', {
+      name: '  renamed  ',
+      description: '  Trimmed ',
+      tags: [' tag1 ', '  '],
+    });
+
+    expect(result).toBe(updatedSummary);
+    expect(repository.updateSecret).toHaveBeenCalledWith('secret-1', {
+      name: 'renamed',
+      description: 'Trimmed',
+      tags: ['tag1'],
+    } satisfies SecretUpdateData);
+  });
+
+  it('allows clearing optional metadata when updating', async () => {
+    repository.updateSecret.mockResolvedValue(sampleSummary);
+
+    await service.updateSecret('secret-1', {
+      description: '',
+      tags: [],
+    });
+
+    expect(repository.updateSecret).toHaveBeenCalledWith('secret-1', {
+      description: null,
+      tags: null,
+    });
+  });
+
+  it('deletes a secret via the repository', async () => {
+    await service.deleteSecret('secret-1');
+
+    expect(repository.deleteSecret).toHaveBeenCalledWith('secret-1');
+  });
+
+  it('throws when update name is blank after trimming', async () => {
+    await expect(
+      service.updateSecret('secret-1', {
+        name: '   ',
+      }),
+    ).rejects.toThrow('Secret name cannot be empty');
+    expect(repository.updateSecret).not.toHaveBeenCalled();
   });
 });

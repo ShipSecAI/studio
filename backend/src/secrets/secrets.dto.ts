@@ -31,6 +31,25 @@ export class RotateSecretDto {
   value!: string;
 }
 
+export class UpdateSecretDto {
+  @ApiPropertyOptional({ description: 'Updated secret name (must remain unique)' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Updated description for the secret' })
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+
+  @ApiPropertyOptional({ description: 'Updated tags for the secret', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[] | null;
+}
+
 export class SecretVersionResponse {
   @ApiProperty()
   id!: string;

@@ -8,7 +8,23 @@ import type { ExecutionContext } from '@shipsec/component-sdk';
 import '../subfinder'; // Register the component
 
 const enableDockerIntegration = process.env.ENABLE_DOCKER_TESTS === 'true';
-const dockerDescribe = enableDockerIntegration ? describe : describe.skip;
+const dockerAvailable = (() => {
+  try {
+    const result = Bun.spawnSync(['docker', 'version']);
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+})();
+
+const shouldRunDockerTests = enableDockerIntegration && dockerAvailable;
+if (!shouldRunDockerTests) {
+  console.warn(
+    'Skipping subfinder integration tests. Ensure ENABLE_DOCKER_TESTS=true and Docker is available to enable.',
+  );
+}
+
+const dockerDescribe = shouldRunDockerTests ? describe : describe.skip;
 
 dockerDescribe('Subfinder Integration (Docker)', () => {
   let context: ExecutionContext;

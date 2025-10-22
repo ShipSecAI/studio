@@ -83,6 +83,7 @@ export class LokiLogAdapter implements WorkflowLogSink {
     private readonly client: LokiPushClient,
     private readonly db?: NodePgDatabase<typeof schema>,
   ) {}
+  private ensureIndexPromise?: Promise<void>;
 
   async append(entry: WorkflowLogEntry): Promise<void> {
     if (!entry.message || entry.message.trim().length === 0) {
@@ -176,31 +177,85 @@ export class LokiLogAdapter implements WorkflowLogSink {
 
     const now = new Date();
 
-    await this.db
-      .insert(workflowLogStreams)
-      .values({
-        runId: input.runId,
-        nodeRef: input.nodeRef,
-        stream: input.stream,
-        labels: input.labels,
-        firstTimestamp: input.timestamp,
-        lastTimestamp: input.timestamp,
-        lineCount: input.lineCount,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          workflowLogStreams.runId,
-          workflowLogStreams.nodeRef,
-          workflowLogStreams.stream,
-        ],
-        set: {
-          labels: input.labels,
-          lastTimestamp: input.timestamp,
-          firstTimestamp: sql`LEAST(${workflowLogStreams.firstTimestamp}, ${input.timestamp})`,
-          lineCount: sql`${workflowLogStreams.lineCount} + ${input.lineCount}`,
-          updatedAt: now,
-        },
+    const values = {
+      runId: input.runId,
+      nodeRef: input.nodeRef,
+      stream: input.stream,
+      labels: input.labels,
+      firstTimestamp: input.timestamp,
+      lastTimestamp: input.timestamp,
+      lineCount: input.lineCount,
+      updatedAt: now,
+    };
+
+    const upsert = async () => {
+      await this.db!
+        .insert(workflowLogStreams)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [
+            workflowLogStreams.runId,
+            workflowLogStreams.nodeRef,
+            workflowLogStreams.stream,
+          ],
+          set: {
+            labels: input.labels,
+            lastTimestamp: input.timestamp,
+            firstTimestamp: sql`LEAST(${workflowLogStreams.firstTimestamp}, ${input.timestamp})`,
+            lineCount: sql`${workflowLogStreams.lineCount} + ${input.lineCount}`,
+            updatedAt: now,
+          },
+        });
+    };
+
+    try {
+      await upsert();
+    } catch (error: any) {
+      if (error?.code === '42P10') {
+        await this.ensureUniqueIndex();
+        await upsert();
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  private async ensureUniqueIndex(): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    if (!this.ensureIndexPromise) {
+      this.ensureIndexPromise = (async () => {
+        await this.db!.execute(sql`
+          WITH ranked_streams AS (
+            SELECT
+              id,
+              ROW_NUMBER() OVER (
+                PARTITION BY run_id, node_ref, stream
+                ORDER BY id
+              ) AS row_number
+            FROM workflow_log_streams
+          )
+          DELETE FROM workflow_log_streams
+          WHERE id IN (
+            SELECT id
+            FROM ranked_streams
+            WHERE row_number > 1
+          );
+        `);
+
+        await this.db!.execute(sql`
+          CREATE UNIQUE INDEX IF NOT EXISTS workflow_log_streams_run_node_stream_uidx
+          ON workflow_log_streams (run_id, node_ref, stream);
+        `);
+      })().catch((error) => {
+        this.ensureIndexPromise = undefined;
+        throw error;
       });
+    }
+
+    await this.ensureIndexPromise;
   }
 }

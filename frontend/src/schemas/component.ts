@@ -17,6 +17,7 @@ export const InputPortSchema = z.object({
   type: z.enum(portTypes),
   required: z.boolean().optional(),
   description: z.string().optional(),
+  valuePriority: z.enum(['manual-first', 'connection-first']).optional(),
 })
 
 export type InputPort = z.infer<typeof InputPortSchema>
@@ -39,7 +40,7 @@ export type OutputPort = z.infer<typeof OutputPortSchema>
 export const ParameterSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'file', 'json']),
+  type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'file', 'json', 'secret']),
   required: z.boolean().optional(),
   default: z.any().optional(),
   options: z

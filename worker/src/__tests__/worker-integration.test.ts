@@ -12,8 +12,16 @@ import { TraceAdapter } from '../adapters/trace.adapter';
 import * as schema from '../adapters/schema';
 import '../components'; // Register all components
 
-const enableWorkerIntegration = process.env.ENABLE_WORKER_INTEGRATION_TESTS === 'true';
+const enableWorkerIntegration =
+  process.env.ENABLE_WORKER_INTEGRATION_TESTS === 'true' ||
+  process.env.RUN_WORKER_INTEGRATION_TESTS === 'true';
 const workerDescribe = enableWorkerIntegration ? describe : describe.skip;
+
+if (!enableWorkerIntegration) {
+  console.warn(
+    'Skipping worker integration tests. Set ENABLE_WORKER_INTEGRATION_TESTS=true (or RUN_WORKER_INTEGRATION_TESTS=true) to enable.',
+  );
+}
 
 workerDescribe('Worker Integration Tests', () => {
   let temporalClient: Client;

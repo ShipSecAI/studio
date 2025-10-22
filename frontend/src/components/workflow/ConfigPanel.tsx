@@ -90,6 +90,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
     component.example,
     ...(component.examples ?? []),
   ].filter((value): value is string => Boolean(value && value.trim().length > 0))
+  const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
 
   return (
     <div className="config-panel w-[400px] border-l bg-background flex flex-col h-full overflow-hidden">
@@ -165,36 +166,73 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                     )}
                     {/* Connection status */}
                     <div className="mt-2 pt-2 border-t">
-                      <div className="text-xs">
-                        {nodeData.inputs?.[input.id] ? (
-                          <div className="space-y-1">
-                            <div className="text-green-600 flex items-center gap-1">
-                              ✓ <span className="font-medium">Connected</span>
+                      <div className="text-xs space-y-1">
+                        {(() => {
+                          const connection = nodeData.inputs?.[input.id]
+                          const manualValueProvided =
+                            input.valuePriority === 'manual-first' &&
+                            Object.prototype.hasOwnProperty.call(manualParameters, input.id) &&
+                            manualParameters[input.id] !== undefined
+
+                          if (manualValueProvided) {
+                            return (
+                              <>
+                                <div className="text-blue-600 flex items-center gap-1">
+                                  • <span className="font-medium">Manual value will be used</span>
+                                </div>
+                                {connection ? (
+                                  <div className="text-muted-foreground">
+                                    Connection available from{' '}
+                                    <span className="font-mono text-blue-600">
+                                      {connection.source}
+                                    </span>
+                                    . It will be used if the manual value is cleared.
+                                  </div>
+                                ) : (
+                                  <div className="text-muted-foreground">
+                                    No connection required while a manual value is set.
+                                  </div>
+                                )}
+                              </>
+                            )
+                          }
+
+                          if (connection) {
+                            return (
+                              <div className="space-y-1">
+                                <div className="text-green-600 flex items-center gap-1">
+                                  ✓ <span className="font-medium">Connected</span>
+                                </div>
+                                <div className="text-muted-foreground">
+                                  Source:{' '}
+                                  <span className="font-mono text-blue-600">
+                                    {connection.source}
+                                  </span>
+                                </div>
+                                <div className="text-muted-foreground">
+                                  Output:{' '}
+                                  <span className="font-mono">
+                                    {connection.output}
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <div className="flex items-center gap-1">
+                              {input.required ? (
+                                <span className="text-red-500">
+                                  ⚠ <span className="font-medium">Required but not connected</span>
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  ○ <span className="font-medium">Not connected (optional)</span>
+                                </span>
+                              )}
                             </div>
-                            <div className="text-muted-foreground">
-                              Source: <span className="font-mono text-blue-600">
-                                {nodeData.inputs[input.id].source}
-                              </span>
-                            </div>
-                            <div className="text-muted-foreground">
-                              Output: <span className="font-mono">
-                                {nodeData.inputs[input.id].output}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            {input.required ? (
-                              <span className="text-red-500">
-                                ⚠ <span className="font-medium">Required but not connected</span>
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">
-                                ○ <span className="font-medium">Not connected (optional)</span>
-                              </span>
-                            )}
-                          </div>
-                        )}
+                          )
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -243,6 +281,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                     parameter={param}
                     value={nodeData.parameters?.[param.id]}
                     onChange={(value) => handleParameterChange(param.id, value)}
+                    connectedInput={nodeData.inputs?.[param.id]}
                   />
                 ))}
               </div>

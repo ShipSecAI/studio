@@ -104,7 +104,29 @@ export async function executeWorkflow(
         },
       });
 
-      const { params, warnings } = buildActionParams(action, results);
+      const { params, warnings, manualOverrides } = buildActionParams(action, results, {
+        componentMetadata: component.metadata,
+      });
+
+      for (const override of manualOverrides) {
+        options.trace?.record({
+          type: 'NODE_PROGRESS',
+          runId,
+          nodeRef: action.ref,
+          timestamp: new Date().toISOString(),
+          level: 'debug',
+          message: `Input '${override.target}' using manual value`,
+          data: { sourceRef: 'manual' },
+          context: {
+            runId,
+            componentRef: action.ref,
+            streamId,
+            joinStrategy,
+            triggeredBy,
+            failure,
+          },
+        });
+      }
 
       for (const warning of warnings) {
         options.trace?.record({

@@ -44,7 +44,7 @@ export class SecretsAdapter implements ISecretsService {
     }
 
     try {
-      const value = this.encryption.decrypt({
+      const value = await this.encryption.decrypt({
         ciphertext: record.encryptedValue,
         iv: record.iv,
         authTag: record.authTag,

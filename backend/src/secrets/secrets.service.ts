@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { BadRequestException } from '@nestjs/common';
+
 import { SecretsEncryptionService } from './secrets.encryption';
-import { SecretsRepository, type SecretSummary } from './secrets.repository';
+import { SecretsRepository, type SecretSummary, type SecretUpdateData } from './secrets.repository';
 
 export interface CreateSecretInput {
   name: string;
@@ -14,6 +16,12 @@ export interface CreateSecretInput {
 export interface RotateSecretInput {
   value: string;
   createdBy?: string | null;
+}
+
+export interface UpdateSecretInput {
+  name?: string;
+  description?: string | null;
+  tags?: string[] | null;
 }
 
 export interface SecretValue {
@@ -38,7 +46,7 @@ export class SecretsService {
   }
 
   async createSecret(input: CreateSecretInput): Promise<SecretSummary> {
-    const material = this.encryption.encrypt(input.value);
+    const material = await this.encryption.encrypt(input.value);
 
     return this.repository.createSecret(
       {
@@ -57,7 +65,7 @@ export class SecretsService {
   }
 
   async rotateSecret(secretId: string, input: RotateSecretInput): Promise<SecretSummary> {
-    const material = this.encryption.encrypt(input.value);
+    const material = await this.encryption.encrypt(input.value);
 
     return this.repository.rotateSecret(secretId, {
       encryptedValue: material.ciphertext,
@@ -70,7 +78,7 @@ export class SecretsService {
 
   async getSecretValue(secretId: string, version?: number): Promise<SecretValue> {
     const record = await this.repository.findValueBySecretId(secretId, version);
-    const value = this.encryption.decrypt({
+    const value = await this.encryption.decrypt({
       ciphertext: record.encryptedValue,
       iv: record.iv,
       authTag: record.authTag,
@@ -82,5 +90,41 @@ export class SecretsService {
       version: record.version,
       value,
     };
+  }
+
+  async updateSecret(secretId: string, input: UpdateSecretInput): Promise<SecretSummary> {
+    const updates: SecretUpdateData = {};
+
+    if (input.name !== undefined) {
+      const trimmedName = input.name.trim();
+      if (trimmedName.length === 0) {
+        throw new BadRequestException('Secret name cannot be empty');
+      }
+      updates.name = trimmedName;
+    }
+    if (input.description !== undefined) {
+      if (input.description === null) {
+        updates.description = null;
+      } else {
+        const trimmedDescription = input.description.trim();
+        updates.description = trimmedDescription.length > 0 ? trimmedDescription : null;
+      }
+    }
+    if (input.tags !== undefined) {
+      if (input.tags === null) {
+        updates.tags = null;
+      } else {
+        const normalizedTags = input.tags
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0);
+        updates.tags = normalizedTags.length > 0 ? normalizedTags : null;
+      }
+    }
+
+    return this.repository.updateSecret(secretId, updates);
+  }
+
+  async deleteSecret(secretId: string): Promise<void> {
+    await this.repository.deleteSecret(secretId);
   }
 }

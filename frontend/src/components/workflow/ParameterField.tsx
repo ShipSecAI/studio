@@ -2,22 +2,48 @@ import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import { useNavigate } from 'react-router-dom'
 import { RuntimeInputsEditor } from './RuntimeInputsEditor'
 import type { Parameter } from '@/schemas/component'
+import type { InputMapping } from '@/schemas/node'
+import { useSecretStore } from '@/store/secretStore'
 
 interface ParameterFieldProps {
   parameter: Parameter
   value: any
   onChange: (value: any) => void
+  connectedInput?: InputMapping
 }
 
 /**
  * ParameterField - Renders appropriate input field based on parameter type
  */
-export function ParameterField({ parameter, value, onChange }: ParameterFieldProps) {
+export function ParameterField({ parameter, value, onChange, connectedInput }: ParameterFieldProps) {
   const currentValue = value !== undefined ? value : parameter.default
   const [jsonText, setJsonText] = useState<string>('')
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const navigate = useNavigate()
+
+  const secrets = useSecretStore((state) => state.secrets)
+  const secretsLoading = useSecretStore((state) => state.loading)
+  const secretsError = useSecretStore((state) => state.error)
+  const fetchSecrets = useSecretStore((state) => state.fetchSecrets)
+  const refreshSecrets = useSecretStore((state) => state.refresh)
+  const isReceivingInput = Boolean(connectedInput)
+
+  const [secretMode, setSecretMode] = useState<'select' | 'manual'>(() => {
+    if (parameter.type !== 'secret') {
+      return 'manual'
+    }
+    if (
+      typeof currentValue === 'string' &&
+      secrets.some((secret) => secret.id === currentValue)
+    ) {
+      return 'select'
+    }
+    return secrets.length > 0 ? 'select' : 'manual'
+  })
 
   useEffect(() => {
     if (parameter.type !== 'json') {
@@ -43,6 +69,59 @@ export function ParameterField({ parameter, value, onChange }: ParameterFieldPro
       console.error('Failed to serialise JSON parameter value', error)
     }
   }, [parameter.type, value])
+
+  useEffect(() => {
+    if (parameter.type !== 'secret') {
+      return
+    }
+    fetchSecrets().catch((error) => {
+      console.error('Failed to load secrets', error)
+    })
+  }, [parameter.type, fetchSecrets])
+
+  useEffect(() => {
+    if (parameter.type !== 'secret' || isReceivingInput) {
+      return
+    }
+
+    if (secrets.length === 0) {
+      setSecretMode('manual')
+      return
+    }
+
+    if (
+      secretMode === 'select' &&
+      (typeof currentValue !== 'string' ||
+        !secrets.some((secret) => secret.id === currentValue))
+    ) {
+      const firstSecret = secrets[0]
+      if (firstSecret) {
+          onChange(firstSecret.id)
+      }
+    }
+  }, [parameter.type, secretMode, secrets, currentValue, onChange, isReceivingInput])
+
+  useEffect(() => {
+    if (parameter.type !== 'secret') {
+      return
+    }
+    // Log connection status for debugging secret input flow
+    console.debug(
+      `[ParameterField] secret parameter "${parameter.id}" connection state:`,
+      connectedInput ?? 'manual'
+    )
+  }, [parameter.type, parameter.id, connectedInput])
+
+  const updateSecretValue = (nextValue: any) => {
+    if (isReceivingInput) {
+      console.debug(
+        `[ParameterField] manual update blocked for secret "${parameter.id}" while receiving from upstream.`,
+        connectedInput
+      )
+      return
+    }
+    onChange(nextValue)
+  }
 
   switch (parameter.type) {
     case 'text':
@@ -193,6 +272,160 @@ export function ParameterField({ parameter, value, onChange }: ParameterFieldPro
         </div>
       )
 
+    case 'secret': {
+      const hasSecrets = secrets.length > 0
+      const selectedSecretId =
+        typeof currentValue === 'string' && secrets.some((secret) => secret.id === currentValue)
+          ? currentValue
+          : ''
+      const manualValue =
+        typeof currentValue === 'string' && !secrets.some((secret) => secret.id === currentValue)
+          ? currentValue
+          : ''
+
+      const connectionLabel =
+        connectedInput?.source && connectedInput?.output
+          ? `${connectedInput.source}.${connectedInput.output}`
+          : connectedInput?.source
+
+      const handleModeChange = (mode: 'select' | 'manual') => {
+        if (isReceivingInput) {
+          return
+        }
+        if (mode === 'select') {
+          if (!hasSecrets) {
+            setSecretMode('manual')
+            return
+          }
+          const existing =
+            secrets.find((secret) => secret.id === selectedSecretId) ?? secrets[0]
+          setSecretMode('select')
+          updateSecretValue(existing?.id ?? undefined)
+          return
+        }
+
+        setSecretMode('manual')
+        if (selectedSecretId) {
+          updateSecretValue(undefined)
+        }
+      }
+
+      return (
+        <div className="space-y-3">
+          {isReceivingInput && (
+            <div className="rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Receiving input from upstream node
+              {connectionLabel ? ` (${connectionLabel})` : ''}. Disconnect the mapping to edit manually.
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+
+              size="sm"
+              variant={secretMode === 'select' ? 'default' : 'outline'}
+              onClick={() => handleModeChange('select')}
+              disabled={!hasSecrets || isReceivingInput}
+            >
+              From store
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={secretMode === 'manual' ? 'default' : 'outline'}
+              onClick={() => handleModeChange('manual')}
+              disabled={isReceivingInput}
+            >
+              Manual ID
+            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  refreshSecrets().catch((error) => {
+                    console.error('Failed to refresh secrets', error)
+                  })
+                }}
+                disabled={secretsLoading || isReceivingInput}
+              >
+                {secretsLoading ? 'Refreshing…' : 'Refresh'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => navigate('/secrets')}
+                disabled={isReceivingInput}
+              >
+                Manage secrets
+              </Button>
+            </div>
+          </div>
+
+          {secretsError && (
+            <p className="text-xs text-destructive">
+              {secretsError}
+            </p>
+          )}
+
+          {secretMode === 'select' && hasSecrets && (
+            <select
+              value={selectedSecretId}
+              onChange={(e) => {
+                const nextValue = e.target.value
+                updateSecretValue(nextValue === '' ? undefined : nextValue)
+              }}
+              className="w-full px-3 py-2 text-sm border rounded-md bg-background"
+              disabled={isReceivingInput}
+            >
+              <option value="">Select a secret…</option>
+              {secrets.map((secret) => (
+                <option key={secret.id} value={secret.id}>
+                  {secret.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {secretMode === 'select' && !hasSecrets && (
+            <p className="text-xs text-muted-foreground">
+              No stored secrets yet. Create one in the Secret Manager or switch to manual entry.
+            </p>
+          )}
+
+          {secretMode === 'manual' && (
+            <Input
+              id={`${parameter.id}-manual`}
+              type="text"
+              placeholder="Paste secret ID…"
+              value={manualValue}
+              onChange={(e) => updateSecretValue(e.target.value)}
+              className="text-sm"
+              disabled={isReceivingInput}
+            />
+          )}
+
+          {secretMode === 'select' && selectedSecretId && (
+            <p className="text-xs text-muted-foreground">
+              ID: <span className="font-mono">{selectedSecretId}</span>
+            </p>
+          )}
+
+          {secretsError && (
+            <p className="text-xs text-destructive">
+              {secretsError}
+            </p>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Secrets are securely stored; only references are shared with components.
+          </p>
+        </div>
+      )
+    }
+
     case 'json':
       return (
         <div className="space-y-2">
@@ -240,6 +473,7 @@ interface ParameterFieldWrapperProps {
   parameter: Parameter
   value: any
   onChange: (value: any) => void
+  connectedInput?: InputMapping
 }
 
 /**
@@ -249,6 +483,7 @@ export function ParameterFieldWrapper({
   parameter,
   value,
   onChange,
+  connectedInput,
 }: ParameterFieldWrapperProps) {
   // Special case: Runtime Inputs Editor for Manual Trigger
   if (parameter.id === 'runtimeInputs') {
@@ -289,7 +524,12 @@ export function ParameterFieldWrapper({
         </p>
       )}
 
-      <ParameterField parameter={parameter} value={value} onChange={onChange} />
+      <ParameterField
+        parameter={parameter}
+        value={value}
+        onChange={onChange}
+        connectedInput={connectedInput}
+      />
 
       {parameter.helpText && (
         <p className="text-xs text-muted-foreground italic mt-2">

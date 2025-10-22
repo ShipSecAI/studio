@@ -2,7 +2,17 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Save, Play, StopCircle, PencilLine, MonitorPlay, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import {
+  ArrowLeft,
+  Save,
+  Play,
+  StopCircle,
+  PencilLine,
+  MonitorPlay,
+  PanelLeftClose,
+  PanelLeftOpen,
+  KeyRound,
+} from 'lucide-react'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
@@ -64,6 +74,14 @@ export function TopBar({ onRun, onSave }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-3 ml-auto">
+        <Button
+          variant="outline"
+          onClick={() => navigate('/secrets')}
+          className="gap-2"
+        >
+          <KeyRound className="h-4 w-4" />
+          Secrets
+        </Button>
         <Button
           variant="ghost"
           size="icon"

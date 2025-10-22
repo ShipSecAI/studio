@@ -2,18 +2,23 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
+  Patch,
   Post,
   Put,
   Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { SecretsService } from './secrets.service';
 import {
   CreateSecretDto,
+  UpdateSecretDto,
   RotateSecretDto,
   SecretSummaryResponse,
   SecretValueResponse,
@@ -38,6 +43,12 @@ export class SecretsController {
 
   @Get(':id/value')
   @ApiOkResponse({ type: SecretValueResponse })
+  @ApiQuery({
+    name: 'version',
+    required: false,
+    description: 'Optional secret version to retrieve (defaults to active version)',
+    type: Number,
+  })
   async getSecretValue(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('version') version?: string,
@@ -62,5 +73,21 @@ export class SecretsController {
     @Body() body: RotateSecretDto,
   ): Promise<SecretSummaryResponse> {
     return this.secretsService.rotateSecret(id, body);
+  }
+
+  @Patch(':id')
+  @ApiOkResponse({ type: SecretSummaryResponse })
+  async updateSecret(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: UpdateSecretDto,
+  ): Promise<SecretSummaryResponse> {
+    return this.secretsService.updateSecret(id, body);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  async deleteSecret(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
+    await this.secretsService.deleteSecret(id);
   }
 }

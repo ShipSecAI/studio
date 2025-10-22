@@ -210,7 +210,14 @@ async function resolveTestTarget(): Promise<ResolvedTarget> {
   try {
     const response = await fetch(DEFAULT_TEST_WEBHOOK_URL, { method: 'GET' });
     if (response.ok) {
-      return { target: { baseUrl: DEFAULT_TEST_WEBHOOK_URL } };
+      const probe = await fetch(`${DEFAULT_TEST_WEBHOOK_URL}?status=204`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ probe: true }),
+      });
+      if (probe.ok || probe.status === 204) {
+        return { target: { baseUrl: DEFAULT_TEST_WEBHOOK_URL } };
+      }
     }
   } catch {
     // Continue to inline server fallback

@@ -6,6 +6,10 @@ export interface InputWarning {
   sourceHandle: string;
 }
 
+export interface ManualOverride {
+  target: string;
+}
+
 export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): unknown {
   if (sourceOutput === null || sourceOutput === undefined) {
     return undefined;
@@ -25,14 +29,41 @@ export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): 
   return undefined;
 }
 
+type ComponentInputMetadata = {
+  id: string;
+  valuePriority?: 'manual-first' | 'auto-first' | string;
+};
+
+type ComponentMetadataSnapshot = {
+  inputs?: ComponentInputMetadata[];
+};
+
 export function buildActionParams(
   action: WorkflowAction,
   results: Map<string, unknown>,
-): { params: Record<string, unknown>; warnings: InputWarning[] } {
+  options: { componentMetadata?: ComponentMetadataSnapshot } = {},
+): { params: Record<string, unknown>; warnings: InputWarning[]; manualOverrides: ManualOverride[] } {
   const params = { ...(action.params ?? {}) } as Record<string, unknown>;
   const warnings: InputWarning[] = [];
+  const manualOverrides: ManualOverride[] = [];
+
+  const inputMetadata = new Map(
+    (options.componentMetadata?.inputs ?? []).map((port) => [port.id, port]),
+  );
 
   for (const [targetKey, mapping] of Object.entries(action.inputMappings ?? {})) {
+    const portMetadata = inputMetadata.get(targetKey);
+    const preferManual = portMetadata?.valuePriority === 'manual-first';
+    const manualProvided =
+      preferManual && Object.prototype.hasOwnProperty.call(params, targetKey)
+        ? params[targetKey] !== undefined
+        : false;
+
+    if (manualProvided) {
+      manualOverrides.push({ target: targetKey });
+      continue;
+    }
+
     const sourceOutput = results.get(mapping.sourceRef);
     const resolved = resolveInputValue(sourceOutput, mapping.sourceHandle);
 
@@ -47,6 +78,5 @@ export function buildActionParams(
     }
   }
 
-  return { params, warnings };
+  return { params, warnings, manualOverrides };
 }
-

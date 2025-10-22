@@ -3,7 +3,21 @@ import { runComponentWithRunner } from '../runner';
 import type { ExecutionContext, DockerRunnerConfig } from '../types';
 
 const enableDockerRunnerTests = process.env.ENABLE_DOCKER_TESTS === 'true';
-const dockerDescribe = enableDockerRunnerTests ? describe : describe.skip;
+
+// Skip docker-dependent tests when Docker CLI is unavailable.
+const dockerAvailable = (() => {
+  try {
+    const result = Bun.spawnSync(['docker', 'version']);
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+})();
+
+const dockerDescribe =
+  enableDockerRunnerTests && dockerAvailable ? describe : describe.skip;
+const dockerTest =
+  enableDockerRunnerTests && dockerAvailable ? test : test.skip;
 
 dockerDescribe('Docker Runner', () => {
   let context: ExecutionContext;
@@ -31,7 +45,7 @@ dockerDescribe('Docker Runner', () => {
 
   const BUSYBOX_IMAGE = 'busybox:1.36';
 
-  test('should execute simple echo command in busybox container', async () => {
+  dockerTest('should execute simple echo command in busybox container', async () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
@@ -56,7 +70,7 @@ dockerDescribe('Docker Runner', () => {
     expect(logs.some(log => log.includes('Completed successfully'))).toBe(true);
   });
 
-  test('should handle JSON output from container', async () => {
+  dockerTest('should handle JSON output from container', async () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
@@ -79,7 +93,7 @@ dockerDescribe('Docker Runner', () => {
     expect(result).toEqual({ result: 'test-value' });
   });
 
-  test('should pass environment variables to container', async () => {
+  dockerTest('should pass environment variables to container', async () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
@@ -103,7 +117,7 @@ dockerDescribe('Docker Runner', () => {
     expect(result).toBe('environment-works');
   });
 
-  test('should handle container errors gracefully', async () => {
+  dockerTest('should handle container errors gracefully', async () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
@@ -121,7 +135,7 @@ dockerDescribe('Docker Runner', () => {
     ).rejects.toThrow('exit code 1');
   });
 
-  test('should timeout long-running containers', async () => {
+  dockerTest('should timeout long-running containers', async () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: BUSYBOX_IMAGE,
@@ -139,7 +153,7 @@ dockerDescribe('Docker Runner', () => {
     ).rejects.toThrow('timed out');
   }, 5000); // Test timeout
 
-  test('should handle non-existent Docker images', async () => {
+  dockerTest('should handle non-existent Docker images', async () => {
     const runner: DockerRunnerConfig = {
       kind: 'docker',
       image: 'this-image-does-not-exist-12345:latest',

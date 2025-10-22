@@ -29,6 +29,12 @@ export interface SecretValueRecord {
   encryptionKeyId: string;
 }
 
+export interface SecretUpdateData {
+  name?: string;
+  description?: string | null;
+  tags?: string[] | null;
+}
+
 @Injectable()
 export class SecretsRepository {
   constructor(
@@ -221,6 +227,56 @@ export class SecretsRepository {
     });
   }
 
+  async updateSecret(secretId: string, updates: SecretUpdateData): Promise<SecretSummary> {
+    await this.ensureSecretExists(secretId);
+
+    const updatePayload: Partial<Omit<NewSecret, 'id' | 'createdAt' | 'updatedAt'>> = {};
+
+    if (updates.name !== undefined) {
+      updatePayload.name = updates.name;
+    }
+
+    if (updates.description !== undefined) {
+      updatePayload.description = updates.description;
+    }
+
+    if (updates.tags !== undefined) {
+      updatePayload.tags = updates.tags;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return this.findById(secretId);
+    }
+
+    try {
+      await this.db
+        .update(secrets)
+        .set({
+          ...updatePayload,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(secrets.id, secretId));
+    } catch (error: any) {
+      if (error?.code === '23505' && updates.name) {
+        throw new ConflictException(`Secret name '${updates.name}' already exists`);
+      }
+      throw error;
+    }
+
+    return this.findById(secretId);
+  }
+
+  async deleteSecret(secretId: string): Promise<void> {
+    const deleted = await this.db
+      .delete(secrets)
+      .where(eq(secrets.id, secretId))
+      .returning({ id: secrets.id });
+
+    if (deleted.length === 0) {
+      throw new NotFoundException(`Secret ${secretId} not found`);
+    }
+  }
+
   private mapSummary(row: {
     id: string;
     name: string;
@@ -250,5 +306,12 @@ export class SecretsRepository {
             }
           : null,
     };
+  }
+
+  private async ensureSecretExists(secretId: string): Promise<void> {
+    const rows = await this.db.select({ id: secrets.id }).from(secrets).where(eq(secrets.id, secretId)).limit(1);
+    if (rows.length === 0) {
+      throw new NotFoundException(`Secret ${secretId} not found`);
+    }
   }
 }

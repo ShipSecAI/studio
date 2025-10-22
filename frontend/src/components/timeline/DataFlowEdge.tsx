@@ -63,7 +63,6 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
   const [hoveredPacket, setHoveredPacket] = useState<DataPacket | null>(null)
   const [animatedPackets, setAnimatedPackets] = useState<AnimatedPacket[]>([])
   const [edgePath, setEdgePath] = useState<string>('')
-  const containerRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number>()
 
   const {
@@ -77,23 +76,30 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
   const { mode } = useWorkflowUiStore()
 
   const packets = useMemo(() => {
-    if (data?.packets) {
-      return data.packets.filter(
-        (packet) => new Date(packet.timestamp).getTime() <= currentTime,
+    const packetsFromProps = data?.packets
+    const cutoff = currentTime
+
+    if (packetsFromProps) {
+      return packetsFromProps.filter(
+        (packet) => new Date(packet.timestamp).getTime() <= cutoff
       )
     }
+
     return dataFlows.filter(
       (packet) =>
         packet.sourceNode === source &&
         packet.targetNode === target &&
-        new Date(packet.timestamp).getTime() <= currentTime,
+        new Date(packet.timestamp).getTime() <= cutoff
     )
   }, [data?.packets, dataFlows, source, target, currentTime])
 
-  const labelPosition = useMemo(() => ({
-    x: (sourceX + targetX) / 2,
-    y: (sourceY + targetY) / 2,
-  }), [sourceX, targetX, sourceY, targetY])
+  const labelPosition = useMemo(
+    () => ({
+      x: (sourceX + targetX) / 2,
+      y: (sourceY + targetY) / 2,
+    }),
+    [sourceX, targetX, sourceY, targetY],
+  )
 
   // Calculate Bezier path for the edge
   useEffect(() => {
@@ -267,7 +273,6 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
 
       {/* Container for positioning elements */}
       <div
-        ref={containerRef}
         className="absolute inset-0 pointer-events-none"
         style={{
           zIndex: 5,
@@ -275,9 +280,10 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
           top: 0,
           left: 0,
           right: 0,
-          bottom: 0
+          bottom: 0,
         }}
       />
+
     </>
   )
 })

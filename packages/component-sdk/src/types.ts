@@ -76,6 +76,7 @@ export interface ComponentPortMetadata {
   type: ComponentPortType;
   required?: boolean;
   description?: string;
+  valuePriority?: 'manual-first' | 'connection-first';
 }
 
 export type ComponentParameterType =

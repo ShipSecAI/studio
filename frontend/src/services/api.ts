@@ -12,6 +12,18 @@ import {
   type ComponentMetadata,
 } from '@/schemas/component'
 import {
+  SecretSummarySchema,
+  SecretValueSchema,
+  CreateSecretInputSchema,
+  RotateSecretInputSchema,
+  UpdateSecretInputSchema,
+  type SecretSummary,
+  type SecretValue,
+  type CreateSecretInput,
+  type RotateSecretInput,
+  type UpdateSecretInput,
+} from '@/schemas/secret'
+import {
   ExecutionStatusResponseSchema,
   TraceStreamEnvelopeSchema,
   type ExecutionStatusResponse,
@@ -196,6 +208,67 @@ export const api = {
       const response = await apiClient.getComponent(slug)
       if (response.error) throw new Error('Failed to fetch component')
       return ComponentMetadataSchema.parse(response.data)
+    },
+  },
+
+  /**
+   * Secrets endpoints
+   */
+  secrets: {
+    /**
+     * List all stored secrets (metadata only)
+     */
+    list: async (): Promise<SecretSummary[]> => {
+      const response = await apiClient.listSecrets()
+      if (response.error) throw new Error('Failed to fetch secrets')
+      return SecretSummarySchema.array().parse(response.data)
+    },
+
+    /**
+     * Create a new secret entry
+     */
+    create: async (input: CreateSecretInput): Promise<SecretSummary> => {
+      const payload = CreateSecretInputSchema.parse(input)
+      const response = await apiClient.createSecret(payload)
+      if (response.error) throw new Error('Failed to create secret')
+      return SecretSummarySchema.parse(response.data)
+    },
+
+    /**
+     * Update secret metadata
+     */
+    update: async (id: string, input: UpdateSecretInput): Promise<SecretSummary> => {
+      const payload = UpdateSecretInputSchema.parse(input)
+      const response = await apiClient.updateSecret(id, payload)
+      if (response.error) throw new Error('Failed to update secret')
+      return SecretSummarySchema.parse(response.data)
+    },
+
+    /**
+     * Rotate secret value (creates a new active version)
+     */
+    rotate: async (id: string, input: RotateSecretInput): Promise<SecretSummary> => {
+      const payload = RotateSecretInputSchema.parse(input)
+      const response = await apiClient.rotateSecret(id, payload)
+      if (response.error) throw new Error('Failed to rotate secret')
+      return SecretSummarySchema.parse(response.data)
+    },
+
+    /**
+     * Delete a secret
+     */
+    delete: async (id: string): Promise<void> => {
+      const response = await apiClient.deleteSecret(id)
+      if (response.error) throw new Error('Failed to delete secret')
+    },
+
+    /**
+     * Get decrypted secret value (used internally, avoid displaying in UI)
+     */
+    getValue: async (id: string, version?: number): Promise<SecretValue> => {
+      const response = await apiClient.getSecretValue(id, version)
+      if (response.error) throw new Error('Failed to fetch secret value')
+      return SecretValueSchema.parse(response.data)
     },
   },
 

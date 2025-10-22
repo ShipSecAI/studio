@@ -43,6 +43,13 @@
       "when": 1760900000000,
       "tag": "0005_create-secret-store",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1761069793200,
+      "tag": "0006_add-workflow-log-streams-unique-index",
+      "breakpoints": true
     }
   ]
 }
