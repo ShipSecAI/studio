@@ -20,8 +20,9 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.0-beta.34",
     "@ai-sdk/google": "^3.0.0-beta.27",
-    "@shipsec/component-sdk": "*",
+    "@googleapis/admin": "^29.0.0",
     "@grpc/grpc-js": "^1.14.0",
+    "@shipsec/component-sdk": "*",
     "@shipsec/shared": "*",
     "@temporalio/client": "^1.11.3",
     "@temporalio/worker": "^1.11.3",
@@ -29,6 +30,7 @@
     "ai": "^6.0.0-beta.68",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.6",
+    "googleapis": "^164.1.0",
     "long": "^5.3.2",
     "minio": "^8.0.6",
     "pg": "^8.16.3",

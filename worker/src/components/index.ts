@@ -23,6 +23,9 @@ import './security/dnsx';
 import './security/httpx';
 import './security/notify';
 
+// IT Automation components
+import './it-automation/google-workspace-license-unassign';
+
 // Test utility components
 import './test/sleep-parallel';
 
