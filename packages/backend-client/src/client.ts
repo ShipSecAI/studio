@@ -472,6 +472,75 @@ export interface components {
                 zoom: number;
             };
         };
+        WorkflowResponseDto: {
+            id: string;
+            name: string;
+            description?: string | null;
+            graph: {
+                id?: string;
+                name: string;
+                description?: string;
+                nodes: {
+                    id: string;
+                    type: string;
+                    position: {
+                        x: number;
+                        y: number;
+                    };
+                    data: {
+                        label: string;
+                        /** @default {} */
+                        config: {
+                            [key: string]: unknown;
+                        };
+                    };
+                }[];
+                edges: {
+                    id: string;
+                    source: string;
+                    target: string;
+                    sourceHandle?: string;
+                    targetHandle?: string;
+                }[];
+                viewport: {
+                    x: number;
+                    y: number;
+                    zoom: number;
+                };
+            };
+            nodes: {
+                id: string;
+                type: string;
+                position: {
+                    x: number;
+                    y: number;
+                };
+                data: {
+                    label: string;
+                    /** @default {} */
+                    config: {
+                        [key: string]: unknown;
+                    };
+                };
+            }[];
+            edges: {
+                id: string;
+                source: string;
+                target: string;
+                sourceHandle?: string;
+                targetHandle?: string;
+            }[];
+            viewport: {
+                x: number;
+                y: number;
+                zoom: number;
+            };
+            compiledDefinition: unknown;
+            lastRun: string | null;
+            runCount: number;
+            createdAt: string;
+            updatedAt: string;
+        };
         UpdateWorkflowRequestDto: {
             id?: string;
             name: string;
@@ -595,7 +664,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowResponseDto"][];
+                };
             };
         };
     };
@@ -612,11 +683,13 @@ export interface operations {
             };
         };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowResponseDto"];
+                };
             };
         };
     };
@@ -635,7 +708,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowResponseDto"];
+                };
             };
         };
     };
@@ -658,7 +733,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkflowResponseDto"];
+                };
             };
         };
     };

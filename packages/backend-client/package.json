@@ -5,7 +5,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "generate": "openapi-typescript ../../backend/openapi.json --output src/client.ts && echo '✅ Client types regenerated from OpenAPI spec'"
+    "generate": "openapi-typescript ../../openapi.json --output src/client.ts && echo '✅ Client types regenerated from OpenAPI spec'",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "openapi-fetch": "^0.12.2"

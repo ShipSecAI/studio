@@ -629,31 +629,26 @@ export const initializeTimelineStore = () => {
 
   void import('./executionStore')
     .then(({ useExecutionStore }) => {
-      unsubscribeExecutionStore = useExecutionStore.subscribe(
-        (state) => ({
-          logs: state.logs,
-          runId: state.runId,
-        }),
-        ({ logs, runId }) => {
-          const timelineStore = useExecutionTimelineStore.getState()
-          if (timelineStore.playbackMode === 'live' && timelineStore.selectedRunId === runId) {
-            const {
-              events,
-              totalDuration,
-              timelineStartTime,
-            } = prepareTimelineEvents(logs)
-            const currentTime = totalDuration
+      unsubscribeExecutionStore = useExecutionStore.subscribe((state) => {
+        const { logs, runId } = state;
+        const timelineStore = useExecutionTimelineStore.getState()
+        if (timelineStore.playbackMode === 'live' && timelineStore.selectedRunId === runId) {
+          const {
+            events,
+            totalDuration,
+            timelineStartTime,
+          } = prepareTimelineEvents(logs)
+          const currentTime = totalDuration
 
-            useExecutionTimelineStore.setState((state) => ({
-              events,
-              totalDuration,
-              timelineStartTime,
-              currentTime,
-              nodeStates: calculateNodeStates(events, state.dataFlows, currentTime, timelineStartTime),
-            }))
-          }
+          useExecutionTimelineStore.setState((state) => ({
+            events,
+            totalDuration,
+            timelineStartTime,
+            currentTime,
+            nodeStates: calculateNodeStates(events, state.dataFlows, currentTime, timelineStartTime),
+          }))
         }
-      )
+      })
     })
     .catch((error) => {
       console.error('Failed to initialize timeline store subscription', error)
