@@ -8,6 +8,14 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import { Client as MinioClient } from 'minio';
 import { randomUUID } from 'node:crypto';
+import { 
+  WorkflowGraph, 
+  WorkflowGraphSchema,
+  WorkflowResponse,
+  WorkflowNode
+} from '../workflows/dto/workflow-graph.dto';
+import { WorkflowDefinition } from '../dsl/types';
+import { UploadedFile } from '../storage/storage.service';
 
 const runIntegration = process.env.RUN_BACKEND_INTEGRATION === 'true';
 
@@ -17,28 +25,7 @@ const baseUrl =
 
 const api = (path: string) => `${baseUrl}${path}`;
 
-type WorkflowNodePayload = {
-  id: string;
-  type: string;
-  position: { x: number; y: number };
-  data: { label: string; config: Record<string, unknown> };
-};
-
-type WorkflowPayload = {
-  name: string;
-  description?: string;
-  nodes: WorkflowNodePayload[];
-  edges: Array<{
-    id: string;
-    source: string;
-    target: string;
-    sourceHandle?: string;
-    targetHandle?: string;
-  }>;
-  viewport: { x: number; y: number; zoom: number };
-};
-
-const normalizeNode = (override: Partial<WorkflowNodePayload> = {}): WorkflowNodePayload => ({
+const normalizeNode = (override: Partial<WorkflowNode> = {}): WorkflowNode => ({
   id: override.id ?? 'node-1',
   type: override.type ?? 'core.trigger.manual',
   position: override.position ?? { x: 0, y: 0 },
@@ -48,17 +35,83 @@ const normalizeNode = (override: Partial<WorkflowNodePayload> = {}): WorkflowNod
   },
 });
 
-type WorkflowGraphOverrides = Partial<Omit<WorkflowPayload, 'nodes'>> & {
-  nodes?: Array<Partial<WorkflowNodePayload>>;
+type WorkflowGraphOverrides = Partial<Omit<WorkflowGraph, 'nodes'>> & {
+  nodes?: Array<Partial<WorkflowNode>>;
 };
 
-const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPayload => ({
-  name: overrides.name ?? `Test Workflow ${randomUUID().slice(0, 8)}`,
-  description: overrides.description ?? 'Integration test workflow',
-  nodes: (overrides.nodes ?? [normalizeNode()]).map((node) => normalizeNode(node)),
-  edges: overrides.edges ?? [],
-  viewport: overrides.viewport ?? { x: 0, y: 0, zoom: 1 },
-});
+const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowGraph => {
+  const baseGraph: WorkflowGraph = {
+    name: overrides.name ?? `Test Workflow ${randomUUID().slice(0, 8)}`,
+    description: overrides.description ?? 'Integration test workflow',
+    nodes: (overrides.nodes ?? [normalizeNode()]).map((node) => normalizeNode(node)),
+    edges: overrides.edges ?? [],
+    viewport: overrides.viewport ?? { x: 0, y: 0, zoom: 1 },
+  };
+  
+  // Validate with Zod schema to ensure correct structure
+  return WorkflowGraphSchema.parse(baseGraph);
+};
+
+const readJson = async <T>(response: Response): Promise<T> =>
+  (await response.json()) as T;
+
+interface Component {
+  id: string;
+  slug: string;
+  name: string;
+  version: string;
+  type: string;
+  category: string;
+  description: string;
+  documentation: string;
+  documentationUrl: string | null;
+  icon: string | null;
+  logo: string | null;
+  author: {
+    name: string;
+    type: 'shipsecai' | 'community';
+    url: string | null;
+  } | null;
+  isLatest: boolean;
+  deprecated: boolean;
+  example: string | null;
+  runner: {
+    kind: 'inline' | 'docker' | 'remote';
+    image: string | null;
+    command: string[] | null;
+  };
+  inputs: Array<{
+    id: string;
+    label: string;
+    type: 'string' | 'array' | 'object' | 'file' | 'any' | 'secret';
+    required: boolean;
+    description: string | null;
+  }>;
+  outputs: Array<{
+    id: string;
+    label: string;
+    type: 'string' | 'array' | 'object' | 'file' | 'any' | 'secret';
+    description: string | null;
+  }>;
+  parameters: Array<{
+    id: string;
+    label: string;
+    type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'multi-select' | 'json' | 'secret';
+    required: boolean;
+    default: any;
+    placeholder: string | null;
+    description: string | null;
+    helpText: string | null;
+    options: Array<{
+      label: string;
+      value: any;
+    }> | null;
+    min: number | null;
+    max: number | null;
+    rows: number | null;
+  }>;
+  examples: string[];
+}
 
 (runIntegration ? describe : describe.skip)('Backend Integration Tests', () => {
   let app: INestApplication;
@@ -118,7 +171,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
     it('should list workflows (basic connectivity test)', async () => {
       const response = await fetch(api('/workflows'));
       expect(response.ok).toBe(true);
-      const data = await response.json();
+      const data = await readJson<WorkflowGraph[]>(response);
       expect(Array.isArray(data)).toBe(true);
     });
   });
@@ -134,7 +187,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
       });
 
       expect(response.ok).toBe(true);
-      const workflow = await response.json();
+      const workflow: WorkflowResponse = await readJson(response);
       expect(workflow).toHaveProperty('id');
       expect(workflow.name).toBe(workflowData.name);
       expect(workflow.description).toBe(workflowData.description);
@@ -156,10 +209,10 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
 
       const response = await fetch(api('/workflows'));
       expect(response.ok).toBe(true);
-      const workflows = await response.json();
+      const workflows: WorkflowResponse[] = await readJson(response);
       expect(Array.isArray(workflows)).toBe(true);
       expect(workflows.length).toBeGreaterThanOrEqual(2);
-      workflows.forEach((w: any) => {
+      workflows.forEach((w) => {
         expect(Array.isArray(w.nodes)).toBe(true);
         expect(w.nodes[0]).toHaveProperty('data');
       });
@@ -172,12 +225,12 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildWorkflowGraph({ name: 'Test Workflow' })),
       });
-      const created = await createResponse.json();
+      const created: WorkflowResponse = await readJson(createResponse);
 
       // Get the workflow
       const response = await fetch(api(`/workflows/${created.id}`));
       expect(response.ok).toBe(true);
-      const workflow = await response.json();
+      const workflow: WorkflowResponse = await readJson(response);
       expect(workflow.id).toBe(created.id);
       expect(workflow.name).toBe('Test Workflow');
       expect(workflow.nodes[0].data.label).toBe('Manual Trigger');
@@ -194,7 +247,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(originalGraph),
       });
-      const created = await createResponse.json();
+      const created: WorkflowResponse = await readJson(createResponse);
 
       // Verify the workflow was created
       expect(created).toHaveProperty('id');
@@ -220,7 +273,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
       });
 
       expect(updateResponse.ok).toBe(true);
-      const updated = await updateResponse.json();
+      const updated: WorkflowResponse = await readJson(updateResponse);
       expect(updated.name).toBe('Updated Title');
       expect(updated.description).toBe('Updated description');
       expect(updated.nodes[0].data.label).toBe('Updated Trigger');
@@ -236,14 +289,14 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildWorkflowGraph({ name: 'Commit Workflow' })),
       });
-      const workflow = await createResponse.json();
+      const workflow: WorkflowResponse = await readJson(createResponse);
 
       const response = await fetch(api(`/workflows/${workflow.id}/commit`), {
         method: 'POST',
       });
 
       expect(response.ok).toBe(true);
-      const compiled = await response.json();
+      const compiled: WorkflowDefinition = await readJson(response);
       expect(compiled.title).toBe('Commit Workflow');
       expect(compiled.entrypoint.ref).toBe(workflow.nodes[0].id);
       expect(Array.isArray(compiled.actions)).toBe(true);
@@ -261,7 +314,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invalidGraph),
       });
-      const workflow = await createResponse.json();
+      const workflow: WorkflowResponse = await readJson(createResponse);
 
       const response = await fetch(api(`/workflows/${workflow.id}/commit`), {
         method: 'POST',
@@ -287,7 +340,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
       });
 
       expect(response.ok).toBe(true);
-      const file = await response.json();
+      const file: UploadedFile = await readJson(response);
       expect(file).toHaveProperty('id');
       expect(file.fileName).toBe(fileName);
       expect(file.mimeType).toBe('text/plain');
@@ -307,15 +360,15 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
         method: 'POST',
         body: formData,
       });
-      const uploadedFile = await uploadResponse.json();
+      const uploadedFile: UploadedFile = await readJson(uploadResponse);
 
       // List files
       const response = await fetch(api('/files'));
       expect(response.ok).toBe(true);
-      const files = await response.json();
+      const files: UploadedFile[] = await readJson(response);
       expect(Array.isArray(files)).toBe(true);
       expect(files.length).toBeGreaterThanOrEqual(1);
-      expect(files.some((f: any) => f.id === uploadedFile.id)).toBe(true);
+      expect(files.some((f) => f.id === uploadedFile.id)).toBe(true);
 
       // Cleanup
       await minioClient.removeObject(testBucket, uploadedFile.id);
@@ -332,7 +385,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
         method: 'POST',
         body: formData,
       });
-      const uploadedFile = await uploadResponse.json();
+      const uploadedFile: UploadedFile = await readJson(uploadResponse);
 
       // Download the file
       const response = await fetch(api(`/files/${uploadedFile.id}/download`));
@@ -354,7 +407,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
         method: 'POST',
         body: formData,
       });
-      const uploadedFile = await uploadResponse.json();
+      const uploadedFile: UploadedFile = await readJson(uploadResponse);
 
       // Delete the file
       const response = await fetch(api(`/files/${uploadedFile.id}`), {
@@ -364,8 +417,8 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
 
       // Verify it's deleted
       const listResponse = await fetch(api('/files'));
-      const files = await listResponse.json();
-      expect(files.some((f: any) => f.id === uploadedFile.id)).toBe(false);
+      const files: UploadedFile[] = await readJson(listResponse);
+      expect(files.some((f) => f.id === uploadedFile.id)).toBe(false);
     });
   });
 
@@ -373,7 +426,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
     it('should list all components', async () => {
       const response = await fetch(api('/components'));
       expect(response.ok).toBe(true);
-      const components = await response.json();
+      const components: Component[] = await readJson(response);
       expect(Array.isArray(components)).toBe(true);
       expect(components.length).toBeGreaterThanOrEqual(4); // We have at least 4 components registered
       
@@ -388,7 +441,7 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowPay
     it('should get a specific component by id', async () => {
       const response = await fetch(api('/components/core.trigger.manual'));
       expect(response.ok).toBe(true);
-      const component = await response.json();
+      const component: Component = await readJson(response);
       expect(component.id).toBe('core.trigger.manual');
       expect(component).toHaveProperty('name');
       expect(Array.isArray(component.inputs)).toBe(true);

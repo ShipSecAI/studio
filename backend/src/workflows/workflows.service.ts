@@ -8,7 +8,7 @@ import {
   TemporalService,
   type WorkflowRunStatus as TemporalWorkflowRunStatus,
 } from '../temporal/temporal.service';
-import { WorkflowGraphDto, WorkflowGraphSchema } from './dto/workflow-graph.dto';
+import { WorkflowGraphDto, WorkflowGraphSchema, WorkflowResponse, ServiceWorkflowResponse } from './dto/workflow-graph.dto';
 import {
   WorkflowRecord,
   WorkflowRepository,
@@ -74,7 +74,7 @@ export class WorkflowsService {
     private readonly temporalService: TemporalService,
   ) {}
 
-  async create(dto: WorkflowGraphDto): Promise<WorkflowRecord> {
+  async create(dto: WorkflowGraphDto): Promise<ServiceWorkflowResponse> {
     const input = this.parse(dto);
     const record = await this.repository.create(input);
     const flattened = this.flattenWorkflowGraph(record);
@@ -84,7 +84,7 @@ export class WorkflowsService {
     return flattened;
   }
 
-  async update(id: string, dto: WorkflowGraphDto): Promise<WorkflowRecord> {
+  async update(id: string, dto: WorkflowGraphDto): Promise<ServiceWorkflowResponse> {
     const input = this.parse(dto);
     const record = await this.repository.update(id, input);
     const flattened = this.flattenWorkflowGraph(record);
@@ -94,7 +94,7 @@ export class WorkflowsService {
     return flattened;
   }
 
-  async findById(id: string): Promise<WorkflowRecord> {
+  async findById(id: string): Promise<ServiceWorkflowResponse> {
     const record = await this.repository.findById(id);
     if (!record) {
       throw new NotFoundException(`Workflow ${id} not found`);
@@ -102,14 +102,14 @@ export class WorkflowsService {
     return this.flattenWorkflowGraph(record);
   }
 
-  private flattenWorkflowGraph(record: WorkflowRecord): WorkflowRecord {
+  private flattenWorkflowGraph(record: WorkflowRecord): ServiceWorkflowResponse {
     // Flatten graph.{nodes, edges, viewport} to top level for API compatibility
     return {
       ...record,
       nodes: record.graph.nodes,
       edges: record.graph.edges,
       viewport: record.graph.viewport,
-    } as WorkflowRecord;
+    };
   }
 
   async delete(id: string): Promise<void> {
@@ -117,7 +117,7 @@ export class WorkflowsService {
     this.logger.log(`Deleted workflow ${id}`);
   }
 
-  async list(): Promise<WorkflowRecord[]> {
+  async list(): Promise<ServiceWorkflowResponse[]> {
     const records = await this.repository.list();
     const flattened = records.map((record) => this.flattenWorkflowGraph(record));
     this.logger.log(`Loaded ${flattened.length} workflow(s) from repository`);

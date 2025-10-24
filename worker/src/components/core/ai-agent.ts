@@ -1,9 +1,21 @@
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { generateText, tool } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import {
+  ToolLoopAgent as ToolLoopAgentImpl,
+  stepCountIs as stepCountIsImpl,
+  tool as toolImpl,
+  type ToolCallOptions,
+} from 'ai';
+import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
 import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+
+// Define types for dependencies to enable dependency injection for testing
+export type ToolLoopAgentClass = typeof ToolLoopAgentImpl;
+export type StepCountIsFn = typeof stepCountIsImpl;
+export type ToolFn = typeof toolImpl;
+export type CreateOpenAIFn = typeof createOpenAIImpl;
+export type CreateGoogleGenerativeAIFn = typeof createGoogleGenerativeAIImpl;
 
 type ModelProvider = 'openai' | 'gemini';
 
@@ -74,6 +86,11 @@ const chatModelSchema = z.object({
 
 const mcpConfigSchema = z.object({
   endpoint: z.string().default(''),
+});
+
+const callMcpToolParametersSchema = z.object({
+  toolName: z.string().min(1),
+  arguments: z.unknown().optional(),
 });
 
 const inputSchema = z.object({
@@ -381,7 +398,18 @@ Loop the Conversation State output back into the next agent invocation to keep m
       },
     ],
   },
-  async execute(params, context) {
+  async execute(
+    params, 
+    context,
+    // Optional dependencies for testing - in production these will use the default implementations
+    dependencies?: {
+      ToolLoopAgent?: ToolLoopAgentClass;
+      stepCountIs?: StepCountIsFn;
+      tool?: ToolFn;
+      createOpenAI?: CreateOpenAIFn;
+      createGoogleGenerativeAI?: CreateGoogleGenerativeAIFn;
+    }
+  ) {
     const {
       userInput,
       conversationState,
@@ -479,16 +507,18 @@ Loop the Conversation State output back into the next agent invocation to keep m
     const mcpClient = mcpEndpoint.length > 0 ? new MCPClient(mcpEndpoint, sessionId) : null;
     debugLog('MCP configuration', { mcpEndpoint, hasMcpClient: Boolean(mcpClient) });
 
+    const toolFn = dependencies?.tool ?? toolImpl;
     const callMcpTool =
       mcpClient !== null
-        ? tool({
+        ? toolFn({
+            type: 'dynamic',
             description:
               'Execute a tool via the configured MCP endpoint. Provide {"toolName": string, "arguments": any}.',
-            parameters: z.object({
-              toolName: z.string().min(1),
-              arguments: z.unknown().optional(),
-            }),
-            async execute({ toolName, arguments: args }: { toolName: string; arguments?: unknown }) {
+            inputSchema: callMcpToolParametersSchema,
+            execute: async (
+              { toolName, arguments: args }: z.infer<typeof callMcpToolParametersSchema>,
+              _options: ToolCallOptions,
+            ) => {
               const result = await mcpClient!.execute(toolName, args ?? {});
               debugLog('MCP tool execution result', { toolName, args, result });
               return result;
@@ -511,7 +541,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
             : '';
     debugLog('Resolved system prompt', resolvedSystemPrompt);
 
-    const messagesForModel: CoreMessage[] = historyWithUser
+    const messagesForModel = historyWithUser
       .filter((message) => message.role !== 'system')
       .map((message) => ({
         role: message.role,
@@ -520,6 +550,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
       }));
     debugLog('Messages for model', messagesForModel);
 
+    const createGoogleGenerativeAI = dependencies?.createGoogleGenerativeAI ?? createGoogleGenerativeAIImpl;
+    const createOpenAI = dependencies?.createOpenAI ?? createOpenAIImpl;
     const model =
       effectiveProvider === 'gemini'
         ? createGoogleGenerativeAI({
@@ -539,27 +571,35 @@ Loop the Conversation State output back into the next agent invocation to keep m
       stepLimit,
     });
 
-    context.logger.info(
-      `[ReActAgent] Using ${effectiveProvider} model "${effectiveModel}" with ${availableToolsCount} connected tool(s).`,
-    );
-    context.emitProgress('AI agent reasoning in progress...');
-    debugLog('Invoking generateText with payload', {
-      system: resolvedSystemPrompt || undefined,
-      messages: messagesForModel,
+    const ToolLoopAgent = dependencies?.ToolLoopAgent ?? ToolLoopAgentImpl;
+    const stepCountIs = dependencies?.stepCountIs ?? stepCountIsImpl;
+    const agent = new ToolLoopAgent({
+      id: `${sessionId}-agent`,
+      model,
+      instructions: resolvedSystemPrompt || undefined,
+      ...(toolsConfig ? { tools: toolsConfig } : {}),
+      temperature,
+      maxOutputTokens: maxTokens,
+      stopWhen: stepCountIs(stepLimit),
+    });
+    debugLog('ToolLoopAgent instantiated', {
+      id: `${sessionId}-agent`,
       temperature,
       maxTokens,
       stepLimit,
-      toolsConfig: toolsConfig ? Object.keys(toolsConfig) : [],
+      toolKeys: toolsConfig ? Object.keys(toolsConfig) : [],
     });
 
-    const generationResult = await generateText({
-      model,
-      system: resolvedSystemPrompt || undefined,
+    context.logger.info(
+      `[AIAgent] Using ${effectiveProvider} model "${effectiveModel}" with ${availableToolsCount} connected tool(s).`,
+    );
+    context.emitProgress('AI agent reasoning in progress...');
+    debugLog('Invoking ToolLoopAgent.generate with payload', {
       messages: messagesForModel,
-      temperature,
-      maxTokens,
-      maxSteps: stepLimit,
-      ...(toolsConfig ? { tools: toolsConfig } : {}),
+    });
+
+    const generationResult = await agent.generate({
+      messages: messagesForModel as any,
     });
     debugLog('Generation result', generationResult);
 
@@ -570,6 +610,11 @@ Loop the Conversation State output back into the next agent invocation to keep m
     const currentTimestamp = new Date().toISOString();
     debugLog('Current timestamp', currentTimestamp);
 
+    const getToolArgs = (entity: any) =>
+      entity?.args !== undefined ? entity.args : entity?.input ?? null;
+    const getToolOutput = (entity: any) =>
+      entity?.result !== undefined ? entity.result : entity?.output ?? null;
+
     const reasoningTrace: ReasoningStep[] = Array.isArray(generationResult.steps)
       ? generationResult.steps.map((step: any, index: number) => ({
           step: index + 1,
@@ -579,15 +624,15 @@ Loop the Conversation State output back into the next agent invocation to keep m
             ? step.toolCalls.map((toolCall: any) => ({
                 toolCallId: toolCall?.toolCallId ?? `${sessionId}-tool-${index + 1}`,
                 toolName: toolCall?.toolName ?? 'tool',
-                args: toolCall?.args ?? null,
+                args: getToolArgs(toolCall),
               }))
             : [],
           observations: Array.isArray(step?.toolResults)
             ? step.toolResults.map((toolResult: any) => ({
                 toolCallId: toolResult?.toolCallId ?? `${sessionId}-tool-${index + 1}`,
                 toolName: toolResult?.toolName ?? 'tool',
-                args: toolResult?.args ?? null,
-                result: toolResult?.result ?? null,
+                args: getToolArgs(toolResult),
+                result: getToolOutput(toolResult),
               }))
             : [],
         }))
@@ -598,8 +643,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
       ? generationResult.toolResults.map((toolResult: any, index: number) => ({
           id: `${sessionId}-${toolResult?.toolCallId ?? index + 1}`,
           toolName: toolResult?.toolName ?? 'tool',
-          args: toolResult?.args ?? null,
-          result: toolResult?.result ?? null,
+          args: getToolArgs(toolResult),
+          result: getToolOutput(toolResult),
           timestamp: currentTimestamp,
         }))
       : [];
@@ -611,8 +656,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
           content: {
             toolCallId: toolResult?.toolCallId ?? '',
             toolName: toolResult?.toolName ?? 'tool',
-            args: toolResult?.args ?? null,
-            result: toolResult?.result ?? null,
+            args: getToolArgs(toolResult),
+            result: getToolOutput(toolResult),
           },
         }))
       : [];

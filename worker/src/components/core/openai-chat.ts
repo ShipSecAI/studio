@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import { generateText } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import { generateText as generateTextImpl } from 'ai';
+import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
 import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+
+// Define types for dependencies to enable dependency injection for testing
+export type GenerateTextFn = typeof generateTextImpl;
+export type CreateOpenAIFn = typeof createOpenAIImpl;
 
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_TEMPERATURE = 0.7;
@@ -193,7 +197,15 @@ const definition: ComponentDefinition<Input, Output> = {
       },
     ],
   },
-  async execute(params, context) {
+  async execute(
+    params, 
+    context,
+    // Optional dependencies for testing - in production these will use the default implementations
+    dependencies?: {
+      generateText?: GenerateTextFn;
+      createOpenAI?: CreateOpenAIFn;
+    }
+  ) {
     const { systemPrompt, userPrompt, model, temperature, maxTokens, apiBaseUrl, apiKey } = params;
 
     const apiKeySecretId = apiKey?.trim() ?? '';
@@ -227,6 +239,9 @@ const definition: ComponentDefinition<Input, Output> = {
     const effectiveApiKey = resolvedApiKey;
 
     const baseURL = apiBaseUrl?.trim() ? apiBaseUrl.trim() : process.env.OPENAI_BASE_URL;
+    
+    // Use injected dependencies or default implementations
+    const createOpenAI = dependencies?.createOpenAI ?? createOpenAIImpl;
     const client = createOpenAI({
       apiKey: effectiveApiKey,
       ...(baseURL ? { baseURL } : {}),
@@ -238,12 +253,13 @@ const definition: ComponentDefinition<Input, Output> = {
     const trimmedSystemPrompt = systemPrompt?.trim();
 
     try {
+      const generateText = dependencies?.generateText ?? generateTextImpl;
       const result = await generateText({
         model: client(model),
         prompt: userPrompt,
         system: trimmedSystemPrompt ? trimmedSystemPrompt : undefined,
         temperature,
-        maxTokens,
+        maxOutputTokens: maxTokens,
       });
 
       context.emitProgress('Received response from OpenAI-compatible provider');

@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import { generateText } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { generateText as generateTextImpl } from 'ai';
+import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
 import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+
+// Define types for dependencies to enable dependency injection for testing
+export type GenerateTextFn = typeof generateTextImpl;
+export type CreateGoogleGenerativeAIFn = typeof createGoogleGenerativeAIImpl;
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_MAX_TOKENS = 1024;
@@ -193,7 +197,15 @@ const definition: ComponentDefinition<Input, Output> = {
       },
     ],
   },
-  async execute(params, context) {
+  async execute(
+    params, 
+    context,
+    // Optional dependencies for testing - in production these will use the default implementations
+    dependencies?: {
+      generateText?: GenerateTextFn;
+      createGoogleGenerativeAI?: CreateGoogleGenerativeAIFn;
+    }
+  ) {
     const { systemPrompt, userPrompt, model, temperature, maxTokens, apiBaseUrl, apiKey } = params;
 
     const apiKeySecretId = apiKey?.trim() ?? '';
@@ -228,6 +240,9 @@ const definition: ComponentDefinition<Input, Output> = {
     const modelIdentifier = resolvedModel.startsWith('models/')
       ? resolvedModel
       : `models/${resolvedModel}`;
+    
+    // Use injected dependencies or default implementations
+    const createGoogleGenerativeAI = dependencies?.createGoogleGenerativeAI ?? createGoogleGenerativeAIImpl;
     const client = createGoogleGenerativeAI({
       apiKey: resolvedApiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),
@@ -239,12 +254,13 @@ const definition: ComponentDefinition<Input, Output> = {
     const trimmedSystemPrompt = systemPrompt?.trim();
 
     try {
+      const generateText = dependencies?.generateText ?? generateTextImpl;
       const response = await generateText({
         model: client(modelIdentifier),
         prompt: userPrompt,
         system: trimmedSystemPrompt ? trimmedSystemPrompt : undefined,
         temperature,
-        maxTokens,
+        maxOutputTokens: maxTokens,
       });
       const responseText = response.text ?? '';
       const finishReason = response.finishReason ?? null;

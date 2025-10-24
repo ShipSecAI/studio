@@ -32,6 +32,10 @@ import {
   WorkflowLogsQuerySchema,
   UpdateWorkflowRequestDto,
   WorkflowGraphSchema,
+  WorkflowResponseDto,
+  WorkflowResponse,
+  WorkflowResponseSchema,
+  ServiceWorkflowResponse,
 } from './dto/workflow-graph.dto';
 import { TraceService } from '../trace/trace.service';
 import { WorkflowsService } from './workflows.service';
@@ -189,16 +193,20 @@ export class WorkflowsController {
 
   @Post()
   @UsePipes(new ZodValidationPipe(WorkflowGraphSchema))
-  async create(@Body() body: CreateWorkflowRequestDto) {
-    return this.workflowsService.create(body);
+  @ApiOkResponse({ type: WorkflowResponseDto })
+  async create(@Body() body: CreateWorkflowRequestDto): Promise<WorkflowResponse> {
+    const serviceResponse = await this.workflowsService.create(body);
+    return this.transformServiceResponseToApi(serviceResponse);
   }
 
   @Put(':id')
+  @ApiOkResponse({ type: WorkflowResponseDto })
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(WorkflowGraphSchema)) body: UpdateWorkflowRequestDto,
-  ) {
-    return this.workflowsService.update(id, body);
+  ): Promise<WorkflowResponse> {
+    const serviceResponse = await this.workflowsService.update(id, body);
+    return this.transformServiceResponseToApi(serviceResponse);
   }
 
   @Get('/runs')
@@ -240,8 +248,10 @@ export class WorkflowsController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.workflowsService.findById(id);
+  @ApiOkResponse({ type: WorkflowResponseDto })
+  async findOne(@Param('id') id: string): Promise<WorkflowResponse> {
+    const serviceResponse = await this.workflowsService.findById(id);
+    return this.transformServiceResponseToApi(serviceResponse);
   }
 
   @Delete(':id')
@@ -632,7 +642,18 @@ export class WorkflowsController {
   }
 
   @Get()
-  async findAll() {
-    return this.workflowsService.list();
+  @ApiOkResponse({ type: [WorkflowResponseDto] })
+  async findAll(): Promise<WorkflowResponse[]> {
+    const serviceResponses = await this.workflowsService.list();
+    return serviceResponses.map(response => this.transformServiceResponseToApi(response));
+  }
+
+  private transformServiceResponseToApi(serviceResponse: ServiceWorkflowResponse): WorkflowResponse {
+    return {
+      ...serviceResponse,
+      lastRun: serviceResponse.lastRun?.toISOString() ?? null,
+      createdAt: serviceResponse.createdAt.toISOString(),
+      updatedAt: serviceResponse.updatedAt.toISOString(),
+    };
   }
 }

@@ -43,11 +43,11 @@ const originalFetch = global.fetch;
   });
 
   it('returns log entries from Loki', async () => {
-    const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const calls: Array<{ input: string | URL; init?: RequestInit }> = [];
     const nanoTs = (BigInt(record.firstTimestamp.getTime()) * 1000000n).toString();
 
     // @ts-expect-error override global fetch for test
-    global.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    global.fetch = async (input: string | URL, init?: RequestInit) => {
       calls.push({ input, init });
       return {
         ok: true,

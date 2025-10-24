@@ -18,15 +18,15 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^0.0.40",
-    "@ai-sdk/google": "^0.0.40",
+    "@ai-sdk/openai": "^3.0.0-beta.34",
+    "@ai-sdk/google": "^3.0.0-beta.27",
     "@shipsec/component-sdk": "*",
     "@grpc/grpc-js": "^1.14.0",
     "@shipsec/shared": "*",
     "@temporalio/client": "^1.11.3",
     "@temporalio/worker": "^1.11.3",
     "@temporalio/workflow": "^1.11.3",
-    "ai": "^3.2.37",
+    "ai": "^6.0.0-beta.68",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.6",
     "long": "^5.3.2",
