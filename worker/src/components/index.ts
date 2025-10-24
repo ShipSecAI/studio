@@ -8,6 +8,7 @@ import './core/trigger-manual';
 import './core/file-loader';
 import './core/webhook';
 import './core/text-splitter';
+import './core/text-joiner';
 import './core/console-log';
 import './core/secret-fetch';
 import './core/openai-chat';
