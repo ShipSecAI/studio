@@ -349,6 +349,22 @@ export function Canvas({
       if (mode !== 'design') {
         return
       }
+
+      const target = event.target as HTMLElement | null
+      if (target) {
+        const closestFormElement = target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+        const isFormElement =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.getAttribute('contenteditable') === 'true' ||
+          Boolean(closestFormElement)
+
+        if (isFormElement) {
+          return
+        }
+      }
+
       // Close config panel on Escape
       if (event.key === 'Escape') {
         setSelectedNode(null)

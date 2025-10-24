@@ -201,12 +201,21 @@ export function getNodeValidationWarnings(
   const warnings: string[] = []
 
   // Check for required inputs that are not connected
+  const manualParameters = (node.data.parameters ?? {}) as Record<string, unknown>
+
   component.inputs.forEach((input) => {
     if (input.required) {
       const hasConnection = edges.some(
         (edge) => edge.target === node.id && edge.targetHandle === input.id
       )
-      if (!hasConnection) {
+
+      const supportsManualOverride = input.type === 'string' || input.valuePriority === 'manual-first'
+      const manualCandidate = manualParameters[input.id]
+      const manualValueProvided = supportsManualOverride && manualCandidate !== undefined && manualCandidate !== null && (
+        typeof manualCandidate === 'string' ? manualCandidate.trim().length > 0 : true
+      )
+
+      if (!hasConnection && !manualValueProvided) {
         warnings.push(`Required input "${input.label}" is not connected`)
       }
     }

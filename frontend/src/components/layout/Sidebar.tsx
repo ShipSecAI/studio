@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { useComponentStore } from '@/store/componentStore'
-import { ComponentBadge } from '@/components/workflow/ComponentBadge'
-import { FileUpload } from '@/components/workflow/FileUpload'
 import type { ComponentMetadata } from '@/schemas/component'
 import { cn } from '@/lib/utils'
 import { env } from '@/config/env'
@@ -59,23 +57,17 @@ function ComponentItem({ component }: ComponentItemProps) {
         component.logo && "hidden"
       )} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium truncate">{component.name}</span>
-          <div className="flex items-center gap-1">
-            {component.author?.type === 'shipsecai' && (
-              <ComponentBadge type="official" compact />
-            )}
-            {component.deprecated && <ComponentBadge type="deprecated" />}
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium truncate flex-1">{component.name}</span>
+          {component.version && (
+            <span className="text-[11px] text-muted-foreground uppercase tracking-wide shrink-0">
+              v{component.version}
+            </span>
+          )}
         </div>
         <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
           {description}
         </p>
-        {component.version && (
-          <span className="text-[11px] text-muted-foreground">
-            v{component.version}
-          </span>
-        )}
       </div>
     </div>
   )
@@ -83,7 +75,6 @@ function ComponentItem({ component }: ComponentItemProps) {
 
 export function Sidebar() {
   const { getAllComponents, getComponentsByType, fetchComponents, loading, error } = useComponentStore()
-  const [showFileUpload, setShowFileUpload] = useState(false)
   const frontendBranch = env.VITE_FRONTEND_BRANCH.trim()
   const backendBranch = env.VITE_BACKEND_BRANCH.trim()
   const hasBranchInfo = Boolean(frontendBranch || backendBranch)
@@ -166,35 +157,6 @@ export function Sidebar() {
                 {allComponents.length} component{allComponents.length !== 1 ? 's' : ''} available
               </p>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* File Upload Section */}
-      <div className="p-4 border-t bg-muted/50">
-        <button
-          onClick={() => setShowFileUpload(!showFileUpload)}
-          className="w-full flex items-center justify-between mb-2"
-        >
-          <div className="flex items-center gap-2">
-            <LucideIcons.Upload className="h-4 w-4" />
-            <h3 className="text-sm font-semibold">File Upload</h3>
-          </div>
-          {showFileUpload ? (
-            <LucideIcons.ChevronUp className="h-4 w-4" />
-          ) : (
-            <LucideIcons.ChevronDown className="h-4 w-4" />
-          )}
-        </button>
-        
-        {showFileUpload && (
-          <div className="mt-2">
-            <FileUpload
-              onFileUploaded={(fileId, fileName) => {
-                console.log('File uploaded:', fileId, fileName)
-                // Could show a success toast here
-              }}
-            />
           </div>
         )}
       </div>

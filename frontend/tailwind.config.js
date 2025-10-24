@@ -78,15 +78,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: [
-          'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
-          'sans-serif',
-        ],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Consolas', 'monospace'],
+        sans: ['"DM Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'SFMono-Regular', 'Consolas', 'monospace'],
       },
       fontSize: {
         xs: ['0.75rem', { lineHeight: '1rem' }],

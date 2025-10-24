@@ -60,27 +60,27 @@ export function ComponentBadge({ type, version, compact = false, className }: Co
   const Icon = config.icon
   const isOfficial = type === 'official'
   const effectiveCompact = compact || isOfficial
+  const showLabel = !(type === 'official' && compact)
 
   // Customize label for outdated badge with version
-  let label = type === 'outdated' && version
+  const label = type === 'outdated' && version
     ? `v${version} available`
     : config.label
-
-  if (type === 'official' && compact) {
-    label = 'SSA'
-  }
 
   return (
     <Badge
       variant={config.variant}
       className={cn(
-        'gap-1',
-        effectiveCompact && 'px-2 py-0 text-[10px] leading-4',
+        showLabel ? 'gap-1' : 'gap-0',
+        effectiveCompact && 'py-0 text-[10px] leading-4',
+        showLabel ? 'px-2' : 'px-1.5',
         className
       )}
+      title={config.label}
+      aria-label={config.label}
     >
       <Icon className={cn(effectiveCompact ? 'h-2.5 w-2.5' : 'h-3 w-3')} />
-      {label}
+      {showLabel && label}
     </Badge>
   )
 }
@@ -170,7 +170,9 @@ export function ComponentMetadataSummary({
       ? 'flex flex-col gap-1'
       : 'flex items-center gap-1 flex-wrap'
 
-  const versionClass = compact ? 'text-[10px]' : 'text-xs'
+  const versionClass = compact
+    ? 'text-[10px] font-medium uppercase tracking-[0.08em]'
+    : 'text-xs font-mono'
 
   return (
     <div className={cn(containerClass, className)}>
@@ -192,7 +194,7 @@ export function ComponentMetadataSummary({
         </div>
       )}
       {hasVersion && (
-        <span className={cn('font-mono text-muted-foreground', versionClass)}>
+        <span className={cn('text-muted-foreground opacity-80', versionClass)}>
           v{component.version}
         </span>
       )}

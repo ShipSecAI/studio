@@ -5,9 +5,9 @@ import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
-import { ComponentMetadataSummary } from './ComponentBadge'
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
 import type { NodeData } from '@/schemas/node'
+import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 
 const STATUS_ICONS = {
@@ -89,6 +89,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   // Check if there are unfilled required parameters or inputs
   const componentParameters = component.parameters ?? []
   const componentInputs = component.inputs ?? []
+  const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
   const requiredParams = componentParameters.filter(param => param.required)
   const requiredInputs = componentInputs.filter(input => input.required)
 
@@ -120,6 +121,19 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     }
   }
   
+  const supportsManualOverride = (input: InputPort) =>
+    input.type === 'string' || input.valuePriority === 'manual-first'
+
+  const manualValueProvidedForInput = (input: InputPort) => {
+    if (!supportsManualOverride(input)) return false
+    const manualCandidate = manualParameters[input.id]
+    if (manualCandidate === undefined || manualCandidate === null) return false
+    if (typeof manualCandidate === 'string') {
+      return manualCandidate.trim().length > 0
+    }
+    return true
+  }
+
   const hasUnfilledRequired = 
     // Check unfilled required parameters
     requiredParams.some(param => {
@@ -129,7 +143,10 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     }) ||
     // Check unfilled required inputs (not connected)
     requiredInputs.some(input => {
-      return !nodeData.inputs?.[input.id] // No connection to this input
+      const hasConnection = Boolean(nodeData.inputs?.[input.id])
+      if (hasConnection) return false
+      if (manualValueProvidedForInput(input)) return false
+      return true // No connection or manual value
     })
 
   // Progress ring component
@@ -225,11 +242,6 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
-                <ComponentMetadataSummary
-                  component={component}
-                  compact
-                  className="mt-1"
-                />
               </div>
               <div className="flex items-center gap-1">
                 {hasUnfilledRequired && !nodeData.status && (
@@ -281,14 +293,17 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
         {/* Input Ports */}
         {componentInputs.length > 0 && (
           <div className="space-y-1.5">
-            {componentInputs.map((input, index) => {
+            {componentInputs.map((input) => {
               // Check if this input has a connection
               const edges = getEdges()
               const connection = edges.find(edge => edge.target === id && edge.targetHandle === input.id)
 
               // Get source node and output info if connected
+              const manualCandidate = manualParameters[input.id]
+              const manualValueProvided = manualValueProvidedForInput(input)
+
               let sourceInfo: string | null = null
-              if (connection) {
+              if (!manualValueProvided && connection) {
                 const sourceNode = getNodes().find(n => n.id === connection.source)
                 if (sourceNode) {
                   const sourceComponent = getComponent(
@@ -301,21 +316,43 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                 }
               }
 
+              const manualDisplay =
+                manualValueProvided &&
+                input.type === 'string' &&
+                typeof manualCandidate === 'string'
+                  ? manualCandidate.trim()
+                  : ''
+              const previewText =
+                manualDisplay.length > 24
+                  ? `${manualDisplay.slice(0, 24)}…`
+                  : manualDisplay
+
               return (
-                <div key={input.id} className="flex items-center gap-2 text-xs">
+                <div key={input.id} className="relative flex items-center gap-2 text-xs">
                   <Handle
                     type="target"
                     position={Position.Left}
                     id={input.id}
                     className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white"
-                    style={{ top: `${60 + index * 28}px` }}
+                    style={{ top: '50%', left: '-0.5rem', transform: 'translate(-50%, -50%)' }}
                   />
                   <div className="flex-1">
                     <div className="text-muted-foreground font-medium">{input.label}</div>
-                    {input.required && !sourceInfo && (
+                    {input.required && !sourceInfo && !manualValueProvided && (
                       <span className="text-red-500 text-[10px]">*required</span>
                     )}
-                    {sourceInfo && (
+                    {manualValueProvided && manualDisplay && (
+                      <span
+                        className="text-blue-600 text-[10px] italic"
+                        title={manualDisplay}
+                      >
+                        Manual: {previewText}
+                      </span>
+                    )}
+                    {manualValueProvided && !manualDisplay && (
+                      <span className="text-blue-600 text-[10px] italic">Manual value</span>
+                    )}
+                    {!manualValueProvided && sourceInfo && (
                       <span className="text-green-600 text-[10px] italic" title={`Connected to: ${sourceInfo}`}>
                         {sourceInfo}
                       </span>
@@ -330,8 +367,8 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
         {/* Output Ports */}
         {effectiveOutputs.length > 0 && (
           <div className="space-y-1.5">
-            {effectiveOutputs.map((output, index) => (
-              <div key={output.id} className="flex items-center justify-end gap-2 text-xs">
+            {effectiveOutputs.map((output) => (
+              <div key={output.id} className="relative flex items-center justify-end gap-2 text-xs">
                 <div className="flex-1 text-right">
                   <div className="text-muted-foreground font-medium">{output.label}</div>
                 </div>
@@ -340,7 +377,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                   position={Position.Right}
                   id={output.id}
                   className="!w-3 !h-3 !bg-green-500 !border-2 !border-white"
-                  style={{ top: `${60 + componentInputs.length * 28 + index * 28}px` }}
+                  style={{ top: '50%', right: '-0.5rem', transform: 'translate(50%, -50%)' }}
                 />
               </div>
             ))}

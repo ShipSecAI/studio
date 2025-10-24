@@ -1,9 +1,9 @@
 import { X, ExternalLink } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
-import { ComponentMetadataSummary } from './ComponentBadge'
 import { ParameterFieldWrapper } from './ParameterField'
 import type { Node } from 'reactflow'
 import type { NodeData } from '@/schemas/node'
@@ -28,8 +28,13 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
     const nodeData = selectedNode.data as any
 
     const updatedParameters = {
-      ...nodeData.parameters,
-      [paramId]: value,
+      ...(nodeData.parameters ?? {}),
+    }
+
+    if (value === undefined) {
+      delete updatedParameters[paramId]
+    } else {
+      updatedParameters[paramId] = value
     }
 
     onUpdateNode(selectedNode.id, {
@@ -125,11 +130,6 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-semibold text-sm truncate mb-1">{component.name}</h4>
-            <ComponentMetadataSummary
-              component={component}
-              compact
-              className="mb-2"
-            />
             <p className="text-xs text-muted-foreground mb-2">
               {component.description}
             </p>
@@ -145,81 +145,117 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
             <div>
               <h5 className="text-sm font-semibold mb-3 text-foreground">Inputs</h5>
               <div className="space-y-3">
-                {componentInputs.map((input) => (
-                  <div
-                    key={input.id}
-                    className="p-3 rounded-lg border bg-background"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">{input.label}</span>
-                      {input.required && (
-                        <span className="text-xs text-red-500">*required</span>
+                {componentInputs.map((input) => {
+                  const connection = nodeData.inputs?.[input.id]
+                  const manualValue = manualParameters[input.id]
+                  const supportsManualString = input.type === 'string'
+                  const supportsManualOverride = supportsManualString || input.valuePriority === 'manual-first'
+                  const manualValueProvided =
+                    supportsManualOverride &&
+                    manualValue !== undefined &&
+                    manualValue !== null &&
+                    (typeof manualValue === 'string'
+                      ? manualValue.trim().length > 0
+                      : true)
+
+                  return (
+                    <div
+                      key={input.id}
+                      className="p-3 rounded-lg border bg-background"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium">{input.label}</span>
+                        {input.required && (
+                          <span className="text-xs text-red-500">*required</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Type: <span className="font-mono">{input.type}</span>
+                      </div>
+                      {input.description && (
+                        <p className="text-xs text-muted-foreground">
+                          {input.description}
+                        </p>
                       )}
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-2">
-                      Type: <span className="font-mono">{input.type}</span>
-                    </div>
-                    {input.description && (
-                      <p className="text-xs text-muted-foreground">
-                        {input.description}
-                      </p>
-                    )}
-                    {/* Connection status */}
-                    <div className="mt-2 pt-2 border-t">
-                      <div className="text-xs space-y-1">
-                        {(() => {
-                          const connection = nodeData.inputs?.[input.id]
-                          const manualValueProvided =
-                            input.valuePriority === 'manual-first' &&
-                            Object.prototype.hasOwnProperty.call(manualParameters, input.id) &&
-                            manualParameters[input.id] !== undefined
 
-                          if (manualValueProvided) {
-                            return (
-                              <>
-                                <div className="text-blue-600 flex items-center gap-1">
-                                  • <span className="font-medium">Manual value will be used</span>
-                                </div>
-                                {connection ? (
-                                  <div className="text-muted-foreground">
-                                    Connection available from{' '}
-                                    <span className="font-mono text-blue-600">
-                                      {connection.source}
-                                    </span>
-                                    . It will be used if the manual value is cleared.
-                                  </div>
-                                ) : (
-                                  <div className="text-muted-foreground">
-                                    No connection required while a manual value is set.
-                                  </div>
-                                )}
-                              </>
-                            )
-                          }
+                      {supportsManualString && (
+                        <div className="mt-2 space-y-1">
+                          <label
+                            htmlFor={`manual-${input.id}`}
+                            className="text-xs font-medium text-muted-foreground"
+                          >
+                            Manual value
+                          </label>
+                          <Input
+                            id={`manual-${input.id}`}
+                            type="text"
+                            value={typeof manualValue === 'string' ? manualValue : ''}
+                            onChange={(e) => {
+                              const nextValue = e.target.value
+                              if (nextValue === '') {
+                                handleParameterChange(input.id, undefined)
+                              } else {
+                                handleParameterChange(input.id, nextValue)
+                              }
+                            }}
+                            placeholder="Enter text to use without a connection"
+                            className="text-sm"
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            When set, this input no longer requires a connection.
+                          </p>
+                        </div>
+                      )}
 
-                          if (connection) {
-                            return (
-                              <div className="space-y-1">
-                                <div className="text-green-600 flex items-center gap-1">
-                                  ✓ <span className="font-medium">Connected</span>
+                      {/* Connection status */}
+                      <div className="mt-2 pt-2 border-t">
+                        <div className="text-xs space-y-1">
+                          {manualValueProvided ? (
+                            <>
+                              <div className="text-blue-600 flex items-center gap-1">
+                                • <span className="font-medium">Manual value in use</span>
+                              </div>
+                              {supportsManualString && typeof manualValue === 'string' && manualValue.trim().length > 0 && (
+                                <div className="text-muted-foreground break-words">
+                                  Value:{' '}
+                                  <span className="font-mono text-blue-600">
+                                    {manualValue}
+                                  </span>
                                 </div>
+                              )}
+                              {connection ? (
                                 <div className="text-muted-foreground">
-                                  Source:{' '}
+                                  Connection available from{' '}
                                   <span className="font-mono text-blue-600">
                                     {connection.source}
                                   </span>
+                                  . It will be used if the manual value is cleared.
                                 </div>
+                              ) : (
                                 <div className="text-muted-foreground">
-                                  Output:{' '}
-                                  <span className="font-mono">
-                                    {connection.output}
-                                  </span>
+                                  No connection required while a manual value is set.
                                 </div>
+                              )}
+                            </>
+                          ) : connection ? (
+                            <div className="space-y-1">
+                              <div className="text-green-600 flex items-center gap-1">
+                                ✓ <span className="font-medium">Connected</span>
                               </div>
-                            )
-                          }
-
-                          return (
+                              <div className="text-muted-foreground">
+                                Source:{' '}
+                                <span className="font-mono text-blue-600">
+                                  {connection.source}
+                                </span>
+                              </div>
+                              <div className="text-muted-foreground">
+                                Output:{' '}
+                                <span className="font-mono">
+                                  {connection.output}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
                             <div className="flex items-center gap-1">
                               {input.required ? (
                                 <span className="text-red-500">
@@ -231,12 +267,12 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                                 </span>
                               )}
                             </div>
-                          )
-                        })()}
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -382,7 +418,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
       <div className="p-4 border-t bg-muted/30">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Node ID: {selectedNode.id}</span>
-          <span>v{component.version}</span>
+          <span>{component.slug}</span>
         </div>
       </div>
     </div>
