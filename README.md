@@ -2,6 +2,12 @@
 
 This repository powers ShipSec Studio: a Temporal-backed, component-driven workflow platform for offensive security automation. The sections below capture the commands we use every day to run the stack, stream logs safely, and execute tests.
 
+## Documentation Map
+- `docs/guide.md` – Table of contents for architecture docs, package guides, and `.ai` decision logs.
+- `frontend/README.md` – Frontend-specific workflow (with deeper dives in `frontend/docs/*`).
+- `docs/execution-contract.md` – Canonical schemas for workflow runs and trace streaming. Update this first when contracts change.
+- `.github/pull_request_template.md` – Checklist reminding you to keep docs in sync with code changes.
+
 ## Prerequisites
 
 Before starting, ensure you have:
@@ -169,6 +175,13 @@ bun run typecheck
 # Migration smoke test (runs migrations inside a rollback transaction)
 bun --cwd backend run migration:smoke
 ```
+
+## Documentation Updates
+Treat docs like code:
+- Touch the closest guide whenever behaviour or APIs change (e.g., update `frontend/docs/state.md` when store contracts shift).
+- Reflect new or relocated docs in `docs/guide.md` so other teams can find them.
+- Note the documentation work (or why none was needed) in the PR template—this keeps the history useful for humans and automation.
+- Optional: run a Markdown linter if you have one locally; otherwise keep formatting consistent with existing files.
 
 ---
 
