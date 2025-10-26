@@ -1,16 +1,18 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { componentRegistry, type ExecutionContext } from '@shipsec/component-sdk';
-import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
-import { type GenerateTextResult, type ToolSet } from 'ai';
-import type { GenerateTextFn, CreateGoogleGenerativeAIFn } from '../gemini-chat';
+import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
+import '../../index';
+import { componentRegistry } from '@shipsec/component-sdk';
+import type { ExecutionContext } from '@shipsec/component-sdk';
+import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
+import type { ToolSet, GenerateTextResult } from 'ai';
+import type { CreateOpenAIFn, GenerateTextFn } from '../openai-chat';
 
 type GenerateTextParams = Parameters<GenerateTextFn>[0];
 
 const createGenerateTextResult = (): GenerateTextResult<ToolSet, never> => ({
     content: [],
-    text: 'gemini response',
+    text: 'hello world',
     reasoning: [],
-  reasoningText: undefined,
+    reasoningText: undefined,
   files: [],
   sources: [],
   toolCalls: [],
@@ -21,23 +23,24 @@ const createGenerateTextResult = (): GenerateTextResult<ToolSet, never> => ({
   dynamicToolResults: [],
   finishReason: 'stop',
   usage: {
-    inputTokens: 10,
-    outputTokens: 12,
-    totalTokens: 22,
+    inputTokens: 5,
+    outputTokens: 7,
+    totalTokens: 12,
   },
   totalUsage: {
-    inputTokens: 10,
-    outputTokens: 12,
-    totalTokens: 22,
+    inputTokens: 5,
+    outputTokens: 7,
+    totalTokens: 12,
   },
   warnings: undefined,
   request: {},
   response: {
     id: 'resp',
     timestamp: new Date('2024-01-01T00:00:00Z'),
-    modelId: 'gemini-2.5-flash',
+    modelId: 'gpt-4o-mini',
     messages: [],
   },
+  output: undefined as never,
     providerMetadata: undefined,
     steps: [],
   experimental_output: undefined as never,
@@ -48,23 +51,19 @@ const generateTextMock = (async (_args: GenerateTextParams) => {
   generateTextCalls.push(_args);
   return createGenerateTextResult();
 }) as GenerateTextFn;
-const createGeminiMock = mock<CreateGoogleGenerativeAIFn>((options) =>
-  createGoogleGenerativeAIImpl(options),
-);
+const createOpenAIMock = mock<CreateOpenAIFn>((options) => createOpenAIImpl(options));
 
 beforeEach(() => {
   generateTextCalls = [];
-  createGeminiMock.mockClear();
+  createOpenAIMock.mockClear();
 });
 
-import '../gemini-chat';
-
-describe('core.gemini.chat component', () => {
+describe('core.openai.chat component', () => {
   it('resolves API key from secrets and calls the provider', async () => {
-    const definition = componentRegistry.get<any, any>('core.gemini.chat');
+    const definition = componentRegistry.get<any, any>('core.openai.chat');
     expect(definition).toBeDefined();
 
-    const secretsGet = mock(async () => ({ value: 'gm-secret-from-store', version: 1 }));
+    const secretsGet = mock(async () => ({ value: 'sk-secret-from-store', version: 1 }));
     const context: ExecutionContext = {
       runId: 'test-run',
       componentRef: 'node-1',
@@ -79,45 +78,46 @@ describe('core.gemini.chat component', () => {
 
     const result = await (definition!.execute as any)(
       {
-        systemPrompt: '',
-        userPrompt: 'Explain the status.',
-        model: 'gemini-2.5-flash',
-        temperature: 0.7,
-        maxTokens: 512,
+        systemPrompt: 'system prompt',
+        userPrompt: 'Hello?',
+        model: 'gpt-4o-mini',
+        temperature: 0.5,
+        maxTokens: 256,
         apiBaseUrl: '',
-        apiKey: '9b4ce843-4c0a-4d6c-9a27-123456789abc',
+        apiKey: 'a2e6b4ad-1234-4e4c-b64f-0123456789ab',
       },
       context,
       {
         generateText: generateTextMock,
-        createGoogleGenerativeAI: createGeminiMock,
+        createOpenAI: createOpenAIMock,
       }
     );
 
-    expect(secretsGet).toHaveBeenCalledWith('9b4ce843-4c0a-4d6c-9a27-123456789abc');
-    expect(createGeminiMock).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: 'gm-secret-from-store' }),
+    expect(secretsGet).toHaveBeenCalledWith('a2e6b4ad-1234-4e4c-b64f-0123456789ab');
+    expect(createOpenAIMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'sk-secret-from-store' }),
     );
     expect(generateTextCalls).toHaveLength(1);
     expect(generateTextCalls[0]).toEqual(
       expect.objectContaining({
-        prompt: 'Explain the status.',
-        temperature: 0.7,
-        maxOutputTokens: 512,
+        prompt: 'Hello?',
+        system: 'system prompt',
+        temperature: 0.5,
+        maxOutputTokens: 256,
       }),
     );
     expect(result.chatModel).toEqual(
       expect.objectContaining({
-        provider: 'gemini',
-        modelId: 'gemini-2.5-flash',
-        apiKeySecretId: '9b4ce843-4c0a-4d6c-9a27-123456789abc',
+        provider: 'openai',
+        modelId: 'gpt-4o-mini',
+        apiKeySecretId: 'a2e6b4ad-1234-4e4c-b64f-0123456789ab',
       }),
     );
     expect(result.chatModel.apiKey).toBeUndefined();
   });
 
   it('throws when secret cannot be resolved', async () => {
-    const definition = componentRegistry.get<any, any>('core.gemini.chat');
+    const definition = componentRegistry.get<any, any>('core.openai.chat');
     expect(definition).toBeDefined();
 
     const secretsGet = mock(async () => null);
@@ -137,8 +137,8 @@ describe('core.gemini.chat component', () => {
       (definition!.execute as any)(
         {
           systemPrompt: '',
-          userPrompt: 'Explain the status.',
-          model: 'gemini-2.5-flash',
+          userPrompt: 'Hello',
+          model: 'gpt-4o-mini',
           temperature: 0.7,
           maxTokens: 512,
           apiBaseUrl: '',
@@ -146,10 +146,10 @@ describe('core.gemini.chat component', () => {
         },
         context,
         {
-          generateText: generateTextMock,
-          createGoogleGenerativeAI: createGeminiMock,
-        }
+        generateText: generateTextMock,
+        createOpenAI: createOpenAIMock,
+      }
       ),
-    ).rejects.toThrow(/secret \"missing-secret\" was not found/i);
+    ).rejects.toThrow(/secret "missing-secret" was not found/i);
   });
 });

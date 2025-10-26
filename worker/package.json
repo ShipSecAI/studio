@@ -18,12 +18,13 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.0-beta.34",
     "@ai-sdk/google": "^3.0.0-beta.27",
+    "@ai-sdk/openai": "^3.0.0-beta.34",
     "@googleapis/admin": "^29.0.0",
     "@grpc/grpc-js": "^1.14.0",
     "@shipsec/component-sdk": "*",
     "@shipsec/shared": "*",
+    "@temporalio/activity": "^1.13.1",
     "@temporalio/client": "^1.11.3",
     "@temporalio/worker": "^1.11.3",
     "@temporalio/workflow": "^1.11.3",

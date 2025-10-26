@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { createExecutionContext } from '@shipsec/component-sdk';
-import { componentRegistry } from '../index';
-import type { ManualTriggerInput, ManualTriggerOutput } from '../core/trigger-manual';
+import { componentRegistry } from '../../index';
+import type { ManualTriggerInput, ManualTriggerOutput } from '../trigger-manual';
 
 describe('trigger-manual component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   it('should be registered', () => {

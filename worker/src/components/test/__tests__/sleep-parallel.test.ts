@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { componentRegistry, createExecutionContext } from '@shipsec/component-sdk';
-import type { SleepParallelInput, SleepParallelOutput } from '../test/sleep-parallel';
+import type { SleepParallelInput, SleepParallelOutput } from '../sleep-parallel';
 
 describe('test.sleep.parallel component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   it('should be registered', () => {

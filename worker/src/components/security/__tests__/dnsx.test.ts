@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
-import { componentRegistry } from '../index';
-import type { DnsxInput, DnsxOutput } from '../security/dnsx';
+import { componentRegistry } from '../../index';
+import type { DnsxInput, DnsxOutput } from '../dnsx';
 
 describe('dnsx component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   afterEach(() => {

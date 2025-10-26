@@ -84,25 +84,45 @@ describeHttpx('httpx component', () => {
       targets: ['https://example.com'],
     });
 
-    const payload = component.outputSchema.parse({
+    const payload: HttpxOutput = {
       results: [
         {
           url: 'https://example.com',
           host: 'example.com',
-          'status-code': 200,
+          input: 'https://example.com',
+          statusCode: 200,
           title: 'Example Domain',
-          tech: ['HTTP', 'CDN'],
+          webserver: 'ECS',
+          contentLength: 648,
+          responseTime: 0.12,
+          port: 443,
+          scheme: 'https',
+          finalUrl: 'https://www.example.com',
+          location: null,
+          ip: '203.0.113.10',
+          technologies: ['HTTP', 'CDN'],
+          chainStatus: [200],
+          timestamp: '2023-01-01T00:00:00Z',
         },
       ],
-      raw:
+      rawOutput:
         '{"url":"https://example.com","host":"example.com","status-code":200,"title":"Example Domain","tech":["HTTP","CDN"]}',
-      stderr: '',
-      exitCode: 0,
-    });
+      targetCount: 1,
+      resultCount: 1,
+      options: {
+        followRedirects: false,
+        tlsProbe: false,
+        preferHttps: false,
+        ports: null,
+        statusCodes: null,
+        threads: null,
+        path: null,
+      },
+    };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(payload);
 
-    const result = await component.execute(params, context);
+    const result = (await component.execute(params, context)) as HttpxOutput;
 
     expect(result.results).toHaveLength(1);
     expect(result.resultCount).toBe(1);

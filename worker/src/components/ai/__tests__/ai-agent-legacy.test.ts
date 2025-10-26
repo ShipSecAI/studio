@@ -8,7 +8,7 @@ import type {
   StepCountIsFn,
   CreateOpenAIFn,
   CreateGoogleGenerativeAIFn,
-} from '../core/ai-agent';
+} from '../ai-agent';
 
 type AgentSettings = ConstructorParameters<ToolLoopAgentClass>[0];
 let lastStepLimit: number | undefined;
@@ -164,7 +164,7 @@ let componentRegistry: { get: (id: string) => any };
 let aiAgent: any;
 
 beforeAll(async () => {
-  ({ componentRegistry } = await import('../index'));
+  ({ componentRegistry } = await import('../../index'));
   aiAgent = componentRegistry.get('core.ai.agent');
 
   if (!aiAgent) {

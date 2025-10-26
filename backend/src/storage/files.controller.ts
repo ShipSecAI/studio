@@ -18,6 +18,7 @@ import type { Response } from 'express-serve-static-core';
 
 import { FilesService } from './files.service';
 import { ListFilesQueryDto, ListFilesQuerySchema } from './dto/files.dto';
+import { FileIdParamDto, FileIdParamSchema } from './dto/file-param.dto';
 
 @ApiTags('files')
 @Controller('files')
@@ -88,8 +89,8 @@ export class FilesController {
   @ApiOkResponse({
     description: 'Get file metadata',
   })
-  async getFile(@Param('id') id: string) {
-    return this.filesService.getFileById(id);
+  async getFile(@Param(new ZodValidationPipe(FileIdParamSchema)) params: FileIdParamDto) {
+    return this.filesService.getFileById(params.id);
   }
 
   @Get(':id/download')
@@ -104,8 +105,11 @@ export class FilesController {
       },
     },
   })
-  async downloadFile(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
-    const { buffer, file } = await this.filesService.downloadFile(id);
+  async downloadFile(
+    @Param(new ZodValidationPipe(FileIdParamSchema)) params: FileIdParamDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { buffer, file } = await this.filesService.downloadFile(params.id);
 
     res.set({
       'Content-Type': file.mimeType,
@@ -120,8 +124,8 @@ export class FilesController {
   @ApiOkResponse({
     description: 'Delete file',
   })
-  async deleteFile(@Param('id') id: string) {
-    await this.filesService.deleteFile(id);
-    return { status: 'deleted', id };
+  async deleteFile(@Param(new ZodValidationPipe(FileIdParamSchema)) params: FileIdParamDto) {
+    await this.filesService.deleteFile(params.id);
+    return { status: 'deleted', id: params.id };
   }
 }

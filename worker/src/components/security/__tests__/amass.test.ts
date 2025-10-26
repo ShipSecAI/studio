@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
-import { componentRegistry } from '../index';
-import type { AmassInput, AmassOutput } from '../security/amass';
+import { componentRegistry } from '../../index';
+import type { AmassInput, AmassOutput } from '../amass';
 
 describe('amass component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   afterEach(() => {

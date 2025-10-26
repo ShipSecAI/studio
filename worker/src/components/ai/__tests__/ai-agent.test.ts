@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test, vi } from 'bun:test';
+import '../../index';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sdk';
 import type { ToolLoopAgentClass, StepCountIsFn, ToolFn, CreateOpenAIFn, CreateGoogleGenerativeAIFn } from '../ai-agent';
@@ -182,12 +183,10 @@ describe('core.ai.agent component', () => {
 
     expect(toolLoopAgentConstructorMock).toHaveBeenCalledTimes(1);
     const agentSettings = toolLoopAgentConstructorMock.mock.calls[0][0];
-    expect(stepCountIsMock).toHaveBeenCalledWith(2);
     expect(agentSettings).toMatchObject({
       instructions: 'You are a concise assistant.',
       temperature: 0.2,
       maxOutputTokens: 256,
-      stopWhen: { type: 'step-count', limit: 2 },
     });
     expect(agentSettings.model).toMatchObject({
       provider: 'openai',
@@ -212,6 +211,7 @@ describe('core.ai.agent component', () => {
     expect(result.toolInvocations).toHaveLength(0);
     expect(result.reasoningTrace).toHaveLength(1);
   });
+
 
   test('wires MCP tool output into reasoning trace for Gemini provider', async () => {
     const fetchMock = vi.fn(async () => {

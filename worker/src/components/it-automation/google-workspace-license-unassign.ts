@@ -32,7 +32,7 @@ interface AuditLog {
   };
 }
 
-type Output = {
+export type GoogleWorkspaceUserDeleteOutput = {
   success: boolean;
   audit: AuditLog;
   error?: string;
@@ -136,7 +136,7 @@ async function deleteUser(
   }
 }
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition: ComponentDefinition<Input, GoogleWorkspaceUserDeleteOutput> = {
   id: 'it-automation.google-workspace.user-delete',
   label: 'Google Workspace User Delete',
   category: 'output',
@@ -314,5 +314,3 @@ const definition: ComponentDefinition<Input, Output> = {
 };
 
 componentRegistry.register(definition);
-
-export type { Input as GoogleWorkspaceLicenseUnassignInput, Output as GoogleWorkspaceLicenseUnassignOutput };

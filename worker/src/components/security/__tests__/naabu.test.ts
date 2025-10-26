@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
-import { componentRegistry } from '../index';
-import type { NaabuInput, NaabuOutput } from '../security/naabu';
+import { componentRegistry } from '../../index';
+import type { NaabuInput, NaabuOutput } from '../naabu';
 
 describe('naabu component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   afterEach(() => {

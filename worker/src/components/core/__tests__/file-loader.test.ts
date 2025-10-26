@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { createExecutionContext } from '@shipsec/component-sdk';
 import type { IFileStorageService } from '@shipsec/component-sdk';
-import { componentRegistry } from '../index';
-import type { FileLoaderInput, FileLoaderOutput } from '../core/file-loader';
+import { componentRegistry } from '../../index';
+import type { FileLoaderInput, FileLoaderOutput } from '../file-loader';
 
 describe('file-loader component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   it('should be registered', () => {

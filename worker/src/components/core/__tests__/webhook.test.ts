@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
 import { createExecutionContext } from '@shipsec/component-sdk';
-import { componentRegistry } from '../index';
-import type { WebhookInput, WebhookOutput } from '../core/webhook';
+import { componentRegistry } from '../../index';
+import type { WebhookInput, WebhookOutput } from '../webhook';
 
 describe('webhook component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   afterEach(() => {

@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom'
 import globalJsdom from 'global-jsdom'
 
-if (typeof document === 'undefined') {
-  globalJsdom('<!doctype html><html><body></body></html>', { url: 'http://localhost' })
+const cleanup = globalJsdom('<!doctype html><html><body></body></html>', { url: 'http://localhost' })
+
+if (cleanup) {
+  ;(globalThis as any).__SHIPSEC_JS_DOM_CLEANUP__ = cleanup
 }
 
 if (typeof window !== 'undefined' && window.HTMLElement) {

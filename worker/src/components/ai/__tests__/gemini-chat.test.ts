@@ -1,16 +1,18 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { componentRegistry, type ExecutionContext } from '@shipsec/component-sdk';
-import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
-import { type GenerateTextResult, type ToolSet } from 'ai';
-import type { GenerateTextFn, CreateOpenAIFn } from '../openai-chat';
+import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
+import '../../index';
+import { componentRegistry } from '@shipsec/component-sdk';
+import type { ExecutionContext } from '@shipsec/component-sdk';
+import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
+import type { ToolSet, GenerateTextResult } from 'ai';
+import type { CreateGoogleGenerativeAIFn, GenerateTextFn } from '../gemini-chat';
 
 type GenerateTextParams = Parameters<GenerateTextFn>[0];
 
 const createGenerateTextResult = (): GenerateTextResult<ToolSet, never> => ({
     content: [],
-    text: 'hello world',
+    text: 'gemini response',
     reasoning: [],
-    reasoningText: undefined,
+  reasoningText: undefined,
   files: [],
   sources: [],
   toolCalls: [],
@@ -21,25 +23,26 @@ const createGenerateTextResult = (): GenerateTextResult<ToolSet, never> => ({
   dynamicToolResults: [],
   finishReason: 'stop',
   usage: {
-    inputTokens: 5,
-    outputTokens: 7,
-    totalTokens: 12,
+    inputTokens: 10,
+    outputTokens: 12,
+    totalTokens: 22,
   },
   totalUsage: {
-    inputTokens: 5,
-    outputTokens: 7,
-    totalTokens: 12,
+    inputTokens: 10,
+    outputTokens: 12,
+    totalTokens: 22,
   },
   warnings: undefined,
   request: {},
   response: {
     id: 'resp',
     timestamp: new Date('2024-01-01T00:00:00Z'),
-    modelId: 'gpt-4o-mini',
+    modelId: 'gemini-2.5-flash',
     messages: [],
   },
-    providerMetadata: undefined,
-    steps: [],
+  output: undefined as never,
+  providerMetadata: undefined,
+  steps: [],
   experimental_output: undefined as never,
 });
 
@@ -48,19 +51,23 @@ const generateTextMock = (async (_args: GenerateTextParams) => {
   generateTextCalls.push(_args);
   return createGenerateTextResult();
 }) as GenerateTextFn;
-const createOpenAIMock = mock<CreateOpenAIFn>((options) => createOpenAIImpl(options));
+const createGeminiMock = mock<CreateGoogleGenerativeAIFn>((options) =>
+  createGoogleGenerativeAIImpl(options),
+);
 
 beforeEach(() => {
   generateTextCalls = [];
-  createOpenAIMock.mockClear();
+  createGeminiMock.mockClear();
 });
 
-describe('core.openai.chat component', () => {
+import '../gemini-chat';
+
+describe('core.gemini.chat component', () => {
   it('resolves API key from secrets and calls the provider', async () => {
-    const definition = componentRegistry.get<any, any>('core.openai.chat');
+    const definition = componentRegistry.get<any, any>('core.gemini.chat');
     expect(definition).toBeDefined();
 
-    const secretsGet = mock(async () => ({ value: 'sk-secret-from-store', version: 1 }));
+    const secretsGet = mock(async () => ({ value: 'gm-secret-from-store', version: 1 }));
     const context: ExecutionContext = {
       runId: 'test-run',
       componentRef: 'node-1',
@@ -75,46 +82,45 @@ describe('core.openai.chat component', () => {
 
     const result = await (definition!.execute as any)(
       {
-        systemPrompt: 'system prompt',
-        userPrompt: 'Hello?',
-        model: 'gpt-4o-mini',
-        temperature: 0.5,
-        maxTokens: 256,
+        systemPrompt: '',
+        userPrompt: 'Explain the status.',
+        model: 'gemini-2.5-flash',
+        temperature: 0.7,
+        maxTokens: 512,
         apiBaseUrl: '',
-        apiKey: 'a2e6b4ad-1234-4e4c-b64f-0123456789ab',
+        apiKey: '9b4ce843-4c0a-4d6c-9a27-123456789abc',
       },
       context,
       {
         generateText: generateTextMock,
-        createOpenAI: createOpenAIMock,
+        createGoogleGenerativeAI: createGeminiMock,
       }
     );
 
-    expect(secretsGet).toHaveBeenCalledWith('a2e6b4ad-1234-4e4c-b64f-0123456789ab');
-    expect(createOpenAIMock).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: 'sk-secret-from-store' }),
+    expect(secretsGet).toHaveBeenCalledWith('9b4ce843-4c0a-4d6c-9a27-123456789abc');
+    expect(createGeminiMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'gm-secret-from-store' }),
     );
     expect(generateTextCalls).toHaveLength(1);
     expect(generateTextCalls[0]).toEqual(
       expect.objectContaining({
-        prompt: 'Hello?',
-        system: 'system prompt',
-        temperature: 0.5,
-        maxOutputTokens: 256,
+        prompt: 'Explain the status.',
+        temperature: 0.7,
+        maxOutputTokens: 512,
       }),
     );
     expect(result.chatModel).toEqual(
       expect.objectContaining({
-        provider: 'openai',
-        modelId: 'gpt-4o-mini',
-        apiKeySecretId: 'a2e6b4ad-1234-4e4c-b64f-0123456789ab',
+        provider: 'gemini',
+        modelId: 'gemini-2.5-flash',
+        apiKeySecretId: '9b4ce843-4c0a-4d6c-9a27-123456789abc',
       }),
     );
     expect(result.chatModel.apiKey).toBeUndefined();
   });
 
   it('throws when secret cannot be resolved', async () => {
-    const definition = componentRegistry.get<any, any>('core.openai.chat');
+    const definition = componentRegistry.get<any, any>('core.gemini.chat');
     expect(definition).toBeDefined();
 
     const secretsGet = mock(async () => null);
@@ -134,8 +140,8 @@ describe('core.openai.chat component', () => {
       (definition!.execute as any)(
         {
           systemPrompt: '',
-          userPrompt: 'Hello',
-          model: 'gpt-4o-mini',
+          userPrompt: 'Explain the status.',
+          model: 'gemini-2.5-flash',
           temperature: 0.7,
           maxTokens: 512,
           apiBaseUrl: '',
@@ -143,10 +149,10 @@ describe('core.openai.chat component', () => {
         },
         context,
         {
-        generateText: generateTextMock,
-        createOpenAI: createOpenAIMock,
-      }
+          generateText: generateTextMock,
+          createGoogleGenerativeAI: createGeminiMock,
+        }
       ),
-    ).rejects.toThrow(/secret "missing-secret" was not found/i);
+    ).rejects.toThrow(/secret \"missing-secret\" was not found/i);
   });
 });
