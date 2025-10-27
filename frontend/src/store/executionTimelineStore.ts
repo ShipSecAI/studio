@@ -64,6 +64,8 @@ export interface ExecutionRun {
   eventCount: number
   createdAt: string
   isLive: boolean
+  workflowVersionId: string | null
+  workflowVersion: number | null
 }
 
 export interface TimelineState {
@@ -447,7 +449,9 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
           nodeCount: typeof run.nodeCount === 'number' ? run.nodeCount : 0,
           eventCount: run.eventCount,
           createdAt: run.startTime,
-          isLive: !run.endTime && run.status === 'RUNNING'
+          isLive: !run.endTime && run.status === 'RUNNING',
+          workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
+          workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
         }))
 
         set({ availableRuns: runs })

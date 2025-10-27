@@ -57,6 +57,10 @@ export function ExecutionRunBanner() {
   const statusVariant = STATUS_VARIANT[selectedRun.status.toLowerCase()] ?? 'secondary'
   const durationLabel = formatDuration(selectedRun.duration)
   const liveLabel = playbackMode === 'live'
+  const runVersion = selectedRun.workflowVersion
+  const currentVersion = metadata.currentVersion
+  const hasVersionMetadata = typeof runVersion === 'number'
+  const versionMismatch = hasVersionMetadata && typeof currentVersion === 'number' && runVersion !== currentVersion
 
   return (
     <div
@@ -72,12 +76,27 @@ export function ExecutionRunBanner() {
         <Badge variant={statusVariant} className="text-[10px] uppercase tracking-wide">
           {selectedRun.status.replace('_', ' ')}
         </Badge>
+        {hasVersionMetadata && (
+          <Badge
+            variant={versionMismatch ? 'destructive' : 'secondary'}
+            className="text-[10px] uppercase tracking-wide"
+          >
+            v{runVersion}
+          </Badge>
+        )}
       </div>
       <div className="flex items-center gap-4 text-xs text-muted-foreground pointer-events-auto">
         <span>Run #{selectedRun.id.slice(-6)}</span>
         <span>{durationLabel}</span>
         <span>{selectedRun.eventCount} events</span>
         {selectedRun.nodeCount > 0 && <span>{selectedRun.nodeCount} nodes</span>}
+        {hasVersionMetadata && (
+          <span className={versionMismatch ? 'text-amber-500' : undefined}>
+            {versionMismatch && typeof currentVersion === 'number'
+              ? `Replaying v${runVersion} • Current v${currentVersion}`
+              : `Version v${runVersion}`}
+          </span>
+        )}
         <span className="flex items-center gap-1">
           <span className={cn('h-2 w-2 rounded-full', liveLabel ? 'bg-red-500 animate-pulse' : 'bg-blue-500')} />
           {liveLabel ? (isPlaying ? 'Live • following' : 'Live • paused') : 'Execution mode'}

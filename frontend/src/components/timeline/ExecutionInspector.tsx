@@ -8,6 +8,7 @@ import { MessageModal } from '@/components/ui/MessageModal'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
+import { useWorkflowStore } from '@/store/workflowStore'
 import { cn } from '@/lib/utils'
 import type { ExecutionLog } from '@/schemas/execution'
 import { createPreview } from '@/utils/textPreview'
@@ -58,6 +59,7 @@ export function ExecutionInspector() {
   } = useExecutionTimelineStore()
   const { logs } = useExecutionStore()
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
+  const currentWorkflowVersion = useWorkflowStore((state) => state.metadata.currentVersion)
   const [logModal, setLogModal] = useState<{ open: boolean; message: string; title: string }>({
     open: false,
     message: '',
@@ -108,6 +110,19 @@ export function ExecutionInspector() {
       {selectedRun.status.toUpperCase()}
     </Badge>
   ) : null
+  const runVersion = typeof selectedRun?.workflowVersion === 'number' ? selectedRun.workflowVersion : null
+  const versionMismatch =
+    runVersion !== null &&
+    typeof currentWorkflowVersion === 'number' &&
+    runVersion !== currentWorkflowVersion
+  const versionBadge = runVersion !== null ? (
+    <Badge
+      variant={versionMismatch ? 'destructive' : 'secondary'}
+      className="text-[10px] uppercase tracking-wide"
+    >
+      v{runVersion}
+    </Badge>
+  ) : null
 
   return (
     <>
@@ -118,15 +133,26 @@ export function ExecutionInspector() {
           </div>
           {selectedRun && (
             <div className="rounded-md border bg-background px-3 py-2 text-xs space-y-1">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-sm truncate">{selectedRun.workflowName}</span>
-                {statusBadge}
+                <div className="flex items-center gap-2">
+                  {versionBadge}
+                  {statusBadge}
+                </div>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
                 <span>Run #{selectedRun.id.slice(-6)}</span>
                 {selectedRun.duration && <span>{Math.round(selectedRun.duration / 1000)}s</span>}
                 <span>{selectedRun.eventCount} events</span>
                 {selectedRun.nodeCount > 0 && <span>{selectedRun.nodeCount} nodes</span>}
+                {runVersion !== null && (
+                  <span className={cn(versionMismatch ? 'text-amber-500' : undefined)}>
+                    v{runVersion}
+                    {versionMismatch && typeof currentWorkflowVersion === 'number'
+                      ? ` (current v${currentWorkflowVersion})`
+                      : ''}
+                  </span>
+                )}
               </div>
             </div>
           )}

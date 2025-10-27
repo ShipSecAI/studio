@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useExecutionTimelineStore, type ExecutionRun } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
+import { useWorkflowStore } from '@/store/workflowStore'
 import { cn } from '@/lib/utils'
 
 const STATUS_ICONS = {
@@ -66,6 +67,7 @@ export function RunSelector() {
     status: _currentLiveStatus,
     workflowId: _currentWorkflowId,
   } = useExecutionStore()
+  const currentWorkflowVersion = useWorkflowStore((state) => state.metadata.currentVersion)
 
   // Load runs on mount
   useEffect(() => {
@@ -96,6 +98,17 @@ export function RunSelector() {
 
   const selectedRun = availableRuns.find(run => run.id === selectedRunId)
   const currentLiveRun = availableRuns.find(run => run.id === currentLiveRunId)
+  const selectedRunVersion = typeof selectedRun?.workflowVersion === 'number' ? selectedRun.workflowVersion : null
+  const selectedRunOlder =
+    selectedRunVersion !== null &&
+    typeof currentWorkflowVersion === 'number' &&
+    selectedRunVersion !== currentWorkflowVersion
+  const currentLiveRunVersion =
+    typeof currentLiveRun?.workflowVersion === 'number' ? currentLiveRun.workflowVersion : null
+  const currentLiveRunOlder =
+    currentLiveRunVersion !== null &&
+    typeof currentWorkflowVersion === 'number' &&
+    currentLiveRunVersion !== currentWorkflowVersion
 
   const getStatusIcon = (status: string) => {
     const IconComponent = STATUS_ICONS[status as keyof typeof STATUS_ICONS]
@@ -119,46 +132,69 @@ export function RunSelector() {
     }
   }
 
-  const renderRunItem = (run: ExecutionRun) => (
-    <DropdownMenuItem
-      key={run.id}
-      onSelect={() => handleSelectRun(run.id)}
-      className={cn(
-        "flex items-center gap-3 p-3 cursor-pointer",
-        selectedRunId === run.id && "bg-accent"
-      )}
-    >
-      <div className={cn("flex-shrink-0", getStatusColor(run.status))}>
-        {getStatusIcon(run.status)}
-      </div>
+  const renderRunItem = (run: ExecutionRun) => {
+    const runVersion = run.workflowVersion
+    const hasVersion = typeof runVersion === 'number'
+    const isOlderVersion =
+      hasVersion && typeof currentWorkflowVersion === 'number' && runVersion !== currentWorkflowVersion
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium truncate">{run.workflowName}</span>
-          {run.isLive && (
-            <Badge variant="outline" className="text-xs animate-pulse">
-              <Wifi className="h-3 w-3 mr-1" />
-              LIVE
-            </Badge>
-          )}
+    return (
+      <DropdownMenuItem
+        key={run.id}
+        onSelect={() => handleSelectRun(run.id)}
+        className={cn(
+          "flex items-center gap-3 p-3 cursor-pointer",
+          selectedRunId === run.id && "bg-accent"
+        )}
+      >
+        <div className={cn("flex-shrink-0", getStatusColor(run.status))}>
+          {getStatusIcon(run.status)}
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-          <span>Run #{run.id.slice(-8)}</span>
-          <span>{run.nodeCount} nodes</span>
-          <span>{run.eventCount} events</span>
-          {run.duration && <span>{formatDuration(run.duration)}</span>}
-          <span>{formatRelativeTime(run.startTime)}</span>
-        </div>
-      </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium truncate">{run.workflowName}</span>
+            {hasVersion && (
+              <Badge
+                variant={isOlderVersion ? 'destructive' : 'secondary'}
+                className="text-[10px] uppercase tracking-wide"
+              >
+                v{runVersion}
+              </Badge>
+            )}
+            {run.isLive && (
+              <Badge variant="outline" className="text-xs animate-pulse">
+                <Wifi className="h-3 w-3 mr-1" />
+                LIVE
+              </Badge>
+            )}
+          </div>
 
-      {selectedRunId === run.id && (
-        <div className="flex-shrink-0">
-          <div className="h-2 w-2 bg-blue-500 rounded-full" />
+          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+            <span>Run #{run.id.slice(-8)}</span>
+            <span>{run.nodeCount} nodes</span>
+            <span>{run.eventCount} events</span>
+            {run.duration && <span>{formatDuration(run.duration)}</span>}
+            <span>{formatRelativeTime(run.startTime)}</span>
+            {hasVersion && (
+              <span className={cn(isOlderVersion ? 'text-amber-500' : undefined)}>
+                v{runVersion}
+                {isOlderVersion && typeof currentWorkflowVersion === 'number'
+                  ? ` (current v${currentWorkflowVersion})`
+                  : ''}
+              </span>
+            )}
+          </div>
         </div>
-      )}
-    </DropdownMenuItem>
-  )
+
+        {selectedRunId === run.id && (
+          <div className="flex-shrink-0">
+            <div className="h-2 w-2 bg-blue-500 rounded-full" />
+          </div>
+        )}
+      </DropdownMenuItem>
+    )
+  }
 
   return (
     <div className="flex items-center gap-4">
@@ -174,6 +210,14 @@ export function RunSelector() {
                 <div className="flex items-center gap-2">
                   {getStatusIcon(selectedRun.status)}
                   <span className="truncate">{selectedRun.workflowName}</span>
+                  {selectedRunVersion !== null && (
+                    <Badge
+                      variant={selectedRunOlder ? 'destructive' : 'secondary'}
+                      className="text-[10px] uppercase tracking-wide"
+                    >
+                      v{selectedRunVersion}
+                    </Badge>
+                  )}
                   {selectedRun.isLive && (
                     <Badge variant="outline" className="text-xs animate-pulse">
                       LIVE
@@ -206,6 +250,14 @@ export function RunSelector() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{currentLiveRun.workflowName}</span>
+                    {currentLiveRunVersion !== null && (
+                      <Badge
+                        variant={currentLiveRunOlder ? 'destructive' : 'secondary'}
+                        className="text-[10px] uppercase tracking-wide"
+                      >
+                        v{currentLiveRunVersion}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-xs animate-pulse">
                       <Wifi className="h-3 w-3 mr-1" />
                       LIVE NOW
@@ -217,6 +269,14 @@ export function RunSelector() {
                     <span>{currentLiveRun.nodeCount} nodes</span>
                     <span>{currentLiveRun.eventCount} events</span>
                     <span>{formatRelativeTime(currentLiveRun.startTime)}</span>
+                    {currentLiveRunVersion !== null && (
+                      <span className={cn(currentLiveRunOlder ? 'text-amber-500' : undefined)}>
+                        v{currentLiveRunVersion}
+                        {currentLiveRunOlder && typeof currentWorkflowVersion === 'number'
+                          ? ` (current v${currentWorkflowVersion})`
+                          : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
 

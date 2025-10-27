@@ -4,6 +4,8 @@ interface WorkflowMetadata {
   id: string | null
   name: string
   description: string
+  currentVersionId: string | null
+  currentVersion: number | null
 }
 
 interface WorkflowStore {
@@ -25,6 +27,8 @@ const initialMetadata: WorkflowMetadata = {
   id: null,
   name: 'Untitled Workflow',
   description: '',
+  currentVersionId: null,
+  currentVersion: null,
 }
 
 /**

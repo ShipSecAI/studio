@@ -75,7 +75,9 @@ function WorkflowBuilderContent() {
         setMetadata({
           id: workflow.id,
           name: workflow.name,
-          description: workflow.description,
+          description: workflow.description ?? '',
+          currentVersionId: workflow.currentVersionId ?? null,
+          currentVersion: workflow.currentVersion ?? null,
         })
 
         // Deserialize and set nodes/edges
@@ -255,6 +257,13 @@ function WorkflowBuilderContent() {
 
         // Update store with new workflow ID
         setWorkflowId(savedWorkflow.id)
+        setMetadata({
+          id: savedWorkflow.id,
+          name: savedWorkflow.name,
+          description: savedWorkflow.description ?? '',
+          currentVersionId: savedWorkflow.currentVersionId ?? null,
+          currentVersion: savedWorkflow.currentVersion ?? null,
+        })
         markClean()
 
         // Navigate to the new workflow URL
@@ -275,7 +284,14 @@ function WorkflowBuilderContent() {
           edges
         )
 
-        await api.workflows.update(workflowId, payload)
+        const updatedWorkflow = await api.workflows.update(workflowId, payload)
+        setMetadata({
+          id: updatedWorkflow.id,
+          name: updatedWorkflow.name,
+          description: updatedWorkflow.description ?? '',
+          currentVersionId: updatedWorkflow.currentVersionId ?? null,
+          currentVersion: updatedWorkflow.currentVersion ?? null,
+        })
         markClean()
 
         toast({

@@ -16,6 +16,8 @@ export const WorkflowMetadataSchema = z.object({
   runCount: z.number().int().min(0).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  currentVersionId: z.string().uuid().nullable().optional(),
+  currentVersion: z.number().int().positive().nullable().optional(),
 })
 
 export type WorkflowMetadata = z.infer<typeof WorkflowMetadataSchema>
@@ -32,6 +34,8 @@ export const WorkflowSchema = z.object({
   edges: z.array(EdgeSchema),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  currentVersionId: z.string().uuid().nullable().optional(),
+  currentVersion: z.number().int().positive().nullable().optional(),
 })
 
 export type Workflow = z.infer<typeof WorkflowSchema>
