@@ -152,7 +152,12 @@ function validateSecretParameters(
   for (const secretParam of secretParams) {
     const paramValue = action.params?.[secretParam.id];
 
+    const isRequired = secretParam.required !== false;
+
     if (!paramValue) {
+      if (!isRequired) {
+        continue;
+      }
       errors.push({
         node: action.ref,
         field: secretParam.id,

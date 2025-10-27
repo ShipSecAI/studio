@@ -6,9 +6,6 @@ server:
   log_level: warn
 
 ingester:
-  wal:
-      enabled: true
-      dir: /loki/wal
   lifecycler:
     address: 127.0.0.1
     ring:
@@ -19,7 +16,8 @@ ingester:
   chunk_retain_period: 30s
   max_transfer_retries: 0
   wal:
-    enabled: false
+    enabled: true
+    dir: /loki/wal
 
 schema_config:
   configs:
