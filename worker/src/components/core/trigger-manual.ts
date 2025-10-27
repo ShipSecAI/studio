@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
 
 // Runtime input definition schema
 const runtimeInputDefinitionSchema = z.preprocess((value) => {
@@ -75,6 +75,34 @@ const definition: ComponentDefinition<Input, Output> = {
       },
     ],
   },
+  resolvePorts(params) {
+    const runtimeInputs = Array.isArray(params.runtimeInputs)
+      ? params.runtimeInputs
+      : [];
+
+    const outputs = runtimeInputs
+      .map((input: any) => {
+        const id = typeof input?.id === 'string' ? input.id.trim() : '';
+        if (!id) {
+          return null;
+        }
+
+        const type = typeof input?.type === 'string' ? input.type.toLowerCase() : 'text';
+        return {
+          id,
+          label: typeof input?.label === 'string' ? input.label : id,
+          required: input?.required !== undefined ? Boolean(input.required) : true,
+          description: typeof input?.description === 'string' ? input.description : undefined,
+          dataType: runtimeInputTypeToPort(type),
+        };
+      })
+      .filter((portMeta): portMeta is NonNullable<typeof portMeta> => portMeta !== null);
+
+    return {
+      inputs: [],
+      outputs,
+    };
+  },
   async execute(params, context) {
     const { runtimeInputs, __runtimeData } = params;
     
@@ -108,3 +136,23 @@ const definition: ComponentDefinition<Input, Output> = {
 componentRegistry.register(definition);
 
 export type { Input as ManualTriggerInput, Output as ManualTriggerOutput };
+
+function runtimeInputTypeToPort(type: string) {
+  switch (type) {
+    case 'number':
+      return port.number({ coerceFrom: ['text'] });
+    case 'boolean':
+      return port.boolean({ coerceFrom: ['text'] });
+    case 'file':
+      return port.file();
+    case 'json':
+      return port.json();
+    case 'array':
+      return port.list(port.text());
+    case 'secret':
+      return port.secret();
+    case 'text':
+    default:
+      return port.text();
+  }
+}

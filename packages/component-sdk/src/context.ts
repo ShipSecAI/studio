@@ -1,4 +1,18 @@
-import { format } from 'node:util';
+// Simple format function to avoid webpack issues with node:util
+function format(...args: unknown[]): string {
+  return args.map(arg => {
+    if (typeof arg === 'string') return arg;
+    if (arg === null || arg === undefined) return String(arg);
+    if (typeof arg === 'object') {
+      try {
+        return JSON.stringify(arg);
+      } catch {
+        return String(arg);
+      }
+    }
+    return String(arg);
+  }).join(' ');
+}
 
 import type {
   ExecutionContext,

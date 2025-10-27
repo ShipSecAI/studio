@@ -19,7 +19,28 @@ export class SecretsAdapter implements ISecretsService {
     key: string,
     options?: { version?: number },
   ): Promise<{ value: string; version: number } | null> {
-    const conditions: SQL[] = [eq(schema.secretVersions.secretId, key)];
+    // Check if key is a UUID (secret ID) or a name
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key);
+
+    let secretId: string;
+    if (isUUID) {
+      // Key is already a UUID, use it directly
+      secretId = key;
+    } else {
+      // Key is a name, resolve it to a UUID
+      const [secretRecord] = await this.db
+        .select({ id: schema.secrets.id })
+        .from(schema.secrets)
+        .where(eq(schema.secrets.name, key))
+        .limit(1);
+
+      if (!secretRecord) {
+        return null;
+      }
+      secretId = secretRecord.id;
+    }
+
+    const conditions: SQL[] = [eq(schema.secretVersions.secretId, secretId)];
 
     if (typeof options?.version === 'number') {
       conditions.push(eq(schema.secretVersions.version, options.version));

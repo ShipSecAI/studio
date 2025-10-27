@@ -66,6 +66,36 @@ export class SecretsRepository {
     return rows.map((row) => this.mapSummary(row));
   }
 
+  async findByName(secretName: string): Promise<SecretSummary> {
+    const rows = await this.db
+      .select({
+        id: secrets.id,
+        name: secrets.name,
+        description: secrets.description,
+        tags: secrets.tags,
+        createdAt: secrets.createdAt,
+        updatedAt: secrets.updatedAt,
+        versionId: secretVersions.id,
+        version: secretVersions.version,
+        versionCreatedAt: secretVersions.createdAt,
+        versionCreatedBy: secretVersions.createdBy,
+      })
+      .from(secrets)
+      .leftJoin(
+        secretVersions,
+        and(eq(secretVersions.secretId, secrets.id), eq(secretVersions.isActive, true)),
+      )
+      .where(eq(secrets.name, secretName))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException(`Secret with name '${secretName}' not found`);
+    }
+
+    return this.mapSummary(row);
+  }
+
   async findById(secretId: string): Promise<SecretSummary> {
     const rows = await this.db
       .select({

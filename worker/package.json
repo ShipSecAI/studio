@@ -26,6 +26,7 @@
     "@shipsec/shared": "*",
     "@temporalio/activity": "^1.13.1",
     "@temporalio/client": "^1.11.3",
+    "@temporalio/common": "^1.13.1",
     "@temporalio/worker": "^1.11.3",
     "@temporalio/workflow": "^1.11.3",
     "ai": "^6.0.0-beta.68",

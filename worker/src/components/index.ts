@@ -11,6 +11,8 @@ import './core/text-splitter';
 import './core/text-joiner';
 import './core/console-log';
 import './core/secret-fetch';
+import './core/array-pick';
+import './core/array-pack';
 import './ai/openai-chat';
 import './ai/gemini-chat';
 import './ai/openrouter-chat';

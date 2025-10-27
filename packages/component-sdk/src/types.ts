@@ -211,4 +211,10 @@ export interface ComponentDefinition<I = unknown, O = unknown> {
   docs?: string;
   metadata?: ComponentUiMetadata;
   execute: (params: I, context: ExecutionContext) => Promise<O>;
+  resolvePorts?: (
+    params: Record<string, unknown>,
+  ) => {
+    inputs?: ComponentPortMetadata[];
+    outputs?: ComponentPortMetadata[];
+  };
 }

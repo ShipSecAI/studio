@@ -50,14 +50,23 @@ export class SecretsController {
     type: Number,
   })
   async getSecretValue(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('id') id: string,
     @Query('version') version?: string,
   ): Promise<SecretValueResponse> {
     const parsedVersion = version !== undefined ? Number(version) : undefined;
     if (parsedVersion !== undefined && Number.isNaN(parsedVersion)) {
       throw new BadRequestException('version must be a number');
     }
-    return this.secretsService.getSecretValue(id, parsedVersion);
+
+    // Check if id is a UUID (with hyphens) or a secret name
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+
+    if (isUUID) {
+      return this.secretsService.getSecretValue(id, parsedVersion);
+    } else {
+      // Treat as secret name
+      return this.secretsService.getSecretValueByName(id, parsedVersion);
+    }
   }
 
   @Post()

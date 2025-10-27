@@ -45,6 +45,10 @@ export class SecretsService {
     return this.repository.findById(secretId);
   }
 
+  async getSecretByName(secretName: string): Promise<SecretSummary> {
+    return this.repository.findByName(secretName);
+  }
+
   async createSecret(input: CreateSecretInput): Promise<SecretSummary> {
     const material = await this.encryption.encrypt(input.value);
 
@@ -90,6 +94,13 @@ export class SecretsService {
       version: record.version,
       value,
     };
+  }
+
+  async getSecretValueByName(secretName: string, version?: number): Promise<SecretValue> {
+    // First find the secret by name to get its ID
+    const secret = await this.repository.findByName(secretName);
+    // Then get the value using the ID
+    return this.getSecretValue(secret.id, version);
   }
 
   async updateSecret(secretId: string, input: UpdateSecretInput): Promise<SecretSummary> {

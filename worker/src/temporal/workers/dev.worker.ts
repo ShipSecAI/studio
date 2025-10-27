@@ -108,6 +108,9 @@ async function main() {
       setRunMetadataActivity,
       finalizeRunActivity,
     },
+    bundlerOptions: {
+      ignoreModules: ['child_process'],
+    },
   });
 
   console.log(

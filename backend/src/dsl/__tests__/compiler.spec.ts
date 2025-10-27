@@ -223,8 +223,8 @@ describe('compileWorkflowGraph', () => {
         },
       ],
       edges: [
-        { id: 'start-a', source: 'start', target: 'branchA', sourceHandle: 'out', targetHandle: 'inA' },
-        { id: 'start-b', source: 'start', target: 'branchB', sourceHandle: 'out', targetHandle: 'inB' },
+        { id: 'start-a', source: 'start', target: 'branchA' },
+        { id: 'start-b', source: 'start', target: 'branchB' },
         { id: 'a-merge', source: 'branchA', target: 'merge' },
         { id: 'b-merge', source: 'branchB', target: 'merge' },
       ],
@@ -241,8 +241,8 @@ describe('compileWorkflowGraph', () => {
       id: 'start-a',
       sourceRef: 'start',
       targetRef: 'branchA',
-      sourceHandle: 'out',
-      targetHandle: 'inA',
+      sourceHandle: undefined,
+      targetHandle: undefined,
       kind: 'success',
     });
   });

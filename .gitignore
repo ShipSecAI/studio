@@ -60,3 +60,6 @@ vite.config.ts.timestamp-*
 # Optional: Generated files (if using codegen later)
 # src/generated/
 .vscode/settings.json
+
+# Playground testing directory
+.playground/
