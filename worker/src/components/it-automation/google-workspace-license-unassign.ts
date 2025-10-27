@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+} from '@shipsec/component-sdk';
 import { admin } from '@googleapis/admin';
 import { google } from 'googleapis';
 
@@ -162,7 +166,7 @@ const definition: ComponentDefinition<Input, GoogleWorkspaceUserDeleteOutput> = 
       {
         id: 'result',
         label: 'User Deletion Result',
-        type: 'object',
+        dataType: port.json(),
         description: 'Results of the user deletion operation including audit logs.',
       },
     ],

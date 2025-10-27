@@ -1,31 +1,17 @@
 import type { Node, Edge, Connection } from 'reactflow'
 import type { FrontendNodeData } from '@/schemas/node'
-import type { ComponentMetadata, PortType } from '@/schemas/component'
-import { inputSupportsType, normalizePortTypes } from '@/utils/portUtils'
+import type { ComponentMetadata } from '@/schemas/component'
+import {
+  arePortDataTypesCompatible,
+  describePortDataType,
+  inputSupportsManualValue,
+  runtimeInputTypeToPortDataType,
+} from '@/utils/portUtils'
 
 export interface ValidationResult {
   isValid: boolean
   error?: string
 }
-
-const SOURCE_COMPATIBILITY: Record<PortType, PortType[]> = {
-  string: ['string'],
-  array: ['array'],
-  object: ['object'],
-  file: ['file'],
-  secret: ['secret'],
-  number: ['number'],
-}
-
-function areTypesCompatible(sourceType: PortType, targetTypes: PortType[]): boolean {
-  const allowedTargets = SOURCE_COMPATIBILITY[sourceType] ?? [sourceType]
-  return targetTypes.some((targetType) => allowedTargets.includes(targetType))
-}
-
-/**
- * Validate connection between two nodes
- */
-
 
 export function validateConnection(
   connection: Connection,
@@ -90,15 +76,12 @@ export function validateConnection(
         
         if (Array.isArray(runtimeInputs) && runtimeInputs.length > 0) {
           sourceOutputs = runtimeInputs.map((input: any) => {
-            const normalizedType = input.type === 'string' ? 'text' : input.type
-            const outputType =
-              normalizedType === 'file' || normalizedType === 'text'
-                ? 'string'
-                : normalizedType
+            const runtimeType = (input.type || 'text') as string
+            const dataType = runtimeInputTypeToPortDataType(runtimeType)
             return {
               id: input.id,
               label: input.label,
-              type: outputType,
+              dataType,
               description: input.description || `Runtime input: ${input.label}`,
             }
           })
@@ -116,14 +99,16 @@ export function validateConnection(
     return { isValid: false, error: 'Invalid connection ports' }
   }
 
-  // Check type compatibility
-  const targetPortTypes = normalizePortTypes(targetPort.type)
+  if (!sourcePort.dataType || !targetPort.dataType) {
+    return { isValid: false, error: 'Port type metadata unavailable' }
+  }
 
-  if (!areTypesCompatible(sourcePort.type as PortType, targetPortTypes)) {
-    const targetTypeLabel = targetPortTypes.join(' | ')
+  // Check type compatibility
+  if (!arePortDataTypesCompatible(sourcePort.dataType, targetPort.dataType)) {
+    const targetTypeLabel = describePortDataType(targetPort.dataType)
     return {
       isValid: false,
-      error: `Type mismatch: ${sourcePort.type} cannot connect to ${targetTypeLabel}`,
+      error: `Type mismatch: ${describePortDataType(sourcePort.dataType)} cannot connect to ${targetTypeLabel}`,
     }
   }
 
@@ -188,7 +173,7 @@ export function getNodeValidationWarnings(
         (edge) => edge.target === node.id && edge.targetHandle === input.id
       )
 
-      const supportsManualOverride = inputSupportsType(input, 'string') || input.valuePriority === 'manual-first'
+      const supportsManualOverride = inputSupportsManualValue(input) || input.valuePriority === 'manual-first'
       const manualCandidate = manualParameters[input.id]
       const manualValueProvided = supportsManualOverride && manualCandidate !== undefined && manualCandidate !== null && (
         typeof manualCandidate === 'string' ? manualCandidate.trim().length > 0 : true

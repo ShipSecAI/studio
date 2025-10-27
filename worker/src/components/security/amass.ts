@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, runComponentWithRunner } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  runComponentWithRunner,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   domains: z
@@ -372,7 +377,7 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
       {
         id: 'domains',
         label: 'Target Domains',
-        type: 'array',
+        dataType: port.list(port.text()),
         required: true,
         description: 'Root domains to enumerate using Amass.',
       },
@@ -381,13 +386,13 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
       {
         id: 'subdomains',
         label: 'Discovered Subdomains',
-        type: 'array',
+        dataType: port.list(port.text()),
         description: 'Unique list of subdomains discovered by Amass.',
       },
       {
         id: 'rawOutput',
         label: 'Raw Output',
-        type: 'string',
+        dataType: port.text(),
         description: 'Raw Amass console output for deeper inspection.',
       },
     ],

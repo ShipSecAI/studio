@@ -41,6 +41,7 @@ const workflowGraph = WorkflowGraphSchema.parse({
           model: 'gemini-2.5-flash',
           temperature: 0.7,
           maxTokens: 1024,
+          apiKey: 'secret:gemini-demo',
         },
       },
     },
@@ -56,6 +57,12 @@ const workflowGraph = WorkflowGraphSchema.parse({
           maxTokens: 1024,
           memorySize: 8,
           stepLimit: 4,
+          userInput: '{{gemini-chat.responseText}}',
+          chatModel: {
+            provider: 'gemini',
+            modelId: 'gemini-2.5-flash',
+            apiKeySecretId: 'secret:gemini-demo',
+          },
         },
       },
     },
@@ -67,6 +74,7 @@ const workflowGraph = WorkflowGraphSchema.parse({
         label: 'Console Log',
         config: {
           label: 'Agent Output',
+          data: '{{agent-node.responseText}}',
         },
       },
     },

@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  registerContract,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   url: z.string().url(),
@@ -28,6 +33,16 @@ const outputSchema = z.object({
   responseBody: z.string().optional(),
   error: z.string().optional(),
   attempts: z.number(),
+});
+
+const WEBHOOK_RESULT_CONTRACT = 'core.webhook.result.v1';
+
+registerContract({
+  name: WEBHOOK_RESULT_CONTRACT,
+  schema: outputSchema,
+  summary: 'Webhook execution result payload',
+  description:
+    'Details the outcome of an HTTP request including status code, response text, and retry attempts.',
 });
 
 /**
@@ -85,7 +100,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'result',
         label: 'Webhook Result',
-        type: 'object',
+        dataType: port.contract(WEBHOOK_RESULT_CONTRACT),
         description: 'Status information returned after sending the webhook.',
       },
     ],

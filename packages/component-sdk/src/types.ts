@@ -61,19 +61,52 @@ export interface LogEventInput {
   metadata?: ExecutionContextMetadata;
 }
 
-export type ComponentPortType =
-  | 'string'
-  | 'array'
-  | 'object'
-  | 'file'
+export type PrimitivePortTypeName =
+  | 'text'
   | 'secret'
   | 'number'
-  | 'boolean';
+  | 'boolean'
+  | 'file'
+  | 'json';
+
+export type PrimitiveCoercionSource = Exclude<
+  PrimitivePortTypeName,
+  'secret' | 'file'
+>;
+
+export interface PrimitivePortType {
+  kind: 'primitive';
+  name: PrimitivePortTypeName;
+  coercion?: {
+    from?: PrimitiveCoercionSource[];
+  };
+}
+
+export interface ListPortType {
+  kind: 'list';
+  element: PrimitivePortType | ContractPortType;
+}
+
+export interface MapPortType {
+  kind: 'map';
+  value: PrimitivePortType;
+}
+
+export interface ContractPortType {
+  kind: 'contract';
+  name: string;
+}
+
+export type PortDataType =
+  | PrimitivePortType
+  | ListPortType
+  | MapPortType
+  | ContractPortType;
 
 export interface ComponentPortMetadata {
   id: string;
   label: string;
-  type: ComponentPortType | ComponentPortType[];
+  dataType: PortDataType;
   required?: boolean;
   description?: string;
   valuePriority?: 'manual-first' | 'connection-first';

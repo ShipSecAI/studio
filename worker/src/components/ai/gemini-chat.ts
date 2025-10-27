@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { generateText as generateTextImpl } from 'ai';
 import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+} from '@shipsec/component-sdk';
 
 // Define types for dependencies to enable dependency injection for testing
 export type GenerateTextFn = typeof generateTextImpl;
@@ -104,14 +108,14 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'systemPrompt',
         label: 'System Prompt',
-        type: 'string',
+        dataType: port.text(),
         required: false,
         description: 'Optional system instructions that prime the Gemini model.',
       },
       {
         id: 'userPrompt',
         label: 'User Prompt',
-        type: 'string',
+        dataType: port.text(),
         required: true,
         description: 'User input that will be sent to Gemini.',
       },
@@ -120,25 +124,25 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'responseText',
         label: 'Response Text',
-        type: 'string',
+        dataType: port.text(),
         description: 'The assistant response from Gemini.',
       },
       {
         id: 'rawResponse',
         label: 'Raw Response',
-        type: 'object',
+        dataType: port.json(),
         description: 'Raw response metadata returned by the Gemini provider for debugging.',
       },
       {
         id: 'usage',
         label: 'Token Usage',
-        type: 'object',
+        dataType: port.json(),
         description: 'Token usage metadata returned by the provider, if available.',
       },
       {
         id: 'chatModel',
         label: 'Chat Model Config',
-        type: 'object',
+        dataType: port.json(),
         description: 'Configuration object (provider, model, overrides) for wiring into the LangChain Agent node.',
       },
     ],

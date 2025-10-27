@@ -1,3 +1,5 @@
+import { coerceValueForPort } from '@shipsec/component-sdk';
+import type { PortDataType } from '@shipsec/component-sdk';
 import type { WorkflowAction } from './types';
 
 export interface InputWarning {
@@ -32,6 +34,7 @@ export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): 
 type ComponentInputMetadata = {
   id: string;
   valuePriority?: 'manual-first' | 'auto-first' | string;
+  dataType?: PortDataType;
 };
 
 type ComponentMetadataSnapshot = {
@@ -68,7 +71,21 @@ export function buildActionParams(
     const resolved = resolveInputValue(sourceOutput, mapping.sourceHandle);
 
     if (resolved !== undefined) {
-      params[targetKey] = resolved;
+      if (portMetadata?.dataType) {
+        const coercion = coerceValueForPort(portMetadata.dataType, resolved);
+        if (coercion.ok) {
+          params[targetKey] = coercion.value;
+        } else {
+          warnings.push({
+            target: targetKey,
+            sourceRef: mapping.sourceRef,
+            sourceHandle: mapping.sourceHandle,
+          });
+          continue;
+        }
+      } else {
+        params[targetKey] = resolved;
+      }
     } else {
       warnings.push({
         target: targetKey,

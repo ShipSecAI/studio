@@ -9,6 +9,7 @@ import {
   WorkflowEdge,
   WorkflowNodeMetadata,
 } from './types';
+import { validateWorkflowGraph } from './validator';
 
 function topoSort(nodes: string[], edges: Array<{ source: string; target: string }>): string[] {
   const incoming = new Map<string, number>();
@@ -164,6 +165,22 @@ export function compileWorkflowGraph(graph: WorkflowGraph): WorkflowDefinition {
     actions,
     config: { environment: 'default', timeoutSeconds: 0 },
   };
+
+  // Validate the workflow before returning
+  const validationResult = validateWorkflowGraph(graph, definition);
+  if (!validationResult.isValid) {
+    const errorMessages = validationResult.errors.map(e => `[${e.node}] ${e.field}: ${e.message}${e.suggestion ? ' (Suggestion: ' + e.suggestion + ')' : ''}`);
+    const errorMessage = `Workflow validation failed:\n${errorMessages.join('\n')}`;
+    throw new Error(errorMessage);
+  }
+
+  // Log warnings for user information
+  if (validationResult.warnings.length > 0) {
+    console.warn(`Workflow validation warnings for ${graph.name}:`);
+    validationResult.warnings.forEach(w => {
+      console.warn(`  [${w.node}] ${w.field}: ${w.message}${w.suggestion ? ' (Suggestion: ' + w.suggestion + ')' : ''}`);
+    });
+  }
 
   return WorkflowDefinitionSchema.parse(definition);
 }

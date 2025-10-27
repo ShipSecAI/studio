@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, runComponentWithRunner } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  runComponentWithRunner,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   targets: z
@@ -207,7 +212,7 @@ eval "$CMD"
       {
         id: 'targets',
         label: 'Targets',
-        type: 'array',
+        dataType: port.list(port.text()),
         required: true,
         description: 'Hostnames or IP addresses to scan for open ports.',
       },
@@ -216,13 +221,13 @@ eval "$CMD"
       {
         id: 'findings',
         label: 'Open Ports',
-        type: 'array',
+        dataType: port.list(port.json()),
         description: 'List of open ports discovered per target.',
       },
       {
         id: 'rawOutput',
         label: 'Raw Output',
-        type: 'string',
+        dataType: port.text(),
         description: 'Raw Naabu output lines (JSON per host:port).',
       },
     ],

@@ -8,7 +8,11 @@ import {
 } from 'ai';
 import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+} from '@shipsec/component-sdk';
 
 // Define types for dependencies to enable dependency injection for testing
 export type ToolLoopAgentClass = typeof ToolLoopAgentImpl;
@@ -313,21 +317,21 @@ Loop the Conversation State output back into the next agent invocation to keep m
       {
         id: 'userInput',
         label: 'User Input',
-        type: 'string',
+        dataType: port.text(),
         required: true,
         description: 'Incoming user text for this agent turn.',
       },
       {
         id: 'chatModel',
         label: 'Chat Model',
-        type: 'object',
+        dataType: port.json(),
         required: false,
         description: 'Provider configuration. Example: {"provider":"gemini","modelId":"gemini-2.5-flash","apiKey":"gm-..."}',
       },
       {
         id: 'mcp',
         label: 'MCP',
-        type: 'object',
+        dataType: port.json(),
         required: false,
         description: 'MCP connection settings. Example: {"endpoint":"https://mcp.example.com/session"}',
       },
@@ -336,25 +340,25 @@ Loop the Conversation State output back into the next agent invocation to keep m
       {
         id: 'responseText',
         label: 'Agent Response',
-        type: 'string',
+        dataType: port.text(),
         description: 'Final assistant message produced by the agent.',
       },
       {
         id: 'conversationState',
         label: 'Conversation State',
-        type: 'object',
+        dataType: port.json(),
         description: 'Updated conversation memory for subsequent agent turns.',
       },
       {
         id: 'toolInvocations',
         label: 'Tool Invocations',
-        type: 'object',
+        dataType: port.json(),
         description: 'Array of MCP tool calls executed during this run.',
       },
       {
         id: 'reasoningTrace',
         label: 'Reasoning Trace',
-        type: 'object',
+        dataType: port.json(),
         description: 'Sequence of Think → Act → Observe steps executed by the agent.',
       },
     ],

@@ -9,7 +9,7 @@ import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
 import type { NodeData } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
-import { inputSupportsType } from '@/utils/portUtils'
+import { inputSupportsManualValue, runtimeInputTypeToPortDataType } from '@/utils/portUtils'
 
 const STATUS_ICONS = {
   running: Loader2,
@@ -104,15 +104,11 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
 
       if (Array.isArray(runtimeInputs) && runtimeInputs.length > 0) {
         effectiveOutputs = runtimeInputs.map((input: any) => {
-          const normalizedType = input.type === 'string' ? 'text' : input.type
-          const outputType =
-            normalizedType === 'file' || normalizedType === 'text'
-              ? 'string'
-              : normalizedType
+          const dataType = runtimeInputTypeToPortDataType(input.type || 'text')
           return {
             id: input.id,
             label: input.label,
-            type: outputType,
+            dataType,
             description: input.description || `Runtime input: ${input.label}`,
           }
         })
@@ -123,7 +119,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   }
   
   const supportsManualOverride = (input: InputPort) =>
-    inputSupportsType(input, 'string') || input.valuePriority === 'manual-first'
+    inputSupportsManualValue(input) || input.valuePriority === 'manual-first'
 
   const manualValueProvidedForInput = (input: InputPort) => {
     if (!supportsManualOverride(input)) return false
@@ -319,7 +315,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
 
               const manualDisplay =
                 manualValueProvided &&
-                inputSupportsType(input, 'string') &&
+                inputSupportsManualValue(input) &&
                 typeof manualCandidate === 'string'
                   ? manualCandidate.trim()
                   : ''

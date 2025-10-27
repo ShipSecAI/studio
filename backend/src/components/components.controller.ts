@@ -113,18 +113,32 @@ export class ComponentsController {
               properties: {
                 id: { type: 'string' },
                 label: { type: 'string' },
-                type: {
-                  oneOf: [
-                    { type: 'string', enum: ['string', 'array', 'object', 'file', 'secret', 'number'] },
-                    {
-                      type: 'array',
-                      items: { type: 'string', enum: ['string', 'array', 'object', 'file', 'secret', 'number'] },
-                      minItems: 1,
+                dataType: {
+                  type: 'object',
+                  properties: {
+                    kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
+                    name: { type: 'string' },
+                    element: { type: 'object' },
+                    value: { type: 'object' },
+                    coercion: {
+                      type: 'object',
+                      properties: {
+                        from: {
+                          type: 'array',
+                          items: {
+                            type: 'string',
+                            enum: ['text', 'secret', 'number', 'boolean', 'file', 'json'],
+                          },
+                        },
+                      },
                     },
-                  ],
+                  },
+                  required: ['kind'],
+                  additionalProperties: true,
                 },
                 required: { type: 'boolean' },
                 description: { type: 'string', nullable: true },
+                valuePriority: { type: 'string', enum: ['manual-first', 'connection-first'], nullable: true },
               },
             },
           },
@@ -135,7 +149,29 @@ export class ComponentsController {
               properties: {
                 id: { type: 'string' },
                 label: { type: 'string' },
-                type: { type: 'string', enum: ['string', 'array', 'object', 'file', 'secret', 'number'] },
+                dataType: {
+                  type: 'object',
+                  properties: {
+                    kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
+                    name: { type: 'string' },
+                    element: { type: 'object' },
+                    value: { type: 'object' },
+                    coercion: {
+                      type: 'object',
+                      properties: {
+                        from: {
+                          type: 'array',
+                          items: {
+                            type: 'string',
+                            enum: ['text', 'secret', 'number', 'boolean', 'file', 'json'],
+                          },
+                        },
+                      },
+                    },
+                  },
+                  required: ['kind'],
+                  additionalProperties: true,
+                },
                 description: { type: 'string', nullable: true },
               },
             },
@@ -233,8 +269,76 @@ export class ComponentsController {
           },
         },
         runner: { type: 'object' },
-        inputs: { type: 'array' },
-        outputs: { type: 'array' },
+        inputs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              label: { type: 'string' },
+              dataType: {
+                type: 'object',
+                properties: {
+                  kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
+                  name: { type: 'string' },
+                  element: { type: 'object' },
+                  value: { type: 'object' },
+                  coercion: {
+                    type: 'object',
+                    properties: {
+                      from: {
+                        type: 'array',
+                        items: {
+                          type: 'string',
+                          enum: ['text', 'secret', 'number', 'boolean', 'file', 'json'],
+                        },
+                      },
+                    },
+                  },
+                },
+                required: ['kind'],
+                additionalProperties: true,
+              },
+              required: { type: 'boolean' },
+              description: { type: 'string', nullable: true },
+              valuePriority: { type: 'string', enum: ['manual-first', 'connection-first'], nullable: true },
+            },
+          },
+        },
+        outputs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              label: { type: 'string' },
+              dataType: {
+                type: 'object',
+                properties: {
+                  kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
+                  name: { type: 'string' },
+                  element: { type: 'object' },
+                  value: { type: 'object' },
+                  coercion: {
+                    type: 'object',
+                    properties: {
+                      from: {
+                        type: 'array',
+                        items: {
+                          type: 'string',
+                          enum: ['text', 'secret', 'number', 'boolean', 'file', 'json'],
+                        },
+                      },
+                    },
+                  },
+                },
+                required: ['kind'],
+                additionalProperties: true,
+              },
+              description: { type: 'string', nullable: true },
+            },
+          },
+        },
         parameters: { type: 'array' },
         examples: { type: 'array' },
         isLatest: { type: 'boolean', nullable: true },

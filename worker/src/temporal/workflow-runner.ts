@@ -186,7 +186,8 @@ export async function executeWorkflow(
       });
 
       try {
-        const output = await component.execute(parsedParams, context);
+        const rawOutput = await component.execute(parsedParams, context);
+        const output = component.outputSchema.parse(rawOutput);
         results.set(action.ref, output);
 
         options.trace?.record({
@@ -247,7 +248,10 @@ export async function executeWorkflow(
 }
 
 function maskSecretOutputs(component: RegisteredComponent, output: unknown): unknown {
-  const secretPorts = component.metadata?.outputs?.filter((port) => port.type === 'secret') ?? [];
+  const secretPorts =
+    component.metadata?.outputs?.filter((port) =>
+      port.dataType?.kind === 'primitive' && port.dataType.name === 'secret',
+    ) ?? [];
   if (secretPorts.length === 0) {
     return output;
   }

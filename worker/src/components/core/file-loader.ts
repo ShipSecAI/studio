@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  registerContract,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   fileId: z.string().uuid().describe('File ID from uploaded files'),
@@ -29,6 +34,16 @@ const outputSchema = z.object({
   textContent: z.string(),
 });
 
+const FILE_CONTRACT = 'shipsec.file.v1';
+
+registerContract({
+  name: FILE_CONTRACT,
+  schema: outputSchema.shape.file,
+  summary: 'ShipSec file payload with base64 content',
+  description:
+    'Normalized file representation returned by File Loader with metadata and base64-encoded content.',
+});
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.file.loader',
   label: 'File Loader',
@@ -54,7 +69,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'fileId',
         label: 'File ID',
-        type: 'string',
+        dataType: port.text({ coerceFrom: [] }),
         required: true,
         description: 'File ID from uploaded file (typically from Manual Trigger runtime input).',
       },
@@ -63,13 +78,13 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'file',
         label: 'File Data',
-        type: 'object',
+        dataType: port.contract(FILE_CONTRACT),
         description: 'Complete file metadata and base64 encoded content.',
       },
       {
         id: 'textContent',
         label: 'Text Content',
-        type: 'string',
+        dataType: port.text(),
         description: 'Decoded text content of the file (UTF-8).',
       },
     ],

@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { componentRegistry, type ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  type ComponentDefinition,
+  port,
+  registerContract,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   secretId: z.string().uuid().describe('Secret ID from the ShipSec secret store'),
@@ -32,6 +37,15 @@ const outputSchema = z.object({
   }),
 });
 
+const SECRET_METADATA_CONTRACT = 'core.secret-fetch.metadata.v1';
+
+registerContract({
+  name: SECRET_METADATA_CONTRACT,
+  schema: outputSchema.shape.metadata,
+  summary: 'Secret Fetch metadata payload',
+  description: 'Describes which secret/version was resolved and the output formatting used.',
+});
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.secret.fetch',
   label: 'Secret Fetch',
@@ -51,7 +65,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'secretId',
         label: 'Secret',
-        type: 'string',
+        dataType: port.text({ coerceFrom: [] }),
         required: true,
         description: 'Select a secret from the platform store. Stored as the secret ID.',
         valuePriority: 'manual-first',
@@ -59,7 +73,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'version',
         label: 'Version',
-        type: 'number',
+        dataType: port.number(),
         required: false,
         description: 'Optional version pin. Defaults to the active version.',
         valuePriority: 'manual-first',
@@ -67,7 +81,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'outputFormat',
         label: 'Output Format',
-        type: 'string',
+        dataType: port.text({ coerceFrom: [] }),
         required: false,
         description: 'Return as raw string or JSON-decoded object.',
         valuePriority: 'manual-first',
@@ -77,13 +91,13 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'secret',
         label: 'Secret Value',
-        type: 'secret',
+        dataType: port.secret(),
         description: 'Resolved secret value. Masked in logs and traces.',
       },
       {
         id: 'metadata',
         label: 'Secret Metadata',
-        type: 'object',
+        dataType: port.contract(SECRET_METADATA_CONTRACT),
         description: 'Information about the resolved secret version.',
       },
     ],

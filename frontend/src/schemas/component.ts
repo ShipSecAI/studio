@@ -6,19 +6,51 @@ export const ComponentRunnerSchema = z
   })
   .passthrough()
 
+const PrimitivePortTypes = ['text', 'secret', 'number', 'boolean', 'file', 'json'] as const
+
+export const PrimitivePortTypeEnum = z.enum(PrimitivePortTypes)
+
+const PrimitivePortSchema = z.object({
+  kind: z.literal('primitive'),
+  name: PrimitivePortTypeEnum,
+  coercion: z
+    .object({
+      from: z.array(PrimitivePortTypeEnum).optional(),
+    })
+    .optional(),
+})
+
+const ContractPortSchema = z.object({
+  kind: z.literal('contract'),
+  name: z.string().min(1),
+})
+
+const ListPortSchema = z.object({
+  kind: z.literal('list'),
+  element: z.union([PrimitivePortSchema, ContractPortSchema]),
+})
+
+const MapPortSchema = z.object({
+  kind: z.literal('map'),
+  value: PrimitivePortSchema,
+})
+
+export const PortDataTypeSchema = z.union([
+  PrimitivePortSchema,
+  ContractPortSchema,
+  MapPortSchema,
+  ListPortSchema,
+])
+
+export type PortDataType = z.infer<typeof PortDataTypeSchema>
+
 /**
  * Defines input ports for a component
  */
-const portTypes = ['string', 'array', 'object', 'file', 'secret', 'number'] as const
-const PortTypeEnum = z.enum(portTypes)
-const PortTypeArray = z.array(PortTypeEnum).min(1)
-
-export type PortType = typeof portTypes[number]
-
 export const InputPortSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: z.union([PortTypeEnum, PortTypeArray]),
+  dataType: PortDataTypeSchema,
   required: z.boolean().optional(),
   description: z.string().optional(),
   valuePriority: z.enum(['manual-first', 'connection-first']).optional(),
@@ -32,7 +64,7 @@ export type InputPort = z.infer<typeof InputPortSchema>
 export const OutputPortSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: PortTypeEnum,
+  dataType: PortDataTypeSchema,
   description: z.string().optional(),
 })
 

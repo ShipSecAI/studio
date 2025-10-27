@@ -25,7 +25,11 @@ const baseGraph: WorkflowGraphDto = WorkflowGraphSchema.parse({
       position: { x: 0, y: 0 },
       data: {
         label: 'Trigger',
-        config: {},
+        config: {
+          runtimeInputs: [
+            { id: 'fileId', label: 'File ID', type: 'text', required: true },
+          ],
+        },
       },
     },
     {
@@ -34,11 +38,13 @@ const baseGraph: WorkflowGraphDto = WorkflowGraphSchema.parse({
       position: { x: 0, y: 100 },
       data: {
         label: 'Loader',
-        config: { fileName: 'controller.txt' },
+        config: {
+          fileId: '00000000-0000-4000-8000-000000000001',
+        },
       },
     },
   ],
-  edges: [{ id: 'edge', source: 'trigger', target: 'loader' }],
+  edges: [{ id: 'edge', source: 'trigger', target: 'loader', sourceHandle: 'fileId', targetHandle: 'fileId' }],
   viewport: { x: 0, y: 0, zoom: 1 },
 });
 

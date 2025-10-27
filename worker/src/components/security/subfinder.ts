@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, runComponentWithRunner, type DockerRunnerConfig } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  runComponentWithRunner,
+  type DockerRunnerConfig,
+} from '@shipsec/component-sdk';
 
 const domainValueSchema = z.union([z.string(), z.array(z.string())]);
 
@@ -158,7 +164,7 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
       {
         id: 'domains',
         label: 'Target Domains',
-        type: 'array',
+        dataType: port.list(port.text()),
         required: true,
         description: 'Array of domain names to enumerate for subdomains.',
       },
@@ -167,13 +173,13 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
       {
         id: 'subdomains',
         label: 'Discovered Subdomains',
-        type: 'array',
+        dataType: port.list(port.text()),
         description: 'Array of all subdomain hostnames discovered.',
       },
       {
         id: 'rawOutput',
         label: 'Raw Output',
-        type: 'string',
+        dataType: port.text(),
         description: 'Raw tool output for debugging.',
       },
     ],

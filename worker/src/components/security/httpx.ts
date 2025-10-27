@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, runComponentWithRunner } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  runComponentWithRunner,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   targets: z
@@ -257,7 +262,7 @@ printf '{"results":%s,"raw":"%s","stderr":"%s","exitCode":%d}' \
       {
         id: 'targets',
         label: 'Targets',
-        type: 'array',
+        dataType: port.list(port.text()),
         required: true,
         description: 'Hostnames or URLs to probe for HTTP services.',
       },
@@ -266,13 +271,13 @@ printf '{"results":%s,"raw":"%s","stderr":"%s","exitCode":%d}' \
       {
         id: 'results',
         label: 'HTTP Responses',
-        type: 'array',
+        dataType: port.list(port.json()),
         description: 'Structured metadata for each responsive endpoint.',
       },
       {
         id: 'rawOutput',
         label: 'Raw Output',
-        type: 'string',
+        dataType: port.text(),
         description: 'Raw httpx JSON lines for downstream processing.',
       },
     ],

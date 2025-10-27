@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, runComponentWithRunner } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  runComponentWithRunner,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   messages: z
@@ -200,14 +205,14 @@ cat "$MESSAGE_FILE" | "$@"
       {
         id: 'messages',
         label: 'Messages',
-        type: 'array',
+        dataType: port.list(port.text()),
         required: true,
         description: 'Array of messages that notify should deliver.',
       },
       {
         id: 'providerConfig',
         label: 'Provider Configuration',
-        type: 'string',
+        dataType: port.text({ coerceFrom: [] }),
         required: true,
         description: 'YAML defining provider credentials and channels (plain text YAML content).',
       },
@@ -216,7 +221,7 @@ cat "$MESSAGE_FILE" | "$@"
       {
         id: 'rawOutput',
         label: 'Raw Output',
-        type: 'string',
+        dataType: port.text(),
         description: 'Raw CLI output returned by notify.',
       },
     ],

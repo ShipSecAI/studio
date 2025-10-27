@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { generateText as generateTextImpl } from 'ai';
 import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+} from '@shipsec/component-sdk';
 
 export type GenerateTextFn = typeof generateTextImpl;
 export type CreateOpenAIFn = typeof createOpenAIImpl;
@@ -115,14 +119,14 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'systemPrompt',
         label: 'System Prompt',
-        type: 'string',
+        dataType: port.text(),
         required: false,
         description: 'Optional system instructions that guide the model response.',
       },
       {
         id: 'userPrompt',
         label: 'User Prompt',
-        type: 'string',
+        dataType: port.text(),
         required: true,
         description: 'User input that will be sent to OpenRouter.',
       },
@@ -131,25 +135,25 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'responseText',
         label: 'Response Text',
-        type: 'string',
+        dataType: port.text(),
         description: 'The assistant response returned by OpenRouter.',
       },
       {
         id: 'rawResponse',
         label: 'Raw Response',
-        type: 'object',
+        dataType: port.json(),
         description: 'Raw response metadata returned by OpenRouter for debugging.',
       },
       {
         id: 'usage',
         label: 'Token Usage',
-        type: 'object',
+        dataType: port.json(),
         description: 'Token usage metadata returned by the provider, if available.',
       },
       {
         id: 'chatModel',
         label: 'Chat Model Config',
-        type: 'object',
+        dataType: port.json(),
         description: 'Configuration object for wiring into downstream nodes such as the AI Agent.',
       },
     ],

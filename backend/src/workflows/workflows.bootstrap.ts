@@ -58,7 +58,11 @@ export class WorkflowsBootstrapService implements OnModuleInit {
           position: { x: 0, y: 0 },
           data: {
             label: 'Manual Trigger',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'fileId', label: 'File ID', type: 'text', required: true },
+              ],
+            },
           },
         },
         {
@@ -67,7 +71,7 @@ export class WorkflowsBootstrapService implements OnModuleInit {
           position: { x: 200, y: 0 },
           data: {
             label: 'Load Sample File',
-            config: { fileName: 'demo.txt' },
+            config: { fileId: '00000000-0000-4000-8000-000000000001' },
           },
         },
       ],
@@ -76,6 +80,8 @@ export class WorkflowsBootstrapService implements OnModuleInit {
           id: 'trigger-loader',
           source: 'trigger',
           target: 'loader',
+          sourceHandle: 'fileId',
+          targetHandle: 'fileId',
         },
       ],
       viewport: { x: 0, y: 0, zoom: 1 },

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
 
 // Support both direct text and file objects from manual trigger
 const manualTriggerFileSchema = z.object({
@@ -62,7 +62,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'text',
         label: 'Text Input',
-        type: 'string',
+        dataType: port.text(),
         required: true,
         description: 'Text content to be split into lines or items. Accepts either plain text string or file object with content property.',
       },
@@ -71,13 +71,13 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'items',
         label: 'Items',
-        type: 'array',
+        dataType: port.list(port.text()),
         description: 'Array of strings after splitting.',
       },
       {
         id: 'count',
         label: 'Count',
-        type: 'string',
+        dataType: port.number({ coerceFrom: [] }),
         description: 'Number of items after splitting.',
       },
     ],

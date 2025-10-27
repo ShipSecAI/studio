@@ -21,7 +21,11 @@ const sampleGraph = WorkflowGraphSchema.parse({
       position: { x: 0, y: 0 },
       data: {
         label: 'Trigger',
-        config: {},
+        config: {
+          runtimeInputs: [
+            { id: 'fileId', label: 'File ID', type: 'text', required: true },
+          ],
+        },
       },
     },
     {
@@ -30,7 +34,9 @@ const sampleGraph = WorkflowGraphSchema.parse({
       position: { x: 0, y: 100 },
       data: {
         label: 'Loader',
-        config: {},
+        config: {
+          fileId: '00000000-0000-4000-8000-000000000001',
+        },
       },
     },
   ],
@@ -39,6 +45,8 @@ const sampleGraph = WorkflowGraphSchema.parse({
       id: 'e1',
       source: 'trigger',
       target: 'loader',
+      sourceHandle: 'fileId',
+      targetHandle: 'fileId',
     },
   ],
   viewport: { x: 0, y: 0, zoom: 1 },

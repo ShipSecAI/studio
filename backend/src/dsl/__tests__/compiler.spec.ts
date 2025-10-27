@@ -17,7 +17,11 @@ describe('compileWorkflowGraph', () => {
           position: { x: 0, y: 0 },
           data: {
             label: 'Trigger',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'fileId', label: 'File ID', type: 'text', required: true },
+              ],
+            },
           },
         },
         {
@@ -26,7 +30,9 @@ describe('compileWorkflowGraph', () => {
           position: { x: 0, y: 100 },
           data: {
             label: 'File loader',
-            config: {},
+            config: {
+              fileId: '00000000-0000-4000-8000-000000000001',
+            },
           },
         },
         {
@@ -35,12 +41,15 @@ describe('compileWorkflowGraph', () => {
           position: { x: 0, y: 200 },
           data: {
             label: 'Webhook',
-            config: {},
+            config: {
+              url: 'https://example.com/webhook',
+              payload: { from: 'loader' },
+            },
           },
         },
       ],
       edges: [
-        { id: 'e1', source: 'trigger', target: 'loader' },
+        { id: 'e1', source: 'trigger', target: 'loader', sourceHandle: 'fileId', targetHandle: 'fileId' },
         { id: 'e2', source: 'loader', target: 'webhook' },
       ],
       viewport: { x: 0, y: 0, zoom: 1 },
@@ -70,8 +79,8 @@ describe('compileWorkflowGraph', () => {
         id: 'e1',
         sourceRef: 'trigger',
         targetRef: 'loader',
-        sourceHandle: undefined,
-        targetHandle: undefined,
+        sourceHandle: 'fileId',
+        targetHandle: 'fileId',
         kind: 'success',
       },
       {
@@ -123,7 +132,11 @@ describe('compileWorkflowGraph', () => {
           position: { x: 0, y: 0 },
           data: {
             label: 'A',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'inputA', label: 'Input A', type: 'text', required: false },
+              ],
+            },
           },
         },
         {
@@ -132,7 +145,11 @@ describe('compileWorkflowGraph', () => {
           position: { x: 0, y: 100 },
           data: {
             label: 'B',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'inputB', label: 'Input B', type: 'text', required: false },
+              ],
+            },
           },
         },
       ],
@@ -158,7 +175,11 @@ describe('compileWorkflowGraph', () => {
           position: { x: 0, y: 0 },
           data: {
             label: 'Start',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'branchSeed', label: 'Seed', type: 'text', required: false },
+              ],
+            },
           },
         },
         {
@@ -167,7 +188,11 @@ describe('compileWorkflowGraph', () => {
           position: { x: -100, y: 100 },
           data: {
             label: 'Branch A',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'branchAInput', label: 'Branch A Input', type: 'text', required: false },
+              ],
+            },
           },
         },
         {
@@ -176,7 +201,11 @@ describe('compileWorkflowGraph', () => {
           position: { x: 100, y: 100 },
           data: {
             label: 'Branch B',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'branchBInput', label: 'Branch B Input', type: 'text', required: false },
+              ],
+            },
           },
         },
         {
@@ -185,7 +214,11 @@ describe('compileWorkflowGraph', () => {
           position: { x: 0, y: 200 },
           data: {
             label: 'Merge',
-            config: {},
+            config: {
+              runtimeInputs: [
+                { id: 'mergeInput', label: 'Merge Input', type: 'text', required: false },
+              ],
+            },
           },
         },
       ],
