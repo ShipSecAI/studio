@@ -11,6 +11,10 @@ import {
   MonitorPlay,
   Upload,
   Download,
+  PanelLeftClose,
+  PanelLeftOpen,
+  KeyRound,
+  Plug,
 } from 'lucide-react'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
@@ -43,7 +47,7 @@ export function TopBar({
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
   const { status, runStatus, reset } = useExecutionStore()
   const isRunning = status === 'running' || status === 'queued'
-  const { mode, setMode } = useWorkflowUiStore()
+  const { mode, setMode, libraryOpen, toggleLibrary } = useWorkflowUiStore()
   const canEdit = Boolean(canManageWorkflows)
 
   const handleSave = async () => {
@@ -134,6 +138,35 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3 ml-auto">
+        <Button
+          variant="outline"
+          onClick={() => navigate('/secrets')}
+          className="gap-2"
+        >
+          <KeyRound className="h-4 w-4" />
+          Secrets
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => navigate('/integrations')}
+          className="gap-2"
+        >
+          <Plug className="h-4 w-4" />
+          Connections
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="inline-flex"
+          onClick={toggleLibrary}
+          aria-label={libraryOpen ? 'Hide component library' : 'Show component library'}
+        >
+          {libraryOpen ? (
+            <PanelLeftClose className="h-5 w-5" />
+          ) : (
+            <PanelLeftOpen className="h-5 w-5" />
+          )}
+        </Button>
         <AuthSettingsButton />
         <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm">
           <Button

@@ -41,6 +41,7 @@ shipsec-studio/
 │   └── src/
 │       ├── workflows/          # Workflow CRUD + compilation
 │       ├── storage/            # File upload/download API
+│       ├── integrations/       # OAuth provider orchestration & token vault
 │       ├── components/         # Component listing API
 │       ├── dsl/                # Graph → DSL compiler
 │       ├── temporal/           # Temporal client (start/query workflows)
@@ -192,6 +193,22 @@ const worker = await Worker.create({
 - `FilesService` - File upload/download/metadata
 - `TemporalService` - Temporal client wrapper
 - `DSLCompiler` - Graph → DSL transformation
+- `IntegrationsService` - OAuth orchestration + encrypted token vault (new)
+
+#### IntegrationsModule (OAuth connections)
+
+- Backed by `integration_tokens` (encrypted access/refresh tokens) and `integration_oauth_states` tables for state validation.
+- Supports provider-specific OAuth metadata (`integration-providers.ts`) with GitHub and Zoom pre-configured. Scopes are deduplicated and PKCE is applied where required.
+- REST endpoints:
+  - `GET /integrations/providers` – provider catalog for the UI
+  - `POST /integrations/:provider/start` – generate authorization URL + save state
+  - `POST /integrations/:provider/exchange` – exchange code, encrypt tokens, upsert connection
+  - `POST /integrations/connections/:id/refresh` – refresh with stored refresh token
+  - `DELETE /integrations/connections/:id` – revoke connection
+- `TokenEncryptionService` wraps AES-GCM with `INTEGRATION_STORE_MASTER_KEY` (falls back to `SECRET_STORE_MASTER_KEY`) so all credentials at rest remain encrypted.
+- `IntegrationsService.getProviderToken(provider, userId)` gives backend components/activities a single entry point to retrieve valid access tokens; it auto-refreshes near-expiry tokens before returning them.
+
+**Frontend surface**: `/integrations` mirrors the Secrets manager. `IntegrationsManager` lists providers, shows active connections, and launches OAuth flows. `/integrations/callback/:provider` handles redirects, exchanges the code via the API, dispatches a `integration:connected` event, and routes back to the manager with status feedback.
 
 ## Workflow Execution Flow
 

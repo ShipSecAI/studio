@@ -4,16 +4,17 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { authConfig } from './config/auth.config';
+import { AuthModule } from './auth/auth.module';
+import { AuthGuard } from './auth/auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 import { ComponentsModule } from './components/components.module';
 import { StorageModule } from './storage/storage.module';
 import { SecretsModule } from './secrets/secrets.module';
 import { TraceModule } from './trace/trace.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { TestingSupportModule } from './testing/testing.module';
-import { authConfig } from './config/auth.config';
-import { AuthModule } from './auth/auth.module';
-import { AuthGuard } from './auth/auth.guard';
-import { RolesGuard } from './auth/roles.guard';
+import { IntegrationsModule } from './integrations/integrations.module';
 
 const coreModules = [
   AuthModule,
@@ -22,6 +23,7 @@ const coreModules = [
   ComponentsModule,
   StorageModule,
   SecretsModule,
+  IntegrationsModule,
 ];
 const testingModules =
   process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];

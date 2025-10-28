@@ -1,0 +1,25 @@
+import {
+  IntegrationConnectionSchema as SharedIntegrationConnectionSchema,
+  IntegrationProviderConfigurationSchema as SharedIntegrationProviderConfigurationSchema,
+  IntegrationProviderSchema as SharedIntegrationProviderSchema,
+  IntegrationStatusSchema as SharedIntegrationStatusSchema,
+  OAuthStartResponseSchema as SharedOAuthStartResponseSchema,
+  type IntegrationConnection as SharedIntegrationConnection,
+  type IntegrationProviderConfiguration as SharedIntegrationProviderConfiguration,
+  type IntegrationProvider as SharedIntegrationProvider,
+  type OAuthStartResponse as SharedOAuthStartResponse,
+} from '@shipsec/shared'
+
+export const IntegrationProviderSchema = SharedIntegrationProviderSchema
+export type IntegrationProvider = SharedIntegrationProvider
+
+export const IntegrationConnectionSchema = SharedIntegrationConnectionSchema
+export type IntegrationConnection = SharedIntegrationConnection
+
+export const IntegrationStatusSchema = SharedIntegrationStatusSchema
+
+export const OAuthStartResponseSchema = SharedOAuthStartResponseSchema
+export type OAuthStartResponse = SharedOAuthStartResponse
+
+export const IntegrationProviderConfigurationSchema = SharedIntegrationProviderConfigurationSchema
+export type IntegrationProviderConfiguration = SharedIntegrationProviderConfiguration

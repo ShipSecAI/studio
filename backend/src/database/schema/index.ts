@@ -7,3 +7,4 @@ export * from './log-streams';
 export * from './secrets';
 export * from './platform-workflow-links';
 export * from './workflow-roles';
+export * from './integrations';

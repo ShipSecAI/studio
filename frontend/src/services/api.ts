@@ -1,6 +1,17 @@
 import { createShipSecClient, type components } from '@shipsec/backend-client'
 import { useAuthStore } from '@/store/authStore'
 import { getFreshClerkToken } from '@/utils/clerk-token'
+import type { ZodType } from 'zod'
+import {
+  IntegrationConnectionSchema,
+  IntegrationProviderConfigurationSchema,
+  IntegrationProviderSchema,
+  OAuthStartResponseSchema,
+  type IntegrationConnection,
+  type IntegrationProvider,
+  type IntegrationProviderConfiguration,
+  type OAuthStartResponse,
+} from '@/schemas/integration'
 
 // Direct type imports from backend client
 type WorkflowResponseDto = components['schemas']['WorkflowResponseDto']
@@ -101,6 +112,95 @@ const apiClient = createShipSecClient({
     },
   },
 })
+
+function buildApiPath(path: string) {
+  return path.startsWith('/') ? path : `/${path}`
+}
+
+async function extractErrorMessage(response: Response, fallback: string) {
+  try {
+    const text = await response.text()
+    if (!text) {
+      return fallback
+    }
+    const data = JSON.parse(text)
+    if (data && typeof data === 'object') {
+      if (typeof data.message === 'string') {
+        return data.message
+      }
+      if (Array.isArray(data.message)) {
+        return data.message.join(', ')
+      }
+      if (typeof data.error === 'string') {
+        return data.error
+      }
+    }
+    return text || fallback
+  } catch {
+    return fallback
+  }
+}
+
+async function fetchWithAuth(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  const authHeaders = await getAuthHeaders()
+
+  if (authHeaders['Authorization']) {
+    headers.set('Authorization', authHeaders['Authorization'])
+  }
+  if (authHeaders['X-Organization-Id']) {
+    headers.set('X-Organization-Id', authHeaders['X-Organization-Id'])
+  }
+
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  return fetch(`${API_BASE_URL}/api/v1${buildApiPath(path)}`, {
+    ...init,
+    headers,
+  })
+}
+
+async function fetchJson<T>(
+  path: string,
+  schema: ZodType<T>,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await fetchWithAuth(path, init)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, response.statusText))
+  }
+  const data = await response.json()
+  return schema.parse(data)
+}
+
+async function fetchVoid(path: string, init: RequestInit = {}) {
+  const response = await fetchWithAuth(path, init)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, response.statusText))
+  }
+}
+
+interface StartOAuthPayload {
+  userId: string
+  redirectUri: string
+  scopes?: string[]
+}
+
+interface CompleteOAuthPayload extends StartOAuthPayload {
+  state: string
+  code: string
+}
+
+interface RefreshConnectionPayload {
+  userId: string
+}
+
+interface UpsertProviderConfigPayload {
+  clientId: string
+  clientSecret?: string
+}
 
 /**
  * API Service
@@ -211,6 +311,102 @@ export const api = {
       if (response.error) throw new Error('Failed to fetch secret value')
       if (!response.data) throw new Error('Secret value not found')
       return response.data
+    },
+  },
+
+  integrations: {
+    listProviders: async (): Promise<IntegrationProvider[]> => {
+      return fetchJson(
+        '/integrations/providers',
+        IntegrationProviderSchema.array(),
+      )
+    },
+
+    listConnections: async (userId: string): Promise<IntegrationConnection[]> => {
+      const query = new URLSearchParams({ userId })
+      return fetchJson(
+        `/integrations/connections?${query.toString()}`,
+        IntegrationConnectionSchema.array(),
+      )
+    },
+
+    startOAuth: async (
+      providerId: string,
+      payload: StartOAuthPayload,
+    ): Promise<OAuthStartResponse> => {
+      return fetchJson(
+        `/integrations/${providerId}/start`,
+        OAuthStartResponseSchema,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+      )
+    },
+
+    completeOAuth: async (
+      providerId: string,
+      payload: CompleteOAuthPayload,
+    ): Promise<IntegrationConnection> => {
+      return fetchJson(
+        `/integrations/${providerId}/exchange`,
+        IntegrationConnectionSchema,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+      )
+    },
+
+    refreshConnection: async (
+      id: string,
+      userId: string,
+    ): Promise<IntegrationConnection> => {
+      const payload: RefreshConnectionPayload = { userId }
+      return fetchJson(
+        `/integrations/connections/${id}/refresh`,
+        IntegrationConnectionSchema,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+      )
+    },
+
+    disconnect: async (id: string, userId: string): Promise<void> => {
+      await fetchVoid(`/integrations/connections/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ userId }),
+      })
+    },
+
+    getProviderConfig: async (
+      providerId: string,
+    ): Promise<IntegrationProviderConfiguration> => {
+      return fetchJson(
+        `/integrations/providers/${providerId}/config`,
+        IntegrationProviderConfigurationSchema,
+      )
+    },
+
+    upsertProviderConfig: async (
+      providerId: string,
+      payload: UpsertProviderConfigPayload,
+    ): Promise<IntegrationProviderConfiguration> => {
+      return fetchJson(
+        `/integrations/providers/${providerId}/config`,
+        IntegrationProviderConfigurationSchema,
+        {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        },
+      )
+    },
+
+    deleteProviderConfig: async (providerId: string): Promise<void> => {
+      await fetchVoid(`/integrations/providers/${providerId}/config`, {
+        method: 'DELETE',
+      })
     },
   },
 

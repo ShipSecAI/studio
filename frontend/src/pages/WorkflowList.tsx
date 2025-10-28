@@ -3,8 +3,15 @@ import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Workflow, Loader2, AlertCircle, Trash2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Plus, Workflow, Loader2, AlertCircle, Plug, Trash2 } from 'lucide-react'
 import { api } from '@/services/api'
 import {
   WorkflowMetadataSchema,
@@ -112,6 +119,36 @@ export function WorkflowList() {
           <p className="text-muted-foreground">
             Create and manage security automation workflows with powerful visual tools
           </p>
+        </div>
+
+        <div className="mb-6 flex flex-wrap gap-3">
+          <Button
+            onClick={() => navigate('/workflows/new')}
+            size="lg"
+            className="gap-2"
+            disabled={isLoading}
+          >
+            <Plus className="h-5 w-5" />
+            New Workflow
+          </Button>
+          <Button
+            onClick={() => navigate('/secrets')}
+            size="lg"
+            variant="outline"
+            disabled={isLoading}
+          >
+            Manage Secrets
+          </Button>
+          <Button
+            onClick={() => navigate('/integrations')}
+            size="lg"
+            variant="outline"
+            disabled={isLoading}
+            className="gap-2"
+          >
+            <Plug className="h-5 w-5" />
+            Manage Connections
+          </Button>
         </div>
 
         {isLoading ? (
