@@ -10,7 +10,13 @@ const iso = () => new Date().toISOString()
 const resetStores = () => {
   useExecutionStore.getState().reset()
   useWorkflowStore.setState({
-    metadata: { id: 'workflow-1', name: 'Demo Workflow', description: '' },
+    metadata: {
+      id: 'workflow-1',
+      name: 'Demo Workflow',
+      description: '',
+      currentVersionId: null,
+      currentVersion: null,
+    },
     isDirty: false,
   })
 }

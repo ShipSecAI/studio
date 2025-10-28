@@ -8,6 +8,7 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "./dist",
@@ -15,7 +16,10 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["bun-types"]
+    "types": ["bun-types"],
+    "incremental": true,
+    "composite": true,
+    "assumeChangesOnlyAffectDirectDependencies": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts", "**/__tests__"]
