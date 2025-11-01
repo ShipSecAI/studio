@@ -29,6 +29,7 @@ import './security/supabase-scanner';
 import './security/notify';
 import './security/prowler-scan';
 import './security/shuffledns-massdns';
+import './security/atlassian-offboarding';
 
 // IT Automation components
 import './it-automation/google-workspace-license-unassign';
