@@ -109,6 +109,7 @@ timeout 5s pm2 logs worker --lines 50 || true
 ```
 
 > **Note**: The backend automatically runs migrations on startup, but you can run `bun run migrate` manually after pulling schema changes.
+> **SWC tip**: The PM2 config now resolves the native `@swc/core` binary dynamically. If you see a warning about the resolver, confirm the optional platform package installed correctly (`bun install` on the target host).
 
 ### 3. Start Frontend
 
