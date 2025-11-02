@@ -9,7 +9,7 @@
 
 ## Build, Test, and Development Commands
 - `bun install` — install workspace dependencies.
-- `docker compose up -d` — bring up Temporal, Postgres, MinIO, and Loki.
+- `docker compose -p shipsec up -d` — bring up Temporal, Postgres, MinIO, and Loki (fixed project name for consistent up/down across directories).
 - Always timebox commands; pick a realistic limit (e.g., `timeout 30s <cmd>` for logs, `timeout 2m <cmd>` for tests) so shells never hang indefinitely. On macOS install GNU coreutils (`brew install coreutils`) and use `gtimeout`, or wrap commands manually with `sleep`/`kill` if `timeout` is unavailable.
 - `pm2 start pm2.config.cjs` — run backend API and worker (use `timeout 5s pm2 logs backend --lines 50` to inspect).
 - `bun --cwd frontend dev` and `bun --cwd backend run dev` — start frontend and API locally.

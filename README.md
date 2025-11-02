@@ -47,13 +47,15 @@ Adjust values in the `.env` files if needed (defaults work for local development
 ### 3. Start Docker Infrastructure
 
 ```bash
-# Start Postgres, Temporal, MinIO, and Loki
-docker compose up -d
+# Start Postgres, Temporal, MinIO, and Loki (fixed project name)
+docker compose -p shipsec up -d
 
 # Verify all services are healthy
-docker compose ps
+docker compose -p shipsec ps
 curl -f http://localhost:8081/health || echo "Temporal UI not ready yet"
 ```
+
+> Note on project name: we pin the Docker Compose project to `shipsec` via `-p shipsec` so `up` and `down` operate on the same stack regardless of your current working directory. The npm scripts (`dev:infra`, `dev:stack:stop`) already include this flag.
 
 ### 4. Create Temporal Namespace
 
@@ -62,7 +64,7 @@ This is a **one-time setup** step. Run this only:
 - After `docker compose down --volumes` (which deletes the database)
 
 ```bash
-docker compose --profile setup up -d
+docker compose -p shipsec --profile setup up -d
 ```
 
 This creates the `shipsec-dev` namespace in Temporal. Verify it worked:
@@ -91,10 +93,10 @@ For regular development after initial setup:
 
 ```bash
 # Start infrastructure (without setup profile)
-docker compose up -d
+docker compose -p shipsec up -d
 
 # Verify services are running
-docker compose ps
+docker compose -p shipsec ps
 ```
 
 ### 2. Start Backend & Worker
@@ -137,7 +139,7 @@ bun run dev:stack
 
 The script performs the following steps:
 
-1. `docker compose up -d` to bring up Temporal, Postgres, MinIO, and Loki.
+1. `docker compose -p shipsec up -d` to bring up Temporal, Postgres, MinIO, and Loki.
 2. `pm2 startOrReload pm2.config.cjs` to launch:
    - `shipsec-backend` (Bun dev server for the API),
    - `shipsec-worker` (Temporal worker, default task queue),
@@ -150,7 +152,7 @@ The script performs the following steps:
 bun run dev:stack:stop
 ```
 
-This shuts down the PM2 apps (backend, worker, frontend) and runs `docker compose down`.
+This shuts down the PM2 apps (backend, worker, frontend) and runs `docker compose -p shipsec down`.
 
 ### Inspecting status or additional logs
 
@@ -193,10 +195,10 @@ Treat docs like code:
 pm2 stop all
 
 # Stop Docker services
-docker compose down
+docker compose -p shipsec down
 
 # Optional: Remove persistent volumes for a clean slate
-docker compose down --volumes
+docker compose -p shipsec down --volumes
 ```
 
 > **Note**: After `docker compose down --volumes`, you'll need to re-run the Temporal namespace setup (step 4 in Initial Setup).
@@ -211,7 +213,7 @@ If you see `Namespace shipsec-dev is not found`:
 
 ```bash
 # Re-run the one-time setup
-docker compose --profile setup up -d
+docker compose -p shipsec --profile setup up -d
 ```
 
 ### Temporal Not Reachable
@@ -219,7 +221,7 @@ docker compose --profile setup up -d
 Ensure Docker is running and Temporal is healthy:
 
 ```bash
-docker compose ps
+docker compose -p shipsec ps
 # Look for "healthy" status on the temporal service
 ```
 
@@ -245,14 +247,14 @@ For a completely fresh start:
 ```bash
 # Stop everything
 pm2 stop all
-docker compose down --volumes
+docker compose -p shipsec down --volumes
 
 # Remove all ShipSec volumes
 docker volume ls -q | grep shipsec | xargs -r docker volume rm
 
 # Start from scratch
-docker compose up -d
-docker compose --profile setup up -d
+docker compose -p shipsec up -d
+docker compose -p shipsec --profile setup up -d
 bun run migrate
 pm2 start pm2.config.cjs
 ```
