@@ -110,6 +110,27 @@ async function main() {
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],
+      webpackConfigHook: (config: any) => {
+        if (config?.module?.rules && Array.isArray(config.module.rules)) {
+          config.module.rules = config.module.rules.map((rule: any) => {
+            const usesSwc = typeof rule?.use === 'object' && rule.use?.loader && /swc-loader/.test(String(rule.use.loader));
+            if (usesSwc) {
+              return {
+                test: /\.ts$/,
+                exclude: /node_modules/,
+                use: {
+                  loader: require.resolve('ts-loader'),
+                  options: {
+                    transpileOnly: true,
+                  },
+                },
+              };
+            }
+            return rule;
+          });
+        }
+        return config;
+      },
     },
   });
 

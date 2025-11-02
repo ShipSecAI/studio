@@ -90,3 +90,4 @@ Each stores `runId`, `nodeId`, timestamp, payload.
 - Workflow resolves input mappings before scheduling the activity; unresolved mappings are passed as warnings so the activity emits `NODE_PROGRESS` warnings before execution.
 - Manual trigger inputs continue to flow (`__runtimeData` for trigger component, merged params for others).
 - Scheduler remains for inline execution (`executeWorkflow` tests) while the Temporal workflow leverages the same logic with activity isolation; worker integration tests confirm the new orchestration.
+- 2025-11-02: Temporal worker bundling failed on macOS due to `@swc/core` native binding validation. Resolved by swapping webpack's `.ts` rule to `ts-loader` via `webpackConfigHook` in `worker/src/temporal/workers/dev.worker.ts`, and invoking worker with Node + `tsx` in `pm2.config.cjs`. This avoids SWC native loading entirely, keeping dev bundling stable across platforms.

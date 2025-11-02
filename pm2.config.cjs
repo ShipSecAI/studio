@@ -185,12 +185,14 @@ module.exports = {
     {
       name: 'shipsec-worker',
       cwd: __dirname + '/worker',
-      script: 'bun',
-      args: 'run dev',
+      // Run the worker with Node + tsx to avoid Bun's SWC binding issues
+      script: __dirname + '/node_modules/.bin/tsx',
+      args: 'src/temporal/workers/dev.worker.ts',
       env_file: __dirname + '/worker/.env',
       env: Object.assign(
         {
           TEMPORAL_TASK_QUEUE: 'shipsec-default',
+          NAPI_RS_FORCE_WASI: '1',
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
@@ -198,12 +200,14 @@ module.exports = {
     {
       name: 'shipsec-test-worker',
       cwd: __dirname + '/worker',
-      script: 'bun',
-      args: 'run dev',
+      // Use Node + tsx here as well
+      script: __dirname + '/node_modules/.bin/tsx',
+      args: 'src/temporal/workers/dev.worker.ts',
       env_file: __dirname + '/worker/.env',
       env: Object.assign(
         {
           TEMPORAL_TASK_QUEUE: 'test-worker-integration',
+          NAPI_RS_FORCE_WASI: '1',
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
