@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
+import { createRequire } from 'node:module';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client } from 'minio';
@@ -111,6 +112,8 @@ async function main() {
     bundlerOptions: {
       ignoreModules: ['child_process'],
       webpackConfigHook: (config: any) => {
+        // In ESM, `require` is not defined; use Node's createRequire for resolution
+        const require = createRequire(import.meta.url);
         if (config?.module?.rules && Array.isArray(config.module.rules)) {
           config.module.rules = config.module.rules.map((rule: any) => {
             const usesSwc = typeof rule?.use === 'object' && rule.use?.loader && /swc-loader/.test(String(rule.use.loader));
