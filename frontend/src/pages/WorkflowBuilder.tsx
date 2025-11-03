@@ -29,7 +29,6 @@ import {
 } from '@/utils/workflowSerializer'
 import type { NodeData } from '@/schemas/node'
 import { useAuthStore } from '@/store/authStore'
-import { AuthStatusBanner } from '@/components/auth/AuthStatusBanner'
 
 function WorkflowBuilderContent() {
   const { id } = useParams<{ id: string }>()
@@ -433,9 +432,6 @@ function WorkflowBuilderContent() {
         onRun={handleRun}
         onSave={handleSave}
       />
-      <div className="px-6 pt-2">
-        <AuthStatusBanner />
-      </div>
       <Button
         type="button"
         variant="secondary"

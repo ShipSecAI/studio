@@ -198,7 +198,6 @@ export class WorkflowsController {
   ) {}
 
   @Post()
-  @UsePipes(new ZodValidationPipe(WorkflowGraphSchema))
   @ApiOkResponse({ type: WorkflowResponseDto })
   async create(
     @CurrentAuth() auth: AuthContext | null,
@@ -215,7 +214,7 @@ export class WorkflowsController {
   async update(
     @CurrentAuth() auth: AuthContext | null,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(WorkflowGraphSchema)) body: UpdateWorkflowRequestDto,
+    @Body() body: UpdateWorkflowRequestDto,
   ): Promise<WorkflowResponse> {
     const serviceResponse = await this.workflowsService.update(id, body, auth);
     return this.transformServiceResponseToApi(serviceResponse);
