@@ -26,6 +26,7 @@ import './security/dnsx';
 import './security/httpx';
 import './security/notify';
 import './security/prowler-scan';
+import './security/shuffledns-massdns';
 
 // IT Automation components
 import './it-automation/google-workspace-license-unassign';

@@ -152,12 +152,11 @@ export async function runComponentActivity(
   });
 
   try {
-    const output = await runComponentWithRunner(
-      component.runner,
-      component.execute,
-      parsedParams,
-      context,
-    );
+    // Execute the component logic directly so that any
+    // normalisation/parsing inside `execute` runs.
+    // Docker/remote execution should be invoked from within
+    // the component via `runComponentWithRunner`.
+    const output = await component.execute(parsedParams, context);
 
     trace?.record({
       type: 'NODE_COMPLETED',
