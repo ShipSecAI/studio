@@ -25,6 +25,12 @@ export interface DockerRunnerConfig {
   entrypoint?: string; // Override container's default entrypoint
   env?: Record<string, string>;
   network?: 'none' | 'bridge' | 'host'; // Network mode (default: none for security)
+  platform?: string; // Optional platform to run under (e.g., 'linux/amd64')
+  volumes?: Array<{
+    source: string; // host path
+    target: string; // container path
+    readOnly?: boolean;
+  }>; // Optional volume mounts
   timeoutSeconds?: number;
 }
 

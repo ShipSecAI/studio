@@ -21,7 +21,7 @@ async function runComponentInDocker<I, O>(
   params: I,
   context: ExecutionContext,
 ): Promise<O> {
-  const { image, command, entrypoint, env = {}, network = 'none', timeoutSeconds = 300 } = runner;
+  const { image, command, entrypoint, env = {}, network = 'none', platform, volumes, timeoutSeconds = 300 } = runner;
   
   context.logger.info(`[Docker] Running ${image} with command: ${command.join(' ')}`);
   context.emitProgress(`Starting Docker container: ${image}`);
@@ -33,6 +33,20 @@ async function runComponentInDocker<I, O>(
     '-i',   // Interactive (keep stdin open)
     '--network', network, // Network mode (default: none for security)
   ];
+
+  // Set target platform when requested (enables emulation on Apple Silicon/ARM hosts)
+  if (platform && platform.trim().length > 0) {
+    dockerArgs.push('--platform', platform);
+  }
+
+  // Add volume mounts
+  if (Array.isArray(volumes)) {
+    for (const vol of volumes) {
+      if (!vol || !vol.source || !vol.target) continue;
+      const mode = vol.readOnly ? ':ro' : '';
+      dockerArgs.push('-v', `${vol.source}:${vol.target}${mode}`);
+    }
+  }
 
   // Add environment variables
   for (const [key, value] of Object.entries(env)) {
@@ -170,4 +184,3 @@ export async function runComponentWithRunner<I, O>(
       throw new Error(`Unsupported runner type ${(runner as any).kind}`);
   }
 }
-
