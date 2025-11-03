@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Copy } from 'lucide-react'
+import { AnsiUp } from 'ansi_up'
 
 interface MessageModalProps {
   open: boolean
@@ -16,6 +17,9 @@ interface MessageModalProps {
 }
 
 export function MessageModal({ open, onOpenChange, title, message }: MessageModalProps) {
+  const hasAnsi = /\u001b\[[0-9;]*m/.test(message)
+  const au = new AnsiUp()
+  const ansiHtml = hasAnsi ? au.ansi_to_html(message) : ''
   const copyToClipboard = () => {
     navigator.clipboard.writeText(message)
   }
@@ -31,9 +35,16 @@ export function MessageModal({ open, onOpenChange, title, message }: MessageModa
         </DialogHeader>
 
         <div className="flex-1 overflow-auto">
-          <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/30 rounded p-3 border">
-            {message}
-          </pre>
+          {hasAnsi ? (
+            <div
+              className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/30 rounded p-3 border"
+              dangerouslySetInnerHTML={{ __html: ansiHtml }}
+            />
+          ) : (
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/30 rounded p-3 border">
+              {message}
+            </pre>
+          )}
         </div>
 
         <div className="flex justify-between items-center pt-4">
