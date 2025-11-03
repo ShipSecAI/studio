@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { AnsiUp } from 'ansi_up'
 import { RunSelector } from '@/components/timeline/RunSelector'
 import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
 import { EventInspector } from '@/components/timeline/EventInspector'
@@ -234,6 +235,9 @@ export function ExecutionInspector() {
                     const previewText = preview.truncated
                       ? `${preview.text.trimEnd()}\n…`
                       : preview.text
+                    const hasAnsi = /\u001b\[[0-9;]*m/.test(previewText)
+                    const au = hasAnsi ? new AnsiUp() : null
+                    const ansiHtml = hasAnsi && au ? au.ansi_to_html(previewText) : ''
 
                     return (
                       <div key={log.id} className="border rounded-md bg-background px-3 py-2 space-y-1 min-w-0">
@@ -247,9 +251,16 @@ export function ExecutionInspector() {
                           <div className="text-[11px] text-muted-foreground">Node: {log.nodeId}</div>
                         )}
                         <div className="text-[11px] max-w-full">
-                          <pre className="whitespace-pre-wrap break-words font-mono text-[11px]">
-                            {previewText}
-                          </pre>
+                          {hasAnsi ? (
+                            <div
+                              className="font-mono text-[11px] whitespace-pre-wrap break-words"
+                              dangerouslySetInnerHTML={{ __html: ansiHtml }}
+                            />
+                          ) : (
+                            <pre className="whitespace-pre-wrap break-words font-mono text-[11px]">
+                              {previewText}
+                            </pre>
+                          )}
                           {preview.truncated && (
                             <button
                               className="text-[10px] text-blue-500 hover:text-blue-700 mt-1"
