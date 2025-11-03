@@ -18,12 +18,16 @@ interface RunnerConfig {
   kind: 'inline' | 'docker' | 'remote';
   docker?: {
     image: string;
+    // Build the full CLI invocation in TypeScript; pass flags/args here
     command: string[];
+    // Optional container overrides
+    entrypoint?: string;
     env?: Record<string, string>;
-    mounts?: Array<{ hostPath: string; containerPath: string; mode?: 'ro' | 'rw' }>;
+    network?: 'none' | 'bridge' | 'host';
     timeoutSeconds?: number;
-    cpu?: number;
-    memoryMb?: number;
+    // When true, the runner writes the JSON-encoded params to stdin
+    // Use only for tools that read from stdin; prefer args otherwise
+    stdinJson?: boolean;
   };
   inline?: { concurrency?: number };
   remote?: { endpoint: string; authSecretName?: string };
@@ -61,14 +65,32 @@ interface ExecutionContext {
 - Future runners: Kubernetes jobs, ECS tasks, Firecracker, serverless functions.
 - ExecutionContext provides consistent access to secrets/artifacts irrespective of runner.
 
-### Docker Component Pattern (2025-10)
-- Use the Docker runner when you only need the containerised tool; keep the shell entrypoint minimal.
-  - Shell script should focus on transforming the JSON params received via stdin into CLI flags (e.g. write domain lists to a tmp file) and then stream the tool's native output. Avoid post-processing in bash.
-  - When the container succeeds, print the raw NDJSON or plain text exactly as produced by the tool. On failure, emit a one-line JSON object like `{"__error__":true,"message":"..."}` so the TypeScript layer can surface errors gracefully.
-- Perform all result shaping in the component's TypeScript `execute` function:
-  - Parse NDJSON lines with `JSON.parse`, validate each record with Zod, and normalise into the shared output schema.
-  - Derive metadata such as counts, record types, and resolver lists in TypeScript so you can reuse helpers and unit tests.
-- Example implementation: `shipsec.dnsx.run` (see `worker/src/components/security/dnsx.ts`) which keeps the shell heredoc limited to runner wiring and relies on TypeScript to parse JSON lines and build the structured `Output`.
+### Docker Component Pattern (TS-first)
+- Build the entire CLI command in TypeScript and pass it via `runner.docker.command`.
+  - Prefer direct flags/args over shell wrappers. Only use a minimal shell when absolutely necessary (e.g., creating a temp file for tools that require `-L file`).
+  - Set `stdinJson: true` only for tools that read JSON from stdin; otherwise keep it unset so no stdin is written.
+- Perform all parsing/normalisation in the component's TypeScript `execute` function:
+  - Parse NDJSON or text output, validate each record with Zod, and normalise into the shared output schema.
+  - Derive metadata (counts, record types, resolver lists) in TypeScript so helpers and unit tests are reusable.
+- Error handling: catch runner errors (non-zero exit, stderr) in TypeScript, wrap them in a friendly message, and propagate through the component's `errors` array or thrown error as appropriate.
+- Example shape (illustrative):
+```ts
+const args = [
+  '-json', '-resp', '-silent',
+  ...mapRecordTypesToFlags(input.recordTypes),
+  '-rl', input.rateLimit?.toString() ?? '0',
+  ...input.resolvers.flatMap(r => ['-r', r]),
+  ...input.domains.flatMap(d => ['-d', d]),
+];
+
+const runner = {
+  kind: 'docker' as const,
+  image: 'projectdiscovery/dnsx:latest',
+  command: args,
+  network: 'bridge' as const,
+};
+```
+Note: if a tool strictly requires a file input (e.g., `-list file.txt`), use a minimal shell to write the temp file and then invoke the tool; keep all flag derivation in TypeScript.
 
 ## Sample Flow: File Loader → Subfinder → Webhook
 1. **FileLoader** (`core.file.loader`)
