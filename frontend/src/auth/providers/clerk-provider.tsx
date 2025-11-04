@@ -7,6 +7,7 @@ import {
   SignIn,
   SignUp,
   UserButton,
+  OrganizationSwitcher,
 } from '@clerk/clerk-react';
 
 import type {
@@ -172,6 +173,7 @@ function ClerkAuthBridge({
       SignInComponent: ClerkSignInModal,
       SignUpComponent: ClerkSignUpModal,
       UserButtonComponent: ClerkUserButtonComponent,
+      OrganizationSwitcherComponent: ClerkOrganizationSwitcherComponent,
       initialize: () => {
         /* Clerk manages its own lifecycle */
       },
@@ -218,6 +220,38 @@ const ClerkUserButtonComponent = ({
 }) => (
   <UserButton
     afterSignOutUrl={afterSignOutUrl || "/"}
+    appearance={{
+      elements: {
+        userButtonPopoverCard: 'shadow-lg',
+        userButtonPopoverActionButton: 'hover:bg-accent',
+        userButtonPopoverFooter: 'hidden', // Hide footer if not needed
+        ...appearance?.elements,
+      },
+      ...appearance,
+    }}
+    // Enable organization list in UserButton dropdown - this shows orgs in the menu
+    organizationListMode="navigation"
+    organizationProfileMode="navigation"
+    organizationProfileUrl="/organization"
+    userProfileMode="navigation"
+    userProfileUrl="/user"
+  />
+);
+
+const ClerkOrganizationSwitcherComponent = ({
+  appearance
+}: {
+  appearance?: any;
+}) => (
+  <OrganizationSwitcher
     appearance={appearance}
+    hidePersonal={false}
+    afterCreateOrganizationUrl="/"
+    afterSelectOrganizationUrl="/"
+    afterLeaveOrganizationUrl="/"
+    organizationProfileMode="navigation"
+    organizationProfileUrl="/organization"
+    createOrganizationMode="navigation"
+    createOrganizationUrl="/create-organization"
   />
 );

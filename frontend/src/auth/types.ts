@@ -42,6 +42,7 @@ export interface FrontendAuthProvider {
   SignInComponent: React.ComponentType<any>;
   SignUpComponent: React.ComponentType<any>;
   UserButtonComponent: React.ComponentType<any>;
+  OrganizationSwitcherComponent?: React.ComponentType<any>;
 
   // Lifecycle
   initialize: () => void;

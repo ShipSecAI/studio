@@ -17,6 +17,7 @@ interface UserButtonProps {
   appearance?: any;
   showUserInfo?: boolean;
   className?: string;
+  sidebarCollapsed?: boolean;
 }
 
 export const UserButton: React.FC<UserButtonProps> = ({
@@ -24,6 +25,7 @@ export const UserButton: React.FC<UserButtonProps> = ({
   appearance,
   showUserInfo = true,
   className = '',
+  sidebarCollapsed = false,
 }) => {
   const authProvider = useAuthProvider();
   const { user, isAuthenticated, isLoading } = authProvider.context;
@@ -59,10 +61,17 @@ export const UserButton: React.FC<UserButtonProps> = ({
   if (authProvider.name === 'clerk') {
     const ClerkUserButton = authProvider.UserButtonComponent;
     return (
-      <div className={className}>
+      <div className={`flex items-center ${className}`}>
         <ClerkUserButton
           afterSignOutUrl={afterSignOutUrl}
-          appearance={appearance}
+          appearance={{
+            elements: {
+              avatarBox: sidebarCollapsed ? 'w-8 h-8' : 'w-8 h-8',
+              userButtonTrigger: sidebarCollapsed ? 'w-8 h-8' : 'w-full',
+              ...appearance?.elements,
+            },
+            ...appearance,
+          }}
         />
       </div>
     );

@@ -1,9 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { AuthSettingsButton } from '@/components/auth/AuthSettingsButton'
-import { UserButton } from '@/components/auth/UserButton'
-import { useAuth, useAuthProvider } from '@/auth/auth-context'
 
 interface AppTopBarProps {
   title?: string
@@ -23,12 +20,6 @@ export function AppTopBar({
   actions
 }: AppTopBarProps) {
   const location = useLocation()
-  const { isAuthenticated } = useAuth()
-  const authProvider = useAuthProvider()
-  
-  // Show UserButton for Clerk (even when not authenticated - it shows Sign In button)
-  // Show AuthSettingsButton only for local auth mode
-  const showUserButton = isAuthenticated || authProvider.name === 'clerk'
 
   // Determine page title and navigation based on current route
   const getPageInfo = () => {
@@ -111,14 +102,6 @@ export function AppTopBar({
       {/* Action buttons */}
       <div className="flex items-center gap-3">
         {actions}
-
-        {/* Show UserButton for Clerk (shows Sign In when not authenticated) or authenticated users */}
-        {/* Show AuthSettingsButton only for local auth mode when not authenticated */}
-        {showUserButton ? (
-          <UserButton />
-        ) : (
-          <AuthSettingsButton />
-        )}
       </div>
     </div>
   )

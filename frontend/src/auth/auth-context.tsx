@@ -95,6 +95,7 @@ const LocalAuthProvider: FrontendAuthProviderComponent = ({ children, onProvider
     SignInComponent: () => <div>Sign in not available in local dev mode</div>,
     SignUpComponent: () => <div>Sign up not available in local dev mode</div>,
     UserButtonComponent: () => <div>User profile not available in local dev mode</div>,
+    OrganizationSwitcherComponent: undefined,
     initialize: () => {
       // No initialization required for local auth
     },
@@ -186,6 +187,7 @@ const FALLBACK_AUTH_PROVIDER: FrontendAuthProvider = {
   SignInComponent: () => <div>No auth provider available</div>,
   SignUpComponent: () => <div>No auth provider available</div>,
   UserButtonComponent: () => <div>No auth provider available</div>,
+  OrganizationSwitcherComponent: undefined,
   initialize: () => {},
   cleanup: () => {},
 };
