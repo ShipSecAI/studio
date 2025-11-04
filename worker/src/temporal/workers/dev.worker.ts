@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { createRequire } from 'node:module';
+import { webcrypto } from 'node:crypto';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client } from 'minio';
@@ -20,6 +21,15 @@ import * as schema from '../../adapters/schema';
 
 // Load environment variables from .env file
 config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../..', '.env') });
+
+if (typeof globalThis.crypto === 'undefined') {
+  Object.defineProperty(globalThis, 'crypto', {
+    value: webcrypto,
+    configurable: false,
+    enumerable: false,
+    writable: false,
+  });
+}
 
 async function main() {
   const address = process.env.TEMPORAL_ADDRESS ?? 'localhost:7233';

@@ -59,18 +59,18 @@ export async function finalizeRunActivity(input: { runId: string }): Promise<voi
 export async function runComponentActivity(
   input: RunComponentActivityInput,
 ): Promise<RunComponentActivityOutput> {
+  const { action, params, warnings = [] } = input;
   const activityInfo = Context.current().info;
   console.log(`🎯 ACTIVITY CALLED - runComponentActivity:`, {
     activityId: activityInfo.activityId,
     attempt: activityInfo.attempt,
     workflowId: activityInfo.workflowExecution.workflowId,
-    runId: info.workflowExecution.runId,
+    runId: activityInfo.workflowExecution.runId,
     componentId: action.componentId,
     ref: action.ref,
     timestamp: new Date().toISOString()
   });
 
-  const { action, params, warnings = [] } = input;
   console.log(`📋 Activity input details:`, {
     componentId: action.componentId,
     ref: action.ref,

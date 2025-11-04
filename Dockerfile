@@ -6,7 +6,7 @@
 FROM oven/bun:latest AS base
 # Install system deps
 RUN apt-get update && \
-    apt-get install -y ca-certificates python3 make g++ && \
+    apt-get install -y ca-certificates python3 make g++ nodejs && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
@@ -54,7 +54,7 @@ USER shipsec
 WORKDIR /app/worker
 
 # Run worker with Node + tsx (not bun, due to SWC binding issues)
-CMD ["node", "--loader", "tsx", "src/temporal/workers/dev.worker.ts"]
+CMD ["node", "--import", "tsx/esm", "src/temporal/workers/dev.worker.ts"]
 
 # ============================================================================
 # FRONTEND SERVICE
