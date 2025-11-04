@@ -31,11 +31,12 @@ const generateId = () => {
   return Math.random().toString(36).slice(2)
 }
 
+// Keep variants minimal so the base class controls readability.
 const variantStyles: Record<ToastVariant, string> = {
-  default: 'border border-border bg-card text-foreground shadow-md',
-  success: 'border border-emerald-200 bg-emerald-50 text-emerald-900 shadow-emerald-200/50',
-  warning: 'border border-amber-200 bg-amber-50 text-amber-900 shadow-amber-200/50',
-  destructive: 'border border-destructive/60 bg-destructive/10 text-destructive shadow-destructive/40',
+  default: '',
+  success: 'ring-emerald-400/40',
+  warning: 'ring-amber-400/40',
+  destructive: 'ring-red-500/40',
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -96,14 +97,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={id}
             className={cn(
-              'pointer-events-auto flex w-full max-w-sm items-start justify-between gap-4 rounded-md px-4 py-3 shadow-lg transition-transform sm:max-w-md',
-              variantStyles[variant] ?? variantStyles.default,
+              // Dark, high-contrast base + subtle ring by variant
+              'pointer-events-auto flex w-full max-w-sm items-start justify-between gap-4 rounded-md px-4 py-3 sm:max-w-md',
+              'border border-neutral-800 bg-neutral-900/95 text-neutral-50 shadow-xl shadow-black/60 ring-1 ring-white/10 backdrop-blur-sm',
+              variantStyles[variant] ?? '',
             )}
           >
             <div className="flex-1">
-              <p className="text-sm font-semibold">{title}</p>
+              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">{title}</p>
               {description && (
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-neutral-800 dark:text-neutral-300">
                   {description}
                 </p>
               )}
@@ -111,7 +114,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => removeToast(id)}
-              className="text-xs font-medium text-muted-foreground transition hover:text-foreground"
+              className="text-xs font-medium text-white/70 transition hover:text-white"
               aria-label="Dismiss notification"
             >
               Close
