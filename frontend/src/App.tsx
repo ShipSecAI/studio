@@ -9,6 +9,8 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { AuthProvider } from '@/auth/auth-context'
 import { useAuthStoreIntegration } from '@/auth/store-integration'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { AnalyticsRouterListener } from '@/features/analytics/AnalyticsRouterListener'
+import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge'
 
 // Auth integration component
 function AuthIntegration({ children }: { children: React.ReactNode }) {
@@ -22,6 +24,9 @@ function App() {
       <AuthIntegration>
         <ToastProvider>
           <BrowserRouter>
+            {/* Analytics wiring */}
+            <AnalyticsRouterListener />
+            <PostHogClerkBridge />
             <AppLayout>
               <ProtectedRoute>
                 <Routes>
