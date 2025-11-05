@@ -1,9 +1,9 @@
-import { describe, it, beforeEach, expect, vi } from 'bun:test'
+import { describe, it, beforeEach, expect, vi, mock } from 'bun:test'
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
-vi.mock('@/components/ui/dialog', () => {
+mock.module('@/components/ui/dialog', () => {
   const Dialog = ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <>{children}</> : null
   const DialogContent = ({ children, ...props }: any) => (
@@ -29,16 +29,16 @@ vi.mock('@/components/ui/dialog', () => {
   }
 })
 
-vi.mock('@/services/api', () => {
-  const list = vi.fn()
-  const remove = vi.fn()
-  const noop = vi.fn()
+const listMock = vi.fn()
+const deleteMock = vi.fn()
+const noop = vi.fn()
 
+mock.module('@/services/api', () => {
   return {
     api: {
       workflows: {
-        list,
-        delete: remove,
+        list: listMock,
+        delete: deleteMock,
         get: noop,
         create: noop,
         update: noop,
@@ -50,13 +50,7 @@ vi.mock('@/services/api', () => {
 })
 
 import { WorkflowList } from '@/pages/WorkflowList'
-import type { WorkflowMetadata } from '@/schemas/workflow'
-import { api } from '@/services/api'
-
-const workflowsApi = api.workflows as unknown as {
-  list: ReturnType<typeof vi.fn>
-  delete: ReturnType<typeof vi.fn>
-}
+import { DEFAULT_WORKFLOW_VIEWPORT, type WorkflowMetadata } from '@/schemas/workflow'
 
 const ISO = '2024-01-01T00:00:00.000Z'
 
@@ -66,10 +60,19 @@ const makeWorkflow = (id: string, name: string): WorkflowMetadata => ({
   description: null,
   nodes: [],
   edges: [],
+  viewport: DEFAULT_WORKFLOW_VIEWPORT,
+  graph: {
+    nodes: [],
+    edges: [],
+    viewport: DEFAULT_WORKFLOW_VIEWPORT,
+  },
+  compiledDefinition: null,
   lastRun: null,
   runCount: 0,
   createdAt: ISO,
   updatedAt: ISO,
+  currentVersionId: null,
+  currentVersion: null,
 })
 
 const renderWorkflowList = () =>
@@ -81,14 +84,14 @@ const renderWorkflowList = () =>
 
 describe('WorkflowList delete workflow flow', () => {
   beforeEach(() => {
-    workflowsApi.list.mockReset()
-    workflowsApi.delete.mockReset()
+    listMock.mockReset()
+    deleteMock.mockReset()
   })
 
   it('opens confirmation dialog with workflow details when delete is clicked', async () => {
     const workflow = makeWorkflow('11111111-1111-1111-1111-111111111111', 'Alpha Workflow')
-    workflowsApi.list.mockResolvedValue([workflow])
-    workflowsApi.delete.mockResolvedValue(undefined)
+    listMock.mockResolvedValue([workflow])
+    deleteMock.mockResolvedValue(undefined)
 
     renderWorkflowList()
 
@@ -103,8 +106,8 @@ describe('WorkflowList delete workflow flow', () => {
 
   it('calls API and removes workflow from list on successful delete', async () => {
     const workflow = makeWorkflow('22222222-2222-2222-2222-222222222222', 'Beta Workflow')
-    workflowsApi.list.mockResolvedValue([workflow])
-    workflowsApi.delete.mockResolvedValue(undefined)
+    listMock.mockResolvedValue([workflow])
+    deleteMock.mockResolvedValue(undefined)
 
     renderWorkflowList()
 
@@ -115,7 +118,7 @@ describe('WorkflowList delete workflow flow', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete workflow' }))
 
     await waitFor(() => {
-      expect(workflowsApi.delete).toHaveBeenCalledWith(workflow.id)
+      expect(deleteMock).toHaveBeenCalledWith(workflow.id)
     })
 
     await waitFor(() => {
@@ -125,8 +128,8 @@ describe('WorkflowList delete workflow flow', () => {
 
   it('shows error in dialog when delete fails', async () => {
     const workflow = makeWorkflow('33333333-3333-3333-3333-333333333333', 'Gamma Workflow')
-    workflowsApi.list.mockResolvedValue([workflow])
-    workflowsApi.delete.mockRejectedValue(new Error('Delete failed'))
+    listMock.mockResolvedValue([workflow])
+    deleteMock.mockRejectedValue(new Error('Delete failed'))
 
     renderWorkflowList()
 
@@ -137,7 +140,7 @@ describe('WorkflowList delete workflow flow', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete workflow' }))
 
     await waitFor(() => {
-      expect(workflowsApi.delete).toHaveBeenCalledWith(workflow.id)
+      expect(deleteMock).toHaveBeenCalledWith(workflow.id)
     })
 
     expect(await within(dialog).findByText('Delete failed')).toBeInTheDocument()

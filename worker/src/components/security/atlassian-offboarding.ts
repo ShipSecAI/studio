@@ -188,14 +188,16 @@ const definition: ComponentDefinition<Input, Output> = {
   runner: { kind: 'inline' },
   inputSchema,
   outputSchema,
-  docs: 'Search for Atlassian accounts by email username and remove them from an organization using the Atlassian Admin API.',
+  docs:
+    'Search for Atlassian accounts by email username and remove them from an organization using the Atlassian Admin API. Typical workflow: Secret Fetch → Atlassian Offboarding → Console Log / Notify.\n\nPrerequisites:\n- Atlassian organization ID (UUID) with admin API access.\n- Admin API bearer token stored in ShipSec secrets.\n\nInputs:\n- emailUsernames: comma/newline separated list or array of email usernames (portion before @).\n- orgId: Atlassian organization identifier.\n- accessToken/accessTokenSecretId: bearer token (secret recommended).\n\nOutputs:\n- results: entry for each requested username including accountId, status, and message.\n- summary: aggregate counts (requested/found/deleted/failed).\n- searchRaw: raw API response for audit/debug.\n\nSee docs/atlassian-offboarding.md for end-to-end workflow guidance.',
   metadata: {
     slug: 'atlassian-offboarding',
     version: '1.0.0',
     type: 'process',
     category: 'security',
-    description: 'Automate Atlassian user offboarding by searching for accounts and removing them from the organization.',
-    documentation: 'https://developer.atlassian.com/cloud/admin/user-provisioning/rest/api-group-organization-users/',
+    description:
+      'Automate Atlassian user offboarding by chaining Secret Fetch (token) → Atlassian Offboarding (remove accounts) → Console Log/Notify. Supports bulk email usernames and returns structured results.',
+    documentation: 'docs/atlassian-offboarding.md',
     icon: 'UserMinus',
     author: {
       name: 'ShipSecAI',
@@ -276,6 +278,7 @@ const definition: ComponentDefinition<Input, Output> = {
         default: '2183633e-9cd8-4d33-ace1-9874ce4055f3',
         placeholder: '00000000-0000-0000-0000-000000000000',
         description: 'Secret ID referencing the Atlassian Admin API bearer token.',
+        helpText: 'Create a secret containing the Atlassian admin bearer token and paste its UUID here or connect via Secret Fetch.',
       },
       {
         id: 'limit',

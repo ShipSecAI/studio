@@ -29,7 +29,7 @@ import {
   serializeNodes,
   serializeEdges,
 } from '@/utils/workflowSerializer'
-import type { NodeData } from '@/schemas/node'
+import type { FrontendNodeData } from '@/schemas/node'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { WorkflowImportSchema, DEFAULT_WORKFLOW_VIEWPORT } from '@/schemas/workflow'
@@ -46,9 +46,9 @@ function WorkflowBuilderContent() {
     markDirty,
     resetWorkflow,
   } = useWorkflowStore()
+  const [nodes, setNodes, onNodesChange] = useNodesState<FrontendNodeData>([])
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
-  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const { getComponent } = useComponentStore()
   const [isLoading, setIsLoading] = useState(false)
@@ -447,7 +447,7 @@ function WorkflowBuilderContent() {
         // Create new workflow
         const payload = serializeWorkflowForCreate(
           metadata.name,
-          metadata.description,
+          metadata.description || undefined,
           nodes,
           edges
         )
@@ -478,7 +478,7 @@ function WorkflowBuilderContent() {
         const payload = serializeWorkflowForUpdate(
           workflowId,
           metadata.name,
-          metadata.description,
+          metadata.description || undefined,
           nodes,
           edges
         )

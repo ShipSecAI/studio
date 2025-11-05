@@ -121,9 +121,11 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
       const categoryConfig = firstComponent?.categoryConfig
 
       // Check if category name matches the search query
+      const label = categoryConfig?.label?.toLowerCase()
+      const desc = categoryConfig?.description?.toLowerCase()
       const categoryMatches =
-        categoryConfig?.label.toLowerCase().includes(query) ||
-        categoryConfig?.description.toLowerCase().includes(query) ||
+        (label && label.includes(query)) ||
+        (desc && desc.includes(query)) ||
         category.toLowerCase().includes(query)
 
       // Filter components within this category
@@ -207,10 +209,10 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
                   <div key={category}>
                     <div className="mb-3">
                       <h3 className={cn('text-sm font-semibold', categoryConfig?.color || 'text-gray-600')}>
-                        {categoryConfig?.label || category}
+                        {categoryConfig?.label ?? category}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {categoryConfig?.description || `${category} components`}
+                        {categoryConfig?.description ?? `${category} components`}
                       </p>
                     </div>
                     <div className="space-y-2">
