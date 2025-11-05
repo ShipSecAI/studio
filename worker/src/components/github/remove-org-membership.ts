@@ -190,13 +190,20 @@ const definition: ComponentDefinition<
 
     if (teamSlug) {
       context.emitProgress(`Removing ${login} from team ${teamSlug}...`);
-      const teamResponse = await fetch(
-        `https://api.github.com/orgs/${encodeURIComponent(organization)}/teams/${encodeURIComponent(teamSlug)}/memberships/${encodeURIComponent(login)}`,
-        {
-          method: 'DELETE',
-          headers,
-        },
-      );
+      let teamResponse: Response;
+      try {
+        teamResponse = await fetch(
+          `https://api.github.com/orgs/${encodeURIComponent(organization)}/teams/${encodeURIComponent(teamSlug)}/memberships/${encodeURIComponent(login)}`,
+          {
+            method: 'DELETE',
+            headers,
+          },
+        );
+      } catch (error) {
+        throw new Error(
+          `GitHub API request failed while removing ${login} from team ${teamSlug}: ${(error as Error).message}`,
+        );
+      }
 
       if (teamResponse.status === 204) {
         teamRemovalStatus = 'removed';
@@ -214,13 +221,20 @@ const definition: ComponentDefinition<
     }
 
     context.emitProgress(`Removing ${login} from organization ${organization}...`);
-    const orgResponse = await fetch(
-      `https://api.github.com/orgs/${encodeURIComponent(organization)}/members/${encodeURIComponent(login)}`,
-      {
-        method: 'DELETE',
-        headers,
-      },
-    );
+    let orgResponse: Response;
+    try {
+      orgResponse = await fetch(
+        `https://api.github.com/orgs/${encodeURIComponent(organization)}/members/${encodeURIComponent(login)}`,
+        {
+          method: 'DELETE',
+          headers,
+        },
+      );
+    } catch (error) {
+      throw new Error(
+        `GitHub API request failed while removing ${login} from organization ${organization}: ${(error as Error).message}`,
+      );
+    }
 
     if (orgResponse.status === 204) {
       context.logger.info(`[GitHub] Removed ${login} from organization ${organization}.`);
