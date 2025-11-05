@@ -1,4 +1,5 @@
 import posthog from 'posthog-js'
+import type { Properties } from 'posthog-js'
 import { z } from 'zod'
 import { isAnalyticsEnabled } from './config'
 
@@ -17,8 +18,8 @@ export const Events = {
 
 type EventName = (typeof Events)[keyof typeof Events]
 
-// Payload schemas
-const payloadSchemas: Record<EventName, z.ZodTypeAny> = {
+// Payload schemas (each must be assignable to PostHog Properties)
+const payloadSchemas: { [K in EventName]: z.ZodSchema<Properties> } = {
   [Events.WorkflowListViewed]: z.object({
     workflows_count: z.number().int().nonnegative().optional(),
   }),
@@ -63,7 +64,7 @@ export function track<T extends EventName>(event: T, payload: unknown = {}): voi
   if (!isAnalyticsEnabled()) return
   try {
     const schema = payloadSchemas[event]
-    const data = schema.parse(payload)
+    const data = schema.parse(payload) as Properties
     posthog.capture(event, data)
     if (import.meta.env.DEV) {
       // eslint-disable-next-line no-console
