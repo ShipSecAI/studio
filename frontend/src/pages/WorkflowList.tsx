@@ -19,6 +19,7 @@ import {
 } from '@/schemas/workflow'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
+import { track, Events } from '@/features/analytics/events'
 
 export function WorkflowList() {
   const navigate = useNavigate()
@@ -44,6 +45,7 @@ export function WorkflowList() {
       const data = await api.workflows.list()
       const normalized = data.map((workflow) => WorkflowMetadataSchema.parse(workflow))
       setWorkflows(normalized)
+      track(Events.WorkflowListViewed, { workflows_count: normalized.length })
     } catch (err) {
       console.error('Failed to load workflows:', err)
       setError(err instanceof Error ? err.message : 'Failed to load workflows')
@@ -102,6 +104,7 @@ export function WorkflowList() {
     if (!canManageWorkflows) {
       return
     }
+    track(Events.WorkflowCreateClicked, {})
     navigate('/workflows/new')
   }
 

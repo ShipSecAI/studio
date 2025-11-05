@@ -33,3 +33,16 @@ See `frontend/.env.example` for a template.
 2. Navigate between pages; verify `$pageview` events in PostHog Live Events.
 3. Confirm a session recording is created and inputs are masked.
 
+## Event Taxonomy (Initial)
+
+- `ui_workflow_list_viewed` — when the workflow list loads; props: `workflows_count?`
+- `ui_workflow_create_clicked` — user clicked create workflow CTA
+- `ui_workflow_builder_loaded` — builder opened; props: `workflow_id?`, `is_new`, `node_count?`
+- `ui_workflow_created` — after successful create; props: `workflow_id`, `node_count`, `edge_count`
+- `ui_workflow_saved` — after successful update; props: `workflow_id`, `node_count`, `edge_count`
+- `ui_workflow_run_started` — run kicked off; props: `workflow_id`, `run_id?`, `node_count?`
+- `ui_node_added` — component dropped on canvas; props: `workflow_id?`, `component_slug`
+- `ui_secret_created` — secret created; props: `name?`, `has_tags?`
+- `ui_secret_deleted` — secret deleted; props: `name?`
+
+Helpers live in `frontend/src/features/analytics/events.ts` and validate payloads with `zod`.

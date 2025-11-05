@@ -15,6 +15,7 @@ import type { SecretSummary } from '@/schemas/secret'
 import { useSecretStore } from '@/store/secretStore'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
+import { track, Events } from '@/features/analytics/events'
 
 interface FormState {
   name: string
@@ -182,6 +183,10 @@ export function SecretsManager() {
         description: formState.description.trim() || undefined,
         tags: parseTags(formState.tags),
       })
+      track(Events.SecretCreated, {
+        name: formState.name.trim(),
+        has_tags: Boolean(parseTags(formState.tags)?.length),
+      })
       setFormSuccess('Secret created successfully. You can now reference it from workflows.')
       setFormState(INITIAL_FORM)
     } catch (err) {
@@ -307,6 +312,7 @@ export function SecretsManager() {
 
     try {
       await deleteSecretEntry(deleteTarget.id)
+      track(Events.SecretDeleted, { name: secretName })
       setListSuccess(`Secret "${secretName}" deleted.`)
       handleDeleteDialogChange(false)
     } catch (err) {

@@ -33,6 +33,7 @@ import type { FrontendNodeData } from '@/schemas/node'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { WorkflowImportSchema, DEFAULT_WORKFLOW_VIEWPORT } from '@/schemas/workflow'
+import { track, Events } from '@/features/analytics/events'
 
 function WorkflowBuilderContent() {
   const { id } = useParams<{ id: string }>()
@@ -82,6 +83,7 @@ function WorkflowBuilderContent() {
         resetWorkflow()
         setNodes([])
         setEdges([])
+        track(Events.WorkflowBuilderLoaded, { is_new: true })
         return
       }
 
@@ -109,6 +111,13 @@ function WorkflowBuilderContent() {
 
         // Mark as clean (no unsaved changes)
         markClean()
+
+        // Analytics: builder loaded (existing workflow)
+        track(Events.WorkflowBuilderLoaded, {
+          workflow_id: workflow.id,
+          is_new: false,
+          node_count: workflowNodes.length,
+        })
       } catch (error) {
         console.error('Failed to load workflow:', error)
 
@@ -374,6 +383,12 @@ function WorkflowBuilderContent() {
       )
 
       if (runId) {
+        // Analytics: run started
+        track(Events.WorkflowRunStarted, {
+          workflow_id: workflowId,
+          run_id: runId,
+          node_count: nodes.length,
+        })
         setMode('execution')
         await loadRuns().catch(() => undefined)
         let selected = true
@@ -468,6 +483,13 @@ function WorkflowBuilderContent() {
         // Navigate to the new workflow URL
         navigate(`/workflows/${savedWorkflow.id}`, { replace: true })
 
+        // Analytics: workflow created
+        track(Events.WorkflowCreated, {
+          workflow_id: savedWorkflow.id,
+          node_count: nodes.length,
+          edge_count: edges.length,
+        })
+
         toast({
           variant: 'success',
           title: 'Workflow created',
@@ -492,6 +514,13 @@ function WorkflowBuilderContent() {
           currentVersion: updatedWorkflow.currentVersion ?? null,
         })
         markClean()
+
+        // Analytics: workflow saved
+        track(Events.WorkflowSaved, {
+          workflow_id: updatedWorkflow.id,
+          node_count: nodes.length,
+          edge_count: edges.length,
+        })
 
         toast({
           variant: 'success',
