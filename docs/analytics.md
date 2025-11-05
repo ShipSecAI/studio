@@ -1,6 +1,6 @@
 # Analytics (PostHog)
 
-This project uses PostHog for product analytics and session recording in the frontend (Vite + React).
+This project uses PostHog for product analytics and session recording in the frontend (Vite + React). The integration is gated so local clones without env variables continue to work without errors.
 
 ## Environment
 
@@ -9,19 +9,19 @@ Frontend variables (set in hosting provider too):
 - `VITE_PUBLIC_POSTHOG_KEY` – Project API key
 - `VITE_PUBLIC_POSTHOG_HOST` – PostHog host (e.g. https://us.i.posthog.com, EU host, or self-hosted base URL)
 
-See `frontend/.env.example` for a template.
+See `frontend/.env.example` for a template. If these are not set, analytics is fully disabled at runtime (no client init, helpers no‑op).
 
 ## Initialization
 
-`frontend/src/main.tsx` mounts a `PostHogProvider` when both variables are present. Session recording is enabled with sensible privacy defaults (`maskAllInputs: true`, `maskAllText: false`), exceptions are captured, and pageviews are captured by a router listener.
+`frontend/src/main.tsx` initialises the global `posthog` client via `posthog.init(...)` and mounts `PostHogProvider` as `<PostHogProvider client={posthog}>` when both variables are present. Session recording is enabled with privacy defaults (`maskAllInputs: true`, `maskAllText: false`), exceptions are captured, and pageviews are captured by a router listener.
 
 ## SPA Pageviews
 
-`frontend/src/features/analytics/AnalyticsRouterListener.tsx` captures `$pageview` on `react-router` navigation.
+`frontend/src/features/analytics/AnalyticsRouterListener.tsx` captures `$pageview` on `react-router` navigation. It checks `isAnalyticsEnabled()` before sending.
 
 ## User Identification
 
-`frontend/src/features/analytics/PostHogClerkBridge.tsx` bridges Clerk auth to PostHog:
+`frontend/src/features/analytics/PostHogClerkBridge.tsx` bridges Clerk auth to PostHog (only when analytics is enabled and Clerk is the active provider):
 
 - Calls `posthog.identify(user.id, { email, name, username })`
 - Sets the `organization` group when available
@@ -45,4 +45,17 @@ See `frontend/.env.example` for a template.
 - `ui_secret_created` — secret created; props: `name?`, `has_tags?`
 - `ui_secret_deleted` — secret deleted; props: `name?`
 
-Helpers live in `frontend/src/features/analytics/events.ts` and validate payloads with `zod`.
+Helpers live in `frontend/src/features/analytics/events.ts` and validate payloads with `zod`. All helper calls no‑op when analytics is disabled.
+
+## Privacy & Controls
+
+- Do Not Track respected via `respect_dnt: true`.
+- Session recording: inputs masked, on‑screen text unmasked for useful context.
+- Local/dev safety: analytics only initialises when both env vars are present.
+- Optional runtime kill‑switch can be added later (e.g. `VITE_ENABLE_ANALYTICS=false`).
+
+## Troubleshooting
+
+- “Events not arriving”: ensure both env vars are set and `main.tsx` initialises `posthog` (search for `posthog.init`).
+- “Helpers send but nothing recorded”: confirm provider uses `<PostHogProvider client={posthog}>` (not apiKey prop) so the global singleton is the same instance.
+- “Compile error '@/config/env'”: ensure `frontend/src/config/env.ts` exists; it provides typed access to optional branch labels used by Sidebar.
