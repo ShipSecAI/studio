@@ -1,6 +1,6 @@
 # ShipSec Studio – Auth & Org Integration Plan
 
-Purpose: align ShipSec Studio with the platform’s identity, organization, and role model while keeping the Studio package open-source friendly. The plan assumes two roles (`ADMIN`, `MEMBER`). Clerk issues end-user tokens, and Studio consults the platform control plane via a scoped service-account channel for authoritative user/org context.
+Purpose: align ShipSec Studio with identity, organization, and role model while keeping the Studio package open-source friendly. The plan assumes two roles (`ADMIN`, `MEMBER`). Clerk issues end-user tokens for authenticated sessions.
 
 _Last updated: 2025-02-15_
 
@@ -14,9 +14,8 @@ _Last updated: 2025-02-15_
 | Phase 1 | 🟢 Completed | Modular auth provider abstraction |
 | Phase 2 | 🟡 In Progress | Org-scoped persistence & access guards |
 | Phase 3 | 🟡 In Progress | Frontend + client auth plumbing |
-| Phase 4 | ⚪ Not Started | Platform bridge & service accounts |
+| Phase 4 | ⚪ Not Started | Extensibility & custom auth hooks |
 | Phase 5 | ⚪ Not Started | Documentation & rollout |
-| Phase 6 | ⚪ Not Started | Extensibility & custom auth hooks |
 
 ---
 
@@ -44,7 +43,7 @@ _Last updated: 2025-02-15_
   _Module:_ `backend/src/auth/auth.module.ts` registered globally; guards available for downstream modules.
 - [x] Implement `LocalDevProvider` (API key / allow-all) to preserve OSS developer experience.  
   _Provider:_ `backend/src/auth/providers/local-auth.provider.ts` supports bearer API keys, optional org headers, and fallback dev mode.
-- [x] Implement `ClerkProvider` that verifies Clerk JWTs, then consults the platform control plane for org/role enrichment via service-account APIs before normalizing claims to `{ userId, organizationId, roles: ['ADMIN'|'MEMBER'] }`.
+- [x] Implement `ClerkProvider` that verifies Clerk JWTs and normalizes claims to `{ userId, organizationId, roles: ['ADMIN'|'MEMBER'] }`.
 - [x] Add configuration + boot-time validation to select provider (`AUTH_PROVIDER=local|clerk`).  
   _AuthService:_ selects provider via `auth` config, logging active strategy on boot (Clerk requires only `CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY`).
 - [ ] Provide testing harness & unit tests for guard behaviours.
@@ -78,48 +77,7 @@ _Last updated: 2025-02-15_
 
 ---
 
-## Phase 4 – Platform Bridge & Service Accounts
-
-**Goal:** Let Studio treat the platform as the authoritative profile/permission service via scoped service-account APIs.
-
-### Platform-side changes
-
-- [ ] Create a dedicated service-account scope for Studio (read user/org/role metadata, list components, register workflow pointers).
-- [ ] Expose a typed `/service/studio/context` endpoint returning `{ userId, organizationId, roles, orgMetadata }` for a given user; require Studio service-account auth.
-- [x] Provide `/service/studio/workflows` endpoints for linking platform agents to Studio workflow IDs (create/update/delete). _(Implemented via `PlatformController` in Studio backend.)_
-- [ ] Document token provisioning (how ops issues Studio’s service-account token).
-
-### Studio backend changes
-
-- [x] Extend `ClerkProvider` to validate end-user tokens, then call platform `/service/studio/context` using the configured service-account token to fetch org/role data.
-- [ ] Cache context per request, respect platform roles when enforcing workflow + secret permissions. _(Create/update/list workflows now require org context; remaining routes still need enforcement.)_
-- [x] Support platform-triggered runs: accept service-account tokens from platform, verify via existing local provider or dedicated guard, and enforce org assertions. _(Global auth guard recognises `PLATFORM_SERVICE_TOKEN`; new `/service/studio/workflows/link` endpoints require it.)_
-- [ ] Emit run lifecycle events/webhooks so the platform can mirror execution state (status updates, trace summaries).
-- [ ] Continue to store minimal org IDs locally while treating platform data as canonical.
-- [ ] Expose a documented `AuthProviderStrategy` interface plus registration hook so downstream users can ship custom providers without patching core code.
-- [ ] Make platform enrichment client optional/config driven (`AUTH_PROVIDER=custom`, `AUTH_CUSTOM_MODULE=...`) so integrators can point to their own API without forking.
-
-### Coupling guidance
-
-- Keep interactions behind a narrow, versioned service API so Studio depends only on stable contracts, not database internals.
-- Use service accounts + declarative scopes rather than direct DB or JWT claim overloading to avoid tight coupling.
-- Document fallbacks so OSS deployments can run with the local provider without a platform dependency.
-
----
-
-## Phase 5 – Documentation & Rollout
-
-**Goal:** Provide clear guidance for OSS users and internal teams.
-
-- [ ] Update `docs/guide.md` with auth provider configuration steps.
-- [ ] Add a new `docs/auth.md` (or similar) outlining token flow, role matrix, and extension hooks.
-- [ ] Record integration notes in `.ai/visual-execution-notes.md` or platform docs as needed.
-- [ ] Deliver migration/runbook instructions for applying the new schema & config.
-- [ ] Capture follow-up tasks (e.g., additional roles, audit logging) in repository backlog.
-
----
-
-## Phase 6 – Extensibility & Custom Auth Hooks
+## Phase 4 – Extensibility & Custom Auth Hooks
 
 **Goal:** Ensure community adopters can plug in alternative identity providers with minimal friction.
 
@@ -131,10 +89,21 @@ _Last updated: 2025-02-15_
 
 ---
 
+## Phase 5 – Documentation & Rollout
+
+**Goal:** Provide clear guidance for OSS users and internal teams.
+
+- [ ] Update `docs/guide.md` with auth provider configuration steps.
+- [ ] Add a new `docs/auth.md` (or similar) outlining token flow, role matrix, and extension hooks.
+- [ ] Record integration notes in `.ai/visual-execution-notes.md` as needed.
+- [ ] Deliver migration/runbook instructions for applying the new schema & config.
+- [ ] Capture follow-up tasks (e.g., additional roles, audit logging) in repository backlog.
+
+---
+
 **Success Criteria**
 
 - Studio enforces org isolation and `ADMIN`/`MEMBER` roles on every sensitive route.
-- Production deployments can plug in Clerk/platform identity without code changes.
+- Production deployments can plug in Clerk or other identity providers without code changes.
 - Local OSS usage remains simple (toggle-able local provider).
-- Platform remains the source of truth for org/user data; Studio consumes it via a stable service interface without duplicating state.
-- Third parties can register custom auth providers without forking the codebase, and Studio gracefully handles deployments without platform integration.
+- Third parties can register custom auth providers without forking the codebase, and Studio gracefully handles deployments without external dependencies.

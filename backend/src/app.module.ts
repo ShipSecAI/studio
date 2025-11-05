@@ -11,15 +11,12 @@ import { TraceModule } from './trace/trace.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { TestingSupportModule } from './testing/testing.module';
 import { authConfig } from './config/auth.config';
-import { platformConfig } from './config/platform.config';
 import { AuthModule } from './auth/auth.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './auth/roles.guard';
-import { PlatformModule } from './platform/platform.module';
 
 const coreModules = [
   AuthModule,
-  PlatformModule,
   WorkflowsModule,
   TraceModule,
   ComponentsModule,
@@ -34,7 +31,7 @@ const testingModules =
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', '../.env'],
-      load: [authConfig, platformConfig],
+      load: [authConfig],
     }),
     ...coreModules,
     ...testingModules,
