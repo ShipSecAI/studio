@@ -1,12 +1,19 @@
 import { useEffect } from 'react'
 import posthog from 'posthog-js'
 import { useUser, useAuth } from '@clerk/clerk-react'
+import { useAuthProvider } from '@/auth/auth-context'
 
 /**
  * Bridges Clerk auth state to PostHog identify/group calls.
  * Place under the Clerk provider (see App.tsx) and above most routes.
  */
 export function PostHogClerkBridge() {
+  const provider = useAuthProvider()
+  if (provider.name !== 'clerk') return null
+  return <ClerkBridgeInner />
+}
+
+function ClerkBridgeInner() {
   const { user, isLoaded } = useUser()
   const { isSignedIn } = useAuth()
 
@@ -43,4 +50,3 @@ export function PostHogClerkBridge() {
 
   return null
 }
-
