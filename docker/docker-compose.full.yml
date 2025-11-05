@@ -137,6 +137,10 @@ services:
     environment:
       - VITE_API_URL=https://studio.shipsec.ai
       - VITE_BACKEND_URL=https://studio.shipsec.ai
+      # PostHog analytics (optional). Set in your shell or a .env file next to this compose.
+      # If unset, the app disables analytics at runtime.
+      - VITE_PUBLIC_POSTHOG_KEY=${VITE_PUBLIC_POSTHOG_KEY:-}
+      - VITE_PUBLIC_POSTHOG_HOST=${VITE_PUBLIC_POSTHOG_HOST:-}
     ports:
       - "8090:8080"
     depends_on:
