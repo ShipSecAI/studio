@@ -33,7 +33,7 @@
 ## Replay Mode
 - Historical runs selectable from timeline; playback re-applies captured events to animate the DAG.
 - Scrubber jumps to a timestamp; canvas + console reflect state at that moment.
-- Timeline rows include `workflowVersionId`/`workflowVersion` so replays pin to the exact saved DAG; surface the version badge in the run details panel.
+`- Timeline rows include `workflowVersionId`/`workflowVersion` so replays pin to the exact saved DAG; surface the version badge in the run details panel.
 - Diff view highlights behavioral changes between runs (new nodes, altered outputs).
 
 ## 2025-11-05 · Analytics Foundation (Frontend)
