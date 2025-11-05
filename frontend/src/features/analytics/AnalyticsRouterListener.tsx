@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import posthog from 'posthog-js'
+import { isAnalyticsEnabled } from './config'
 
 /**
  * Captures SPA pageviews on route changes.
@@ -10,6 +11,7 @@ export function AnalyticsRouterListener() {
   const location = useLocation()
 
   useEffect(() => {
+    if (!isAnalyticsEnabled()) return
     // PostHog may not be initialised if keys are missing
     try {
       posthog.capture('$pageview', {
@@ -24,4 +26,3 @@ export function AnalyticsRouterListener() {
 
   return null
 }
-

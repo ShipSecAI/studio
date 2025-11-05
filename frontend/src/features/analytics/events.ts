@@ -1,5 +1,6 @@
 import posthog from 'posthog-js'
 import { z } from 'zod'
+import { isAnalyticsEnabled } from './config'
 
 // Event names (prefix ui_ to separate from server events later)
 export const Events = {
@@ -59,6 +60,7 @@ const payloadSchemas: Record<EventName, z.ZodTypeAny> = {
 export function track<T extends EventName>(event: T, payload: unknown = {}): void {
   // If PostHog isn't initialised (e.g., keys missing), fail silently.
   // Narrowly validate payloads to keep data tidy.
+  if (!isAnalyticsEnabled()) return
   try {
     const schema = payloadSchemas[event]
     const data = schema.parse(payload)
@@ -72,4 +74,3 @@ export function track<T extends EventName>(event: T, payload: unknown = {}): voi
     console.warn('[analytics] capture failed', event, err)
   }
 }
-

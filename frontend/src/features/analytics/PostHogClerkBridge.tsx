@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import posthog from 'posthog-js'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { useAuthProvider } from '@/auth/auth-context'
+import { isAnalyticsEnabled } from './config'
 
 /**
  * Bridges Clerk auth state to PostHog identify/group calls.
@@ -9,7 +10,7 @@ import { useAuthProvider } from '@/auth/auth-context'
  */
 export function PostHogClerkBridge() {
   const provider = useAuthProvider()
-  if (provider.name !== 'clerk') return null
+  if (provider.name !== 'clerk' || !isAnalyticsEnabled()) return null
   return <ClerkBridgeInner />
 }
 
