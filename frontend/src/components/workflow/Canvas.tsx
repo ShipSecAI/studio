@@ -21,6 +21,7 @@ import { validateConnection } from '@/utils/connectionValidation'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
+import { track, Events } from '@/features/analytics/events'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import type { NodeData } from '@/schemas/node'
@@ -278,6 +279,15 @@ export function Canvas({
       }
 
       setNodes((nds) => nds.concat(newNode))
+
+      // Analytics: node added
+      try {
+        const workflowId = useWorkflowStore.getState().metadata.id
+        track(Events.NodeAdded, {
+          workflow_id: workflowId ?? undefined,
+          component_slug: String(component.slug ?? component.id),
+        })
+      } catch {}
 
       // Mark workflow as dirty
       markDirty()
