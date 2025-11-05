@@ -33,4 +33,4 @@ bun --cwd frontend run test
 - `frontend/docs/ui.md` – Canvas layout, Tailwind conventions, shadcn usage.
 - `docs/guide.md` – Cross-repo architecture + links into `.ai` decision logs.
 - `docs/execution-contract.md` – Source of truth for run status/log schemas.
- - `docs/analytics.md` – PostHog analytics setup, env gating, and troubleshooting.
+- `docs/analytics.md` – PostHog analytics setup, env gating, and troubleshooting.
