@@ -6,6 +6,7 @@ Use this guide as the table of contents for all living documentation in the repo
 - `README.md` – Local setup, stack bring-up, and daily workflows.
 - `ARCHITECTURE.md` – High-level system design and package map.
 - `docs/execution-contract.md` – Canonical execution/trace schemas shared across backend, worker, and frontend.
+- `docs/analytics.md` – Frontend analytics (PostHog) setup, privacy defaults, and troubleshooting.
 - `docs/enterprise-components.md` – Enterprise-grade component backlog (secret store, secret fetcher, etc.).
 - `docs/supabase-misconfig.md` – Supabase misconfiguration scan component overview and usage.
 

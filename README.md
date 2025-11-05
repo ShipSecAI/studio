@@ -6,6 +6,7 @@ This repository powers ShipSec Studio: a Temporal-backed, component-driven workf
 - `docs/guide.md` – Table of contents for architecture docs, package guides, and `.ai` decision logs.
 - `frontend/README.md` – Frontend-specific workflow (with deeper dives in `frontend/docs/*`).
 - `docs/execution-contract.md` – Canonical schemas for workflow runs and trace streaming. Update this first when contracts change.
+- `docs/analytics.md` – Frontend analytics (PostHog) setup, gating, and troubleshooting.
 - `.github/pull_request_template.md` – Checklist reminding you to keep docs in sync with code changes.
 
 ## Prerequisites
@@ -42,6 +43,12 @@ just logs         # View all logs
 - MinIO Console: http://localhost:9001
 - Loki: http://localhost:3100
 
+Optional analytics in Docker:
+- When using `docker/docker-compose.full.yml`, you can pass PostHog vars via shell export or a `.env` file next to the compose:
+  - `VITE_PUBLIC_POSTHOG_KEY`
+  - `VITE_PUBLIC_POSTHOG_HOST`
+  If unset, the frontend disables analytics automatically.
+
 ## Initial Setup (First Time Only)
 
 Follow these steps in order when setting up the project for the first time:
@@ -68,6 +75,13 @@ cp frontend/.env.example frontend/.env
 ```
 
 Adjust values in the `.env` files if needed (defaults work for local development).
+
+Optional (analytics in dev): add to `frontend/.env` if you want PostHog enabled locally. Without these, analytics remains disabled.
+
+```
+VITE_PUBLIC_POSTHOG_KEY=phc_...
+VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com   # or your self-hosted URL
+```
 
 ### 3. Start Docker Infrastructure
 
