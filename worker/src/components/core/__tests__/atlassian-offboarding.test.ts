@@ -1,14 +1,14 @@
 import { beforeAll, afterEach, describe, expect, it, vi } from 'bun:test';
 import { createExecutionContext } from '@shipsec/component-sdk';
 import type { ISecretsService } from '@shipsec/component-sdk';
-import { componentRegistry } from '../index';
+import { componentRegistry } from '../../index';
 
 describe('atlassian offboarding component', () => {
   const originalFetch = globalThis.fetch;
 
   beforeAll(() => {
     // Ensure all components are registered before tests run
-    require('../index');
+    require('../../index');
   });
 
   afterEach(() => {
@@ -35,7 +35,7 @@ describe('atlassian offboarding component', () => {
     const component = componentRegistry.get('shipsec.atlassian.offboarding');
     expect(component).toBeDefined();
     expect(component?.label).toBe('Atlassian Offboarding');
-    expect(component?.category).toBe('output');
+    expect(component?.category).toBe('security');
   });
 
   it('deletes matching users with direct access token and summarises results', async () => {
