@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
 import {
   LokiLogAdapter,
@@ -119,6 +119,7 @@ describe('LokiLogAdapter', () => {
   });
 
   it('does not persist metadata when Loki push fails', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const failingAdapter = new LokiLogAdapter(
       new FailingClient(),
       db as unknown as NodePgDatabase<typeof schema>,
@@ -127,6 +128,8 @@ describe('LokiLogAdapter', () => {
     await failingAdapter.append(buildEntry());
 
     expect(db.inserted).toHaveLength(0);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 
   it('handles concurrent appends without dropping entries', async () => {

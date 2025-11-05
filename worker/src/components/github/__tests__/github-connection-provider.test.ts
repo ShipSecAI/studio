@@ -8,7 +8,7 @@ import type {
 
 describe('github.connection.provider component', () => {
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   it('provides a trimmed connection id and emits progress', async () => {

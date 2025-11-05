@@ -34,6 +34,7 @@ describe('supabase misconfiguration component', () => {
   beforeAll(async () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     await import('../../index');
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = fetchMock as typeof fetch;
   });
 
   beforeEach(() => {
@@ -101,10 +102,12 @@ describe('supabase misconfiguration component', () => {
     vi.restoreAllMocks();
     fetchMock.mockReset();
     globalThis.fetch = originalFetch;
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = originalFetch;
   });
 
   afterAll(() => {
     globalThis.fetch = originalFetch;
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = originalFetch;
   });
 
   it('registers the component with metadata', () => {

@@ -4,6 +4,19 @@ import { runComponentInline, runComponentWithRunner } from '../runner';
 import { createExecutionContext } from '../context';
 import type { ComponentDefinition } from '../types';
 
+const enableDockerRunnerTests = process.env.ENABLE_DOCKER_TESTS === 'true';
+
+const dockerAvailable = (() => {
+  try {
+    const result = Bun.spawnSync(['docker', 'version']);
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+})();
+
+const dockerIt = enableDockerRunnerTests && dockerAvailable ? it : it.skip;
+
 describe('Component Runner', () => {
   describe('runComponentInline', () => {
     it('should execute component inline', async () => {
@@ -77,7 +90,7 @@ describe('Component Runner', () => {
       expect(result.result).toBe(42);
     });
 
-    it('should execute docker runner with real containers', async () => {
+    dockerIt('should execute docker runner with real containers', async () => {
       const execute = async () => ({ message: 'should not be called' });
 
       const context = createExecutionContext({
@@ -167,4 +180,3 @@ describe('Component Runner', () => {
     });
   });
 });
-

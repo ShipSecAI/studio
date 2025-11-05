@@ -10,7 +10,7 @@ describe('github.org.membership.remove component', () => {
   let previousInternalToken: string | undefined;
 
   beforeAll(async () => {
-    await import('../index');
+    await import('../../index');
   });
 
   beforeEach(() => {
