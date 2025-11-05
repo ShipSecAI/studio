@@ -2,7 +2,7 @@
 
 This plan supersedes the previous implementation playbook. It focuses on delivering end-to-end execution observability: consistent status contracts, rich trace data, live log streaming, and Loki-backed log storage. Each phase is designed for autonomous implementation by an AI agent and concludes with a human review before advancing.
 
-**Status update (2025-10-15):** Trace + Loki pipeline is live (Phase 5 ✅). Next focus: Phase 6 live streaming so trace/log updates reach the UI in near real time.
+**Status update (2025-11-05):** Trace + Loki pipeline and live streaming are live (Phases 5–6 ✅). Initial product analytics (PostHog) added to the frontend with session recording and a typed UI event layer. Analytics is env‑gated so local clones run without configuration.
 
 ---
 
@@ -18,7 +18,7 @@ This plan supersedes the previous implementation playbook. It focuses on deliver
 | Phase 5 | 🟢 Completed | Loki Log Backend Integration |
 | Phase 6 | 🟢 Completed | Live Streaming Pipeline |
 | Phase 7 | 🟢 Completed | Visual Execution Timeline & Replay System |
-| Phase 8 | ⚪ Not Started | Observability Metrics & Regression Suite |
+| Phase 8 | 🟡 Planned | Observability Metrics, Analytics Expansion & Regression Suite |
 
 **Primary Objective:** Deliver a magical, real-time execution experience for workflows (e.g., run `7528ea47-0c0f-4236-b864-5072d8e5b6ce`) where every node streams status, progress, and logs while running.
 
@@ -126,6 +126,34 @@ This plan supersedes the previous implementation playbook. It focuses on deliver
 
 ---
 
+## Phase 6.5 – Product Analytics (Frontend)
+
+**Goal:** Establish a minimal, privacy‑aware analytics foundation to understand UI usage and validate UX changes.
+
+- [x] Add PostHog client with env‑gated initialisation (`VITE_PUBLIC_POSTHOG_KEY`, `VITE_PUBLIC_POSTHOG_HOST`).
+- [x] Enable session recording with privacy defaults (mask inputs, respect DNT).
+- [x] Capture SPA pageviews via router listener.
+- [x] Identify users and group by organization via Clerk bridge.
+- [x] Add typed event helper (`track`) with zod‑validated payloads and initial taxonomy.
+- [x] Docs: `docs/analytics.md` including troubleshooting.
+
+**Initial UI Event Taxonomy**
+- `ui_workflow_list_viewed(workflows_count?)`
+- `ui_workflow_create_clicked()`
+- `ui_workflow_builder_loaded(workflow_id?, is_new, node_count?)`
+- `ui_workflow_created(workflow_id, node_count, edge_count)`
+- `ui_workflow_saved(workflow_id, node_count, edge_count)`
+- `ui_workflow_run_started(workflow_id, run_id?, node_count?)`
+- `ui_node_added(workflow_id?, component_slug)`
+- `ui_secret_created(name?, has_tags?)`
+- `ui_secret_deleted(name?)`
+
+**Deferred**
+- Backend/worker server‑side analytics (`posthog-node`) for trusted events.
+- Expanded taxonomy for builder interactions, errors, and timeline usage.
+
+---
+
 ## Phase 7 – Visual Execution Timeline & Replay System
 
 **Goal:** Create a time-travel debugger for workflows - unified interface showing live execution or historical replay with data flow animations and event inspection.
@@ -197,6 +225,7 @@ This plan supersedes the previous implementation playbook. It focuses on deliver
 - [ ] Tests: timeline scrubbing accuracy, animation smoothness, event inspector correctness
 
 - [ ] Emit metrics (Prometheus/StatsD): `trace_events_total`, `loki_push_failures_total`, `stream_latency_ms`.
+- [ ] Analytics expansion: server‑side events (`posthog-node`), richer client taxonomy, dashboards.
 - [ ] Add health endpoints and alerts for log pipeline failures.
 - [ ] Build regression suite: deterministic workflow run with snapshot comparison of trace timeline.
 - [ ] Document runbook for replaying logs from Loki + trace DB.

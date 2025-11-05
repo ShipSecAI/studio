@@ -36,6 +36,21 @@
 - Timeline rows include `workflowVersionId`/`workflowVersion` so replays pin to the exact saved DAG; surface the version badge in the run details panel.
 - Diff view highlights behavioral changes between runs (new nodes, altered outputs).
 
+## 2025-11-05 · Analytics Foundation (Frontend)
+
+- Added PostHog analytics to the Vite + React frontend.
+- Global `posthog` client initialised in `frontend/src/main.tsx` and provided via `<PostHogProvider client={posthog}>`.
+- Session recording enabled with privacy defaults: `maskAllInputs: true`, `maskAllText: false`, `respect_dnt: true`.
+- SPA pageviews captured via `AnalyticsRouterListener`.
+- Clerk → PostHog bridge identifies users and groups by organization when signed in; resets on sign-out.
+- Typed event helper `track()` with zod-validated payloads and initial taxonomy (list viewed, builder loaded, created/saved, run started, node added, secret created/deleted).
+- Full gating: analytics only initialises when `VITE_PUBLIC_POSTHOG_KEY` and `VITE_PUBLIC_POSTHOG_HOST` are present; helpers no-op otherwise.
+- Docs: `docs/analytics.md` with troubleshooting and privacy notes.
+
+Blockers/Notes
+- CORE Memory MCP unavailable in this environment; stored summary here and in the PR body for continuity.
+- A minimal `frontend/src/config/env.ts` was restored to satisfy Sidebar’s branch labels (`VITE_FRONTEND_BRANCH`, `VITE_BACKEND_BRANCH`).
+
 ## Trace Event Schema (concept)
 ```
 NODE_STARTED, NODE_LOG, NODE_PROGRESS, NODE_ARTIFACT,
