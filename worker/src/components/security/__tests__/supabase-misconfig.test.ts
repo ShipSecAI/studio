@@ -30,7 +30,6 @@ function setFetchResponse(path: string, payload: unknown) {
   fetchResponses.set(path.replace(/^\//, ''), payload);
 }
 
-const originalFetch = globalThis.fetch;
 describe('supabase misconfiguration component', () => {
   beforeAll(async () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -101,6 +100,7 @@ describe('supabase misconfiguration component', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     fetchMock.mockReset();
+    globalThis.fetch = originalFetch;
   });
 
   afterAll(() => {
