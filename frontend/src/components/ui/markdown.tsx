@@ -80,7 +80,12 @@ export function MarkdownView({ content, className, dataTestId, onEdit }: Markdow
             if ((props as any).type === 'checkbox') {
               const checkboxIndex = taskCounter++
               const checked = Boolean((props as any).checked)
-              const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
+              const handlePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+                // Capture so pointerup fires on the input even if the cursor leaves the box
+                try { (e.target as Element).setPointerCapture?.(e.pointerId) } catch (_) {}
+                e.stopPropagation()
+              }
+              const handlePointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
                 if (!onEdit) return
                 e.preventDefault()
                 e.stopPropagation()
@@ -93,12 +98,15 @@ export function MarkdownView({ content, className, dataTestId, onEdit }: Markdow
                   className="align-middle mr-1 nodrag nowheel cursor-pointer"
                   checked={checked}
                   onChange={(e) => e.preventDefault()}
-                  onClick={handleClick}
-                  draggable={false}
                   onPointerDownCapture={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerDown={handlePointerDown}
+                  onPointerUpCapture={(e) => e.stopPropagation()}
+                  onPointerUp={handlePointerUp}
+                  draggable={false}
                   onMouseDownCapture={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUpCapture={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
                   onClickCapture={(e) => e.stopPropagation()}
                 />
