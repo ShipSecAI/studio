@@ -88,9 +88,17 @@ export function MarkdownView({ content, className, dataTestId, onEdit }: Markdow
               return (
                 <input
                   type="checkbox"
-                  className="align-middle mr-1"
+                  className="align-middle mr-1 nodrag nowheel cursor-pointer"
                   checked={checked}
                   onChange={handleChange}
+                  draggable={false}
+                  onPointerDownCapture={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDownCapture={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onClickCapture={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
                 />
               )
             }
