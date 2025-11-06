@@ -47,10 +47,15 @@ export type PortDataType = z.infer<typeof PortDataTypeSchema>
 /**
  * Defines input ports for a component
  */
+const DEFAULT_TEXT_PORT = {
+  kind: 'primitive',
+  name: 'text',
+} as const
+
 export const InputPortSchema = z.object({
   id: z.string(),
   label: z.string(),
-  dataType: PortDataTypeSchema,
+  dataType: PortDataTypeSchema.optional().default(DEFAULT_TEXT_PORT),
   required: z.boolean().optional(),
   description: z.string().optional(),
   valuePriority: z.enum(['manual-first', 'connection-first']).optional(),
@@ -64,7 +69,7 @@ export type InputPort = z.infer<typeof InputPortSchema>
 export const OutputPortSchema = z.object({
   id: z.string(),
   label: z.string(),
-  dataType: PortDataTypeSchema,
+  dataType: PortDataTypeSchema.optional().default(DEFAULT_TEXT_PORT),
   description: z.string().optional(),
 })
 
@@ -116,6 +121,11 @@ export const ComponentCategoryConfigSchema = z.object({
   color: z.string(),
   description: z.string(),
   emoji: z.string(),
+}).partial().default({
+  label: 'Uncategorized',
+  color: 'text-muted-foreground',
+  description: '',
+  emoji: '🧩',
 })
 
 export type ComponentCategoryConfig = z.infer<typeof ComponentCategoryConfigSchema>
@@ -130,7 +140,12 @@ export const ComponentMetadataSchema = z.object({
   version: z.string().default('1.0.0'),
   type: z.enum(['trigger', 'input', 'scan', 'process', 'output']),
   category: z.enum(['input', 'transform', 'ai', 'security', 'it_ops', 'output']),
-  categoryConfig: ComponentCategoryConfigSchema,
+  categoryConfig: ComponentCategoryConfigSchema.optional().default({
+    label: 'Uncategorized',
+    color: 'text-muted-foreground',
+    description: '',
+    emoji: '🧩',
+  }),
   description: z.string().optional().default(''),
   documentation: z.string().optional().nullable(),
   documentationUrl: z.string().url().optional().nullable(),
@@ -140,7 +155,7 @@ export const ComponentMetadataSchema = z.object({
   isLatest: z.boolean().optional().default(true),
   deprecated: z.boolean().optional().default(false),
   example: z.string().optional().nullable(),
-  runner: ComponentRunnerSchema,
+  runner: ComponentRunnerSchema.optional().default({ kind: 'inline' as const }),
   inputs: z.array(InputPortSchema).default([]),
   outputs: z.array(OutputPortSchema).default([]),
   parameters: z.array(ParameterSchema).default([]),

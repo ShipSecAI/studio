@@ -58,7 +58,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'data',
         label: 'Data',
-        dataType: port.text({ coerceFrom: ['number', 'boolean', 'json'] }),
+        dataType: port.any(),
         required: true,
         description: 'Any data to log (objects will be JSON stringified).',
       },

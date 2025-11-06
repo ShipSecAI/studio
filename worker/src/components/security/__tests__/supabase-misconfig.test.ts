@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'bun:test';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'bun:test';
 import { componentRegistry } from '../../index';
 import type {
   SupabaseMisconfigInput,
@@ -24,16 +24,15 @@ vi.mock('pg', () => {
 
 const fetchMock = vi.fn<typeof fetch>();
 const fetchResponses = new Map<string, unknown>();
+const originalFetch = globalThis.fetch;
 
 function setFetchResponse(path: string, payload: unknown) {
   fetchResponses.set(path.replace(/^\//, ''), payload);
 }
 
-// Store original fetch
-const originalFetch = globalThis.fetch;
-
 describe('supabase misconfiguration component', () => {
   beforeAll(async () => {
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
     await import('../../index');
   });
 
@@ -100,7 +99,11 @@ describe('supabase misconfiguration component', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    // Restore original fetch
+    fetchMock.mockReset();
+    globalThis.fetch = originalFetch;
+  });
+
+  afterAll(() => {
     globalThis.fetch = originalFetch;
   });
 

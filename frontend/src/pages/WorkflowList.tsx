@@ -1,21 +1,30 @@
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Workflow, Loader2, AlertCircle } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Workflow, Loader2, AlertCircle, Trash2 } from 'lucide-react'
 import { api } from '@/services/api'
-import type { WorkflowMetadata } from '@/schemas/workflow'
+import {
+  WorkflowMetadataSchema,
+  type WorkflowMetadataNormalized,
+} from '@/schemas/workflow'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 
 export function WorkflowList() {
   const navigate = useNavigate()
-  const [workflows, setWorkflows] = useState<WorkflowMetadata[]>([])
+  const [workflows, setWorkflows] = useState<WorkflowMetadataNormalized[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
   const isReadOnly = !canManageWorkflows
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [workflowToDelete, setWorkflowToDelete] = useState<WorkflowMetadataNormalized | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     loadWorkflows()
@@ -26,12 +35,49 @@ export function WorkflowList() {
     setError(null)
     try {
       const data = await api.workflows.list()
-      setWorkflows(data)
+      const normalized = data.map((workflow) => WorkflowMetadataSchema.parse(workflow))
+      setWorkflows(normalized)
     } catch (err) {
       console.error('Failed to load workflows:', err)
       setError(err instanceof Error ? err.message : 'Failed to load workflows')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleDeleteClick = (event: MouseEvent, workflow: WorkflowMetadataNormalized) => {
+    event.stopPropagation()
+    if (!canManageWorkflows) {
+      return
+    }
+    setWorkflowToDelete(workflow)
+    setDeleteError(null)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open)
+    if (!open) {
+      setWorkflowToDelete(null)
+      setDeleteError(null)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!workflowToDelete || !canManageWorkflows) return
+
+    setIsDeleting(true)
+    setDeleteError(null)
+
+    try {
+      await api.workflows.delete(workflowToDelete.id)
+      setWorkflows((prev) => prev.filter((workflow) => workflow.id !== workflowToDelete.id))
+      handleDeleteDialogChange(false)
+    } catch (err) {
+      console.error('Failed to delete workflow:', err)
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete workflow')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -95,26 +141,83 @@ export function WorkflowList() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {workflows.map((workflow) => (
-              <div
-                key={workflow.id}
-                onClick={() => navigate(`/workflows/${workflow.id}`)}
-                className="border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow bg-card"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="text-lg font-semibold">{workflow.name}</h3>
-                  <Badge variant="secondary">
-                    {workflow.graph.nodes?.length || 0} nodes
-                  </Badge>
+            {workflows.map((workflow) => {
+              const nodeCount = workflow.nodes.length
+              return (
+                <div
+                  key={workflow.id}
+                  onClick={() => navigate(`/workflows/${workflow.id}`)}
+                  className="border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow bg-card"
+                >
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <div className="flex flex-col">
+                      <h3 className="text-lg font-semibold">{workflow.name}</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{nodeCount} nodes</Badge>
+                      {canManageWorkflows && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={(event) => handleDeleteClick(event, workflow)}
+                          disabled={isLoading || isDeleting}
+                          aria-label={`Delete workflow ${workflow.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Updated {formatDate(workflow.updatedAt)}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Updated {formatDate(workflow.updatedAt)}
-                </p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
+
+      {canManageWorkflows && (
+        <Dialog open={isDeleteDialogOpen} onOpenChange={handleDeleteDialogChange}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete workflow</DialogTitle>
+              <DialogDescription>
+                This action permanently removes the workflow and its configuration. Runs and logs remain available for auditing purposes.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="text-sm">
+                <span className="font-medium">Workflow:</span>{' '}
+                <span>{workflowToDelete?.name}</span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                ID: <span className="font-mono">{workflowToDelete?.id}</span>
+              </div>
+              {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDeleteDialogChange(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting…' : 'Delete workflow'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

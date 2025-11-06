@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,8 @@ import {
   StopCircle,
   PencilLine,
   MonitorPlay,
+  Upload,
+  Download,
 } from 'lucide-react'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
@@ -21,12 +23,22 @@ interface TopBarProps {
   isNew?: boolean
   onRun?: () => void
   onSave: () => Promise<void> | void
+  onImport?: (file: File) => Promise<void> | void
+  onExport?: () => void
   canManageWorkflows?: boolean
 }
 
-export function TopBar({ onRun, onSave, canManageWorkflows = true }: TopBarProps) {
+export function TopBar({
+  onRun,
+  onSave,
+  onImport,
+  onExport,
+  canManageWorkflows = true,
+}: TopBarProps) {
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
   const { status, runStatus, reset } = useExecutionStore()
@@ -57,6 +69,46 @@ export function TopBar({ onRun, onSave, canManageWorkflows = true }: TopBarProps
 
   const handleStop = () => {
     reset()
+  }
+
+  const handleExport = () => {
+    if (!canEdit) {
+      return
+    }
+    if (onExport) {
+      onExport()
+    }
+  }
+
+  const handleImportClick = () => {
+    if (!canEdit) {
+      return
+    }
+    if (!onImport) return
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!canEdit) {
+      event.target.value = ''
+      return
+    }
+    if (!onImport) return
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    try {
+      setIsImporting(true)
+      await onImport(file)
+    } catch (error) {
+      console.error('Failed to import workflow:', error)
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   return (
@@ -136,6 +188,28 @@ export function TopBar({ onRun, onSave, canManageWorkflows = true }: TopBarProps
               Unsaved changes
             </span>
           )}
+          {onImport && (
+            <Button
+              onClick={handleImportClick}
+              disabled={!canEdit || isImporting}
+              variant="outline"
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              {isImporting ? 'Importing…' : 'Import'}
+            </Button>
+          )}
+          {onExport && (
+            <Button
+              onClick={handleExport}
+              disabled={!canEdit}
+              variant="outline"
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          )}
           <Button
             onClick={handleSave}
             disabled={!canEdit || isSaving || isRunning}
@@ -197,6 +271,15 @@ export function TopBar({ onRun, onSave, canManageWorkflows = true }: TopBarProps
           )}
         </div>
       </div>
+      {onImport && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      )}
     </div>
   )
 }

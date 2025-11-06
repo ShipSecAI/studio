@@ -20,38 +20,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/service/studio/workflows/link": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["PlatformController_linkWorkflow"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/service/studio/workflows/link/{platformAgentId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["PlatformController_getLink"];
-        put?: never;
-        post?: never;
-        delete: operations["PlatformController_unlink"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workflows": {
         parameters: {
             query?: never;
@@ -650,61 +618,6 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PlatformController_linkWorkflow: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PlatformController_getLink: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                platformAgentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PlatformController_unlink: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                platformAgentId: string;
-            };
             cookie?: never;
         };
         requestBody?: never;

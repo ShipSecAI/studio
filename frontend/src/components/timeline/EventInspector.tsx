@@ -226,8 +226,8 @@ export function EventInspector({ className }: EventInspectorProps) {
             <div className="flex items-center gap-2 text-xs">
               {playbackMode === 'live' && (
                 <>
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-red-600 font-medium">LIVE</span>
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  <span className="font-medium text-red-600">LIVE</span>
                   {autoScrollRef.current && (
                     <span className="text-muted-foreground">• Auto-scrolling</span>
                   )}
@@ -235,8 +235,8 @@ export function EventInspector({ className }: EventInspectorProps) {
               )}
               {playbackMode === 'replay' && autoScrollRef.current && (
                 <>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                  <span className="text-blue-600 font-medium">FOLLOWING</span>
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+                  <span className="font-medium text-blue-600">FOLLOWING</span>
                 </>
               )}
             </div>

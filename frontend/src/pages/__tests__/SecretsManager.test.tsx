@@ -148,7 +148,13 @@ const setupStore = (overrides: Partial<MockStoreState> = {}) => {
 }
 
 const openEditDialog = async () => {
-  fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+  const rows = await screen.findAllByRole('row')
+  const rowElement = rows.find((row) => within(row).queryByText(baseSecret.name))
+  if (!rowElement) {
+    throw new Error('Unable to locate secret row for edit action')
+  }
+  const editButton = within(rowElement).getByRole('button', { name: 'Edit' })
+  fireEvent.click(editButton)
   return await screen.findByRole('dialog')
 }
 

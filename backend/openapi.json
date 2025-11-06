@@ -15,64 +15,6 @@
         ]
       }
     },
-    "/api/v1/service/studio/workflows/link": {
-      "post": {
-        "operationId": "PlatformController_linkWorkflow",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Platform"
-        ]
-      }
-    },
-    "/api/v1/service/studio/workflows/link/{platformAgentId}": {
-      "get": {
-        "operationId": "PlatformController_getLink",
-        "parameters": [
-          {
-            "name": "platformAgentId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Platform"
-        ]
-      },
-      "delete": {
-        "operationId": "PlatformController_unlink",
-        "parameters": [
-          {
-            "name": "platformAgentId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Platform"
-        ]
-      }
-    },
     "/api/v1/workflows": {
       "post": {
         "operationId": "WorkflowsController_create",

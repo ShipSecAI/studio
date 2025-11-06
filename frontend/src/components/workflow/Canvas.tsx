@@ -427,6 +427,19 @@ export function Canvas({
       }
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
+        const target = event.target
+        if (target instanceof HTMLElement) {
+          const isEditable =
+            target.isContentEditable ||
+            ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+            target.getAttribute('role') === 'textbox' ||
+            target.closest('[contenteditable]:not([contenteditable="false"])')
+
+          if (isEditable) {
+            return
+          }
+        }
+
         event.preventDefault()
         const selectedNodes = nodes.filter((node) => node.selected)
         const selectedEdges = edges.filter((edge) => edge.selected)
