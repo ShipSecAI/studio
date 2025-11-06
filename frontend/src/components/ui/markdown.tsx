@@ -80,8 +80,10 @@ export function MarkdownView({ content, className, dataTestId, onEdit }: Markdow
             if ((props as any).type === 'checkbox') {
               const checkboxIndex = taskCounter++
               const checked = Boolean((props as any).checked)
-              const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+              const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
                 if (!onEdit) return
+                e.preventDefault()
+                e.stopPropagation()
                 const toggled = toggleNthTask(normalized, checkboxIndex)
                 onEdit(toggled)
               }
@@ -90,7 +92,8 @@ export function MarkdownView({ content, className, dataTestId, onEdit }: Markdow
                   type="checkbox"
                   className="align-middle mr-1 nodrag nowheel cursor-pointer"
                   checked={checked}
-                  onChange={handleChange}
+                  onChange={(e) => e.preventDefault()}
+                  onClick={handleClick}
                   draggable={false}
                   onPointerDownCapture={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
@@ -98,7 +101,6 @@ export function MarkdownView({ content, className, dataTestId, onEdit }: Markdow
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
                   onClickCapture={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
                 />
               )
             }
