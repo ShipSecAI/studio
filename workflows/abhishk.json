@@ -1,0 +1,80 @@
+{
+  "name": "atlassian",
+  "description": "",
+  "graph": {
+    "nodes": [
+      {
+        "id": "secret-fetch-1761309378246",
+        "type": "core.secret.fetch",
+        "position": {
+          "x": 348,
+          "y": 500
+        },
+        "data": {
+          "label": "Secret Fetch",
+          "config": {
+            "secretId": "24c94075-a1f9-464e-9a70-b47cc32149c9"
+          }
+        }
+      },
+      {
+        "id": "console-log-1761309933067",
+        "type": "core.console.log",
+        "position": {
+          "x": 1115,
+          "y": 384
+        },
+        "data": {
+          "label": "Console Log",
+          "config": {}
+        }
+      },
+      {
+        "id": "atlassian-offboarding-1761311033440",
+        "type": "shipsec.atlassian.offboarding",
+        "position": {
+          "x": 733,
+          "y": 276.99999618530273
+        },
+        "data": {
+          "label": "Atlassian Offboarding",
+          "config": {
+            "orgId": "b51b44a1-b614-4cfc-9b58-daeced73dede",
+            "emailUsernames": "rambhagvan"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "reactflow__edge-secret-fetch-1761309378246secret-atlassian-offboarding-1761311033440accessToken",
+        "source": "secret-fetch-1761309378246",
+        "target": "atlassian-offboarding-1761311033440",
+        "sourceHandle": "secret",
+        "targetHandle": "accessToken",
+        "type": "default",
+        "animated": false
+      },
+      {
+        "id": "reactflow__edge-atlassian-offboarding-1761311033440results-console-log-1761309933067data",
+        "source": "atlassian-offboarding-1761311033440",
+        "target": "console-log-1761309933067",
+        "sourceHandle": "results",
+        "targetHandle": "data",
+        "type": "default",
+        "animated": false
+      }
+    ],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "metadata": {
+    "workflowId": "d7941404-2a0c-4339-ba94-0f9b0b67e973",
+    "currentVersionId": "7db9e1a6-3fee-42ca-8b37-2f3565546646",
+    "currentVersion": 5,
+    "exportedAt": "2025-11-05T09:58:17.833Z"
+  }
+}

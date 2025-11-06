@@ -1,0 +1,56 @@
+{
+  "name": "abhishek2",
+  "description": "",
+  "graph": {
+    "nodes": [
+      {
+        "id": "secret-fetch-1761076089258",
+        "type": "core.secret.fetch",
+        "position": {
+          "x": 498,
+          "y": 109
+        },
+        "data": {
+          "label": "Secret Fetch",
+          "config": {
+            "secretId": "2183633e-9cd8-4d33-ace1-9874ce4055f3"
+          }
+        }
+      },
+      {
+        "id": "console-log-1761076112128",
+        "type": "core.console.log",
+        "position": {
+          "x": 898,
+          "y": 357
+        },
+        "data": {
+          "label": "Console Log",
+          "config": {}
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "reactflow__edge-secret-fetch-1761076089258secret-console-log-1761076112128data",
+        "source": "secret-fetch-1761076089258",
+        "target": "console-log-1761076112128",
+        "sourceHandle": "secret",
+        "targetHandle": "data",
+        "type": "default",
+        "animated": false
+      }
+    ],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "metadata": {
+    "workflowId": "c5a4a756-bcfc-40d3-9f01-bc9b6bf69af9",
+    "currentVersionId": "7c103d8d-2932-4e52-9a6a-69c77a63b5f3",
+    "currentVersion": 1,
+    "exportedAt": "2025-11-05T18:38:17.676Z"
+  }
+}

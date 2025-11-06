@@ -275,6 +275,15 @@ pm2 start pm2.config.cjs
 
 ---
 
+## Workflow CLI
+
+- Run `bun --cwd backend run workflow:import --dir ./workflows` to bulk import every workflow JSON file in a folder.
+- If `--dir` is omitted the CLI reads `WORKFLOW_IMPORT_DIR` from `backend/.env` (default `../workflows` relative to `backend/`); override the API host with `WORKFLOW_IMPORT_BASE_URL`.
+- Each file logs success or failure and existing workflow names are updated instead of duplicated.
+- Invalid or duplicate files are skipped with warnings so the rest of the batch keeps processing.
+
+---
+
 ## Additional Resources
 
 - **Execution Contract**: Formal schemas for workflow run status and trace events live in [`docs/execution-contract.md`](docs/execution-contract.md)
