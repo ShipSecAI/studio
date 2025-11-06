@@ -62,9 +62,12 @@
     "posthog-js": "^1.288.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^9.0.3",
     "react-router-dom": "^7.9.3",
     "reactflow": "^11.11.4",
+    "rehype-sanitize": "^6.0.0",
     "tailwind-merge": "^3.3.1",
+    "remark-gfm": "^4.0.0",
     "zod": "^4.1.11",
     "zustand": "^5.0.8"
   }

@@ -9,6 +9,7 @@ import './core/file-loader';
 import './core/webhook';
 import './core/text-splitter';
 import './core/text-joiner';
+import './core/text-block';
 import './core/console-log';
 import './core/secret-fetch';
 import './core/array-pick';

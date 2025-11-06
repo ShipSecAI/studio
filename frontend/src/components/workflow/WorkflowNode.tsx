@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow'
 import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MarkdownView } from '@/components/ui/markdown'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
@@ -24,7 +25,7 @@ const STATUS_ICONS = {
  */
 export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) => {
   const { getComponent, loading } = useComponentStore()
-  const { getNodes, getEdges } = useReactFlow()
+  const { getNodes, getEdges, setNodes } = useReactFlow()
   const { nodeStates, selectedRunId, selectNode } = useExecutionTimelineStore()
   const { mode } = useWorkflowUiStore()
   const [isHovered, setIsHovered] = useState(false)
@@ -84,8 +85,19 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   const shouldShowProgress = isTimelineActive && visualState.status === 'running' && visualState.progress > 0
   const hasEvents = isTimelineActive && visualState.eventCount > 0
 
+  const isTextBlock = component.slug === 'text-block' || component.id === 'core.ui.text'
+  const textBlockTitle = typeof nodeData.parameters?.title === 'string'
+    ? nodeData.parameters.title.trim()
+    : ''
+  const textBlockContent = typeof nodeData.parameters?.content === 'string'
+    ? nodeData.parameters.content
+    : ''
+  const trimmedTextBlockContent = textBlockContent.trim()
+
   // Display label (custom or component name)
-  const displayLabel = data.label || component.name
+  const displayLabel = isTextBlock && textBlockTitle
+    ? textBlockTitle
+    : data.label || component.name
 
   // Check if there are unfilled required parameters or inputs
   const componentParameters = component.parameters ?? []
@@ -288,6 +300,45 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
 
       {/* Body - Input/Output Ports */}
       <div className="px-3 py-3 space-y-2">
+        {isTextBlock && (
+          trimmedTextBlockContent.length > 0 ? (
+            <MarkdownView
+              content={trimmedTextBlockContent}
+              dataTestId="text-block-content"
+              className={cn(
+                'rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2',
+                'prose prose-sm dark:prose-invert max-w-none'
+              )}
+              onEdit={(next) => {
+                setNodes((nds) => nds.map((n) => n.id === id
+                  ? {
+                      ...n,
+                      data: {
+                        ...n.data,
+                        parameters: {
+                          ...(n.data as any).parameters,
+                          content: next,
+                        },
+                      },
+                    }
+                  : n
+                ))
+              }}
+            />
+          ) : (
+            // Fallback helper text (children only, no dangerouslySetInnerHTML)
+            <div
+              className={cn(
+                'rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 text-xs sm:text-sm text-muted-foreground leading-relaxed',
+                'prose prose-sm dark:prose-invert max-w-none'
+              )}
+              data-testid="text-block-content"
+            >
+              {'Add notes in the configuration panel to share context with teammates.'}
+            </div>
+          )
+        )}
+
         {/* Input Ports */}
         {componentInputs.length > 0 && (
           <div className="space-y-1.5">
