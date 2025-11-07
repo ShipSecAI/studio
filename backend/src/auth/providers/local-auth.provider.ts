@@ -6,29 +6,23 @@ import { DEFAULT_ROLES, type AuthContext } from '../types';
 import type { AuthProviderStrategy } from './auth-provider.interface';
 import { DEFAULT_ORGANIZATION_ID } from '../constants';
 
-function extractBearerToken(headerValue: string | undefined): string | null {
-  if (!headerValue) {
+function extractBasicAuth(headerValue: string | undefined): { username: string; password: string } | null {
+  if (!headerValue || !headerValue.startsWith('Basic ')) {
     return null;
   }
-  const [scheme, token] = headerValue.split(' ');
-  if (!scheme || !token) {
+  try {
+    const base64Credentials = headerValue.slice(6);
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+    const [username, password] = credentials.split(':');
+    if (!username || !password) {
+      return null;
+    }
+    return { username, password };
+  } catch {
     return null;
   }
-  if (scheme.toLowerCase() !== 'bearer') {
-    return null;
-  }
-  return token.trim();
 }
 
-function extractOrganizationId(request: Request): string | null {
-  const header =
-    (request.headers['x-organization-id'] as string | undefined) ??
-    (request.headers['x-org-id'] as string | undefined);
-  if (header && header.trim().length > 0) {
-    return header.trim();
-  }
-  return null;
-}
 
 @Injectable()
 export class LocalAuthProvider implements AuthProviderStrategy {
@@ -37,33 +31,33 @@ export class LocalAuthProvider implements AuthProviderStrategy {
   constructor(private readonly config: LocalAuthConfig) {}
 
   async authenticate(request: Request): Promise<AuthContext> {
-    const orgId = extractOrganizationId(request) ?? DEFAULT_ORGANIZATION_ID;
+    // Always use local-dev org ID for local auth
+    const orgId = DEFAULT_ORGANIZATION_ID;
 
-    if (this.config.apiKey) {
-      const token = extractBearerToken(request.headers.authorization);
-      if (token === this.config.apiKey) {
-        return {
-          userId: 'local-api-key',
-          organizationId: orgId,
-          roles: DEFAULT_ROLES,
-          isAuthenticated: true,
-          provider: this.name,
-        };
-      }
-      if (!this.config.allowUnauthenticated) {
-        throw new UnauthorizedException('Invalid or missing API key');
-      }
+    // Require Basic Auth (admin credentials)
+    if (!this.config.adminUsername || !this.config.adminPassword) {
+      throw new UnauthorizedException('Local auth not configured - admin credentials required');
     }
 
-    if (!this.config.allowUnauthenticated && !this.config.apiKey) {
-      throw new UnauthorizedException('Local auth is locked down without an API key');
+    const authHeader = request.headers.authorization;
+    const basicAuth = extractBasicAuth(authHeader);
+    
+    if (!basicAuth) {
+      throw new UnauthorizedException('Missing Basic Auth credentials');
+    }
+
+    if (
+      basicAuth.username !== this.config.adminUsername ||
+      basicAuth.password !== this.config.adminPassword
+    ) {
+      throw new UnauthorizedException('Invalid admin credentials');
     }
 
     return {
-      userId: null,
+      userId: 'admin',
       organizationId: orgId,
       roles: DEFAULT_ROLES,
-      isAuthenticated: false,
+      isAuthenticated: true,
       provider: this.name,
     };
   }

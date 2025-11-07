@@ -14,11 +14,14 @@ interface AuthState {
   organizationId: string
   roles: string[]
   provider: AuthProvider
+  adminUsername: string | null
+  adminPassword: string | null
   setToken: (token: string | null) => void
   setOrganizationId: (orgId: string) => void
   setRoles: (roles: string[]) => void
   setUserId: (userId: string | null) => void
   setProvider: (provider: AuthProvider) => void
+  setAdminCredentials: (username: string, password: string) => void
   setAuthContext: (context: {
     token?: string | null
     userId?: string | null
@@ -42,9 +45,26 @@ export const useAuthStore = create<AuthState>()(
         }),
       setUserId: (userId) => set({ userId: userId && userId.trim().length > 0 ? userId.trim() : null }),
       setOrganizationId: (orgId) =>
-        set({ organizationId: orgId && orgId.trim().length > 0 ? orgId.trim() : DEFAULT_ORG_ID }),
+        set((current) => {
+          // Lock org ID to 'local-dev' for local auth
+          if (current.provider === 'local') {
+            return { organizationId: 'local-dev' };
+          }
+          return { organizationId: orgId && orgId.trim().length > 0 ? orgId.trim() : DEFAULT_ORG_ID };
+        }),
       setRoles: (roles) => set({ roles: Array.isArray(roles) && roles.length > 0 ? roles : ['ADMIN'] }),
       setProvider: (provider) => set({ provider }),
+      adminUsername: null,
+      adminPassword: null,
+      setAdminCredentials: (username, password) =>
+        set({
+          adminUsername: username.trim() || null,
+          adminPassword: password.trim() || null,
+          userId: 'admin',
+          organizationId: 'local-dev', // Lock to local-dev for local auth
+          roles: ['ADMIN'],
+          provider: 'local',
+        }),
       setAuthContext: (context) =>
         set((current) => {
           const hasTokenUpdate = context.token !== undefined
@@ -68,8 +88,11 @@ export const useAuthStore = create<AuthState>()(
               : current.userId
 
           const hasOrgUpdate = context.organizationId !== undefined
+          // Lock org ID to 'local-dev' for local auth
           const sanitizedOrgId =
-            hasOrgUpdate && context.organizationId
+            current.provider === 'local'
+              ? 'local-dev'
+              : hasOrgUpdate && context.organizationId
               ? context.organizationId.trim()
               : hasOrgUpdate && context.organizationId === null
               ? DEFAULT_ORG_ID
@@ -110,11 +133,27 @@ export const useAuthStore = create<AuthState>()(
           organizationId: DEFAULT_ORG_ID,
           roles: ['ADMIN'],
           provider: 'local',
+          adminUsername: null,
+          adminPassword: null,
         }),
     }),
     {
       name: 'shipsec-auth',
-      version: 1,
+      version: 2,
+      migrate: (persistedState, version) => {
+        if (!persistedState) {
+          return persistedState
+        }
+        if (version < 2) {
+          const nextState = {
+            ...persistedState,
+            adminUsername: null,
+            adminPassword: null,
+          }
+          return nextState
+        }
+        return persistedState
+      },
       partialize: (state) => ({
         token: state.token,
         userId: state.userId,

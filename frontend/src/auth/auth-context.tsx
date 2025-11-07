@@ -8,27 +8,37 @@ import React, {
 } from 'react';
 import { ClerkAuthProvider } from './providers/clerk-provider';
 import type { FrontendAuthProvider, FrontendAuthProviderComponent } from './types';
+import { useAuthStore } from '../store/authStore';
 
 // Auth provider registry - easy to add new providers
 // Determine which provider to use based on environment
 function getAuthProviderName(): string {
-  // Priority: environment variable > Clerk key detection > local dev
+  // Priority: explicit 'local' > dev mode (always local) > environment variable
   const envProvider = import.meta.env.VITE_AUTH_PROVIDER;
   const hasClerkKey =
     typeof import.meta.env.VITE_CLERK_PUBLISHABLE_KEY === 'string' &&
     import.meta.env.VITE_CLERK_PUBLISHABLE_KEY.trim().length > 0;
 
-  // Debug logging to help diagnose issues
+  // In dev mode, always use local auth for testing (ignore Clerk settings)
   if (import.meta.env.DEV) {
-    const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-    console.log('[Auth] Provider selection:', {
-      envProvider: envProvider || 'undefined',
-      hasClerkKey,
-      clerkKeyPreview: hasClerkKey && typeof clerkKey === 'string' ? clerkKey.substring(0, 20) + '...' : 'missing',
-      allEnvKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_')),
-    });
-    console.log('[Auth] VITE_AUTH_PROVIDER value:', import.meta.env.VITE_AUTH_PROVIDER);
-    console.log('[Auth] VITE_CLERK_PUBLISHABLE_KEY exists:', !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+    console.log('[Auth] Dev mode detected - using local auth provider');
+    return 'local';
+  }
+
+  // Debug logging to help diagnose issues
+  const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  console.log('[Auth] Provider selection:', {
+    envProvider: envProvider || 'undefined',
+    hasClerkKey,
+    clerkKeyPreview: hasClerkKey && typeof clerkKey === 'string' ? clerkKey.substring(0, 20) + '...' : 'missing',
+    allEnvKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_')),
+  });
+  console.log('[Auth] VITE_AUTH_PROVIDER value:', import.meta.env.VITE_AUTH_PROVIDER);
+  console.log('[Auth] VITE_CLERK_PUBLISHABLE_KEY exists:', !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+
+  // If explicitly set to 'local', always use local auth
+  if (envProvider === 'local') {
+    return 'local';
   }
 
   // If explicitly set to clerk, use it (if key is available)
@@ -45,19 +55,13 @@ function getAuthProviderName(): string {
     return envProvider;
   }
 
-  // If Clerk key is available, use Clerk (even in dev mode)
+  // In production, use Clerk if key is available, otherwise local
   if (hasClerkKey) {
     return 'clerk';
   }
 
-  // Fallback to local auth only if no Clerk key and no explicit provider
-  const isLocalDev = import.meta.env.DEV && !envProvider;
-  if (isLocalDev) {
-    return 'local';
-  }
-
-  // Default to clerk if no specific configuration
-  return 'clerk';
+  // Final fallback to local
+  return 'local';
 }
 
 // Global auth context that wraps the selected provider
@@ -75,35 +79,58 @@ type ProviderComponentProps = React.PropsWithChildren<{
 
 // Local auth provider for development
 const LocalAuthProvider: FrontendAuthProviderComponent = ({ children, onProviderChange }: ProviderComponentProps) => {
-  const [localProvider] = useState<FrontendAuthProvider>(() => ({
-    name: 'local',
-    context: {
-      user: null,
-      token: null,
-      isLoading: false,
-      isAuthenticated: false,
-      error: null,
-    },
-    signIn: () => {
-      console.warn('Local auth: signIn not implemented in dev mode');
-    },
-    signUp: () => {
-      console.warn('Local auth: signUp not implemented in dev mode');
-    },
-    signOut: () => {
-      console.warn('Local auth: signOut not implemented in dev mode');
-    },
-    SignInComponent: () => <div>Sign in not available in local dev mode</div>,
-    SignUpComponent: () => <div>Sign up not available in local dev mode</div>,
-    UserButtonComponent: () => <div>User profile not available in local dev mode</div>,
-    OrganizationSwitcherComponent: undefined,
-    initialize: () => {
-      // No initialization required for local auth
-    },
-    cleanup: () => {
-      // No cleanup needed for local auth
-    },
-  }));
+  // Access auth store state
+  const adminUsername = useAuthStore((state) => state.adminUsername);
+  const adminPassword = useAuthStore((state) => state.adminPassword);
+  const userId = useAuthStore((state) => state.userId);
+  const organizationId = useAuthStore((state) => state.organizationId);
+
+  // Create provider that reacts to store state
+  const localProvider = useMemo<FrontendAuthProvider>(() => {
+    const hasCredentials = !!(adminUsername && adminPassword);
+    
+    return {
+      name: 'local',
+      context: {
+        user: hasCredentials
+          ? {
+              id: userId || 'admin',
+              organizationId: organizationId || 'local-dev',
+              organizationRole: 'ADMIN',
+            }
+          : null,
+        token: hasCredentials
+          ? {
+              token: `basic-${btoa(`${adminUsername}:${adminPassword}`)}`,
+              expiresAt: undefined,
+            }
+          : null,
+        isLoading: false,
+        isAuthenticated: hasCredentials,
+        error: null,
+      },
+      signIn: () => {
+        console.warn('Local auth: signIn not implemented - use AdminLoginForm');
+      },
+      signUp: () => {
+        console.warn('Local auth: signUp not implemented');
+      },
+      signOut: () => {
+        // Clear admin credentials from store
+        useAuthStore.getState().clear();
+      },
+      SignInComponent: () => <div>Sign in not available in local dev mode</div>,
+      SignUpComponent: () => <div>Sign up not available in local dev mode</div>,
+      UserButtonComponent: () => <div>User profile not available in local dev mode</div>,
+      OrganizationSwitcherComponent: undefined,
+      initialize: () => {
+        // No initialization required for local auth
+      },
+      cleanup: () => {
+        // No cleanup needed for local auth
+      },
+    };
+  }, [adminUsername, adminPassword, userId, organizationId]);
 
   useEffect(() => {
     localProvider.initialize();

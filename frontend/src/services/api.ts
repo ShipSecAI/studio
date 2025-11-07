@@ -54,7 +54,8 @@ export const API_BASE_URL = resolveApiBaseUrl()
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const storeState = useAuthStore.getState()
   let token = storeState.token
-  const organizationId = storeState.organizationId
+  // For local auth, always use 'local-dev' org ID
+  const organizationId = storeState.provider === 'local' ? 'local-dev' : storeState.organizationId
 
   // For Clerk auth, always fetch a fresh token on-demand to prevent expiration issues
   // This ensures we never use a stale/expired token
@@ -77,11 +78,16 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
   const headers: Record<string, string> = {}
 
-  if (token && token.trim().length > 0) {
+  // For local auth with admin credentials, use Basic Auth
+  if (storeState.provider === 'local' && storeState.adminUsername && storeState.adminPassword) {
+    const credentials = btoa(`${storeState.adminUsername}:${storeState.adminPassword}`)
+    headers['Authorization'] = `Basic ${credentials}`
+  } else if (token && token.trim().length > 0) {
+    // Use Bearer token (for Clerk)
     const headerValue = token.startsWith('Bearer ') ? token : `Bearer ${token}`
     headers['Authorization'] = headerValue
   } else {
-    console.warn('[API] No token available for request');
+    console.warn('[API] No token or credentials available for request');
   }
 
   if (organizationId && organizationId.trim().length > 0) {
@@ -371,7 +377,11 @@ export const api = {
 
           // Build auth headers
           const headers: Record<string, string> = {}
-          if (token && token.trim().length > 0) {
+          // For local auth with admin credentials, use Basic Auth
+          if (storeState.provider === 'local' && storeState.adminUsername && storeState.adminPassword) {
+            const credentials = btoa(`${storeState.adminUsername}:${storeState.adminPassword}`)
+            headers['Authorization'] = `Basic ${credentials}`
+          } else if (token && token.trim().length > 0) {
             const headerValue = token.startsWith('Bearer ') ? token : `Bearer ${token}`
             headers['Authorization'] = headerValue
           }

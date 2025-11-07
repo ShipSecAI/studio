@@ -3,8 +3,8 @@ import { registerAs } from '@nestjs/config';
 export type AuthProvider = 'local' | 'clerk';
 
 export interface LocalAuthConfig {
-  apiKey: string | null;
-  allowUnauthenticated: boolean;
+  adminUsername: string | null;
+  adminPassword: string | null;
 }
 
 export interface ClerkAuthConfig {
@@ -16,13 +16,6 @@ export interface AuthConfig {
   provider: AuthProvider;
   local: LocalAuthConfig;
   clerk: ClerkAuthConfig;
-}
-
-function parseBoolean(value: string | undefined, fallback = false): boolean {
-  if (value === undefined || value === null) {
-    return fallback;
-  }
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 }
 
 function normalizeProvider(raw: string | undefined): AuthProvider {
@@ -39,11 +32,9 @@ export const authConfig = registerAs<AuthConfig>('auth', () => {
   return {
     provider,
     local: {
-      apiKey: process.env.AUTH_LOCAL_API_KEY ?? null,
-      allowUnauthenticated: parseBoolean(
-        process.env.AUTH_LOCAL_ALLOW_UNAUTHENTICATED,
-        true,
-      ),
+      // Default test credentials (override with env vars in production)
+      adminUsername: process.env.ADMIN_USERNAME ?? 'admin',
+      adminPassword: process.env.ADMIN_PASSWORD ?? 'admin',
     },
     clerk: {
       publishableKey: process.env.CLERK_PUBLISHABLE_KEY ?? null,

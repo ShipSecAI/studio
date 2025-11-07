@@ -13,8 +13,6 @@ import {
   Download,
   PanelLeftClose,
   PanelLeftOpen,
-  KeyRound,
-  Plug,
 } from 'lucide-react'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
@@ -138,22 +136,6 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3 ml-auto">
-        <Button
-          variant="outline"
-          onClick={() => navigate('/secrets')}
-          className="gap-2"
-        >
-          <KeyRound className="h-4 w-4" />
-          Secrets
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => navigate('/integrations')}
-          className="gap-2"
-        >
-          <Plug className="h-4 w-4" />
-          Connections
-        </Button>
         <Button
           variant="ghost"
           size="icon"

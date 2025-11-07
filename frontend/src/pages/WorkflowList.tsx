@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Plus, Workflow, Loader2, AlertCircle, Plug, Trash2 } from 'lucide-react'
+import { Plus, Workflow, Loader2, AlertCircle, Trash2 } from 'lucide-react'
 import { api } from '@/services/api'
 import {
   WorkflowMetadataSchema,
@@ -133,24 +133,6 @@ export function WorkflowList() {
           >
             <Plus className="h-5 w-5" />
             New Workflow
-          </Button>
-          <Button
-            onClick={() => navigate('/secrets')}
-            size="lg"
-            variant="outline"
-            disabled={isLoading}
-          >
-            Manage Secrets
-          </Button>
-          <Button
-            onClick={() => navigate('/integrations')}
-            size="lg"
-            variant="outline"
-            disabled={isLoading}
-            className="gap-2"
-          >
-            <Plug className="h-5 w-5" />
-            Manage Connections
           </Button>
         </div>
 

@@ -16,13 +16,12 @@ import {
 } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { ShieldAlert, ShieldCheck, Info } from 'lucide-react'
 import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore'
 import { useAuthProvider } from '@/auth/auth-context'
 
 export function AuthSettingsButton() {
-  const { token, organizationId, setToken, setOrganizationId, clear } = useAuthStore()
+  const { token, organizationId, setToken, setOrganizationId, clear, adminUsername } = useAuthStore()
   const authProvider = useAuthProvider()
   const [open, setOpen] = useState(false)
   const [draftToken, setDraftToken] = useState(token ?? '')
@@ -40,6 +39,16 @@ export function AuthSettingsButton() {
   const isLocalMode = useMemo(() => {
     return authProvider.name === 'local' && (!token || token.trim().length === 0)
   }, [authProvider.name, token])
+  
+  // Hide auth settings for local auth with admin credentials (Basic Auth)
+  const isLocalAdminAuth = useMemo(() => {
+    return authProvider.name === 'local' && !!adminUsername
+  }, [authProvider.name, adminUsername])
+  
+  // Don't render anything for local admin auth
+  if (isLocalAdminAuth) {
+    return null
+  }
 
   const handleSave = () => {
     setToken(draftToken.trim().length > 0 ? draftToken.trim() : null)
@@ -95,19 +104,16 @@ export function AuthSettingsButton() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button
-            variant={isConfigured ? 'secondary' : 'outline'}
-            size="sm"
+            variant="ghost"
+            size="icon"
             className="gap-2"
+            title={isConfigured ? 'Auth configured' : 'Configure auth'}
           >
             {isConfigured ? (
               <ShieldCheck className="h-4 w-4" />
             ) : (
               <ShieldAlert className="h-4 w-4" />
             )}
-            <span>{isConfigured ? 'Auth Configured' : 'Configure Auth'}</span>
-            <Badge variant="outline" className="hidden sm:inline-flex">
-              {organizationId ?? DEFAULT_ORG_ID}
-            </Badge>
           </Button>
         </DialogTrigger>
         <DialogContent>

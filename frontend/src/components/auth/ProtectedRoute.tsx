@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
 import { useAuth, useAuthProvider } from '../../auth/auth-context';
 import { AuthModal, useAuthModal } from './AuthModal';
+import { AdminLoginForm } from './AdminLoginForm';
 import { Button } from '../ui/button';
 import { Shield, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { useAuthStore } from '../../store/authStore';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -22,9 +24,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   roles = [],
   redirectTo,
 }) => {
+  // All hooks must be called unconditionally at the top
   const { isAuthenticated, isLoading, user } = useAuth();
   const authProvider = useAuthProvider();
   const { openSignIn, isOpen, close } = useAuthModal();
+  const adminUsername = useAuthStore((state) => state.adminUsername);
+  const adminPassword = useAuthStore((state) => state.adminPassword);
 
   // Automatically trigger sign-in for Clerk when not authenticated
   useEffect(() => {
@@ -33,6 +38,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       authProvider.signIn();
     }
   }, [isLoading, isAuthenticated, requireAuth, authProvider]);
+
+  // Compute derived values after hooks
+  const isLocalAuth = authProvider.name === 'local';
+  const hasLocalCredentials = !!(adminUsername && adminPassword);
 
   // Show loading state
   if (isLoading) {
@@ -49,6 +58,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Custom fallback component if provided
   if (fallback && !isAuthenticated && requireAuth) {
     return <>{fallback}</>;
+  }
+
+  // If using local auth and no credentials, show login form
+  if (isLocalAuth && !hasLocalCredentials && requireAuth) {
+    return <AdminLoginForm />;
   }
 
   // Default authentication required flow

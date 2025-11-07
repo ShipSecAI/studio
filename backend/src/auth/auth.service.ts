@@ -32,7 +32,10 @@ export class AuthService {
     const config = this.configService.get<AuthConfig>('auth');
     if (!config) {
       this.logger.warn('Auth config missing, defaulting to local provider');
-      return new LocalAuthProvider({ apiKey: null, allowUnauthenticated: true });
+      return new LocalAuthProvider({
+        adminUsername: process.env.ADMIN_USERNAME ?? 'admin',
+        adminPassword: process.env.ADMIN_PASSWORD ?? 'admin',
+      });
     }
 
     const provider: AuthProviderName = config.provider;
