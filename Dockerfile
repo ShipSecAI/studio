@@ -6,9 +6,14 @@
 FROM oven/bun:latest AS base
 # Install system deps
 RUN apt-get update && \
-    apt-get install -y ca-certificates python3 make g++ curl && \
+    apt-get install -y ca-certificates curl gnupg lsb-release python3 make g++ && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" > /etc/apt/sources.list.d/docker.list && \
     curl -fsSL https://deb.nodesource.com/setup_current.x | bash - && \
-    apt-get install -y nodejs && \
+    apt-get update && \
+    apt-get install -y nodejs docker-ce-cli && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 

@@ -22,10 +22,11 @@ async function bootstrap() {
   // Enable CORS for frontend
   app.enableCors({
     origin: [
+      'http://localhost',
       'http://localhost:5173',
       'http://localhost:5174',
-      'http://localhost:8090',
       'http://localhost:3211',
+      'http://localhost:8090',
       'https://studio.shipsec.ai',
     ],
     credentials: true,
