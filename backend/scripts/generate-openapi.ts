@@ -26,11 +26,9 @@ async function generateOpenApi() {
 
   const document = SwaggerModule.createDocument(app, config);
   const cleaned = cleanupOpenApiDoc(document);
-  const backendSpecPath = join(__dirname, '..', 'openapi.json');
   const repoRootSpecPath = join(__dirname, '..', '..', 'openapi.json');
   const payload = JSON.stringify(cleaned, null, 2);
 
-  writeFileSync(backendSpecPath, payload);
   writeFileSync(repoRootSpecPath, payload);
   await app.close();
 }

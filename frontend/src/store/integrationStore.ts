@@ -1,9 +1,9 @@
 import { create } from 'zustand'
+import type { components } from '@shipsec/backend-client'
 import { api } from '@/services/api'
-import type {
-  IntegrationConnection,
-  IntegrationProvider,
-} from '@/schemas/integration'
+
+type IntegrationProvider = components['schemas']['IntegrationProviderResponse']
+type IntegrationConnection = components['schemas']['IntegrationConnectionResponse']
 
 interface IntegrationStoreState {
   providers: IntegrationProvider[]

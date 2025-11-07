@@ -3,9 +3,11 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Loader2, CheckCircle, XCircle } from 'lucide-react'
 
+import type { components } from '@shipsec/backend-client'
 import { api } from '@/services/api'
 import { getCurrentUserId } from '@/lib/currentUser'
-import type { IntegrationConnection } from '@/schemas/integration'
+
+type IntegrationConnection = components['schemas']['IntegrationConnectionResponse']
 
 type CallbackStatus = 'pending' | 'success' | 'error'
 

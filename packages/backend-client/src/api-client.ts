@@ -1,11 +1,23 @@
 import createClient, { type Middleware } from 'openapi-fetch';
-import type { paths } from './client';
+import type { paths, components } from './client';
 
 export interface ClientConfig {
   baseUrl?: string;
   headers?: Record<string, string>;
   middleware?: Middleware | Middleware[];
 }
+
+type CreateWorkflowPayload = components['schemas']['CreateWorkflowRequestDto'];
+type UpdateWorkflowPayload = components['schemas']['UpdateWorkflowRequestDto'];
+type RunWorkflowPayload = components['schemas']['RunWorkflowRequestDto'];
+type CreateSecretPayload = components['schemas']['CreateSecretDto'];
+type RotateSecretPayload = components['schemas']['RotateSecretDto'];
+type UpdateSecretPayload = components['schemas']['UpdateSecretDto'];
+type UpsertProviderConfigPayload = components['schemas']['UpsertProviderConfigDto'];
+type StartOAuthPayload = components['schemas']['StartOAuthDto'];
+type CompleteOAuthPayload = components['schemas']['CompleteOAuthDto'];
+type RefreshConnectionPayload = components['schemas']['RefreshConnectionDto'];
+type DisconnectConnectionPayload = components['schemas']['DisconnectConnectionDto'];
 
 /**
  * ShipSec API Client
@@ -62,16 +74,13 @@ export class ShipSecApiClient {
     });
   }
 
-  async createWorkflow(workflow: paths['/api/v1/workflows']['post']['requestBody']['content']['application/json']) {
+  async createWorkflow(workflow: CreateWorkflowPayload) {
     return this.client.POST('/api/v1/workflows', {
       body: workflow,
     });
   }
 
-  async updateWorkflow(
-    id: string,
-    workflow: paths['/api/v1/workflows/{id}']['put']['requestBody']['content']['application/json'],
-  ) {
+  async updateWorkflow(id: string, workflow: UpdateWorkflowPayload) {
     return this.client.PUT('/api/v1/workflows/{id}', {
       params: { path: { id } },
       body: workflow,
@@ -90,10 +99,11 @@ export class ShipSecApiClient {
     });
   }
 
-  async runWorkflow(id: string, body: paths['/api/v1/workflows/{id}/run']['post']['requestBody']['content']['application/json'] = { inputs: {} }) {
+  async runWorkflow(id: string, body?: RunWorkflowPayload) {
+    const payload = (body ?? { inputs: {} }) as RunWorkflowPayload;
     return this.client.POST('/api/v1/workflows/{id}/run', {
       params: { path: { id } },
-      body,
+      body: payload,
     });
   }
 
@@ -243,28 +253,20 @@ export class ShipSecApiClient {
     });
   }
 
-  async createSecret(
-    secret: paths['/api/v1/secrets']['post']['requestBody']['content']['application/json'],
-  ) {
+  async createSecret(secret: CreateSecretPayload) {
     return this.client.POST('/api/v1/secrets', {
       body: secret,
     });
   }
 
-  async rotateSecret(
-    id: string,
-    payload: paths['/api/v1/secrets/{id}/rotate']['put']['requestBody']['content']['application/json'],
-  ) {
+  async rotateSecret(id: string, payload: RotateSecretPayload) {
     return this.client.PUT('/api/v1/secrets/{id}/rotate', {
       params: { path: { id } },
       body: payload,
     });
   }
 
-  async updateSecret(
-    id: string,
-    payload: paths['/api/v1/secrets/{id}']['patch']['requestBody']['content']['application/json'],
-  ) {
+  async updateSecret(id: string, payload: UpdateSecretPayload) {
     return this.client.PATCH('/api/v1/secrets/{id}', {
       params: { path: { id } },
       body: payload,
@@ -274,6 +276,70 @@ export class ShipSecApiClient {
   async deleteSecret(id: string) {
     return this.client.DELETE('/api/v1/secrets/{id}', {
       params: { path: { id } },
+    });
+  }
+
+  // ===== Integrations =====
+
+  async listIntegrationProviders() {
+    return this.client.GET('/api/v1/integrations/providers');
+  }
+
+  async getIntegrationProviderConfiguration(provider: string) {
+    return this.client.GET('/api/v1/integrations/providers/{provider}/config', {
+      params: { path: { provider } },
+    });
+  }
+
+  async upsertIntegrationProviderConfiguration(
+    provider: string,
+    payload: UpsertProviderConfigPayload,
+  ) {
+    return this.client.PUT('/api/v1/integrations/providers/{provider}/config', {
+      params: { path: { provider } },
+      body: payload,
+    });
+  }
+
+  async deleteIntegrationProviderConfiguration(provider: string) {
+    return this.client.DELETE('/api/v1/integrations/providers/{provider}/config', {
+      params: { path: { provider } },
+    });
+  }
+
+  async listIntegrationConnections(userId: string) {
+    return this.client.GET('/api/v1/integrations/connections', {
+      params: {
+        query: { userId },
+      },
+    });
+  }
+
+  async startIntegrationOAuth(provider: string, payload: StartOAuthPayload) {
+    return this.client.POST('/api/v1/integrations/{provider}/start', {
+      params: { path: { provider } },
+      body: payload,
+    });
+  }
+
+  async completeIntegrationOAuth(provider: string, payload: CompleteOAuthPayload) {
+    return this.client.POST('/api/v1/integrations/{provider}/exchange', {
+      params: { path: { provider } },
+      body: payload,
+    });
+  }
+
+  async refreshIntegrationConnection(id: string, payload: RefreshConnectionPayload) {
+    return this.client.POST('/api/v1/integrations/connections/{id}/refresh', {
+      params: { path: { id } },
+      body: payload,
+    });
+  }
+
+  async disconnectIntegrationConnection(id: string, payload: DisconnectConnectionPayload) {
+    return this.client.DELETE('/api/v1/integrations/connections/{id}', {
+      params: { path: { id } },
+      body: payload,
     });
   }
 }

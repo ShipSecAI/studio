@@ -1,18 +1,6 @@
 import { createShipSecClient, type components } from '@shipsec/backend-client'
 import { useAuthStore } from '@/store/authStore'
 import { getFreshClerkToken } from '@/utils/clerk-token'
-import type { ZodType } from 'zod'
-import {
-  IntegrationConnectionSchema,
-  IntegrationProviderConfigurationSchema,
-  IntegrationProviderSchema,
-  OAuthStartResponseSchema,
-  type IntegrationConnection,
-  type IntegrationProvider,
-  type IntegrationProviderConfiguration,
-  type OAuthStartResponse,
-} from '@/schemas/integration'
-
 // Direct type imports from backend client
 type WorkflowResponseDto = components['schemas']['WorkflowResponseDto']
 type CreateWorkflowRequestDto = components['schemas']['CreateWorkflowRequestDto']
@@ -22,6 +10,20 @@ type SecretValueResponse = components['schemas']['SecretValueResponse']
 type CreateSecretDto = components['schemas']['CreateSecretDto']
 type RotateSecretDto = components['schemas']['RotateSecretDto']
 type UpdateSecretDto = components['schemas']['UpdateSecretDto']
+type IntegrationProviderResponse = components['schemas']['IntegrationProviderResponse']
+type IntegrationConnectionResponse = components['schemas']['IntegrationConnectionResponse']
+type ProviderConfigurationResponse = components['schemas']['ProviderConfigurationResponse']
+type OAuthStartResponseDto = components['schemas']['OAuthStartResponseDto']
+type StartOAuthRequest = components['schemas']['StartOAuthDto']
+type CompleteOAuthRequest = components['schemas']['CompleteOAuthDto']
+type RefreshConnectionRequest = components['schemas']['RefreshConnectionDto']
+type DisconnectConnectionRequest = components['schemas']['DisconnectConnectionDto']
+type UpsertProviderConfigRequest = components['schemas']['UpsertProviderConfigDto']
+
+export type IntegrationProvider = IntegrationProviderResponse
+export type IntegrationConnection = IntegrationConnectionResponse
+export type IntegrationProviderConfiguration = ProviderConfigurationResponse
+export type OAuthStartResponse = OAuthStartResponseDto
 
 /**
  * API Client Configuration
@@ -112,95 +114,6 @@ const apiClient = createShipSecClient({
     },
   },
 })
-
-function buildApiPath(path: string) {
-  return path.startsWith('/') ? path : `/${path}`
-}
-
-async function extractErrorMessage(response: Response, fallback: string) {
-  try {
-    const text = await response.text()
-    if (!text) {
-      return fallback
-    }
-    const data = JSON.parse(text)
-    if (data && typeof data === 'object') {
-      if (typeof data.message === 'string') {
-        return data.message
-      }
-      if (Array.isArray(data.message)) {
-        return data.message.join(', ')
-      }
-      if (typeof data.error === 'string') {
-        return data.error
-      }
-    }
-    return text || fallback
-  } catch {
-    return fallback
-  }
-}
-
-async function fetchWithAuth(path: string, init: RequestInit = {}) {
-  const headers = new Headers(init.headers)
-  const authHeaders = await getAuthHeaders()
-
-  if (authHeaders['Authorization']) {
-    headers.set('Authorization', authHeaders['Authorization'])
-  }
-  if (authHeaders['X-Organization-Id']) {
-    headers.set('X-Organization-Id', authHeaders['X-Organization-Id'])
-  }
-
-  if (init.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json')
-  }
-
-  return fetch(`${API_BASE_URL}/api/v1${buildApiPath(path)}`, {
-    ...init,
-    headers,
-  })
-}
-
-async function fetchJson<T>(
-  path: string,
-  schema: ZodType<T>,
-  init: RequestInit = {},
-): Promise<T> {
-  const response = await fetchWithAuth(path, init)
-  if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, response.statusText))
-  }
-  const data = await response.json()
-  return schema.parse(data)
-}
-
-async function fetchVoid(path: string, init: RequestInit = {}) {
-  const response = await fetchWithAuth(path, init)
-  if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, response.statusText))
-  }
-}
-
-interface StartOAuthPayload {
-  userId: string
-  redirectUri: string
-  scopes?: string[]
-}
-
-interface CompleteOAuthPayload extends StartOAuthPayload {
-  state: string
-  code: string
-}
-
-interface RefreshConnectionPayload {
-  userId: string
-}
-
-interface UpsertProviderConfigPayload {
-  clientId: string
-  clientSecret?: string
-}
 
 /**
  * API Service
@@ -316,97 +229,80 @@ export const api = {
 
   integrations: {
     listProviders: async (): Promise<IntegrationProvider[]> => {
-      return fetchJson(
-        '/integrations/providers',
-        IntegrationProviderSchema.array(),
-      )
+      const response = await apiClient.listIntegrationProviders()
+      if (response.error) throw new Error('Failed to load providers')
+      return (response.data ?? []) as IntegrationProvider[]
     },
 
     listConnections: async (userId: string): Promise<IntegrationConnection[]> => {
-      const query = new URLSearchParams({ userId })
-      return fetchJson(
-        `/integrations/connections?${query.toString()}`,
-        IntegrationConnectionSchema.array(),
-      )
+      const response = await apiClient.listIntegrationConnections(userId)
+      if (response.error) throw new Error('Failed to load integrations')
+      return (response.data ?? []) as IntegrationConnection[]
     },
 
     startOAuth: async (
       providerId: string,
-      payload: StartOAuthPayload,
+      payload: StartOAuthRequest,
     ): Promise<OAuthStartResponse> => {
-      return fetchJson(
-        `/integrations/${providerId}/start`,
-        OAuthStartResponseSchema,
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-      )
+      const response = await apiClient.startIntegrationOAuth(providerId, payload)
+      if (response.error || !response.data) throw new Error('Failed to start OAuth flow')
+      return response.data
     },
 
     completeOAuth: async (
       providerId: string,
-      payload: CompleteOAuthPayload,
+      payload: CompleteOAuthRequest,
     ): Promise<IntegrationConnection> => {
-      return fetchJson(
-        `/integrations/${providerId}/exchange`,
-        IntegrationConnectionSchema,
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-      )
+      const response = await apiClient.completeIntegrationOAuth(providerId, payload)
+      if (response.error || !response.data) throw new Error('Failed to complete OAuth exchange')
+      return response.data
     },
 
     refreshConnection: async (
       id: string,
       userId: string,
     ): Promise<IntegrationConnection> => {
-      const payload: RefreshConnectionPayload = { userId }
-      return fetchJson(
-        `/integrations/connections/${id}/refresh`,
-        IntegrationConnectionSchema,
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-      )
+      const payload: RefreshConnectionRequest = { userId }
+      const response = await apiClient.refreshIntegrationConnection(id, payload)
+      if (response.error || !response.data) {
+        throw new Error('Failed to refresh integration connection')
+      }
+      return response.data
     },
 
     disconnect: async (id: string, userId: string): Promise<void> => {
-      await fetchVoid(`/integrations/connections/${id}`, {
-        method: 'DELETE',
-        body: JSON.stringify({ userId }),
-      })
+      const payload: DisconnectConnectionRequest = { userId }
+      const response = await apiClient.disconnectIntegrationConnection(id, payload)
+      if (response.error) throw new Error('Failed to disconnect integration')
     },
 
     getProviderConfig: async (
       providerId: string,
     ): Promise<IntegrationProviderConfiguration> => {
-      return fetchJson(
-        `/integrations/providers/${providerId}/config`,
-        IntegrationProviderConfigurationSchema,
-      )
+      const response = await apiClient.getIntegrationProviderConfiguration(providerId)
+      if (response.error || !response.data) {
+        throw new Error('Failed to load provider configuration')
+      }
+      return response.data
     },
 
     upsertProviderConfig: async (
       providerId: string,
-      payload: UpsertProviderConfigPayload,
+      payload: UpsertProviderConfigRequest,
     ): Promise<IntegrationProviderConfiguration> => {
-      return fetchJson(
-        `/integrations/providers/${providerId}/config`,
-        IntegrationProviderConfigurationSchema,
-        {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        },
+      const response = await apiClient.upsertIntegrationProviderConfiguration(
+        providerId,
+        payload,
       )
+      if (response.error || !response.data) {
+        throw new Error('Failed to save provider configuration')
+      }
+      return response.data
     },
 
     deleteProviderConfig: async (providerId: string): Promise<void> => {
-      await fetchVoid(`/integrations/providers/${providerId}/config`, {
-        method: 'DELETE',
-      })
+      const response = await apiClient.deleteIntegrationProviderConfiguration(providerId)
+      if (response.error) throw new Error('Failed to remove provider configuration')
     },
   },
 

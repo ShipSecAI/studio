@@ -25,10 +25,13 @@ import {
   Trash2,
 } from 'lucide-react'
 
+import type { components } from '@shipsec/backend-client'
 import { useIntegrationStore } from '@/store/integrationStore'
 import { getCurrentUserId } from '@/lib/currentUser'
-import type { IntegrationConnection, IntegrationProvider } from '@/schemas/integration'
 import { api } from '@/services/api'
+
+type IntegrationProvider = components['schemas']['IntegrationProviderResponse']
+type IntegrationConnection = components['schemas']['IntegrationConnectionResponse']
 
 function formatTimestamp(iso: string | null | undefined): string {
   if (!iso) {

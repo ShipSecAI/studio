@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, expect, vi, mock } from 'bun:test'
+import { describe, it, beforeEach, afterAll, expect, vi, mock } from 'bun:test'
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
@@ -28,6 +28,8 @@ mock.module('@/components/ui/dialog', () => {
     DialogClose: FragmentWrapper,
   }
 })
+
+const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
 const listMock = vi.fn()
 const deleteMock = vi.fn()
@@ -151,4 +153,8 @@ describe('WorkflowList delete workflow flow', () => {
     expect(await within(dialog).findByText('Delete failed')).toBeInTheDocument()
     expect(dialog).toBeInTheDocument()
   })
+})
+
+afterAll(() => {
+  consoleErrorSpy.mockRestore()
 })

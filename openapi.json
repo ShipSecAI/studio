@@ -2134,6 +2134,343 @@
         ]
       }
     },
+    "/api/v1/integrations/providers": {
+      "get": {
+        "operationId": "IntegrationsController_listProviders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationProviderResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/providers/{provider}/config": {
+      "get": {
+        "operationId": "IntegrationsController_getProviderConfiguration",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderConfigurationResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      },
+      "put": {
+        "operationId": "IntegrationsController_upsertProviderConfiguration",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertProviderConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderConfigurationResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      },
+      "delete": {
+        "operationId": "IntegrationsController_deleteProviderConfiguration",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/connections": {
+      "get": {
+        "operationId": "IntegrationsController_listConnections",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/{provider}/start": {
+      "post": {
+        "operationId": "IntegrationsController_startOAuth",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartOAuthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthStartResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/{provider}/exchange": {
+      "post": {
+        "operationId": "IntegrationsController_completeOAuth",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteOAuthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/connections/{id}/refresh": {
+      "post": {
+        "operationId": "IntegrationsController_refreshConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/connections/{id}": {
+      "delete": {
+        "operationId": "IntegrationsController_disconnectConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisconnectConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connection removed"
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/connections/{id}/token": {
+      "post": {
+        "operationId": "IntegrationsController_issueConnectionToken",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTokenResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -2835,6 +3172,298 @@
             }
           }
         }
+      },
+      "IntegrationProviderResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "docsUrl": {
+            "type": "string"
+          },
+          "defaultScopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportsRefresh": {
+            "type": "boolean"
+          },
+          "isConfigured": {
+            "type": "boolean",
+            "description": "Indicates whether the provider has been configured with client credentials"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "defaultScopes",
+          "supportsRefresh",
+          "isConfigured"
+        ]
+      },
+      "ProviderConfigurationResponse": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "Stored OAuth client identifier"
+          },
+          "hasClientSecret": {
+            "type": "boolean",
+            "description": "True when a client secret has been stored for this provider"
+          },
+          "configuredBy": {
+            "type": "string",
+            "enum": [
+              "environment",
+              "user"
+            ],
+            "description": "Origin of the credential configuration"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last update timestamp in ISO 8601 format"
+          }
+        },
+        "required": [
+          "provider",
+          "hasClientSecret",
+          "configuredBy"
+        ]
+      },
+      "UpsertProviderConfigDto": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "OAuth client identifier used for this provider"
+          },
+          "clientSecret": {
+            "type": "string",
+            "description": "OAuth client secret. Required when configuring the provider for the first time."
+          }
+        },
+        "required": [
+          "clientId"
+        ]
+      },
+      "IntegrationConnectionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expired"
+            ]
+          },
+          "supportsRefresh": {
+            "type": "boolean"
+          },
+          "hasRefreshToken": {
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Provider-specific metadata saved alongside the connection"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "providerName",
+          "userId",
+          "scopes",
+          "tokenType",
+          "createdAt",
+          "updatedAt",
+          "status",
+          "supportsRefresh",
+          "hasRefreshToken"
+        ]
+      },
+      "StartOAuthDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Application user identifier to associate the connection with"
+          },
+          "redirectUri": {
+            "type": "string",
+            "description": "Frontend callback URL that receives the OAuth code"
+          },
+          "scopes": {
+            "description": "Optional override of scopes to request",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "userId",
+          "redirectUri"
+        ]
+      },
+      "OAuthStartResponseDto": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "authorizationUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "number",
+            "description": "Suggested client-side TTL for the authorization URL",
+            "example": 300
+          }
+        },
+        "required": [
+          "provider",
+          "authorizationUrl",
+          "state",
+          "expiresIn"
+        ]
+      },
+      "CompleteOAuthDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Application user identifier to associate the connection with"
+          },
+          "redirectUri": {
+            "type": "string",
+            "description": "Frontend callback URL that receives the OAuth code"
+          },
+          "scopes": {
+            "description": "Optional override of scopes to request",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string",
+            "description": "Opaque OAuth state returned from the authorize redirect"
+          },
+          "code": {
+            "type": "string",
+            "description": "Authorization code issued by the provider"
+          }
+        },
+        "required": [
+          "userId",
+          "redirectUri",
+          "state",
+          "code"
+        ]
+      },
+      "RefreshConnectionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Application user identifier that owns the connection"
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "DisconnectConnectionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Application user identifier that owns the connection"
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "ConnectionTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "accessToken": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "userId",
+          "accessToken",
+          "tokenType",
+          "scopes"
+        ]
       }
     }
   }

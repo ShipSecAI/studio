@@ -388,6 +388,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IntegrationsController_listProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/providers/{provider}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IntegrationsController_getProviderConfiguration"];
+        put: operations["IntegrationsController_upsertProviderConfiguration"];
+        post?: never;
+        delete: operations["IntegrationsController_deleteProviderConfiguration"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["IntegrationsController_listConnections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/{provider}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_startOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/{provider}/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_completeOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/connections/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_refreshConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["IntegrationsController_disconnectConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/connections/{id}/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["IntegrationsController_issueConnectionToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -603,6 +731,99 @@ export interface components {
             description?: string;
             /** @description Updated tags for the secret */
             tags?: string[];
+        };
+        IntegrationProviderResponse: {
+            id: string;
+            name: string;
+            description: string;
+            docsUrl?: string;
+            defaultScopes: string[];
+            supportsRefresh: boolean;
+            /** @description Indicates whether the provider has been configured with client credentials */
+            isConfigured: boolean;
+        };
+        ProviderConfigurationResponse: {
+            provider: string;
+            /** @description Stored OAuth client identifier */
+            clientId?: string;
+            /** @description True when a client secret has been stored for this provider */
+            hasClientSecret: boolean;
+            /**
+             * @description Origin of the credential configuration
+             * @enum {string}
+             */
+            configuredBy: "environment" | "user";
+            /** @description Last update timestamp in ISO 8601 format */
+            updatedAt?: string;
+        };
+        UpsertProviderConfigDto: {
+            /** @description OAuth client identifier used for this provider */
+            clientId: string;
+            /** @description OAuth client secret. Required when configuring the provider for the first time. */
+            clientSecret?: string;
+        };
+        IntegrationConnectionResponse: {
+            id: string;
+            provider: string;
+            providerName: string;
+            userId: string;
+            scopes: string[];
+            tokenType: string;
+            expiresAt?: string;
+            createdAt: string;
+            updatedAt: string;
+            /** @enum {string} */
+            status: "active" | "expired";
+            supportsRefresh: boolean;
+            hasRefreshToken: boolean;
+            /** @description Provider-specific metadata saved alongside the connection */
+            metadata?: Record<string, never>;
+        };
+        StartOAuthDto: {
+            /** @description Application user identifier to associate the connection with */
+            userId: string;
+            /** @description Frontend callback URL that receives the OAuth code */
+            redirectUri: string;
+            /** @description Optional override of scopes to request */
+            scopes?: string[];
+        };
+        OAuthStartResponseDto: {
+            provider: string;
+            authorizationUrl: string;
+            state: string;
+            /**
+             * @description Suggested client-side TTL for the authorization URL
+             * @example 300
+             */
+            expiresIn: number;
+        };
+        CompleteOAuthDto: {
+            /** @description Application user identifier to associate the connection with */
+            userId: string;
+            /** @description Frontend callback URL that receives the OAuth code */
+            redirectUri: string;
+            /** @description Optional override of scopes to request */
+            scopes?: string[];
+            /** @description Opaque OAuth state returned from the authorize redirect */
+            state: string;
+            /** @description Authorization code issued by the provider */
+            code: string;
+        };
+        RefreshConnectionDto: {
+            /** @description Application user identifier that owns the connection */
+            userId: string;
+        };
+        DisconnectConnectionDto: {
+            /** @description Application user identifier that owns the connection */
+            userId: string;
+        };
+        ConnectionTokenResponseDto: {
+            provider: string;
+            userId: string;
+            accessToken: string;
+            tokenType: string;
+            scopes: string[];
+            expiresAt?: string;
         };
     };
     responses: never;
@@ -1651,6 +1872,233 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SecretSummaryResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_listProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationProviderResponse"][];
+                };
+            };
+        };
+    };
+    IntegrationsController_getProviderConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfigurationResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_upsertProviderConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertProviderConfigDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfigurationResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_deleteProviderConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IntegrationsController_listConnections: {
+        parameters: {
+            query: {
+                userId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"][];
+                };
+            };
+        };
+    };
+    IntegrationsController_startOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartOAuthDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthStartResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_completeOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteOAuthDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_refreshConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshConnectionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationConnectionResponse"];
+                };
+            };
+        };
+    };
+    IntegrationsController_disconnectConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisconnectConnectionDto"];
+            };
+        };
+        responses: {
+            /** @description Connection removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    IntegrationsController_issueConnectionToken: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-internal-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionTokenResponseDto"];
                 };
             };
         };
