@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { MarkdownView } from '@/components/ui/markdown'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
+import { useWorkflowStore } from '@/store/workflowStore'
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
 import type { NodeData } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
@@ -27,6 +28,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   const { getComponent, loading } = useComponentStore()
   const { getNodes, getEdges, setNodes } = useReactFlow()
   const { nodeStates, selectedRunId, selectNode } = useExecutionTimelineStore()
+  const { markDirty } = useWorkflowStore()
   const { mode } = useWorkflowUiStore()
   const [isHovered, setIsHovered] = useState(false)
 
@@ -310,6 +312,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                 'prose prose-sm dark:prose-invert max-w-none'
               )}
               onEdit={(next) => {
+                console.log('[WorkflowNode] Checkbox clicked, updating content:', next)
                 setNodes((nds) => nds.map((n) => n.id === id
                   ? {
                       ...n,
@@ -323,6 +326,8 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                     }
                   : n
                 ))
+                // Mark workflow as dirty so changes can be saved
+                markDirty()
               }}
             />
           ) : (
