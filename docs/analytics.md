@@ -42,8 +42,8 @@ See `frontend/.env.example` for a template. If these are not set, analytics is f
 - `ui_workflow_saved` — after successful update; props: `workflow_id`, `node_count`, `edge_count`
 - `ui_workflow_run_started` — run kicked off; props: `workflow_id`, `run_id?`, `node_count?`
 - `ui_node_added` — component dropped on canvas; props: `workflow_id?`, `component_slug`
-- `ui_secret_created` — secret created; props: `name?`, `has_tags?`
-- `ui_secret_deleted` — secret deleted; props: `name?`
+- `ui_secret_created` — secret created; props: `has_tags?`, `tag_count?`, `name_length?`
+- `ui_secret_deleted` — secret deleted; props: `name_length?`
 
 Helpers live in `frontend/src/features/analytics/events.ts` and validate payloads with `zod`. All helper calls no‑op when analytics is disabled.
 
@@ -51,6 +51,7 @@ Helpers live in `frontend/src/features/analytics/events.ts` and validate payload
 
 - Do Not Track respected via `respect_dnt: true`.
 - Session recording: inputs masked, on‑screen text unmasked for useful context.
+- Secrets Manager events never send raw secret identifiers; payloads only include derived metadata (tag counts and name length).
 - Local/dev safety: analytics only initialises when both env vars are present.
 - Optional runtime kill‑switch can be added later (e.g. `VITE_ENABLE_ANALYTICS=false`).
 

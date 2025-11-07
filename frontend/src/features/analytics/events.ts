@@ -50,11 +50,12 @@ const payloadSchemas: { [K in EventName]: z.ZodSchema<Properties> } = {
     component_slug: z.string(),
   }),
   [Events.SecretCreated]: z.object({
-    name: z.string().optional(),
     has_tags: z.boolean().optional(),
+    tag_count: z.number().int().nonnegative().optional(),
+    name_length: z.number().int().nonnegative().optional(),
   }),
   [Events.SecretDeleted]: z.object({
-    name: z.string().optional(),
+    name_length: z.number().int().nonnegative().optional(),
   }),
 }
 

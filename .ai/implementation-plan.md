@@ -145,8 +145,9 @@ This plan supersedes the previous implementation playbook. It focuses on deliver
 - `ui_workflow_saved(workflow_id, node_count, edge_count)`
 - `ui_workflow_run_started(workflow_id, run_id?, node_count?)`
 - `ui_node_added(workflow_id?, component_slug)`
-- `ui_secret_created(name?, has_tags?)`
-- `ui_secret_deleted(name?)`
+- `ui_secret_created(has_tags?, tag_count?, name_length?)`
+- `ui_secret_deleted(name_length?)`
+- Secret Manager events intentionally avoid emitting raw secret identifiers; only derived metadata (length/counts) is sent to analytics.
 
 **Deferred**
 - Backend/worker server‑side analytics (`posthog-node`) for trusted events.
