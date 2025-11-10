@@ -16,7 +16,6 @@ import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { cn } from '@/lib/utils'
-import { AuthSettingsButton } from '@/components/auth/AuthSettingsButton'
 
 interface TopBarProps {
   workflowId?: string
@@ -175,7 +174,6 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3 ml-auto">
-        <AuthSettingsButton />
         <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm">
           <Button
             variant={mode === 'design' ? 'default' : 'ghost'}

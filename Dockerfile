@@ -68,11 +68,28 @@ CMD ["node", "--import", "tsx/esm", "src/temporal/workers/dev.worker.ts"]
 # ============================================================================
 FROM base AS frontend
 
+# Frontend build-time configuration
+ARG VITE_AUTH_PROVIDER=local
+ARG VITE_CLERK_PUBLISHABLE_KEY=""
+ARG VITE_API_URL=http://localhost:3211
+ARG VITE_BACKEND_URL=http://localhost:3211
+ARG VITE_DEFAULT_ORG_ID=local-dev
+
+ENV VITE_AUTH_PROVIDER=${VITE_AUTH_PROVIDER}
+ENV VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
+ENV VITE_DEFAULT_ORG_ID=${VITE_DEFAULT_ORG_ID}
+
 # Set working directory for frontend
+USER shipsec
 WORKDIR /app/frontend
+
+# Build production assets ahead of time so Vite embeds the env vars
+RUN bun run build
 
 # Expose port
 EXPOSE 8080
 
-# Serve frontend with dev server
-CMD ["bun", "run", "dev", "--host", "0.0.0.0", "--port", "8080"]
+# Serve the built bundle with Vite preview
+CMD ["bun", "run", "preview", "--host", "0.0.0.0", "--port", "8080"]

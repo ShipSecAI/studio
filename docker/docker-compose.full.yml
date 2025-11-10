@@ -152,6 +152,12 @@ services:
       context: ..
       dockerfile: Dockerfile
       target: frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3211}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3211}
+        VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-local}
+        VITE_DEFAULT_ORG_ID: ${VITE_DEFAULT_ORG_ID:-local-dev}
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
     container_name: shipsec-frontend
     environment:
       - VITE_API_URL=http://localhost:3211

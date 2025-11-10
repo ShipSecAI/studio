@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { UserButton } from '@/components/auth/UserButton'
-import { AuthSettingsButton } from '@/components/auth/AuthSettingsButton'
 import { useAuth, useAuthProvider } from '@/auth/auth-context'
 
 interface AppLayoutProps {
@@ -181,16 +180,12 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarFooter className="border-t">
           <div className="flex flex-col gap-2 p-2">
             {/* Auth components - UserButton includes organization switching */}
-            {showUserButton ? (
+            {showUserButton && (
               <div className={`flex ${sidebarOpen ? 'justify-start' : 'justify-center'}`}>
-                <UserButton 
+                <UserButton
                   className={sidebarOpen ? 'w-full' : 'w-auto'}
                   sidebarCollapsed={!sidebarOpen}
                 />
-              </div>
-            ) : (
-              <div className={`flex ${sidebarOpen ? 'justify-start' : 'justify-center'}`}>
-                <AuthSettingsButton />
               </div>
             )}
             
