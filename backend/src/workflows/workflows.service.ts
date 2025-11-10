@@ -26,6 +26,7 @@ import {
   FailureSummary,
   WorkflowRunStatusPayload,
   TraceEventPayload,
+  WorkflowRunConfigPayload,
 } from '@shipsec/shared';
 import type { WorkflowVersionRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
@@ -407,6 +408,7 @@ export class WorkflowsService {
         workflowVersion: version.version,
         temporalRunId: temporalRun.runId,
         totalActions: compiledDefinition.actions.length,
+        inputs: request.inputs ?? {},
         organizationId,
       });
 
@@ -523,6 +525,20 @@ export class WorkflowsService {
     );
     await this.requireRunAccess(runId, auth);
     return this.temporalService.getWorkflowResult({ workflowId: runId, runId: temporalRunId });
+  }
+
+  async getRunConfig(
+    runId: string,
+    auth?: AuthContext | null,
+  ): Promise<WorkflowRunConfigPayload> {
+    const { run } = await this.requireRunAccess(runId, auth);
+    return {
+      runId: run.runId,
+      workflowId: run.workflowId,
+      workflowVersionId: run.workflowVersionId ?? null,
+      workflowVersion: run.workflowVersion ?? null,
+      inputs: run.inputs ?? {},
+    };
   }
 
   async cancelRun(runId: string, temporalRunId?: string, auth?: AuthContext | null): Promise<void> {

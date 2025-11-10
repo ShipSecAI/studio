@@ -49,7 +49,11 @@ const buildLogMessage = (log: ExecutionLog): string => {
   return sections.join('\n\n').trim()
 }
 
-export function ExecutionInspector() {
+interface ExecutionInspectorProps {
+  onRerunRun?: (runId: string) => void
+}
+
+export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {}) {
   const {
     selectedRunId,
     availableRuns,
@@ -130,7 +134,7 @@ export function ExecutionInspector() {
       <aside className="flex h-full min-h-0 w-full min-w-[320px] flex-col overflow-hidden border-l bg-muted/30 backdrop-blur">
         <div className="border-b p-3 space-y-3 bg-background/70">
           <div className="flex items-center justify-between">
-            <RunSelector />
+            <RunSelector onRerun={onRerunRun} />
           </div>
           {selectedRun && (
             <div className="rounded-md border bg-background px-3 py-2 text-xs space-y-1">

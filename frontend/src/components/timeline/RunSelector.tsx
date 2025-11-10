@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, Play, Clock, CheckCircle, XCircle, Loader2, Wifi } from 'lucide-react'
+import { ChevronDown, Play, Clock, CheckCircle, XCircle, Loader2, Wifi, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -51,7 +51,11 @@ const formatRelativeTime = (timestamp: string): string => {
   return `${Math.floor(diffMs / 86400000)}d ago`
 }
 
-export function RunSelector() {
+interface RunSelectorProps {
+  onRerun?: (runId: string) => void
+}
+
+export function RunSelector({ onRerun }: RunSelectorProps = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const {
     availableRuns,
@@ -187,11 +191,29 @@ export function RunSelector() {
           </div>
         </div>
 
-        {selectedRunId === run.id && (
-          <div className="flex-shrink-0">
-            <div className="h-2 w-2 bg-blue-500 rounded-full" />
-          </div>
-        )}
+        <div className="flex flex-col gap-2 items-end justify-between">
+          {onRerun && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onRerun(run.id)
+              }}
+              title="Re-run this execution"
+              aria-label="Re-run this execution"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
+          {selectedRunId === run.id && (
+            <div className="flex-shrink-0">
+              <div className="h-2 w-2 bg-blue-500 rounded-full" />
+            </div>
+          )}
+        </div>
       </DropdownMenuItem>
     )
   }

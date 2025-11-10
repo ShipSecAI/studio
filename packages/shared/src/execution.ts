@@ -117,9 +117,20 @@ export const TraceStreamEnvelopeSchema = z.object({
 
 export type TraceStreamEnvelope = z.infer<typeof TraceStreamEnvelopeSchema>;
 
+export const WorkflowRunConfigSchema = z.object({
+  runId: z.string(),
+  workflowId: z.string(),
+  workflowVersionId: z.string().uuid().nullable(),
+  workflowVersion: z.number().int().positive().nullable(),
+  inputs: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type WorkflowRunConfigPayload = z.infer<typeof WorkflowRunConfigSchema>;
+
 export const ExecutionContractSchema = z.object({
   workflowRunStatus: WorkflowRunStatusSchema.describe('Primary status payload returned by GET /workflows/runs/:id/status'),
   traceEvent: TraceEventSchema.describe('Individual trace event emitted by worker/trace adapter'),
+  workflowRunConfig: WorkflowRunConfigSchema.describe('Inputs captured for a workflow run (GET /workflows/runs/:id/config)'),
 });
 
 export type ExecutionContract = z.infer<typeof ExecutionContractSchema>;

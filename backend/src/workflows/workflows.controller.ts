@@ -184,6 +184,21 @@ const dataFlowEnvelopeSchema = {
   additionalProperties: false,
 };
 
+const runConfigSchema = {
+  type: 'object',
+  properties: {
+    runId: { type: 'string' },
+    workflowId: { type: 'string' },
+    workflowVersionId: { type: 'string', nullable: true },
+    workflowVersion: { type: 'integer', nullable: true },
+    inputs: {
+      type: 'object',
+      additionalProperties: true,
+    },
+  },
+  additionalProperties: false,
+};
+
 @ApiTags('workflows')
 @Controller('workflows')
 export class WorkflowsController {
@@ -415,6 +430,18 @@ export class WorkflowsController {
   ) {
     const result = await this.workflowsService.getRunResult(runId, query.temporalRunId, auth);
     return { runId, result };
+  }
+
+  @Get('/runs/:runId/config')
+  @ApiOkResponse({
+    description: 'Inputs and version metadata captured for a workflow run',
+    schema: runConfigSchema,
+  })
+  async config(
+    @Param('runId') runId: string,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    return this.workflowsService.getRunConfig(runId, auth);
   }
 
   @Post('/runs/:runId/cancel')

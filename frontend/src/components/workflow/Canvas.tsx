@@ -122,6 +122,24 @@ export function Canvas({
 
   // Sync execution node states to canvas nodes
   useEffect(() => {
+    if (mode !== 'execution') {
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.data.status && node.data.status !== 'idle') {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                status: 'idle',
+              },
+            }
+          }
+          return node
+        })
+      )
+      return
+    }
+
     setNodes((nds) =>
       nds.map((node) => {
         const executionState = nodeStates[node.id]
@@ -137,7 +155,7 @@ export function Canvas({
         return node
       })
     )
-  }, [nodeStates, setNodes])
+  }, [mode, nodeStates, setNodes])
 
   const onConnect: OnConnect = useCallback(
     (params) => {

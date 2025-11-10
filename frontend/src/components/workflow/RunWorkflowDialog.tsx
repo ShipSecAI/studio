@@ -34,6 +34,7 @@ interface RunWorkflowDialogProps {
   onOpenChange: (open: boolean) => void
   runtimeInputs: RuntimeInputDefinition[]
   onRun: (inputs: Record<string, unknown>) => void
+  initialValues?: Record<string, unknown>
 }
 
 export function RunWorkflowDialog({
@@ -41,19 +42,22 @@ export function RunWorkflowDialog({
   onOpenChange,
   runtimeInputs,
   onRun,
+  initialValues = {},
 }: RunWorkflowDialogProps) {
   const [inputs, setInputs] = useState<Record<string, unknown>>({})
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [formSeed, setFormSeed] = useState(0)
 
   // Reset inputs when dialog opens
   useEffect(() => {
     if (open) {
-      setInputs({})
+      setInputs(initialValues ?? {})
       setUploading({})
       setErrors({})
+      setFormSeed((seed) => seed + 1)
     }
-  }, [open])
+  }, [initialValues, open])
 
   const handleFileUpload = async (inputId: string, file: File) => {
     setUploading(prev => ({ ...prev, [inputId]: true }))
@@ -207,6 +211,13 @@ export function RunWorkflowDialog({
               onChange={(e) => handleInputChange(input.id, e.target.value, inputType)}
               className={hasError ? 'border-red-500' : ''}
               rows={4}
+              defaultValue={
+                typeof inputs[input.id] === 'string'
+                  ? (inputs[input.id] as string)
+                  : inputs[input.id] != null
+                    ? JSON.stringify(inputs[input.id], null, 2)
+                    : ''
+              }
             />
             {input.description && (
               <p className="text-xs text-muted-foreground">{input.description}</p>
@@ -230,6 +241,13 @@ export function RunWorkflowDialog({
               onChange={(e) => handleInputChange(input.id, e.target.value, input.type)}
               className={hasError ? 'border-red-500 font-mono' : 'font-mono'}
               rows={3}
+              defaultValue={
+                typeof inputs[input.id] === 'string'
+                  ? (inputs[input.id] as string)
+                  : Array.isArray(inputs[input.id])
+                    ? JSON.stringify(inputs[input.id])
+                    : ''
+              }
             />
             <p className="text-xs text-muted-foreground">
               Enter comma-separated values or provide a JSON array to pass structured data.
@@ -256,6 +274,11 @@ export function RunWorkflowDialog({
               placeholder="Enter a number"
               onChange={(e) => handleInputChange(input.id, e.target.value, inputType)}
               className={hasError ? 'border-red-500' : ''}
+              defaultValue={
+                typeof inputs[input.id] === 'number' || typeof inputs[input.id] === 'string'
+                  ? (inputs[input.id] as string | number)
+                  : ''
+              }
             />
             {input.description && (
               <p className="text-xs text-muted-foreground">{input.description}</p>
@@ -280,6 +303,11 @@ export function RunWorkflowDialog({
               placeholder="Enter text"
               onChange={(e) => handleInputChange(input.id, e.target.value, inputType)}
               className={hasError ? 'border-red-500' : ''}
+              defaultValue={
+                inputs[input.id] !== undefined && inputs[input.id] !== null
+                  ? String(inputs[input.id])
+                  : ''
+              }
             />
             {input.description && (
               <p className="text-xs text-muted-foreground">{input.description}</p>
@@ -307,7 +335,7 @@ export function RunWorkflowDialog({
         {runtimeInputs.length > 0 && (
           <div className="space-y-4 py-4">
             {runtimeInputs.map((input) => (
-              <div key={input.id}>{renderInput(input)}</div>
+              <div key={`${input.id}-${formSeed}`}>{renderInput(input)}</div>
             ))}
           </div>
         )}

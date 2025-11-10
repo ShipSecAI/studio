@@ -45,12 +45,8 @@ export const useAuthStore = create<AuthState>()(
         }),
       setUserId: (userId) => set({ userId: userId && userId.trim().length > 0 ? userId.trim() : null }),
       setOrganizationId: (orgId) =>
-        set((current) => {
-          // Lock org ID to 'local-dev' for local auth
-          if (current.provider === 'local') {
-            return { organizationId: 'local-dev' };
-          }
-          return { organizationId: orgId && orgId.trim().length > 0 ? orgId.trim() : DEFAULT_ORG_ID };
+        set({
+          organizationId: orgId && orgId.trim().length > 0 ? orgId.trim() : DEFAULT_ORG_ID,
         }),
       setRoles: (roles) => set({ roles: Array.isArray(roles) && roles.length > 0 ? roles : ['ADMIN'] }),
       setProvider: (provider) => set({ provider }),
@@ -88,12 +84,11 @@ export const useAuthStore = create<AuthState>()(
               : current.userId
 
           const hasOrgUpdate = context.organizationId !== undefined
-          // Lock org ID to 'local-dev' for local auth
           const sanitizedOrgId =
-            current.provider === 'local'
-              ? 'local-dev'
-              : hasOrgUpdate && context.organizationId
-              ? context.organizationId.trim()
+            hasOrgUpdate && typeof context.organizationId === 'string'
+              ? context.organizationId.trim().length > 0
+                ? context.organizationId.trim()
+                : DEFAULT_ORG_ID
               : hasOrgUpdate && context.organizationId === null
               ? DEFAULT_ORG_ID
               : current.organizationId
@@ -139,7 +134,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'shipsec-auth',
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
         if (!persistedState) {
           return persistedState
@@ -160,6 +155,8 @@ export const useAuthStore = create<AuthState>()(
         organizationId: state.organizationId,
         roles: state.roles,
         provider: state.provider,
+        adminUsername: state.adminUsername,
+        adminPassword: state.adminPassword,
       }),
     },
   ),

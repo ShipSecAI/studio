@@ -241,6 +241,7 @@ describe('WorkflowsService', () => {
       workflowVersion: number;
       temporalRunId: string;
       totalActions: number;
+      inputs?: Record<string, unknown>;
       organizationId?: string | null;
     }) {
       storedRunMeta = {
@@ -250,6 +251,7 @@ describe('WorkflowsService', () => {
         workflowVersion: data.workflowVersion,
         temporalRunId: data.temporalRunId,
         totalActions: data.totalActions,
+         inputs: data.inputs ?? {},
         createdAt: new Date(now),
         updatedAt: new Date(now),
         organizationId: data.organizationId ?? TEST_ORG,
@@ -441,6 +443,19 @@ describe('WorkflowsService', () => {
     expect(lastCancelRef).toEqual({
       workflowId: run.runId,
       runId: run.temporalRunId,
+    });
+  });
+
+  it('returns stored inputs and version metadata via getRunConfig', async () => {
+    await service.create(sampleGraph, authContext);
+    const run = await service.run('workflow-id', { inputs: { answer: 42 } }, authContext);
+    const config = await service.getRunConfig(run.runId, authContext);
+    expect(config).toMatchObject({
+      runId: run.runId,
+      workflowId: run.workflowId,
+      workflowVersionId: run.workflowVersionId,
+      workflowVersion: run.workflowVersion,
+      inputs: { answer: 42 },
     });
   });
 

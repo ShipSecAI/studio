@@ -315,9 +315,19 @@ export const api = {
   executions: {
     start: async (
       workflowId: string,
-      inputs?: Record<string, unknown>
+      options?: {
+        inputs?: Record<string, unknown>
+        versionId?: string
+        version?: number
+      }
     ): Promise<{ executionId: string }> => {
-      const payload = inputs ? { inputs } : undefined
+      const payload = options
+        ? {
+            inputs: options.inputs,
+            versionId: options.versionId,
+            version: options.version,
+          }
+        : undefined
       const response = await apiClient.runWorkflow(workflowId, payload)
       if (response.error) throw new Error('Failed to start execution')
       return { executionId: (response.data as any)?.runId || '' }
@@ -332,6 +342,14 @@ export const api = {
     getTrace: async (executionId: string) => {
       const response = await apiClient.getWorkflowRunTrace(executionId)
       if (response.error) throw new Error('Failed to fetch execution logs')
+      return response.data
+    },
+
+    getConfig: async (executionId: string) => {
+      const response = await apiClient.getWorkflowRunConfig(executionId)
+      if (response.error || !response.data) {
+        throw new Error('Failed to fetch run configuration')
+      }
       return response.data
     },
 

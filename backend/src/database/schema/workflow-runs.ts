@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const workflowRunsTable = pgTable('workflow_runs', {
   runId: text('run_id').primaryKey(),
@@ -7,6 +7,7 @@ export const workflowRunsTable = pgTable('workflow_runs', {
   workflowVersion: integer('workflow_version'),
   temporalRunId: text('temporal_run_id'),
   totalActions: integer('total_actions').notNull().default(0),
+  inputs: jsonb('inputs').$type<Record<string, unknown>>().notNull().default({}),
   organizationId: varchar('organization_id', { length: 191 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

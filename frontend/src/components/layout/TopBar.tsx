@@ -11,8 +11,6 @@ import {
   MonitorPlay,
   Upload,
   Download,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from 'lucide-react'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
@@ -45,7 +43,7 @@ export function TopBar({
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
   const { status, runStatus, reset } = useExecutionStore()
   const isRunning = status === 'running' || status === 'queued'
-  const { mode, setMode, libraryOpen, toggleLibrary } = useWorkflowUiStore()
+  const { mode, setMode } = useWorkflowUiStore()
   const canEdit = Boolean(canManageWorkflows)
 
   const handleSave = async () => {
@@ -124,7 +122,7 @@ export function TopBar({
         <ArrowLeft className="h-5 w-5" />
       </Button>
 
-      <div className="flex-1 max-w-md">
+      <div className="flex flex-1 max-w-2xl items-center gap-2">
         <Input
           value={metadata.name}
           onChange={(e) => setWorkflowName(e.target.value)}
@@ -133,22 +131,50 @@ export function TopBar({
           className="font-semibold"
           placeholder="Workflow name"
         />
+        {(onImport || onExport) && (
+          <div className="flex items-center gap-2 rounded-full border bg-muted/40 px-2 py-1">
+            {onImport && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 gap-2"
+                  onClick={handleImportClick}
+                  disabled={!canEdit || isImporting}
+                  aria-label="Import workflow"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="text-xs font-medium">Import</span>
+                </Button>
+              </>
+            )}
+            {onExport && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 gap-2"
+                onClick={handleExport}
+                disabled={!canEdit}
+                aria-label="Export workflow"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-xs font-medium">Export</span>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3 ml-auto">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="inline-flex"
-          onClick={toggleLibrary}
-          aria-label={libraryOpen ? 'Hide component library' : 'Show component library'}
-        >
-          {libraryOpen ? (
-            <PanelLeftClose className="h-5 w-5" />
-          ) : (
-            <PanelLeftOpen className="h-5 w-5" />
-          )}
-        </Button>
         <AuthSettingsButton />
         <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm">
           <Button
@@ -234,7 +260,6 @@ export function TopBar({
             <Save className="h-4 w-4" />
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
-
           {isRunning ? (
             <Button
               onClick={handleStop}

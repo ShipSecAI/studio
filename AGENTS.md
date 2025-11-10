@@ -11,7 +11,7 @@
 - `bun install` — install workspace dependencies.
 - `docker compose -p shipsec up -d` — bring up Temporal, Postgres, MinIO, and Loki (fixed project name for consistent up/down across directories).
 - Always timebox commands; pick a realistic limit (e.g., `timeout 30s <cmd>` for logs, `timeout 2m <cmd>` for tests) so shells never hang indefinitely. On macOS install GNU coreutils (`brew install coreutils`) and use `gtimeout`, or wrap commands manually with `sleep`/`kill` if `timeout` is unavailable.
-- `pm2 start pm2.config.cjs` — run backend API and worker (use `timeout 5s pm2 logs backend --lines 50` to inspect).
+- `pm2 start pm2.config.cjs` — run backend API and worker (inspect with `timeout 5s pm2 logs backend --nostream --lines 200` so the command exits on its own).
 - `bun --cwd frontend dev` and `bun --cwd backend run dev` — start frontend and API locally.
 - `bun run test`, `bun run lint`, `bun run typecheck` — monorepo test, lint, and type gates; target runs via `bun --cwd backend run migration:smoke` when narrowing failures.
 
@@ -161,3 +161,11 @@ CORE Memory preserves project context, so every CORE-enabled session must follow
 - Runner contract: `workflow-runner.ts` must call `component.execute` (not `runComponentWithRunner` directly) so this normalisation logic always runs; calling the runner directly bypasses the parsing guardrails and breaks downstream consumers.
 - Telemetry: we log the domain counts up front, emit progress events (`Running dnsx for … domains`), and propagate any parse errors through the `errors` array for Loki/search indexing.
 - Validation: unit tests mock the runner to cover structured JSON, raw fallback, and runner metadata; the integration test executes dnsx in Docker with a 180s timeout, so keep the daemon available when running locally.
+
+## Design Iteration Protocol
+- When the user explicitly says **"Design Iteration Mode"**, follow this workflow:  
+  1. Audit the current UI (code + screenshot) and list concrete visual/UX issues before changing anything.  
+  2. Implement three alternative layouts/variants of the component in question (A/B/C).  
+  3. Expose a temporary debug selector (dropdown/tabs, etc.) near the component so the user can live-switch between the variants.  
+  4. Leave the selector in place until the user picks a winner, then remove the extras and clean up.  
+- Only engage this process when the user uses the exact phrase above; otherwise, do normal single-path design tweaks.

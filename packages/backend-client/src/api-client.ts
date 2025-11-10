@@ -127,6 +127,12 @@ export class ShipSecApiClient {
     });
   }
 
+  async getWorkflowRunConfig(runId: string) {
+    return this.client.GET('/api/v1/workflows/runs/{runId}/config', {
+      params: { path: { runId } },
+    });
+  }
+
   async getWorkflowRunTrace(runId: string) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/trace', {
       params: { path: { runId } },

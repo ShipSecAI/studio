@@ -62,7 +62,6 @@ const DataPacket = memo(({ packet, onHover }: {
 export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, targetX, targetY, data }: DataFlowEdgeProps) => {
   const [hoveredPacket, setHoveredPacket] = useState<DataPacket | null>(null)
   const [animatedPackets, setAnimatedPackets] = useState<AnimatedPacket[]>([])
-  const [edgePath, setEdgePath] = useState<string>('')
   const animationRef = useRef<number | null>(null)
 
   const {
@@ -93,16 +92,7 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
     )
   }, [data?.packets, dataFlows, source, target, currentTime])
 
-  const labelPosition = useMemo(
-    () => ({
-      x: (sourceX + targetX) / 2,
-      y: (sourceY + targetY) / 2,
-    }),
-    [sourceX, targetX, sourceY, targetY],
-  )
-
-  // Calculate Bezier path for the edge
-  useEffect(() => {
+  const edgePath = useMemo(() => {
     const [path] = getBezierPath({
       sourceX,
       sourceY,
@@ -111,12 +101,20 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
       targetY,
       targetPosition: Position.Left,
     })
-    setEdgePath(path)
+    return path
   }, [sourceX, sourceY, targetX, targetY])
+
+  const labelPosition = useMemo(
+    () => ({
+      x: (sourceX + targetX) / 2,
+      y: (sourceY + targetY) / 2,
+    }),
+    [sourceX, targetX, sourceY, targetY],
+  )
 
   // Animate packets along the path
   useEffect(() => {
-    if (!edgePath || !selectedRunId || playbackMode === 'live' || packets.length === 0) {
+    if (!edgePath || mode !== 'execution' || !selectedRunId || playbackMode === 'live' || packets.length === 0) {
       setAnimatedPackets([])
       return
     }
@@ -183,6 +181,21 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
               Math.pow(t, 3) * targetY
 
     return { x, y }
+  }
+
+  if (mode !== 'execution' || !selectedRunId) {
+    return (
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{
+          stroke: data?.isHighlighted ? '#3b82f6' : '#cbd5f5',
+          strokeWidth: data?.isHighlighted ? 3 : 2,
+          transition: 'stroke 0.3s ease, stroke-width 0.3s ease',
+        }}
+        markerEnd="url(#arrowhead)"
+      />
+    )
   }
 
   return (

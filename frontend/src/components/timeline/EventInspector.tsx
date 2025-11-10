@@ -13,6 +13,13 @@ const EVENT_ICONS: Partial<Record<TimelineEvent['type'], typeof FileText>> = {
   PROGRESS: Activity,
 }
 
+const EVENT_ICON_TONE: Record<TimelineEvent['type'], string> = {
+  STARTED: 'text-violet-600 border-violet-200 bg-violet-50 dark:text-violet-200 dark:border-violet-500/40 dark:bg-violet-500/10',
+  PROGRESS: 'text-sky-600 border-sky-200 bg-sky-50 dark:text-sky-200 dark:border-sky-500/40 dark:bg-sky-500/10',
+  COMPLETED: 'text-emerald-600 border-emerald-200 bg-emerald-50 dark:text-emerald-200 dark:border-emerald-500/40 dark:bg-emerald-500/10',
+  FAILED: 'text-rose-600 border-rose-200 bg-rose-50 dark:text-rose-200 dark:border-rose-500/40 dark:bg-rose-500/10',
+}
+
 const LEVEL_BADGE: Record<string, 'secondary' | 'warning' | 'destructive' | 'outline'> = {
   info: 'secondary',
   warn: 'warning',
@@ -20,11 +27,72 @@ const LEVEL_BADGE: Record<string, 'secondary' | 'warning' | 'destructive' | 'out
   debug: 'outline',
 }
 
+export type EventLayoutVariant = 'stacked-soft' | 'stacked-contrast' | 'stacked-rail'
+
 interface EventInspectorProps {
   className?: string
+  layoutVariant?: EventLayoutVariant
 }
 
-export function EventInspector({ className }: EventInspectorProps) {
+const INSIGNIFICANT_PAYLOAD_KEYS = new Set(['stream', 'origin'])
+
+const EVENT_LAYOUT_PRESETS: Record<EventLayoutVariant, {
+  li: string
+  button: string
+  iconWrap: string
+  title: string
+  meta: string
+  message: string
+}> = {
+  'stacked-soft': {
+    li: 'px-3 py-2 transition-colors',
+    button: 'rounded-md',
+    iconWrap: 'h-7 w-7 border',
+    title: 'text-sm font-semibold',
+    meta: 'text-xs text-muted-foreground',
+    message: 'text-xs text-muted-foreground/90',
+  },
+  'stacked-contrast': {
+    li: 'px-3 py-3 transition-colors bg-white/80 dark:bg-neutral-900/60 backdrop-blur',
+    button: 'rounded-md',
+    iconWrap: 'h-8 w-8 border-2',
+    title: 'text-sm font-semibold tracking-wide',
+    meta: 'text-[11px] text-muted-foreground',
+    message: 'text-[11px] text-muted-foreground',
+  },
+  'stacked-rail': {
+    li: 'px-3 py-3 transition-colors border-l-2',
+    button: 'rounded-none',
+    iconWrap: 'h-6 w-6 border',
+    title: 'text-[13px] font-semibold uppercase',
+    meta: 'text-[11px] text-muted-foreground',
+    message: 'text-[11px] text-muted-foreground/90',
+  },
+}
+
+const hasMeaningfulValue = (value: unknown): boolean => {
+  if (value === undefined || value === null) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  if (Array.isArray(value)) return value.length > 0
+  if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0
+  return true
+}
+
+const normalizeEventPayload = (data: unknown): Record<string, unknown> | undefined => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return undefined
+  }
+  const entries = Object.entries(data as Record<string, unknown>).filter(([key, value]) => {
+    if (INSIGNIFICANT_PAYLOAD_KEYS.has(key)) return false
+    return hasMeaningfulValue(value)
+  })
+  if (entries.length === 0) {
+    return undefined
+  }
+  return Object.fromEntries(entries)
+}
+
+export function EventInspector({ className, layoutVariant = 'stacked-soft' }: EventInspectorProps) {
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set())
   const [fullMessageModal, setFullMessageModal] = useState<{ open: boolean; message: string; title: string }>({
     open: false,
@@ -254,14 +322,16 @@ export function EventInspector({ className }: EventInspectorProps) {
           </p>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40"
-             onScroll={handleScroll}>
+        <div
+          className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40"
+          onScroll={handleScroll}
+        >
           {displayEvents.length === 0 ? (
             <div className="px-4 py-8 text-xs text-muted-foreground">
               No events available.
             </div>
           ) : (
-            <ul ref={eventsListRef} className="divide-y">
+            <ul ref={eventsListRef} className="divide-y divide-border">
               {displayEvents.map((event, index) => {
                 const IconComponent = EVENT_ICONS[event.type] || FileText
                 const isExpanded = expandedEvents.has(event.id)
@@ -275,185 +345,187 @@ export function EventInspector({ className }: EventInspectorProps) {
                 const messagePreviewText = messagePreview
                   ? (messagePreview.truncated ? `${messagePreview.text.trimEnd()}\n…` : messagePreview.text)
                   : ''
-
+                const trimmedMessage = typeof event.message === 'string' ? event.message.trim() : ''
+                const expandedMessage = trimmedMessage || messagePreviewText
+                const shouldShowFullMessageButton = Boolean(
+                  trimmedMessage && (messagePreview?.truncated || trimmedMessage.length > 320)
+                )
+                const relatedFlows = event.nodeId
+                  ? dataFlows.filter(flow => flow.sourceNode === event.nodeId || flow.targetNode === event.nodeId)
+                  : []
+                const normalizedPayload = normalizeEventPayload(event.data)
+                const preset = EVENT_LAYOUT_PRESETS[layoutVariant]
                 return (
                   <li key={event.id}
                     data-event-id={event.id}
-                    className={cn('px-4 py-3 transition-colors relative',
-                    isSelected ? 'bg-muted/70' : 'hover:bg-muted/40',
-                    isCurrentReplayEvent && 'ring-2 ring-blue-500 bg-blue-50/70 dark:bg-blue-950/40',
-                    isRecentLiveEvent && 'bg-blue-50/50 border-l-2 border-l-blue-500 dark:bg-blue-950/30')}
+                    className={cn(
+                      'transition-colors relative',
+                      preset.li,
+                      layoutVariant === 'stacked-rail' && event.type === 'FAILED' && 'border-l-rose-400/80',
+                      layoutVariant === 'stacked-rail' && event.type === 'COMPLETED' && 'border-l-emerald-400/80',
+                      layoutVariant === 'stacked-rail' && event.type === 'PROGRESS' && 'border-l-sky-400/80',
+                      layoutVariant === 'stacked-rail' && event.type === 'STARTED' && 'border-l-violet-300/80',
+                      isSelected ? 'bg-muted/60' : 'hover:bg-muted/50',
+                      isCurrentReplayEvent && 'bg-blue-50/80 dark:bg-blue-950/40',
+                      isRecentLiveEvent && 'animate-pulse bg-slate-50 dark:bg-slate-900/40'
+                    )}
                   >
                     <button
                       type="button"
                       onClick={() => handleEventToggle(event)}
-                      className="flex w-full items-start justify-between gap-3 text-left"
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}
+                      className={cn(
+                        'flex w-full items-start justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition',
+                        preset.button
+                      )}
                     >
-                      <div className="flex flex-1 items-start gap-3" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <div className={cn('flex h-7 w-7 items-center justify-center rounded-full border bg-background relative',
-                          isRecentLiveEvent && 'bg-blue-100 dark:bg-blue-900',
-                          isCurrentReplayEvent && 'bg-blue-200 dark:bg-blue-800 ring-2 ring-blue-500')}>
+                      <div className="flex flex-1 items-start gap-3 relative z-10">
+                        <div
+                          className={cn(
+                            'flex items-center justify-center rounded-full border bg-background relative shrink-0 transition-colors',
+                            preset.iconWrap,
+                            EVENT_ICON_TONE[event.type] ?? 'text-slate-600 border-border'
+                          )}
+                        >
                           <IconComponent className="h-4 w-4" />
-                          {isRecentLiveEvent && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                          )}
-                          {isCurrentReplayEvent && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
-                          )}
                         </div>
-                        <div className="min-w-0 flex-1 space-y-1 overflow-hidden" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium truncate">
-                              {event.type}
-                            </span>
-                            <Badge variant={LEVEL_BADGE[event.level] ?? 'outline'} className="text-[10px] uppercase">
-                              {event.level}
+                        <div className="flex-1 space-y-1 overflow-hidden">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={cn(preset.title)}>{event.type}</span>
+                            <Badge variant={LEVEL_BADGE[event.level] ?? 'secondary'} className="text-[10px] font-medium text-muted-foreground bg-muted/40">
+                              {event.level ?? 'info'}
                             </Badge>
                             {typeof event.metadata?.attempt === 'number' && (
-                              <Badge
-                                variant={event.metadata.attempt > 1 ? 'warning' : 'outline'}
-                                className="text-[10px] uppercase"
-                              >
+                              <span className="rounded-full bg-muted px-2 py-[2px] text-[10px] text-muted-foreground">
                                 Attempt {event.metadata.attempt}
-                              </Badge>
+                              </span>
                             )}
                           </div>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                            <span>{formatTimestamp(event.timestamp)}</span>
-                            {event.nodeId && (
-                              <span className="truncate">Node {event.nodeId}</span>
-                            )}
+                          <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', preset.meta)}>
+                            <span className="font-mono text-[11px]">{formatTimestamp(event.timestamp)}</span>
+                            {event.nodeId && <span className="truncate text-muted-foreground">Node {event.nodeId}</span>}
                             {event.metadata?.activityId && (
-                              <span className="truncate font-mono text-[10px]">
+                              <span className="truncate font-mono text-[10px] text-muted-foreground/80">
                                 {event.metadata.activityId}
                               </span>
                             )}
                           </div>
-                          {event.message && (
+                          {(messagePreviewText || expandedMessage) && (
                             <p
-                              className="text-xs text-muted-foreground"
-                              style={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                maxWidth: '100%'
-                              }}
+                              className={cn(
+                                'break-words text-[13px] text-muted-foreground/80',
+                                preset.message,
+                                isExpanded
+                                  ? 'line-clamp-none whitespace-pre-wrap leading-relaxed max-h-36 overflow-auto pr-1'
+                                  : 'line-clamp-2 leading-snug'
+                              )}
                             >
-                              {event.message}
+                              {isExpanded ? expandedMessage : messagePreviewText}
                             </p>
+                          )}
+                          {isExpanded && shouldShowFullMessageButton && (
+                            <button
+                              type="button"
+                              className="text-[11px] font-medium text-primary hover:text-primary/80"
+                              onClick={() => openFullMessageModal(event.message!, event)}
+                            >
+                              Read full log
+                            </button>
                           )}
                         </div>
                       </div>
-                      <ChevronDown className={cn('mt-1 h-4 w-4 flex-shrink-0 transition-transform', isExpanded && 'rotate-180')} />
+                      <ChevronDown
+                        className={cn('mt-1 h-4 w-4 flex-shrink-0 transition-transform text-muted-foreground', isExpanded && 'rotate-180')}
+                      />
                     </button>
 
                     {isExpanded && (
-                      <div className="mt-3 space-y-3 rounded-md border bg-background/80 p-3 text-xs">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <span className="font-medium">Event ID</span>
-                            <div className="mt-1 font-mono text-[11px] text-muted-foreground break-all">
-                              {event.id}
+                      <div className="mt-3 space-y-4 rounded-md border bg-background/80 p-3 text-xs">
+                        {normalizedPayload && (
+                          <section>
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Payload
                             </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Timestamp</span>
-                            <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                              {event.timestamp}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Node</span>
-                            <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                              {event.nodeId ?? 'System'}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Since start</span>
-                            <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                              {formatDuration(displayEvents[0].timestamp, event.timestamp)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {event.message && (
-                          <div>
-                            <span className="font-medium">Message</span>
-                            <div className="mt-1 rounded-md border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
-                              <pre className="whitespace-pre-wrap break-words font-mono text-[11px]">
-                                {messagePreviewText}
-                              </pre>
-                              {messagePreview?.truncated && (
-                                <button
-                                  className="text-[10px] text-blue-500 hover:text-blue-700 mt-1"
-                                  onClick={() => openFullMessageModal(event.message!, event)}
-                                >
-                                  View full message
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {event.data && Object.keys(event.data).length > 0 && (
-                          <div>
-                            <span className="font-medium">Data</span>
-                            <pre className="mt-1 max-h-40 overflow-auto rounded border bg-muted/30 px-3 py-2 font-mono text-[11px]">
-                              {formatData(event.data)}
+                            <pre className="mt-2 max-h-52 overflow-auto rounded-md bg-muted/20 px-3 py-2 font-mono text-[11px]">
+                              {formatData(normalizedPayload)}
                             </pre>
-                          </div>
+                          </section>
                         )}
 
-                        {event.metadata && (
-                          <div>
-                            <span className="font-medium">Execution metadata</span>
-                            <div className="mt-1 grid grid-cols-2 gap-3 text-muted-foreground">
-                              {event.metadata.activityId && (
+                        <details className="group px-1 text-[11px] text-muted-foreground">
+                          <summary className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground [&::-webkit-details-marker]:hidden">
+                            <span>Diagnostics</span>
+                            <ChevronDown className="h-3 w-3 shrink-0 transition group-open:rotate-180" />
+                          </summary>
+                          <div className="mt-3 space-y-4 rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide">Event ID</span>
+                                <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                  {event.id}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide">Timestamp</span>
+                                <div className="mt-1 font-mono text-[11px] text-foreground">
+                                  {event.timestamp}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide">Node</span>
+                                <div className="mt-1 font-mono text-[11px] text-foreground">
+                                  {event.nodeId ?? 'System'}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide">Elapsed</span>
+                                <div className="mt-1 font-mono text-[11px] text-foreground">
+                                  {formatDuration(displayEvents[0].timestamp, event.timestamp)}
+                                </div>
+                              </div>
+                              {typeof event.metadata?.attempt === 'number' && (
                                 <div>
-                                  <span className="block text-[10px] uppercase">Activity ID</span>
-                                  <span className="font-mono text-[11px] break-all">{event.metadata.activityId}</span>
-                                  <span className="font-mono text-[11px]">{event.metadata.activityId}</span>
+                                  <span className="block text-[10px] uppercase tracking-wide">Attempt</span>
+                                  <div className="mt-1 font-mono text-[11px] text-foreground">
+                                    {event.metadata.attempt}
+                                  </div>
                                 </div>
                               )}
-                              {typeof event.metadata.attempt === 'number' && (
-                                <div>
-                                  <span className="block text-[10px] uppercase">Attempt</span>
-                                  <span className="font-mono text-[11px]">{event.metadata.attempt}</span>
-                                </div>
-                              )}
-                              {event.metadata.correlationId && (
+                              {event.metadata?.activityId && (
                                 <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase">Correlation</span>
-                                  <span className="font-mono text-[11px] break-all">{event.metadata.correlationId}</span>
+                                  <span className="block text-[10px] uppercase tracking-wide">Activity</span>
+                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                    {event.metadata.activityId}
+                                  </div>
                                 </div>
                               )}
-                              {event.metadata.streamId && (
-                                <div>
-                                  <span className="block text-[10px] uppercase">Stream</span>
-                                  <span className="font-mono text-[11px]">{event.metadata.streamId}</span>
-                                </div>
-                              )}
-                              {event.metadata.joinStrategy && (
-                                <div>
-                                  <span className="block text-[10px] uppercase">Join</span>
-                                  <span className="font-mono text-[11px]">{event.metadata.joinStrategy}</span>
-                                </div>
-                              )}
-                              {event.metadata.triggeredBy && (
+                              {event.metadata?.correlationId && (
                                 <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase">Triggered by</span>
-                                  <span className="font-mono text-[11px] break-all">{event.metadata.triggeredBy}</span>
+                                  <span className="block text-[10px] uppercase tracking-wide">Correlation</span>
+                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                    {event.metadata.correlationId}
+                                  </div>
                                 </div>
                               )}
-                              {event.metadata.retryPolicy && (
+                              {event.metadata?.streamId && (
+                                <div>
+                                  <span className="block text-[10px] uppercase tracking-wide">Stream</span>
+                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                    {event.metadata.streamId}
+                                  </div>
+                                </div>
+                              )}
+                              {event.metadata?.triggeredBy && (
                                 <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase">Retry policy</span>
-                                  <div className="mt-1 rounded border bg-muted/30 px-3 py-2 font-mono text-[10px] space-y-1">
+                                  <span className="block text-[10px] uppercase tracking-wide">Triggered by</span>
+                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                    {event.metadata.triggeredBy}
+                                  </div>
+                                </div>
+                              )}
+                              {event.metadata?.retryPolicy && (
+                                <div className="col-span-2">
+                                  <span className="block text-[10px] uppercase tracking-wide">Retry policy</span>
+                                  <div className="mt-1 rounded border border-border/60 bg-background/60 px-2 py-1 font-mono text-[10px] space-y-1">
                                     {event.metadata.retryPolicy.maxAttempts !== undefined && (
                                       <div>maxAttempts: {event.metadata.retryPolicy.maxAttempts}</div>
                                     )}
@@ -472,90 +544,94 @@ export function EventInspector({ className }: EventInspectorProps) {
                                   </div>
                                 </div>
                               )}
-                            {event.metadata.failure && (
-                              <div className="col-span-2">
-                                <span className="block text-[10px] uppercase">Failure context</span>
-                                <div className="mt-1 rounded border bg-destructive/10 px-3 py-2 text-destructive text-[11px] space-y-1">
-                                  <div>at: {event.metadata.failure.at}</div>
-                                  <div>message: {event.metadata.failure.reason.message}</div>
-                                  {event.metadata.failure.reason.name && (
-                                    <div>name: {event.metadata.failure.reason.name}</div>
+                              {event.metadata?.failure && (
+                                <div className="col-span-2">
+                                  <span className="block text-[10px] uppercase tracking-wide">Failure context</span>
+                                  <div className="mt-1 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive space-y-1">
+                                    {event.metadata.failure.at && <div>at: {event.metadata.failure.at}</div>}
+                                    {event.metadata.failure.reason?.message && <div>message: {event.metadata.failure.reason.message}</div>}
+                                    {event.metadata.failure.reason?.name && <div>name: {event.metadata.failure.reason.name}</div>}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {nodeState && (
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide">Node state</span>
+                                <div className="mt-1 grid grid-cols-2 gap-3 text-muted-foreground">
+                                  <div>
+                                    <span className="text-[10px] uppercase">Status</span>
+                                    <div className="font-mono text-[11px] text-foreground">
+                                      {nodeState.status}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase">Progress</span>
+                                    <div className="font-mono text-[11px] text-foreground">
+                                      {Math.round(nodeState.progress)}%
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase">Events</span>
+                                    <div className="font-mono text-[11px] text-foreground">
+                                      {nodeState.eventCount}
+                                    </div>
+                                  </div>
+                                  {nodeState.retryCount > 0 && (
+                                    <div>
+                                      <span className="text-[10px] uppercase">Retries</span>
+                                      <div className="font-mono text-[11px] text-foreground">
+                                        {nodeState.retryCount}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {nodeState.startTime && (
+                                    <div>
+                                      <span className="text-[10px] uppercase">Started</span>
+                                      <div className="font-mono text-[11px] text-foreground">
+                                        {formatTimestamp(new Date(nodeState.startTime).toISOString())}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {nodeState.lastActivityId && (
+                                    <div className="col-span-2">
+                                      <span className="text-[10px] uppercase">Latest activity</span>
+                                      <div className="font-mono text-[11px] text-foreground break-all">
+                                        {nodeState.lastActivityId}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {event.nodeId && (
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide">Data flows</span>
+                                <div className="mt-1 space-y-1">
+                                  {relatedFlows.slice(0, 5).map((flow, index) => (
+                                    <div key={`${flow.sourceNode}-${flow.targetNode}-${index}`} className="rounded border border-border/60 bg-background/60 px-2 py-1 text-[11px]">
+                                      <div className="font-medium text-foreground/90">
+                                        {flow.sourceNode} → {flow.targetNode}
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        {flow.type} • {(flow.size / 1024).toFixed(1)}KB
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {relatedFlows.length === 0 && (
+                                    <div className="rounded border border-dashed border-border/60 bg-background/40 px-2 py-1 text-muted-foreground/80">
+                                      No data packets recorded for this event.
+                                    </div>
                                   )}
                                 </div>
                               </div>
                             )}
                           </div>
-                        </div>
-                      )}
-
-                      {nodeState && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <span className="font-medium">Node status</span>
-                            <div className="mt-1 text-muted-foreground">
-                              {nodeState.status}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Progress</span>
-                            <div className="mt-1 text-muted-foreground">
-                              {Math.round(nodeState.progress)}%
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-medium">Events seen</span>
-                            <div className="mt-1 text-muted-foreground">
-                              {nodeState.eventCount}
-                            </div>
-                          </div>
-                          {nodeState.retryCount > 0 && (
-                            <div>
-                              <span className="font-medium">Retries</span>
-                              <div className="mt-1 text-muted-foreground">
-                                {nodeState.retryCount}
-                              </div>
-                            </div>
-                          )}
-                          {nodeState.startTime && (
-                            <div>
-                              <span className="font-medium">Started</span>
-                              <div className="mt-1 text-muted-foreground">
-                                {formatTimestamp(new Date(nodeState.startTime).toISOString())}
-                              </div>
-                            </div>
-                          )}
-                          {nodeState.lastActivityId && (
-                            <div className="col-span-2">
-                              <span className="font-medium">Latest activity</span>
-                              <div className="mt-1 font-mono text-[11px] text-muted-foreground break-all">
-                                {nodeState.lastActivityId}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {event.nodeId && (
-                        <div>
-                          <span className="font-medium">Related data flows</span>
-                          <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-                            {dataFlows
-                              .filter(flow => flow.sourceNode === event.nodeId || flow.targetNode === event.nodeId)
-                              .slice(0, 5)
-                              .map((flow, index) => (
-                                <div key={index} className="rounded border bg-muted/20 px-2 py-1">
-                                  <div>{flow.sourceNode} → {flow.targetNode}</div>
-                                  <div className="opacity-70">{flow.type} • {(flow.size / 1024).toFixed(1)}KB</div>
-                                </div>
-                              ))}
-                            {dataFlows.filter(flow => flow.sourceNode === event.nodeId || flow.targetNode === event.nodeId).length === 0 && (
-                              <div className="opacity-70">No data packets for this event.</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        </details>
+                      </div>
+                    )}
                 </li>
               )
             })}

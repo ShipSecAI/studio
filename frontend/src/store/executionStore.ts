@@ -30,7 +30,14 @@ interface ExecutionStoreState {
 }
 
 interface ExecutionStoreActions {
-  startExecution: (workflowId: string, inputs?: Record<string, unknown>) => Promise<string | undefined>
+  startExecution: (
+    workflowId: string,
+    options?: {
+      inputs?: Record<string, unknown>
+      versionId?: string
+      version?: number
+    }
+  ) => Promise<string | undefined>
   monitorRun: (runId: string, workflowId?: string | null) => void
   pollOnce: () => Promise<void>
   stopPolling: () => void
@@ -120,12 +127,16 @@ const INITIAL_STATE: ExecutionStoreState = {
 export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   ...INITIAL_STATE,
 
-  startExecution: async (workflowId: string, inputs?: Record<string, unknown>) => {
+  startExecution: async (workflowId: string, options?: {
+    inputs?: Record<string, unknown>
+    versionId?: string
+    version?: number
+  }) => {
     try {
       get().reset()
       set({ status: 'queued', workflowId })
 
-      const { executionId } = await api.executions.start(workflowId, inputs)
+      const { executionId } = await api.executions.start(workflowId, options)
       if (!executionId) {
         set({ status: 'failed' })
         return undefined

@@ -98,15 +98,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={id}
             className={cn(
               // Dark, high-contrast base + subtle ring by variant
-              'pointer-events-auto flex w-full max-w-sm items-start justify-between gap-4 rounded-md px-4 py-3 sm:max-w-md',
-              'border border-neutral-800 bg-neutral-900/95 text-neutral-50 shadow-xl shadow-black/60 ring-1 ring-white/10 backdrop-blur-sm',
+              'pointer-events-auto flex w-full max-w-sm items-start justify-between gap-4 rounded-md px-4 py-3 sm:max-w-md rounded-xl',
+              'border border-white/80 bg-white/95 text-neutral-900 shadow-lg shadow-black/10 ring-1 ring-black/5 backdrop-blur-sm',
               variantStyles[variant] ?? '',
             )}
           >
             <div className="flex-1">
-              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">{title}</p>
+              <p className="text-sm font-semibold text-neutral-900">{title}</p>
               {description && (
-                <p className="mt-1 text-sm text-neutral-800 dark:text-neutral-300">
+                <p className="mt-1 text-sm text-neutral-700">
                   {description}
                 </p>
               )}
@@ -114,7 +114,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => removeToast(id)}
-              className="text-xs font-medium text-white/70 transition hover:text-white"
+              className="text-xs font-semibold text-neutral-600 transition hover:text-neutral-900"
               aria-label="Dismiss notification"
             >
               Close

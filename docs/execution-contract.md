@@ -111,6 +111,26 @@ Consumers should treat these values as immutable references—selecting an older
 
 ---
 
+## Workflow Run Configuration
+
+```ts
+import { WorkflowRunConfigPayload } from '@shipsec/shared';
+```
+
+`GET /workflows/runs/:runId/config` returns the immutable inputs and version metadata captured when a workflow was executed. The payload matches:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `runId` | `string` | Workflow run identifier (`shipsec-run-*`). |
+| `workflowId` | `string` | Workflow record ID that produced the run. |
+| `workflowVersionId` | `string \| null` | Snapshot identifier used for execution. |
+| `workflowVersion` | `number \| null` | Monotonic version number invoked for the run. |
+| `inputs` | `Record<string, unknown>` | Runtime inputs provided at execution time (including manual trigger runtime data). |
+
+Frontend clients use this endpoint to prefill “Run this again” flows. Always treat `inputs` as untrusted data—validate against the current runtime input schema before replaying a run. When `workflowVersionId` differs from the builder’s current version, the UI should highlight the mismatch but continue to target the stored version so the replay matches the original graph.
+
+---
+
 ## Trace Event Payload
 
 ```ts

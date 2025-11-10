@@ -493,6 +493,57 @@
         ]
       }
     },
+    "/api/v1/workflows/runs/{runId}/config": {
+      "get": {
+        "operationId": "WorkflowsController_config",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inputs and version metadata captured for a workflow run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "workflowId": {
+                      "type": "string"
+                    },
+                    "workflowVersionId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "workflowVersion": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "inputs": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
     "/api/v1/workflows/runs/{runId}/cancel": {
       "post": {
         "operationId": "WorkflowsController_cancel",
