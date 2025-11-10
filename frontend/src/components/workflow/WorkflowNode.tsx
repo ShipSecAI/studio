@@ -82,7 +82,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   // Enhanced styling for timeline visualization
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
   const shouldShowProgress = isTimelineActive && visualState.status === 'running' && visualState.progress > 0
-  const hasEvents = visualState.eventCount > 0
+  const hasEvents = isTimelineActive && visualState.eventCount > 0
 
   // Display label (custom or component name)
   const displayLabel = data.label || component.name
