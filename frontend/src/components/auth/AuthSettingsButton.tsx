@@ -119,10 +119,6 @@ export function AuthSettingsButton() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Authentication Settings</DialogTitle>
-            <DialogDescription>
-              Provide a service token issued by the platform or leave the token blank for local
-              development. Organization ID defaults to <code>{DEFAULT_ORG_ID}</code>.
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
