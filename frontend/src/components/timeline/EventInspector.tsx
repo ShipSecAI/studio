@@ -451,12 +451,12 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                           </section>
                         )}
 
-                        <details className="group rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
-                          <summary className="flex cursor-pointer items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground [&::-webkit-details-marker]:hidden">
+                        <details className="group px-1 text-[11px] text-muted-foreground">
+                          <summary className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground [&::-webkit-details-marker]:hidden">
                             <span>Diagnostics</span>
                             <ChevronDown className="h-3 w-3 shrink-0 transition group-open:rotate-180" />
                           </summary>
-                          <div className="mt-3 space-y-4">
+                          <div className="mt-3 space-y-4 rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-3">
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <span className="block text-[10px] uppercase tracking-wide">Event ID</span>

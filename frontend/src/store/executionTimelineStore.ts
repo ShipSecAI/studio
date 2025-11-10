@@ -135,6 +135,8 @@ export type TimelineStore = TimelineState & TimelineActions
 
 const PLAYBACK_SPEEDS = [0.1, 0.5, 1, 2, 5, 10]
 
+const MIN_TIMELINE_DURATION_MS = 1
+
 const prepareTimelineEvents = (
   rawEvents: ExecutionLog[]
 ): {
@@ -164,7 +166,7 @@ const prepareTimelineEvents = (
 
   const startTime = new Date(sortedEvents[0].timestamp).getTime()
   const endTime = new Date(sortedEvents[sortedEvents.length - 1].timestamp).getTime()
-  const totalDuration = Math.max(endTime - startTime, 1000) // Ensure minimum 1 second duration
+  const totalDuration = Math.max(endTime - startTime, MIN_TIMELINE_DURATION_MS)
 
   const events: TimelineEvent[] = sortedEvents.map((event, index) => {
     const eventTime = new Date(event.timestamp).getTime()
@@ -570,13 +572,15 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
     },
 
     stepForward: () => {
-      const { currentTime, events } = get()
+      const { currentTime, events, totalDuration } = get()
       if (events.length === 0) return
 
       const nextEvent = events.find(event => event.offsetMs > currentTime)
 
       if (nextEvent) {
         get().seek(nextEvent.offsetMs)
+      } else {
+        get().seek(totalDuration)
       }
     },
 

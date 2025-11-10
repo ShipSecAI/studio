@@ -13,14 +13,12 @@ import {
   Download,
   PanelLeftClose,
   PanelLeftOpen,
-  Bell,
 } from 'lucide-react'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { cn } from '@/lib/utils'
 import { AuthSettingsButton } from '@/components/auth/AuthSettingsButton'
-import { useToast } from '@/components/ui/use-toast'
 
 interface TopBarProps {
   workflowId?: string
@@ -49,7 +47,6 @@ export function TopBar({
   const isRunning = status === 'running' || status === 'queued'
   const { mode, setMode, libraryOpen, toggleLibrary } = useWorkflowUiStore()
   const canEdit = Boolean(canManageWorkflows)
-  const { toast } = useToast()
 
   const handleSave = async () => {
     if (!canEdit) {
@@ -237,21 +234,6 @@ export function TopBar({
             <Save className="h-4 w-4" />
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2"
-            onClick={() =>
-              toast({
-                title: 'Toast preview',
-                description: 'Use this button to preview the new toast style.',
-              })
-            }
-          >
-            <Bell className="h-4 w-4" />
-            Show toast
-          </Button>
-
           {isRunning ? (
             <Button
               onClick={handleStop}
