@@ -227,28 +227,6 @@ export function TopBar({
               Unsaved changes
             </span>
           )}
-          {onImport && (
-            <Button
-              onClick={handleImportClick}
-              disabled={!canEdit || isImporting}
-              variant="outline"
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {isImporting ? 'Importing…' : 'Import'}
-            </Button>
-          )}
-          {onExport && (
-            <Button
-              onClick={handleExport}
-              disabled={!canEdit}
-              variant="outline"
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          )}
           <Button
             onClick={handleSave}
             disabled={!canEdit || isSaving || isRunning}
@@ -309,15 +287,6 @@ export function TopBar({
           )}
         </div>
       </div>
-      {onImport && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      )}
     </div>
   )
 }
