@@ -44,6 +44,7 @@ import type { Request, Response } from 'express';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import { RequireWorkflowRole, WorkflowRoleGuard } from './workflow-role.guard';
+import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
 
 const traceFailureSchema = {
   type: 'object',
@@ -493,6 +494,7 @@ export class WorkflowsController {
   @Get('/runs/:runId/artifacts')
   @ApiOkResponse({
     description: 'Artifacts generated for a workflow run',
+    type: RunArtifactsResponseDto,
   })
   async runArtifacts(
     @Param('runId') runId: string,

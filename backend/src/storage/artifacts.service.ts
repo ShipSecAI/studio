@@ -2,13 +2,19 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import type { AuthContext } from '../auth/types';
 import { ArtifactsRepository } from './artifacts.repository';
 import { FilesService } from './files.service';
-import { ArtifactLibraryListResponse, ArtifactMetadata, RunArtifactsResponse } from '@shipsec/shared';
 import type { ArtifactRecord } from '../database/schema/artifacts.schema';
+import {
+  ArtifactListResponseDto,
+  ArtifactMetadataDto,
+  RunArtifactsResponseDto,
+} from './dto/artifact.dto';
+
+type ArtifactDestination = 'run' | 'library';
 
 interface ListArtifactFilters {
   workflowId?: string;
   componentId?: string;
-  destination?: 'run' | 'library';
+  destination?: ArtifactDestination;
   search?: string;
   limit?: number;
 }
@@ -20,19 +26,19 @@ export class ArtifactsService {
     private readonly filesService: FilesService,
   ) {}
 
-  async listRunArtifacts(auth: AuthContext | null, runId: string): Promise<RunArtifactsResponse> {
+  async listRunArtifacts(auth: AuthContext | null, runId: string): Promise<RunArtifactsResponseDto> {
     const organizationId = this.requireOrganizationId(auth);
     const artifacts = await this.repository.listByRun(runId, { organizationId });
     return {
       runId,
       artifacts: artifacts.map((artifact) => this.toMetadata(artifact)),
-    };
+    } as RunArtifactsResponseDto;
   }
 
   async listArtifacts(
     auth: AuthContext | null,
     filters: ListArtifactFilters,
-  ): Promise<ArtifactLibraryListResponse> {
+  ): Promise<ArtifactListResponseDto> {
     const organizationId = this.requireOrganizationId(auth);
     const artifacts = await this.repository.list({
       ...filters,
@@ -40,7 +46,7 @@ export class ArtifactsService {
     });
     return {
       artifacts: artifacts.map((artifact) => this.toMetadata(artifact)),
-    };
+    } as ArtifactListResponseDto;
   }
 
   async getArtifactRecord(auth: AuthContext | null, artifactId: string) {
@@ -62,7 +68,7 @@ export class ArtifactsService {
     };
   }
 
-  private toMetadata(record: ArtifactRecord): ArtifactMetadata {
+  private toMetadata(record: ArtifactRecord): ArtifactMetadataDto {
     return {
       id: record.id,
       runId: record.runId,
@@ -78,7 +84,7 @@ export class ArtifactsService {
       metadata: record.metadata ?? undefined,
       organizationId: record.organizationId ?? null,
       createdAt: (record.createdAt ?? new Date()).toISOString(),
-    };
+    } as ArtifactMetadataDto;
   }
 
   private requireOrganizationId(auth: AuthContext | null): string {

@@ -10,6 +10,16 @@ import type { InputMapping } from '@/schemas/node'
 import { useSecretStore } from '@/store/secretStore'
 import { useIntegrationStore } from '@/store/integrationStore'
 import { getCurrentUserId } from '@/lib/currentUser'
+import { useArtifactStore } from '@/store/artifactStore'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { Search } from 'lucide-react'
+import type { ArtifactMetadata } from '@shipsec/shared'
 
 interface ParameterFieldProps {
   parameter: Parameter
@@ -499,6 +509,15 @@ export function ParameterField({
         </div>
       )
 
+    case 'artifact':
+      return (
+        <ArtifactSelector
+          parameterId={parameter.id}
+          value={typeof currentValue === 'string' ? currentValue : ''}
+          onChange={(nextValue) => onChange(nextValue)}
+        />
+      )
+
     case 'secret': {
       const hasSecrets = secrets.length > 0
       const selectedSecretId =
@@ -706,6 +725,238 @@ export function ParameterField({
   }
 }
 
+function ArtifactSelector({
+  parameterId,
+  value,
+  onChange,
+}: {
+  parameterId: string
+  value?: string
+  onChange: (value: string | undefined) => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [hasRequestedLibrary, setHasRequestedLibrary] = useState(false)
+  const fetchLibrary = useArtifactStore((state) => state.fetchLibrary)
+  const libraryLoading = useArtifactStore((state) => state.libraryLoading)
+  const libraryError = useArtifactStore((state) => state.libraryError)
+  const library = useArtifactStore((state) => state.library)
+  const runArtifacts = useArtifactStore((state) => state.runArtifacts)
+
+  useEffect(() => {
+    if (pickerOpen && !hasRequestedLibrary) {
+      setHasRequestedLibrary(true)
+      void fetchLibrary()
+    }
+  }, [pickerOpen, hasRequestedLibrary, fetchLibrary])
+
+  const knownArtifacts = useMemo(() => {
+    const map = new Map<string, ArtifactMetadata>()
+    for (const artifact of library) {
+      map.set(artifact.id, artifact)
+    }
+    Object.values(runArtifacts).forEach((entry) => {
+      entry?.artifacts.forEach((artifact) => {
+        if (!map.has(artifact.id)) {
+          map.set(artifact.id, artifact)
+        }
+      })
+    })
+    return map
+  }, [library, runArtifacts])
+
+  const selectedArtifact = value ? knownArtifacts.get(value) ?? null : null
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-muted-foreground">
+        {selectedArtifact ? (
+          <span>
+            Selected artifact:{' '}
+            <span className="font-medium text-foreground">{selectedArtifact.name}</span>{' '}
+            <span className="font-mono text-[11px] text-muted-foreground">({selectedArtifact.id})</span>
+          </span>
+        ) : value ? (
+          <span>
+            Artifact ID:{' '}
+            <span className="font-mono text-[11px] text-muted-foreground">{value}</span>{' '}
+            (not in cached list)
+          </span>
+        ) : (
+          'No artifact selected.'
+        )}
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          id={parameterId}
+          type="text"
+          value={value || ''}
+          onChange={(e) => {
+            const nextValue = e.target.value.trim()
+            onChange(nextValue.length > 0 ? nextValue : undefined)
+          }}
+          placeholder="Artifact ID (e.g. 123e4567-e89b-12d3-a456-426614174000)"
+          className="text-sm"
+        />
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setPickerOpen(true)}>
+            Browse…
+          </Button>
+          {value && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex-1 sm:flex-none"
+              onClick={() => onChange(undefined)}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+      <ArtifactPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={(artifactId) => {
+          onChange(artifactId)
+          setPickerOpen(false)
+        }}
+        libraryLoading={libraryLoading}
+        libraryError={libraryError}
+        artifacts={library}
+        onRefresh={fetchLibrary}
+      />
+    </div>
+  )
+}
+
+function ArtifactPickerDialog({
+  open,
+  onOpenChange,
+  onSelect,
+  libraryLoading,
+  libraryError,
+  artifacts,
+  onRefresh,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSelect: (artifactId: string) => void
+  libraryLoading: boolean
+  libraryError: string | null
+  artifacts: ArtifactMetadata[]
+  onRefresh: () => Promise<void>
+}) {
+  const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    if (!open) {
+      setSearchTerm('')
+    }
+  }, [open])
+
+  const filteredArtifacts = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return artifacts
+    }
+    const term = searchTerm.toLowerCase()
+    return artifacts.filter((artifact) => {
+      return (
+        artifact.name.toLowerCase().includes(term) ||
+        artifact.componentRef.toLowerCase().includes(term) ||
+        artifact.id.toLowerCase().includes(term)
+      )
+    })
+  }, [artifacts, searchTerm])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Select an artifact</DialogTitle>
+          <DialogDescription>
+            Choose an artifact from the workspace library. Only artifacts saved to the library are listed here.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by name, component, or ID"
+                className="pl-8"
+              />
+            </div>
+            <Button type="button" variant="outline" disabled={libraryLoading} onClick={() => void onRefresh()}>
+              Refresh
+            </Button>
+          </div>
+          {libraryError && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {libraryError}
+            </div>
+          )}
+          <div className="max-h-[320px] overflow-auto rounded-md border">
+            {libraryLoading ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                Loading artifacts…
+              </div>
+            ) : filteredArtifacts.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                No artifacts found. Try refreshing or adjusting your search.
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-muted">
+                  <tr className="text-left text-xs uppercase text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium">Component</th>
+                    <th className="px-3 py-2 font-medium">Destinations</th>
+                    <th className="px-3 py-2 font-medium">Created</th>
+                    <th className="px-3 py-2 font-medium sr-only">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredArtifacts.map((artifact) => (
+                    <tr key={artifact.id} className="border-t">
+                      <td className="px-3 py-2 align-top">
+                        <div className="font-medium">{artifact.name}</div>
+                        <div className="font-mono text-[11px] text-muted-foreground truncate max-w-[260px]">
+                          {artifact.id}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                        {artifact.componentRef}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex flex-wrap gap-1">
+                          {artifact.destinations.map((destination) => (
+                            <Badge key={`${artifact.id}-${destination}`} variant="outline" className="text-[10px] uppercase">
+                              {destination}
+                            </Badge>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                        {new Date(artifact.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 align-top text-right">
+                        <Button type="button" size="sm" onClick={() => onSelect(artifact.id)}>
+                          Use
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 interface ParameterFieldWrapperProps {
   parameter: Parameter
   value: any

@@ -11,9 +11,16 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
 
 import { ArtifactsService } from './artifacts.service';
-import { ListArtifactsQuerySchema, type ListArtifactsQuery, ArtifactIdParamDto, ArtifactIdParamSchema } from './dto/artifacts.dto';
+import {
+  ListArtifactsQuerySchema,
+  type ListArtifactsQuery,
+  ListArtifactsQueryDto,
+  ArtifactIdParamDto,
+  ArtifactIdParamSchema,
+} from './dto/artifacts.dto';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
+import { ArtifactListResponseDto } from './dto/artifact.dto';
 
 @ApiTags('artifacts')
 @Controller('artifacts')
@@ -23,17 +30,26 @@ export class ArtifactsController {
   @Get()
   @ApiOkResponse({
     description: 'List workspace artifacts',
+    type: ArtifactListResponseDto,
   })
   async listArtifacts(
     @CurrentAuth() auth: AuthContext | null,
-    @Query(new ZodValidationPipe(ListArtifactsQuerySchema)) query: ListArtifactsQuery,
+    @Query(new ZodValidationPipe(ListArtifactsQuerySchema)) query: ListArtifactsQueryDto,
   ) {
-    return this.artifactsService.listArtifacts(auth, query);
+    return this.artifactsService.listArtifacts(auth, query as ListArtifactsQuery);
   }
 
   @Get(':id/download')
   @ApiOkResponse({
     description: 'Download artifact binary',
+    content: {
+      'application/octet-stream': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
   })
   async downloadArtifact(
     @CurrentAuth() auth: AuthContext | null,

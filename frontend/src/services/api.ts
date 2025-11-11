@@ -1,4 +1,5 @@
 import { createShipSecClient, type components } from '@shipsec/backend-client'
+import type { ArtifactDestination, RunArtifactsResponse } from '@shipsec/shared'
 import { useAuthStore } from '@/store/authStore'
 import { getFreshClerkToken } from '@/utils/clerk-token'
 // Direct type imports from backend client
@@ -24,6 +25,13 @@ export type IntegrationProvider = IntegrationProviderResponse
 export type IntegrationConnection = IntegrationConnectionResponse
 export type IntegrationProviderConfiguration = ProviderConfigurationResponse
 export type OAuthStartResponse = OAuthStartResponseDto
+export interface ArtifactListFilters {
+  workflowId?: string
+  componentId?: string
+  destination?: ArtifactDestination
+  search?: string
+  limit?: number
+}
 
 /**
  * API Client Configuration
@@ -365,6 +373,14 @@ export const api = {
       return response.data || []
     },
 
+    getArtifacts: async (executionId: string): Promise<RunArtifactsResponse> => {
+      const response = await apiClient.getWorkflowRunArtifacts(executionId) as any
+      if (response.error || !response.data) {
+        throw new Error('Failed to fetch run artifacts')
+      }
+      return response.data
+    },
+
         stream: async (executionId: string, options?: { cursor?: string; temporalRunId?: string }): Promise<EventSource> => {
           // Use fetch-based SSE client that supports custom headers (including Authorization)
           const { FetchEventSource } = await import('@/utils/sse-client')
@@ -454,6 +470,27 @@ export const api = {
     delete: async (id: string) => {
       const response = await apiClient.deleteFile(id)
       if (response.error) throw new Error('Failed to delete file')
+    },
+  },
+
+  artifacts: {
+    list: async (filters?: ArtifactListFilters) => {
+      const response = await apiClient.listArtifacts(filters) as any
+      if (response.error) {
+        throw new Error('Failed to fetch artifacts')
+      }
+      return response.data || { artifacts: [] }
+    },
+
+    download: async (id: string): Promise<Blob> => {
+      const headers = await getAuthHeaders()
+      const response = await fetch(`${API_BASE_URL}/api/v1/artifacts/${id}/download`, {
+        headers,
+      })
+      if (!response.ok) {
+        throw new Error('Failed to download artifact')
+      }
+      return await response.blob()
     },
   },
 }
