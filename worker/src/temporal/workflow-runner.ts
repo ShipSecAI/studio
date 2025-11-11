@@ -4,7 +4,6 @@ import {
   createExecutionContext,
   type IFileStorageService,
   type ISecretsService,
-  type IArtifactService,
   type ITraceService,
   type LogEventInput,
 } from '@shipsec/component-sdk';
@@ -20,6 +19,7 @@ import {
   WorkflowSchedulerError,
 } from './workflow-scheduler';
 import { buildActionParams } from './input-resolver';
+import type { ArtifactServiceFactory } from './artifact-factory';
 
 type RegisteredComponent = NonNullable<ReturnType<typeof componentRegistry.get>>;
 
@@ -27,10 +27,12 @@ export interface ExecuteWorkflowOptions {
   runId?: string;
   storage?: IFileStorageService;
   secrets?: ISecretsService;
-  artifacts?: IArtifactService;
+  artifacts?: ArtifactServiceFactory;
   trace?: ITraceService;
   logs?: WorkflowLogSink;
   organizationId?: string | null;
+  workflowId?: string;
+  workflowVersionId?: string | null;
 }
 
 /**
@@ -169,6 +171,17 @@ export async function executeWorkflow(
       const parsedParams = component.inputSchema.parse(params);
 
       // Create execution context with SDK interfaces
+      const scopedArtifacts = options.artifacts
+        ? options.artifacts({
+            runId,
+            workflowId: options.workflowId ?? 'unknown-workflow',
+            workflowVersionId: options.workflowVersionId ?? null,
+            componentId: action.componentId,
+            componentRef: action.ref,
+            organizationId: options.organizationId ?? null,
+          })
+        : undefined;
+
       const context = createExecutionContext({
         runId,
         componentRef: action.ref,
@@ -181,7 +194,7 @@ export async function executeWorkflow(
         },
         storage: options.storage,
         secrets: options.secrets,
-        artifacts: options.artifacts,
+        artifacts: scopedArtifacts,
         trace: options.trace,
         logCollector: forwardLog,
       });

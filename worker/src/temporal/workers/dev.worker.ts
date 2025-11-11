@@ -16,7 +16,7 @@ import {
   finalizeRunActivity,
   initializeComponentActivityServices,
 } from '../activities/run-component.activity';
-import { FileStorageAdapter, LokiLogAdapter, LokiLogClient, SecretsAdapter, TraceAdapter } from '../../adapters';
+import { ArtifactAdapter, FileStorageAdapter, LokiLogAdapter, LokiLogClient, SecretsAdapter, TraceAdapter } from '../../adapters';
 import * as schema from '../../adapters/schema';
 
 // Load environment variables from .env file
@@ -84,6 +84,7 @@ async function main() {
 
   // Create service adapters (implementing SDK interfaces)
   const storageAdapter = new FileStorageAdapter(minioClient, db, minioBucketName);
+  const artifactAdapter = new ArtifactAdapter(minioClient, db, minioBucketName);
   const traceAdapter = new TraceAdapter(db);
   const secretsAdapter = new SecretsAdapter(db);
 
@@ -112,6 +113,7 @@ async function main() {
     trace: traceAdapter,
     logs: logAdapter,
     secrets: secretsAdapter,
+    artifacts: artifactAdapter.factory(),
   });
 
   console.log(`✅ Service adapters initialized`);

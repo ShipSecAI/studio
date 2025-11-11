@@ -127,7 +127,8 @@ export type ComponentParameterType =
   | 'select'
   | 'multi-select'
   | 'json'
-  | 'secret';
+  | 'secret'
+  | 'artifact';
 
 export interface ComponentParameterOption {
   label: string;

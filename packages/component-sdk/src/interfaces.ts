@@ -52,22 +52,49 @@ export interface ISecretsService {
   list(): Promise<string[]>;
 }
 
+export type ArtifactDestination = 'run' | 'library';
+
+export interface ArtifactUploadRequest {
+  name: string;
+  content: Buffer;
+  mimeType: string;
+  destinations?: ArtifactDestination[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ArtifactUploadResult {
+  artifactId: string;
+  fileId: string;
+  name: string;
+  destinations: ArtifactDestination[];
+}
+
+export interface ArtifactDownloadResult {
+  buffer: Buffer;
+  metadata: {
+    artifactId: string;
+    fileId: string;
+    name: string;
+    mimeType: string;
+    size: number;
+    createdAt: Date;
+    destinations: ArtifactDestination[];
+    componentRef?: string;
+  };
+}
+
 export interface IArtifactService {
   /**
    * Upload an artifact (file, screenshot, report)
-   * @param name Artifact name
-   * @param content File buffer
-   * @param mimeType Content type
-   * @returns Artifact ID/URL
+   * @param request Artifact payload + metadata
+   * @returns Artifact identifiers (artifactId + fileId)
    */
-  upload(name: string, content: Buffer, mimeType: string): Promise<string>;
+  upload(request: ArtifactUploadRequest): Promise<ArtifactUploadResult>;
 
   /**
    * Download an artifact by ID
-   * @param id Artifact identifier
-   * @returns Artifact buffer
    */
-  download(id: string): Promise<Buffer>;
+  download(id: string): Promise<ArtifactDownloadResult>;
 }
 
 export interface ITraceService {

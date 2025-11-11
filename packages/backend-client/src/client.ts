@@ -212,6 +212,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/runs/{runId}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_runArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/runs/{runId}/artifacts/{artifactId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WorkflowsController_downloadRunArtifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/runs/{runId}/stream": {
         parameters: {
             query?: never;
@@ -236,38 +268,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["WorkflowsController_logs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/components": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ComponentsController_listComponents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/components/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ComponentsController_getComponent"];
         put?: never;
         post?: never;
         delete?: never;
@@ -332,6 +332,70 @@ export interface paths {
             cookie?: never;
         };
         get: operations["FilesController_downloadFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ArtifactsController_listArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ArtifactsController_downloadArtifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/components": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ComponentsController_listComponents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/components/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ComponentsController_getComponent"];
         put?: never;
         post?: never;
         delete?: never;
@@ -700,6 +764,57 @@ export interface components {
             /** Format: uuid */
             versionId?: string;
             version?: number;
+        };
+        RunArtifactsResponseDto: {
+            runId: string;
+            artifacts: {
+                /** Format: uuid */
+                id: string;
+                runId: string;
+                /** Format: uuid */
+                workflowId: string;
+                /** Format: uuid */
+                workflowVersionId?: string | null;
+                componentId?: string | null;
+                componentRef: string;
+                /** Format: uuid */
+                fileId: string;
+                name: string;
+                mimeType: string;
+                size: number;
+                destinations: ("run" | "library")[];
+                metadata?: {
+                    [key: string]: unknown;
+                } | null;
+                organizationId?: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+        };
+        ArtifactListResponseDto: {
+            artifacts: {
+                /** Format: uuid */
+                id: string;
+                runId: string;
+                /** Format: uuid */
+                workflowId: string;
+                /** Format: uuid */
+                workflowVersionId?: string | null;
+                componentId?: string | null;
+                componentRef: string;
+                /** Format: uuid */
+                fileId: string;
+                name: string;
+                mimeType: string;
+                size: number;
+                destinations: ("run" | "library")[];
+                metadata?: {
+                    [key: string]: unknown;
+                } | null;
+                organizationId?: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
         };
         SecretVersionResponse: {
             id: string;
@@ -1376,6 +1491,49 @@ export interface operations {
             };
         };
     };
+    WorkflowsController_runArtifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Artifacts generated for a workflow run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunArtifactsResponseDto"];
+                };
+            };
+        };
+    };
+    WorkflowsController_downloadRunArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Download artifact for a specific run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     WorkflowsController_stream: {
         parameters: {
             query?: {
@@ -1420,6 +1578,185 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    FilesController_uploadFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description File to upload
+                     */
+                    file?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description File uploaded successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id?: string;
+                        fileName?: string;
+                        mimeType?: string;
+                        size?: number;
+                        storageKey?: string;
+                        /** Format: date-time */
+                        uploadedAt?: string;
+                    };
+                };
+            };
+        };
+    };
+    FilesController_listFiles: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List all uploaded files */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id?: string;
+                        fileName?: string;
+                        mimeType?: string;
+                        size?: number;
+                        /** Format: date-time */
+                        uploadedAt?: string;
+                    }[];
+                };
+            };
+        };
+    };
+    FilesController_getFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get file metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    FilesController_deleteFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delete file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    FilesController_downloadFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Download file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+        };
+    };
+    ArtifactsController_listArtifacts: {
+        parameters: {
+            query?: {
+                limit?: number;
+                workflowId?: string;
+                componentId?: string;
+                destination?: "run" | "library";
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List workspace artifacts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactListResponseDto"];
+                };
+            };
+        };
+    };
+    ArtifactsController_downloadArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Download artifact binary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
             };
         };
     };
@@ -1631,137 +1968,6 @@ export interface operations {
                         deprecated?: boolean | null;
                         example?: string | null;
                     };
-                };
-            };
-        };
-    };
-    FilesController_uploadFile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": {
-                    /**
-                     * Format: binary
-                     * @description File to upload
-                     */
-                    file?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description File uploaded successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id?: string;
-                        fileName?: string;
-                        mimeType?: string;
-                        size?: number;
-                        storageKey?: string;
-                        /** Format: date-time */
-                        uploadedAt?: string;
-                    };
-                };
-            };
-        };
-    };
-    FilesController_listFiles: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description List all uploaded files */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        id?: string;
-                        fileName?: string;
-                        mimeType?: string;
-                        size?: number;
-                        /** Format: date-time */
-                        uploadedAt?: string;
-                    }[];
-                };
-            };
-        };
-    };
-    FilesController_getFile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Get file metadata */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    FilesController_deleteFile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Delete file */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    FilesController_downloadFile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Download file */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/octet-stream": string;
                 };
             };
         };

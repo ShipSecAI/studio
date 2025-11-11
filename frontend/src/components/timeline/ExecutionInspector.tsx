@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnsiUp } from 'ansi_up'
 import { RunSelector } from '@/components/timeline/RunSelector'
 import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
@@ -10,9 +10,11 @@ import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { useWorkflowStore } from '@/store/workflowStore'
+import { useArtifactStore } from '@/store/artifactStore'
 import { cn } from '@/lib/utils'
 import type { ExecutionLog } from '@/schemas/execution'
 import { createPreview } from '@/utils/textPreview'
+import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel'
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp)
@@ -65,6 +67,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const { logs } = useExecutionStore()
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
   const currentWorkflowVersion = useWorkflowStore((state) => state.metadata.currentVersion)
+  const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts)
   const [logModal, setLogModal] = useState<{ open: boolean; message: string; title: string }>({
     open: false,
     message: '',
@@ -74,6 +77,12 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const selectedRun = useMemo(() => (
     availableRuns.find(run => run.id === selectedRunId)
   ), [availableRuns, selectedRunId])
+
+  useEffect(() => {
+    if (selectedRunId && inspectorTab === 'artifacts') {
+      void fetchRunArtifacts(selectedRunId)
+    }
+  }, [selectedRunId, inspectorTab, fetchRunArtifacts])
 
   const displayLogs = events.length > 0 ? events : logs
   const retrySummary = useMemo(() => {
@@ -187,14 +196,12 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
               Logs
             </Button>
             <Button
-              variant={inspectorTab === 'data' ? 'default' : 'ghost'}
+              variant={inspectorTab === 'artifacts' ? 'default' : 'ghost'}
               size="sm"
               className="h-7 px-3"
-              onClick={() => setInspectorTab('data')}
-              disabled
-              title="Data flows coming soon"
+              onClick={() => setInspectorTab('artifacts')}
             >
-              Data
+              Artifacts
             </Button>
           </div>
         </div>
@@ -282,10 +289,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
             </div>
           )}
 
-          {inspectorTab === 'data' && (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground px-6 text-center">
-              Data flow visualization is on the roadmap—stay tuned.
-            </div>
+          {inspectorTab === 'artifacts' && (
+            <RunArtifactsPanel runId={selectedRunId ?? null} />
           )}
         </div>
       </aside>

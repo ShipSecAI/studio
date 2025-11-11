@@ -74,12 +74,16 @@ describe('WorkflowsController contract coverage', () => {
   const logStreamService = {
     fetch: vi.fn().mockResolvedValue(sampleLogs),
   } as const;
+  const artifactsService = {
+    listRunArtifacts: vi.fn().mockResolvedValue({ runId: sampleStatus.runId, artifacts: [] }),
+  } as const;
 
   beforeEach(() => {
     controller = new WorkflowsController(
       workflowService as any,
       traceService as any,
       logStreamService as any,
+      artifactsService as any,
     );
     vi.clearAllMocks();
   });

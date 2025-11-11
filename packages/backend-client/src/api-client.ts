@@ -18,6 +18,7 @@ type StartOAuthPayload = components['schemas']['StartOAuthDto'];
 type CompleteOAuthPayload = components['schemas']['CompleteOAuthDto'];
 type RefreshConnectionPayload = components['schemas']['RefreshConnectionDto'];
 type DisconnectConnectionPayload = components['schemas']['DisconnectConnectionDto'];
+type ArtifactDestination = 'run' | 'library';
 
 /**
  * ShipSec API Client
@@ -173,6 +174,46 @@ export class ShipSecApiClient {
   async getWorkflowRunDataFlows(runId: string) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/dataflows', {
       params: { path: { runId } },
+    });
+  }
+
+  async getWorkflowRunArtifacts(runId: string) {
+    return this.client.GET('/api/v1/workflows/runs/{runId}/artifacts', {
+      params: { path: { runId } },
+    });
+  }
+
+  async downloadWorkflowRunArtifact(runId: string, artifactId: string): Promise<Blob> {
+    const response = (await this.client.GET(
+      '/api/v1/workflows/runs/{runId}/artifacts/{artifactId}/download',
+      {
+        params: { path: { runId, id: artifactId } },
+        parseAs: 'blob',
+      },
+    )) as any;
+    if (response?.error) {
+      throw new Error(`Failed to download artifact: ${String(response.error)}`);
+    }
+    return (response?.data ?? response) as Blob;
+  }
+
+  async listArtifacts(options?: {
+    workflowId?: string;
+    componentId?: string;
+    destination?: ArtifactDestination;
+    search?: string;
+    limit?: number;
+  }) {
+    return this.client.GET('/api/v1/artifacts', {
+      params: {
+        query: {
+          workflowId: options?.workflowId,
+          componentId: options?.componentId,
+          destination: options?.destination,
+          search: options?.search,
+          limit: options?.limit,
+        },
+      },
     });
   }
 

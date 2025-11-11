@@ -39,10 +39,13 @@ import {
 import { TraceService } from '../trace/trace.service';
 import { WorkflowsService } from './workflows.service';
 import { LogStreamService } from '../trace/log-stream.service';
+import { ArtifactsService } from '../storage/artifacts.service';
 import type { Request, Response } from 'express';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import { RequireWorkflowRole, WorkflowRoleGuard } from './workflow-role.guard';
+import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
+import { ArtifactIdParamDto, ArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
 
 const traceFailureSchema = {
   type: 'object',
@@ -206,6 +209,7 @@ export class WorkflowsController {
     private readonly workflowsService: WorkflowsService,
     private readonly traceService: TraceService,
     private readonly logStreamService: LogStreamService,
+    private readonly artifactsService: ArtifactsService,
   ) {}
 
   @Post()
@@ -486,6 +490,41 @@ export class WorkflowsController {
     const { events } = await this.traceService.list(runId, auth);
     const packets = await this.workflowsService.buildDataFlows(runId, events);
     return { runId, packets };
+  }
+
+  @Get('/runs/:runId/artifacts')
+  @ApiOkResponse({
+    description: 'Artifacts generated for a workflow run',
+    type: RunArtifactsResponseDto,
+  })
+  async runArtifacts(
+    @Param('runId') runId: string,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    return this.artifactsService.listRunArtifacts(auth, runId);
+  }
+
+  @Get('/runs/:runId/artifacts/:artifactId/download')
+  @ApiOkResponse({
+    description: 'Download artifact for a specific run',
+  })
+  async downloadRunArtifact(
+    @Param('runId') runId: string,
+    @Param(new ZodValidationPipe(ArtifactIdParamSchema)) params: ArtifactIdParamDto,
+    @CurrentAuth() auth: AuthContext | null,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { artifact, buffer, file } = await this.artifactsService.downloadArtifactForRun(
+      auth,
+      runId,
+      params.id,
+    );
+
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${artifact.name}"`);
+    res.setHeader('Content-Length', file.size.toString());
+
+    return new StreamableFile(buffer);
   }
 
   @Get('/runs/:runId/stream')

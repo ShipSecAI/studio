@@ -3,6 +3,7 @@ import { WorkflowList } from '@/pages/WorkflowList'
 import { WorkflowBuilder } from '@/pages/WorkflowBuilder'
 import { SecretsManager } from '@/pages/SecretsManager'
 import { IntegrationsManager } from '@/pages/IntegrationsManager'
+import { ArtifactLibrary } from '@/pages/ArtifactLibrary'
 import { IntegrationCallback } from '@/pages/IntegrationCallback'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -47,6 +48,7 @@ function App() {
                     }
                   />
                   <Route path="/integrations" element={<IntegrationsManager />} />
+                  <Route path="/artifacts" element={<ArtifactLibrary />} />
                   <Route
                     path="/integrations/callback/:provider"
                     element={<IntegrationCallback />}

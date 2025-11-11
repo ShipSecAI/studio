@@ -5,6 +5,7 @@ const REQUIRED_TABLES = [
   'workflows',
   'workflow_runs',
   'files',
+  'artifacts',
   'workflow_log_streams',
   'workflow_traces',
 ];

@@ -13,6 +13,7 @@ import './core/console-log';
 import './core/secret-fetch';
 import './core/array-pick';
 import './core/array-pack';
+import './core/artifact-writer';
 import './ai/openai-chat';
 import './ai/gemini-chat';
 import './ai/openrouter-chat';

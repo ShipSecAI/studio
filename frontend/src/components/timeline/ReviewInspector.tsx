@@ -8,6 +8,7 @@ import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { cn } from '@/lib/utils'
+import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel'
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp)
@@ -86,14 +87,12 @@ export function ReviewInspector() {
             Logs
           </Button>
           <Button
-            variant={inspectorTab === 'data' ? 'default' : 'ghost'}
+            variant={inspectorTab === 'artifacts' ? 'default' : 'ghost'}
             size="sm"
             className="h-7 px-3"
-            onClick={() => setInspectorTab('data')}
-            disabled
-            title="Data flows coming soon"
+            onClick={() => setInspectorTab('artifacts')}
           >
-            Data
+            Artifacts
           </Button>
         </div>
       </div>
@@ -145,10 +144,8 @@ export function ReviewInspector() {
           </div>
         )}
 
-        {inspectorTab === 'data' && (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground px-6 text-center">
-            Data flow visualization is on the roadmap—stay tuned.
-          </div>
+        {inspectorTab === 'artifacts' && (
+          <RunArtifactsPanel runId={selectedRunId ?? null} />
         )}
       </div>
     </aside>

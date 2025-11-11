@@ -5,7 +5,6 @@ import {
   componentRegistry,
   createExecutionContext,
   runComponentWithRunner,
-  type IArtifactService,
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
@@ -16,17 +15,18 @@ import type {
   RunComponentActivityOutput,
   WorkflowLogSink,
 } from '../types';
+import type { ArtifactServiceFactory } from '../artifact-factory';
 
 let globalStorage: IFileStorageService | undefined;
 let globalSecrets: ISecretsService | undefined;
-let globalArtifacts: IArtifactService | undefined;
+let globalArtifacts: ArtifactServiceFactory | undefined;
 let globalTrace: ITraceService | undefined;
 let globalLogs: WorkflowLogSink | undefined;
 
 export function initializeComponentActivityServices(options: {
   storage: IFileStorageService;
   secrets?: ISecretsService;
-  artifacts?: IArtifactService;
+  artifacts?: ArtifactServiceFactory;
   trace: ITraceService;
   logs?: WorkflowLogSink;
 }) {
@@ -144,6 +144,17 @@ export async function runComponentActivity(
 
   const parsedParams = component.inputSchema.parse(params);
 
+  const scopedArtifacts = globalArtifacts
+    ? globalArtifacts({
+        runId: input.runId,
+        workflowId: input.workflowId,
+        workflowVersionId: input.workflowVersionId ?? null,
+        componentId: action.componentId,
+        componentRef: action.ref,
+        organizationId: input.organizationId ?? null,
+      })
+    : undefined;
+
   const context = createExecutionContext({
     runId: input.runId,
     componentRef: action.ref,
@@ -158,7 +169,7 @@ export async function runComponentActivity(
     },
     storage: globalStorage,
     secrets: globalSecrets,
-    artifacts: globalArtifacts,
+    artifacts: scopedArtifacts,
     trace: globalTrace,
     logCollector: globalLogs
       ? (entry) => {

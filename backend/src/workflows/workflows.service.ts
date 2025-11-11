@@ -392,6 +392,8 @@ export class WorkflowsService {
             workflowId: workflow.id,
             definition: compiledDefinition,
             inputs: request.inputs ?? {},
+            workflowVersionId: version.id,
+            workflowVersion: version.version,
             organizationId,
           },
         ],

@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive } from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
@@ -64,6 +64,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Connections',
       href: '/integrations',
       icon: Plug,
+    },
+    {
+      name: 'Artifact Library',
+      href: '/artifacts',
+      icon: Archive,
     },
   ]
 
