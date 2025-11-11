@@ -18,7 +18,7 @@ interface ArtifactStoreState {
   downloading: Record<string, boolean>
   fetchRunArtifacts: (runId: string, force?: boolean) => Promise<void>
   fetchLibrary: (filters?: ArtifactListFilters) => Promise<void>
-  downloadArtifact: (artifact: ArtifactMetadata) => Promise<void>
+  downloadArtifact: (artifact: ArtifactMetadata, options?: { runId?: string }) => Promise<void>
 }
 
 export const useArtifactStore = create<ArtifactStoreState>((set, get) => ({
@@ -87,12 +87,14 @@ export const useArtifactStore = create<ArtifactStoreState>((set, get) => ({
       })
     }
   },
-  async downloadArtifact(artifact) {
+  async downloadArtifact(artifact, options) {
     set((state) => ({
       downloading: { ...state.downloading, [artifact.id]: true },
     }))
     try {
-      const blob = await api.artifacts.download(artifact.id)
+      const blob = options?.runId
+        ? await api.executions.downloadArtifact(options.runId, artifact.id)
+        : await api.artifacts.download(artifact.id)
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url

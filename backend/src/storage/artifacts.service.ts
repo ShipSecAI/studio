@@ -68,6 +68,20 @@ export class ArtifactsService {
     };
   }
 
+  async downloadArtifactForRun(auth: AuthContext | null, runId: string, artifactId: string) {
+    const organizationId = this.requireOrganizationId(auth);
+    const artifact = await this.repository.findByIdForRun(artifactId, runId, { organizationId });
+    if (!artifact) {
+      throw new NotFoundException(`Artifact ${artifactId} not found for run ${runId}`);
+    }
+    const download = await this.filesService.downloadFile(auth, artifact.fileId);
+    return {
+      artifact: this.toMetadata(artifact),
+      file: download.file,
+      buffer: download.buffer,
+    };
+  }
+
   private toMetadata(record: ArtifactRecord): ArtifactMetadataDto {
     return {
       id: record.id,

@@ -381,6 +381,14 @@ export const api = {
       return response.data
     },
 
+    downloadArtifact: async (executionId: string, artifactId: string): Promise<Blob> => {
+      try {
+        return await apiClient.downloadWorkflowRunArtifact(executionId, artifactId)
+      } catch (error) {
+        throw new Error(error instanceof Error ? error.message : 'Failed to download artifact')
+      }
+    },
+
         stream: async (executionId: string, options?: { cursor?: string; temporalRunId?: string }): Promise<EventSource> => {
           // Use fetch-based SSE client that supports custom headers (including Authorization)
           const { FetchEventSource } = await import('@/utils/sse-client')

@@ -70,6 +70,23 @@ export class ArtifactsRepository {
     return artifact ?? null;
   }
 
+  async findByIdForRun(
+    id: string,
+    runId: string,
+    options: { organizationId?: string | null } = {},
+  ): Promise<ArtifactRecord | null> {
+    const filters = [eq(artifactsTable.id, id), eq(artifactsTable.runId, runId)];
+    if (options.organizationId) {
+      filters.push(eq(artifactsTable.organizationId, options.organizationId));
+    }
+    const [artifact] = await this.db
+      .select()
+      .from(artifactsTable)
+      .where(and(...filters))
+      .limit(1);
+    return artifact ?? null;
+  }
+
   private buildRunFilter(runId: string, organizationId?: string | null) {
     const base = eq(artifactsTable.runId, runId);
     if (!organizationId) {

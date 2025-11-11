@@ -3,7 +3,6 @@ import { Download, RefreshCw, Search, Copy } from 'lucide-react'
 import { useArtifactStore } from '@/store/artifactStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import type { ArtifactMetadata } from '@shipsec/shared'
 
 const formatBytes = (bytes: number) => {
@@ -124,7 +123,6 @@ export function ArtifactLibrary() {
                 <th className="px-6 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Run</th>
                 <th className="px-4 py-3 font-medium">Component</th>
-                <th className="px-4 py-3 font-medium">Destinations</th>
                 <th className="px-4 py-3 font-medium">Size</th>
                 <th className="px-4 py-3 font-medium">Created</th>
                 <th className="px-4 py-3 font-medium sr-only">Actions</th>
@@ -173,19 +171,6 @@ function ArtifactLibraryRow({
       </td>
       <td className="px-4 py-4 align-top text-sm text-muted-foreground">
         {artifact.componentRef}
-      </td>
-      <td className="px-4 py-4 align-top">
-        <div className="flex flex-wrap gap-1">
-          {artifact.destinations.map((destination) => (
-            <Badge
-              key={`${artifact.id}-${destination}`}
-              variant="outline"
-              className="text-[10px] uppercase"
-            >
-              {destination}
-            </Badge>
-          ))}
-        </div>
       </td>
       <td className="px-4 py-4 align-top text-sm">{formatBytes(artifact.size)}</td>
       <td className="px-4 py-4 align-top text-sm text-muted-foreground">

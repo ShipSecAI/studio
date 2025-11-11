@@ -183,6 +183,20 @@ export class ShipSecApiClient {
     });
   }
 
+  async downloadWorkflowRunArtifact(runId: string, artifactId: string): Promise<Blob> {
+    const response = (await this.client.GET(
+      '/api/v1/workflows/runs/{runId}/artifacts/{artifactId}/download',
+      {
+        params: { path: { runId, id: artifactId } },
+        parseAs: 'blob',
+      },
+    )) as any;
+    if (response?.error) {
+      throw new Error(`Failed to download artifact: ${String(response.error)}`);
+    }
+    return (response?.data ?? response) as Blob;
+  }
+
   async listArtifacts(options?: {
     workflowId?: string;
     componentId?: string;

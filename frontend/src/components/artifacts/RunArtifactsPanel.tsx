@@ -3,7 +3,6 @@ import { Download, RefreshCw, Copy } from 'lucide-react'
 import type { ArtifactMetadata } from '@shipsec/shared'
 import { useArtifactStore } from '@/store/artifactStore'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes)) return '—'
@@ -101,7 +100,6 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
             <tr className="text-left text-xs uppercase text-muted-foreground">
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Component</th>
-              <th className="px-4 py-2 font-medium">Destinations</th>
               <th className="px-4 py-2 font-medium">Size</th>
               <th className="px-4 py-2 font-medium">Created</th>
               <th className="px-4 py-2 font-medium sr-only">Actions</th>
@@ -112,7 +110,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
               <ArtifactRow
                 key={artifact.id}
                 artifact={artifact}
-                onDownload={() => downloadArtifact(artifact)}
+                onDownload={() => downloadArtifact(artifact, { runId })}
                 onCopy={() => handleCopy(artifact.id)}
                 copied={copiedId === artifact.id}
                 isDownloading={Boolean(downloading[artifact.id])}
@@ -173,15 +171,6 @@ function ArtifactRow({
       </td>
       <td className="px-4 py-3 align-top text-sm text-muted-foreground">
         {artifact.componentRef}
-      </td>
-      <td className="px-4 py-3 align-top">
-        <div className="flex flex-wrap gap-1">
-          {artifact.destinations.map((dest) => (
-            <Badge key={`${artifact.id}-${dest}`} variant="outline" className="text-[10px] uppercase">
-              {dest}
-            </Badge>
-          ))}
-        </div>
       </td>
       <td className="px-4 py-3 align-top text-sm">{formatBytes(artifact.size)}</td>
       <td className="px-4 py-3 align-top text-sm text-muted-foreground">
