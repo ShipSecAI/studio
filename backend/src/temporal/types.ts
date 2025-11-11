@@ -25,10 +25,11 @@ export interface RunWorkflowActivityInput {
   workflowId: string;
   definition: WorkflowDefinition;
   inputs: Record<string, unknown>;
+  workflowVersionId?: string | null;
+  workflowVersion?: number | null;
 }
 
 export interface RunWorkflowActivityOutput {
   runId: string;
   outputs: Record<string, unknown>;
 }
-

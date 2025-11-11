@@ -39,6 +39,7 @@ import {
 import { TraceService } from '../trace/trace.service';
 import { WorkflowsService } from './workflows.service';
 import { LogStreamService } from '../trace/log-stream.service';
+import { ArtifactsService } from '../storage/artifacts.service';
 import type { Request, Response } from 'express';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
@@ -206,6 +207,7 @@ export class WorkflowsController {
     private readonly workflowsService: WorkflowsService,
     private readonly traceService: TraceService,
     private readonly logStreamService: LogStreamService,
+    private readonly artifactsService: ArtifactsService,
   ) {}
 
   @Post()
@@ -486,6 +488,17 @@ export class WorkflowsController {
     const { events } = await this.traceService.list(runId, auth);
     const packets = await this.workflowsService.buildDataFlows(runId, events);
     return { runId, packets };
+  }
+
+  @Get('/runs/:runId/artifacts')
+  @ApiOkResponse({
+    description: 'Artifacts generated for a workflow run',
+  })
+  async runArtifacts(
+    @Param('runId') runId: string,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    return this.artifactsService.listRunArtifacts(auth, runId);
   }
 
   @Get('/runs/:runId/stream')

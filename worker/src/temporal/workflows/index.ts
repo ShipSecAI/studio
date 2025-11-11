@@ -64,6 +64,7 @@ export async function shipsecWorkflowRun(
         const activityInput: RunComponentActivityInput = {
           runId: input.runId,
           workflowId: input.workflowId,
+          workflowVersionId: input.workflowVersionId ?? null,
           organizationId: input.organizationId ?? null,
           action: {
             ref: action.ref,

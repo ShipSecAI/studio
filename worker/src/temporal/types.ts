@@ -64,6 +64,7 @@ export interface WorkflowDefinition {
 export interface RunComponentActivityInput {
   runId: string;
   workflowId: string;
+  workflowVersionId?: string | null;
   organizationId?: string | null;
   action: {
     ref: string;
@@ -109,6 +110,8 @@ export interface RunWorkflowActivityInput {
   workflowId: string;
   definition: WorkflowDefinition;
   inputs: Record<string, unknown>;
+  workflowVersionId?: string | null;
+  workflowVersion?: number | null;
   organizationId?: string | null;
 }
 

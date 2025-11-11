@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
 import '@shipsec/studio-worker/components'; // Register components
 import type {
@@ -359,10 +359,14 @@ describe('WorkflowsController', () => {
     const logStreamService = {
       fetch: async () => ({ runId: 'shipsec-run-controller', streams: [] }),
     };
+    const artifactsService = {
+      listRunArtifacts: vi.fn().mockResolvedValue({ runId: 'shipsec-run-controller', artifacts: [] }),
+    };
     controller = new WorkflowsController(
       workflowsService,
       traceService,
       logStreamService as any,
+      artifactsService as any,
     );
   });
 

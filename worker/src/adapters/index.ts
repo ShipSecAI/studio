@@ -4,6 +4,7 @@
  */
 
 export { FileStorageAdapter } from './file-storage.adapter';
+export { ArtifactAdapter } from './artifact.adapter';
 export { TraceAdapter } from './trace.adapter';
 export {
   LokiLogAdapter,
