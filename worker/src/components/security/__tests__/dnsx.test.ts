@@ -33,37 +33,73 @@ describe('dnsx component', () => {
       domains: ['example.com'],
       recordTypes: ['A'],
       resolvers: [],
+      outputMode: 'json',
     });
 
-    const payload = {
-      results: [
-        {
-          host: 'example.com',
-          status_code: 'NOERROR',
-          ttl: 30,
-          resolver: ['8.8.8.8:53'],
-          a: ['23.215.0.138', '23.215.0.136'],
-          timestamp: '2025-10-18T17:35:42Z',
-        },
-      ],
-      rawOutput:
-        '{"host":"example.com","ttl":30,"resolver":["8.8.8.8:53"],"a":["23.215.0.138","23.215.0.136"],"status_code":"NOERROR"}',
-      domainCount: 1,
-      recordCount: 2,
-      recordTypes: ['A'],
-      resolvers: [],
-    };
+    const ndjson = [
+      {
+        host: 'example.com',
+        status_code: 'NOERROR',
+        ttl: 30,
+        resolver: ['8.8.8.8:53'],
+        a: ['23.215.0.138'],
+        timestamp: '2025-10-18T17:35:42Z',
+      },
+      {
+        host: 'example.com',
+        status_code: 'NOERROR',
+        ttl: 30,
+        resolver: ['8.8.8.8:53'],
+        a: ['23.215.0.136'],
+        timestamp: '2025-10-18T17:35:43Z',
+      },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n');
 
-    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(payload);
+    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(ndjson);
 
     const result = component.outputSchema.parse(await component.execute(params, context));
 
     expect(result.domainCount).toBe(1);
     expect(result.recordCount).toBe(2);
-    expect(result.results).toHaveLength(1);
+    expect(result.results).toHaveLength(2);
     expect(result.results[0].host).toBe('example.com');
-    expect(result.results[0].answers.a).toEqual(['23.215.0.138', '23.215.0.136']);
+    const aggregatedAnswers = result.results.flatMap((entry) => entry.answers.a ?? []);
+    expect(aggregatedAnswers).toEqual(['23.215.0.138', '23.215.0.136']);
     expect(result.recordTypes).toEqual(['A']);
+    expect(result.resolvedHosts).toEqual(['example.com']);
+  });
+
+  it('should pass advanced options and custom flags into the runner', async () => {
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'dnsx-test',
+    });
+
+    const params = component.inputSchema.parse({
+      domains: ['example.com'],
+      statusCodeFilter: 'noerror,servfail',
+      proxy: 'socks5://127.0.0.1:9000',
+      customFlags: "--rcode refused --proxy 'socks5://127.0.0.1:9000'",
+    });
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
+
+    await component.execute(params, context);
+
+    expect(spy).toHaveBeenCalled();
+    const runnerConfig = spy.mock.calls[0][0];
+    expect(runnerConfig).toBeDefined();
+    if (runnerConfig && typeof runnerConfig === 'object' && 'command' in runnerConfig) {
+      const command = (runnerConfig as any).command as string[];
+      expect(command).toEqual(expect.arrayContaining(['-rcode', 'noerror,servfail']));
+      expect(command).toEqual(expect.arrayContaining(['-proxy', 'socks5://127.0.0.1:9000']));
+      expect(command).toEqual(expect.arrayContaining(['--rcode', 'refused', '--proxy', 'socks5://127.0.0.1:9000']));
+    }
   });
 
   it('should gracefully fallback when dnsx returns non-JSON output', async () => {
@@ -86,9 +122,9 @@ describe('dnsx component', () => {
     const result = component.outputSchema.parse(await component.execute(params, context));
 
     expect(result.results).toHaveLength(2);
-    expect(result.errors ?? []).not.toHaveLength(0);
-    expect((result.errors ?? [])[0]).toContain('dnsx');
+    expect(result.errors).toBeUndefined();
     expect(result.recordCount).toBe(2);
+    expect(result.resolvedHosts).toEqual(['example.com']);
   });
 
   it('should use docker runner config for dnsx image', () => {
@@ -98,7 +134,7 @@ describe('dnsx component', () => {
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
       expect(component.runner.image).toBe('projectdiscovery/dnsx:latest');
-      expect(component.runner.entrypoint).toBe('sh');
+      expect(component.runner.entrypoint).toBe('dnsx');
     }
   });
 });
