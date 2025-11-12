@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { useSidebar } from '@/components/layout/AppLayout'
 import {
   ReactFlowProvider,
   useNodesState,
@@ -108,6 +109,7 @@ function WorkflowBuilderContent() {
     edgesRef.current = edges
   }, [edges])
   const workflowRuns = useMemo(() => runs, [runs])
+  const { isOpen: mainSidebarOpen } = useSidebar()
   const mostRecentRunId = useMemo(
     () => (workflowRuns.length > 0 ? workflowRuns[0].id : null),
     [workflowRuns],
@@ -959,11 +961,17 @@ function WorkflowBuilderContent() {
           variant="secondary"
           onClick={toggleLibrary}
           className={cn(
-            'fixed z-50 flex items-center gap-2 rounded-full border bg-background/95 text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+            'fixed z-50 flex items-center gap-2 rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
             isLibraryVisible
-              ? 'top-[88px] left-[300px] md:left-[364px] h-10 w-10 justify-center'
-              : 'top-[88px] left-5 md:left-[72px] h-10 px-4 py-2'
+              ? 'top-[70px] h-10 w-10 justify-center px-0'
+              : 'top-[70px] h-10 px-4 py-2'
           )}
+          style={{
+            left: isLibraryVisible
+              ? `calc(${mainSidebarOpen ? '256px' : '64px'} + 320px + 8px)` // Main sidebar + component library + gap
+              : `calc(${mainSidebarOpen ? '256px' : '64px'} + 8px)`, // Main sidebar + gap
+            transition: 'left 0.3s ease-in-out'
+          }}
           aria-expanded={isLibraryVisible}
           aria-label={isLibraryVisible ? 'Hide component library' : 'Show component library'}
           title={isLibraryVisible ? 'Hide components' : 'Show components'}

@@ -135,7 +135,7 @@ export function TopBar({
           placeholder="Workflow name"
         />
         {(onImport || onExport) && (
-          <div className="flex items-center gap-2 rounded-full border bg-muted/40 px-2 py-1">
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-2 py-1">
             {onImport && (
               <>
                 <input
