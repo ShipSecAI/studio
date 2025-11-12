@@ -818,6 +818,38 @@ function WorkflowBuilderContent() {
     }
   }
 
+  // Auto-save functionality - debounced save after 3 seconds of inactivity
+  useEffect(() => {
+    // Don't auto-save if:
+    // - Not dirty (no changes)
+    // - New workflow (needs manual save first)
+    // - Currently loading
+    // - No permission to manage workflows
+    // - No nodes (empty workflow)
+    if (!isDirty || isNewWorkflow || isLoading || !canManageWorkflows || !nodes || nodes.length === 0) {
+      return
+    }
+
+    // Don't auto-save if workflow doesn't have an ID yet (needs manual save first)
+    if (!metadata.id) {
+      return
+    }
+
+    const autoSaveTimer = setTimeout(() => {
+      // Only auto-save if still dirty (user might have manually saved)
+      if (isDirty && metadata.id && !isNewWorkflow) {
+        handleSave().catch((error) => {
+          console.error('Auto-save failed:', error)
+          // Don't show toast for auto-save failures to avoid annoying the user
+        })
+      }
+    }, 3000) // 3 seconds delay
+
+    return () => {
+      clearTimeout(autoSaveTimer)
+    }
+  }, [isDirty, isNewWorkflow, isLoading, canManageWorkflows, nodes, metadata.id, handleSave])
+
   const handleInspectorResizeStart = useCallback((event: React.MouseEvent) => {
     if (mode !== 'execution') {
       return
@@ -893,6 +925,7 @@ function WorkflowBuilderContent() {
         onImport={handleImportWorkflow}
         onExport={handleExportWorkflow}
         canManageWorkflows={canManageWorkflows}
+        isExecuting={isLoading}
       />
       {mode === 'design' && (
         <Button

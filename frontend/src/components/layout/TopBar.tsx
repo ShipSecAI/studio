@@ -25,6 +25,7 @@ interface TopBarProps {
   onImport?: (file: File) => Promise<void> | void
   onExport?: () => void
   canManageWorkflows?: boolean
+  isExecuting?: boolean
 }
 
 export function TopBar({
@@ -33,6 +34,7 @@ export function TopBar({
   onImport,
   onExport,
   canManageWorkflows = true,
+  isExecuting = false,
 }: TopBarProps) {
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
@@ -249,7 +251,7 @@ export function TopBar({
           ) : (
             <Button
               onClick={handleRun}
-              disabled={!canEdit}
+              disabled={!canEdit || isRunning || isExecuting}
               className="gap-2"
             >
               <Play className="h-4 w-4" />

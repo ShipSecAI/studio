@@ -111,7 +111,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           }`}
         >
         <SidebarHeader className="flex items-center gap-3 p-4 border-b">
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <div className="flex-shrink-0">
               <img
                 src="/favicon.ico"
@@ -138,7 +138,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             >
               ShipSec Studio
             </span>
-          </div>
+          </Link>
         </SidebarHeader>
 
         <SidebarContent>

@@ -2,6 +2,12 @@ import { useEffect, useState, useMemo } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { useComponentStore } from '@/store/componentStore'
 import { Input } from '@/components/ui/input'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import type { ComponentMetadata } from '@/schemas/component'
 import { cn } from '@/lib/utils'
 import { env } from '@/config/env'
@@ -32,12 +38,12 @@ function ComponentItem({ component, disabled }: ComponentItemProps) {
   return (
     <div
       className={cn(
-        'group relative flex items-center gap-3 p-3 border rounded-lg cursor-move',
+        'group relative flex flex-col items-center justify-center p-3 border rounded-lg cursor-move transition-all',
+        'bg-background/50 hover:bg-background border-border/50 hover:border-border',
+        'text-foreground',
         disabled
-          ? 'cursor-not-allowed opacity-75'
-          : 'hover:bg-accent hover:border-primary/50',
-        'transition-all text-left',
-        'bg-background',
+          ? 'cursor-not-allowed opacity-50'
+          : 'hover:shadow-sm hover:scale-105',
         component.deprecated && 'opacity-50'
       )}
       draggable={!component.deprecated && !disabled}
@@ -48,7 +54,7 @@ function ComponentItem({ component, disabled }: ComponentItemProps) {
         <img 
           src={component.logo} 
           alt={component.name}
-          className="h-5 w-5 mt-0.5 flex-shrink-0 object-contain"
+          className="h-8 w-8 mb-2 object-contain"
           onError={(e) => {
             // Fallback to icon if image fails to load
             e.currentTarget.style.display = 'none'
@@ -57,22 +63,10 @@ function ComponentItem({ component, disabled }: ComponentItemProps) {
         />
       ) : null}
       <IconComponent className={cn(
-        "h-5 w-5 mt-0.5 flex-shrink-0 text-foreground",
+        "h-8 w-8 mb-2 flex-shrink-0",
         component.logo && "hidden"
       )} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate flex-1">{component.name}</span>
-          {component.version && (
-            <span className="text-[11px] text-muted-foreground uppercase tracking-wide shrink-0">
-              v{component.version}
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-          {description}
-        </p>
-      </div>
+      <span className="text-xs font-medium text-center leading-tight">{component.name}</span>
     </div>
   )
 }
@@ -199,35 +193,61 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
               </div>
             )}
 
-            <div className="space-y-6">
+            <Accordion 
+              type="multiple" 
+              className="space-y-3" 
+              defaultValue={(() => {
+                const firstCategory = Object.keys(filteredComponentsByCategory)[0]
+                return firstCategory ? [firstCategory] : []
+              })()}
+            >
               {Object.entries(filteredComponentsByCategory).map(([category, components]) => {
                 if (components.length === 0) return null
 
                 const categoryConfig = components[0]?.categoryConfig
 
                 return (
-                  <div key={category}>
-                    <div className="mb-3">
-                      <h3 className={cn('text-sm font-semibold', categoryConfig?.color || 'text-gray-600')}>
-                        {categoryConfig?.label ?? category}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {categoryConfig?.description ?? `${category} components`}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {components.map((component) => (
-                        <ComponentItem
-                          key={component.id}
-                          component={component}
-                          disabled={!canManageWorkflows}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  <AccordionItem 
+                    key={category} 
+                    value={category} 
+                    className="border border-border/50 rounded-lg bg-muted/30 px-3 py-1 hover:bg-muted/50 transition-colors"
+                  >
+                    <AccordionTrigger className={cn(
+                      'py-3 px-0 hover:no-underline [&[data-state=open]]:text-foreground',
+                      'group'
+                    )}>
+                      <div className="flex flex-col items-start gap-1 w-full">
+                        <div className="flex items-center justify-between w-full">
+                          <h3 className={cn(
+                            'text-sm font-semibold transition-colors',
+                            categoryConfig?.color || 'text-foreground'
+                          )}>
+                            {categoryConfig?.label ?? category}
+                          </h3>
+                          <span className="text-xs text-muted-foreground bg-background/50 px-2 py-0.5 rounded-full">
+                            {components.length}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {categoryConfig?.description ?? `${category} components`}
+                        </p>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2 pb-4 px-0">
+                      <div className="grid grid-cols-2 gap-2">
+                        {components.map((component) => (
+                          <ComponentItem
+                            key={component.id}
+                            component={component}
+                            disabled={!canManageWorkflows}
+                          />
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
                 )
               })}
-            </div>
+            </Accordion>
 
             {/* Show no results message if search yields nothing */}
             {searchQuery.trim() && Object.values(filteredComponentsByCategory).every(components => components.length === 0) && (
