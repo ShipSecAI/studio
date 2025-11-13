@@ -14,13 +14,13 @@
  */
 
 import { promises as fs, existsSync } from 'node:fs';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { config as loadEnv } from 'dotenv';
 import { z } from 'zod';
 
-const DEFAULT_BASE_URL = 'http://localhost:3211';
+const DEFAULT_BASE_URL = 'http://localhost:3211/api/v1';
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 1 } as const;
 
 const WorkflowViewportSchema = z.object({
@@ -100,9 +100,36 @@ type ImportStats = {
   failed: number;
 };
 
+type AuthOptions =
+  | { kind: 'none' }
+  | { kind: 'basic'; username: string; password: string }
+  | { kind: 'bearer'; token: string };
+
+const SCRIPT_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)));
+const BACKEND_ROOT = resolve(SCRIPT_DIR, '..');
+const DEFAULT_WORKFLOW_DIR = resolve(BACKEND_ROOT, '../workflows');
+
 function resolveEnvPath(relative: string): string {
-  const scriptDir = resolve(fileURLToPath(new URL('.', import.meta.url)));
-  return resolve(scriptDir, relative);
+  return resolve(SCRIPT_DIR, relative);
+}
+
+function resolveImportDirectory({
+  cliDir,
+  envDir,
+}: {
+  cliDir?: string;
+  envDir?: string;
+}): string | undefined {
+  if (cliDir) {
+    return resolve(cliDir);
+  }
+
+  if (envDir?.trim()) {
+    const normalized = envDir.trim();
+    return isAbsolute(normalized) ? normalized : resolve(BACKEND_ROOT, normalized);
+  }
+
+  return DEFAULT_WORKFLOW_DIR;
 }
 
 function loadEnvironment() {
@@ -117,11 +144,19 @@ function loadEnvironment() {
   }
 }
 
-function parseArgs(): { dir?: string; baseUrl: string; helpRequested: boolean } {
+function parseArgs(): {
+  dir?: string;
+  baseUrl: string;
+  helpRequested: boolean;
+  basicAuthCli?: string;
+  bearerTokenCli?: string;
+} {
   const args = process.argv.slice(2);
   let dir: string | undefined;
   let baseUrl = process.env.WORKFLOW_IMPORT_BASE_URL || DEFAULT_BASE_URL;
   let helpRequested = false;
+  let basicAuthCli: string | undefined;
+  let bearerTokenCli: string | undefined;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
@@ -133,6 +168,14 @@ function parseArgs(): { dir?: string; baseUrl: string; helpRequested: boolean } 
         break;
       case '--base-url':
         baseUrl = args[i + 1] ?? baseUrl;
+        i += 1;
+        break;
+      case '--basic-auth':
+        basicAuthCli = args[i + 1];
+        i += 1;
+        break;
+      case '--bearer-token':
+        bearerTokenCli = args[i + 1];
         i += 1;
         break;
       case '--help':
@@ -147,7 +190,7 @@ function parseArgs(): { dir?: string; baseUrl: string; helpRequested: boolean } 
     }
   }
 
-  return { dir, baseUrl, helpRequested };
+  return { dir, baseUrl, helpRequested, basicAuthCli, bearerTokenCli };
 }
 
 function printHelp(): void {
@@ -158,11 +201,15 @@ Usage: bun scripts/workflows-import.ts [options]
 Options:
   -d, --dir <path>        Directory containing workflow JSON files
       --base-url <url>    Backend API base URL (default: ${DEFAULT_BASE_URL})
+      --basic-auth <u:p>  Send HTTP Basic auth using "username:password"
+      --bearer-token <t>  Send Authorization: Bearer <token>
   -h, --help              Show this message
 
 Environment variables:
   WORKFLOW_IMPORT_DIR         Default directory when --dir is not provided
   WORKFLOW_IMPORT_BASE_URL    Override backend API base URL
+  WORKFLOW_IMPORT_BASIC_AUTH  Default Basic auth credentials (username:password)
+  WORKFLOW_IMPORT_BEARER_TOKEN Default bearer token for Authorization header
 `);
 }
 
@@ -217,11 +264,72 @@ async function readWorkflowFile(filePath: string): Promise<{ payload: WorkflowPa
   return { payload, nameKey };
 }
 
-async function fetchExistingWorkflows(baseUrl: string): Promise<Map<string, ExistingWorkflow>> {
+function buildApiUrl(baseUrl: string, path: string): URL {
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const normalizedPath = path.replace(/^\//, '');
+  return new URL(normalizedPath, normalizedBase);
+}
+
+function sanitizeAuthValue(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseBasicAuth(value: string): { username: string; password: string } {
+  const separator = value.indexOf(':');
+  if (separator === -1) {
+    throw new Error('Basic auth credentials must use the format "username:password".');
+  }
+  const username = value.slice(0, separator);
+  const password = value.slice(separator + 1);
+  if (!username || !password) {
+    throw new Error('Basic auth requires both username and password.');
+  }
+  return { username, password };
+}
+
+function resolveAuthOptions({
+  basicAuthCli,
+  bearerTokenCli,
+}: {
+  basicAuthCli?: string;
+  bearerTokenCli?: string;
+}): AuthOptions {
+  const basicAuth = sanitizeAuthValue(basicAuthCli) ?? sanitizeAuthValue(process.env.WORKFLOW_IMPORT_BASIC_AUTH);
+  const bearer = sanitizeAuthValue(bearerTokenCli) ?? sanitizeAuthValue(process.env.WORKFLOW_IMPORT_BEARER_TOKEN);
+
+  if (basicAuth && bearer) {
+    throw new Error('Provide only one auth method (Basic or Bearer).');
+  }
+
+  if (basicAuth) {
+    const { username, password } = parseBasicAuth(basicAuth);
+    return { kind: 'basic', username, password };
+  }
+
+  if (bearer) {
+    return { kind: 'bearer', token: bearer };
+  }
+
+  return { kind: 'none' };
+}
+
+function buildAuthHeaders(auth: AuthOptions): Record<string, string> {
+  if (auth.kind === 'basic') {
+    const encoded = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
+    return { Authorization: `Basic ${encoded}` };
+  }
+  if (auth.kind === 'bearer') {
+    return { Authorization: `Bearer ${auth.token}` };
+  }
+  return {};
+}
+
+async function fetchExistingWorkflows(baseUrl: string, headers: Record<string, string>): Promise<Map<string, ExistingWorkflow>> {
   const map = new Map<string, ExistingWorkflow>();
 
   try {
-    const response = await fetch(new URL('/workflows', baseUrl));
+    const response = await fetch(buildApiUrl(baseUrl, '/workflows'), { headers });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} ${response.statusText}`);
     }
@@ -240,10 +348,10 @@ async function fetchExistingWorkflows(baseUrl: string): Promise<Map<string, Exis
   return map;
 }
 
-async function createWorkflow(baseUrl: string, payload: WorkflowPayload) {
-  const response = await fetch(new URL('/workflows', baseUrl), {
+async function createWorkflow(baseUrl: string, payload: WorkflowPayload, headers: Record<string, string>) {
+  const response = await fetch(buildApiUrl(baseUrl, '/workflows'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(payload),
   });
 
@@ -255,10 +363,10 @@ async function createWorkflow(baseUrl: string, payload: WorkflowPayload) {
   return (await response.json()) as { id: string };
 }
 
-async function updateWorkflow(baseUrl: string, id: string, payload: WorkflowPayload) {
-  const response = await fetch(new URL(`/workflows/${id}`, baseUrl), {
+async function updateWorkflow(baseUrl: string, id: string, payload: WorkflowPayload, headers: Record<string, string>) {
+  const response = await fetch(buildApiUrl(baseUrl, `/workflows/${id}`), {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ ...payload, id }),
   });
 
@@ -282,12 +390,14 @@ async function safeReadErrorBody(response: Response): Promise<string | null> {
 export async function importWorkflows({
   directory,
   baseUrl,
+  headers,
 }: {
   directory: string;
   baseUrl: string;
+  headers: Record<string, string>;
 }) {
   const stats: ImportStats = { created: 0, updated: 0, skipped: 0, failed: 0 };
-  const existingByName = await fetchExistingWorkflows(baseUrl);
+  const existingByName = await fetchExistingWorkflows(baseUrl, headers);
   const processedNames = new Set<string>();
 
   console.log(`📁 Loading workflows from ${directory}`);
@@ -314,11 +424,11 @@ export async function importWorkflows({
 
       const existing = existingByName.get(nameKey);
       if (existing) {
-        await updateWorkflow(baseUrl, existing.id, payload);
+        await updateWorkflow(baseUrl, existing.id, payload, headers);
         console.log(`✅ Updated "${payload.name}" from ${fileName}`);
         stats.updated += 1;
       } else {
-        await createWorkflow(baseUrl, payload);
+        await createWorkflow(baseUrl, payload, headers);
         console.log(`✅ Imported "${payload.name}" from ${fileName}`);
         stats.created += 1;
       }
@@ -334,30 +444,45 @@ export async function importWorkflows({
 async function main() {
   loadEnvironment();
 
-  const { dir, baseUrl, helpRequested } = parseArgs();
+  const { dir, baseUrl, helpRequested, basicAuthCli, bearerTokenCli } = parseArgs();
   if (helpRequested) {
     printHelp();
     return;
   }
 
-  const importDir = dir ?? process.env.WORKFLOW_IMPORT_DIR;
-  if (!importDir) {
-    console.error('❌ No import directory provided. Use --dir or set WORKFLOW_IMPORT_DIR in your environment.');
+  let authOptions: AuthOptions;
+  try {
+    authOptions = resolveAuthOptions({ basicAuthCli, bearerTokenCli });
+  } catch (error) {
+    console.error(`❌ ${(error as Error).message}`);
     process.exitCode = 1;
     return;
   }
 
-  const directory = resolve(importDir);
+  const headers = buildAuthHeaders(authOptions);
+
+  const directory = resolveImportDirectory({ cliDir: dir, envDir: process.env.WORKFLOW_IMPORT_DIR });
+  if (!directory) {
+    console.error('❌ No import directory provided. Use --dir or set WORKFLOW_IMPORT_DIR in your environment.');
+    process.exitCode = 1;
+    return;
+  }
   const resolvedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 
   console.log('🚀 ShipSec workflow importer');
   console.log(`   ↳ Directory: ${directory}`);
   console.log(`   ↳ API Base:  ${resolvedBaseUrl}`);
+  if (authOptions.kind === 'none') {
+    console.log('   ↳ Auth:      none (set --basic-auth or --bearer-token if required)');
+  } else {
+    console.log(`   ↳ Auth:      ${authOptions.kind}`);
+  }
 
   try {
     const stats = await importWorkflows({
       directory,
       baseUrl: resolvedBaseUrl,
+      headers,
     });
 
     console.log('\n📦 Import summary');
