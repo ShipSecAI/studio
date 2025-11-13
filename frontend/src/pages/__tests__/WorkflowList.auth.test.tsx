@@ -32,15 +32,29 @@ const createMockAuthStoreState = () => ({
 
 let mockAuthStoreState = createMockAuthStoreState()
 
-mock.module('@/store/authStore', () => ({
-  useAuthStore: (selector?: (state: ReturnType<typeof createMockAuthStoreState>) => any) => {
+mock.module('@/store/authStore', () => {
+  const useAuthStoreMock = ((selector?: (state: ReturnType<typeof createMockAuthStoreState>) => any) => {
     if (selector) {
       return selector(mockAuthStoreState)
     }
     return mockAuthStoreState
-  },
-  DEFAULT_ORG_ID: 'local-dev',
-}))
+  }) as any
+
+  useAuthStoreMock.setState = (partial: any) => {
+    const nextState = typeof partial === 'function' ? partial(mockAuthStoreState) : partial
+    if (nextState && typeof nextState === 'object') {
+      mockAuthStoreState = { ...mockAuthStoreState, ...nextState }
+    }
+  }
+
+  useAuthStoreMock.getState = () => mockAuthStoreState
+  useAuthStoreMock.persist = { clearStorage: async () => {} }
+
+  return {
+    useAuthStore: useAuthStoreMock,
+    DEFAULT_ORG_ID: 'local-dev',
+  }
+})
 
 mock.module('@/services/api', () => ({
   api: {

@@ -59,7 +59,7 @@ import {
 } from '@/schemas/workflow'
 
 // Mock the auth store to provide admin roles for testing
-const mockAuthStore = {
+const mockAuthStore: any = {
   roles: ['ADMIN'],
   token: null,
   userId: null,
@@ -77,9 +77,19 @@ const mockAuthStore = {
   setAuthContext: vi.fn(),
 }
 
-mock.module('@/store/authStore', () => ({
-  useAuthStore: (selector: (state: typeof mockAuthStore) => any) => selector(mockAuthStore),
-}))
+mock.module('@/store/authStore', () => {
+  const useAuthStoreMock = ((selector: (state: typeof mockAuthStore) => any) => selector(mockAuthStore)) as any
+  useAuthStoreMock.setState = (partial: any) => {
+    const nextState = typeof partial === 'function' ? partial(mockAuthStore) : partial
+    if (nextState && typeof nextState === 'object') {
+      Object.assign(mockAuthStore, nextState)
+    }
+  }
+  useAuthStoreMock.getState = () => mockAuthStore
+  useAuthStoreMock.persist = { clearStorage: async () => {} }
+
+  return { useAuthStore: useAuthStoreMock }
+})
 
 const ISO = '2024-01-01T00:00:00.000Z'
 
