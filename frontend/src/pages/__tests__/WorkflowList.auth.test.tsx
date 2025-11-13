@@ -4,6 +4,8 @@ import { render, screen } from '@testing-library/react'
 import type { components } from '@shipsec/backend-client'
 
 import { WorkflowList } from '@/pages/WorkflowList'
+import { AuthProvider } from '@/auth/auth-context'
+import { useAuthStore } from '@/store/authStore'
 
 type WorkflowResponseDto = components['schemas']['WorkflowResponseDto']
 
@@ -71,13 +73,17 @@ async function resetAuthStore() {
 const renderList = () =>
   render(
     <MemoryRouter>
-      <WorkflowList />
+      <AuthProvider>
+        <WorkflowList />
+      </AuthProvider>
     </MemoryRouter>,
   )
 
 describe('WorkflowList role gating', () => {
   beforeEach(async () => {
     await resetAuthStore()
+    // Ensure auth preconditions are satisfied for data loading in tests
+    useAuthStore.setState({ token: ' bearer-token ' })
     listWorkflowsMock.mockResolvedValue([])
     // Clean up DOM between tests
     document.body.innerHTML = ''

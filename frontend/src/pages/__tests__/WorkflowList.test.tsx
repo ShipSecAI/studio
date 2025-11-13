@@ -3,6 +3,9 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
+import { AuthProvider } from '@/auth/auth-context'
+import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore'
+
 mock.module('@/components/ui/dialog', () => {
   const Dialog = ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <>{children}</> : null
@@ -118,14 +121,33 @@ const makeWorkflow = (id: string, name: string): WorkflowMetadataNormalized =>
 const renderWorkflowList = () =>
   render(
     <MemoryRouter>
-      <WorkflowList />
+      <AuthProvider>
+        <WorkflowList />
+      </AuthProvider>
     </MemoryRouter>
   )
 
 describe('WorkflowList delete workflow flow', () => {
-  beforeEach(() => {
+  async function resetAuthStore() {
+    const persist = (useAuthStore as typeof useAuthStore & { persist?: { clearStorage?: () => Promise<void> } }).persist
+    if (persist?.clearStorage) {
+      await persist.clearStorage()
+    }
+    useAuthStore.setState({
+      token: null,
+      userId: null,
+      organizationId: DEFAULT_ORG_ID,
+      roles: ['ADMIN'],
+      provider: 'local',
+    })
+  }
+
+  beforeEach(async () => {
     listMock.mockReset()
     deleteMock.mockReset()
+    // Ensure auth preconditions are satisfied for data loading in tests
+    await resetAuthStore()
+    useAuthStore.setState({ token: ' bearer-token ' })
     // Clean up any existing dialogs
     document.body.innerHTML = ''
   })
@@ -134,6 +156,15 @@ describe('WorkflowList delete workflow flow', () => {
     // Clean up after each test
     document.body.innerHTML = ''
   })
+  async function findDialogFor(workflowName: string) {
+    const dialogs = await screen.findAllByRole('dialog')
+    for (const dialog of dialogs) {
+      if (within(dialog).queryByText(workflowName)) {
+        return dialog
+      }
+    }
+    return dialogs[dialogs.length - 1]
+  }
 
   it('opens confirmation dialog with workflow details when delete is clicked', async () => {
     const workflow = makeWorkflow('11111111-1111-4111-8111-111111111111', 'Alpha Workflow')
@@ -146,7 +177,7 @@ describe('WorkflowList delete workflow flow', () => {
     const deleteButton = screen.getByRole('button', { name: 'Delete workflow Alpha Workflow' })
     fireEvent.click(deleteButton)
 
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialogFor('Alpha Workflow')
     expect(within(dialog).getByText('Alpha Workflow')).toBeInTheDocument()
     expect(within(dialog).getByText(workflow.id)).toBeInTheDocument()
   })
@@ -161,7 +192,7 @@ describe('WorkflowList delete workflow flow', () => {
     await screen.findByText('Beta Workflow')
     fireEvent.click(screen.getByRole('button', { name: 'Delete workflow Beta Workflow' }))
 
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialogFor('Beta Workflow')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete workflow' }))
 
     await waitFor(() => {
@@ -183,7 +214,7 @@ describe('WorkflowList delete workflow flow', () => {
     await screen.findByText('Gamma Workflow')
     fireEvent.click(screen.getByRole('button', { name: 'Delete workflow Gamma Workflow' }))
 
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await findDialogFor('Gamma Workflow')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete workflow' }))
 
     await waitFor(() => {

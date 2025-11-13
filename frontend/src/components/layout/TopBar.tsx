@@ -27,6 +27,8 @@ interface TopBarProps {
   canManageWorkflows?: boolean
   isExecuting?: boolean
   isAutoSaving?: boolean
+  runDisabled?: boolean
+  canOpenExecution?: boolean
 }
 
 export function TopBar({
@@ -37,6 +39,8 @@ export function TopBar({
   canManageWorkflows = true,
   isExecuting = false,
   isAutoSaving = false,
+  runDisabled = false,
+  canOpenExecution = false,
 }: TopBarProps) {
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
@@ -197,8 +201,14 @@ export function TopBar({
             variant={mode === 'execution' ? 'default' : 'ghost'}
             size="sm"
             className="h-8 px-2 gap-1 rounded-sm"
-            onClick={() => setMode('execution')}
+            onClick={() => {
+              if (!canOpenExecution) return
+              setMode('execution')
+            }}
             aria-pressed={mode === 'execution'}
+            disabled={!canOpenExecution}
+            aria-disabled={!canOpenExecution}
+            title={!canOpenExecution ? 'Run the workflow at least once to view executions' : undefined}
           >
             <MonitorPlay className="h-4 w-4" />
             <span className="text-xs font-medium hidden sm:inline">Execution</span>
@@ -252,7 +262,7 @@ export function TopBar({
             ) : (
               <Button
                 onClick={handleRun}
-                disabled={!canEdit || isRunning || isExecuting}
+              disabled={!canEdit || isRunning || isExecuting || runDisabled}
                 className="gap-2 h-9 rounded-md"
               >
                 <Play className="h-4 w-4" />

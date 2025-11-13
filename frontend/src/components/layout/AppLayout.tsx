@@ -30,7 +30,7 @@ export function useSidebar() {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [isHovered, setIsHovered] = useState(false)
+  const [, setIsHovered] = useState(false)
   const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(true)
   const location = useLocation()
   const navigate = useNavigate()
