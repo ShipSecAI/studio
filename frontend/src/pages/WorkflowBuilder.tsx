@@ -246,7 +246,7 @@ function WorkflowBuilderContent() {
           node_count: nodes.length,
         })
         setMode('execution')
-        await loadRuns().catch(() => undefined)
+        await loadRuns({ force: true }).catch(() => undefined)
         let selected = true
         try {
           await selectRun(runId)
