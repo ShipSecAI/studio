@@ -277,7 +277,7 @@ pm2 start pm2.config.cjs
 
 ## Workflow CLI
 
-- Run `bun --cwd backend run workflow:import --dir ./workflows` to bulk import every workflow JSON file in a folder.
+- Run `bun run workflow:import --dir /home/vadmin/Music/studio/backend/workflow ` tdo bulk import every workflow JSON file in a folder.
 - If `--dir` is omitted the CLI uses `WORKFLOW_IMPORT_DIR` from `backend/.env` when set, otherwise defaults to the repo-level `workflows/` folder (relative to `backend/`); the API base URL now derives from env: set `WORKFLOW_IMPORT_BASE_URL` to override entirely, or rely on `WORKFLOW_IMPORT_HOST`/`WORKFLOW_IMPORT_PORT`/`WORKFLOW_IMPORT_PREFIX` (falling back to `HOST`/`PORT` and `api/v1`) for local defaults.
 - The importer now accepts credentials via `--basic-auth admin:admin` (or `WORKFLOW_IMPORT_BASIC_AUTH`) for the local auth provider, and `--bearer-token <token>` (or `WORKFLOW_IMPORT_BEARER_TOKEN`) when hitting secured environments—set one of these if you see HTTP 401 responses.
 - Each file logs success or failure and existing workflow names are updated instead of duplicated.
