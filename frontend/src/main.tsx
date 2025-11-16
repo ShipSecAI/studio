@@ -4,6 +4,7 @@ import App from './App.tsx'
 import './index.css'
 import { PostHogProvider } from 'posthog-js/react'
 import posthog from 'posthog-js'
+import { initializeTimelineStore } from '@/store/executionTimelineStore'
 
 const apiKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY as string | undefined
 const apiHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undefined
@@ -24,6 +25,8 @@ if (hasPostHog) {
     debug: import.meta.env.DEV,
   })
 }
+
+initializeTimelineStore()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

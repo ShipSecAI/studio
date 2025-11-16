@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,8 @@ import {
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { cn } from '@/lib/utils'
 
+const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
 const PLAYBACK_SPEEDS = [
   { label: '0.1x', value: 0.1 },
   { label: '0.5x', value: 0.5 },
@@ -19,6 +21,14 @@ const PLAYBACK_SPEEDS = [
   { label: '5x', value: 5 },
   { label: '10x', value: 10 },
 ]
+
+const EVENT_COLORS: Record<string, string> = {
+  STARTED: 'bg-blue-500',
+  PROGRESS: 'bg-purple-500',
+  COMPLETED: 'bg-green-500',
+  FAILED: 'bg-red-500',
+  default: 'bg-gray-400 dark:bg-gray-500',
+}
 
 const formatTime = (ms: number): string => {
   if (ms < 1000) return `0:${String(Math.floor(ms / 100)).padStart(2, '0')}`
@@ -40,12 +50,9 @@ const formatTimestamp = (timestamp: string): string => {
 }
 
 export function ExecutionTimeline() {
+  const [timelineStart, setTimelineStart] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
-  const [isPanning, setIsPanning] = useState(false)
-  const [timelineStart, setTimelineStart] = useState(0) // Start position of visible viewport (0-1)
   const timelineRef = useRef<HTMLDivElement>(null)
-  const timelineContentRef = useRef<HTMLDivElement>(null)
-  const animationFrameRef = useRef<number | undefined>(undefined)
 
   const {
     selectedRunId,
@@ -66,132 +73,128 @@ export function ExecutionTimeline() {
     stepForward,
     stepBackward,
     setTimelineZoom,
+    isLiveFollowing,
+    goLive,
+    tickLiveClock,
   } = useExecutionTimelineStore()
 
-  // Reset viewport + zoom whenever a new run is selected so we always show full history
+  const isLiveMode = playbackMode === 'live'
+  const safeDuration = Math.max(totalDuration, 1)
+  const normalizedProgress = clampValue(currentTime / safeDuration, 0, 1)
+  const viewportWidth = 1 / timelineZoom
+  const maxStart = Math.max(0, 1 - viewportWidth)
+  const clampedStart = clampValue(timelineStart, 0, maxStart)
+  const visibleProgress = clampValue(
+    viewportWidth >= 1 ? normalizedProgress : (normalizedProgress - clampedStart) / viewportWidth,
+    0,
+    1,
+  )
+  const viewportStartMs = clampedStart * safeDuration
+  const viewportEndMs = Math.min(safeDuration, (clampedStart + viewportWidth) * safeDuration)
+
   useEffect(() => {
-    if (!selectedRunId) {
-      return
-    }
+    if (!selectedRunId) return
     setTimelineStart(0)
     setTimelineZoom(1)
   }, [selectedRunId, setTimelineZoom])
 
-  // Animation loop for playback with auto-follow
   useEffect(() => {
-    if (isPlaying && playbackMode === 'replay' && !isDragging) {
-      const animate = () => {
-        const newState = useExecutionTimelineStore.getState()
-        const newTime = newState.currentTime + (16.67 * playbackSpeed) // 60fps timing
+    setTimelineStart((prev) => clampValue(prev, 0, maxStart))
+  }, [maxStart])
 
-        if (newTime >= totalDuration) {
-          pause()
-          seek(totalDuration)
-        } else {
-          seek(newTime)
-
-          // Auto-follow: keep current position in viewport during playback
-          const currentProgress = newTime / totalDuration
-          const viewportWidth = 1 / timelineZoom
-          const viewportEnd = timelineStart + viewportWidth
-
-          // If current position is outside viewport, center it
-          if (currentProgress < timelineStart || currentProgress > viewportEnd) {
-            const newStart = Math.max(0, Math.min(1 - viewportWidth, currentProgress - viewportWidth / 2))
-            setTimelineStart(newStart)
-          }
-
-          animationFrameRef.current = requestAnimationFrame(animate)
-        }
-      }
-
-      animationFrameRef.current = requestAnimationFrame(animate)
-    } else {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
+  useEffect(() => {
+    if (!isLiveMode) return
+    let frame: number
+    const pump = () => {
+      tickLiveClock()
+      frame = requestAnimationFrame(pump)
     }
+    frame = requestAnimationFrame(pump)
+    return () => cancelAnimationFrame(frame)
+  }, [isLiveMode, tickLiveClock])
 
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
+  useEffect(() => {
+    const guard = viewportWidth >= 1 ? 0 : viewportWidth * 0.15
+    const lowerBound = clampedStart + guard
+    const upperBound = clampedStart + viewportWidth - guard
+    if (normalizedProgress < lowerBound) {
+      setTimelineStart(clampValue(normalizedProgress - guard, 0, maxStart))
+    } else if (normalizedProgress > upperBound) {
+      setTimelineStart(clampValue(normalizedProgress - (viewportWidth - guard), 0, maxStart))
     }
-  }, [isPlaying, playbackMode, playbackSpeed, isDragging, totalDuration, seek, pause, timelineZoom, timelineStart])
+  }, [normalizedProgress, viewportWidth, clampedStart, maxStart])
 
-  const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || playbackMode === 'live') return
+  const getTimeFromClientX = useCallback(
+    (clientX: number) => {
+      const rect = timelineRef.current?.getBoundingClientRect()
+      if (!rect || rect.width === 0) return null
+      const relative = clampValue((clientX - rect.left) / rect.width, 0, 1)
+      const normalized = clampValue(clampedStart + relative * viewportWidth, 0, 1)
+      return normalized * safeDuration
+    },
+    [clampedStart, viewportWidth, safeDuration],
+  )
 
-    const rect = timelineRef.current.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const viewportPercentage = Math.max(0, Math.min(1, clickX / rect.width))
+  const seekFromClientX = useCallback(
+    (clientX: number) => {
+      const next = getTimeFromClientX(clientX)
+      if (next == null) return
+      seek(next)
+    },
+    [getTimeFromClientX, seek],
+  )
 
-    // Convert viewport position to timeline position considering zoom and pan
-    const viewportWidth = 1 / timelineZoom
-    const timelinePercentage = timelineStart + (viewportPercentage * viewportWidth)
-    const newTime = Math.max(0, Math.min(1, timelinePercentage)) * totalDuration
-
-    seek(newTime)
-  }, [totalDuration, seek, playbackMode, timelineStart, timelineZoom])
-
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault()
-
-      const delta = e.deltaY > 0 ? -0.5 : 0.5 // Zoom out with scroll down, in with scroll up
-      const newZoom = Math.max(1.0, Math.min(100.0, timelineZoom + delta))
-
-      if (newZoom !== timelineZoom) {
-        setTimelineZoom(newZoom)
-
-        // When zooming in, center on current position
-        if (newZoom > timelineZoom && timelineRef.current) {
-          const currentProgress = currentTime / totalDuration
-          const viewportWidth = 1 / newZoom
-          const newStart = Math.max(0, Math.min(1 - viewportWidth, currentProgress - viewportWidth / 2))
-          setTimelineStart(newStart)
-        }
-      }
-    } else if (timelineZoom > 1.0) {
-      // Regular scroll for horizontal panning when zoomed in
-      e.preventDefault()
-      const viewportWidth = 1 / timelineZoom
-      const panAmount = (e.deltaY / 1000) * viewportWidth
-      setTimelineStart(prev => Math.max(0, Math.min(1 - viewportWidth, prev - panAmount)))
-    }
-  }, [timelineZoom, setTimelineZoom, currentTime, totalDuration])
-
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (playbackMode === 'live') return
-
-    // Check if middle mouse button (for panning) or regular click
-    if (e.button === 1) {
-      setIsPanning(true)
-      e.preventDefault()
-    } else {
+  const handleTrackMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return
+      event.preventDefault()
       setIsDragging(true)
-      pause()
-    }
-  }, [pause, playbackMode])
+      seekFromClientX(event.clientX)
+    },
+    [seekFromClientX],
+  )
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (isPanning && timelineRef.current) {
-      const rect = timelineRef.current.getBoundingClientRect()
-      const deltaX = e.movementX / rect.width
-      const viewportWidth = 1 / timelineZoom
-      const newStart = Math.max(0, Math.min(1 - viewportWidth, timelineStart - deltaX))
-      setTimelineStart(newStart)
+  useEffect(() => {
+    if (!isDragging) return
+    const onMove = (event: MouseEvent) => {
+      seekFromClientX(event.clientX)
     }
-  }, [isPanning, timelineStart, timelineZoom])
+    const onUp = () => setIsDragging(false)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [isDragging, seekFromClientX])
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-    setIsPanning(false)
-  }, [])
+  const handleWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (!timelineRef.current) return
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault()
+        const rect = timelineRef.current.getBoundingClientRect()
+        const pivotRatio = clampValue((event.clientX - rect.left) / rect.width, 0, 1)
+        const pivotPoint = clampedStart + pivotRatio * viewportWidth
+        const delta = event.deltaY > 0 ? -0.5 : 0.5
+        const nextZoom = clampValue(timelineZoom + delta, 1, 100)
+        if (nextZoom === timelineZoom) return
+        const nextViewportWidth = 1 / nextZoom
+        const nextMaxStart = Math.max(0, 1 - nextViewportWidth)
+        const nextStart = clampValue(pivotPoint - nextViewportWidth * pivotRatio, 0, nextMaxStart)
+        setTimelineZoom(nextZoom)
+        setTimelineStart(nextStart)
+      } else if (timelineZoom > 1) {
+        event.preventDefault()
+        const delta = (event.deltaY / 500) * viewportWidth
+        setTimelineStart((prev) => clampValue(prev + delta, 0, maxStart))
+      }
+    },
+    [timelineZoom, viewportWidth, clampedStart, maxStart, setTimelineZoom],
+  )
 
   const handlePlayPause = useCallback(() => {
     if (playbackMode === 'live') return
-
     if (isPlaying) {
       pause()
     } else {
@@ -199,69 +202,61 @@ export function ExecutionTimeline() {
     }
   }, [isPlaying, play, pause, playbackMode])
 
-  const handleSpeedChange = useCallback((speed: number) => {
-    setPlaybackSpeed(speed)
-  }, [setPlaybackSpeed])
+  const handleSpeedChange = useCallback(
+    (speed: number) => {
+      setPlaybackSpeed(speed)
+    },
+    [setPlaybackSpeed],
+  )
 
+  const markerData = useMemo(() => {
+    if (events.length === 0) return []
+    return events.map((event) => {
+      const normalized = clampValue(event.offsetMs / safeDuration, 0, 1)
+      const viewportPosition =
+        viewportWidth >= 1 ? normalized : (normalized - clampedStart) / viewportWidth
+      return {
+        id: event.id,
+        type: event.type,
+        timestamp: event.timestamp,
+        viewportPosition,
+        normalizedPosition: normalized,
+        visible: viewportPosition >= 0 && viewportPosition <= 1,
+      }
+    })
+  }, [events, safeDuration, clampedStart, viewportWidth])
 
-  // Calculate progress percentage with better bounds checking
-  const progress = totalDuration > 0 ? Math.min(100, Math.max(0, (currentTime / totalDuration) * 100)) : 0
+  const visibleMarkers = markerData.filter((marker) => marker.visible)
 
-  // Generate event markers
-  const markerBaseColors: Record<string, string> = {
-    STARTED: 'bg-blue-300/60 dark:bg-blue-700/60',
-    PROGRESS: 'bg-purple-300/60 dark:bg-purple-700/60',
-    COMPLETED: 'bg-green-300/60 dark:bg-green-700/60',
-    FAILED: 'bg-red-300/60 dark:bg-red-700/60',
-    default: 'bg-muted-foreground/60'
-  }
+  const handlePreviewPointer = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect()
+      if (!rect.width) return
+      const ratio = clampValue((event.clientX - rect.left) / rect.width, 0, 1)
+      const nextStart = clampValue(ratio - viewportWidth / 2, 0, maxStart)
+      setTimelineStart(nextStart)
+    },
+    [viewportWidth, maxStart],
+  )
 
-  const markerViewportColors: Record<string, string> = {
-    STARTED: 'bg-blue-400 dark:bg-blue-300',
-    PROGRESS: 'bg-purple-400 dark:bg-purple-300',
-    COMPLETED: 'bg-green-400 dark:bg-green-300',
-    FAILED: 'bg-red-400 dark:bg-red-300',
-    default: 'bg-gray/80'
-  }
-
-  const markerAccentColors: Record<string, string> = {
-    STARTED: 'bg-blue-600',
-    PROGRESS: 'bg-purple-500',
-    COMPLETED: 'bg-green-600',
-    FAILED: 'bg-red-600',
-    default: 'bg-gray-500'
-  }
-
-  const eventMarkers = events.map((event) => {
-    const percentage = totalDuration > 0
-      ? Math.min(100, Math.max(0, (event.offsetMs / totalDuration) * 100))
-      : 0
-
-    // Determine if event is within current visible timeline range
-    const viewportWidth = 1 / timelineZoom
-    const isWithinViewport = timelineZoom > 1.0 
-      ? (percentage / 100) >= timelineStart && (percentage / 100) <= (timelineStart + viewportWidth)
-      : true // Show all events when zoomed out
-      
-    // Determine if event is close to current seeker position (within 2% of timeline for better highlighting)
-    const isNearSeeker = Math.abs(percentage - progress) <= 2
-
-    const baseColor = markerBaseColors[event.type] ?? markerBaseColors.default
-    const viewportColor = markerViewportColors[event.type] ?? markerViewportColors.default
-    const accentColor = markerAccentColors[event.type] ?? markerAccentColors.default
-
-    const color = isNearSeeker
-      ? accentColor
-      : (isWithinViewport ? viewportColor : baseColor)
-
-    return { 
-      percentage, 
-      color, 
-      event,
-      isWithinViewport,
-      isNearSeeker
+  useEffect(() => {
+    if (!isPlaying || playbackMode !== 'replay') return
+    let frame: number
+    const step = () => {
+      const state = useExecutionTimelineStore.getState()
+      const delta = 16.67 * state.playbackSpeed
+      const nextTime = Math.min(state.totalDuration, state.currentTime + delta)
+      if (nextTime >= state.totalDuration) {
+        pause()
+        seek(state.totalDuration)
+        return
+      }
+      seek(nextTime)
+      frame = requestAnimationFrame(step)
     }
-  })
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [isPlaying, playbackMode, pause, seek])
 
   if (!selectedRunId || !showTimeline) {
     return null
@@ -270,10 +265,8 @@ export function ExecutionTimeline() {
   return (
     <div className="border-t bg-background">
       <div className="p-4 space-y-4">
-        {/* Header with controls */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* Playback Controls */}
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -283,20 +276,14 @@ export function ExecutionTimeline() {
               >
                 <SkipBack className="h-4 w-4" />
               </Button>
-
               <Button
                 variant="outline"
                 size="icon"
                 onClick={handlePlayPause}
                 disabled={playbackMode === 'live'}
               >
-                {isPlaying ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
+                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </Button>
-
               <Button
                 variant="outline"
                 size="icon"
@@ -306,8 +293,6 @@ export function ExecutionTimeline() {
                 <SkipForward className="h-4 w-4" />
               </Button>
             </div>
-
-            {/* Speed Control */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -324,22 +309,18 @@ export function ExecutionTimeline() {
                   <DropdownMenuItem
                     key={speed.value}
                     onClick={() => handleSpeedChange(speed.value)}
-                    className={cn(
-                      playbackSpeed === speed.value && "bg-accent"
-                    )}
+                    className={cn(playbackSpeed === speed.value && 'bg-accent')}
                   >
                     {speed.label}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {/* Mode Indicator */}
             <Badge
-              variant={playbackMode === 'live' ? 'default' : 'secondary'}
+              variant={isLiveMode ? 'default' : 'secondary'}
               className="flex items-center gap-1"
             >
-              {playbackMode === 'live' ? (
+              {isLiveMode ? (
                 <>
                   <div className="w-2 h-2 bg-current rounded-full animate-pulse" />
                   LIVE
@@ -348,242 +329,145 @@ export function ExecutionTimeline() {
                 'EXECUTION'
               )}
             </Badge>
+            {isLiveMode && !isLiveFollowing && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-red-500 border-red-400 bg-red-50">
+                  Behind live
+                </Badge>
+                <Button size="sm" onClick={goLive} className="bg-red-500 text-white hover:bg-red-600">
+                  Go Live
+                </Button>
+              </div>
+            )}
           </div>
-
         </div>
 
-        {/* Timeline */}
-        <div className="space-y-2">
-          {/* Time display */}
+        <div className="space-y-2 relative">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{formatTime(timelineZoom > 1.0 ? timelineStart * totalDuration : 0)}</span>
-            <span>
-              {playbackMode === 'live' ? (
-                <span className="flex items-center gap-1 text-red-500">
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  LIVE
-                </span>
-              ) : (
-                formatTime(currentTime)
-              )}
-            </span>
-            <span>
-              {timelineZoom > 1.0
-                ? formatTime(Math.min(totalDuration, (timelineStart + (1 / timelineZoom)) * totalDuration))
-                : formatTime(totalDuration)}
-            </span>
+            <span>{formatTime(viewportStartMs)}</span>
+            <span>{formatTime(viewportEndMs)}</span>
           </div>
-
-          {/* Main Timeline Track */}
           <div
             ref={timelineRef}
-            className="relative h-12 bg-muted rounded-lg border transition-all hover:border-blue-300/50 overflow-hidden"
+            className="relative h-14 bg-muted rounded-lg border transition-all hover:border-blue-300/50 overflow-hidden"
+            onMouseDown={handleTrackMouseDown}
             onWheel={handleWheel}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            title="Ctrl/Cmd + Scroll to zoom • Scroll to pan • Click to seek"
           >
-            {/* Timeline Content (scrollable) */}
             <div
-              ref={timelineContentRef}
-              className="relative h-full cursor-pointer z-10"
-              onClick={handleTimelineClick}
-              onMouseDown={handleMouseDown}
-              onMouseUp={handleMouseUp}
+              className="absolute inset-y-3 left-0 bg-gradient-to-r from-blue-400/30 to-blue-500/40 rounded-r-full"
+              style={{ width: `${visibleProgress * 100}%` }}
+            />
+            {visibleMarkers.map((marker) => (
+              <div
+                key={marker.id}
+                className={cn(
+                  'absolute top-3 bottom-3 w-[2px] rounded-full',
+                  EVENT_COLORS[marker.type] ?? EVENT_COLORS.default,
+                )}
+                style={{ left: `${marker.viewportPosition * 100}%` }}
+                title={`${marker.type} • ${formatTimestamp(marker.timestamp)}`}
+              />
+            ))}
+            {(playbackMode === 'replay' || isLiveMode) && (
+              <div className="absolute inset-0 pointer-events-none">
+                <div
+                  className="absolute inset-y-2 w-10 -ml-5 flex flex-col items-center gap-2"
+                  style={{ left: `${visibleProgress * 100}%` }}
+                >
+                  <div
+                    className={cn(
+                      'flex-1 w-[3px] rounded-full shadow-lg',
+                      isLiveMode ? 'bg-red-400' : 'bg-blue-400',
+                    )}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          {(playbackMode === 'replay' || isLiveMode) && (
+            <div
+              className="absolute pointer-events-none"
               style={{
-                width: `${Math.max(100, 100 * timelineZoom)}%`,
-                transform: `translateX(-${timelineStart * 100}%)`,
-                transition: isPanning ? 'none' : 'transform 0.1s'
+                left: `${visibleProgress * 100}%`,
+                top: 'calc(100% - 6px)',
+                transform: 'translateX(-50%)',
+                zIndex: 20,
               }}
             >
-              {/* Progress Bar */}
-              <div
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400/20 to-blue-500/30 transition-all duration-150"
-                style={{
-                  width: `${progress}%`,
-                  left: `${timelineStart * 100}%`
+              <button
+                type="button"
+                className={cn(
+                  'pointer-events-auto relative px-2 py-1 text-xs text-white rounded-md shadow-md whitespace-nowrap',
+                  isLiveMode ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600',
+                )}
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setIsDragging(true)
+                  seekFromClientX(event.clientX)
                 }}
-              />
-
-              {/* Event Markers - Clickable */}
-              {eventMarkers.map((marker) => {
-                const { event } = marker
-                const thicknessClass = marker.isNearSeeker
-                  ? 'w-[3px]'
-                  : 'w-[2px]'
-                const verticalPaddingClass = marker.isNearSeeker
-                  ? 'top-1 bottom-1'
-                  : 'top-2 bottom-2'
-                const baseClasses = marker.isNearSeeker
-                  ? marker.color
-                  : 'bg-gray-400 dark:bg-gray-500 border border-gray-200/80 dark:border-gray-700'
-                return (
-                  <div
-                    key={marker.event.id}
-                    className={cn(
-                      "absolute rounded-full cursor-pointer transition-all duration-150",
-                      baseClasses,
-                      marker.isNearSeeker && "border border-white/50 shadow-[0_0_6px_rgba(0,0,0,0.25)]",
-                      "hover:ring-2 hover:ring-white/60 hover:scale-110",
-                      thicknessClass,
-                      verticalPaddingClass
-                    )}
-                    style={{
-                      left: `${marker.percentage}%`,
-                      transform: 'translateX(-50%)',
-                    }}
-                    title={`${event.type} - ${event.nodeId || 'System'} - ${formatTimestamp(event.timestamp)}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      seek(event.offsetMs)
-                    }}
-                  />
-                )
-              })}
-
-              {/* Main Scrubber/Playhead */}
-              {playbackMode === 'replay' && (
-                <div
-                  className="absolute top-0 bottom-0 w-1 bg-white border-2 border-blue-500 rounded-full cursor-grab active:cursor-grabbing shadow-lg transition-all hover:w-1.5"
+              >
+                {formatTime(currentTime)}
+                <span
+                  className="absolute -top-1 left-1/2 block h-2 w-2"
                   style={{
-                    left: `${progress}%`,
-                    transform: 'translateX(-50%)',
+                    transform: 'translateX(-50%) rotate(45deg)',
+                    backgroundColor: isLiveMode ? '#ef4444' : '#3b82f6',
                   }}
-                  onMouseDown={handleMouseDown}
-                >
-                  <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-blue-500 rounded-full shadow-md" />
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-md">
-                    {formatTime(currentTime)}
-                  </div>
-                </div>
-              )}
-
-              {/* Live Mode Indicator */}
-              {playbackMode === 'live' && (
-                <div
-                  className="absolute top-0 bottom-0 w-1 bg-red-500"
-                  style={{
-                    left: '100%',
-                    transform: 'translateX(-50%)',
-                  }}
-                >
-                  <div className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-md" />
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-md">
-                    LIVE
-                  </div>
-                </div>
-              )}
+                />
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Timeline Preview Pane */}
-        <div className="space-y-1">
+        <div className="space-y-2 mt-4 pt-2 border-t border-border/50">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Timeline Overview</span>
             <span className="text-blue-600 dark:text-blue-400">
-              {timelineZoom > 1.0 ? `Zoom: ${Math.round(timelineZoom * 100)}%` : ''}
+              {timelineZoom > 1 ? `Zoom: ${Math.round(timelineZoom * 100)}%` : ''}
             </span>
           </div>
           <div
-            ref={timelineContentRef}
-            className="relative h-8 bg-muted rounded-lg border cursor-pointer overflow-hidden"
-            onClick={(e) => {
-              if (!isPanning) {
-                const rect = e.currentTarget.getBoundingClientRect()
-                const clickX = e.clientX - rect.left
-                const percentage = clickX / rect.width
-
-                if (timelineZoom > 1.0) {
-                  // Center viewport on clicked position
-                  const viewportWidth = 1 / timelineZoom
-                  const newStart = Math.max(0, Math.min(1 - viewportWidth, percentage - viewportWidth / 2))
-                  setTimelineStart(newStart)
-                }
+            className="relative h-8 bg-muted rounded-lg border overflow-hidden cursor-pointer"
+            onMouseDown={handlePreviewPointer}
+            onMouseMove={(event) => {
+              if (event.buttons & 1) {
+                handlePreviewPointer(event)
               }
             }}
-            onMouseMove={(e) => {
-              if (isPanning && timelineZoom > 1.0) {
-                const rect = e.currentTarget.getBoundingClientRect()
-                const clickX = e.clientX - rect.left
-                const percentage = clickX / rect.width
-                const viewportWidth = 1 / timelineZoom
-                const newStart = Math.max(0, Math.min(1 - viewportWidth, percentage - viewportWidth / 2))
-                setTimelineStart(newStart)
-              }
-            }}
-            onMouseUp={() => {
-              if (isPanning) {
-                setIsPanning(false)
-              }
-            }}
-            onMouseLeave={() => {
-              if (isPanning) {
-                setIsPanning(false)
-              }
-            }}
-            title="Click to jump to section • Drag blue area to select view"
+            title="Click or drag to reposition view"
           >
-            {/* Full timeline events (miniature) - show all events in preview but highlight those in current view */}
-            {eventMarkers.map((marker) => (
+            {markerData.map((marker) => (
               <div
-                key={`preview-${marker.event.id}`}
+                key={`preview-${marker.id}`}
                 className={cn(
-                  "absolute top-2 bottom-2 w-1 rounded-full",
-                  marker.color.replace('500', '300'), // Use lighter shade for preview
-                  marker.isWithinViewport ? "opacity-60" : "opacity-30",  // Highlight events in current viewport
-                  marker.isNearSeeker ? "opacity-100" : ""  // Extra highlight for events near seeker
+                  'absolute top-2 bottom-2 w-[2px] rounded-full opacity-30',
+                  EVENT_COLORS[marker.type] ?? EVENT_COLORS.default,
                 )}
-                style={{
-                  left: `${marker.percentage}%`,
-                  transform: 'translateX(-50%)',
-                }}
+                style={{ left: `${marker.normalizedPosition * 100}%` }}
               />
             ))}
-
-            {/* Viewport indicator (selectable area) */}
-            {timelineZoom > 1.0 && (
-              <div
-                className="absolute top-0 bottom-0 bg-blue-500/20 border border-blue-400/50 rounded cursor-move"
-                style={{
-                  left: `${timelineStart * 100}%`,
-                  width: `${(1 / timelineZoom) * 100}%`
-                }}
-                onMouseDown={(e) => {
-                  e.stopPropagation()
-                  setIsPanning(true)
-                }}
-              />
-            )}
-
-            {/* Current position indicator */}
+            <div
+              className="absolute top-0 bottom-0 bg-blue-500/20 border border-blue-400/40 rounded"
+              style={{ left: `${clampedStart * 100}%`, width: `${viewportWidth * 100}%` }}
+            />
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-red-500"
-              style={{
-                left: `${(currentTime / totalDuration) * 100}%`,
-                transform: 'translateX(-50%)'
-              }}
+              style={{ left: `${normalizedProgress * 100}%`, transform: 'translateX(-50%)' }}
             >
               <div className="absolute -top-1 -left-1 w-2 h-2 bg-red-500 rounded-full" />
             </div>
           </div>
         </div>
 
-        {/* Additional info */}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
             <span>{events.length} events</span>
             <span>{Object.keys(nodeStates).length} nodes</span>
-            {playbackMode === 'replay' && (
-              <span>Speed: {playbackSpeed}x</span>
-            )}
+            {playbackMode === 'replay' && <span>Speed: {playbackSpeed}x</span>}
           </div>
-
           <div className="flex items-center gap-4">
-            {isSeeking && (
-              <span className="text-blue-500">Seeking...</span>
-            )}
+            {isSeeking && <span className="text-blue-500">Seeking...</span>}
             {isPlaying && playbackMode === 'replay' && (
               <span className="text-green-500">Playing...</span>
             )}
