@@ -1,282 +1,298 @@
-# ShipSec Studio – Local Development Guide
+# ShipSec Studio
 
-This repository powers ShipSec Studio: a Temporal-backed, component-driven workflow platform for offensive security automation. The sections below capture the commands we use every day to run the stack, stream logs safely, and execute tests.
+> The execution studio for security teams. Design reusable reconnaissance workflows, see every run unfold live, and keep humans in the loop with opinionated guardrails.
 
-## Documentation Map
-- `docs/guide.md` – Table of contents for architecture docs, package guides, and `.ai` decision logs.
-- `frontend/README.md` – Frontend-specific workflow (with deeper dives in `frontend/docs/*`).
-- `docs/execution-contract.md` – Canonical schemas for workflow runs and trace streaming. Update this first when contracts change.
-- `docs/analytics.md` – Frontend analytics (PostHog) setup, gating, and troubleshooting.
-- `.github/pull_request_template.md` – Checklist reminding you to keep docs in sync with code changes.
+![Security Automation](https://img.shields.io/badge/Security-Automation-orange)
+![Live Observability](https://img.shields.io/badge/Live-Observability-blue)
+![Component Catalog](https://img.shields.io/badge/Component-Catalog-4CAF50)
 
-## Prerequisites
+ShipSec Studio bundles everything you need to design security workflows: a visual builder for automation graphs, a typed API for orchestration, and a worker tier that executes components inside guarded containers.
 
-Before starting, ensure you have:
+---
 
-- **Docker** (minimum 8 GB RAM allocated to Docker Desktop)
-- **Bun** runtime ([install here](https://bun.sh))
-- **PM2** process manager: `npm install -g pm2`
-- **Just** command runner: `sudo pacman -S just` (Arch) or `brew install just` (macOS)
-- Ports `5433`, `7233`, `8081`, `9000`, `9001`, and `3100` available
+## Product Tour
 
-## Docker Setup (Quick Start)
+| Workflow Builder | Live Execution Timeline | Secrets & Integrations |
+| --- | --- | --- |
+| ![Workflow Builder](docs/media/workflow-builder.png) | ![Execution Timeline](docs/media/live-timeline.png) | ![Secrets & Integrations](docs/media/secrets-vault.png) |
 
-**Infrastructure Only (Recommended for Development):**
-```bash
-just infra-up     # Start PostgreSQL, Temporal, MinIO, Loki
-just infra-down   # Stop infrastructure
-just infra-logs   # View logs
+> 📸 Drop fresh PNG/WebP screenshots into `docs/media/` (same filenames) to update this gallery without touching the README.
+
+---
+
+## Table of Contents
+
+- [Why ShipSec Studio?](#why-shipsec-studio)
+- [Architecture at a Glance](#architecture-at-a-glance)
+- [Quick Start](#quick-start)
+- [Operating the Stack](#operating-the-stack)
+- [Running Tests & Quality Gates](#running-tests--quality-gates)
+- [Observability & Analytics](#observability--analytics)
+- [Documentation Map](#documentation-map)
+- [Troubleshooting](#troubleshooting)
+- [Contributing & Support](#contributing--support)
+
+---
+
+## Why ShipSec Studio?
+
+- **Component-driven orchestration** – Drag-and-drop vetted discovery, DNS, HTTP, and enrichment components or wire in custom activities through the ShipSec SDK.
+- **Temporal reliability** – Every workflow run becomes a `shipsec-run-*` Temporal execution with retries, heartbeats, and resumability baked in.
+- **Live execution visibility** – Runs stream structured traces, Loki-backed logs, and per-node progress to the canvas in real time.
+- **Team-ready guardrails** – Secrets live behind Clerk-gated orgs, analytics respect privacy defaults, and every contract is enforced via shared Zod schemas.
+- **Single-machine friendly** – Docker Compose, PM2, and Bun keep the full stack runnable on a laptop while remaining production-faithful.
+
+---
+
+## Architecture at a Glance
+
+ShipSec Studio is a Bun workspace with four top-level apps plus shared packages.
+
+```
+studio-main/
+├─ frontend/   # React + Vite execution studio
+├─ backend/    # NestJS API, Temporal client, Loki bridge
+├─ worker/     # Temporal workers + security tool runners
+├─ packages/   # Shared SDKs and Zod contracts (@shipsec/shared, etc.)
+└─ docs/ & .ai/ # Specs, runbooks, implementation plans
 ```
 
-**Full Docker Setup:**
-```bash
-just up           # Start everything in Docker
-just down         # Stop all containers
-just logs         # View all logs
-```
+### Module responsibilities
 
-**Services Available:**
-- PostgreSQL: localhost:5433
-- Temporal: localhost:7233
-- Temporal UI: http://localhost:8081
-- MinIO: http://localhost:9000 (minioadmin/minioadmin)
-- MinIO Console: http://localhost:9001
-- Loki: http://localhost:3100
+- **Frontend (`frontend/src/features`)** – Workflow builder, execution timeline, and observability views powered by Zustand stores.
+- **Backend (`backend/src/modules`)** – REST + SSE surface for workflows, trace streaming, and metadata. Schema lives in `backend/src/db`.
+- **Worker (`worker/src/temporal`)** – Activity runners that wrap ProjectDiscovery tools (dnsx, katana, etc.) with consistent JSON contracts.
+- **Shared packages (`packages/*`)** – Zod schemas, SDK helpers, and component manifests consumed across tiers.
+- **Docs & runbooks (`docs`, `.ai/`)** – Execution contracts, observability roadmap, and incident notes. Update them when behaviour changes.
 
-Optional analytics in Docker:
-- When using `docker/docker-compose.full.yml`, you can pass PostHog vars via shell export or a `.env` file next to the compose:
-  - `VITE_PUBLIC_POSTHOG_KEY`
-  - `VITE_PUBLIC_POSTHOG_HOST`
-  If unset, the frontend disables analytics automatically.
+---
 
-## Initial Setup (First Time Only)
+## Quick Start
 
-Follow these steps in order when setting up the project for the first time:
+### Prerequisites
 
-### 1. Install Dependencies
+- Docker Desktop with ≥8 GB RAM
+- Bun runtime ([bun.sh](https://bun.sh))
+- PM2 (`npm install -g pm2`)
+- `just` command runner (`brew install just` or `sudo pacman -S just`)
+- Open ports: `5433`, `7233`, `8081`, `9000`, `9001`, `3100`
+
+### 1. Clone & install dependencies
 
 ```bash
 bun install
 ```
 
-### 2. Configure Environment Variables
-
-Create `.env` files from examples:
+### 2. Configure environment variables
 
 ```bash
-# Backend environment
 cp backend/.env.example backend/.env
-
-# Worker environment
 cp worker/.env.example worker/.env
-
-# Frontend environment
 cp frontend/.env.example frontend/.env
 ```
 
-Adjust values in the `.env` files if needed (defaults work for local development).
-
-Optional (analytics in dev): add to `frontend/.env` if you want PostHog enabled locally. Without these, analytics remains disabled.
+Optional PostHog analytics in dev:
 
 ```
 VITE_PUBLIC_POSTHOG_KEY=phc_...
-VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com   # or your self-hosted URL
+VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
-### 3. Start Docker Infrastructure
+### 3. Bring up the shared infrastructure
 
 ```bash
-just infra-up     # Start Postgres, Temporal, MinIO, and Loki
-just status       # Verify all services are healthy
+just infra-up     # Postgres, Temporal, MinIO, Loki
+just status       # Health check
 ```
 
-### 4. Apply Database Migrations
+### 4. Run migrations
 
 ```bash
 bun run migrate
 ```
 
-This creates the required Postgres schema for the backend.
-
-> **Note**: The migration command uses the `DATABASE_URL` from `backend/.env`, which is automatically loaded by the migration script.
-
----
-
-## Daily Development
-
-For regular development after initial setup:
-
-### 1. Start Docker Services
-
-```bash
-just infra-up     # Start infrastructure
-just status       # Verify services are running
-```
-
-### 2. Start Backend & Worker
+### 5. Start backend, worker, and frontend
 
 ```bash
 pm2 start pm2.config.cjs
 pm2 status
 
-# Check logs (use timeout to avoid hanging)
 timeout 5s pm2 logs backend --lines 50 || true
 timeout 5s pm2 logs worker --lines 50 || true
 ```
 
-> **Note**: The backend automatically runs migrations on startup, but you can run `bun run migrate` manually after pulling schema changes.
-> **SWC tip**: The PM2 config now resolves the native `@swc/core` binary dynamically. If you see a warning about the resolver, confirm the optional platform package installed correctly (`bun install` on the target host).
-
-### 3. Start Frontend
+Frontends can either run through PM2 (see `pm2.config.cjs`) or directly via Vite:
 
 ```bash
-cd frontend
-bun run dev
+bun --cwd frontend dev
 ```
 
-The application will be available at:
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3211
-- **Temporal UI**: http://localhost:8081
-- **MinIO Console**: http://localhost:9001
+Default endpoints:
+- Frontend builder → http://localhost:5173
+- Backend API → http://localhost:3211
+- Temporal UI → http://localhost:8081
+- MinIO console → http://localhost:9001
+
+> The backend also runs migrations on boot, but `bun run migrate` keeps your schema honest after pulling changes.
 
 ---
 
-## One-Command Dev Stack
+## Operating the Stack
 
-Prefer a single command? Run the entire development stack—Docker services, backend + worker, and the Vite dev server—via PM2:
+### Docker workflow
 
 ```bash
-# Start Temporal/Postgres/MinIO/Loki, backend, worker, and frontend dev server
+just infra-up     # Infra only (recommended)
+just infra-down
+just infra-logs
+```
+
+Full containerized stack (services + apps):
+
+```bash
+just up
+just down
+just logs
+```
+
+Services map
+
+- PostgreSQL → `localhost:5433`
+- Temporal gRPC → `localhost:7233`
+- Temporal UI → `http://localhost:8081`
+- MinIO → `http://localhost:9000` (`minioadmin/minioadmin`)
+- MinIO Console → `http://localhost:9001`
+- Loki → `http://localhost:3100`
+
+### Local PM2 stack
+
+```bash
+pm2 startOrReload pm2.config.cjs
+pm2 logs shipsec-frontend
+pm2 logs shipsec-backend
+pm2 logs shipsec-worker
+```
+
+### One-command dev stack
+
+Prefer a single entrypoint that runs Docker infra, backend, worker, and the Vite dev server? Use the orchestrated script:
+
+```bash
 bun run dev:stack
 ```
 
-The script performs the following steps:
-
-1. `docker compose -p shipsec up -d` to bring up Temporal, Postgres, MinIO, and Loki.
-2. `pm2 startOrReload pm2.config.cjs` to launch:
-   - `shipsec-backend` (Bun dev server for the API),
-   - `shipsec-worker` (Temporal worker, default task queue),
-   - `shipsec-frontend` (Vite dev server).
-3. `pm2 logs shipsec-frontend` streams the frontend output for live iteration. Press `Ctrl+C` to stop tailing; PM2 keeps the apps running in the background.
+It performs three steps for you:
+1. `docker compose -p shipsec up -d` to ensure Temporal, Postgres, MinIO, and Loki are available.
+2. `pm2 startOrReload pm2.config.cjs` to boot `shipsec-backend`, `shipsec-worker`, and `shipsec-frontend`.
+3. `pm2 logs shipsec-frontend` to stream builder output (press `Ctrl+C` to detach without stopping the processes).
 
 ### Stopping the stack
 
 ```bash
-bun run dev:stack:stop
+bun run dev:stack:stop      # Stops PM2 apps + docker compose -p shipsec down
 ```
 
-This shuts down the PM2 apps (backend, worker, frontend) and runs `docker compose -p shipsec down`.
-
-### Inspecting status or additional logs
+Manual shutdown:
 
 ```bash
-pm2 status
-pm2 logs shipsec-backend
-pm2 logs shipsec-worker
-```
-## Running Tests and Quality Gates
-
-```bash
-# Full monorepo tests
-bun run test
-
-# Targeted test suites
-bun run --filter backend test
-bun run --filter worker test
-
-# Code quality checks
-bun run lint
-bun run typecheck
-
-# Migration smoke test (runs migrations inside a rollback transaction)
-bun --cwd backend run migration:smoke
-```
-
-## Documentation Updates
-Treat docs like code:
-- Touch the closest guide whenever behaviour or APIs change (e.g., update `frontend/docs/state.md` when store contracts shift).
-- Reflect new or relocated docs in `docs/guide.md` so other teams can find them.
-- Note the documentation work (or why none was needed) in the PR template—this keeps the history useful for humans and automation.
-- Optional: run a Markdown linter if you have one locally; otherwise keep formatting consistent with existing files.
-
----
-
-## Shutting Down
-
-```bash
-# Stop application processes
 pm2 stop all
-
-# Stop Docker services
 docker compose -p shipsec down
-
-# Optional: Remove persistent volumes for a clean slate
-docker compose -p shipsec down --volumes
 ```
 
-> **Note**: After `docker compose down --volumes`, you'll need to re-run the Temporal namespace setup (step 4 in Initial Setup).
+Add `--volumes` to wipe data, then rerun migrations + Temporal namespace setup.
+
+### Logs & telemetry
+
+- Use `timeout 5s pm2 logs <process> --lines 50` to avoid stuck tails.
+- Loki is pre-wired; point Grafana or scripts at `http://localhost:3100` with the `shipsec` tenant.
 
 ---
 
-## Troubleshooting Tips
-
-### Temporal Namespace Not Found Error
-
-If you see `Namespace shipsec-dev is not found`:
+## Running Tests & Quality Gates
 
 ```bash
-# Re-run the one-time setup
+bun run test                     # Monorepo tests
+bun run --filter backend test    # Backend focus
+bun run --filter worker test     # Worker focus
+bun run lint                     # ESLint + Prettier
+bun run typecheck                # tsc project references
+bun --cwd backend run migration:smoke   # Migration guard
+```
+
+Backend integration suites (Temporal + Postgres) require the docker infra and can be toggled with `RUN_BACKEND_INTEGRATION=true`.
+
+---
+
+## Observability & Analytics
+
+- Contracts live in [`docs/execution-contract.md`](docs/execution-contract.md) and `@shipsec/shared`. Update both when payloads change.
+- `.ai/implementation-plan.md` tracks the observability roadmap (Phases 0–8) with status notes.
+- `.ai/visual-execution-notes.md` captures live tracing learnings and UI expectations.
+- Loki pipelines (Phase 5) and live trace streaming (Phase 6) are already shipped—preserve their schemas when extending functionality.
+- Frontend analytics are opt-in. Set `VITE_PUBLIC_POSTHOG_KEY`/`HOST` to enable typed events listed in `docs/analytics.md`.
+
+---
+
+## Documentation Map
+
+- `docs/guide.md` – master index of architecture docs and `.ai` decision logs.
+- `docs/execution-contract.md` – canonical workflow + trace schemas.
+- `docs/analytics.md` – PostHog setup, env gating, troubleshooting.
+- `frontend/README.md` – builder-specific workflows and Tailwind conventions.
+- `.ai/implementation-plan.md` – multi-phase observability plan (current status: Phases 5–7 ✅, Phase 8 planned).
+- `.ai/*` – component SDK notes, temporal worker architecture, runbooks, differentiators.
+
+Treat docs like code: update the closest guide whenever behaviour changes and note the doc work (or why none was needed) in PRs.
+
+---
+
+## Troubleshooting
+
+### Temporal namespace missing
+
+```bash
 docker compose -p shipsec --profile setup up -d
 ```
 
-### Temporal Not Reachable
-
-Ensure Docker is running and Temporal is healthy:
+### Temporal not reachable
 
 ```bash
-docker compose -p shipsec ps
-# Look for "healthy" status on the temporal service
+docker compose -p shipsec ps   # Expect "healthy" Temporal containers
 ```
 
-### PM2 Processes Crash Immediately
+### PM2 process crash
 
-1. Check environment variables match Docker services (Postgres password, Temporal namespace)
-2. Ensure Temporal namespace exists: `docker logs shipsec-temporal-setup`
-3. Verify migrations have run: `bun run migrate`
+1. Verify `.env` values match Docker services.
+2. Ensure Temporal namespace exists (`docker logs shipsec-temporal-setup`).
+3. Re-run migrations (`bun run migrate`) and restart PM2.
 
-### Database Schema Incomplete
-
-The migration guard detected missing tables:
+### Database schema drift
 
 ```bash
 bun run migrate
 pm2 restart all
 ```
 
-### Clean Rebuild
-
-For a completely fresh start:
+### Clean rebuild
 
 ```bash
-# Stop everything
 pm2 stop all
 docker compose -p shipsec down --volumes
-
-# Remove all ShipSec volumes
 docker volume ls -q | grep shipsec | xargs -r docker volume rm
 
-# Start from scratch
-docker compose -p shipsec up -d
-docker compose -p shipsec --profile setup up -d
+just infra-up
 bun run migrate
 pm2 start pm2.config.cjs
 ```
 
 ---
 
-## Additional Resources
+## Contributing & Support
 
-- **Execution Contract**: Formal schemas for workflow run status and trace events live in [`docs/execution-contract.md`](docs/execution-contract.md)
-- **Shared Types**: The `@shipsec/shared` package (`packages/shared`) exports Zod schemas used by backend and frontend
-- **Architecture**: See `ARCHITECTURE.md`, `.ai/implementation-plan.md`, and docs in the `.ai/` folder for deeper context
+- Follow Conventional Commit subjects (`feat:`, `fix:`, `docs:`) and reference issues/milestones in PRs.
+- Run `bun run test`, `bun run lint`, and `bun run typecheck` before opening a PR; mention any intentional gaps.
+- Keep workflow IDs in the `shipsec-run-*` shape and reuse shared schemas instead of bespoke types.
+- For new workflows or contract changes, validate against `docs/execution-contract.md`, add fixtures, and document manual validation (Temporal run IDs, Loki queries) in the PR description.
+- Need help? Start with `docs/guide.md`, `.ai/visual-execution-notes.md`, or open a discussion/issue referencing the relevant module.
+
+Bring your own creativity—ShipSec Studio is built to be extended.
