@@ -25,6 +25,15 @@
 - **UI wiring:** TopBar surfaces queue/progress/failure metadata from the new status payload; BottomPanel renders structured trace levels and message fallbacks.
 - **Tests:** Added `frontend/src/store/__tests__/executionStore.test.ts` verifying log dedupe + terminal state handling plus component coverage for TopBar & BottomPanel, all wired into `bun run test`.
 
+## 2025-10-15 · Run Metadata Cache
+
+- **Decision:** Moved workflow-run fetching/caching into a dedicated `useRunStore` slice with a 30 s TTL, in-flight deduping, and explicit `fetchRuns({ force })`/`invalidate` actions so only one `GET /workflows/runs` happens per navigation cluster.
+- **Previous pain:** Workflow Builder mounted `useExecutionTimelineStore.loadRuns()` on load, the RunSelector dropdown issued its own `loadRuns()` inside `useEffect`, and `useExecutionTimelineStore.loadRuns` itself hit `api.executions.listRuns`—so a single navigation fired three identical `GET /api/v1/workflows/runs?limit=50` calls (plus retries when switching tabs). This note is the canonical reminder for frontend devs: do not recreate ad-hoc run fetchers; use the shared store.
+- **Consumers:** `RunSelector`, `ReviewInspector`, `ExecutionInspector`, and `WorkflowBuilder` now subscribe to the shared cache while `useExecutionTimelineStore` focuses purely on playback/selection state.
+- **Guidance:** Any new UI that needs run metadata must read from `useRunStore` selectors, calling `fetchRuns({ force: true })` only when a refresh is actually needed.
+- **Benefits:** Eliminates the previous N× duplicate fetches every time Workflow Builder mounts multiple panels, shortens perceived loading, and gives backend describe APIs breathing room. Also sets us up to emit `upsertRun` updates from SSE/Temporal hooks later.
+- **Tests:** Added `frontend/src/store/__tests__/runStore.test.ts` to cover dedupe/invalidation/order behaviours; lint/typecheck/test suite updated accordingly.
+
 ## Live Run UX
 - Canvas node states: idle, running (pulsing), success (green), failure (shaking red). Edges animate data flow.
 - Bottom console streams structured logs per node; supports filters and artifact previews.

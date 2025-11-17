@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
+import { useRunStore } from '@/store/runStore'
 import { cn } from '@/lib/utils'
 import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel'
 
@@ -18,17 +19,17 @@ const formatTime = (timestamp: string) => {
 export function ReviewInspector() {
   const {
     selectedRunId,
-    availableRuns,
     events,
     playbackMode,
     isPlaying,
   } = useExecutionTimelineStore()
+  const runs = useRunStore((state) => state.runs)
   const { logs } = useExecutionStore()
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
 
   const selectedRun = useMemo(() => (
-    availableRuns.find(run => run.id === selectedRunId)
-  ), [availableRuns, selectedRunId])
+    runs.find(run => run.id === selectedRunId)
+  ), [runs, selectedRunId])
 
   const displayLogs = events.length > 0 ? events : logs
 

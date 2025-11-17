@@ -9,9 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useExecutionTimelineStore, type ExecutionRun } from '@/store/executionTimelineStore'
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
+import { useRunStore, type ExecutionRun } from '@/store/runStore'
 import { cn } from '@/lib/utils'
 
 const STATUS_ICONS = {
@@ -58,28 +59,26 @@ interface RunSelectorProps {
 export function RunSelector({ onRerun }: RunSelectorProps = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const {
-    availableRuns,
     selectedRunId,
     playbackMode,
     selectRun,
-    loadRuns,
     switchToLiveMode,
   } = useExecutionTimelineStore()
+  const runs = useRunStore((state) => state.runs)
+  const fetchRuns = useRunStore((state) => state.fetchRuns)
+  const isLoadingRuns = useRunStore((state) => state.isLoading)
 
   const {
     runId: currentLiveRunId,
     status: _currentLiveStatus,
     workflowId: _currentWorkflowId,
   } = useExecutionStore()
-  const { id: workflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore((state) => state.metadata)
+  const currentWorkflowVersion = useWorkflowStore((state) => state.metadata.currentVersion)
 
   // Load runs on mount
   useEffect(() => {
-    if (!workflowId) {
-      return
-    }
-    loadRuns({ workflowId })
-  }, [loadRuns, workflowId])
+    fetchRuns().catch(() => undefined)
+  }, [fetchRuns])
 
   // Auto-load current live run if it exists
   useEffect(() => {
@@ -90,21 +89,21 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
 
   // Fallback to the most recent historical run when nothing is selected
   useEffect(() => {
-    if (selectedRunId || currentLiveRunId || availableRuns.length === 0) {
+    if (selectedRunId || currentLiveRunId || runs.length === 0) {
       return
     }
 
-    const [latestRun] = [...availableRuns].sort(
+    const [latestRun] = [...runs].sort(
       (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
     )
 
     if (latestRun) {
       selectRun(latestRun.id)
     }
-  }, [availableRuns, selectedRunId, currentLiveRunId, selectRun])
+  }, [runs, selectedRunId, currentLiveRunId, selectRun])
 
-  const selectedRun = availableRuns.find(run => run.id === selectedRunId)
-  const currentLiveRun = availableRuns.find(run => run.id === currentLiveRunId)
+  const selectedRun = runs.find(run => run.id === selectedRunId)
+  const currentLiveRun = runs.find(run => run.id === currentLiveRunId)
   const selectedRunVersion = typeof selectedRun?.workflowVersion === 'number' ? selectedRun.workflowVersion : null
   const selectedRunOlder =
     selectedRunVersion !== null &&
@@ -317,13 +316,13 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
             Historical Runs
           </div>
 
-          {availableRuns.length === 0 ? (
+          {runs.length === 0 ? (
             <div className="px-3 py-6 text-center text-muted-foreground text-sm">
-              No previous runs found
+              {isLoadingRuns ? 'Loading runs…' : 'No previous runs found'}
             </div>
           ) : (
             <div className="max-h-64 overflow-y-auto">
-              {availableRuns
+              {runs
                 .filter(run => !run.isLive)
                 .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
                 .map(renderRunItem)}

@@ -11,6 +11,7 @@ import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useArtifactStore } from '@/store/artifactStore'
+import { useRunStore } from '@/store/runStore'
 import { cn } from '@/lib/utils'
 import type { ExecutionLog } from '@/schemas/execution'
 import { createPreview } from '@/utils/textPreview'
@@ -58,12 +59,12 @@ interface ExecutionInspectorProps {
 export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {}) {
   const {
     selectedRunId,
-    availableRuns,
     events,
     playbackMode,
     isPlaying,
     nodeStates,
   } = useExecutionTimelineStore()
+  const runs = useRunStore((state) => state.runs)
   const { logs } = useExecutionStore()
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
   const currentWorkflowVersion = useWorkflowStore((state) => state.metadata.currentVersion)
@@ -75,8 +76,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   })
 
   const selectedRun = useMemo(() => (
-    availableRuns.find(run => run.id === selectedRunId)
-  ), [availableRuns, selectedRunId])
+    runs.find(run => run.id === selectedRunId)
+  ), [runs, selectedRunId])
 
   useEffect(() => {
     if (selectedRunId && inspectorTab === 'artifacts') {

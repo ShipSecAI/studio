@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { api } from '@/services/api'
-import type { ExecutionLog, ExecutionStatus } from '@/schemas/execution'
+import type { ExecutionLog } from '@/schemas/execution'
 import type { NodeStatus } from '@/schemas/node'
 
 // Types for the visual timeline system
@@ -52,29 +52,9 @@ type RawDataPacket = {
   visualTime?: number
 }
 
-export interface ExecutionRun {
-  id: string
-  workflowId: string
-  workflowName: string
-  status: ExecutionStatus
-  startTime: string
-  endTime?: string
-  duration?: number // in ms
-  nodeCount: number
-  eventCount: number
-  createdAt: string
-  isLive: boolean
-  workflowVersionId: string | null
-  workflowVersion: number | null
-}
-
 export interface TimelineState {
   // Run selection
-  availableRuns: ExecutionRun[]
   selectedRunId: string | null
-  isLoadingRuns: boolean
-  runsLoadedAt: number | null
-  runsLoadedWorkflowId: string | null
 
   // Timeline state
   events: TimelineEvent[]
@@ -103,7 +83,6 @@ export interface TimelineState {
 
 export interface TimelineActions {
   // Run management
-  loadRuns: (options?: { workflowId?: string | null; force?: boolean }) => Promise<void>
   selectRun: (runId: string) => Promise<void>
 
   // Timeline loading
@@ -420,11 +399,7 @@ const calculateNodeStates = (
 }
 
 const INITIAL_STATE: TimelineState = {
-  availableRuns: [],
   selectedRunId: null,
-  isLoadingRuns: false,
-  runsLoadedAt: null,
-  runsLoadedWorkflowId: null,
   events: [],
   dataFlows: [],
   totalDuration: 0,
@@ -446,62 +421,6 @@ const INITIAL_STATE: TimelineState = {
 export const useExecutionTimelineStore = create<TimelineStore>()(
   subscribeWithSelector((set, get) => ({
     ...INITIAL_STATE,
-
-    loadRuns: async (options) => {
-      const workflowId = options?.workflowId ?? null
-      const force = options?.force ?? false
-      const { isLoadingRuns, runsLoadedAt, runsLoadedWorkflowId } = get()
-      if (isLoadingRuns) {
-        return
-      }
-      if (!force && runsLoadedAt !== null && runsLoadedWorkflowId === workflowId) {
-        return
-      }
-
-      set({ isLoadingRuns: true })
-
-      try {
-        const response = await api.executions.listRuns({
-          limit: 50,
-          workflowId: workflowId ?? undefined,
-        })
-
-        if (!response.runs) {
-          set({ availableRuns: [] })
-          return
-        }
-
-        const runs: ExecutionRun[] = response.runs.map((run: any) => ({
-          id: run.id,
-          workflowId: run.workflowId,
-          workflowName: run.workflowName,
-          status: run.status.toLowerCase() as ExecutionStatus,
-          startTime: run.startTime,
-          endTime: run.endTime,
-          duration: typeof run.duration === 'number'
-            ? run.duration
-            : run.endTime
-              ? new Date(run.endTime).getTime() - new Date(run.startTime).getTime()
-              : Date.now() - new Date(run.startTime).getTime(),
-          nodeCount: typeof run.nodeCount === 'number' ? run.nodeCount : 0,
-          eventCount: run.eventCount,
-          createdAt: run.startTime,
-          isLive: !run.endTime && run.status === 'RUNNING',
-          workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
-          workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
-        }))
-
-        set({
-          availableRuns: runs,
-          runsLoadedAt: Date.now(),
-          runsLoadedWorkflowId: workflowId,
-        })
-      } catch (error) {
-        console.error('Failed to load runs:', error)
-      } finally {
-        set({ isLoadingRuns: false })
-      }
-    },
 
     selectRun: async (runId: string) => {
       // Clear previous events before loading new timeline
