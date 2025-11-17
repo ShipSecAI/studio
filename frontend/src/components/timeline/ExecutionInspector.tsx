@@ -64,10 +64,13 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
     isPlaying,
     nodeStates,
   } = useExecutionTimelineStore()
-  const runs = useRunStore((state) => state.runs)
+  const { id: workflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore(
+    (state) => state.metadata
+  )
+  const workflowCacheKey = workflowId ?? '__global__'
+  const runs = useRunStore((state) => state.cache[workflowCacheKey]?.runs ?? [])
   const { logs } = useExecutionStore()
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
-  const currentWorkflowVersion = useWorkflowStore((state) => state.metadata.currentVersion)
   const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts)
   const [logModal, setLogModal] = useState<{ open: boolean; message: string; title: string }>({
     open: false,

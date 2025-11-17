@@ -84,7 +84,8 @@ function WorkflowBuilderContent() {
   const switchToLiveMode = useExecutionTimelineStore((state) => state.switchToLiveMode)
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
   const fetchRuns = useRunStore((state) => state.fetchRuns)
-  const runs = useRunStore((state) => state.runs)
+  const workflowCacheKey = metadata.id ?? '__global__'
+  const runs = useRunStore((state) => state.cache[workflowCacheKey]?.runs ?? [])
   const { toast } = useToast()
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const inspectorResizingRef = useRef(false)
@@ -105,12 +106,7 @@ function WorkflowBuilderContent() {
   useEffect(() => {
     edgesRef.current = edges
   }, [edges])
-  const workflowRuns = useMemo(() => {
-    if (!metadata.id) {
-      return runs
-    }
-    return runs.filter((run) => run.workflowId === metadata.id)
-  }, [runs, metadata.id])
+  const workflowRuns = useMemo(() => runs, [runs])
   const mostRecentRunId = useMemo(
     () => (workflowRuns.length > 0 ? workflowRuns[0].id : null),
     [workflowRuns],
@@ -128,7 +124,7 @@ function WorkflowBuilderContent() {
       return
     }
 
-    fetchRuns().catch(() => undefined)
+    fetchRuns({ workflowId: metadata.id }).catch(() => undefined)
   }, [fetchRuns, metadata.id])
 
   useEffect(() => {
@@ -371,7 +367,7 @@ function WorkflowBuilderContent() {
           node_count: nodes.length,
         })
         setMode('execution')
-        await fetchRuns({ force: true }).catch(() => undefined)
+        await fetchRuns({ workflowId, force: true }).catch(() => undefined)
         let selected = true
         try {
           await selectRun(runId)

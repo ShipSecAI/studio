@@ -19,34 +19,51 @@ export interface ExecutionRun {
   workflowVersion: number | null
 }
 
-interface RunStoreState {
+interface RunCacheEntry {
   runs: ExecutionRun[]
   isLoading: boolean
   error: string | null
   lastFetched: number | null
 }
 
+interface RunStoreState {
+  cache: Record<string, RunCacheEntry>
+}
+
 interface RunStoreActions {
-  fetchRuns: (options?: { force?: boolean }) => Promise<ExecutionRun[] | undefined>
-  refreshRuns: () => Promise<ExecutionRun[] | undefined>
-  invalidate: () => void
+  fetchRuns: (options?: { workflowId?: string | null; force?: boolean }) => Promise<ExecutionRun[] | undefined>
+  refreshRuns: (workflowId?: string | null) => Promise<ExecutionRun[] | undefined>
+  invalidate: (workflowId?: string | null) => void
   upsertRun: (run: ExecutionRun) => void
   getRunById: (runId: string) => ExecutionRun | undefined
-  getLatestRun: () => ExecutionRun | undefined
+  getLatestRun: (workflowId?: string | null) => ExecutionRun | undefined
+  getRunsForWorkflow: (workflowId?: string | null) => ExecutionRun[]
 }
 
 export type RunStore = RunStoreState & RunStoreActions
 
 const INITIAL_STATE: RunStoreState = {
-  runs: [],
-  isLoading: false,
-  error: null,
-  lastFetched: null,
+  cache: {},
 }
 
 export const RUNS_STALE_MS = 30_000
 
-let inflightFetch: Promise<ExecutionRun[]> | null = null
+const GLOBAL_WORKFLOW_CACHE_KEY = '__global__'
+
+const getCacheKey = (workflowId?: string | null) => workflowId ?? GLOBAL_WORKFLOW_CACHE_KEY
+
+const createEmptyEntry = (): RunCacheEntry => ({
+  runs: [],
+  isLoading: false,
+  error: null,
+  lastFetched: null,
+})
+
+const getEntry = (cache: RunStoreState['cache'], key: string): RunCacheEntry => {
+  return cache[key] ?? createEmptyEntry()
+}
+
+const inflightFetches = new Map<string, Promise<ExecutionRun[]>>()
 
 const normalizeRun = (run: any): ExecutionRun => {
   const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString()
@@ -82,93 +99,180 @@ const sortRuns = (runs: ExecutionRun[]): ExecutionRun[] => {
   )
 }
 
+const upsertIntoRuns = (runs: ExecutionRun[], run: ExecutionRun) => {
+  const existingIndex = runs.findIndex((item) => item.id === run.id)
+  if (existingIndex === -1) {
+    return sortRuns([...runs, run])
+  }
+  const updated = [...runs]
+  updated[existingIndex] = {
+    ...updated[existingIndex],
+    ...run,
+    status: run.status,
+  }
+  return sortRuns(updated)
+}
+
 export const useRunStore = create<RunStore>()(
   subscribeWithSelector((set, get) => ({
     ...INITIAL_STATE,
 
     fetchRuns: async (options) => {
+      const workflowId = options?.workflowId ?? null
+      const key = getCacheKey(workflowId)
       const force = options?.force ?? false
       const state = get()
+      const entry = getEntry(state.cache, key)
       const now = Date.now()
 
       if (!force) {
-        if (state.isLoading && inflightFetch) {
-          return inflightFetch
+        if (entry.isLoading && inflightFetches.has(key)) {
+          return inflightFetches.get(key)
         }
-        if (state.lastFetched && now - state.lastFetched < RUNS_STALE_MS) {
-          return state.runs
+        if (entry.lastFetched && now - entry.lastFetched < RUNS_STALE_MS) {
+          return entry.runs
         }
-        if (inflightFetch) {
-          return inflightFetch
+        if (inflightFetches.has(key)) {
+          return inflightFetches.get(key)
         }
       }
 
-      set({ isLoading: true, error: null })
-
-      inflightFetch = (async () => {
-        try {
-          const response = await api.executions.listRuns({ limit: 50 })
-          const normalized = sortRuns((response.runs ?? []).map(normalizeRun))
-          set({
-            runs: normalized,
-            lastFetched: Date.now(),
-            isLoading: false,
+      set((state) => ({
+        cache: {
+          ...state.cache,
+          [key]: {
+            ...getEntry(state.cache, key),
+            isLoading: true,
             error: null,
+          },
+        },
+      }))
+
+      const fetchPromise = (async () => {
+        try {
+          const response = await api.executions.listRuns({
+            limit: 50,
+            workflowId: workflowId ?? undefined,
           })
+          const normalized = sortRuns((response.runs ?? []).map(normalizeRun))
+          set((state) => ({
+            cache: {
+              ...state.cache,
+              [key]: {
+                runs: normalized,
+                isLoading: false,
+                error: null,
+                lastFetched: Date.now(),
+              },
+            },
+          }))
           return normalized
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to fetch runs'
-          set({
-            error: message,
-            isLoading: false,
-          })
+          set((state) => ({
+            cache: {
+              ...state.cache,
+              [key]: {
+                ...getEntry(state.cache, key),
+                isLoading: false,
+                error: message,
+              },
+            },
+          }))
           throw error
         } finally {
-          inflightFetch = null
+          inflightFetches.delete(key)
         }
       })()
 
+      inflightFetches.set(key, fetchPromise)
+
       try {
-        return await inflightFetch
+        return await fetchPromise
       } catch (error) {
         throw error
       }
     },
 
-    refreshRuns: () => get().fetchRuns({ force: true }),
+    refreshRuns: (workflowId) => get().fetchRuns({ workflowId, force: true }),
 
-    invalidate: () => {
-      set({ lastFetched: null, error: null })
+    invalidate: (workflowId) => {
+      if (typeof workflowId === 'undefined') {
+        set((state) => {
+          const next: RunStoreState['cache'] = {}
+          for (const [key, entry] of Object.entries(state.cache)) {
+            next[key] = {
+              ...entry,
+              lastFetched: null,
+              error: null,
+            }
+          }
+          return { cache: next }
+        })
+        return
+      }
+
+      const key = getCacheKey(workflowId)
+      set((state) => ({
+        cache: {
+          ...state.cache,
+          [key]: {
+            ...getEntry(state.cache, key),
+            lastFetched: null,
+            error: null,
+          },
+        },
+      }))
     },
 
     upsertRun: (run: ExecutionRun) => {
       set((state) => {
-        const existingIndex = state.runs.findIndex((item) => item.id === run.id)
-        if (existingIndex === -1) {
-          return { runs: sortRuns([...state.runs, run]) }
+        const cache = { ...state.cache }
+        const workflowKey = getCacheKey(run.workflowId)
+        const workflowEntry = getEntry(cache, workflowKey)
+
+        cache[workflowKey] = {
+          ...workflowEntry,
+          runs: upsertIntoRuns(workflowEntry.runs, run),
         }
-        const updated = [...state.runs]
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          ...run,
-          status: run.status,
+
+        if (cache[GLOBAL_WORKFLOW_CACHE_KEY]) {
+          const globalEntry = getEntry(cache, GLOBAL_WORKFLOW_CACHE_KEY)
+          cache[GLOBAL_WORKFLOW_CACHE_KEY] = {
+            ...globalEntry,
+            runs: upsertIntoRuns(globalEntry.runs, run),
+          }
         }
-        return { runs: sortRuns(updated) }
+
+        return { cache }
       })
     },
 
     getRunById: (runId: string) => {
-      return get().runs.find((run) => run.id === runId)
+      const state = get()
+      for (const entry of Object.values(state.cache)) {
+        const found = entry.runs.find((run) => run.id === runId)
+        if (found) {
+          return found
+        }
+      }
+      return undefined
     },
 
-    getLatestRun: () => {
-      const [latest] = get().runs
-      return latest
+    getLatestRun: (workflowId) => {
+      const key = getCacheKey(workflowId)
+      const runs = get().cache[key]?.runs ?? []
+      return runs[0]
+    },
+
+    getRunsForWorkflow: (workflowId) => {
+      const key = getCacheKey(workflowId)
+      return get().cache[key]?.runs ?? []
     },
   }))
 )
 
 export const resetRunStoreState = () => {
-  inflightFetch = null
+  inflightFetches.clear()
   useRunStore.setState({ ...INITIAL_STATE })
 }

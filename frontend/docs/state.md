@@ -14,7 +14,7 @@ ShipSec Studio’s UI relies on a handful of focused Zustand stores and shared Z
 | `useWorkflowUiStore` | `src/store/workflowUiStore.ts` | Canvas UI toggles, panel sizing, minimap state. |
 | `useComponentStore` | `src/store/componentStore.ts` | Cached component catalogue fetched via `api.components.list()`. Maintains slug ↔︎ id index. |
 | `useExecutionStore` | `src/store/executionStore.ts` | Workflow run lifecycle, SSE stream wiring, log/event aggregation. |
-| `useRunStore` | `src/store/runStore.ts` | Workflow run metadata cache + deduped fetching/invalidation hooks. |
+| `useRunStore` | `src/store/runStore.ts` | Workflow-scoped run metadata cache with per-workflow fetching/invalidation hooks. |
 | `useExecutionTimelineStore` | `src/store/executionTimelineStore.ts` | Timeline playback state and selection derived from `useRunStore`. |
 | `useSecretStore` | `src/store/secretStore.ts` | Secret summaries + optimistic updates for the Secret Fetch UX. |
 
@@ -24,7 +24,7 @@ Stores expose selectors (e.g. `getComponent`, `getNodeLogs`) to avoid manual tra
 1. `RunWorkflowDialog` invokes `useExecutionStore.startExecution`, which calls `api.executions.start()` (wrapping `POST /workflows/{id}/run`).
 2. `monitorRun` seeds a poll + optional SSE stream (`api.executions.stream`). Responses are validated with `ExecutionStatusResponseSchema` and `TraceStreamEnvelopeSchema`.
 3. `mergeLogs` dedupes events by id; `deriveNodeStates` converts trace events into canvas node badges (see `WorkflowNode.tsx`).
-4. `useRunStore.fetchRuns` calls `api.executions.listRuns` once and exposes cached metadata to `RunSelector`, inspectors, and `useExecutionTimelineStore`.
+4. `useRunStore.fetchRuns` calls `api.executions.listRuns` scoped to the requested workflow and exposes cached metadata to `RunSelector`, inspectors, and `useExecutionTimelineStore`.
 
 When the backend contract expands (new trace fields, statuses), update:
 - `docs/execution-contract.md`

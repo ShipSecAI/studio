@@ -31,50 +31,55 @@ describe('runStore', () => {
     listRunsMock.mockImplementation(async () => ({ runs: [mockRun] }))
   })
 
-  it('dedupes concurrent fetches', async () => {
+  it('dedupes concurrent fetches per workflow', async () => {
     listRunsMock.mockImplementation(async () => {
       await new Promise((resolve) => setTimeout(resolve, 5))
       return { runs: [mockRun] }
     })
 
     await Promise.all([
-      useRunStore.getState().fetchRuns(),
-      useRunStore.getState().fetchRuns(),
+      useRunStore.getState().fetchRuns({ workflowId: 'wf-1' }),
+      useRunStore.getState().fetchRuns({ workflowId: 'wf-1' }),
     ])
 
     expect(listRunsMock.mock.calls.length).toBe(1)
   })
 
-  it('skips network calls when cache is still fresh', async () => {
-    await useRunStore.getState().fetchRuns()
+  it('maintains independent caches per workflow', async () => {
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1' })
+    listRunsMock.mockClear()
+
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-2' })
+    expect(listRunsMock.mock.calls.length).toBe(1)
+  })
+
+  it('skips network when a workflow cache is still fresh', async () => {
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1' })
     expect(listRunsMock.mock.calls.length).toBe(1)
 
     listRunsMock.mockClear()
-    await useRunStore.getState().fetchRuns()
-
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1' })
     expect(listRunsMock.mock.calls.length).toBe(0)
   })
 
   it('forces a refresh when requested', async () => {
-    await useRunStore.getState().fetchRuns()
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1' })
     listRunsMock.mockClear()
 
-    await useRunStore.getState().fetchRuns({ force: true })
-
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1', force: true })
     expect(listRunsMock.mock.calls.length).toBe(1)
   })
 
-  it('allows manual invalidation by clearing lastFetched timestamp', async () => {
-    await useRunStore.getState().fetchRuns()
+  it('allows manual invalidation across caches', async () => {
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1' })
     listRunsMock.mockClear()
 
     useRunStore.getState().invalidate()
-    await useRunStore.getState().fetchRuns()
-
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1' })
     expect(listRunsMock.mock.calls.length).toBe(1)
   })
 
-  it('upserts runs and keeps them sorted by start time', () => {
+  it('upserts runs into workflow caches in sorted order', () => {
     const store = useRunStore.getState()
     store.upsertRun({
       id: 'run-new',
@@ -104,7 +109,7 @@ describe('runStore', () => {
       workflowVersion: null,
     })
 
-    const runs = useRunStore.getState().runs
+    const runs = useRunStore.getState().getRunsForWorkflow('wf-1')
     expect(runs[0].id).toBe('run-new')
 
     store.upsertRun({
@@ -112,6 +117,6 @@ describe('runStore', () => {
       status: 'FAILED',
     })
 
-    expect(useRunStore.getState().runs[0].status).toBe('FAILED')
+    expect(useRunStore.getState().getRunsForWorkflow('wf-1')[0].status).toBe('FAILED')
   })
 })

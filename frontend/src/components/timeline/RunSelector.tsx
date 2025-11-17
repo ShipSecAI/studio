@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ChevronDown, Play, Clock, CheckCircle, XCircle, Loader2, Wifi, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -64,46 +64,60 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
     selectRun,
     switchToLiveMode,
   } = useExecutionTimelineStore()
-  const runs = useRunStore((state) => state.runs)
+  const { id: workflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore(
+    (state) => state.metadata
+  )
+  const workflowCacheKey = workflowId ?? '__global__'
+  const runs = useRunStore((state) => state.cache[workflowCacheKey]?.runs ?? [])
   const fetchRuns = useRunStore((state) => state.fetchRuns)
-  const isLoadingRuns = useRunStore((state) => state.isLoading)
+  const isLoadingRuns = useRunStore((state) => state.cache[workflowCacheKey]?.isLoading ?? false)
 
   const {
     runId: currentLiveRunId,
     status: _currentLiveStatus,
     workflowId: _currentWorkflowId,
   } = useExecutionStore()
-  const currentWorkflowVersion = useWorkflowStore((state) => state.metadata.currentVersion)
+  const filteredRuns = useMemo(() => {
+    if (!workflowId) {
+      return runs
+    }
+    return runs.filter((run) => run.workflowId === workflowId)
+  }, [runs, workflowId])
 
   // Load runs on mount
   useEffect(() => {
-    fetchRuns().catch(() => undefined)
-  }, [fetchRuns])
+    fetchRuns({ workflowId }).catch(() => undefined)
+  }, [fetchRuns, workflowId])
 
   // Auto-load current live run if it exists
   useEffect(() => {
     if (currentLiveRunId && !selectedRunId) {
-      selectRun(currentLiveRunId)
+      const liveRun = runs.find((run) => run.id === currentLiveRunId)
+      if (!workflowId || liveRun?.workflowId === workflowId) {
+        selectRun(currentLiveRunId)
+      }
     }
-  }, [currentLiveRunId, selectedRunId, selectRun])
+  }, [currentLiveRunId, selectedRunId, selectRun, workflowId, runs])
 
   // Fallback to the most recent historical run when nothing is selected
   useEffect(() => {
-    if (selectedRunId || currentLiveRunId || runs.length === 0) {
+    if (selectedRunId || currentLiveRunId || filteredRuns.length === 0) {
       return
     }
 
-    const [latestRun] = [...runs].sort(
+    const [latestRun] = [...filteredRuns].sort(
       (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
     )
 
     if (latestRun) {
       selectRun(latestRun.id)
     }
-  }, [runs, selectedRunId, currentLiveRunId, selectRun])
+  }, [filteredRuns, selectedRunId, currentLiveRunId, selectRun])
 
-  const selectedRun = runs.find(run => run.id === selectedRunId)
-  const currentLiveRun = runs.find(run => run.id === currentLiveRunId)
+  const selectedRun =
+    filteredRuns.find(run => run.id === selectedRunId) ??
+    runs.find(run => run.id === selectedRunId)
+  const currentLiveRun = filteredRuns.find(run => run.id === currentLiveRunId)
   const selectedRunVersion = typeof selectedRun?.workflowVersion === 'number' ? selectedRun.workflowVersion : null
   const selectedRunOlder =
     selectedRunVersion !== null &&
@@ -316,13 +330,13 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
             Historical Runs
           </div>
 
-          {runs.length === 0 ? (
+          {filteredRuns.length === 0 ? (
             <div className="px-3 py-6 text-center text-muted-foreground text-sm">
               {isLoadingRuns ? 'Loading runs…' : 'No previous runs found'}
             </div>
           ) : (
             <div className="max-h-64 overflow-y-auto">
-              {runs
+              {filteredRuns
                 .filter(run => !run.isLive)
                 .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
                 .map(renderRunItem)}
