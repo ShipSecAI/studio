@@ -127,6 +127,33 @@ describe('dnsx component', () => {
     expect(result.resolvedHosts).toEqual(['example.com']);
   });
 
+  it('should skip execution when no domains are provided', async () => {
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'dnsx-test',
+    });
+
+    const params = component.inputSchema.parse({
+      domains: [],
+      recordTypes: ['A'],
+      resolvers: [],
+    });
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner');
+    const result = component.outputSchema.parse(await component.execute(params, context));
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(result.results).toHaveLength(0);
+    expect(result.domainCount).toBe(0);
+    expect(result.recordCount).toBe(0);
+    expect(result.errors).toEqual([
+      'No domains were provided to dnsx; upstream component produced an empty list.',
+    ]);
+  });
+
   it('should use docker runner config for dnsx image', () => {
     const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
     if (!component) throw new Error('Component not registered');

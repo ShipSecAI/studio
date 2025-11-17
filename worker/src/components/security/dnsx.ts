@@ -36,14 +36,12 @@ const DOMAIN_FILE_NAME = 'domains.txt';
 const RESOLVER_FILE_NAME = 'resolvers.txt';
 
 const inputSchema = z.object({
-  domains: z
-    .array(
-      z
-        .string()
-        .min(1)
-        .regex(/^[\w.-]+$/, 'Domains may only include letters, numbers, dots, underscores, and hyphens.'),
-    )
-    .min(1, 'Provide at least one domain to resolve.'),
+  domains: z.array(
+    z
+      .string()
+      .min(1)
+      .regex(/^[\w.-]+$/, 'Domains may only include letters, numbers, dots, underscores, and hyphens.'),
+  ),
   recordTypes: z.array(recordTypeEnum).default(['A']),
   resolvers: z
     .array(
@@ -568,8 +566,21 @@ const definition: ComponentDefinition<Input, Output> = {
     const ensureUnique = (values: string[]) =>
       Array.from(new Set(values.filter((value) => value && value.length > 0)));
 
+    const requestedRecordTypes = ensureUnique(recordTypes);
+    const requestedResolvers = ensureUnique(resolverList);
+
     if (domainCount === 0) {
-      throw new Error('Provide at least one valid domain.');
+      context.logger.info('[DNSX] Skipping dnsx execution because no domains were provided.');
+      return outputSchema.parse({
+        results: [],
+        rawOutput: '',
+        domainCount: 0,
+        recordCount: 0,
+        recordTypes: requestedRecordTypes,
+        resolvers: requestedResolvers,
+        resolvedHosts: [],
+        errors: ['No domains were provided to dnsx; upstream component produced an empty list.'],
+      });
     }
 
     const dnsxArgs = buildDnsxArgs({

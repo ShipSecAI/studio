@@ -9,7 +9,6 @@ import {
 const inputSchema = z.object({
   targets: z
     .array(z.string().min(1, 'Target cannot be empty'))
-    .min(1, 'Provide at least one target')
     .describe('Hostnames or URLs to probe for HTTP services'),
   followRedirects: z
     .boolean()
@@ -355,6 +354,27 @@ printf '{"results":%s,"raw":"%s","stderr":"%s","exitCode":%d}' \
       preferHttps: parsedInput.preferHttps ?? false,
     };
 
+    if (runnerParams.targets.length === 0) {
+      context.logger.info('[httpx] Skipping httpx probe because no targets were provided.');
+      const emptyOutput: Output = {
+        results: [],
+        rawOutput: '',
+        targetCount: 0,
+        resultCount: 0,
+        options: {
+          followRedirects: runnerParams.followRedirects,
+          tlsProbe: runnerParams.tlsProbe,
+          preferHttps: runnerParams.preferHttps,
+          ports: runnerParams.ports ?? null,
+          statusCodes: runnerParams.statusCodes ?? null,
+          threads: runnerParams.threads ?? null,
+          path: runnerParams.path ?? null,
+        },
+      };
+
+      return outputSchema.parse(emptyOutput);
+    }
+
     context.logger.info(
       `[httpx] Probing ${runnerParams.targets.length} target(s) with options: ports=${runnerParams.ports ?? 'default'}, statusCodes=${runnerParams.statusCodes ?? 'any'}, threads=${runnerParams.threads ?? 'auto'}, followRedirects=${runnerParams.followRedirects}, tlsProbe=${runnerParams.tlsProbe}, preferHttps=${runnerParams.preferHttps}, path=${runnerParams.path ?? 'none'}`,
     );
@@ -365,14 +385,26 @@ printf '{"results":%s,"raw":"%s","stderr":"%s","exitCode":%d}' \
       data: { targets: runnerParams.targets.slice(0, 5) },
     });
 
-    const result = await runComponentWithRunner(
+    const rawRunnerResult = await runComponentWithRunner(
       this.runner,
       async () => ({}) as Output,
       runnerParams,
       context,
     );
 
-    const parsedRunnerResult = httpxRunnerOutputSchema.safeParse(result);
+    let candidateResult: unknown = rawRunnerResult;
+    if (typeof candidateResult === 'string') {
+      const trimmed = candidateResult.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          candidateResult = JSON.parse(trimmed);
+        } catch {
+          candidateResult = rawRunnerResult;
+        }
+      }
+    }
+
+    const parsedRunnerResult = httpxRunnerOutputSchema.safeParse(candidateResult);
 
     let runnerOutput = '';
     let stderrOutput = '';
@@ -407,18 +439,18 @@ printf '{"results":%s,"raw":"%s","stderr":"%s","exitCode":%d}' \
             : `httpx exited with code ${exitCode}`,
         );
       }
-    } else if (typeof result === 'string') {
-      runnerOutput = result;
-    } else if (result && typeof result === 'object') {
-      const parsedOutput = outputSchema.safeParse(result);
+    } else if (typeof rawRunnerResult === 'string') {
+      runnerOutput = rawRunnerResult;
+    } else if (rawRunnerResult && typeof rawRunnerResult === 'object') {
+      const parsedOutput = outputSchema.safeParse(rawRunnerResult);
       if (parsedOutput.success) {
         return parsedOutput.data;
       }
 
       runnerOutput =
-        'rawOutput' in result
-          ? String((result as Record<string, unknown>).rawOutput ?? '')
-          : JSON.stringify(result);
+        'rawOutput' in rawRunnerResult
+          ? String((rawRunnerResult as Record<string, unknown>).rawOutput ?? '')
+          : JSON.stringify(rawRunnerResult);
     } else {
       runnerOutput = '';
     }

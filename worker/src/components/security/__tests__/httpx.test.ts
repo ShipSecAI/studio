@@ -158,6 +158,29 @@ describeHttpx('httpx component', () => {
     expect(result.rawOutput).toContain('https://other.example');
   });
 
+  test('skips execution when no targets are provided', async () => {
+    const component = componentRegistry.get<HttpxInput, HttpxOutput>('shipsec.httpx.scan');
+    if (!component) throw new Error('Component not registered');
+
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'httpx-test',
+    });
+
+    const params = component.inputSchema.parse({
+      targets: [],
+    });
+
+    const spy = vi.spyOn(sdk, 'runComponentWithRunner');
+    const result = await component.execute(params, context);
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(result.results).toHaveLength(0);
+    expect(result.targetCount).toBe(0);
+    expect(result.resultCount).toBe(0);
+    expect(result.rawOutput).toBe('');
+  });
+
   test('throws when httpx exits with a non-zero status', async () => {
     const component = componentRegistry.get<HttpxInput, HttpxOutput>('shipsec.httpx.scan');
     if (!component) throw new Error('Component not registered');

@@ -72,6 +72,8 @@ export interface TimelineState {
   // Run selection
   availableRuns: ExecutionRun[]
   selectedRunId: string | null
+  isLoadingRuns: boolean
+  runsLoadedAt: number | null
 
   // Timeline state
   events: TimelineEvent[]
@@ -99,7 +101,7 @@ export interface TimelineState {
 
 export interface TimelineActions {
   // Run management
-  loadRuns: () => Promise<void>
+  loadRuns: (options?: { force?: boolean }) => Promise<void>
   selectRun: (runId: string) => Promise<void>
 
   // Timeline loading
@@ -415,6 +417,8 @@ const calculateNodeStates = (
 const INITIAL_STATE: TimelineState = {
   availableRuns: [],
   selectedRunId: null,
+  isLoadingRuns: false,
+  runsLoadedAt: null,
   events: [],
   dataFlows: [],
   totalDuration: 0,
@@ -436,7 +440,18 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
   subscribeWithSelector((set, get) => ({
     ...INITIAL_STATE,
 
-    loadRuns: async () => {
+    loadRuns: async (options) => {
+      const force = options?.force ?? false
+      const { isLoadingRuns, runsLoadedAt } = get()
+      if (isLoadingRuns) {
+        return
+      }
+      if (!force && runsLoadedAt !== null) {
+        return
+      }
+
+      set({ isLoadingRuns: true })
+
       try {
         const response = await api.executions.listRuns({ limit: 50 })
 
@@ -465,9 +480,11 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
           workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
         }))
 
-        set({ availableRuns: runs })
+        set({ availableRuns: runs, runsLoadedAt: Date.now() })
       } catch (error) {
         console.error('Failed to load runs:', error)
+      } finally {
+        set({ isLoadingRuns: false })
       }
     },
 
