@@ -155,6 +155,20 @@ export class WorkflowsService {
     return { organizationId, run };
   }
 
+  async resolveRunForAccess(
+    runId: string,
+    auth?: AuthContext | null,
+  ) {
+    return this.requireRunAccess(runId, auth);
+  }
+
+  async ensureRunAccess(
+    runId: string,
+    auth?: AuthContext | null,
+  ): Promise<void> {
+    await this.requireRunAccess(runId, auth);
+  }
+
   async create(
     dto: WorkflowGraphDto,
     auth?: AuthContext | null,

@@ -22,6 +22,22 @@ type DisconnectConnectionRequest = components['schemas']['DisconnectConnectionDt
 type UpsertProviderConfigRequest = components['schemas']['UpsertProviderConfigDto']
 type WorkflowVersionResponse = components['schemas']['WorkflowVersionResponseDto']
 
+type TerminalChunkResponse = {
+  runId: string
+  cursor?: string
+  chunks: Array<{
+    nodeRef: string
+    stream: string
+    chunkIndex: number
+    payload: string
+    recordedAt: string
+    deltaMs?: number
+    origin?: string
+    runnerKind?: string
+  }>
+}
+
+
 export type IntegrationProvider = IntegrationProviderResponse
 export type IntegrationConnection = IntegrationConnectionResponse
 export type IntegrationProviderConfiguration = ProviderConfigurationResponse
@@ -388,6 +404,19 @@ export const api = {
       return response.data || []
     },
 
+    getTerminalChunks: async (executionId: string, params?: { nodeRef?: string; stream?: string; cursor?: string }): Promise<TerminalChunkResponse> => {
+      const headers = await getAuthHeaders()
+      const url = new URL(`${API_BASE_URL}/api/v1/workflows/runs/${executionId}/terminal`)
+      if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef)
+      if (params?.stream) url.searchParams.set('stream', params.stream)
+      if (params?.cursor) url.searchParams.set('cursor', params.cursor)
+      const response = await fetch(url.toString(), { headers })
+      if (!response.ok) {
+        throw new Error('Failed to fetch terminal chunks')
+      }
+      return (await response.json()) as TerminalChunkResponse
+    },
+
     getArtifacts: async (executionId: string): Promise<RunArtifactsResponse> => {
       const response = await apiClient.getWorkflowRunArtifacts(executionId) as any
       if (response.error || !response.data) {
@@ -404,7 +433,7 @@ export const api = {
       }
     },
 
-        stream: async (executionId: string, options?: { cursor?: string; temporalRunId?: string }): Promise<EventSource> => {
+        stream: async (executionId: string, options?: { cursor?: string; temporalRunId?: string; terminalCursor?: string }): Promise<EventSource> => {
           // Use fetch-based SSE client that supports custom headers (including Authorization)
           const { FetchEventSource } = await import('@/utils/sse-client')
           
@@ -429,6 +458,7 @@ export const api = {
           const params = new URLSearchParams()
           if (options?.cursor) params.set('cursor', options.cursor)
           if (options?.temporalRunId) params.set('temporalRunId', options.temporalRunId)
+          if (options?.terminalCursor) params.set('terminalCursor', options.terminalCursor)
           const query = params.toString()
           const url = `${API_BASE_URL}/api/v1/workflows/runs/${executionId}/stream${query ? `?${query}` : ''}`
 

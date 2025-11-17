@@ -17,13 +17,13 @@
     "test": "bun test"
   },
   "dependencies": {
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "node-pty": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.11",
     "bun-types": "^1.2.23",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@types/node-pty": "^1.0.5"
   }
 }
-
-

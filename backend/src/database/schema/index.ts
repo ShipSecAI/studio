@@ -9,3 +9,5 @@ export * from './secrets';
 export * from './platform-workflow-links';
 export * from './workflow-roles';
 export * from './integrations';
+
+export * from './terminal-records';

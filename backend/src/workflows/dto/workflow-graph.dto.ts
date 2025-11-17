@@ -94,6 +94,7 @@ export const StreamRunQuerySchema = TemporalRunQuerySchema.extend({
     .trim()
     .min(1)
     .optional(),
+  terminalCursor: z.string().trim().optional(),
 });
 
 export class StreamRunQueryDto extends createZodDto(StreamRunQuerySchema) {}
@@ -113,6 +114,14 @@ export const WorkflowLogsQuerySchema = z.object({
 });
 
 export class WorkflowLogsQueryDto extends createZodDto(WorkflowLogsQuerySchema) {}
+
+export const TerminalChunksQuerySchema = z.object({
+  nodeRef: z.string().trim().min(1).optional(),
+  stream: z.enum(['stdout', 'stderr', 'pty']).optional(),
+  cursor: z.string().trim().optional(),
+});
+
+export class TerminalChunksQueryDto extends createZodDto(TerminalChunksQuerySchema) {}
 
 // API Response DTOs for flattened workflow structures
 // These represent the actual API response format after the service flattens the graph fields

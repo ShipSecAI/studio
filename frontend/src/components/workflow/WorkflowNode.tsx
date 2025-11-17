@@ -1,11 +1,13 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow'
-import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
+import { useExecutionStore } from '@/store/executionStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
+import { NodeTerminalPanel } from '../terminal/NodeTerminalPanel'
 import type { NodeData } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
@@ -28,6 +30,23 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   const { nodeStates, selectedRunId, selectNode, isPlaying } = useExecutionTimelineStore()
   const { mode } = useWorkflowUiStore()
   const [isHovered, setIsHovered] = useState(false)
+  const prefetchTerminal = useExecutionStore((state) => state.prefetchTerminal)
+  const terminalSession = useExecutionStore((state) => state.getTerminalSession(id, 'pty'))
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false)
+  const [isTerminalLoading, setIsTerminalLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isTerminalOpen) {
+      return
+    }
+
+    setIsTerminalLoading(true)
+    prefetchTerminal(id)
+      .catch((error) => {
+        console.error('Failed to prefetch terminal output', error)
+      })
+      .finally(() => setIsTerminalLoading(false))
+  }, [id, isTerminalOpen, prefetchTerminal])
 
   // Cast to access extended frontend fields (componentId, componentSlug, status, etc.)
   const nodeData = data as any
@@ -150,6 +169,32 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   // Progress ring component
   const ProgressRing = ({ progress, size = 32 }: { progress: number; size?: number }) => (
     <div className="relative" style={{ width: size, height: size }}>
+      {mode === 'execution' && (
+        <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
+          <button
+            type="button"
+            onClick={() => setIsTerminalOpen((prev) => !prev)}
+            className={cn(
+              'flex items-center gap-1 rounded-full px-2 py-1 text-xs border transition-colors',
+              isTerminalOpen ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900/60 text-slate-100 border-slate-700',
+            )}
+          >
+            <TerminalIcon className="h-3 w-3" />
+            <span>Terminal</span>
+            {isTerminalLoading && <span className="animate-pulse">…</span>}
+            {!isTerminalLoading && terminalSession?.chunks?.length ? (
+              <span className="w-2 h-2 rounded-full bg-green-400" />
+            ) : null}
+          </button>
+        </div>
+      )}
+
+      {isTerminalOpen && (
+        <div className="absolute top-full right-0 mt-2 z-[60]">
+          <NodeTerminalPanel nodeId={id} onClose={() => setIsTerminalOpen(false)} />
+        </div>
+      )}
+
       <svg
         className="transform -rotate-90"
         width={size}
@@ -260,6 +305,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                       'h-4 w-4 flex-shrink-0',
                       nodeStyle.iconClass,
                       isTimelineActive && effectiveStatus === 'running' && isPlaying && 'animate-spin',
+                      isTimelineActive && effectiveStatus === 'error' && 'animate-bounce',
                     )}
                   />
                 )}

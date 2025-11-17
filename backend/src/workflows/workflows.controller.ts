@@ -33,13 +33,25 @@ import {
   TemporalRunQuerySchema,
   WorkflowLogsQueryDto,
   WorkflowLogsQuerySchema,
+  TerminalChunksQueryDto,
+  TerminalChunksQuerySchema,
   UpdateWorkflowRequestDto,
   WorkflowResponseDto,
   ServiceWorkflowResponse,
   WorkflowVersionResponseDto,
 } from './dto/workflow-graph.dto';
+import {
+  TerminalArchiveRequestDto,
+  TerminalRecordingDto,
+  TerminalRecordListDto,
+  TerminalRecordParamDto,
+  TerminalArchiveRequestSchema,
+  TerminalRecordParamSchema,
+} from './dto/terminal-record.dto';
 import { TraceService } from '../trace/trace.service';
 import { WorkflowsService } from './workflows.service';
+import { TerminalStreamService } from '../terminal/terminal-stream.service';
+import { TerminalArchiveService } from './terminal-archive.service';
 import { LogStreamService } from '../trace/log-stream.service';
 import { ArtifactsService } from '../storage/artifacts.service';
 import type { Request, Response } from 'express';
@@ -212,6 +224,8 @@ export class WorkflowsController {
     private readonly traceService: TraceService,
     private readonly logStreamService: LogStreamService,
     private readonly artifactsService: ArtifactsService,
+    private readonly terminalStreamService: TerminalStreamService,
+    private readonly terminalArchiveService: TerminalArchiveService,
   ) {}
 
   @Post()
@@ -577,7 +591,10 @@ export class WorkflowsController {
       (res as any).flushHeaders();
     }
 
+    await this.workflowsService.ensureRunAccess(runId, auth);
+
     let lastSequence = Number.parseInt(query.cursor ?? '0', 10);
+    let terminalCursor = query.terminalCursor;
     if (Number.isNaN(lastSequence) || lastSequence < 0) {
       lastSequence = 0;
     }
@@ -668,6 +685,14 @@ export class WorkflowsController {
               send('dataflow', { packets });
             }
           }
+        }
+
+        const terminal = await this.terminalStreamService.fetchChunks(runId, {
+          cursor: terminalCursor,
+        });
+        if (terminal.chunks.length > 0) {
+          terminalCursor = terminal.cursor;
+          send('terminal', { runId, ...terminal });
         }
       } catch (error) {
         send('error', { message: 'trace_fetch_failed', detail: String(error) });
@@ -790,6 +815,72 @@ export class WorkflowsController {
     });
   }
 
+  @Get('/runs/:runId/terminal')
+  @ApiOkResponse({
+    description: 'Terminal chunks for a workflow run',
+  })
+  async terminalChunks(
+    @Param('runId') runId: string,
+    @Query(new ZodValidationPipe(TerminalChunksQuerySchema))
+    query: TerminalChunksQueryDto,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    await this.workflowsService.ensureRunAccess(runId, auth);
+    const result = await this.terminalStreamService.fetchChunks(runId, {
+      cursor: query.cursor,
+      nodeRef: query.nodeRef,
+      stream: query.stream,
+    });
+    return { runId, ...result };
+  }
+
+  @Post('/runs/:runId/terminal/archive')
+  @ApiCreatedResponse({ type: TerminalRecordingDto })
+  async archiveTerminal(
+    @Param('runId') runId: string,
+    @Body(new ZodValidationPipe(TerminalArchiveRequestSchema))
+    body: TerminalArchiveRequestDto,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    const record = await this.terminalArchiveService.archive(auth, runId, body);
+    return this.toTerminalRecordingDto(record);
+  }
+
+  @Get('/runs/:runId/terminal/archive')
+  @ApiOkResponse({ type: TerminalRecordListDto })
+  async listTerminalArchives(
+    @Param('runId') runId: string,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    const records = await this.terminalArchiveService.list(auth, runId);
+    return {
+      runId,
+      records: records.map((record) => this.toTerminalRecordingDto(record)),
+    };
+  }
+
+  @Get('/runs/:runId/terminal/archive/:recordId/download')
+  @ApiOkResponse({ description: 'Download terminal recording' })
+  async downloadTerminalArchive(
+    @Param('runId') runId: string,
+    @Param(new ZodValidationPipe(TerminalRecordParamSchema))
+    params: TerminalRecordParamDto,
+    @CurrentAuth() auth: AuthContext | null,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { buffer, file } = await this.terminalArchiveService.download(
+      auth,
+      runId,
+      params.recordId,
+    );
+
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.setHeader('Content-Length', file.size.toString());
+
+    return new StreamableFile(buffer);
+  }
+
   @Get()
   @ApiOkResponse({ type: [WorkflowResponseDto] })
   async findAll(@CurrentAuth() auth: AuthContext | null): Promise<WorkflowResponseDto[]> {
@@ -803,6 +894,19 @@ export class WorkflowsController {
       lastRun: serviceResponse.lastRun?.toISOString() ?? null,
       createdAt: serviceResponse.createdAt.toISOString(),
       updatedAt: serviceResponse.updatedAt.toISOString(),
+    };
+  }
+
+  private toTerminalRecordingDto(record: WorkflowTerminalRecord): TerminalRecordingDto {
+    return {
+      id: record.id,
+      runId: record.runId,
+      nodeRef: record.nodeRef,
+      stream: record.stream,
+      fileId: record.fileId,
+      chunkCount: record.chunkCount,
+      durationMs: record.durationMs,
+      createdAt: (record.createdAt ?? new Date()).toISOString(),
     };
   }
 }
