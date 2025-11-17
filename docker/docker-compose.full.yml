@@ -133,7 +133,7 @@ services:
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
       - LOKI_URL=http://loki:3100
-      - AUTH_PROVIDER=clerk
+      - AUTH_PROVIDER=local
       - CLERK_PUBLISHABLE_KEY=
       - CLERK_SECRET_KEY=
     ports:
