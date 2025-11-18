@@ -781,12 +781,10 @@ export class WorkflowsController {
 
     await pump();
 
-    // Only set up polling if not using realtime mode
-    if (!unsubscribe) {
-      intervalId = setInterval(() => {
-        void pump();
-      }, 1000);
-    }
+    // Always run a lightweight poll loop so terminal chunks are flushed even when TRACE notifications are realtime.
+    intervalId = setInterval(() => {
+      void pump();
+    }, 1000);
 
     heartbeatId = setInterval(() => {
       if (!active) {

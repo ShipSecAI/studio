@@ -104,6 +104,7 @@ async function main() {
     } catch (error) {
       console.error('⚠️ Failed to initialize Loki logging, continuing without it', error);
     }
+  }
 
   const terminalRedisUrl = process.env.TERMINAL_REDIS_URL;
   let terminalStream: RedisTerminalStreamAdapter | undefined;
@@ -154,6 +155,20 @@ async function main() {
     bundlerOptions: {
       ignoreModules: ['child_process'],
       webpackConfigHook: (config: any) => {
+        // Ensure node-pty native bindings are not bundled (they only load at runtime on the host)
+        if (Array.isArray(config?.externals)) {
+          config.externals.push({ 'node-pty': 'commonjs node-pty' });
+        } else if (typeof config?.externals === 'object' && config.externals !== null) {
+          config.externals = {
+            ...config.externals,
+            'node-pty': 'commonjs node-pty',
+          };
+        } else {
+          config.externals = {
+            'node-pty': 'commonjs node-pty',
+          };
+        }
+
         // Force webpack to transpile TypeScript with ts-loader instead of swc-loader.
         // swc native bindings can fail to load on some Node/OS combos when installed via Bun.
         try {

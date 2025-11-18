@@ -1,5 +1,5 @@
-import { coerceValueForPort } from '@shipsec/component-sdk';
-import type { PortDataType } from '@shipsec/component-sdk';
+import { coerceValueForPort } from '@shipsec/component-sdk/ports';
+import type { PortDataType } from '@shipsec/component-sdk/types';
 import type { WorkflowAction } from './types';
 
 export interface InputWarning {
