@@ -60,6 +60,7 @@ export interface TerminalChunkInput {
 export interface Logger {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
 }
 
 export interface ProgressEventInput {

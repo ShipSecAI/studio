@@ -235,14 +235,9 @@ async function runDockerWithPty<I, O>(
     ptyProcess.onData((data) => {
       emitChunk(data);
       stdout += data;
-      context.logCollector?.({
-        runId: context.runId,
-        nodeRef: context.componentRef,
-        stream: 'stdout',
-        level: 'info',
-        message: data,
-        timestamp: new Date().toISOString(),
-      });
+      // Removed raw logCollector call to prevent flooding trace stream with PTY chunks
+      // as per user request. Line-buffered output is still handled via emitProgress below.
+      
       const trimmed = data.replace(/\r/g, '').trim();
       if (trimmed.length > 0) {
         context.emitProgress({

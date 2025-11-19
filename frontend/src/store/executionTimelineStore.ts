@@ -17,6 +17,7 @@ export interface NodeVisualState {
   startTime: number
   endTime?: number
   eventCount: number
+  totalEvents: number
   lastEvent: TimelineEvent | null
   dataFlow: {
     input: DataPacket[]
@@ -283,6 +284,7 @@ const calculateNodeStates = (
         progress: 0,
         startTime: new Date(sortedEvents[0].timestamp).getTime(),
         eventCount: 0,
+        totalEvents: sortedEvents.length,
         lastEvent: null,
         dataFlow: { input: [], output: [] },
         lastMetadata: undefined,
@@ -339,12 +341,26 @@ const calculateNodeStates = (
     const progress = completedEvents.length > 0 ? 100 :
       progressEvents.length > 0 ? (relevantEvents.length / sortedEvents.length) * 100 : 0
 
+    if (import.meta.env.DEV) {
+      console.debug('[TimelineStore] node progress calculation', {
+        nodeId,
+        status,
+        progress,
+        relevantEvents: relevantEvents.length,
+        totalEvents: sortedEvents.length,
+        progressEvents: progressEvents.length,
+        completedEvents: completedEvents.length,
+        lastEvent: lastEvent.type,
+      })
+    }
+
     states[nodeId] = {
       status,
       progress,
       startTime: firstNodeEventTimestamp,
       endTime: status === 'success' || status === 'error' ? lastEventTimestamp : undefined,
       eventCount: relevantEvents.length,
+      totalEvents: sortedEvents.length,
       lastEvent,
       dataFlow: {
         input: inputPacketsByNode.get(nodeId) ?? [],
@@ -365,6 +381,7 @@ const calculateNodeStates = (
         progress: 0,
         startTime: new Date(packet.timestamp).getTime(),
         eventCount: 0,
+        totalEvents: 0,
         lastEvent: null,
         dataFlow: {
           input: inputPacketsByNode.get(packet.sourceNode) ?? [],
@@ -382,6 +399,7 @@ const calculateNodeStates = (
         progress: 0,
         startTime: new Date(packet.timestamp).getTime(),
         eventCount: 0,
+        totalEvents: 0,
         lastEvent: null,
         dataFlow: {
           input: inputPacketsByNode.get(packet.targetNode) ?? [],

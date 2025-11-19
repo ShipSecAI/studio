@@ -20,6 +20,7 @@ export function createTerminalChunkEmitter(
 
     const now = Date.now();
     const payloadBuffer = typeof data === 'string' ? Buffer.from(data) : Buffer.from(data);
+    const dataString = typeof data === 'string' ? data : new TextDecoder().decode(data);
 
     chunkIndex += 1;
     const chunk: TerminalChunkInput = {
@@ -33,6 +34,19 @@ export function createTerminalChunkEmitter(
       origin: 'docker',
       runnerKind: 'docker',
     };
+
+    if (chunkIndex <= 3 || dataString.includes('[') || dataString.includes('progress')) {
+      console.debug('[TerminalChunkEmitter] emitting chunk', {
+        nodeRef: context.componentRef,
+        stream,
+        chunkIndex,
+        dataLength: dataString.length,
+        dataPreview: dataString.substring(0, 100),
+        hasNewline: dataString.includes('\n'),
+        hasCarriageReturn: dataString.includes('\r'),
+        payloadSize: chunk.payload.length,
+      });
+    }
 
     lastTimestamp = now;
 

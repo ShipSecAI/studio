@@ -103,20 +103,21 @@ try:
         filled = int(math.floor(phase * bar_width))
         bar = "#" * filled + "." * (bar_width - filled)
         spin = spinner[frames % len(spinner)]
-        line = f"\r{spin} {message} [{bar}] {phase * 100:05.1f}%"
+        # Use newline instead of carriage return for better visibility in terminal UI
+        line = f"{spin} {message} [{bar}] {phase * 100:05.1f}%\n"
         sys.stdout.write(line)
         for burst in range(burst_lines):
-            prefix = f"\n[{frames:04d}:{burst:02d}] "
+            prefix = f"[{frames:04d}:{burst:02d}] "
             payload_line = ''.join(
                 chr(65 + ((frames + burst + idx) % 26))
                 for idx in range(line_length)
             )
-            sys.stdout.write(prefix + payload_line)
+            sys.stdout.write(prefix + payload_line + "\n")
         sys.stdout.flush()
         time.sleep(interval)
         frames += 1
 finally:
-    sys.stdout.write("\\nTerminal demo complete.\\n")
+    sys.stdout.write("Terminal demo complete.\n")
     sys.stdout.flush()
 `;
 
@@ -139,12 +140,10 @@ const definition: ComponentDefinition<TerminalDemoInput, TerminalDemoOutput> = {
   runner,
   inputSchema,
   outputSchema,
-  icon: 'Terminal',
-  description: 'Emit animated PTY output to validate the live terminal streaming pipeline.',
   metadata: {
     slug: 'terminal-stream-demo',
     version: '1.0.0',
-    type: 'utility',
+    type: 'process',
     category: 'security',
     documentation:
       'Launches a lightweight Python animation inside Docker so engineers can confirm that PTY output is flowing into the ShipSec UI.',

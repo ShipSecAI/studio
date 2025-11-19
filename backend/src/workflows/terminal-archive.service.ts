@@ -16,6 +16,22 @@ export class TerminalArchiveService {
     private readonly workflowsService: WorkflowsService,
   ) {}
 
+  async archiveRun(auth: AuthContext | null, runId: string): Promise<WorkflowTerminalRecord[]> {
+    const streams = await this.terminalStreamService.listStreams(runId);
+    const results: WorkflowTerminalRecord[] = [];
+
+    for (const { nodeRef, stream } of streams) {
+      try {
+        const result = await this.archive(auth, runId, { nodeRef, stream });
+        results.push(result);
+      } catch (error) {
+        // Ignore if no chunks found or other error, continue to next
+        console.warn(`Failed to archive terminal for ${runId}/${nodeRef}/${stream}`, error);
+      }
+    }
+    return results;
+  }
+
   async list(auth: AuthContext | null, runId: string): Promise<WorkflowTerminalRecord[]> {
     const { organizationId } = await this.workflowsService.resolveRunForAccess(runId, auth);
     return this.terminalRecordRepository.listByRun(runId, organizationId);

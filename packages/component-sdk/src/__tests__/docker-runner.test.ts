@@ -34,6 +34,7 @@ dockerDescribe('Docker Runner', () => {
       },
       logger: {
         info: (...args: unknown[]) => logs.push(`INFO: ${args.join(' ')}`),
+        warn: (...args: unknown[]) => logs.push(`WARN: ${args.join(' ')}`),
         error: (...args: unknown[]) => logs.push(`ERROR: ${args.join(' ')}`),
       },
       emitProgress: (progress) => {

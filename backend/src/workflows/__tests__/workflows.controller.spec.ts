@@ -362,11 +362,36 @@ describe('WorkflowsController', () => {
     const artifactsService = {
       listRunArtifacts: vi.fn().mockResolvedValue({ runId: 'shipsec-run-controller', artifacts: [] }),
     };
+    const terminalStreamService = {
+      fetchChunks: vi.fn().mockResolvedValue({ cursor: '{}', chunks: [] }),
+    };
+    const terminalArchiveService = {
+      archive: vi.fn().mockResolvedValue({
+        id: 1,
+        runId: 'shipsec-run-controller',
+        workflowId: 'workflow',
+        workflowVersionId: 'version',
+        nodeRef: 'node-1',
+        stream: 'pty',
+        fileId: 'file-1',
+        chunkCount: 0,
+        durationMs: 0,
+        organizationId: 'org',
+        createdAt: new Date(),
+      }),
+      list: vi.fn().mockResolvedValue([]),
+      download: vi.fn().mockResolvedValue({
+        buffer: Buffer.from(''),
+        file: { mimeType: 'text/plain', fileName: 'terminal.cast', size: 0 },
+      }),
+    };
     controller = new WorkflowsController(
       workflowsService,
       traceService,
       logStreamService as any,
       artifactsService as any,
+      terminalStreamService as any,
+      terminalArchiveService as any,
     );
   });
 

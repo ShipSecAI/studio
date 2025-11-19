@@ -49,7 +49,7 @@ interface ExecutionStoreActions {
   getNodeLogs: (nodeId: string) => ExecutionLog[]
   getNodeLogCounts: (nodeId: string) => { total: number; errors: number; warnings: number }
   getLastLogMessage: (nodeId: string) => string | null
-  prefetchTerminal: (nodeId: string, stream?: 'pty' | 'stdout' | 'stderr') => Promise<void>
+  prefetchTerminal: (nodeId: string, stream?: 'pty' | 'stdout' | 'stderr', runIdOverride?: string | null) => Promise<void>
   getTerminalSession: (nodeId: string, stream?: 'pty' | 'stdout' | 'stderr') => TerminalStreamState | undefined
 }
 
@@ -365,11 +365,31 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
             cursor?: string | null
             chunks?: TerminalStreamChunk[]
           }
+          console.debug('[ExecutionStore] terminal event received', {
+            chunksCount: payload.chunks?.length,
+            cursor: payload.cursor,
+            payloadPreview: payload.chunks?.slice(0, 2),
+          })
+
           if (!payload.chunks || payload.chunks.length === 0) {
+            console.debug('[ExecutionStore] empty terminal payload, skipping')
             return
           }
+
+          console.debug('[ExecutionStore] processing terminal chunks', {
+            totalChunks: payload.chunks.length,
+            firstChunk: {
+              nodeRef: payload.chunks[0]?.nodeRef,
+              stream: payload.chunks[0]?.stream,
+              chunkIndex: payload.chunks[0]?.chunkIndex,
+              payloadLength: payload.chunks[0]?.payload?.length,
+            }
+          })
+
           set((state) => {
             const streams = { ...state.terminalStreams }
+            let processedChunks = 0
+
             for (const chunk of payload.chunks!) {
               const key = terminalKey(chunk.nodeRef, chunk.stream)
               const existing = streams[key] ?? {
@@ -380,8 +400,23 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 lastChunkIndex: 0,
               }
               if (chunk.chunkIndex <= existing.lastChunkIndex) {
+                console.debug('[ExecutionStore] skipping duplicate chunk', {
+                  nodeRef: chunk.nodeRef,
+                  stream: chunk.stream,
+                  chunkIndex: chunk.chunkIndex,
+                  existingIndex: existing.lastChunkIndex,
+                })
                 continue
               }
+
+              console.debug('[ExecutionStore] adding new chunk', {
+                nodeRef: chunk.nodeRef,
+                stream: chunk.stream,
+                chunkIndex: chunk.chunkIndex,
+                payloadPreview: chunk.payload?.substring(0, 100),
+              })
+
+              processedChunks++
               const merged = [...existing.chunks, chunk]
               const trimmed = merged.length > MAX_TERMINAL_CHUNKS ? merged.slice(-MAX_TERMINAL_CHUNKS) : merged
               streams[key] = {
@@ -390,13 +425,20 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 lastChunkIndex: chunk.chunkIndex,
               }
             }
+
+            console.debug('[ExecutionStore] terminal chunks processed', {
+              processedChunks,
+              totalStreams: Object.keys(streams).length,
+              streamKeys: Object.keys(streams),
+            })
+
             return {
               terminalStreams: streams,
               terminalCursor: payload.cursor ?? state.terminalCursor,
             }
           })
         } catch (error) {
-          console.error('Failed to parse terminal payload from stream', error)
+          console.error('Failed to parse terminal payload from stream', error, (event as MessageEvent).data)
         }
       })
 
@@ -457,8 +499,8 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     set({ eventSource: null, streamingMode: 'none' })
   },
 
-  prefetchTerminal: async (nodeId: string, stream: 'pty' | 'stdout' | 'stderr' = 'pty') => {
-    const { runId } = get()
+  prefetchTerminal: async (nodeId: string, stream: 'pty' | 'stdout' | 'stderr' = 'pty', runIdOverride?: string | null) => {
+    const runId = runIdOverride ?? get().runId
     if (!runId) return
     const key = terminalKey(nodeId, stream)
     if (get().terminalStreams[key]?.chunks.length) {

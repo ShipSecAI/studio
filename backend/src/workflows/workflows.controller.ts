@@ -60,6 +60,7 @@ import type { AuthContext } from '../auth/types';
 import { RequireWorkflowRole, WorkflowRoleGuard } from './workflow-role.guard';
 import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
 import { ArtifactIdParamDto, ArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
+import type { WorkflowTerminalRecord } from '../database/schema';
 
 const traceFailureSchema = {
   type: 'object',

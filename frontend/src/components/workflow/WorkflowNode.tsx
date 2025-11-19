@@ -41,12 +41,12 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     }
 
     setIsTerminalLoading(true)
-    prefetchTerminal(id)
+    prefetchTerminal(id, 'pty', selectedRunId ?? undefined)
       .catch((error) => {
         console.error('Failed to prefetch terminal output', error)
       })
       .finally(() => setIsTerminalLoading(false))
-  }, [id, isTerminalOpen, prefetchTerminal])
+  }, [id, isTerminalOpen, prefetchTerminal, selectedRunId])
 
   // Cast to access extended frontend fields (componentId, componentSlug, status, etc.)
   const nodeData = data as any
@@ -57,6 +57,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     progress: 0,
     startTime: 0,
     eventCount: 0,
+    totalEvents: 0,
     lastEvent: null,
     dataFlow: { input: [], output: [] }
   }
@@ -100,7 +101,6 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
 
   // Enhanced styling for timeline visualization
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
-  const shouldShowProgress = isTimelineActive && visualState.status === 'running' && visualState.progress > 0
   const hasEvents = isTimelineActive && visualState.eventCount > 0
 
   // Display label (custom or component name)
@@ -167,71 +167,76 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     })
 
   // Progress ring component
-  const ProgressRing = ({ progress, size = 32 }: { progress: number; size?: number }) => (
-    <div className="relative" style={{ width: size, height: size }}>
-      {mode === 'execution' && (
-        <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
-          <button
-            type="button"
-            onClick={() => setIsTerminalOpen((prev) => !prev)}
+  const ProgressBar = ({
+    progress,
+    events,
+    totalEvents,
+    isRunning,
+  }: {
+    progress: number
+    events: number
+    totalEvents: number
+    isRunning: boolean
+  }) => {
+    const clampPercent = (value?: number) => {
+      if (!Number.isFinite(value)) return undefined
+      return Math.max(0, Math.min(value!, 100))
+    }
+    const normalizedProgress = clampPercent(progress)
+    const normalizedFromEvents =
+      totalEvents > 0 && Number.isFinite(events)
+        ? clampPercent((events / totalEvents) * 100)
+        : undefined
+    const fallbackWidth = isRunning ? 5 : 0
+    const width =
+      effectiveStatus === 'success'
+        ? 100
+        : clampPercent(
+            Math.max(
+              normalizedProgress ?? 0,
+              normalizedFromEvents ?? 0,
+              fallbackWidth,
+            ),
+          ) ?? fallbackWidth
+    const eventLabel = totalEvents > 0
+      ? `${events}/${totalEvents} events`
+      : `${events} ${events === 1 ? 'event' : 'events'}`
+
+    if (import.meta.env.DEV) {
+      console.debug('[WorkflowNode] progress', {
+        nodeId: id,
+        events,
+        totalEvents,
+        normalizedProgress,
+        normalizedFromEvents,
+        width,
+      })
+    }
+
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>{isRunning ? 'Live stream' : 'Events observed'}</span>
+          <span>{eventLabel}</span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+          <div
             className={cn(
-              'flex items-center gap-1 rounded-full px-2 py-1 text-xs border transition-colors',
-              isTerminalOpen ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900/60 text-slate-100 border-slate-700',
+              'h-full rounded-full transition-all duration-500',
+              isRunning
+                ? 'bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 animate-pulse'
+                : effectiveStatus === 'success'
+                  ? 'bg-green-500'
+                  : effectiveStatus === 'error'
+                    ? 'bg-red-500'
+                    : 'bg-blue-400',
             )}
-          >
-            <TerminalIcon className="h-3 w-3" />
-            <span>Terminal</span>
-            {isTerminalLoading && <span className="animate-pulse">…</span>}
-            {!isTerminalLoading && terminalSession?.chunks?.length ? (
-              <span className="w-2 h-2 rounded-full bg-green-400" />
-            ) : null}
-          </button>
+            style={{ width: `${width}%` }}
+          />
         </div>
-      )}
-
-      {isTerminalOpen && (
-        <div className="absolute top-full right-0 mt-2 z-[60]">
-          <NodeTerminalPanel nodeId={id} onClose={() => setIsTerminalOpen(false)} />
-        </div>
-      )}
-
-      <svg
-        className="transform -rotate-90"
-        width={size}
-        height={size}
-      >
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={size / 2 - 2}
-          stroke="currentColor"
-          strokeWidth="2"
-          fill="none"
-          className="text-muted opacity-30"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={size / 2 - 2}
-          stroke="currentColor"
-          strokeWidth="2"
-          fill="none"
-          strokeDasharray={`${(progress / 100) * (Math.PI * (size - 4))} ${Math.PI * (size - 4)}`}
-          className={cn(
-            "transition-all duration-300",
-            effectiveStatus === 'running'
-              ? isPlaying
-                ? "text-blue-500 animate-pulse"
-                : "text-blue-400"
-              : "text-green-500"
-          )}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-xs font-medium">
-        {Math.round(progress)}%
       </div>
-    </div>
-  )
+    )
+  }
 
   // Event count badge
   const EventBadge = ({ count }: { count: number }) => (
@@ -309,6 +314,30 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                     )}
                   />
                 )}
+                {mode === 'execution' && selectedRunId && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsTerminalOpen((prev) => !prev)}
+                      className={cn(
+                        'flex items-center gap-1 rounded-full px-2 py-1 text-[11px] border transition-colors',
+                        isTerminalOpen ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900/60 text-slate-100 border-slate-700',
+                      )}
+                    >
+                      <TerminalIcon className="h-3 w-3" />
+                      <span>Terminal</span>
+                      {isTerminalLoading && <span className="animate-pulse">…</span>}
+                      {!isTerminalLoading && terminalSession?.chunks?.length ? (
+                        <span className="w-2 h-2 rounded-full bg-green-400" />
+                      ) : null}
+                    </button>
+                    {isTerminalOpen && (
+                      <div className="absolute bottom-full right-0 mb-2 z-[60]">
+                        <NodeTerminalPanel nodeId={id} onClose={() => setIsTerminalOpen(false)} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -353,6 +382,15 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
 
       {/* Body - Input/Output Ports */}
       <div className="px-3 py-3 space-y-2">
+        {isTimelineActive && (
+          <ProgressBar
+            progress={Number.isFinite(visualState.progress) ? visualState.progress : 0}
+            events={visualState.eventCount}
+            totalEvents={visualState.totalEvents}
+            isRunning={visualState.status === 'running'}
+          />
+        )}
+
         {/* Input Ports */}
         {componentInputs.length > 0 && (
           <div className="space-y-1.5">
@@ -515,12 +553,6 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
         {/* Enhanced Execution Status Messages */}
         {isTimelineActive && (
           <div className="pt-2 border-t border-border/50">
-            {shouldShowProgress && (
-              <div className="flex items-center justify-center py-2">
-                <ProgressRing progress={visualState.progress} size={40} />
-              </div>
-            )}
-
             {visualState.lastEvent && (
               <div className="text-xs text-muted-foreground mt-2">
                 <div className="font-medium">

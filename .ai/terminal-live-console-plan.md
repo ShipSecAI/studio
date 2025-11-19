@@ -2,7 +2,7 @@
 
 Goal: deliver low-latency, PTY-accurate Docker console streaming with archival replay. This plan breaks the work into focused phases so we can ship incrementally without disrupting existing JSON parsers or Loki logging.
 
-## Phase 1 – SDK + Worker PTY Capture (Foundations)
+## Phase 1 – SDK + Worker PTY Capture (Foundations) ✅ *Completed*
 
 **Objectives**
 - Introduce a `terminalCollector` surface in `@shipsec/component-sdk` without changing existing logger/logCollector semantics.
@@ -21,7 +21,7 @@ Goal: deliver low-latency, PTY-accurate Docker console streaming with archival r
 - Worker can emit terminal chunks to an in-memory collector with deterministic chunk indices.
 - Components continue to receive parseable stdout/stderr in legacy mode.
 
-## Phase 2 – Redis Hot Path Transport
+## Phase 2 – Redis Hot Path Transport ✅ *Completed*
 
 **Objectives**
 - Stream terminal chunks through Redis Streams for low-latency fan-out and resumable cursors.
@@ -41,7 +41,7 @@ Goal: deliver low-latency, PTY-accurate Docker console streaming with archival r
 - Live Docker nodes push chunks into Redis Streams with monotonic IDs.
 - Worker detects write failures and downgrades gracefully (logs warning + disables PTY).
 
-## Phase 3 – Backend Live Fan-Out + Cursor API
+## Phase 3 – Backend Live Fan-Out + Cursor API ✅ *Completed*
 
 **Objectives**
 - Consume Redis Streams from the backend and expose chunks via SSE/WebSocket alongside existing trace events.

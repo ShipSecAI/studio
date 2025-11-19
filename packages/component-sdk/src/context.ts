@@ -91,6 +91,10 @@ export function createExecutionContext(options: CreateContextOptions): Execution
       pushLog('stdout', 'info', args);
       console.log(`[${componentRef}]`, ...args);
     },
+    warn: (...args: unknown[]) => {
+      pushLog('stdout', 'warn', args);
+      console.warn(`[${componentRef}]`, ...args);
+    },
     error: (...args: unknown[]) => {
       pushLog('stderr', 'error', args);
       console.error(`[${componentRef}]`, ...args);
