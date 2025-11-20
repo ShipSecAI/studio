@@ -1,5 +1,6 @@
 import { X, ExternalLink } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -9,13 +10,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
 import { ParameterFieldWrapper } from './ParameterField'
 import { SecretSelect } from '@/components/inputs/SecretSelect'
 import type { Node } from 'reactflow'
 import type { NodeData } from '@/schemas/node'
-import { describePortDataType, inputSupportsManualValue } from '@/utils/portUtils'
+import type { ComponentType, KeyboardEvent } from 'react'
+import {
+  describePortDataType,
+  inputSupportsManualValue,
+  isListOfTextPortDataType,
+} from '@/utils/portUtils'
 
 interface ConfigPanelProps {
   selectedNode: Node<NodeData> | null
@@ -39,6 +46,124 @@ const formatManualValue = (value: unknown): string => {
     console.error('Failed to serialise manual value for preview', error)
     return String(value)
   }
+}
+
+interface ManualListChipsInputProps {
+  inputId: string
+  manualValue: unknown
+  disabled: boolean
+  placeholder: string
+  onChange: (value: string[] | undefined) => void
+}
+
+function ManualListChipsInput({
+  inputId,
+  manualValue,
+  disabled,
+  placeholder,
+  onChange,
+}: ManualListChipsInputProps) {
+  const listItems = Array.isArray(manualValue)
+    ? manualValue.filter((item): item is string => typeof item === 'string')
+    : []
+  const [draftValue, setDraftValue] = useState('')
+
+  useEffect(() => {
+    setDraftValue('')
+  }, [manualValue])
+
+  const handleAdd = () => {
+    const nextValue = draftValue.trim()
+    if (!nextValue) {
+      return
+    }
+    onChange([...listItems, nextValue])
+    setDraftValue('')
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      if (!disabled) {
+        handleAdd()
+      }
+    }
+  }
+
+  const handleRemove = (index: number) => {
+    if (disabled) return
+    const remaining = [...listItems]
+    remaining.splice(index, 1)
+    onChange(remaining.length > 0 ? remaining : undefined)
+  }
+
+  const handleClear = () => {
+    if (disabled) return
+    onChange(undefined)
+  }
+
+  const canAdd = draftValue.trim().length > 0
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          id={`manual-${inputId}-list`}
+          placeholder={placeholder}
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+          className="flex-1 text-sm"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 text-xs"
+          disabled={disabled || !canAdd}
+          onClick={handleAdd}
+        >
+          Add
+        </Button>
+      </div>
+
+      {listItems.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {listItems.map((item, index) => (
+            <Badge
+              key={`${inputId}-chip-${index}`}
+              variant="outline"
+              className="gap-1 pr-1"
+            >
+              <span className="max-w-[160px] truncate">{item}</span>
+              {!disabled && (
+                <button
+                  type="button"
+                  className="rounded-full p-0.5 text-muted-foreground transition hover:text-foreground hover:bg-muted"
+                  onClick={() => handleRemove(index)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {!disabled && listItems.length > 0 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 w-fit text-xs px-2"
+          onClick={handleClear}
+        >
+          Clear manual value
+        </Button>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -113,7 +238,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
   }
 
   const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
-  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>
+  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{ className?: string }>
 
   const componentInputs = component.inputs ?? []
   const componentOutputs = component.outputs ?? []
@@ -191,6 +316,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                     input.dataType?.kind === 'primitive' ? input.dataType.name : null
                   const isNumberInput = primitiveName === 'number'
                   const isBooleanInput = primitiveName === 'boolean'
+                  const isListOfTextInput = isListOfTextPortDataType(input.dataType)
                   const manualInputValue =
                     manualValue === undefined || manualValue === null
                       ? ''
@@ -207,7 +333,9 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                       ? 'https://<project-ref>.supabase.co or <project_ref>'
                       : isNumberInput
                         ? 'Enter a number to use without a connection'
-                        : 'Enter text to use without a connection'
+                        : isListOfTextInput
+                          ? 'Add entries or press Add to provide a list'
+                          : 'Enter text to use without a connection'
                   const typeLabel = describePortDataType(input.dataType)
 
                   return (
@@ -292,6 +420,14 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                                 </Button>
                               )}
                             </div>
+                          ) : isListOfTextInput ? (
+                            <ManualListChipsInput
+                              inputId={input.id}
+                              manualValue={manualValue}
+                              disabled={manualLocked}
+                              placeholder={manualPlaceholder}
+                              onChange={(value) => handleParameterChange(input.id, value)}
+                            />
                           ) : (
                             <Input
                               id={`manual-${input.id}`}
@@ -326,7 +462,9 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                             <p className="text-[10px] text-muted-foreground">
                               {isBooleanInput
                                 ? 'Select a value or clear manual input to require a port connection.'
-                                : 'Leave blank to require a port connection.'}
+                                : isListOfTextInput
+                                  ? 'Add entries or clear manual input to require a port connection.'
+                                  : 'Leave blank to require a port connection.'}
                             </p>
                           )}
                         </div>
