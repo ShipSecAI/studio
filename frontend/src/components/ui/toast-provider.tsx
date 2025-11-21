@@ -1,4 +1,12 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { cn } from '@/lib/utils'
 
 export type ToastVariant = 'default' | 'success' | 'warning' | 'destructive'
@@ -6,7 +14,7 @@ export type ToastVariant = 'default' | 'success' | 'warning' | 'destructive'
 export interface ToastOptions {
   id?: string
   title: string
-  description?: string
+  description?: ReactNode
   duration?: number
   variant?: ToastVariant
 }
@@ -106,9 +114,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div className="flex-1">
               <p className="text-sm font-semibold text-neutral-900">{title}</p>
               {description && (
-                <p className="mt-1 text-sm text-neutral-700">
-                  {description}
-                </p>
+                <div className="mt-1 text-sm text-neutral-700">
+                  {typeof description === 'string' ? (
+                    <p>{description}</p>
+                  ) : (
+                    description
+                  )}
+                </div>
               )}
             </div>
             <button

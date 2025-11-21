@@ -418,8 +418,26 @@ export class WorkflowsController {
       }, auth);
     } catch (error) {
       if (error instanceof HttpException) throw error;
+
+      // Extract detailed error information
       const message = error instanceof Error ? error.message : 'Failed to run workflow';
-      throw new BadRequestException(message);
+      const errorDetails: any = {
+        message,
+        error: 'Bad Request',
+        statusCode: 400,
+      };
+
+      // Include stack trace in development
+      if (error instanceof Error && error.stack) {
+        errorDetails.stack = error.stack;
+      }
+
+      // Include cause if available
+      if (error instanceof Error && (error as any).cause) {
+        errorDetails.cause = (error as any).cause;
+      }
+
+      throw new BadRequestException(errorDetails);
     }
   }
 

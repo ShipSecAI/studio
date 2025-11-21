@@ -51,6 +51,27 @@ const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
 
 const cloneEdges = (edges: ReactFlowEdge[]) => edges.map((edge) => ({ ...edge }))
 
+/**
+ * Format error messages to be more human-readable
+ */
+function formatErrorMessage(message: string): string {
+  // Remove common technical prefixes
+  let formatted = message
+    .replace(/^Error:\s*/i, '')
+    .replace(/^ApplicationFailure:\s*/i, '')
+    .replace(/^WorkflowFailure:\s*/i, '')
+
+  // Add bullet points for component failures
+  if (formatted.includes('[') && formatted.includes(']')) {
+    const parts = formatted.split(';').map((part) => part.trim())
+    if (parts.length > 1) {
+      formatted = parts.map((part) => `• ${part}`).join('\n')
+    }
+  }
+
+  return formatted
+}
+
 function WorkflowBuilderContent() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -392,11 +413,104 @@ function WorkflowBuilderContent() {
         })
       }
     } catch (error) {
-      console.error('Failed to run workflow:', error)
+      // Log full error details to console for debugging
+      console.group('❌ Workflow Execution Failed')
+      console.error('Error object:', error)
+      if (error instanceof Error) {
+        console.error('Message:', error.message)
+        if (error.stack) console.error('Stack:', error.stack)
+        if ((error as any).cause) console.error('Cause:', (error as any).cause)
+      }
+      console.groupEnd()
+
+      // Extract error message and stack trace
+      let errorMessage = 'An unknown error occurred'
+      let stackTrace: string | undefined
+
+      if (error instanceof Error) {
+        errorMessage = error.message
+        stackTrace = error.stack
+
+        // Check if it's a structured API error
+        const errorObj = error as any
+        if (errorObj.response?.data?.message) {
+          errorMessage = errorObj.response.data.message
+          stackTrace = errorObj.response.data.stack || stackTrace
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String((error as any).message)
+        if ('stack' in error) {
+          stackTrace = String((error as any).stack)
+        }
+      }
+
+      // Format the error message for better readability
+      const formattedMessage = formatErrorMessage(errorMessage)
+
+      // Extract component ID from error message for highlighting
+      const componentMatch = errorMessage.match(/\[([\w-]+)\]/)
+      const failedComponentId = componentMatch ? componentMatch[1] : null
+
+      // Highlight the failed component if we found it
+      if (failedComponentId && nodes.length > 0) {
+        const failedNode = nodes.find((n) => n.id === failedComponentId)
+        if (failedNode) {
+          // Update nodes to highlight the failed one
+          setNodes((nds) =>
+            nds.map((node) => ({
+              ...node,
+              selected: node.id === failedComponentId,
+              style: {
+                ...node.style,
+                ...(node.id === failedComponentId
+                  ? {
+                      outline: '3px solid #ef4444',
+                      outlineOffset: '2px',
+                      animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                  : {}),
+              },
+            }))
+          )
+        }
+      }
+
+      // Determine helpful message based on error type
+      let helpMessage = '💡 Open browser console (F12) to see complete error details'
+      if (errorMessage.includes('validation failed') || errorMessage.includes('required')) {
+        helpMessage = '💡 Check the highlighted component configuration and ensure all required fields are filled'
+      } else if (errorMessage.includes('not registered')) {
+        helpMessage = '💡 This component may not be properly installed or registered'
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+        helpMessage = '💡 The operation took too long. Try increasing timeout or check external service availability'
+      }
+
       toast({
         variant: 'destructive',
-        title: 'Failed to run workflow',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: 'Workflow Execution Failed',
+        duration: Infinity, // Don't auto-close error toasts
+        description: (
+          <div className="space-y-2 max-w-full">
+            <div className="whitespace-pre-wrap break-words">
+              {formattedMessage}
+            </div>
+            {stackTrace && (
+              <details className="text-xs opacity-80 mt-2">
+                <summary className="cursor-pointer hover:opacity-100 font-extrabold">
+                  View technical details
+                </summary>
+                <pre className="mt-2 p-2 bg-black/20 rounded text-[10px] whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                  {stackTrace}
+                </pre>
+              </details>
+            )}
+            <p className="text-xs opacity-70 mt-2 font-medium">
+              {helpMessage}
+            </p>
+          </div>
+        ),
       })
     } finally {
       setIsLoading(false)
