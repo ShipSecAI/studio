@@ -102,6 +102,12 @@ VITE_PUBLIC_POSTHOG_KEY=phc_...
 VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
+GitHub App (for PR webhooks/checks):
+
+- Backend: set `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_WEBHOOK_SECRET`.
+- Frontend: set `VITE_GITHUB_APP_INSTALL_URL` to your app’s install link (enables the “Install GitHub App” button in Connections).
+- Point your GitHub App webhook to `http://localhost:3211/api/v1/webhooks/github/app` (or your deployed host). The OAuth “Connect GitHub” remains user-scoped; the App is required for PR triggers.
+
 ### 3. Bring up the shared infrastructure
 
 ```bash

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { ComponentMetadata } from '@/schemas/component'
 import { api } from '@/services/api'
+import { githubTriggerComponent } from '@/components/workflow/nodes/definitions/githubTrigger'
 
 interface ComponentStoreState {
   components: Record<string, ComponentMetadata>
@@ -26,7 +27,9 @@ function buildIndexes(components: any[]) {
   const byId: Record<string, ComponentMetadata> = {}
   const slugIndex: Record<string, string> = {}
 
-  components.forEach((component) => {
+  const allComponents = [...components, githubTriggerComponent]
+
+  allComponents.forEach((component) => {
     // Filter out components missing required fields
     if (!component?.id || !component?.slug || !component?.name) {
       return

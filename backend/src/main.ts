@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
+import { json } from 'express';
 
 import { AppModule } from './app.module';
 
@@ -13,6 +14,16 @@ async function bootstrap() {
 
   // Set global prefix for all routes
   app.setGlobalPrefix('api/v1');
+
+  // Preserve raw body for GitHub webhook signature verification while still parsing JSON
+  app.use(
+    '/api/v1/webhooks/github',
+    json({
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
 
   const httpAdapter = app.getHttpAdapter().getInstance();
   if (httpAdapter?.set) {

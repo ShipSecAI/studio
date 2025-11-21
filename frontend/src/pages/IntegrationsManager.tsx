@@ -33,6 +33,10 @@ import { api } from '@/services/api'
 type IntegrationProvider = components['schemas']['IntegrationProviderResponse']
 type IntegrationConnection = components['schemas']['IntegrationConnectionResponse']
 
+const GITHUB_APP_INSTALL_URL = import.meta.env.VITE_GITHUB_APP_INSTALL_URL || ''
+const GITHUB_WEBHOOK_PATH = '/api/v1/webhooks/github/app'
+const GITHUB_WEBHOOK_URL = `${window.location.origin}${GITHUB_WEBHOOK_PATH}`
+
 function formatTimestamp(iso: string | null | undefined): string {
   if (!iso) {
     return '—'
@@ -197,6 +201,22 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
       })
     } finally {
       setRefreshingConnectionId(null)
+    }
+  }
+
+  const handleCopyWebhook = async () => {
+    try {
+      await navigator.clipboard.writeText(GITHUB_WEBHOOK_URL)
+      toast({
+        title: 'Webhook URL copied',
+        description: GITHUB_WEBHOOK_URL,
+      })
+    } catch (err) {
+      toast({
+        title: 'Copy failed',
+        description: err instanceof Error ? err.message : 'Could not copy webhook URL',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -383,6 +403,46 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                 </tbody>
               </table>
             </div>
+          )}
+        </section>
+
+        <section className="bg-card border rounded-lg p-5 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">GitHub App (PR triggers)</h2>
+              <p className="text-sm text-muted-foreground">
+                Install the ShipSec GitHub App for webhooks and repo-scoped tokens. OAuth below remains for user-scoped calls.
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-2">
+                <span className="font-medium">Webhook URL:</span>
+                <code className="px-2 py-1 bg-muted rounded text-[11px]">{GITHUB_WEBHOOK_URL}</code>
+                <Button variant="ghost" size="xs" className="h-6 px-2 gap-2" onClick={handleCopyWebhook}>
+                  <Copy className="h-3 w-3" />
+                  Copy
+                </Button>
+              </div>
+            </div>
+            <Button
+              asChild
+              disabled={!GITHUB_APP_INSTALL_URL}
+              variant={GITHUB_APP_INSTALL_URL ? 'default' : 'secondary'}
+              className="gap-2"
+            >
+              <a
+                href={GITHUB_APP_INSTALL_URL || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-disabled={!GITHUB_APP_INSTALL_URL}
+              >
+                <ExternalLink className="h-4 w-4" />
+                {GITHUB_APP_INSTALL_URL ? 'Install GitHub App' : 'Set VITE_GITHUB_APP_INSTALL_URL'}
+              </a>
+            </Button>
+          </div>
+          {!GITHUB_APP_INSTALL_URL && (
+            <p className="text-xs text-muted-foreground">
+              Set <code>VITE_GITHUB_APP_INSTALL_URL</code> to your app’s installation link to enable the button.
+            </p>
           )}
         </section>
 

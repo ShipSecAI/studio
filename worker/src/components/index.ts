@@ -44,6 +44,7 @@ import './security/trufflehog';
 // GitHub components
 import './github/connection-provider';
 import './github/remove-org-membership';
+import './github/pr-checkout';
 
 // IT Automation components
 import './it-automation/google-workspace-license-unassign';

@@ -136,6 +136,9 @@ services:
       - AUTH_PROVIDER=local
       - CLERK_PUBLISHABLE_KEY=
       - CLERK_SECRET_KEY=
+      - GITHUB_APP_ID=${GITHUB_APP_ID:-}
+      - GITHUB_APP_PRIVATE_KEY=${GITHUB_APP_PRIVATE_KEY:-}
+      - GITHUB_APP_WEBHOOK_SECRET=${GITHUB_APP_WEBHOOK_SECRET:-}
     ports:
       - "3211:3211"
     depends_on:
@@ -158,6 +161,7 @@ services:
         VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-local}
         VITE_DEFAULT_ORG_ID: ${VITE_DEFAULT_ORG_ID:-local-dev}
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
+        VITE_GITHUB_APP_INSTALL_URL: ${VITE_GITHUB_APP_INSTALL_URL:-}
     container_name: shipsec-frontend
     environment:
       - VITE_API_URL=http://localhost:3211
@@ -169,6 +173,7 @@ services:
       # If unset, the app disables analytics at runtime.
       - VITE_PUBLIC_POSTHOG_KEY=${VITE_PUBLIC_POSTHOG_KEY:-}
       - VITE_PUBLIC_POSTHOG_HOST=${VITE_PUBLIC_POSTHOG_HOST:-}
+      - VITE_GITHUB_APP_INSTALL_URL=${VITE_GITHUB_APP_INSTALL_URL:-}
     ports:
       - "8090:8080"
     depends_on:

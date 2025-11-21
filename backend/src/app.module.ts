@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { authConfig } from './config/auth.config';
+import { githubAppConfig } from './config/github-app.config';
 import { AuthModule } from './auth/auth.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './auth/roles.guard';
@@ -15,6 +16,7 @@ import { TraceModule } from './trace/trace.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { TestingSupportModule } from './testing/testing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { GithubModule } from './github/github.module';
 
 const coreModules = [
   AuthModule,
@@ -24,6 +26,7 @@ const coreModules = [
   StorageModule,
   SecretsModule,
   IntegrationsModule,
+  GithubModule,
 ];
 const testingModules =
   process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
@@ -33,7 +36,7 @@ const testingModules =
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', '../.env'],
-      load: [authConfig],
+      load: [authConfig, githubAppConfig],
     }),
     ...coreModules,
     ...testingModules,

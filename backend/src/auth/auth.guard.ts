@@ -22,6 +22,11 @@ export class AuthGuard implements CanActivate {
           return true;
         }
 
+        // Allow unauthenticated GitHub webhooks (signature is verified separately)
+        if (request.path?.startsWith('/api/v1/webhooks/github')) {
+          return true;
+        }
+
         this.logger.log(
           `[AUTH] Guard activating for ${request.method} ${request.path} - Provider: ${this.authService.providerName}`
         );
