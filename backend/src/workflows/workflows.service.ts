@@ -424,11 +424,20 @@ export class WorkflowsService {
         taskQueue: temporalRun.taskQueue,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
       this.logger.error(
-        `Failed to start workflow ${workflow.id} run ${runId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Failed to start workflow ${workflow.id} run ${runId}: ${errorMessage}`,
       );
+
+      if (errorStack) {
+        this.logger.error(`Stack trace: ${errorStack}`);
+      }
+
+      // Log the full error object for debugging
+      this.logger.debug(`Full error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+
       throw error;
     }
   }

@@ -346,7 +346,13 @@ export const api = {
           }
         : undefined
       const response = await apiClient.runWorkflow(workflowId, payload)
-      if (response.error) throw new Error('Failed to start execution')
+      if ((response as any).error) {
+        const error = (response as any).error
+        const errorMessage =
+          error?.message ||
+          (typeof error === 'string' ? error : 'Failed to start execution')
+        throw new Error(errorMessage)
+      }
       return { executionId: (response.data as any)?.runId || '' }
     },
 

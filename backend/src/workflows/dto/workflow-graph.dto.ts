@@ -40,7 +40,7 @@ export const WorkflowGraphSchema = z.object({
   description: z.string().optional(),
   nodes: z.array(WorkflowNodeSchema).min(1),
   edges: z.array(WorkflowEdgeSchema),
-  viewport: WorkflowViewportSchema,
+  viewport: WorkflowViewportSchema.default({ x: 0, y: 0, zoom: 1 }),
 });
 
 export class WorkflowGraphDto extends createZodDto(WorkflowGraphSchema) {}

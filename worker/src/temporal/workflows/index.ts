@@ -86,8 +86,34 @@ export async function shipsecWorkflowRun(
       },
     });
 
+    // Check if any component returned a failure status
+    const outputs = Object.fromEntries(results);
+    const failedComponents: Array<{ ref: string; error: string }> = [];
+
+    for (const [ref, output] of results.entries()) {
+      if (isComponentFailure(output)) {
+        const errorMessage = extractFailureMessage(output);
+        failedComponents.push({ ref, error: errorMessage });
+      }
+    }
+
+    if (failedComponents.length > 0) {
+      const failureDetails = failedComponents
+        .map(({ ref, error }) => `[${ref}] ${error}`)
+        .join('; ');
+      const errorMessage = `Workflow failed: ${failureDetails}`;
+
+      console.error(`[Workflow] ${errorMessage}`);
+
+      throw ApplicationFailure.nonRetryable(
+        errorMessage,
+        'ComponentFailure',
+        [{ outputs, failedComponents }],
+      );
+    }
+
     return {
-      outputs: Object.fromEntries(results),
+      outputs,
       success: true,
     };
   } catch (error) {
@@ -105,6 +131,35 @@ export async function shipsecWorkflowRun(
       console.error(`[Workflow] Failed to finalize run ${input.runId}`, err);
     });
   }
+}
+
+/**
+ * Check if a component output represents a failure
+ */
+function isComponentFailure(value: unknown): value is { success: boolean; error?: unknown } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'success' in value &&
+    (value as { success?: unknown }).success === false
+  );
+}
+
+/**
+ * Extract error message from a failed component output
+ */
+function extractFailureMessage(value: { success: boolean; error?: unknown }): string {
+  if (!value) {
+    return 'Component reported failure';
+  }
+  const errorMessage = value.error;
+  if (typeof errorMessage === 'string' && errorMessage.trim().length > 0) {
+    return errorMessage;
+  }
+  if (errorMessage && typeof errorMessage === 'object') {
+    return JSON.stringify(errorMessage);
+  }
+  return 'Component reported failure';
 }
 
 export async function minimalWorkflow(): Promise<string> {
