@@ -142,10 +142,169 @@ CORE Memory preserves project context, so every CORE-enabled session must follow
 - `.ai/visual-execution-notes.md`: audit findings, infrastructure status, UX expectations.
 - `.ai/worker-implementation-example.md`: end-to-end worker example with logging & progress emission.
 
-### 8. When Blocked
+### 8. Component Development (CRITICAL: Read Before Creating Components)
+
+**When creating or modifying Docker-based components, you MUST follow the file system access patterns documented below.**
+
+#### Required Reading (in order)
+1. **`.ai/component-sdk.md`** — Authoritative component interface, runner config, and **File System Access Pattern** section
+2. **`docs/component-development.md`** — Complete development guide with security requirements and patterns
+3. **`worker/src/components/security/dnsx.ts:615-662`** — Reference implementation of isolated volumes
+
+#### MANDATORY Pattern: IsolatedContainerVolume
+
+**ALL Docker components requiring file input/output MUST use `IsolatedContainerVolume`:**
+
+```typescript
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+
+async execute(input, context) {
+  const tenantId = (context as any).tenantId ?? 'default-tenant';
+  const volume = new IsolatedContainerVolume(tenantId, context.runId);
+
+  try {
+    // Write input files
+    await volume.initialize({
+      'targets.txt': targets.join('\n'),
+      'config.json': JSON.stringify(config)
+    });
+
+    // Configure runner with volume
+    const runnerConfig: DockerRunnerConfig = {
+      kind: 'docker',
+      image: 'tool:latest',
+      command: buildCommandArgs(input),
+      volumes: [volume.getVolumeConfig('/inputs', true)]  // read-only
+    };
+
+    const result = await runComponentWithRunner(runnerConfig, ...);
+    return result;
+
+  } finally {
+    await volume.cleanup();  // MANDATORY - always cleanup
+  }
+}
+```
+
+#### Why This Pattern is REQUIRED
+
+❌ **NEVER use direct file mounts** (broken in DinD, security risk):
+```typescript
+// WRONG - DO NOT DO THIS
+const tempDir = await mkdtemp(path.join(tmpdir(), 'input-'));
+await writeFile(path.join(tempDir, 'file.txt'), data);
+volumes: [{ source: tempDir, target: '/inputs' }]  // FAILS in Docker-in-Docker
+```
+
+✅ **ALWAYS use IsolatedContainerVolume** (DinD compatible, tenant isolated):
+- Works in Docker-in-Docker environments (named volumes vs file mounts)
+- Enforces multi-tenant isolation (`tenant-{tenantId}-run-{runId}-{timestamp}`)
+- Automatic cleanup prevents data leakage
+- Audit trail via volume labels
+- Path validation prevents security exploits
+
+#### Component Creation Checklist
+
+When creating a new Docker component:
+
+- [ ] Read `.ai/component-sdk.md` File System Access Pattern section
+- [ ] Import `IsolatedContainerVolume` from `../../utils/isolated-volume`
+- [ ] Create volume with tenant ID and run ID
+- [ ] Use `volume.initialize()` to write input files
+- [ ] Mount volume with `volume.getVolumeConfig('/path', readOnly)`
+- [ ] Put cleanup in `finally` block (MANDATORY)
+- [ ] Add logging for volume creation and cleanup
+- [ ] Test volume creation, usage, and cleanup
+- [ ] Verify no orphaned volumes after execution
+
+#### Pattern Variations
+
+**Input files only** (most common):
+```typescript
+const volume = new IsolatedContainerVolume(tenantId, context.runId);
+try {
+  await volume.initialize({ 'domains.txt': domains.join('\n') });
+  volumes: [volume.getVolumeConfig('/inputs', true)]
+  // ... run component ...
+} finally {
+  await volume.cleanup();
+}
+```
+
+**Input + output files**:
+```typescript
+const volume = new IsolatedContainerVolume(tenantId, context.runId);
+try {
+  await volume.initialize({ 'config.yaml': yamlConfig });
+  volumes: [volume.getVolumeConfig('/data', false)]  // read-write
+  // ... run component ...
+  const outputs = await volume.readFiles(['results.json']);
+  return JSON.parse(outputs['results.json']);
+} finally {
+  await volume.cleanup();
+}
+```
+
+**Multiple volumes** (separate input/output):
+```typescript
+const inputVol = new IsolatedContainerVolume(tenantId, `${runId}-in`);
+const outputVol = new IsolatedContainerVolume(tenantId, `${runId}-out`);
+try {
+  await inputVol.initialize({ 'data.csv': csvData });
+  await outputVol.initialize({});
+  volumes: [
+    inputVol.getVolumeConfig('/inputs', true),
+    outputVol.getVolumeConfig('/outputs', false)
+  ]
+  // ... run component ...
+} finally {
+  await Promise.all([inputVol.cleanup(), outputVol.cleanup()]);
+}
+```
+
+#### Reference Documentation
+
+- **Component SDK**: `.ai/component-sdk.md` — Interface and file system pattern
+- **Development Guide**: `docs/component-development.md` — Full patterns and security
+- **API Reference**: `worker/src/utils/README.md` — IsolatedContainerVolume API
+- **Architecture**: `docs/ISOLATED_VOLUMES.md` — How it works, security model
+- **Migration Tracking**: `worker/src/utils/COMPONENTS_TO_MIGRATE.md` — Components needing updates
+- **Working Example**: `worker/src/components/security/dnsx.ts:615-662`
+
+#### Security Guarantees
+
+Using IsolatedContainerVolume ensures:
+- **Tenant Isolation**: Volume names include tenant ID to prevent cross-tenant access
+- **No Collisions**: Timestamp in name prevents concurrent execution conflicts
+- **Path Safety**: Filenames validated (blocks `..` and `/` prefixes)
+- **Automatic Cleanup**: Finally blocks guarantee volume removal
+- **Audit Trail**: Volumes labeled with `studio.managed=true` for tracking
+- **DinD Compatible**: Named volumes work in nested Docker scenarios
+
+#### Common Mistakes to Avoid
+
+1. ❌ Using `mkdtemp` + `writeFile` + file mounts (broken in DinD)
+2. ❌ Forgetting `finally` block for cleanup (causes volume leaks)
+3. ❌ Using read-write mounts when read-only is sufficient (security risk)
+4. ❌ Hardcoding tenant ID instead of getting from context
+5. ❌ Not logging volume creation/cleanup (makes debugging harder)
+6. ❌ Skipping validation that volumes are cleaned up (check `docker volume ls`)
+
+#### Testing Requirements
+
+After implementing file-based component:
+- Component executes successfully
+- Volume is created with correct naming pattern
+- Files are written to volume and accessible to container
+- Volume is cleaned up after successful execution
+- Volume is cleaned up on error/exception
+- No orphaned volumes remain (`docker volume ls --filter "label=studio.managed=true"`)
+- Logs show volume creation and cleanup messages
+
+### 9. When Blocked
 - Capture the issue, attempted approaches, and uncertainties in the response.
 - Suggest concrete follow-ups (information needed, commands to rerun, potential fixes).
-- CORE-enabled agents: store the blocker in CORE Memory.  
+- CORE-enabled agents: store the blocker in CORE Memory.
   Non-CORE agents: record the blocker in a shared doc or ticket so the next teammate can resume quickly.
 
 ## MDFiler
