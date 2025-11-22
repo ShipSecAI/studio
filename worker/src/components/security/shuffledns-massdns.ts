@@ -186,7 +186,7 @@ const definition: ComponentDefinition<Input, Output> = {
   },
   async execute(input, context) {
     const { domains, mode } = input;
-    const modeText = mode ?? 'bruteforce';
+    const modeText = mode ?? 'resolve';
     context.logger.info(
       `[Shuffledns] ${modeText} ${domains.length} domain(s) via Shuffledns + MassDNS`,
     );

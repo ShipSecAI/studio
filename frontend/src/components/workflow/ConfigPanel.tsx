@@ -576,18 +576,29 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                 Parameters
               </h5>
               <div className="space-y-3">
-                {componentParameters.map((param) => (
-                  <ParameterFieldWrapper
-                    key={param.id}
-                    parameter={param}
-                    value={nodeData.parameters?.[param.id]}
-                    onChange={(value) => handleParameterChange(param.id, value)}
-                    connectedInput={nodeData.inputs?.[param.id]}
-                    componentSlug={component.slug ?? component.id}
-                    parameters={nodeData.parameters}
-                    onUpdateParameter={handleParameterChange}
-                  />
-                ))}
+                {/* Sort parameters: select types first, then others */}
+                {componentParameters
+                  .slice()
+                  .sort((a, b) => {
+                    // Select parameters go first
+                    const aIsSelect = a.type === 'select'
+                    const bIsSelect = b.type === 'select'
+                    if (aIsSelect && !bIsSelect) return -1
+                    if (!aIsSelect && bIsSelect) return 1
+                    return 0
+                  })
+                  .map((param) => (
+                    <ParameterFieldWrapper
+                      key={param.id}
+                      parameter={param}
+                      value={nodeData.parameters?.[param.id]}
+                      onChange={(value) => handleParameterChange(param.id, value)}
+                      connectedInput={nodeData.inputs?.[param.id]}
+                      componentSlug={component.slug ?? component.id}
+                      parameters={nodeData.parameters}
+                      onUpdateParameter={handleParameterChange}
+                    />
+                  ))}
               </div>
             </div>
           )}

@@ -408,46 +408,63 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
           </div>
         )}
 
-        {/* Required Parameters Display */}
-        {requiredParams.length > 0 && (
-          <div className="pt-2 border-t border-border/50">
-            <div className="space-y-1">
-              {/* Required Parameters */}
-              {requiredParams.map((param) => {
-                const value = nodeData.parameters?.[param.id]
-                const effectiveValue = value !== undefined ? value : param.default
-                const hasValue = effectiveValue !== undefined && effectiveValue !== null && effectiveValue !== ''
-                const displayValue = hasValue ? effectiveValue : ''
-                const isDefault = value === undefined && param.default !== undefined
+        {/* Parameters Display (Required + Select types) */}
+        {(() => {
+          // Show required parameters and important select parameters (like mode)
+          const selectParams = componentParameters.filter(
+            param => param.type === 'select' && !param.required
+          )
+          const paramsToShow = [...requiredParams, ...selectParams]
 
-                return (
-                  <div key={`param-${param.id}`} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="text-muted-foreground font-medium truncate">
-                      {param.label}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {hasValue ? (
-                        <span
-                          className={cn(
-                            "font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[80px]",
-                            isDefault
-                              ? "text-muted-foreground bg-muted/50 italic"
-                              : "text-foreground bg-muted"
-                          )}
-                          title={isDefault ? `Default: ${String(displayValue)}` : String(displayValue)}
-                        >
-                          {String(displayValue)}
-                        </span>
-                      ) : (
-                        <span className="text-red-500 text-[10px]">*required</span>
-                      )}
+          if (paramsToShow.length === 0) return null
+
+          return (
+            <div className="pt-2 border-t border-border/50">
+              <div className="space-y-1">
+                {paramsToShow.map((param) => {
+                  const value = nodeData.parameters?.[param.id]
+                  const effectiveValue = value !== undefined ? value : param.default
+                  const hasValue = effectiveValue !== undefined && effectiveValue !== null && effectiveValue !== ''
+                  const isDefault = value === undefined && param.default !== undefined
+
+                  // For select parameters, show the label instead of value
+                  let displayValue = hasValue ? effectiveValue : ''
+                  if (param.type === 'select' && hasValue && param.options) {
+                    const option = param.options.find(opt => opt.value === effectiveValue)
+                    displayValue = option?.label || effectiveValue
+                  }
+
+                  return (
+                    <div key={`param-${param.id}`} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground font-medium truncate">
+                        {param.label}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {hasValue ? (
+                          <span
+                            className={cn(
+                              "font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[80px]",
+                              isDefault
+                                ? "text-muted-foreground bg-muted/50 italic"
+                                : param.type === 'select'
+                                  ? "text-blue-600 bg-blue-50 font-semibold"
+                                  : "text-foreground bg-muted"
+                            )}
+                            title={isDefault ? `Default: ${String(displayValue)}` : String(displayValue)}
+                          >
+                            {String(displayValue)}
+                          </span>
+                        ) : param.required ? (
+                          <span className="text-red-500 text-[10px]">*required</span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Enhanced Execution Status Messages */}
         {isTimelineActive && (

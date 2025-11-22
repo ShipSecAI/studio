@@ -493,19 +493,21 @@ function WorkflowBuilderContent() {
         duration: Infinity, // Don't auto-close error toasts
         description: (
           <div className="space-y-2 max-w-full">
-            <div className="whitespace-pre-wrap break-words">
+            <div className="whitespace-pre-wrap break-words text-sm">
               {formattedMessage}
             </div>
+
             {stackTrace && (
-              <details className="text-xs opacity-80 mt-2">
-                <summary className="cursor-pointer hover:opacity-100 font-extrabold">
-                  View technical details
+              <details className="text-xs opacity-80">
+                <summary className="cursor-pointer hover:opacity-100 font-medium">
+                  Stack Trace
                 </summary>
                 <pre className="mt-2 p-2 bg-black/20 rounded text-[10px] whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
                   {stackTrace}
                 </pre>
               </details>
             )}
+
             <p className="text-xs opacity-70 mt-2 font-medium">
               {helpMessage}
             </p>
