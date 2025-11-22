@@ -22,7 +22,7 @@ const inputSchema = z
       .min(1, 'Provide at least one domain.'),
     mode: z
       .enum(['bruteforce', 'resolve'])
-      .default('bruteforce')
+      .default('resolve')
       .describe('Execution mode: bruteforce with a wordlist or resolve a list of seeds'),
     words: z
       .array(z.string().min(1))
@@ -131,9 +131,27 @@ const definition: ComponentDefinition<Input, Output> = {
     isLatest: true,
     deprecated: false,
     inputs: [
-      { id: 'domains', label: 'Target Domains', dataType: port.list(port.text()), required: true },
-      { id: 'words', label: 'Wordlist (bruteforce)', dataType: port.list(port.text()), required: false },
-      { id: 'seeds', label: 'Seeds (resolve)', dataType: port.list(port.text()), required: false },
+      {
+        id: 'domains',
+        label: 'Target Domains',
+        dataType: port.list(port.text()),
+        required: true,
+        description: 'Base domain(s) to scan (e.g., example.com, hackerone.com)'
+      },
+      {
+        id: 'seeds',
+        label: 'Subdomains to Resolve',
+        dataType: port.list(port.text()),
+        required: false,
+        description: 'Full subdomains to validate in resolve mode (e.g., www.example.com, api.example.com)'
+      },
+      {
+        id: 'words',
+        label: 'Wordlist',
+        dataType: port.list(port.text()),
+        required: false,
+        description: 'Words for bruteforce mode (e.g., www, api, admin)'
+      },
       {
         id: 'resolvers',
         label: 'Resolvers',
@@ -152,11 +170,11 @@ const definition: ComponentDefinition<Input, Output> = {
         id: 'mode',
         label: 'Mode',
         type: 'select',
-        default: 'bruteforce',
-        description: 'Choose how shuffledns operates.',
+        default: 'resolve',
+        description: 'Choose how shuffledns operates. Resolve mode validates existing subdomains (default), Bruteforce generates permutations from a wordlist.',
         options: [
-          { label: 'Bruteforce (with wordlist)', value: 'bruteforce' },
           { label: 'Resolve (from seeds)', value: 'resolve' },
+          { label: 'Bruteforce (with wordlist)', value: 'bruteforce' },
         ],
       },
       { id: 'threads', label: 'Threads (-t)', type: 'number', min: 1, max: 20000 },
