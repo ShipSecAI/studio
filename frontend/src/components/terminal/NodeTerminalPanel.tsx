@@ -60,6 +60,7 @@ export function NodeTerminalPanel({
 
   // Use separate selectors to avoid creating new objects on every render
   const currentTime = useExecutionTimelineStore((state) => state.currentTime)
+  const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime)
 
   const { chunks, isHydrating, isStreaming, error, mode, exportText, isTimelineSync, isFetchingTimeline } = useTimelineTerminalStream({
     runId,
@@ -206,17 +207,41 @@ export function NodeTerminalPanel({
         (chunk) => chunk.chunkIndex > lastRenderedChunkIndex.current,
       )
 
+      // Calculate target absolute time for comparison
+      const targetAbsoluteTime = timelineStartTime ? timelineStartTime + currentTime : null
+      
       console.log('[NodeTerminalPanel] Timeline sync - fast-forward rendering', {
         totalChunks: chunks.length,
         chunksToRender: chunksToRender.length,
         lastRenderedIndex: lastRenderedChunkIndex.current,
         currentTimeMs: currentTime,
+        timelineStartTime: timelineStartTime ? new Date(timelineStartTime).toISOString() : null,
+        targetAbsoluteTime: targetAbsoluteTime ? new Date(targetAbsoluteTime).toISOString() : null,
         chunkIndices: chunksToRender.map(c => c.chunkIndex),
-        chunkTimestamps: chunksToRender.slice(0, 5).map(c => ({
-          chunkIndex: c.chunkIndex,
-          recordedAt: c.recordedAt,
-          timestamp: new Date(c.recordedAt).toISOString(),
-        })),
+        allChunkTimestamps: chunks.map(c => {
+          const chunkTime = new Date(c.recordedAt).getTime()
+          const isBeforeTarget = targetAbsoluteTime ? chunkTime <= targetAbsoluteTime : true
+          return {
+            chunkIndex: c.chunkIndex,
+            recordedAt: c.recordedAt,
+            timestamp: new Date(c.recordedAt).toISOString(),
+            timestampMs: chunkTime,
+            isBeforeTarget,
+            deltaFromTarget: targetAbsoluteTime ? chunkTime - targetAbsoluteTime : null,
+          }
+        }),
+        chunksToRenderTimestamps: chunksToRender.map(c => {
+          const chunkTime = new Date(c.recordedAt).getTime()
+          const isBeforeTarget = targetAbsoluteTime ? chunkTime <= targetAbsoluteTime : true
+          return {
+            chunkIndex: c.chunkIndex,
+            recordedAt: c.recordedAt,
+            timestamp: new Date(c.recordedAt).toISOString(),
+            timestampMs: chunkTime,
+            isBeforeTarget,
+            deltaFromTarget: targetAbsoluteTime ? chunkTime - targetAbsoluteTime : null,
+          }
+        }),
       })
 
       for (const chunk of chunksToRender) {

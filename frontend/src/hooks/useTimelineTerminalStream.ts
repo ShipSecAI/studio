@@ -261,11 +261,19 @@ export function useTimelineTerminalStream(
     // In timeline sync mode (replay), always filter by time if we have timelineStartTime
     // Even if timelineChunks is empty, we should filter terminalResult.chunks by time
     if (timelineChunks.length > 0) {
-      console.log('[useTimelineTerminalStream] displayChunks - using timelineChunks', {
-        timelineChunksCount: timelineChunks.length,
-        currentTimeMs: currentTime,
-        chunkIndices: timelineChunks.map(c => c.chunkIndex),
-      })
+        console.log('[useTimelineTerminalStream] displayChunks - using timelineChunks', {
+          timelineChunksCount: timelineChunks.length,
+          currentTimeMs: currentTime,
+          timelineStartTime: timelineStartTime ? new Date(timelineStartTime).toISOString() : null,
+          targetAbsoluteTime: timelineStartTime ? new Date(timelineStartTime + currentTime).toISOString() : null,
+          chunkIndices: timelineChunks.map(c => c.chunkIndex),
+          chunkTimestamps: timelineChunks.map(c => ({
+            chunkIndex: c.chunkIndex,
+            recordedAt: c.recordedAt,
+            timestamp: new Date(c.recordedAt).toISOString(),
+            timestampMs: new Date(c.recordedAt).getTime(),
+          })),
+        })
       return timelineChunks
     }
     
