@@ -39,15 +39,24 @@ export function useTimelineTerminalStream(
   options: UseTimelineTerminalStreamOptions,
 ): UseTimelineTerminalStreamResult {
   const { timelineSync = false, ...terminalOptions } = options
+  
+  // Use separate selectors to avoid creating new objects on every render
+  const playbackMode = useExecutionTimelineStore((state) => state.playbackMode)
+  
+  // Only disable autoConnect if timelineSync is enabled AND we're not in live mode
+  // In live mode, we always want autoConnect to work for real-time streaming
+  const shouldAutoConnect = timelineSync && playbackMode !== 'live' 
+    ? false  // Disable autoConnect in timeline sync mode (replay)
+    : terminalOptions.autoConnect !== false  // Use original autoConnect value (defaults to true)
+  
   const terminalResult = useTerminalStream({
     ...terminalOptions,
-    autoConnect: !timelineSync || terminalOptions.autoConnect === false ? false : terminalOptions.autoConnect,
+    autoConnect: shouldAutoConnect,
   })
   
   // Use separate selectors to avoid creating new objects on every render
   const currentTime = useExecutionTimelineStore((state) => state.currentTime)
   const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime)
-  const playbackMode = useExecutionTimelineStore((state) => state.playbackMode)
 
   const [timelineChunks, setTimelineChunks] = useState<typeof terminalResult.chunks>([])
   const [isFetchingTimeline, setIsFetchingTimeline] = useState(false)
@@ -200,13 +209,16 @@ export function useTimelineTerminalStream(
   }, [timelineSync, currentTime, timelineStartTime, playbackMode, fetchChunksUpToTime, getAbsoluteTimeFromTimeline, setTimelineChunksIfChanged])
 
   // Determine which chunks to use
-  // Use ref to avoid dependency on terminalResult.chunks which changes frequently
+  // In live mode or when not syncing, use terminalResult.chunks directly (always fresh)
+  // In timeline sync mode (replay), use filtered timelineChunks
   const displayChunks = useMemo(() => {
     if (!timelineSync || playbackMode === 'live') {
-      return terminalChunksRef.current // Use all chunks when not syncing
+      // In live mode, always use terminalResult.chunks directly for real-time updates
+      return terminalResult.chunks
     }
-    return timelineChunks.length > 0 ? timelineChunks : terminalChunksRef.current
-  }, [timelineSync, playbackMode, timelineChunks])
+    // In timeline sync mode (replay), use filtered chunks
+    return timelineChunks.length > 0 ? timelineChunks : terminalResult.chunks
+  }, [timelineSync, playbackMode, timelineChunks, terminalResult.chunks])
 
   return {
     ...terminalResult,

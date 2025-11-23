@@ -59,14 +59,13 @@ export function NodeTerminalPanel({
   const lastTimelineTimeRef = useRef<number | null>(null)
 
   // Use separate selectors to avoid creating new objects on every render
-  const playbackMode = useExecutionTimelineStore((state) => state.playbackMode)
   const currentTime = useExecutionTimelineStore((state) => state.currentTime)
 
   const { chunks, isHydrating, isStreaming, error, mode, exportText, isTimelineSync, isFetchingTimeline } = useTimelineTerminalStream({
     runId,
     nodeId,
     stream: 'pty', // Always use PTY stream
-    autoConnect: !timelineSync || playbackMode === 'live', // Only auto-connect in live mode or when not syncing
+    autoConnect: true, // Always enable autoConnect - hook handles timeline sync logic
     timelineSync,
   })
 
