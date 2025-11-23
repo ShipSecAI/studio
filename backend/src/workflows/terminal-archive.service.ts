@@ -170,10 +170,20 @@ export class TerminalArchiveService {
       return { chunks: [], nextOffset: options.startOffset };
     }
     const lines = content.split('\n');
-    // remove header
+    // Parse header to get workflow start timestamp
     const headerLine = lines.shift();
     if (!headerLine) {
       return { chunks: [], nextOffset: options.startOffset };
+    }
+
+    let workflowStartTime: number;
+    try {
+      const header = JSON.parse(headerLine) as { version: number; timestamp?: number; width?: number; height?: number };
+      // Cast file timestamp is Unix epoch seconds, convert to milliseconds
+      workflowStartTime = header.timestamp ? header.timestamp * 1000 : record.createdAt.getTime();
+    } catch {
+      // Fallback to record creation time if header parsing fails
+      workflowStartTime = record.createdAt.getTime();
     }
 
     let chunkIndex = record.firstChunkIndex ?? 0;
@@ -200,6 +210,11 @@ export class TerminalArchiveService {
         }
         const deltaSeconds = timeSeconds - previousTime;
         previousTime = timeSeconds;
+        
+        // Reconstruct absolute timestamp: workflow start + elapsed time
+        const elapsedMs = Math.round(timeSeconds * 1000);
+        const absoluteTimestamp = workflowStartTime + elapsedMs;
+        
         const resolvedStream: TerminalChunk['stream'] =
           streamSymbol === 'e' ? 'stderr' : recordStream;
         chunks.push({
@@ -207,7 +222,7 @@ export class TerminalArchiveService {
           stream: resolvedStream,
           chunkIndex: chunkIndex++,
           payload: Buffer.from(text).toString('base64'),
-          recordedAt: record.createdAt.toISOString(),
+          recordedAt: new Date(absoluteTimestamp).toISOString(),
           deltaMs: Math.max(0, Math.round(deltaSeconds * 1000)),
           origin: 'archive',
           runnerKind: 'docker',

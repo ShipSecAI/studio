@@ -100,7 +100,7 @@ export class TerminalStreamService implements OnModuleDestroy {
       }
 
       for (const [id, fields] of entries) {
-        const payload = this.extractPayload(key, fields);
+        const payload = this.extractPayload(key, fields, id);
         if (payload) {
           // Filter by time range if provided
           if (options.startTime || options.endTime) {
@@ -139,7 +139,7 @@ export class TerminalStreamService implements OnModuleDestroy {
     return results;
   }
 
-  private extractPayload(key: string, fields: string[]): TerminalChunk | null {
+  private extractPayload(key: string, fields: string[], redisId?: string): TerminalChunk | null {
     for (let i = 0; i < fields.length; i += 2) {
       if (fields[i] !== 'data') {
         continue;
@@ -154,12 +154,29 @@ export class TerminalStreamService implements OnModuleDestroy {
           runnerKind?: string;
         };
         const { nodeRef, stream } = this.parseKey(key);
+        
+        // Use Redis stream ID timestamp if chunks have identical recordedAt timestamps
+        // Redis stream IDs are in format: milliseconds-sequence (e.g., "1734972072337-0")
+        // This provides microsecond precision for ordering
+        let recordedAt = data.recordedAt;
+        if (redisId) {
+          const [redisTimestampMs] = redisId.split('-');
+          const redisTimestamp = parseInt(redisTimestampMs, 10);
+          const storedTimestamp = new Date(data.recordedAt).getTime();
+          
+          // If Redis timestamp is more precise (different from stored), use it
+          // This handles the case where multiple chunks were created in the same millisecond
+          if (redisTimestamp && redisTimestamp !== storedTimestamp) {
+            recordedAt = new Date(redisTimestamp).toISOString();
+          }
+        }
+        
         return {
           nodeRef,
           stream,
           chunkIndex: data.chunkIndex,
           payload: data.payload,
-          recordedAt: data.recordedAt,
+          recordedAt,
           deltaMs: data.deltaMs,
           origin: data.origin,
           runnerKind: data.runnerKind,
