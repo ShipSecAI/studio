@@ -58,10 +58,9 @@ export function NodeTerminalPanel({
   const lastRenderedChunkIndex = useRef<number>(-1)
   const lastTimelineTimeRef = useRef<number | null>(null)
 
-  const { playbackMode, currentTime } = useExecutionTimelineStore((state) => ({
-    playbackMode: state.playbackMode,
-    currentTime: state.currentTime,
-  }))
+  // Use separate selectors to avoid creating new objects on every render
+  const playbackMode = useExecutionTimelineStore((state) => state.playbackMode)
+  const currentTime = useExecutionTimelineStore((state) => state.currentTime)
 
   const { chunks, isHydrating, isStreaming, error, mode, exportText, isTimelineSync, isFetchingTimeline } = useTimelineTerminalStream({
     runId,
@@ -76,21 +75,24 @@ export function NodeTerminalPanel({
   const replayQueueRef = useRef<TerminalChunk[]>([])
   const isReplayingRef = useRef(false)
 
+  // Memoize session to avoid unnecessary re-renders
+  // Only depend on chunks length and last chunk index, not the entire chunks array
+  const chunksLength = chunks.length
+  const lastChunkIndex = chunks[chunksLength - 1]?.chunkIndex ?? -1
   const session = useMemo(
     () => {
       console.debug('[NodeTerminalPanel] session memo updated', {
-        chunksCount: chunks.length,
-        lastChunkIndex: chunks[chunks.length - 1]?.chunkIndex,
+        chunksCount: chunksLength,
+        lastChunkIndex,
         mode,
         isStreaming,
         isTimelineSync,
-        currentTime,
       })
       return {
         chunks,
       }
     },
-    [chunks, mode, isStreaming, isTimelineSync, currentTime],
+    [chunks, chunksLength, lastChunkIndex, mode, isStreaming, isTimelineSync],
   )
 
   // Initialize terminal
