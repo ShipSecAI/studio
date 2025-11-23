@@ -20,6 +20,7 @@ infra-up:
     echo "   - MinIO: http://localhost:9000 (minioadmin/minioadmin)"
     echo "   - MinIO Console: http://localhost:9001"
     echo "   - Loki: http://localhost:3100"
+    echo "   - Redis: localhost:6379"
 
 infra-down:
     #!/usr/bin/env bash
@@ -56,6 +57,7 @@ up:
     echo "   - Temporal: localhost:7233"
     echo "   - Temporal UI: http://localhost:8081"
     echo "   - MinIO Console: http://localhost:9001"
+    echo "   - Redis: localhost:6379"
 
 down:
     #!/usr/bin/env bash
@@ -114,6 +116,7 @@ dev:
     echo "   - Temporal: localhost:7233"
     echo "   - Temporal UI: http://localhost:8081"
     echo "   - MinIO Console: http://localhost:9001"
+    echo "   - Redis: localhost:6379"
     echo ""
     echo "💡 View logs: pm2 logs"
     echo "💡 View status: pm2 status"

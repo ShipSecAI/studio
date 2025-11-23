@@ -227,6 +227,7 @@ module.exports = {
       env_file: __dirname + '/backend/.env',
       env: {
         ...currentEnvConfig,
+        TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
@@ -256,6 +257,7 @@ module.exports = {
         {
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
+          TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
