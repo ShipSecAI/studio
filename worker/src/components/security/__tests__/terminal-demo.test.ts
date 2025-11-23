@@ -32,28 +32,20 @@ describe('terminal demo component', () => {
     });
 
     const params = component.inputSchema.parse({
-      target: 'test.example.com',
-      scanType: 'ports',
-      items: 5,
+      message: 'Test message',
+      durationSeconds: 5,
     });
 
-    const mockOutput = JSON.stringify({
-      target: 'test.example.com',
-      scanType: 'ports',
-      itemsFound: 5,
-      durationMs: 1500,
-      rawOutput: 'Security scan completed successfully',
-    });
+    const mockOutput = 'Demo completed successfully';
 
     const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(mockOutput);
 
     const result = component.outputSchema.parse(await component.execute(params, context));
 
     expect(spy).toHaveBeenCalled();
-    expect(result.target).toBe('test.example.com');
-    expect(result.scanType).toBe('ports');
-    expect(result.itemsFound).toBeGreaterThanOrEqual(0);
-    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    expect(result.message).toBe('Test message');
+    expect(result.durationSeconds).toBe(5);
+    expect(result.stepsCompleted).toBeGreaterThanOrEqual(0);
     expect(result.rawOutput).toBeTruthy();
   });
 });

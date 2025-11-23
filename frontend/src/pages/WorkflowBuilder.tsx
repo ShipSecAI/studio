@@ -101,8 +101,6 @@ function WorkflowBuilderContent() {
   const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
   const setInspectorWidth = useWorkflowUiStore((state) => state.setInspectorWidth)
   const setMode = useWorkflowUiStore((state) => state.setMode)
-  const selectRun = useExecutionTimelineStore((state) => state.selectRun)
-  const switchToLiveMode = useExecutionTimelineStore((state) => state.switchToLiveMode)
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
   const fetchRuns = useRunStore((state) => state.fetchRuns)
   const workflowCacheKey = metadata.id ?? '__global__'

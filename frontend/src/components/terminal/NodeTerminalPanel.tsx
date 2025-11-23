@@ -223,7 +223,7 @@ export function NodeTerminalPanel({
         })
       }
       fitAddonRef.current?.fit()
-    } else if (isStreaming && mode !== 'live') {
+    } else if (isStreaming && (mode === 'idle' || mode === 'replay')) {
       // If streaming but not in live mode, still write chunks immediately
       console.debug('[NodeTerminalPanel] writing chunks while streaming', {
         chunksToWrite: newChunks.length,

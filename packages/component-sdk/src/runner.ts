@@ -82,7 +82,7 @@ async function runComponentInDocker<I, O>(
     return runDockerWithPty(dockerArgs, params, context, timeoutSeconds);
   }
 
-  return runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds, stdinJson);
+  return runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
 }
 
 function runDockerWithStandardIO<I, O>(

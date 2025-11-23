@@ -9,6 +9,7 @@ import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executi
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
 import { NodeTerminalPanel } from '../terminal/NodeTerminalPanel'
 import type { NodeData } from '@/schemas/node'
+import type { NodeStatus } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { inputSupportsManualValue, runtimeInputTypeToPortDataType } from '@/utils/portUtils'
