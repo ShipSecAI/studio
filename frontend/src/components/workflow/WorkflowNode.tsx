@@ -317,6 +317,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
         
         // Validation styling (only when not in execution mode)
         !isTimelineActive && hasUnfilledRequired && !nodeData.status && 'shadow-red-100',
+        getValidationBorderColor(),
 
         // Interactive states
         isHovered && 'shadow-xl transform scale-[1.02]',

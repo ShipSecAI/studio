@@ -114,6 +114,7 @@ function WorkflowBuilderContent() {
   const [runtimeInputs, setRuntimeInputs] = useState<any[]>([])
   const [prefilledRuntimeValues, setPrefilledRuntimeValues] = useState<Record<string, unknown>>({})
   const [pendingVersionId, setPendingVersionId] = useState<string | null>(null)
+  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null)
   const libraryOpen = useWorkflowUiStore((state) => state.libraryOpen)
   const toggleLibrary = useWorkflowUiStore((state) => state.toggleLibrary)
   const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
@@ -144,6 +145,57 @@ function WorkflowBuilderContent() {
   useEffect(() => {
     edgesRef.current = edges
   }, [edges])
+
+  const buildGraphSignature = useCallback(
+    (
+      nodesSnapshot: ReactFlowNode<FrontendNodeData>[] | null,
+      edgesSnapshot: ReactFlowEdge[] | null,
+      metadataSnapshot?: { name: string; description?: string | null }
+    ) => {
+      const normalizedNodes = serializeNodes(nodesSnapshot ?? [])
+        .map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            config: node.data.config ?? {},
+          },
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id))
+
+      const normalizedEdges = serializeEdges(edgesSnapshot ?? [])
+        .sort((a, b) => a.id.localeCompare(b.id))
+
+      const metadataPayload = metadataSnapshot ?? {
+        name: metadata.name,
+        description: metadata.description ?? '',
+      }
+
+      return JSON.stringify({
+        name: metadataPayload.name,
+        description: metadataPayload.description ?? '',
+        nodes: normalizedNodes,
+        edges: normalizedEdges,
+      })
+    },
+    [metadata.name, metadata.description]
+  )
+
+  useEffect(() => {
+    const currentSignature = buildGraphSignature(nodes, edges)
+
+    if (lastSavedSignature === null) {
+      setLastSavedSignature(currentSignature)
+      return
+    }
+
+    if (currentSignature !== lastSavedSignature) {
+      if (!isDirty) {
+        markDirty()
+      }
+    } else if (isDirty) {
+      markClean()
+    }
+  }, [nodes, edges, buildGraphSignature, lastSavedSignature, markDirty, markClean, isDirty])
   const workflowRuns = useMemo(() => runs, [runs])
   const { isOpen: mainSidebarOpen } = useSidebar()
   const mostRecentRunId = useMemo(
@@ -264,6 +316,8 @@ function WorkflowBuilderContent() {
         setEdges([])
         historicalGraphRef.current = null
         setHistoricalVersionId(null)
+        const baseMetadata = useWorkflowStore.getState().metadata
+        setLastSavedSignature(buildGraphSignature([], [], baseMetadata))
         track(Events.WorkflowBuilderLoaded, { is_new: true })
         return
       }
@@ -297,6 +351,11 @@ function WorkflowBuilderContent() {
 
         // Mark as clean (no unsaved changes)
         markClean()
+        const loadedSignature = buildGraphSignature(workflowNodes, workflowEdges, {
+          name: workflow.name,
+          description: workflow.description ?? '',
+        })
+        setLastSavedSignature(loadedSignature)
 
         // Analytics: builder loaded (existing workflow)
         track(Events.WorkflowBuilderLoaded, {
@@ -363,7 +422,18 @@ function WorkflowBuilderContent() {
     }
 
     loadWorkflow()
-  }, [id, isNewWorkflow, navigate, setMetadata, setNodes, setEdges, resetWorkflow, markClean])
+  }, [
+    id,
+    isNewWorkflow,
+    navigate,
+    setMetadata,
+    setNodes,
+    setEdges,
+    resetWorkflow,
+    markClean,
+    buildGraphSignature,
+    setLastSavedSignature,
+  ])
 
   const resolveRuntimeInputDefinitions = useCallback(() => {
     const triggerNode = nodes.find(node => {
@@ -419,12 +489,21 @@ function WorkflowBuilderContent() {
     const workflowId = metadata.id
     if (!workflowId) return
 
+    if (isDirty) {
+      toast({
+        variant: 'warning',
+        title: 'Save changes before running',
+        description: 'Unsaved edits stay in the builder. Save to create a new version before executing.',
+      })
+      return
+    }
+
     // Don't set isLoading - that's only for initial workflow load
     // Running a workflow shouldn't show the "Loading workflow..." screen
     try {
       const shouldCommitBeforeRun =
         !options?.versionId &&
-        (isDirty || !metadata.currentVersionId)
+        !metadata.currentVersionId
 
       if (shouldCommitBeforeRun) {
         // Commit workflow - this creates a new version
@@ -885,6 +964,16 @@ function WorkflowBuilderContent() {
       return
     }
 
+    if (!isDirty) {
+      if (showToast) {
+        toast({
+          title: 'No changes to save',
+          description: 'Your workflow matches the last saved version.',
+        })
+      }
+      return
+    }
+
     try {
       // Defensive check for undefined nodes/edges
       if (!nodes || !Array.isArray(nodes)) {
@@ -944,6 +1033,15 @@ function WorkflowBuilderContent() {
           currentVersion: savedWorkflow.currentVersion ?? null,
         })
         markClean()
+        const newSignature = buildGraphSignature(
+          nodesRef.current,
+          edgesRef.current,
+          {
+            name: savedWorkflow.name,
+            description: savedWorkflow.description ?? '',
+          }
+        )
+        setLastSavedSignature(newSignature)
 
         // Navigate to the new workflow URL
         navigate(`/workflows/${savedWorkflow.id}`, { replace: true })
@@ -981,6 +1079,15 @@ function WorkflowBuilderContent() {
           currentVersion: updatedWorkflow.currentVersion ?? null,
         })
         markClean()
+        const newSignature = buildGraphSignature(
+          nodesRef.current,
+          edgesRef.current,
+          {
+            name: updatedWorkflow.name,
+            description: updatedWorkflow.description ?? '',
+          }
+        )
+        setLastSavedSignature(newSignature)
 
         // Analytics: workflow saved
         track(Events.WorkflowSaved, {
@@ -1000,7 +1107,7 @@ function WorkflowBuilderContent() {
     } catch (error) {
       console.error('Failed to save workflow:', error)
 
-      // Always show error toasts, even for auto-save
+      // Always show error toasts so users know manual saves failed
       // Check if it's a network error (backend not available)
       const isNetworkError = error instanceof Error &&
         (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'))
@@ -1023,47 +1130,20 @@ function WorkflowBuilderContent() {
         }
       }
     }
-  }, [canManageWorkflows, nodes, edges, metadata, isNewWorkflow, toast, setWorkflowId, setMetadata, markClean, navigate])
-
-  // Track auto-save state for UI feedback
-  const [isAutoSaving, setIsAutoSaving] = useState(false)
-
-  // Auto-save functionality - debounced save after 2 seconds of inactivity
-  useEffect(() => {
-    // Don't auto-save if:
-    // - Not dirty (no changes)
-    // - New workflow (needs manual save first)
-    // - Currently loading or already auto-saving
-    // - No permission to manage workflows
-    if (!isDirty || isNewWorkflow || isLoading || isAutoSaving || !canManageWorkflows || !nodes) {
-      return
-    }
-
-    // Don't auto-save if workflow doesn't have an ID yet (needs manual save first)
-    if (!metadata.id) {
-      return
-    }
-
-    const autoSaveTimer = setTimeout(async () => {
-      // Only auto-save if still dirty (user might have manually saved)
-      if (isDirty && metadata.id && !isNewWorkflow && !isAutoSaving) {
-        setIsAutoSaving(true)
-        try {
-          // Pass false to suppress toast notifications for auto-save
-          await handleSave(false)
-        } catch (error) {
-          console.error('Auto-save failed:', error)
-          // Don't show toast for auto-save failures to avoid annoying the user
-        } finally {
-          setIsAutoSaving(false)
-        }
-      }
-    }, 2000) // 2 seconds delay
-
-    return () => {
-      clearTimeout(autoSaveTimer)
-    }
-  }, [isDirty, isNewWorkflow, isLoading, isAutoSaving, canManageWorkflows, nodes, metadata.id, handleSave])
+  }, [
+    canManageWorkflows,
+    nodes,
+    edges,
+    metadata,
+    isNewWorkflow,
+    toast,
+    setWorkflowId,
+    setMetadata,
+    markClean,
+    navigate,
+    isDirty,
+    buildGraphSignature,
+  ])
 
 
   const handleInspectorResizeStart = useCallback((event: React.MouseEvent) => {
@@ -1143,8 +1223,6 @@ function WorkflowBuilderContent() {
         onImport={handleImportWorkflow}
         onExport={handleExportWorkflow}
         canManageWorkflows={canManageWorkflows}
-        isExecuting={isLoading}
-        isAutoSaving={isAutoSaving}
       />
       {mode === 'design' && (
         <Button

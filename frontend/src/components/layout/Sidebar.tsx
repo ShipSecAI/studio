@@ -139,6 +139,12 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     return filtered
   }, [componentsByCategory, searchQuery])
 
+  // Compute stable default value for uncontrolled Accordion
+  const accordionDefaultValue = useMemo(() => {
+    const categories = Object.keys(filteredComponentsByCategory)
+    return categories.length > 0 ? [categories[0]] : []
+  }, [filteredComponentsByCategory])
+
   return (
     <div className="h-full w-full max-w-[320px] border-r bg-background flex flex-col">
       <div className="p-4 border-b space-y-3">
@@ -203,13 +209,11 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
               </div>
             )}
 
+            {Object.keys(filteredComponentsByCategory).length > 0 && (
             <Accordion 
               type="multiple" 
               className="space-y-3" 
-              defaultValue={(() => {
-                const firstCategory = Object.keys(filteredComponentsByCategory)[0]
-                return firstCategory ? [firstCategory] : []
-              })()}
+              defaultValue={accordionDefaultValue}
             >
               {Object.entries(filteredComponentsByCategory).map(([category, components]) => {
                 if (components.length === 0) return null
@@ -256,6 +260,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
                 )
               })}
             </Accordion>
+            )}
 
             {/* Show no results message if search yields nothing */}
             {searchQuery.trim() && Object.values(filteredComponentsByCategory).every(components => components.length === 0) && (

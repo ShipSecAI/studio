@@ -54,7 +54,6 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setWorkflowName: (name: string) => {
     set((state) => ({
       metadata: { ...state.metadata, name },
-      isDirty: true,
     }))
   },
 
@@ -64,7 +63,6 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setWorkflowDescription: (description: string) => {
     set((state) => ({
       metadata: { ...state.metadata, description },
-      isDirty: true,
     }))
   },
 
