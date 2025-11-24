@@ -11,6 +11,7 @@ import {
 } from '../ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Shield, User, LogOut, Settings } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface UserButtonProps {
   afterSignOutUrl?: string;
@@ -86,14 +87,43 @@ export const UserButton: React.FC<UserButtonProps> = ({
     ? user.email.substring(0, 2).toUpperCase()
     : 'U';
 
+  const displayName = user.firstName && user.lastName
+    ? `${user.firstName} ${user.lastName}`
+    : user.username || user.email?.split('@')[0] || 'User';
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className={`relative h-8 w-8 rounded-full ${className}`}>
-          <Avatar className="h-8 w-8">
+        <Button 
+          variant="ghost" 
+          className={cn(
+            'relative flex items-center gap-3 justify-start h-auto p-2 w-full',
+            sidebarCollapsed ? 'justify-center w-auto' : '',
+            className
+          )}
+        >
+          <Avatar className={cn('h-8 w-8 flex-shrink-0', sidebarCollapsed ? 'h-8 w-8' : 'h-8 w-8')}>
             <AvatarImage src={user.imageUrl} alt={user.username || user.email} />
             <AvatarFallback>{userInitials}</AvatarFallback>
           </Avatar>
+          {!sidebarCollapsed && (
+            <div className="flex flex-col items-start min-w-0 flex-1">
+              <span className={cn(
+                'text-sm font-medium truncate w-full transition-all duration-300',
+                sidebarCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-full'
+              )}>
+                {displayName}
+              </span>
+              {user.email && (
+                <span className={cn(
+                  'text-xs text-muted-foreground truncate w-full transition-all duration-300',
+                  sidebarCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-full'
+                )}>
+                  {user.email}
+                </span>
+              )}
+            </div>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>

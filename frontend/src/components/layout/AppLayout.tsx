@@ -30,6 +30,8 @@ export function useSidebar() {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [, setIsHovered] = useState(false)
+  const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(true)
   const location = useLocation()
   const navigate = useNavigate()
   const roles = useAuthStore((state) => state.roles)
@@ -42,11 +44,34 @@ export function AppLayout({ children }: AppLayoutProps) {
   useEffect(() => {
     const isWorkflowRoute = location.pathname.startsWith('/workflows') && location.pathname !== '/'
     setSidebarOpen(!isWorkflowRoute)
+    setWasExplicitlyOpened(!isWorkflowRoute)
   }, [location.pathname])
+
+  // Handle hover to expand sidebar when collapsed
+  const handleMouseEnter = () => {
+    setIsHovered(true)
+    if (!sidebarOpen) {
+      setSidebarOpen(true)
+    }
+  }
+
+  const handleMouseLeave = () => {
+    setIsHovered(false)
+    // Only collapse if it was expanded due to hover (not explicitly opened)
+    if (!wasExplicitlyOpened && sidebarOpen) {
+      setSidebarOpen(false)
+    }
+  }
+
+  const handleToggle = () => {
+    const newState = !sidebarOpen
+    setSidebarOpen(newState)
+    setWasExplicitlyOpened(newState)
+  }
 
   const sidebarContextValue: SidebarContextValue = {
     isOpen: sidebarOpen,
-    toggle: () => setSidebarOpen(!sidebarOpen)
+    toggle: handleToggle
   }
 
   const navigationItems = [
@@ -109,9 +134,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           className={`fixed md:relative z-40 h-full transition-all duration-300 ${
             sidebarOpen ? 'w-64' : 'w-0 md:w-16'
           }`}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
         <SidebarHeader className="flex items-center gap-3 p-4 border-b">
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <div className="flex-shrink-0">
               <img
                 src="/favicon.ico"
@@ -138,7 +165,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             >
               ShipSec Studio
             </span>
-          </div>
+          </Link>
         </SidebarHeader>
 
         <SidebarContent>
@@ -154,6 +181,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     // Keep sidebar open when navigating to non-workflow routes
                     if (!item.href.startsWith('/workflows')) {
                       setSidebarOpen(true)
+                      setWasExplicitlyOpened(true)
                     }
                   }}
                 >
@@ -183,7 +211,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </SidebarContent>
 
         <SidebarFooter className="border-t">
-          <div className="flex flex-col gap-2 p-2">
+          <div className="flex flex-col gap-2 p-">
             {/* Auth components - UserButton includes organization switching */}
             {showUserButton && (
               <div className={`flex ${sidebarOpen ? 'justify-start' : 'justify-center'}`}>
@@ -210,7 +238,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         {!location.pathname.startsWith('/workflows') && (
           <AppTopBar
             sidebarOpen={sidebarOpen}
-            onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+            onSidebarToggle={handleToggle}
             actions={getPageActions()}
           />
         )}

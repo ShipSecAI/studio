@@ -96,7 +96,6 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     ? visualState.status
     : (nodeData.status || 'idle')
   const nodeStyle = getNodeStyle(effectiveStatus)
-  const typeBorderColor = getTypeBorderColor(component.type)
 
   // Get status icon
   const StatusIcon = STATUS_ICONS[effectiveStatus as keyof typeof STATUS_ICONS]
@@ -269,6 +268,34 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     </div>
   )
 
+  // Determine border color based on validation state (only in design mode)
+  const getValidationBorderColor = () => {
+    // In execution mode, use status-based colors (handled separately)
+    if (mode === 'execution' && selectedRunId) {
+      return ''
+    }
+    
+    // If node has execution status, use status-based border
+    if (nodeData.status && nodeData.status !== 'idle') {
+      return ''
+    }
+    
+    // In design mode, show validation colors
+    if (hasUnfilledRequired) {
+      return 'border-red-500 border-2'
+    }
+    
+    // Check if node has required fields and all are filled
+    const hasRequiredFields = requiredParams.length > 0 || requiredInputs.length > 0
+    if (hasRequiredFields && !hasUnfilledRequired) {
+      return 'border-green-500 border-2'
+    }
+    
+    // Default visible border for nodes without required fields
+    const typeBorderColor = getTypeBorderColor(component.type)
+    return `${typeBorderColor} border-2`
+  }
+
   return (
     <div
       className={cn(
@@ -280,14 +307,17 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
         isTimelineActive && effectiveStatus === 'success' && 'border-green-400 bg-green-50/20',
 
         // Existing styling
-        nodeData.status ? nodeStyle.border : typeBorderColor,
+        nodeData.status ? nodeStyle.border : getTypeBorderColor(component.type),
         nodeData.status && nodeData.status !== 'idle'
           ? nodeStyle.bg
           : isTimelineActive && visualState.status === 'running'
             ? 'bg-blue-50/80 dark:bg-blue-900/30'
             : 'bg-background',
         selected && 'ring-2 ring-blue-500 ring-offset-2',
-        hasUnfilledRequired && !nodeData.status && 'border-red-300 shadow-red-100',
+        
+        // Validation styling (only when not in execution mode)
+        !isTimelineActive && hasUnfilledRequired && !nodeData.status && 'shadow-red-100',
+        getValidationBorderColor(),
 
         // Interactive states
         isHovered && 'shadow-xl transform scale-[1.02]',

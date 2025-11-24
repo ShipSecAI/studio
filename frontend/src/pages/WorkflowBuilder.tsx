@@ -85,17 +85,35 @@ function WorkflowBuilderContent() {
     markDirty,
     resetWorkflow,
   } = useWorkflowStore()
-  const [nodes, setNodes, onNodesChange] = useNodesState<FrontendNodeData>([])
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState<FrontendNodeData>([])
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [edges, setEdges, onEdgesChangeBase] = useEdgesState([])
+  const mode = useWorkflowUiStore((state) => state.mode)
+
+  // Wrap change handlers to mark workflow as dirty
+  const onNodesChange = useCallback((changes: any[]) => {
+    onNodesChangeBase(changes)
+    // Mark as dirty when nodes change (only in design mode)
+    if (mode === 'design' && changes.length > 0) {
+      markDirty()
+    }
+  }, [onNodesChangeBase, markDirty, mode])
+
+  const onEdgesChange = useCallback((changes: any[]) => {
+    onEdgesChangeBase(changes)
+    // Mark as dirty when edges change (only in design mode)
+    if (mode === 'design' && changes.length > 0) {
+      markDirty()
+    }
+  }, [onEdgesChangeBase, markDirty, mode])
   const { getComponent } = useComponentStore()
   const [isLoading, setIsLoading] = useState(false)
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [runtimeInputs, setRuntimeInputs] = useState<any[]>([])
   const [prefilledRuntimeValues, setPrefilledRuntimeValues] = useState<Record<string, unknown>>({})
   const [pendingVersionId, setPendingVersionId] = useState<string | null>(null)
-  const mode = useWorkflowUiStore((state) => state.mode)
+  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null)
   const libraryOpen = useWorkflowUiStore((state) => state.libraryOpen)
   const toggleLibrary = useWorkflowUiStore((state) => state.toggleLibrary)
   const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
@@ -126,6 +144,57 @@ function WorkflowBuilderContent() {
   useEffect(() => {
     edgesRef.current = edges
   }, [edges])
+
+  const buildGraphSignature = useCallback(
+    (
+      nodesSnapshot: ReactFlowNode<FrontendNodeData>[] | null,
+      edgesSnapshot: ReactFlowEdge[] | null,
+      metadataSnapshot?: { name: string; description?: string | null }
+    ) => {
+      const normalizedNodes = serializeNodes(nodesSnapshot ?? [])
+        .map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            config: node.data.config ?? {},
+          },
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id))
+
+      const normalizedEdges = serializeEdges(edgesSnapshot ?? [])
+        .sort((a, b) => a.id.localeCompare(b.id))
+
+      const metadataPayload = metadataSnapshot ?? {
+        name: metadata.name,
+        description: metadata.description ?? '',
+      }
+
+      return JSON.stringify({
+        name: metadataPayload.name,
+        description: metadataPayload.description ?? '',
+        nodes: normalizedNodes,
+        edges: normalizedEdges,
+      })
+    },
+    [metadata.name, metadata.description]
+  )
+
+  useEffect(() => {
+    const currentSignature = buildGraphSignature(nodes, edges)
+
+    if (lastSavedSignature === null) {
+      setLastSavedSignature(currentSignature)
+      return
+    }
+
+    if (currentSignature !== lastSavedSignature) {
+      if (!isDirty) {
+        markDirty()
+      }
+    } else if (isDirty) {
+      markClean()
+    }
+  }, [nodes, edges, buildGraphSignature, lastSavedSignature, markDirty, markClean, isDirty])
   const workflowRuns = useMemo(() => runs, [runs])
   const mostRecentRunId = useMemo(
     () => (workflowRuns.length > 0 ? workflowRuns[0].id : null),
@@ -245,6 +314,8 @@ function WorkflowBuilderContent() {
         setEdges([])
         historicalGraphRef.current = null
         setHistoricalVersionId(null)
+        const baseMetadata = useWorkflowStore.getState().metadata
+        setLastSavedSignature(buildGraphSignature([], [], baseMetadata))
         track(Events.WorkflowBuilderLoaded, { is_new: true })
         return
       }
@@ -278,6 +349,11 @@ function WorkflowBuilderContent() {
 
         // Mark as clean (no unsaved changes)
         markClean()
+        const loadedSignature = buildGraphSignature(workflowNodes, workflowEdges, {
+          name: workflow.name,
+          description: workflow.description ?? '',
+        })
+        setLastSavedSignature(loadedSignature)
 
         // Analytics: builder loaded (existing workflow)
         track(Events.WorkflowBuilderLoaded, {
@@ -344,7 +420,18 @@ function WorkflowBuilderContent() {
     }
 
     loadWorkflow()
-  }, [id, isNewWorkflow, navigate, setMetadata, setNodes, setEdges, resetWorkflow, markClean])
+  }, [
+    id,
+    isNewWorkflow,
+    navigate,
+    setMetadata,
+    setNodes,
+    setEdges,
+    resetWorkflow,
+    markClean,
+    buildGraphSignature,
+    setLastSavedSignature,
+  ])
 
   const resolveRuntimeInputDefinitions = useCallback(() => {
     const triggerNode = nodes.find(node => {
@@ -400,12 +487,21 @@ function WorkflowBuilderContent() {
     const workflowId = metadata.id
     if (!workflowId) return
 
+    if (isDirty) {
+      toast({
+        variant: 'warning',
+        title: 'Save changes before running',
+        description: 'Unsaved edits stay in the builder. Save to create a new version before executing.',
+      })
+      return
+    }
+
     // Don't set isLoading - that's only for initial workflow load
     // Running a workflow shouldn't show the "Loading workflow..." screen
     try {
       const shouldCommitBeforeRun =
         !options?.versionId &&
-        (isDirty || !metadata.currentVersionId)
+        !metadata.currentVersionId
 
       if (shouldCommitBeforeRun) {
         // Commit workflow - this creates a new version
@@ -854,33 +950,49 @@ function WorkflowBuilderContent() {
     }
   }, [canManageWorkflows, edges, metadata, nodes, toast])
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async (showToast: boolean = true) => {
     if (!canManageWorkflows) {
-      toast({
-        variant: 'destructive',
-        title: 'Insufficient permissions',
-        description: 'Only administrators can save workflow changes.',
-      })
+      if (showToast) {
+        toast({
+          variant: 'destructive',
+          title: 'Insufficient permissions',
+          description: 'Only administrators can save workflow changes.',
+        })
+      }
+      return
+    }
+
+    if (!isDirty) {
+      if (showToast) {
+        toast({
+          title: 'No changes to save',
+          description: 'Your workflow matches the last saved version.',
+        })
+      }
       return
     }
 
     try {
       // Defensive check for undefined nodes/edges
-      if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Cannot save workflow',
-          description: 'Add at least one component before saving.',
-        })
+      if (!nodes || !Array.isArray(nodes)) {
+        if (showToast) {
+          toast({
+            variant: 'destructive',
+            title: 'Cannot save workflow',
+            description: 'Invalid workflow nodes data.',
+          })
+        }
         return
       }
 
       if (!edges || !Array.isArray(edges)) {
-        toast({
-          variant: 'destructive',
-          title: 'Cannot save workflow',
-          description: 'Invalid workflow edges data.',
-        })
+        if (showToast) {
+          toast({
+            variant: 'destructive',
+            title: 'Cannot save workflow',
+            description: 'Invalid workflow edges data.',
+          })
+        }
         return
       }
 
@@ -888,6 +1000,17 @@ function WorkflowBuilderContent() {
       const workflowId = metadata.id
 
       if (!workflowId || isNewWorkflow) {
+        // Block creating a brand-new workflow with no nodes (backend expects at least one)
+        if (nodes.length === 0) {
+          if (showToast) {
+            toast({
+              variant: 'destructive',
+              title: 'Cannot save workflow',
+              description: 'Add at least one component before saving.',
+            })
+          }
+          return
+        }
         // Create new workflow
         const payload = serializeWorkflowForCreate(
           metadata.name,
@@ -908,6 +1031,15 @@ function WorkflowBuilderContent() {
           currentVersion: savedWorkflow.currentVersion ?? null,
         })
         markClean()
+        const newSignature = buildGraphSignature(
+          nodesRef.current,
+          edgesRef.current,
+          {
+            name: savedWorkflow.name,
+            description: savedWorkflow.description ?? '',
+          }
+        )
+        setLastSavedSignature(newSignature)
 
         // Navigate to the new workflow URL
         navigate(`/workflows/${savedWorkflow.id}`, { replace: true })
@@ -919,11 +1051,13 @@ function WorkflowBuilderContent() {
           edge_count: edges.length,
         })
 
-        toast({
-          variant: 'success',
-          title: 'Workflow created',
-          description: 'Your workflow has been saved and is ready to run.',
-        })
+        if (showToast) {
+          toast({
+            variant: 'success',
+            title: 'Workflow created',
+            description: 'Your workflow has been saved and is ready to run.',
+          })
+        }
       } else {
         // Update existing workflow
         const payload = serializeWorkflowForUpdate(
@@ -943,6 +1077,15 @@ function WorkflowBuilderContent() {
           currentVersion: updatedWorkflow.currentVersion ?? null,
         })
         markClean()
+        const newSignature = buildGraphSignature(
+          nodesRef.current,
+          edgesRef.current,
+          {
+            name: updatedWorkflow.name,
+            description: updatedWorkflow.description ?? '',
+          }
+        )
+        setLastSavedSignature(newSignature)
 
         // Analytics: workflow saved
         track(Events.WorkflowSaved, {
@@ -951,34 +1094,55 @@ function WorkflowBuilderContent() {
           edge_count: edges.length,
         })
 
-        toast({
-          variant: 'success',
-          title: 'Workflow saved',
-          description: 'All changes have been saved.',
-        })
+        if (showToast) {
+          toast({
+            variant: 'success',
+            title: 'Workflow saved',
+            description: 'All changes have been saved.',
+          })
+        }
       }
     } catch (error) {
       console.error('Failed to save workflow:', error)
 
+      // Always show error toasts so users know manual saves failed
       // Check if it's a network error (backend not available)
       const isNetworkError = error instanceof Error &&
         (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'))
 
       if (isNetworkError) {
-        toast({
-          variant: 'destructive',
-          title: 'Cannot connect to backend',
-          description: `Ensure the backend is running at ${API_BASE_URL}. Your workflow remains available locally.`,
-        })
+        if (showToast) {
+          toast({
+            variant: 'destructive',
+            title: 'Cannot connect to backend',
+            description: `Ensure the backend is running at ${API_BASE_URL}. Your workflow remains available locally.`,
+          })
+        }
       } else {
-        toast({
-          variant: 'destructive',
-          title: 'Failed to save workflow',
-          description: error instanceof Error ? error.message : 'Unknown error',
-        })
+        if (showToast) {
+          toast({
+            variant: 'destructive',
+            title: 'Failed to save workflow',
+            description: error instanceof Error ? error.message : 'Unknown error',
+          })
+        }
       }
     }
-  }
+  }, [
+    canManageWorkflows,
+    nodes,
+    edges,
+    metadata,
+    isNewWorkflow,
+    toast,
+    setWorkflowId,
+    setMetadata,
+    markClean,
+    navigate,
+    isDirty,
+    buildGraphSignature,
+  ])
+
 
   const handleInspectorResizeStart = useCallback((event: React.MouseEvent) => {
     if (mode !== 'execution') {
@@ -1058,39 +1222,56 @@ function WorkflowBuilderContent() {
         onExport={handleExportWorkflow}
         canManageWorkflows={canManageWorkflows}
       />
-      {mode === 'design' && (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={toggleLibrary}
-          className={cn(
-            'fixed z-50 flex items-center gap-2 rounded-full border bg-background/95 text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-            isLibraryVisible
-              ? 'top-[88px] left-[300px] md:left-[364px] h-10 w-10 justify-center'
-              : 'top-[88px] left-5 md:left-[72px] h-10 px-4 py-2'
-          )}
-          aria-expanded={isLibraryVisible}
-          aria-label={isLibraryVisible ? 'Hide component library' : 'Show component library'}
-          title={isLibraryVisible ? 'Hide components' : 'Show components'}
-        >
-          {isLibraryVisible ? (
-            <PanelLeftClose className="h-5 w-5 flex-shrink-0" />
-          ) : (
+      <div ref={layoutRef} className="flex flex-1 overflow-hidden relative">
+        {/* Show components button - anchored to layout when tray is hidden */}
+        {mode === 'design' && !isLibraryVisible && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={toggleLibrary}
+            className="absolute z-50 top-[10px] left-[0px] h-10 px-4 py-2 flex items-center gap-2 rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            style={{
+              marginLeft: '10px',
+              transition: 'margin-left 0.3s ease-in-out'
+            }}
+            aria-expanded={false}
+            aria-label="Show component library"
+            title="Show components"
+          >
             <PanelLeftOpen className="h-5 w-5 flex-shrink-0" />
-          )}
-          <span className={cn('font-medium whitespace-nowrap', isLibraryVisible ? 'hidden' : 'block')}>
-            Show components
-          </span>
-        </Button>
-      )}
-
-      <div ref={layoutRef} className="flex flex-1 overflow-hidden">
+            <span className="font-medium whitespace-nowrap">Show components</span>
+          </Button>
+        )}
+        {/* Loading overlay for initial load */}
+        {isLoading && nodes.length === 0 && !isNewWorkflow && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
+            <svg className="animate-spin h-8 w-8 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <p className="mt-3 text-sm text-muted-foreground">Loading workflow…</p>
+          </div>
+        )}
         <aside
           className={cn(
             'relative h-full transition-[width] duration-200 ease-in-out bg-background',
             isLibraryVisible ? 'border-r w-[320px]' : 'border-r-0 w-0'
           )}
         >
+          {/* Toggle button - anchored to the aside edge when visible */}
+          {isLibraryVisible && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={toggleLibrary}
+              className="absolute z-50 top-[10px] -right-5 h-10 w-10 flex items-center justify-center rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-expanded={true}
+              aria-label="Hide component library"
+              title="Hide components"
+            >
+              <PanelLeftClose className="h-5 w-5 flex-shrink-0" />
+            </Button>
+          )}
           <div
             className={cn(
               'absolute inset-0 transition-opacity duration-150',

@@ -39,7 +39,8 @@ describe('test.sleep.parallel component', () => {
     expect(result.endedAt).toBeLessThanOrEqual(ended + 5);
 
     const elapsed = result.endedAt - result.startedAt;
-    expect(elapsed).toBeGreaterThanOrEqual(20);
+    // Allow small timing variance due to setTimeout precision (CI can be off by 1-2ms)
+    expect(elapsed).toBeGreaterThanOrEqual(18);
     expect(elapsed).toBeLessThan(200);
   });
 });

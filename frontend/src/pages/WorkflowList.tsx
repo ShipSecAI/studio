@@ -11,7 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Plus, Workflow, Loader2, AlertCircle, Trash2 } from 'lucide-react'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Workflow, AlertCircle, Trash2 } from 'lucide-react'
 import { api } from '@/services/api'
 import {
   WorkflowMetadataSchema,
@@ -20,6 +29,7 @@ import {
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { track, Events } from '@/features/analytics/events'
+import { useAuth } from '@/auth/auth-context'
 
 export function WorkflowList() {
   const navigate = useNavigate()
@@ -33,10 +43,26 @@ export function WorkflowList() {
   const [workflowToDelete, setWorkflowToDelete] = useState<WorkflowMetadataNormalized | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const token = useAuthStore((state) => state.token)
+  const adminUsername = useAuthStore((state) => state.adminUsername)
 
   useEffect(() => {
-    loadWorkflows()
-  }, [])
+    // Wait for auth to be ready before loading workflows
+    if (authLoading) {
+      return
+    }
+    
+    // Check if we have authentication (either token or admin credentials)
+    const hasAuth = isAuthenticated || token || adminUsername
+    
+    if (hasAuth) {
+      loadWorkflows()
+    } else {
+      setIsLoading(false)
+      setError('Please log in to view workflows')
+    }
+  }, [isAuthenticated, authLoading, token, adminUsername])
 
   const loadWorkflows = async () => {
     setIsLoading(true)
@@ -124,7 +150,7 @@ export function WorkflowList() {
           </p>
         </div>
 
-        <div className="mb-6 flex flex-wrap gap-3">
+        {/* <div className="mb-6 flex flex-wrap gap-3">
           <Button
             onClick={() => navigate('/workflows/new')}
             size="lg"
@@ -134,12 +160,40 @@ export function WorkflowList() {
             <Plus className="h-5 w-5" />
             New Workflow
           </Button>
-        </div>
+        </div> */}
 
         {isLoading ? (
-          <div className="text-center py-12">
-            <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-muted-foreground" />
-            <p className="text-muted-foreground">Loading workflows...</p>
+          <div className="border rounded-lg bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Nodes</TableHead>
+                  <TableHead>Last Updated</TableHead>
+                  {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-[220px]" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-[80px]" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-[160px]" />
+                    </TableCell>
+                    {canManageWorkflows && (
+                      <TableCell className="text-right">
+                        <Skeleton className="h-8 w-8 ml-auto rounded-md" />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         ) : error ? (
           <div className="text-center py-12 border rounded-lg bg-card border-destructive">
@@ -162,41 +216,51 @@ export function WorkflowList() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {workflows.map((workflow) => {
-              const nodeCount = workflow.nodes.length
-              return (
-                <div
-                  key={workflow.id}
-                  onClick={() => navigate(`/workflows/${workflow.id}`)}
-                  className="border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow bg-card"
-                >
-                  <div className="flex items-start justify-between mb-3 gap-3">
-                    <div className="flex flex-col">
-                      <h3 className="text-lg font-semibold">{workflow.name}</h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{nodeCount} nodes</Badge>
+          <div className="border rounded-lg bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Nodes</TableHead>
+                  <TableHead>Last Updated</TableHead>
+                  {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workflows.map((workflow) => {
+                  const nodeCount = workflow.nodes.length
+                  return (
+                    <TableRow
+                      key={workflow.id}
+                      onClick={() => navigate(`/workflows/${workflow.id}`)}
+                      className="cursor-pointer hover:bg-muted/50"
+                    >
+                      <TableCell className="font-medium">{workflow.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{nodeCount} nodes</Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(workflow.updatedAt)}
+                      </TableCell>
                       {canManageWorkflows && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={(event) => handleDeleteClick(event, workflow)}
-                          disabled={isLoading || isDeleting}
-                          aria-label={`Delete workflow ${workflow.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={(event) => handleDeleteClick(event, workflow)}
+                            disabled={isLoading || isDeleting}
+                            aria-label={`Delete workflow ${workflow.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       )}
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Updated {formatDate(workflow.updatedAt)}
-                  </p>
-                </div>
-              )
-            })}
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>

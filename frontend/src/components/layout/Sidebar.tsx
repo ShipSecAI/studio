@@ -2,9 +2,16 @@ import { useEffect, useState, useMemo } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { useComponentStore } from '@/store/componentStore'
 import { Input } from '@/components/ui/input'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import type { ComponentMetadata } from '@/schemas/component'
 import { cn } from '@/lib/utils'
 import { env } from '@/config/env'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Use backend-provided category configuration
 // The frontend will no longer categorize components - it will use backend data
@@ -32,44 +39,64 @@ function ComponentItem({ component, disabled }: ComponentItemProps) {
   return (
     <div
       className={cn(
-        'group relative flex items-center gap-3 p-3 border rounded-lg cursor-move',
+        'group relative flex flex-col p-3 border border-border/50 rounded-lg cursor-move transition-all',
+        'bg-background/50 hover:bg-background hover:border-border',
+        'text-foreground aspect-[4/3]',
         disabled
-          ? 'cursor-not-allowed opacity-75'
-          : 'hover:bg-accent hover:border-primary/50',
-        'transition-all text-left',
-        'bg-background',
+          ? 'cursor-not-allowed opacity-50'
+          : 'hover:shadow-sm hover:scale-[1.02]',
         component.deprecated && 'opacity-50'
       )}
       draggable={!component.deprecated && !disabled}
       onDragStart={onDragStart}
-      title={description}
     >
-      {component.logo ? (
-        <img 
-          src={component.logo} 
-          alt={component.name}
-          className="h-5 w-5 mt-0.5 flex-shrink-0 object-contain"
-          onError={(e) => {
-            // Fallback to icon if image fails to load
-            e.currentTarget.style.display = 'none'
-            e.currentTarget.nextElementSibling?.classList.remove('hidden')
-          }}
-        />
-      ) : null}
-      <IconComponent className={cn(
-        "h-5 w-5 mt-0.5 flex-shrink-0 text-foreground",
-        component.logo && "hidden"
-      )} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate flex-1">{component.name}</span>
-          {component.version && (
-            <span className="text-[11px] text-muted-foreground uppercase tracking-wide shrink-0">
-              v{component.version}
-            </span>
-          )}
+      {/* Default: Centered icon and name */}
+      <div className="flex flex-col items-center justify-center gap-2 flex-1 group-hover:hidden transition-all">
+        {component.logo ? (
+          <img 
+            src={component.logo} 
+            alt={component.name}
+            className="h-8 w-8 flex-shrink-0 object-contain"
+            onError={(e) => {
+              // Fallback to icon if image fails to load
+              e.currentTarget.style.display = 'none'
+              e.currentTarget.nextElementSibling?.classList.remove('hidden')
+            }}
+          />
+        ) : null}
+        <IconComponent className={cn(
+          "h-8 w-8 flex-shrink-0 text-muted-foreground",
+          component.logo && "hidden"
+        )} />
+        <span className="text-[13px] font-semibold leading-tight text-center line-clamp-2">
+          {component.name}
+        </span>
+      </div>
+
+      {/* Hover: Icon left, name right, description below */}
+      <div className="hidden group-hover:flex flex-col gap-2 flex-1">
+        <div className="flex items-start gap-2.5">
+          {component.logo ? (
+            <img 
+              src={component.logo} 
+              alt={component.name}
+              className="h-6 w-6 flex-shrink-0 object-contain"
+              onError={(e) => {
+                // Fallback to icon if image fails to load
+                e.currentTarget.style.display = 'none'
+                e.currentTarget.nextElementSibling?.classList.remove('hidden')
+              }}
+            />
+          ) : null}
+          <IconComponent className={cn(
+            "h-6 w-6 flex-shrink-0 text-muted-foreground",
+            component.logo && "hidden"
+          )} />
+          <span className="text-[13px] font-semibold leading-[1.3] line-clamp-2 flex-1 -mt-0.5">
+            {component.name}
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+        <p className="text-[10px] text-muted-foreground line-clamp-3 leading-snug">
           {description}
         </p>
       </div>
@@ -144,14 +171,20 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     return filtered
   }, [componentsByCategory, searchQuery])
 
+  // Compute stable default value for uncontrolled Accordion
+  const accordionDefaultValue = useMemo(() => {
+    const categories = Object.keys(filteredComponentsByCategory)
+    return categories.length > 0 ? [categories[0]] : []
+  }, [filteredComponentsByCategory])
+
   return (
     <div className="h-full w-full max-w-[320px] border-r bg-background flex flex-col">
       <div className="p-4 border-b space-y-3">
         <div>
           <h2 className="text-lg font-semibold">Components</h2>
-          <p className="text-xs text-muted-foreground mt-1">
+          {/* <p className="text-xs text-muted-foreground mt-1">
             Drag and drop to add to workflow
-          </p>
+          </p> */}
         </div>
 
         <div className="relative">
@@ -175,10 +208,31 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
+      <div className="flex-1 overflow-y-auto px-2 py-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
         {loading ? (
-          <div className="text-sm text-muted-foreground text-center py-8">
-            Loading components...
+          <div className="space-y-0">
+            <div>
+              <div className="py-3">
+                <Skeleton className="h-4 w-24 mb-2" />
+                <div className="grid grid-cols-2 gap-2">
+                  {Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="rounded-lg p-3 bg-background/50">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="h-5 w-5 rounded" />
+                            <Skeleton className="h-3 w-16" />
+                          </div>
+                          <Skeleton className="h-3 w-6" />
+                        </div>
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-3 w-3/4" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         ) : error ? (
           <div className="text-sm text-red-500 text-center py-8">
@@ -189,45 +243,64 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
             No components available
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-2">
             {/* Search results message */}
             {searchQuery.trim() && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground px-0.5 pb-1">
                 Found {Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0)}
                 {Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0) !== 1 ? ' components' : ' component'}
                 matching "{searchQuery}"
               </div>
             )}
 
-            <div className="space-y-6">
+            {Object.keys(filteredComponentsByCategory).length > 0 && (
+            <Accordion 
+              type="multiple" 
+              className="space-y-2" 
+              defaultValue={accordionDefaultValue}
+            >
               {Object.entries(filteredComponentsByCategory).map(([category, components]) => {
                 if (components.length === 0) return null
 
                 const categoryConfig = components[0]?.categoryConfig
 
                 return (
-                  <div key={category}>
-                    <div className="mb-3">
-                      <h3 className={cn('text-sm font-semibold', categoryConfig?.color || 'text-gray-600')}>
-                        {categoryConfig?.label ?? category}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {categoryConfig?.description ?? `${category} components`}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {components.map((component) => (
-                        <ComponentItem
-                          key={component.id}
-                          component={component}
-                          disabled={!canManageWorkflows}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  <AccordionItem 
+                    key={category} 
+                    value={category} 
+                    className="border border-border/50 rounded-sm px-3 py-1 hover:bg-muted/50 transition-colors"
+                  >
+                    <AccordionTrigger className={cn(
+                      'py-3 px-0 hover:no-underline [&[data-state=open]]:text-foreground',
+                      'group'
+                    )}>
+                      <div className="flex flex-col items-start gap-0.5 w-full">
+                        <div className="flex items-center justify-between w-full">
+                          <h3 className={cn(
+                            'text-sm font-semibold transition-colors',
+                            categoryConfig?.color || 'text-foreground'
+                          )}>
+                            {categoryConfig?.label ?? category}
+                          </h3>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2 pb-3 px-0">
+                      <div className="grid grid-cols-2 gap-2">
+                        {components.map((component) => (
+                          <ComponentItem
+                            key={component.id}
+                            component={component}
+                            disabled={!canManageWorkflows}
+                          />
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
                 )
               })}
-            </div>
+            </Accordion>
+            )}
 
             {/* Show no results message if search yields nothing */}
             {searchQuery.trim() && Object.values(filteredComponentsByCategory).every(components => components.length === 0) && (
@@ -241,8 +314,8 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
               </div>
             )}
 
-            <div className="pt-4 border-t">
-              <p className="text-xs text-muted-foreground">
+            <div className="pt-2 border-t mt-2">
+              <p className="text-xs text-muted-foreground px-0.5">
                 {searchQuery.trim()
                   ? `${Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0)} of ${allComponents.length} component${allComponents.length !== 1 ? 's' : ''} shown`
                   : `${allComponents.length} component${allComponents.length !== 1 ? 's' : ''} available`

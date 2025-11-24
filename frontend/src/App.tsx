@@ -5,6 +5,7 @@ import { SecretsManager } from '@/pages/SecretsManager'
 import { IntegrationsManager } from '@/pages/IntegrationsManager'
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary'
 import { IntegrationCallback } from '@/pages/IntegrationCallback'
+import { NotFound } from '@/pages/NotFound'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { AuthProvider } from '@/auth/auth-context'
@@ -46,6 +47,7 @@ function App() {
                     path="/integrations/callback/:provider"
                     element={<IntegrationCallback />}
                   />
+                  <Route path="*" element={<NotFound />} />
                 </Routes>
               </ProtectedRoute>
             </AppLayout>
