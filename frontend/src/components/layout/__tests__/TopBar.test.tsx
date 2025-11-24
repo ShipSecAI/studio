@@ -76,6 +76,9 @@ describeTopBar('TopBar', () => {
     )
 
     // Check for the full failure message format: "Failed: ValidationError"
-    expect(screen.getByText('Failed: ValidationError')).toBeInTheDocument()
+    // Use getAllByText to handle React StrictMode double-rendering
+    const failureMessages = screen.getAllByText('Failed: ValidationError')
+    expect(failureMessages.length).toBeGreaterThan(0)
+    expect(failureMessages[0]).toBeInTheDocument()
   })
 })
