@@ -4,10 +4,12 @@
 type FrontendEnv = {
   VITE_FRONTEND_BRANCH: string
   VITE_BACKEND_BRANCH: string
+  VITE_GIT_SHA: string
 }
 
 export const env: FrontendEnv = {
   VITE_FRONTEND_BRANCH: (import.meta.env.VITE_FRONTEND_BRANCH as string | undefined) ?? '',
   VITE_BACKEND_BRANCH: (import.meta.env.VITE_BACKEND_BRANCH as string | undefined) ?? '',
+  VITE_GIT_SHA: (import.meta.env.VITE_GIT_SHA as string | undefined) ?? '',
 }
 

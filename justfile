@@ -48,6 +48,9 @@ up:
     echo "📝 Environment: PRODUCTION"
     echo "   - Temporal Namespace: shipsec-prod"
     echo "   - Temporal Task Queue: shipsec-prod"
+    # Inject current git SHA for version tracking
+    export GIT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+    echo "   - Git SHA: ${GIT_SHA:0:7}"
     docker compose -f docker/docker-compose.full.yml up -d
     echo "✅ Production environment started"
     echo "📊 Services:"
@@ -87,27 +90,35 @@ dev:
     echo "   - Temporal Namespace: shipsec-dev"
     echo "   - Temporal Task Queue: shipsec-dev"
     echo "   - Hot-reload: Enabled"
-    
+
+    # Inject current git SHA for version tracking
+    export GIT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+    export VITE_GIT_SHA=$GIT_SHA
+    echo "   - Git SHA: ${GIT_SHA:0:7}"
+
+    # Update frontend .env file with current git SHA
+    ./scripts/set-git-sha.sh || true
+
     # Start infrastructure
     just infra-up
-    
+
     # Wait for infrastructure to be ready
     echo "⏳ Waiting for infrastructure to be ready..."
     sleep 10
-    
+
     # Check if infrastructure is healthy
     timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
-    
+
     # Install dependencies if needed
     if [ ! -d "node_modules" ]; then
         echo "📦 Installing dependencies..."
         bun install
     fi
-    
+
     # Start apps with PM2 (dev mode)
     echo "🚀 Starting applications with PM2 (dev mode, hot-reload enabled)..."
     SHIPSEC_ENV=development NODE_ENV=development pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --update-env
-    
+
     echo "✅ Development environment started"
     echo "📊 Services:"
     echo "   - Frontend: http://localhost:5173"
@@ -143,6 +154,9 @@ build:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "🔨 Building application images..."
+    # Inject current git SHA for version tracking
+    export GIT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+    echo "📝 Git SHA: ${GIT_SHA:0:7}"
     docker compose -f docker/docker-compose.full.yml build backend frontend worker
     echo "✅ Images built"
 

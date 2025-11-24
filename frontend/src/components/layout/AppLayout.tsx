@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { UserButton } from '@/components/auth/UserButton'
 import { useAuth, useAuthProvider } from '@/auth/auth-context'
+import { env } from '@/config/env'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -39,6 +40,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { isAuthenticated } = useAuth()
   const authProvider = useAuthProvider()
   const showUserButton = isAuthenticated || authProvider.name === 'clerk'
+
+  // Get git SHA for version display (monorepo - same for frontend and backend)
+  const gitSha = env.VITE_GIT_SHA
+  const displayVersion = gitSha && gitSha !== '' ? gitSha.slice(0, 6) : 'dev'
 
   // Auto-collapse sidebar when opening workflow builder, expand for other routes
   useEffect(() => {
@@ -226,7 +231,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className={`text-xs text-muted-foreground pt-2 border-t px-2 text-center transition-all duration-300 ${
               sidebarOpen ? 'opacity-100' : 'opacity-0'
             }`}>
-              ShipSec Studio v1.0
+              version: {displayVersion}
             </div>
           </div>
         </SidebarFooter>
