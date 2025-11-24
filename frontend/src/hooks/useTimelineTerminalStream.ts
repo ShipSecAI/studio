@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTerminalStream, type UseTerminalStreamOptions, type UseTerminalStreamResult } from './useTerminalStream'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { api } from '@/services/api'
@@ -28,305 +28,197 @@ export interface UseTimelineTerminalStreamResult extends UseTerminalStreamResult
 
 /**
  * Hook for timeline-synchronized terminal streaming.
- * When timelineSync is enabled, terminal content updates based on timeline position.
  * 
- * Implementation follows asciinema approach:
- * - When seeking backward: reset terminal and rebuild from start
- * - When seeking forward: fast-forward from current position
- * - Always fetch chunks from workflow start to current timeline position
+ * SIMPLE LOGIC:
+ * 1. When timeline sync is enabled, fetch ALL chunks once when timeline loads
+ * 2. Filter chunks by current timeline position (chunk.recordedAt <= timelineStartTime + currentTime)
+ * 3. Return filtered chunks - rendering component handles forward/backward logic
  */
 export function useTimelineTerminalStream(
   options: UseTimelineTerminalStreamOptions,
 ): UseTimelineTerminalStreamResult {
   const { timelineSync = false, ...terminalOptions } = options
   
-  // Use separate selectors to avoid creating new objects on every render
   const playbackMode = useExecutionTimelineStore((state) => state.playbackMode)
+  const currentTime = useExecutionTimelineStore((state) => state.currentTime)
+  const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime)
+  const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
+  const isLiveFollowing = useExecutionTimelineStore((state) => state.isLiveFollowing)
+  const isLiveView = playbackMode === 'live' && isLiveFollowing
   
-  // Only disable autoConnect if timelineSync is enabled AND we're not in live mode
-  // In live mode, we always want autoConnect to work for real-time streaming
-  const shouldAutoConnect = timelineSync && playbackMode !== 'live' 
-    ? false  // Disable autoConnect in timeline sync mode (replay)
-    : terminalOptions.autoConnect !== false  // Use original autoConnect value (defaults to true)
+  // Disable autoConnect in timeline sync mode (replay) - we fetch all chunks via API
+  const shouldAutoConnect = timelineSync && !isLiveView
+    ? false
+    : terminalOptions.autoConnect !== false
   
   const terminalResult = useTerminalStream({
     ...terminalOptions,
     autoConnect: shouldAutoConnect,
   })
-  
-  // Use separate selectors to avoid creating new objects on every render
-  const currentTime = useExecutionTimelineStore((state) => state.currentTime)
-  const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime)
 
-  const [timelineChunks, setTimelineChunks] = useState<typeof terminalResult.chunks>([])
+  // Store ALL chunks fetched from API (only in timeline sync mode)
+  const [allChunks, setAllChunks] = useState<typeof terminalResult.chunks>([])
   const [isFetchingTimeline, setIsFetchingTimeline] = useState(false)
-  const lastFetchTimeRef = useRef<number | null>(null)
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const cachedChunksRef = useRef<Map<number, typeof terminalResult.chunks>>(new Map())
-  const lastTimelineChunksRef = useRef<typeof terminalResult.chunks>([])
+  const fetchedRunIdRef = useRef<string | null | undefined>(null)
 
-  // Helper to set timeline chunks only if they actually changed
-  const setTimelineChunksIfChanged = useCallback((newChunks: typeof terminalResult.chunks) => {
-    // Compare by length and last chunk index to avoid unnecessary updates
-    const lastChunks = lastTimelineChunksRef.current
-    if (
-      lastChunks.length !== newChunks.length ||
-      lastChunks[lastChunks.length - 1]?.chunkIndex !== newChunks[newChunks.length - 1]?.chunkIndex
-    ) {
-      lastTimelineChunksRef.current = newChunks
-      setTimelineChunks(newChunks)
-    }
-  }, [])
+  // Reset state when runId changes
+  useEffect(() => {
+    setAllChunks([])
+    fetchedRunIdRef.current = null
+  }, [terminalOptions.runId])
 
-  // Calculate absolute time from timeline position
-  const getAbsoluteTimeFromTimeline = useCallback((timelineMs: number): Date | null => {
-    if (!timelineStartTime) return null
-    return new Date(timelineStartTime + timelineMs)
-  }, [timelineStartTime])
-
-  // Fetch terminal chunks from workflow start to target time
-  const fetchChunksUpToTime = useCallback(async (targetTimeMs: number) => {
-    if (!terminalOptions.runId || !terminalOptions.nodeId || !timelineStartTime) {
+  // Fetch ALL chunks once when timeline sync is enabled and we have a runId
+  useEffect(() => {
+    if (!timelineSync || isLiveView || !selectedRunId || !terminalOptions.runId || !terminalOptions.nodeId) {
       return
     }
 
-    setIsFetchingTimeline(true)
-    try {
-      const targetAbsoluteTime = getAbsoluteTimeFromTimeline(targetTimeMs)
-      if (!targetAbsoluteTime) {
-        return
-      }
-
-      // Fetch chunks from workflow start to target time
-      const startAbsoluteTime = new Date(timelineStartTime)
-      const result = await api.executions.getTerminalChunks(terminalOptions.runId, {
-        nodeRef: terminalOptions.nodeId,
-        stream: terminalOptions.stream,
-        startTime: startAbsoluteTime,
-        endTime: targetAbsoluteTime,
-      })
-
-      // Cache chunks by time range (for 1-second buckets)
-      const timeBucket = Math.floor(targetTimeMs / 1000)
-      cachedChunksRef.current.set(timeBucket, result.chunks)
-
-      // Merge with cached chunks from earlier buckets
-      const allChunks: typeof result.chunks = []
-      for (let bucket = 0; bucket <= timeBucket; bucket++) {
-        const cached = cachedChunksRef.current.get(bucket)
-        if (cached) {
-          // Merge and deduplicate by chunkIndex
-          const chunkMap = new Map<number, typeof result.chunks[0]>()
-          for (const chunk of allChunks) {
-            chunkMap.set(chunk.chunkIndex, chunk)
-          }
-          for (const chunk of cached) {
-            chunkMap.set(chunk.chunkIndex, chunk)
-          }
-          allChunks.length = 0
-          allChunks.push(...Array.from(chunkMap.values()).sort((a, b) => a.chunkIndex - b.chunkIndex))
-        }
-      }
-
-      // If we have new chunks, add them
-      if (result.chunks.length > 0) {
-        const chunkMap = new Map<number, typeof result.chunks[0]>()
-        for (const chunk of allChunks) {
-          chunkMap.set(chunk.chunkIndex, chunk)
-        }
-        for (const chunk of result.chunks) {
-          chunkMap.set(chunk.chunkIndex, chunk)
-        }
-        const merged = Array.from(chunkMap.values()).sort((a, b) => a.chunkIndex - b.chunkIndex)
-        setTimelineChunksIfChanged(merged)
-      } else if (allChunks.length > 0) {
-        setTimelineChunksIfChanged(allChunks)
-      } else {
-        setTimelineChunksIfChanged(result.chunks)
-      }
-    } catch (error) {
-      console.error('[useTimelineTerminalStream] Failed to fetch chunks for timeline', error)
-      // Fallback: don't set chunks on error, let it use existing terminalResult.chunks
-    } finally {
-      setIsFetchingTimeline(false)
-    }
-  }, [terminalOptions.runId, terminalOptions.nodeId, terminalOptions.stream, timelineStartTime, getAbsoluteTimeFromTimeline])
-
-  // Store terminalResult.chunks in a ref to avoid dependency issues
-  const terminalChunksRef = useRef(terminalResult.chunks)
-  useEffect(() => {
-    terminalChunksRef.current = terminalResult.chunks
-  }, [terminalResult.chunks])
-
-  // Update terminal when timeline position changes (in timeline sync mode)
-  useEffect(() => {
-    if (!timelineSync || playbackMode === 'live') {
-      // Not in sync mode - use regular chunks
-      setTimelineChunksIfChanged([])
+    // Only fetch once per run
+    if (fetchedRunIdRef.current === terminalOptions.runId) {
       return
+    }
+
+    // Fetch all chunks from workflow start (no endTime = get everything)
+    const fetchAllChunks = async () => {
+      setIsFetchingTimeline(true)
+      try {
+        const result = await api.executions.getTerminalChunks(terminalOptions.runId!, {
+          nodeRef: terminalOptions.nodeId,
+          stream: terminalOptions.stream,
+          // No startTime/endTime = fetch everything
+        })
+        
+        // Sort by chunkIndex to ensure correct order
+        const sorted = [...result.chunks].sort((a, b) => a.chunkIndex - b.chunkIndex)
+        setAllChunks(sorted)
+        fetchedRunIdRef.current = terminalOptions.runId
+        
+        // DETAILED LOGGING: Log all chunks with timestamps
+        console.log('[useTimelineTerminalStream] Fetched all chunks', {
+          totalChunks: sorted.length,
+          runId: terminalOptions.runId,
+          nodeId: terminalOptions.nodeId,
+        })
+        
+        // Log all chunks with their timestamps
+        console.log('[useTimelineTerminalStream] ALL CHUNKS DETAILED:', sorted.map((chunk, idx) => ({
+          index: idx,
+          chunkIndex: chunk.chunkIndex,
+          recordedAt: chunk.recordedAt,
+          recordedAtMs: new Date(chunk.recordedAt).getTime(),
+          recordedAtISO: new Date(chunk.recordedAt).toISOString(),
+          payloadLength: chunk.payload?.length || 0,
+          nodeRef: chunk.nodeRef,
+          stream: chunk.stream,
+        })))
+        
+        // Check timestamp ordering
+        const timestamps = sorted.map(c => new Date(c.recordedAt).getTime())
+        const isOrdered = timestamps.every((ts, i) => i === 0 || ts >= timestamps[i - 1])
+        console.log('[useTimelineTerminalStream] Timestamp analysis:', {
+          isOrdered,
+          firstTimestamp: timestamps[0] ? new Date(timestamps[0]).toISOString() : null,
+          lastTimestamp: timestamps[timestamps.length - 1] ? new Date(timestamps[timestamps.length - 1]).toISOString() : null,
+          timeRangeMs: timestamps.length > 0 ? timestamps[timestamps.length - 1] - timestamps[0] : 0,
+          minTimestamp: timestamps.length > 0 ? Math.min(...timestamps) : null,
+          maxTimestamp: timestamps.length > 0 ? Math.max(...timestamps) : null,
+        })
+      } catch (error) {
+        console.error('[useTimelineTerminalStream] Failed to fetch chunks', error)
+      } finally {
+        setIsFetchingTimeline(false)
+      }
+    }
+
+    void fetchAllChunks()
+  }, [timelineSync, playbackMode, selectedRunId, terminalOptions.runId, terminalOptions.nodeId, terminalOptions.stream, isLiveView])
+
+  // Filter chunks by current timeline position
+  const displayChunks = useMemo(() => {
+    // When NOT in timeline sync mode, use regular stream chunks
+    if (!timelineSync || isLiveView) {
+      return terminalResult.chunks
+    }
+
+    // In timeline sync mode, filter allChunks by current time
+    if (allChunks.length === 0) {
+      return []
     }
 
     if (!timelineStartTime) {
-      return // Can't sync without timeline start time
-    }
-
-    // Debounce rapid timeline changes (e.g., during scrubbing)
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current)
-    }
-
-    debounceTimeoutRef.current = setTimeout(() => {
-      // Only fetch if timeline position changed significantly (avoid excessive API calls)
-      const timeDiff = lastFetchTimeRef.current
-        ? Math.abs(currentTime - lastFetchTimeRef.current)
-        : Infinity
-
-      const targetAbsoluteTime = getAbsoluteTimeFromTimeline(currentTime)
-      const startAbsoluteTime = timelineStartTime ? new Date(timelineStartTime) : null
-
-      console.log('[useTimelineTerminalStream] Timeline seek detected', {
-        currentTimeMs: currentTime,
-        timelineStartTime: timelineStartTime,
-        targetAbsoluteTime: targetAbsoluteTime?.toISOString(),
-        startAbsoluteTime: startAbsoluteTime?.toISOString(),
-        timeDiff,
-        willFetch: timeDiff > 100 || lastFetchTimeRef.current === null,
-        availableChunksCount: terminalChunksRef.current.length,
-      })
-
-      // Fetch if timeline moved more than 100ms or this is the first fetch
-      if (timeDiff > 100 || lastFetchTimeRef.current === null) {
-        console.log('[useTimelineTerminalStream] Fetching chunks from API', {
-          currentTimeMs: currentTime,
-          targetAbsoluteTime: targetAbsoluteTime?.toISOString(),
-        })
-        void fetchChunksUpToTime(currentTime)
-        lastFetchTimeRef.current = currentTime
-      } else {
-        // Use cached/filtered chunks for small movements
-        if (targetAbsoluteTime && startAbsoluteTime) {
-          // Get current chunks from ref (avoid dependency issues)
-          const currentChunks = terminalChunksRef.current
-          
-          console.log('[useTimelineTerminalStream] Filtering existing chunks', {
-            currentTimeMs: currentTime,
-            totalChunks: currentChunks.length,
-            startAbsoluteTime: startAbsoluteTime.toISOString(),
-            targetAbsoluteTime: targetAbsoluteTime.toISOString(),
-            chunkTimestamps: currentChunks.slice(0, 5).map(c => ({
-              chunkIndex: c.chunkIndex,
-              recordedAt: c.recordedAt,
-              timestamp: new Date(c.recordedAt).toISOString(),
-            })),
-          })
-
-          const filtered = currentChunks.filter((chunk) => {
-            const recordedAt = new Date(chunk.recordedAt)
-            const inRange = recordedAt >= startAbsoluteTime && recordedAt <= targetAbsoluteTime
-            return inRange
-          })
-
-          console.log('[useTimelineTerminalStream] Filtered chunks result', {
-            beforeFilter: currentChunks.length,
-            afterFilter: filtered.length,
-            filteredChunkIndices: filtered.map(c => c.chunkIndex),
-            filteredTimestamps: filtered.map(c => ({
-              chunkIndex: c.chunkIndex,
-              recordedAt: c.recordedAt,
-              timestamp: new Date(c.recordedAt).toISOString(),
-            })),
-          })
-
-          setTimelineChunksIfChanged(filtered)
-        }
-      }
-    }, 150) // 150ms debounce (same as asciinema)
-
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current)
-      }
-    }
-  }, [timelineSync, currentTime, timelineStartTime, playbackMode, fetchChunksUpToTime, getAbsoluteTimeFromTimeline, setTimelineChunksIfChanged])
-
-  // Determine which chunks to use
-  // In live mode or when not syncing, use terminalResult.chunks directly (always fresh)
-  // In timeline sync mode (replay), use filtered timelineChunks
-  // CRITICAL: When timelineSync is true, NEVER use terminalResult.chunks - only use timelineChunks
-  // This prevents double rendering (regular stream + timeline sync)
-  const displayChunks = useMemo(() => {
-    // If timelineSync is enabled, ALWAYS use timeline-synced chunks, never regular stream chunks
-    if (timelineSync) {
-      // In timeline sync mode, use timelineChunks (filtered by time) or filter terminalResult.chunks
-      if (timelineChunks.length > 0) {
-        // CRITICAL: Filter timelineChunks by target time - API might return chunks beyond target
-        const targetAbsoluteTime = timelineStartTime ? timelineStartTime + currentTime : null
-        const filtered = targetAbsoluteTime
-          ? timelineChunks.filter((chunk) => {
-              const chunkTime = new Date(chunk.recordedAt).getTime()
-              return chunkTime <= targetAbsoluteTime
-            })
-          : timelineChunks
-        
-        console.log('[useTimelineTerminalStream] displayChunks - using timelineChunks (filtered)', {
-          timelineChunksCount: timelineChunks.length,
-          filteredCount: filtered.length,
-          currentTimeMs: currentTime,
-          timelineStartTime: timelineStartTime ? new Date(timelineStartTime).toISOString() : null,
-          targetAbsoluteTime: targetAbsoluteTime ? new Date(targetAbsoluteTime).toISOString() : null,
-          chunkIndices: filtered.map(c => c.chunkIndex),
-        })
-        return filtered
-      }
-      
-      // Fallback: filter terminalResult.chunks by time if timelineStartTime is available
-      if (timelineStartTime && currentTime >= 0) {
-        const targetAbsoluteTime = getAbsoluteTimeFromTimeline(currentTime)
-        if (targetAbsoluteTime) {
-          const startAbsoluteTime = new Date(timelineStartTime)
-          const filtered = terminalResult.chunks.filter((chunk) => {
-            const recordedAt = new Date(chunk.recordedAt)
-            return recordedAt >= startAbsoluteTime && recordedAt <= targetAbsoluteTime
-          })
-          
-          console.log('[useTimelineTerminalStream] displayChunks - filtering terminalResult.chunks', {
-            currentTimeMs: currentTime,
-            startAbsoluteTime: startAbsoluteTime.toISOString(),
-            targetAbsoluteTime: targetAbsoluteTime.toISOString(),
-            totalChunks: terminalResult.chunks.length,
-            filteredChunks: filtered.length,
-            chunkIndices: filtered.map(c => c.chunkIndex),
-          })
-          
-          return filtered
-        }
-      }
-      
-      // Last resort: return empty array if we can't filter (shouldn't happen in timeline sync mode)
-      console.warn('[useTimelineTerminalStream] displayChunks - no chunks available, returning empty', {
-        timelineSync,
-        playbackMode,
-        timelineChunksCount: timelineChunks.length,
-        terminalResultChunksCount: terminalResult.chunks.length,
-        currentTimeMs: currentTime,
-        timelineStartTime,
-      })
-      
+      // No timeline start time yet, return empty
       return []
     }
-    
-    // When NOT in timeline sync mode, use regular stream chunks
-    if (playbackMode === 'live') {
-      // In live mode, always use terminalResult.chunks directly for real-time updates
-      return terminalResult.chunks
-    }
-    
-    // Regular replay mode (not timeline sync) - use terminalResult.chunks
-    return terminalResult.chunks
-  }, [timelineSync, playbackMode, timelineChunks, terminalResult.chunks, currentTime, timelineStartTime, getAbsoluteTimeFromTimeline])
 
-  // When timeline sync is active, completely disable regular stream mode updates
-  // to prevent double rendering (regular stream + timeline sync)
+    // Calculate effective timeline start time
+    // If chunks have timestamps before workflow start, use first chunk's timestamp as the effective start
+    const firstChunkTime = allChunks.length > 0 ? new Date(allChunks[0].recordedAt).getTime() : null
+    const lastChunkTime = allChunks.length > 0 ? new Date(allChunks[allChunks.length - 1].recordedAt).getTime() : null
+    const effectiveStartTime = firstChunkTime && firstChunkTime < timelineStartTime 
+      ? firstChunkTime 
+      : timelineStartTime
+
+    // Check if all chunks have the same timestamp (or very close timestamps)
+    const timeRange = lastChunkTime && firstChunkTime ? lastChunkTime - firstChunkTime : 0
+    const allSameTimestamp = timeRange < 1000 // Less than 1 second difference
+
+    let filtered: typeof allChunks
+    const targetAbsoluteTime = effectiveStartTime + currentTime
+    if (allSameTimestamp && allChunks.length > 0) {
+      // All chunks have same timestamp - filter by chunkIndex proportionally
+      // Calculate how many chunks should be shown based on currentTime vs totalDuration
+      // Use chunkIndex to determine position
+      const totalDuration = useExecutionTimelineStore.getState().totalDuration
+      if (totalDuration > 0 && currentTime >= 0) {
+        const progress = Math.min(currentTime / totalDuration, 1.0)
+        const targetChunkIndex = Math.ceil(allChunks.length * progress)
+        filtered = allChunks.filter((chunk) => chunk.chunkIndex <= targetChunkIndex)
+      } else {
+        // No duration info, show all chunks
+        filtered = allChunks
+      }
+    } else {
+      // Normal time-based filtering
+      filtered = allChunks.filter((chunk) => {
+        const chunkTime = new Date(chunk.recordedAt).getTime()
+        return chunkTime <= targetAbsoluteTime
+      })
+    }
+
+    // DETAILED LOGGING: Dry-run filtering logic
+    console.log('[useTimelineTerminalStream] Filtering dry-run:', {
+      totalChunks: allChunks.length,
+      timelineStartTime: timelineStartTime,
+      timelineStartTimeISO: new Date(timelineStartTime).toISOString(),
+      currentTimeMs: currentTime,
+      targetAbsoluteTime: targetAbsoluteTime,
+      targetAbsoluteTimeISO: new Date(targetAbsoluteTime).toISOString(),
+      filteredCount: filtered.length,
+      filteredChunkIndices: filtered.map(c => c.chunkIndex),
+      firstFilteredChunk: filtered[0] ? {
+        chunkIndex: filtered[0].chunkIndex,
+        recordedAt: filtered[0].recordedAt,
+        recordedAtMs: new Date(filtered[0].recordedAt).getTime(),
+        timeDiff: new Date(filtered[0].recordedAt).getTime() - targetAbsoluteTime,
+      } : null,
+      lastFilteredChunk: filtered[filtered.length - 1] ? {
+        chunkIndex: filtered[filtered.length - 1].chunkIndex,
+        recordedAt: filtered[filtered.length - 1].recordedAt,
+        recordedAtMs: new Date(filtered[filtered.length - 1].recordedAt).getTime(),
+        timeDiff: new Date(filtered[filtered.length - 1].recordedAt).getTime() - targetAbsoluteTime,
+      } : null,
+      firstExcludedChunk: allChunks[filtered.length] ? {
+        chunkIndex: allChunks[filtered.length].chunkIndex,
+        recordedAt: allChunks[filtered.length].recordedAt,
+        recordedAtMs: new Date(allChunks[filtered.length].recordedAt).getTime(),
+        timeDiff: new Date(allChunks[filtered.length].recordedAt).getTime() - targetAbsoluteTime,
+      } : null,
+    })
+
+    return filtered
+  }, [timelineSync, playbackMode, allChunks, timelineStartTime, currentTime, terminalResult.chunks, isLiveView])
+
+  // When timeline sync is active, disable regular stream mode to prevent double rendering
   const finalMode = timelineSync && playbackMode !== 'live' ? 'replay' : terminalResult.mode
   
   return {

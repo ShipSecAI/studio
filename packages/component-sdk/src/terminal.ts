@@ -12,33 +12,27 @@ export function createTerminalChunkEmitter(
 
   let chunkIndex = 0;
   let lastTimestamp = Date.now();
-  let lastTimestampMs = 0; // Track milliseconds since last timestamp to ensure uniqueness
 
   return (data: Uint8Array | string) => {
     if (!context.terminalCollector) {
       return;
     }
 
-    const now = Date.now();
     const payloadBuffer = typeof data === 'string' ? Buffer.from(data) : Buffer.from(data);
     const dataString = typeof data === 'string' ? data : new TextDecoder().decode(data);
 
     chunkIndex += 1;
-    
-    // Ensure each chunk gets a unique timestamp, even if emitted in the same millisecond
-    // Add a small increment (0.001ms per chunk) to ensure monotonic ordering
-    let chunkTimestamp: number;
-    if (now === lastTimestamp) {
-      // Same millisecond - add microsecond precision using chunkIndex
-      lastTimestampMs += 1;
-      chunkTimestamp = now + lastTimestampMs / 1000; // Add microseconds as fractional milliseconds
-    } else {
-      // New millisecond - reset counter
-      lastTimestampMs = 0;
-      chunkTimestamp = now;
-      lastTimestamp = now;
+
+    const now = Date.now();
+    const previousTimestamp = lastTimestamp;
+    let chunkTimestamp = now;
+    if (chunkTimestamp <= previousTimestamp) {
+      // Monotonic guarantee: never move backwards, bump by 1ms when calls land in same millisecond
+      chunkTimestamp = previousTimestamp + 1;
     }
-    
+    const deltaMs = chunkIndex === 1 ? 0 : Math.max(0, chunkTimestamp - previousTimestamp);
+    lastTimestamp = chunkTimestamp;
+
     const chunk: TerminalChunkInput = {
       runId: context.runId,
       nodeRef: context.componentRef,
@@ -46,7 +40,7 @@ export function createTerminalChunkEmitter(
       chunkIndex,
       payload: payloadBuffer.toString('base64'),
       recordedAt: new Date(chunkTimestamp).toISOString(),
-      deltaMs: chunkIndex === 1 ? 0 : Math.max(0, chunkTimestamp - (lastTimestamp - (lastTimestampMs - 1) / 1000)),
+      deltaMs,
       origin: 'docker',
       runnerKind: 'docker',
     };
@@ -63,8 +57,6 @@ export function createTerminalChunkEmitter(
         payloadSize: chunk.payload.length,
       });
     }
-
-    lastTimestamp = now;
 
     try {
       context.terminalCollector(chunk);

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
+import { useRunStore } from '@/store/runStore'
 import {
   ExecutionStatusResponseSchema,
   type ExecutionLog,
@@ -188,6 +189,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         // Terminal streams will be populated as new run progresses
         terminalStreams: {},
       })
+      void useRunStore.getState().refreshRuns(workflowId)
 
       await get().pollOnce()
       get().monitorRun(executionId, workflowId)
@@ -234,6 +236,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         api.executions.getTrace(runId),
       ])
 
+      // Safety check: if runId changed or was cleared during await, abort
+      if (get().runId !== runId) {
+        return
+      }
+
       if (!statusPayload || !traceEnvelope) {
         throw new Error('Failed to fetch execution data')
       }
@@ -251,6 +258,9 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       )
 
       set((state) => {
+        // Double check inside setter to be absolutely sure
+        if (state.runId !== runId) return state
+
         const mergedLogs = mergeLogs(state.logs, validEvents)
         const nodeStates = deriveNodeStates(mergedLogs)
         const status = (statusPayload as any)?.status as ExecutionStatus | undefined
@@ -268,6 +278,12 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       const status = (statusPayload as any)?.status as ExecutionStatus | undefined
       if (status && TERMINAL_STATUSES.includes(status)) {
         get().stopPolling()
+        const currentWorkflowId = get().workflowId
+        if (currentWorkflowId) {
+          void useRunStore.getState().refreshRuns(currentWorkflowId)
+        } else {
+          void useRunStore.getState().refreshRuns(undefined)
+        }
       }
     } catch (error) {
       console.error('Failed to poll execution status:', error)

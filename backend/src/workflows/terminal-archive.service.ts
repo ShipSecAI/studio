@@ -295,7 +295,8 @@ export class TerminalArchiveService {
       throw new NotFoundException('No terminal chunks available for archival');
     }
 
-    const castBuffer = this.buildCastFile(terminal.chunks, { width, height });
+    const normalizedChunks = this.normalizeChunkTimings(terminal.chunks);
+    const castBuffer = this.buildCastFile(normalizedChunks, { width, height });
     const fileName = `terminal-${runId}-${nodeRef}-${Date.now()}.cast`;
 
     const file = await this.filesService.uploadFile(
@@ -312,12 +313,39 @@ export class TerminalArchiveService {
       nodeRef,
       stream,
       fileId: file.id,
-      chunkCount: terminal.chunks.length,
-      durationMs: terminal.chunks.reduce((total, chunk) => total + (chunk.deltaMs ?? 0), 0),
-      firstChunkIndex: terminal.chunks[0]?.chunkIndex ?? null,
-      lastChunkIndex: terminal.chunks[terminal.chunks.length - 1]?.chunkIndex ?? null,
+      chunkCount: normalizedChunks.length,
+      durationMs: normalizedChunks.reduce((total, chunk) => total + (chunk.deltaMs ?? 0), 0),
+      firstChunkIndex: normalizedChunks[0]?.chunkIndex ?? null,
+      lastChunkIndex: normalizedChunks[normalizedChunks.length - 1]?.chunkIndex ?? null,
       organizationId,
       createdAt: new Date(),
+    });
+  }
+
+  private normalizeChunkTimings<
+    T extends { recordedAt?: string | null; deltaMs?: number }
+  >(chunks: T[]): Array<T & { deltaMs: number }> {
+    let previousRecordedAt: number | null = null;
+    return chunks.map((chunk, index) => {
+      const recordedAtMs =
+        chunk.recordedAt && !Number.isNaN(Date.parse(chunk.recordedAt))
+          ? new Date(chunk.recordedAt).getTime()
+          : null;
+      let deltaMs =
+        typeof chunk.deltaMs === 'number' && Number.isFinite(chunk.deltaMs) ? chunk.deltaMs : 0;
+      if (recordedAtMs !== null && previousRecordedAt !== null) {
+        deltaMs = Math.max(0, recordedAtMs - previousRecordedAt);
+      } else if (index === 0) {
+        deltaMs = 0;
+      }
+
+      if (recordedAtMs !== null) {
+        previousRecordedAt = recordedAtMs;
+      } else if (previousRecordedAt !== null) {
+        previousRecordedAt += deltaMs;
+      }
+
+      return { ...chunk, deltaMs };
     });
   }
 }

@@ -99,21 +99,25 @@ export class TerminalStreamService implements OnModuleDestroy {
         continue;
       }
 
+      let previousRedisId: string | undefined = undefined;
       for (const [id, fields] of entries) {
-        const payload = this.extractPayload(key, fields, id);
+        const payload = this.extractPayload(key, fields, id, previousRedisId);
         if (payload) {
           // Filter by time range if provided
           if (options.startTime || options.endTime) {
             const recordedAt = new Date(payload.recordedAt);
             if (options.startTime && recordedAt < options.startTime) {
+              previousRedisId = id; // Still track previous ID even if filtered out
               continue; // Skip chunks before startTime
             }
             if (options.endTime && recordedAt > options.endTime) {
+              previousRedisId = id; // Still track previous ID even if filtered out
               continue; // Skip chunks after endTime
             }
           }
           chunks.push(payload);
         }
+        previousRedisId = id; // Track previous Redis ID for deltaMs calculation
         nextState[key] = id;
       }
     }
@@ -139,7 +143,7 @@ export class TerminalStreamService implements OnModuleDestroy {
     return results;
   }
 
-  private extractPayload(key: string, fields: string[], redisId?: string): TerminalChunk | null {
+  private extractPayload(key: string, fields: string[], redisId?: string, previousRedisId?: string): TerminalChunk | null {
     for (let i = 0; i < fields.length; i += 2) {
       if (fields[i] !== 'data') {
         continue;
@@ -159,6 +163,8 @@ export class TerminalStreamService implements OnModuleDestroy {
         // Redis stream IDs are in format: milliseconds-sequence (e.g., "1734972072337-0")
         // This provides microsecond precision for ordering
         let recordedAt = data.recordedAt;
+        let deltaMs = data.deltaMs;
+        
         if (redisId) {
           const [redisTimestampMs] = redisId.split('-');
           const redisTimestamp = parseInt(redisTimestampMs, 10);
@@ -167,7 +173,34 @@ export class TerminalStreamService implements OnModuleDestroy {
           // If Redis timestamp is more precise (different from stored), use it
           // This handles the case where multiple chunks were created in the same millisecond
           if (redisTimestamp && redisTimestamp !== storedTimestamp) {
+            const oldRecordedAt = recordedAt;
             recordedAt = new Date(redisTimestamp).toISOString();
+            
+            // Recalculate deltaMs based on Redis timestamps if we have previous chunk
+            // This fixes the case where stored deltaMs is 0 but chunks were actually created at different times
+            if (previousRedisId) {
+              const [prevRedisTimestampMs] = previousRedisId.split('-');
+              const prevRedisTimestamp = parseInt(prevRedisTimestampMs, 10);
+              if (prevRedisTimestamp && redisTimestamp > prevRedisTimestamp) {
+                const oldDeltaMs = deltaMs;
+                deltaMs = redisTimestamp - prevRedisTimestamp;
+                console.log(`[TerminalStreamService] Fixed timestamp and deltaMs for chunk ${data.chunkIndex}`, {
+                  oldRecordedAt,
+                  newRecordedAt: recordedAt,
+                  oldDeltaMs,
+                  newDeltaMs: deltaMs,
+                  redisTimestamp,
+                  prevRedisTimestamp,
+                });
+              }
+            } else {
+              console.log(`[TerminalStreamService] Fixed timestamp for chunk ${data.chunkIndex} (first chunk)`, {
+                oldRecordedAt,
+                newRecordedAt: recordedAt,
+                redisTimestamp,
+                storedTimestamp,
+              });
+            }
           }
         }
         
@@ -177,7 +210,7 @@ export class TerminalStreamService implements OnModuleDestroy {
           chunkIndex: data.chunkIndex,
           payload: data.payload,
           recordedAt,
-          deltaMs: data.deltaMs,
+          deltaMs,
           origin: data.origin,
           runnerKind: data.runnerKind,
         };

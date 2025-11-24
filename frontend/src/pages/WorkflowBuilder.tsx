@@ -230,6 +230,14 @@ function WorkflowBuilderContent() {
   // Load workflow on mount (if not new)
   useEffect(() => {
     const loadWorkflow = async () => {
+      // Reset execution state if switching workflows to prevent leaks
+      // This ensures we don't show status/logs from a previous workflow
+      const executionStore = useExecutionStore.getState()
+      if (id && executionStore.workflowId !== id) {
+        executionStore.reset()
+        useExecutionTimelineStore.getState().reset()
+      }
+
       if (isNewWorkflow) {
         // Reset store for new workflow
         resetWorkflow()
@@ -277,6 +285,37 @@ function WorkflowBuilderContent() {
           is_new: false,
           node_count: workflowNodes.length,
         })
+
+        // Check for active runs to resume monitoring
+        try {
+          const { runs } = await api.executions.listRuns({
+            workflowId: workflow.id,
+            limit: 1,
+          })
+
+          if (runs && runs.length > 0) {
+            const latestRun = runs[0]
+            if (latestRun && latestRun.id && latestRun.status) {
+              const isActive = ['QUEUED', 'RUNNING'].includes(latestRun.status)
+              if (isActive) {
+                console.log('[WorkflowBuilder] Found active run, resuming monitoring:', latestRun.id)
+
+                // Resume monitoring in execution store
+                useExecutionStore.getState().monitorRun(latestRun.id, workflow.id)
+
+                // Switch timeline to live mode
+                useExecutionTimelineStore.getState().selectRun(latestRun.id, 'live')
+
+                toast({
+                  title: 'Resumed live monitoring',
+                  description: `Connected to active run ${latestRun.id.slice(-6)}`,
+                })
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for active runs:', error)
+        }
       } catch (error) {
         console.error('Failed to load workflow:', error)
 
@@ -394,7 +433,7 @@ function WorkflowBuilderContent() {
         // Don't force mode change - inspector will appear automatically when run is selected
         // This prevents full UI re-render and allows smooth transition
         await fetchRuns({ workflowId, force: true }).catch(() => undefined)
-        useExecutionTimelineStore.setState({ 
+        useExecutionTimelineStore.setState({
           selectedRunId: runId,
           playbackMode: 'live',
           isLiveFollowing: true,
@@ -473,10 +512,10 @@ function WorkflowBuilderContent() {
                 ...node.style,
                 ...(node.id === failedComponentId
                   ? {
-                      outline: '3px solid #ef4444',
-                      outlineOffset: '2px',
-                      animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }
+                    outline: '3px solid #ef4444',
+                    outlineOffset: '2px',
+                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                  }
                   : {}),
               },
             }))
@@ -689,15 +728,15 @@ function WorkflowBuilderContent() {
 
       const graph = 'graph' in parsed
         ? {
-            nodes: parsed.graph.nodes ?? [],
-            edges: parsed.graph.edges ?? [],
-            viewport: parsed.graph.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
-          }
+          nodes: parsed.graph.nodes ?? [],
+          edges: parsed.graph.edges ?? [],
+          viewport: parsed.graph.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
+        }
         : {
-            nodes: parsed.nodes ?? [],
-            edges: parsed.edges ?? [],
-            viewport: parsed.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
-          }
+          nodes: parsed.nodes ?? [],
+          edges: parsed.edges ?? [],
+          viewport: parsed.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
+        }
 
       const workflowGraph = {
         graph: {

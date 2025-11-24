@@ -53,6 +53,7 @@ const mockExecutions = {
   getTrace: mock(),
   cancel: mock(),
   stream: mock(),
+  listRuns: mock(async () => ({ runs: [] })),
 }
 
 mock.module('@/services/api', () => ({

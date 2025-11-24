@@ -28,7 +28,7 @@ const STATUS_ICONS = {
 export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) => {
   const { getComponent, loading } = useComponentStore()
   const { getNodes, getEdges } = useReactFlow()
-  const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode } = useExecutionTimelineStore()
+  const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode, isLiveFollowing } = useExecutionTimelineStore()
   const { mode } = useWorkflowUiStore()
   const [isHovered, setIsHovered] = useState(false)
   const prefetchTerminal = useExecutionStore((state) => state.prefetchTerminal)
@@ -66,6 +66,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   // Get component metadata
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug
   const component = getComponent(componentRef)
+  const supportsLiveLogs = component?.runner?.kind === 'docker'
 
   if (!component) {
     if (loading) {
@@ -337,30 +338,34 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                     )}
                   />
                 )}
-                {mode === 'execution' && selectedRunId && (
-                  <div className="relative">
+                {/* Only docker-runner components expose live logs (they have streaming terminal output). */}
+                {supportsLiveLogs && mode === 'execution' && selectedRunId && (
+                  <div className="relative flex justify-center">
                     <button
                       type="button"
                       onClick={() => setIsTerminalOpen((prev) => !prev)}
                       className={cn(
                         'flex items-center gap-1 rounded-full px-2 py-1 text-[11px] border transition-colors',
-                        isTerminalOpen ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900/60 text-slate-100 border-slate-700',
+                        isTerminalOpen
+                          ? 'bg-blue-600/15 text-blue-600 border-blue-400 shadow-sm ring-2 ring-blue-300/60'
+                          : 'bg-slate-900/60 text-slate-100 border-slate-700',
                       )}
+                      title="Live Logs"
+                      aria-label="Live Logs"
                     >
-                      <TerminalIcon className="h-3 w-3" />
-                      <span>Terminal</span>
+                      <TerminalIcon className="h-3 w-3 text-current" />
                       {isTerminalLoading && <span className="animate-pulse">…</span>}
                       {!isTerminalLoading && terminalSession?.chunks?.length ? (
                         <span className="w-2 h-2 rounded-full bg-green-400" />
                       ) : null}
                     </button>
                     {isTerminalOpen && (
-                      <div className="absolute bottom-full right-0 mb-2 z-[60]">
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 z-[60]">
                         <NodeTerminalPanel
                           nodeId={id}
                           runId={selectedRunId}
                           onClose={() => setIsTerminalOpen(false)}
-                          timelineSync={mode === 'execution' && playbackMode !== 'live'}
+                          timelineSync={mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing)}
                         />
                       </div>
                     )}
