@@ -43,9 +43,11 @@ export function useTimelineTerminalStream(
   const currentTime = useExecutionTimelineStore((state) => state.currentTime)
   const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime)
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
+  const isLiveFollowing = useExecutionTimelineStore((state) => state.isLiveFollowing)
+  const isLiveView = playbackMode === 'live' && isLiveFollowing
   
   // Disable autoConnect in timeline sync mode (replay) - we fetch all chunks via API
-  const shouldAutoConnect = timelineSync && playbackMode !== 'live' 
+  const shouldAutoConnect = timelineSync && !isLiveView
     ? false
     : terminalOptions.autoConnect !== false
   
@@ -67,7 +69,7 @@ export function useTimelineTerminalStream(
 
   // Fetch ALL chunks once when timeline sync is enabled and we have a runId
   useEffect(() => {
-    if (!timelineSync || playbackMode === 'live' || !selectedRunId || !terminalOptions.runId || !terminalOptions.nodeId) {
+    if (!timelineSync || isLiveView || !selectedRunId || !terminalOptions.runId || !terminalOptions.nodeId) {
       return
     }
 
@@ -129,12 +131,12 @@ export function useTimelineTerminalStream(
     }
 
     void fetchAllChunks()
-  }, [timelineSync, playbackMode, selectedRunId, terminalOptions.runId, terminalOptions.nodeId, terminalOptions.stream])
+  }, [timelineSync, playbackMode, selectedRunId, terminalOptions.runId, terminalOptions.nodeId, terminalOptions.stream, isLiveView])
 
   // Filter chunks by current timeline position
   const displayChunks = useMemo(() => {
     // When NOT in timeline sync mode, use regular stream chunks
-    if (!timelineSync || playbackMode === 'live') {
+    if (!timelineSync || isLiveView) {
       return terminalResult.chunks
     }
 
@@ -214,7 +216,7 @@ export function useTimelineTerminalStream(
     })
 
     return filtered
-  }, [timelineSync, playbackMode, allChunks, timelineStartTime, currentTime, terminalResult.chunks])
+  }, [timelineSync, playbackMode, allChunks, timelineStartTime, currentTime, terminalResult.chunks, isLiveView])
 
   // When timeline sync is active, disable regular stream mode to prevent double rendering
   const finalMode = timelineSync && playbackMode !== 'live' ? 'replay' : terminalResult.mode

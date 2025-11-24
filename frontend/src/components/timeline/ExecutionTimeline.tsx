@@ -58,6 +58,7 @@ export function ExecutionTimeline() {
     selectedRunId,
     events,
     totalDuration,
+    eventDuration,
     currentTime,
     playbackMode,
     isPlaying,
@@ -79,6 +80,7 @@ export function ExecutionTimeline() {
   } = useExecutionTimelineStore()
 
   const isLiveMode = playbackMode === 'live'
+  const overviewDuration = Math.max(eventDuration, totalDuration)
   const safeDuration = Math.max(totalDuration, 1)
   const normalizedProgress = clampValue(currentTime / safeDuration, 0, 1)
   const viewportWidth = 1 / timelineZoom
@@ -429,7 +431,7 @@ export function ExecutionTimeline() {
             </span>
           </div>
           <div
-            className="relative h-8 bg-muted rounded-lg border overflow-hidden cursor-pointer"
+            className="relative h-8 bg-muted rounded-lg border cursor-pointer"
             onMouseDown={handlePreviewPointer}
             onMouseMove={(event) => {
               if (event.buttons & 1) {
@@ -452,23 +454,33 @@ export function ExecutionTimeline() {
               className="absolute top-0 bottom-0 bg-blue-500/20 border border-blue-400/40 rounded"
               style={{ left: `${clampedStart * 100}%`, width: `${viewportWidth * 100}%` }}
             />
+          </div>
+          <div
+            className="relative h-3 pointer-events-none"
+            aria-hidden="true"
+          >
             <div
-              className="absolute inset-y-1 flex flex-col items-center pointer-events-none"
+              className="absolute"
               style={{
                 left: `${normalizedProgress * 100}%`,
-                transform: 'translateX(-50%)',
+                top: 0,
+                transform: 'translate(-50%, 0)',
                 color: isLiveMode ? '#ef4444' : '#3b82f6',
               }}
             >
-              <div className="w-[3px] flex-1 rounded-full" style={{ backgroundColor: 'currentColor' }} />
               <div
-                className="mt-0.5 w-2 h-2 rotate-45 rounded-[2px] shadow-sm"
+                className="w-0 h-0"
                 style={{
-                  backgroundColor: 'currentColor',
-                  boxShadow: `0 0 2px rgba(0,0,0,0.15)`,
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderBottom: '8px solid currentColor',
                 }}
               />
             </div>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>{formatTime(0)}</span>
+            <span>{formatTime(overviewDuration)}</span>
           </div>
         </div>
 
