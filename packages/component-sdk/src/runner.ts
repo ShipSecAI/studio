@@ -1,5 +1,23 @@
 import { spawn } from 'child_process';
 import type { ExecutionContext, RunnerConfig, DockerRunnerConfig } from './types';
+import { createTerminalChunkEmitter } from './terminal';
+
+type PtySpawn = typeof import('node-pty')['spawn'];
+let cachedPtySpawn: PtySpawn | null = null;
+
+async function loadPtySpawn(): Promise<PtySpawn | null> {
+  if (cachedPtySpawn) {
+    return cachedPtySpawn;
+  }
+  try {
+    const mod = await import('node-pty');
+    cachedPtySpawn = mod.spawn;
+    return cachedPtySpawn;
+  } catch (error) {
+    console.warn('[Docker][PTY] node-pty module not available:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
 
 export async function runComponentInline<I, O>(
   execute: (params: I, context: ExecutionContext) => Promise<O>,
@@ -22,24 +40,21 @@ async function runComponentInDocker<I, O>(
   context: ExecutionContext,
 ): Promise<O> {
   const { image, command, entrypoint, env = {}, network = 'none', platform, volumes, timeoutSeconds = 300 } = runner;
-  
+
   context.logger.info(`[Docker] Running ${image} with command: ${command.join(' ')}`);
   context.emitProgress(`Starting Docker container: ${image}`);
 
-  // Build docker run arguments
   const dockerArgs = [
     'run',
-    '--rm', // Auto-remove container on exit
-    '-i',   // Interactive (keep stdin open)
-    '--network', network, // Network mode (default: none for security)
+    '--rm',
+    '-i',
+    '--network', network,
   ];
 
-  // Set target platform when requested (enables emulation on Apple Silicon/ARM hosts)
   if (platform && platform.trim().length > 0) {
     dockerArgs.push('--platform', platform);
   }
 
-  // Add volume mounts
   if (Array.isArray(volumes)) {
     for (const vol of volumes) {
       if (!vol || !vol.source || !vol.target) continue;
@@ -48,20 +63,39 @@ async function runComponentInDocker<I, O>(
     }
   }
 
-  // Add environment variables
   for (const [key, value] of Object.entries(env)) {
     dockerArgs.push('-e', `${key}=${value}`);
   }
 
-  // Override entrypoint if specified (must come before image)
   if (entrypoint) {
     dockerArgs.push('--entrypoint', entrypoint);
   }
 
-  // Add image and command
   dockerArgs.push(image, ...command);
 
+  const useTerminal = Boolean(context.terminalCollector);
+  if (useTerminal) {
+    if (!dockerArgs.includes('-t')) {
+      dockerArgs.splice(2, 0, '-t');
+    }
+    // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
+    return runDockerWithPty(dockerArgs, params, context, timeoutSeconds);
+  }
+
+  return runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
+}
+
+function runDockerWithStandardIO<I, O>(
+  dockerArgs: string[],
+  params: I,
+  context: ExecutionContext,
+  timeoutSeconds: number,
+  stdinJson?: boolean,
+): Promise<O> {
   return new Promise<O>((resolve, reject) => {
+    const stdoutEmitter = createTerminalChunkEmitter(context, 'stdout');
+    const stderrEmitter = createTerminalChunkEmitter(context, 'stderr');
+
     const timeout = setTimeout(() => {
       proc.kill();
       reject(new Error(`Docker container timed out after ${timeoutSeconds}s`));
@@ -75,6 +109,7 @@ async function runComponentInDocker<I, O>(
     let stderr = '';
 
     proc.stdout.on('data', (data) => {
+      stdoutEmitter(data);
       const chunk = data.toString();
       stdout += chunk;
       const logEntry = {
@@ -86,18 +121,16 @@ async function runComponentInDocker<I, O>(
         timestamp: new Date().toISOString(),
       };
 
-      // Send to log collector for Loki storage
       context.logCollector?.(logEntry);
-
-      // Stream immediately via emitProgress for real-time UI updates
       context.emitProgress({
         message: chunk.trim(),
         level: 'info',
-        data: { stream: 'stdout', origin: 'docker' }
+        data: { stream: 'stdout', origin: 'docker' },
       });
     });
 
     proc.stderr.on('data', (data) => {
+      stderrEmitter(data);
       const chunk = data.toString();
       stderr += chunk;
       const logEntry = {
@@ -109,14 +142,11 @@ async function runComponentInDocker<I, O>(
         timestamp: new Date().toISOString(),
       };
 
-      // Send to log collector for Loki storage
       context.logCollector?.(logEntry);
-
-      // Stream immediately via emitProgress for real-time UI updates
       context.emitProgress({
         message: chunk.trim(),
         level: 'error',
-        data: { stream: 'stderr', origin: 'docker' }
+        data: { stream: 'stderr', origin: 'docker' },
       });
 
       console.error(`[${context.componentRef}] [Docker] stderr: ${chunk.trim()}`);
@@ -130,7 +160,7 @@ async function runComponentInDocker<I, O>(
 
     proc.on('close', (code) => {
       clearTimeout(timeout);
-      
+
       if (code !== 0) {
         context.logger.error(`[Docker] Exited with code ${code}`);
         context.logger.error(`[Docker] stderr: ${stderr}`);
@@ -142,26 +172,103 @@ async function runComponentInDocker<I, O>(
       context.emitProgress('Docker container completed');
 
       try {
-        // Try to parse stdout as JSON (component output)
         const output = JSON.parse(stdout.trim());
         resolve(output as O);
       } catch (e) {
-        // If not JSON, return raw output
         context.logger.info(`[Docker] Raw output (not JSON): ${stdout.trim()}`);
         resolve(stdout.trim() as any);
       }
     });
 
-    // Write input params as JSON to stdin
-    try {
-      const input = JSON.stringify(params);
-      proc.stdin.write(input);
+    if (stdinJson !== false) {
+      // Only write JSON to stdin if stdinJson is true or undefined (default behavior)
+      try {
+        const input = JSON.stringify(params);
+        proc.stdin.write(input);
+        proc.stdin.end();
+      } catch (e) {
+        clearTimeout(timeout);
+        proc.kill();
+        reject(new Error(`Failed to write input to Docker container: ${e}`));
+      }
+    } else {
+      // Close stdin immediately if stdinJson is false
       proc.stdin.end();
-    } catch (e) {
-      clearTimeout(timeout);
-      proc.kill();
-      reject(new Error(`Failed to write input to Docker container: ${e}`));
     }
+  });
+}
+
+async function runDockerWithPty<I, O>(
+  dockerArgs: string[],
+  params: I,
+  context: ExecutionContext,
+  timeoutSeconds: number,
+): Promise<O> {
+  const spawnPty = await loadPtySpawn();
+  if (!spawnPty) {
+    context.logger.warn('[Docker][PTY] node-pty unavailable; falling back to standard IO');
+    return runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
+  }
+
+  return new Promise<O>((resolve, reject) => {
+    const emitChunk = createTerminalChunkEmitter(context, 'pty');
+    let stdout = '';
+    let stderr = '';
+
+    let ptyProcess: ReturnType<typeof spawnPty>;
+    try {
+      ptyProcess = spawnPty('docker', dockerArgs, {
+        name: 'xterm-color',
+        cols: 120,
+        rows: 40,
+      });
+    } catch (error) {
+      reject(
+        new Error(
+          `Failed to spawn Docker PTY: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      ptyProcess.kill();
+      reject(new Error(`Docker container timed out after ${timeoutSeconds}s`));
+    }, timeoutSeconds * 1000);
+
+    // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
+    // Components should use environment variables or command-line arguments instead
+
+    ptyProcess.onData((data) => {
+      emitChunk(data);
+      stdout += data;
+    });
+
+    ptyProcess.onExit(({ exitCode }) => {
+      clearTimeout(timeout);
+      if (exitCode !== 0) {
+        stderr = stdout;
+        context.logger.error(`[Docker][PTY] Exited with code ${exitCode}`);
+        reject(new Error(`Docker PTY execution failed with exit code ${exitCode}`));
+        return;
+      }
+
+      context.logger.info('[Docker][PTY] Completed successfully');
+      context.emitProgress({
+        message: 'Terminal stream completed',
+        level: 'info',
+        data: { stream: 'pty', origin: 'docker' },
+      });
+      context.emitProgress('Docker container completed');
+
+      try {
+        const output = JSON.parse(stdout.trim());
+        resolve(output as O);
+      } catch (error) {
+        context.logger.info(`[Docker][PTY] Raw output (not JSON): ${stdout.trim()}`);
+        resolve(stdout.trim() as any);
+      }
+    });
   });
 }
 

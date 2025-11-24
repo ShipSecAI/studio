@@ -155,6 +155,31 @@ export class WorkflowsService {
     return { organizationId, run };
   }
 
+  async resolveRunForAccess(
+    runId: string,
+    auth?: AuthContext | null,
+  ) {
+    return this.requireRunAccess(runId, auth);
+  }
+
+  async resolveRunWithoutAuth(runId: string) {
+    const run = await this.runRepository.findByRunId(runId);
+    if (!run) {
+      throw new NotFoundException(`Workflow run ${runId} not found`);
+    }
+    return {
+      organizationId: run.organizationId ?? null,
+      run,
+    };
+  }
+
+  async ensureRunAccess(
+    runId: string,
+    auth?: AuthContext | null,
+  ): Promise<void> {
+    await this.requireRunAccess(runId, auth);
+  }
+
   async create(
     dto: WorkflowGraphDto,
     auth?: AuthContext | null,
@@ -424,11 +449,20 @@ export class WorkflowsService {
         taskQueue: temporalRun.taskQueue,
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
       this.logger.error(
-        `Failed to start workflow ${workflow.id} run ${runId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `Failed to start workflow ${workflow.id} run ${runId}: ${errorMessage}`,
       );
+
+      if (errorStack) {
+        this.logger.error(`Stack trace: ${errorStack}`);
+      }
+
+      // Log the full error object for debugging
+      this.logger.debug(`Full error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+
       throw error;
     }
   }

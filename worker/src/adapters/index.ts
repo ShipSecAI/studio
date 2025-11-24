@@ -12,3 +12,4 @@ export {
   type LokiLogClientConfig,
 } from './loki-log.adapter';
 export { SecretsAdapter } from './secrets.adapter';
+export { RedisTerminalStreamAdapter } from './terminal-stream.adapter';

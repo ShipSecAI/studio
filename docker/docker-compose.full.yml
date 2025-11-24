@@ -97,6 +97,20 @@ services:
       timeout: 10s
       retries: 5
 
+  redis:
+    image: redis:latest
+    container_name: shipsec-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # Applications
   dind:
     image: docker:27-dind
@@ -133,6 +147,7 @@ services:
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
       - LOKI_URL=http://loki:3100
+      - TERMINAL_REDIS_URL=redis://redis:6379
       - AUTH_PROVIDER=local
       - CLERK_PUBLISHABLE_KEY=
       - CLERK_SECRET_KEY=
@@ -144,6 +159,8 @@ services:
       temporal:
         condition: service_started
       minio:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     
@@ -198,6 +215,7 @@ services:
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
       - LOKI_URL=http://loki:3100
+      - TERMINAL_REDIS_URL=redis://redis:6379
       - DOCKER_HOST=tcp://dind:2375
     depends_on:
       postgres:
@@ -207,6 +225,8 @@ services:
       minio:
         condition: service_healthy
       dind:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -221,6 +241,7 @@ volumes:
   loki_data:
   temporal_data:
   docker_data:
+  redis_data:
 
 networks:
   default:

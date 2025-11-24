@@ -1,6 +1,3 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { z } from 'zod';
 import {
   componentRegistry,
@@ -9,6 +6,7 @@ import {
   runComponentWithRunner,
   type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const recordTypeEnum = z.enum([
   'A',
@@ -610,31 +608,45 @@ const definition: ComponentDefinition<Input, Output> = {
     );
     context.emitProgress(`Running dnsx for ${domainCount} domain${domainCount === 1 ? '' : 's'}`);
 
-    const hostInputDir = await mkdtemp(path.join(tmpdir(), 'dnsx-input-'));
-    const domainFilePath = path.join(hostInputDir, DOMAIN_FILE_NAME);
-    await writeFile(domainFilePath, normalisedDomains.join('\n'), 'utf8');
-    if (resolverList.length > 0) {
-      await writeFile(path.join(hostInputDir, RESOLVER_FILE_NAME), resolverList.join('\n'), 'utf8');
-    }
+    // Extract tenant ID from context (assuming it's available)
+    // TODO: Update this line when context includes tenantId
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+
+    // Create isolated volume for this execution
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
       throw new Error('DNSX runner must be docker');
     }
 
-    const runnerConfig: DockerRunnerConfig = {
-      kind: 'docker',
-      image: baseRunner.image,
-      network: baseRunner.network,
-      timeoutSeconds: baseRunner.timeoutSeconds ?? DNSX_TIMEOUT_SECONDS,
-      env: { ...(baseRunner.env ?? {}) },
-      entrypoint: 'dnsx',
-      command: dnsxArgs,
-      volumes: [{ source: hostInputDir, target: CONTAINER_INPUT_DIR, readOnly: true }],
-    };
-
     let rawPayload: unknown;
     try {
+      // Prepare input files for the volume
+      const inputFiles: Record<string, string> = {
+        [DOMAIN_FILE_NAME]: normalisedDomains.join('\n'),
+      };
+
+      // Add resolver file if resolvers are provided
+      if (resolverList.length > 0) {
+        inputFiles[RESOLVER_FILE_NAME] = resolverList.join('\n');
+      }
+
+      // Initialize the volume with input files
+      const volumeName = await volume.initialize(inputFiles);
+      context.logger.info(`[DNSX] Created isolated volume: ${volumeName}`);
+
+      const runnerConfig: DockerRunnerConfig = {
+        kind: 'docker',
+        image: baseRunner.image,
+        network: baseRunner.network,
+        timeoutSeconds: baseRunner.timeoutSeconds ?? DNSX_TIMEOUT_SECONDS,
+        env: { ...(baseRunner.env ?? {}) },
+        entrypoint: 'dnsx',
+        command: dnsxArgs,
+        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
+      };
+
       rawPayload = await runComponentWithRunner(
         runnerConfig,
         async () => ({} as Output),
@@ -642,7 +654,9 @@ const definition: ComponentDefinition<Input, Output> = {
         context,
       );
     } finally {
-      await rm(hostInputDir, { recursive: true, force: true });
+      // Always cleanup the volume, even on error
+      await volume.cleanup();
+      context.logger.info('[DNSX] Cleaned up isolated volume');
     }
 
     const buildOutput = (params: {

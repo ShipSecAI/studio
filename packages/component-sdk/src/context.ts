@@ -20,6 +20,7 @@ import type {
   Logger,
   ProgressEventInput,
   LogEventInput,
+  TerminalChunkInput,
 } from './types';
 import type {
   IFileStorageService,
@@ -37,10 +38,11 @@ export interface CreateContextOptions {
   artifacts?: IArtifactService;
   trace?: ITraceService;
   logCollector?: (entry: LogEventInput) => void;
+  terminalCollector?: (chunk: TerminalChunkInput) => void;
 }
 
 export function createExecutionContext(options: CreateContextOptions): ExecutionContext {
-  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector } =
+  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector } =
     options;
   const metadata = createMetadata(runId, componentRef, metadataInput);
   const scopedTrace = trace ? createScopedTrace(trace, metadata) : undefined;
@@ -89,6 +91,10 @@ export function createExecutionContext(options: CreateContextOptions): Execution
       pushLog('stdout', 'info', args);
       console.log(`[${componentRef}]`, ...args);
     },
+    warn: (...args: unknown[]) => {
+      pushLog('stdout', 'warn', args);
+      console.warn(`[${componentRef}]`, ...args);
+    },
     error: (...args: unknown[]) => {
       pushLog('stderr', 'error', args);
       console.error(`[${componentRef}]`, ...args);
@@ -125,6 +131,7 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     artifacts,
     trace: scopedTrace,
     logCollector,
+    terminalCollector,
     metadata,
   };
 

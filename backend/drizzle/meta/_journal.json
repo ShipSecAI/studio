@@ -71,6 +71,13 @@
       "when": 1736352000000,
       "tag": "0013_create-artifacts",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1737500000000,
+      "tag": "0014_create-terminal-records",
+      "breakpoints": true
     }
   ]
 }

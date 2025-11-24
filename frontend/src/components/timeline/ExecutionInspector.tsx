@@ -6,8 +6,9 @@ import { EventInspector } from '@/components/timeline/EventInspector'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MessageModal } from '@/components/ui/MessageModal'
+import { StopCircle } from 'lucide-react'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
-import { useExecutionStore } from '@/store/executionStore'
+import { useWorkflowExecution } from '@/hooks/useWorkflowExecution'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useArtifactStore } from '@/store/artifactStore'
@@ -70,7 +71,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const workflowCacheKey = workflowId ?? '__global__'
   const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs)
   const runs = scopedRuns ?? []
-  const { logs } = useExecutionStore()
+  const { logs, status, runStatus, reset, runId: liveRunId } = useWorkflowExecution()
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
   const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts)
   const [logModal, setLogModal] = useState<{ open: boolean; message: string; title: string }>({
@@ -147,8 +148,28 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
     <>
       <aside className="flex h-full min-h-0 w-full min-w-[320px] flex-col overflow-hidden border-l bg-muted/30 backdrop-blur">
         <div className="border-b p-3 space-y-3 bg-background/70">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <RunSelector onRerun={onRerunRun} />
+
+            <div className="flex items-center gap-2">
+              {runStatus?.progress && selectedRunId === liveRunId && (status === 'running' || status === 'queued') && (
+                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
+                  {runStatus.progress.completedActions}/{runStatus.progress.totalActions} actions
+                </span>
+              )}
+
+              {selectedRunId === liveRunId && (status === 'running' || status === 'queued') && (
+                <Button
+                  onClick={() => reset()}
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 px-2 gap-1.5"
+                >
+                  <StopCircle className="h-3.5 w-3.5" />
+                  <span className="text-xs">Stop</span>
+                </Button>
+              )}
+            </div>
           </div>
           {selectedRun && (
             <div className="rounded-md border bg-background px-3 py-2 text-xs space-y-1">

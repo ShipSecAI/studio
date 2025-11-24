@@ -9,7 +9,7 @@ import {
   type ISecretsService,
   type ITraceService,
 } from '@shipsec/component-sdk';
-import { TraceAdapter } from '../../adapters';
+import { TraceAdapter, RedisTerminalStreamAdapter } from '../../adapters';
 import type {
   RunComponentActivityInput,
   RunComponentActivityOutput,
@@ -22,6 +22,7 @@ let globalSecrets: ISecretsService | undefined;
 let globalArtifacts: ArtifactServiceFactory | undefined;
 let globalTrace: ITraceService | undefined;
 let globalLogs: WorkflowLogSink | undefined;
+let globalTerminal: RedisTerminalStreamAdapter | undefined;
 
 export function initializeComponentActivityServices(options: {
   storage: IFileStorageService;
@@ -29,12 +30,14 @@ export function initializeComponentActivityServices(options: {
   artifacts?: ArtifactServiceFactory;
   trace: ITraceService;
   logs?: WorkflowLogSink;
+  terminalStream?: RedisTerminalStreamAdapter;
 }) {
   globalStorage = options.storage;
   globalSecrets = options.secrets;
   globalArtifacts = options.artifacts;
   globalTrace = options.trace;
   globalLogs = options.logs;
+  globalTerminal = options.terminalStream;
 }
 
 export async function setRunMetadataActivity(input: {
@@ -190,6 +193,15 @@ export async function runComponentActivity(
               console.error('[Logs] Failed to append log entry', error);
             });
       }
+      : undefined,
+    terminalCollector: globalTerminal
+      ? (chunk) => {
+          void globalTerminal
+            ?.append(chunk)
+            .catch((error) => {
+              console.error('[Terminal] Failed to append chunk', error);
+            });
+        }
       : undefined,
   });
 

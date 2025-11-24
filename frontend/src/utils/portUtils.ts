@@ -82,6 +82,11 @@ const isPrimitiveAnd = (
 export const isTextLikePort = (dataType: PortDataType): boolean =>
   isPrimitiveAnd(dataType, (name) => name === 'text')
 
+export const isListOfTextPortDataType = (dataType: PortDataType): boolean =>
+  isList(dataType) &&
+  isPrimitive(dataType.element) &&
+  dataType.element.name === 'text'
+
 export const describePortDataType = (dataType: PortDataType): string => {
   if (isPrimitive(dataType)) {
     return primitiveLabelMap[dataType.name] ?? dataType.name
@@ -105,7 +110,7 @@ export const describePortDataType = (dataType: PortDataType): string => {
 export const inputSupportsManualValue = (input: InputPort): boolean =>
   isPrimitiveAnd(input.dataType, (name) =>
     name === 'text' || name === 'number' || name === 'boolean',
-  )
+  ) || isListOfTextPortDataType(input.dataType)
 
 export const runtimeInputTypeToPortDataType = (type: string): PortDataType => {
   const normalized = type.toLowerCase()

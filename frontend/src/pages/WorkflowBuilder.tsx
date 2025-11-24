@@ -52,6 +52,27 @@ const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
 
 const cloneEdges = (edges: ReactFlowEdge[]) => edges.map((edge) => ({ ...edge }))
 
+/**
+ * Format error messages to be more human-readable
+ */
+function formatErrorMessage(message: string): string {
+  // Remove common technical prefixes
+  let formatted = message
+    .replace(/^Error:\s*/i, '')
+    .replace(/^ApplicationFailure:\s*/i, '')
+    .replace(/^WorkflowFailure:\s*/i, '')
+
+  // Add bullet points for component failures
+  if (formatted.includes('[') && formatted.includes(']')) {
+    const parts = formatted.split(';').map((part) => part.trim())
+    if (parts.length > 1) {
+      formatted = parts.map((part) => `• ${part}`).join('\n')
+    }
+  }
+
+  return formatted
+}
+
 function WorkflowBuilderContent() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -98,8 +119,6 @@ function WorkflowBuilderContent() {
   const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
   const setInspectorWidth = useWorkflowUiStore((state) => state.setInspectorWidth)
   const setMode = useWorkflowUiStore((state) => state.setMode)
-  const selectRun = useExecutionTimelineStore((state) => state.selectRun)
-  const switchToLiveMode = useExecutionTimelineStore((state) => state.switchToLiveMode)
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
   const fetchRuns = useRunStore((state) => state.fetchRuns)
   const workflowCacheKey = metadata.id ?? '__global__'
@@ -230,6 +249,14 @@ function WorkflowBuilderContent() {
   // Load workflow on mount (if not new)
   useEffect(() => {
     const loadWorkflow = async () => {
+      // Reset execution state if switching workflows to prevent leaks
+      // This ensures we don't show status/logs from a previous workflow
+      const executionStore = useExecutionStore.getState()
+      if (id && executionStore.workflowId !== id) {
+        executionStore.reset()
+        useExecutionTimelineStore.getState().reset()
+      }
+
       if (isNewWorkflow) {
         // Reset store for new workflow
         resetWorkflow()
@@ -277,6 +304,37 @@ function WorkflowBuilderContent() {
           is_new: false,
           node_count: workflowNodes.length,
         })
+
+        // Check for active runs to resume monitoring
+        try {
+          const { runs } = await api.executions.listRuns({
+            workflowId: workflow.id,
+            limit: 1,
+          })
+
+          if (runs && runs.length > 0) {
+            const latestRun = runs[0]
+            if (latestRun && latestRun.id && latestRun.status) {
+              const isActive = ['QUEUED', 'RUNNING'].includes(latestRun.status)
+              if (isActive) {
+                console.log('[WorkflowBuilder] Found active run, resuming monitoring:', latestRun.id)
+
+                // Resume monitoring in execution store
+                useExecutionStore.getState().monitorRun(latestRun.id, workflow.id)
+
+                // Switch timeline to live mode
+                useExecutionTimelineStore.getState().selectRun(latestRun.id, 'live')
+
+                toast({
+                  title: 'Resumed live monitoring',
+                  description: `Connected to active run ${latestRun.id.slice(-6)}`,
+                })
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for active runs:', error)
+        }
       } catch (error) {
         console.error('Failed to load workflow:', error)
 
@@ -361,14 +419,19 @@ function WorkflowBuilderContent() {
     const workflowId = metadata.id
     if (!workflowId) return
 
-    setIsLoading(true)
+    // Don't set isLoading - that's only for initial workflow load
+    // Running a workflow shouldn't show the "Loading workflow..." screen
     try {
       const shouldCommitBeforeRun =
         !options?.versionId &&
         (isDirty || !metadata.currentVersionId)
 
       if (shouldCommitBeforeRun) {
+        // Commit workflow - this creates a new version
+        // We don't need to reload the workflow, just mark as clean
+        // The currentVersionId will be updated when workflow is next loaded
         await api.workflows.commit(workflowId)
+        markClean()
       }
 
       const runId = await useExecutionStore.getState().startExecution(
@@ -386,18 +449,22 @@ function WorkflowBuilderContent() {
           run_id: runId,
           node_count: nodes.length,
         })
-        setMode('execution')
+        // Don't force mode change - inspector will appear automatically when run is selected
+        // This prevents full UI re-render and allows smooth transition
         await fetchRuns({ workflowId, force: true }).catch(() => undefined)
-        let selected = true
-        try {
-          await selectRun(runId)
-        } catch (error) {
-          selected = false
+        useExecutionTimelineStore.setState({
+          selectedRunId: runId,
+          playbackMode: 'live',
+          isLiveFollowing: true,
+          isPlaying: false,
+        })
+        // Optionally switch to execution mode smoothly (user can still switch back)
+        // Only switch if we're in design mode to avoid jarring transitions
+        if (mode === 'design') {
+          // Use setTimeout to allow state updates to settle first
+          setTimeout(() => setMode('execution'), 0)
         }
-        if (!selected) {
-          useExecutionTimelineStore.setState({ selectedRunId: runId })
-        }
-        switchToLiveMode()
+        // Timeline will be populated by live updates from execution store subscription
         toast({
           variant: 'success',
           title: 'Workflow started',
@@ -411,14 +478,109 @@ function WorkflowBuilderContent() {
         })
       }
     } catch (error) {
-      console.error('Failed to run workflow:', error)
+      // Log full error details to console for debugging
+      console.group('❌ Workflow Execution Failed')
+      console.error('Error object:', error)
+      if (error instanceof Error) {
+        console.error('Message:', error.message)
+        if (error.stack) console.error('Stack:', error.stack)
+        if ((error as any).cause) console.error('Cause:', (error as any).cause)
+      }
+      console.groupEnd()
+
+      // Extract error message and stack trace
+      let errorMessage = 'An unknown error occurred'
+      let stackTrace: string | undefined
+
+      if (error instanceof Error) {
+        errorMessage = error.message
+        stackTrace = error.stack
+
+        // Check if it's a structured API error
+        const errorObj = error as any
+        if (errorObj.response?.data?.message) {
+          errorMessage = errorObj.response.data.message
+          stackTrace = errorObj.response.data.stack || stackTrace
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String((error as any).message)
+        if ('stack' in error) {
+          stackTrace = String((error as any).stack)
+        }
+      }
+
+      // Format the error message for better readability
+      const formattedMessage = formatErrorMessage(errorMessage)
+
+      // Extract component ID from error message for highlighting
+      const componentMatch = errorMessage.match(/\[([\w-]+)\]/)
+      const failedComponentId = componentMatch ? componentMatch[1] : null
+
+      // Highlight the failed component if we found it
+      if (failedComponentId && nodes.length > 0) {
+        const failedNode = nodes.find((n) => n.id === failedComponentId)
+        if (failedNode) {
+          // Update nodes to highlight the failed one
+          setNodes((nds) =>
+            nds.map((node) => ({
+              ...node,
+              selected: node.id === failedComponentId,
+              style: {
+                ...node.style,
+                ...(node.id === failedComponentId
+                  ? {
+                    outline: '3px solid #ef4444',
+                    outlineOffset: '2px',
+                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                  }
+                  : {}),
+              },
+            }))
+          )
+        }
+      }
+
+      // Determine helpful message based on error type
+      let helpMessage = '💡 Open browser console (F12) to see complete error details'
+      if (errorMessage.includes('validation failed') || errorMessage.includes('required')) {
+        helpMessage = '💡 Check the highlighted component configuration and ensure all required fields are filled'
+      } else if (errorMessage.includes('not registered')) {
+        helpMessage = '💡 This component may not be properly installed or registered'
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+        helpMessage = '💡 The operation took too long. Try increasing timeout or check external service availability'
+      }
+
       toast({
         variant: 'destructive',
-        title: 'Failed to run workflow',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: 'Workflow Execution Failed',
+        duration: Infinity, // Don't auto-close error toasts
+        description: (
+          <div className="space-y-2 max-w-full">
+            <div className="whitespace-pre-wrap break-words text-sm">
+              {formattedMessage}
+            </div>
+
+            {stackTrace && (
+              <details className="text-xs opacity-80">
+                <summary className="cursor-pointer hover:opacity-100 font-medium">
+                  Stack Trace
+                </summary>
+                <pre className="mt-2 p-2 bg-black/20 rounded text-[10px] whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                  {stackTrace}
+                </pre>
+              </details>
+            )}
+
+            <p className="text-xs opacity-70 mt-2 font-medium">
+              {helpMessage}
+            </p>
+          </div>
+        ),
       })
     } finally {
-      setIsLoading(false)
+      // Don't reset isLoading here - it wasn't set
       setPendingVersionId(null)
       setPrefilledRuntimeValues({})
     }
@@ -585,15 +747,15 @@ function WorkflowBuilderContent() {
 
       const graph = 'graph' in parsed
         ? {
-            nodes: parsed.graph.nodes ?? [],
-            edges: parsed.graph.edges ?? [],
-            viewport: parsed.graph.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
-          }
+          nodes: parsed.graph.nodes ?? [],
+          edges: parsed.graph.edges ?? [],
+          viewport: parsed.graph.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
+        }
         : {
-            nodes: parsed.nodes ?? [],
-            edges: parsed.edges ?? [],
-            viewport: parsed.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
-          }
+          nodes: parsed.nodes ?? [],
+          edges: parsed.edges ?? [],
+          viewport: parsed.viewport ?? DEFAULT_WORKFLOW_VIEWPORT,
+        }
 
       const workflowGraph = {
         graph: {
@@ -941,7 +1103,9 @@ function WorkflowBuilderContent() {
     }
   }, [mode, setInspectorWidth])
 
-  const isInspectorVisible = mode === 'execution'
+  // Show inspector if there's an active run OR if mode is execution
+  // This allows smooth transition without forcing mode change
+  const isInspectorVisible = mode === 'execution' || (selectedRunId !== null && mode !== 'design')
   // Delay rendering sidebar contents until the expand animation completes to avoid mid-transition layout shifts.
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined

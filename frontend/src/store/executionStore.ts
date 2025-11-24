@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { api } from '@/services/api'
+import { useRunStore } from '@/store/runStore'
 import {
   ExecutionStatusResponseSchema,
   type ExecutionLog,
@@ -24,6 +25,8 @@ interface ExecutionStoreState {
   logs: ExecutionLog[]
   nodeStates: Record<string, NodeStatus>
   cursor: string | null
+  terminalCursor: string | null
+  terminalStreams: Record<string, TerminalStreamState>
   pollingInterval: NodeJS.Timeout | null
   eventSource: EventSource | null
   streamingMode: 'realtime' | 'polling' | 'none' | 'connecting'
@@ -47,11 +50,34 @@ interface ExecutionStoreActions {
   getNodeLogs: (nodeId: string) => ExecutionLog[]
   getNodeLogCounts: (nodeId: string) => { total: number; errors: number; warnings: number }
   getLastLogMessage: (nodeId: string) => string | null
+  prefetchTerminal: (nodeId: string, stream?: 'pty' | 'stdout' | 'stderr', runIdOverride?: string | null) => Promise<void>
+  getTerminalSession: (nodeId: string, stream?: 'pty' | 'stdout' | 'stderr') => TerminalStreamState | undefined
 }
 
 type ExecutionStore = ExecutionStoreState & ExecutionStoreActions
 
+type TerminalStreamChunk = {
+  nodeRef: string
+  stream: 'stdout' | 'stderr' | 'pty' | string
+  chunkIndex: number
+  payload: string
+  recordedAt: string
+  deltaMs?: number
+};
+
+type TerminalStreamState = {
+  nodeRef: string
+  stream: string
+  cursor: string | null
+  chunks: TerminalStreamChunk[]
+  lastChunkIndex: number
+};
+
+const MAX_TERMINAL_CHUNKS = 500;
+
 const TERMINAL_STATUSES: ExecutionStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT']
+
+const terminalKey = (nodeId: string, stream: string = 'pty') => `${nodeId}:${stream}`;
 
 const mapStatusToLifecycle = (status: ExecutionStatus | undefined): ExecutionLifecycle => {
   switch (status) {
@@ -119,6 +145,8 @@ const INITIAL_STATE: ExecutionStoreState = {
   logs: [],
   nodeStates: {},
   cursor: null,
+  terminalCursor: null,
+  terminalStreams: {},
   pollingInterval: null,
   eventSource: null,
   streamingMode: 'none',
@@ -133,8 +161,21 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     version?: number
   }) => {
     try {
-      get().reset()
-      set({ status: 'queued', workflowId })
+      // Stop previous run if any, but don't reset everything to avoid full re-render
+      const currentRunId = get().runId
+      if (currentRunId) {
+        get().stopPolling()
+      }
+      
+      set({ 
+        status: 'queued', 
+        workflowId,
+        // Clear only what's needed for new run, keep terminal streams if same workflow
+        logs: [],
+        nodeStates: {},
+        cursor: null,
+        terminalCursor: null,
+      })
 
       const { executionId } = await api.executions.start(workflowId, options)
       if (!executionId) {
@@ -145,10 +186,10 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       set({
         runId: executionId,
         status: 'running',
-        logs: [],
-        nodeStates: {},
-        cursor: null,
+        // Terminal streams will be populated as new run progresses
+        terminalStreams: {},
       })
+      void useRunStore.getState().refreshRuns(workflowId)
 
       await get().pollOnce()
       get().monitorRun(executionId, workflowId)
@@ -195,6 +236,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         api.executions.getTrace(runId),
       ])
 
+      // Safety check: if runId changed or was cleared during await, abort
+      if (get().runId !== runId) {
+        return
+      }
+
       if (!statusPayload || !traceEnvelope) {
         throw new Error('Failed to fetch execution data')
       }
@@ -212,6 +258,9 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       )
 
       set((state) => {
+        // Double check inside setter to be absolutely sure
+        if (state.runId !== runId) return state
+
         const mergedLogs = mergeLogs(state.logs, validEvents)
         const nodeStates = deriveNodeStates(mergedLogs)
         const status = (statusPayload as any)?.status as ExecutionStatus | undefined
@@ -229,6 +278,12 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       const status = (statusPayload as any)?.status as ExecutionStatus | undefined
       if (status && TERMINAL_STATUSES.includes(status)) {
         get().stopPolling()
+        const currentWorkflowId = get().workflowId
+        if (currentWorkflowId) {
+          void useRunStore.getState().refreshRuns(currentWorkflowId)
+        } else {
+          void useRunStore.getState().refreshRuns(undefined)
+        }
       }
     } catch (error) {
       console.error('Failed to poll execution status:', error)
@@ -258,11 +313,14 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       return
     }
 
-    const { cursor } = get()
+    const { cursor, terminalCursor } = get()
     get().disconnectStream()
 
     try {
-      const source = await api.executions.stream(runId, cursor ? { cursor } : undefined)
+      const streamParams: Record<string, string> = {}
+      if (cursor) streamParams.cursor = cursor
+      if (terminalCursor) streamParams.terminalCursor = terminalCursor
+      const source = await api.executions.stream(runId, Object.keys(streamParams).length ? streamParams : undefined)
 
       source.addEventListener('trace', (event) => {
         try {
@@ -327,6 +385,89 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         }
       })
 
+      source.addEventListener('terminal', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data) as {
+            cursor?: string | null
+            chunks?: TerminalStreamChunk[]
+          }
+          console.debug('[ExecutionStore] terminal event received', {
+            chunksCount: payload.chunks?.length,
+            cursor: payload.cursor,
+            payloadPreview: payload.chunks?.slice(0, 2),
+          })
+
+          if (!payload.chunks || payload.chunks.length === 0) {
+            console.debug('[ExecutionStore] empty terminal payload, skipping')
+            return
+          }
+
+          console.debug('[ExecutionStore] processing terminal chunks', {
+            totalChunks: payload.chunks.length,
+            firstChunk: {
+              nodeRef: payload.chunks[0]?.nodeRef,
+              stream: payload.chunks[0]?.stream,
+              chunkIndex: payload.chunks[0]?.chunkIndex,
+              payloadLength: payload.chunks[0]?.payload?.length,
+            }
+          })
+
+          set((state) => {
+            const streams = { ...state.terminalStreams }
+            let processedChunks = 0
+
+            for (const chunk of payload.chunks!) {
+              const key = terminalKey(chunk.nodeRef, chunk.stream)
+              const existing = streams[key] ?? {
+                nodeRef: chunk.nodeRef,
+                stream: chunk.stream,
+                cursor: null,
+                chunks: [],
+                lastChunkIndex: 0,
+              }
+              if (chunk.chunkIndex <= existing.lastChunkIndex) {
+                console.debug('[ExecutionStore] skipping duplicate chunk', {
+                  nodeRef: chunk.nodeRef,
+                  stream: chunk.stream,
+                  chunkIndex: chunk.chunkIndex,
+                  existingIndex: existing.lastChunkIndex,
+                })
+                continue
+              }
+
+              console.debug('[ExecutionStore] adding new chunk', {
+                nodeRef: chunk.nodeRef,
+                stream: chunk.stream,
+                chunkIndex: chunk.chunkIndex,
+                payloadPreview: chunk.payload?.substring(0, 100),
+              })
+
+              processedChunks++
+              const merged = [...existing.chunks, chunk]
+              const trimmed = merged.length > MAX_TERMINAL_CHUNKS ? merged.slice(-MAX_TERMINAL_CHUNKS) : merged
+              streams[key] = {
+                ...existing,
+                chunks: trimmed,
+                lastChunkIndex: chunk.chunkIndex,
+              }
+            }
+
+            console.debug('[ExecutionStore] terminal chunks processed', {
+              processedChunks,
+              totalStreams: Object.keys(streams).length,
+              streamKeys: Object.keys(streams),
+            })
+
+            return {
+              terminalStreams: streams,
+              terminalCursor: payload.cursor ?? state.terminalCursor,
+            }
+          })
+        } catch (error) {
+          console.error('Failed to parse terminal payload from stream', error, (event as MessageEvent).data)
+        }
+      })
+
       source.addEventListener('ready', (event) => {
         try {
           const payload = JSON.parse((event as MessageEvent).data) as {
@@ -382,6 +523,56 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       existing.close()
     }
     set({ eventSource: null, streamingMode: 'none' })
+  },
+
+  prefetchTerminal: async (nodeId: string, stream: 'pty' | 'stdout' | 'stderr' = 'pty', runIdOverride?: string | null) => {
+    const runId = runIdOverride ?? get().runId
+    if (!runId) return
+    const key = terminalKey(nodeId, stream)
+    if (get().terminalStreams[key]?.chunks.length) {
+      return
+    }
+    try {
+      const result = await api.executions.getTerminalChunks(runId, { nodeRef: nodeId, stream })
+      if (!result?.chunks || result.chunks.length === 0) {
+        return
+      }
+      set((state) => {
+        const streams = { ...state.terminalStreams }
+        for (const chunk of result.chunks!) {
+          const chunkKey = terminalKey(chunk.nodeRef, chunk.stream)
+          const existing = streams[chunkKey] ?? {
+            nodeRef: chunk.nodeRef,
+            stream: chunk.stream,
+            cursor: null,
+            chunks: [],
+            lastChunkIndex: 0,
+          }
+          if (chunk.chunkIndex <= existing.lastChunkIndex) {
+            continue
+          }
+          const merged = [...existing.chunks, chunk]
+          const trimmed = merged.length > MAX_TERMINAL_CHUNKS ? merged.slice(-MAX_TERMINAL_CHUNKS) : merged
+          streams[chunkKey] = {
+            ...existing,
+            chunks: trimmed,
+            lastChunkIndex: chunk.chunkIndex,
+            cursor: result.cursor ?? existing.cursor ?? null,
+          }
+        }
+        return {
+          terminalStreams: streams,
+          terminalCursor: result.cursor ?? state.terminalCursor,
+        }
+      })
+    } catch (error) {
+      console.error('Failed to fetch terminal chunks', error)
+    }
+  },
+
+  getTerminalSession: (nodeId: string, stream: 'pty' | 'stdout' | 'stderr' = 'pty') => {
+    const key = terminalKey(nodeId, stream)
+    return get().terminalStreams[key]
   },
 
   getNodeLogs: (nodeId: string) => {

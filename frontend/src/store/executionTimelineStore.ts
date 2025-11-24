@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
+
+const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'] as const
 import { api } from '@/services/api'
-import type { ExecutionLog } from '@/schemas/execution'
+import type { ExecutionLog, ExecutionStatusResponse } from '@/schemas/execution'
 import type { NodeStatus } from '@/schemas/node'
 
 // Types for the visual timeline system
@@ -17,6 +19,7 @@ export interface NodeVisualState {
   startTime: number
   endTime?: number
   eventCount: number
+  totalEvents: number
   lastEvent: TimelineEvent | null
   dataFlow: {
     input: DataPacket[]
@@ -59,8 +62,10 @@ export interface TimelineState {
   // Timeline state
   events: TimelineEvent[]
   dataFlows: DataPacket[]
-  totalDuration: number // in ms
+  totalDuration: number // presentation duration used by the UI (may include clock interpolation)
+  eventDuration: number // duration derived purely from ingested events (authoritative data)
   timelineStartTime: number | null
+  clockOffset: number | null // Clock offset: serverTime - clientTime (calculated once, reused)
   currentTime: number // Current position in timeline (ms)
   playbackMode: 'live' | 'replay'
 
@@ -83,7 +88,7 @@ export interface TimelineState {
 
 export interface TimelineActions {
   // Run management
-  selectRun: (runId: string) => Promise<void>
+  selectRun: (runId: string, initialMode?: 'live' | 'replay') => Promise<void>
 
   // Timeline loading
   loadTimeline: (runId: string) => Promise<void>
@@ -124,7 +129,8 @@ const PLAYBACK_SPEEDS = [0.1, 0.5, 1, 2, 5, 10]
 const MIN_TIMELINE_DURATION_MS = 1
 
 const prepareTimelineEvents = (
-  rawEvents: ExecutionLog[]
+  rawEvents: ExecutionLog[],
+  workflowStartTime?: number | null
 ): {
   events: TimelineEvent[]
   totalDuration: number
@@ -134,7 +140,7 @@ const prepareTimelineEvents = (
     return {
       events: [],
       totalDuration: 0,
-      timelineStartTime: null,
+      timelineStartTime: workflowStartTime ?? null,
     }
   }
 
@@ -146,11 +152,16 @@ const prepareTimelineEvents = (
     return {
       events: [],
       totalDuration: 0,
-      timelineStartTime: 0,
+      timelineStartTime: workflowStartTime ?? 0,
     }
   }
 
-  const startTime = new Date(sortedEvents[0].timestamp).getTime()
+  // Use workflow start time if provided, otherwise use first event timestamp
+  // Always prefer workflowStartTime when available (it's the authoritative source)
+  const firstEventTime = new Date(sortedEvents[0].timestamp).getTime()
+  const startTime = workflowStartTime !== null && workflowStartTime !== undefined
+    ? workflowStartTime
+    : firstEventTime
   const endTime = new Date(sortedEvents[sortedEvents.length - 1].timestamp).getTime()
   const totalDuration = Math.max(endTime - startTime, MIN_TIMELINE_DURATION_MS)
 
@@ -283,6 +294,7 @@ const calculateNodeStates = (
         progress: 0,
         startTime: new Date(sortedEvents[0].timestamp).getTime(),
         eventCount: 0,
+        totalEvents: sortedEvents.length,
         lastEvent: null,
         dataFlow: { input: [], output: [] },
         lastMetadata: undefined,
@@ -333,11 +345,23 @@ const calculateNodeStates = (
         break
     }
 
-    // Calculate progress (simplified)
-    const progressEvents = sortedEvents.filter(e => e.type === 'PROGRESS')
+    // Calculate progress based on events observed vs total events
+    // Always show progress based on event counts, not just when PROGRESS events exist
     const completedEvents = relevantEvents.filter(e => e.type === 'COMPLETED')
-    const progress = completedEvents.length > 0 ? 100 :
-      progressEvents.length > 0 ? (relevantEvents.length / sortedEvents.length) * 100 : 0
+    const hasCompleted = completedEvents.length > 0
+    
+    // Calculate progress: if completed, show 100%, otherwise show percentage based on events
+    // Use relevantEvents.length and sortedEvents.length for accurate progress calculation
+    let progress = 0
+    if (hasCompleted) {
+      progress = 100
+    } else if (sortedEvents.length > 0) {
+      // Calculate percentage: events observed / total events
+      const eventRatio = relevantEvents.length / sortedEvents.length
+      progress = Math.min(100, Math.max(0, eventRatio * 100))
+    } else {
+      progress = 0
+    }
 
     states[nodeId] = {
       status,
@@ -345,6 +369,7 @@ const calculateNodeStates = (
       startTime: firstNodeEventTimestamp,
       endTime: status === 'success' || status === 'error' ? lastEventTimestamp : undefined,
       eventCount: relevantEvents.length,
+      totalEvents: sortedEvents.length,
       lastEvent,
       dataFlow: {
         input: inputPacketsByNode.get(nodeId) ?? [],
@@ -365,6 +390,7 @@ const calculateNodeStates = (
         progress: 0,
         startTime: new Date(packet.timestamp).getTime(),
         eventCount: 0,
+        totalEvents: 0,
         lastEvent: null,
         dataFlow: {
           input: inputPacketsByNode.get(packet.sourceNode) ?? [],
@@ -382,6 +408,7 @@ const calculateNodeStates = (
         progress: 0,
         startTime: new Date(packet.timestamp).getTime(),
         eventCount: 0,
+        totalEvents: 0,
         lastEvent: null,
         dataFlow: {
           input: inputPacketsByNode.get(packet.targetNode) ?? [],
@@ -403,7 +430,9 @@ const INITIAL_STATE: TimelineState = {
   events: [],
   dataFlows: [],
   totalDuration: 0,
+  eventDuration: 0,
   timelineStartTime: null,
+  clockOffset: null,
   currentTime: 0,
   playbackMode: 'replay',
   isPlaying: false,
@@ -422,35 +451,44 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
   subscribeWithSelector((set, get) => ({
     ...INITIAL_STATE,
 
-    selectRun: async (runId: string) => {
+    selectRun: async (runId: string, initialMode: 'live' | 'replay' = 'replay') => {
       // Clear previous events before loading new timeline
       set({ 
         selectedRunId: runId,
         events: [],
         dataFlows: [],
         totalDuration: 0,
+        eventDuration: 0,
         currentTime: 0,
         timelineStartTime: null,
+        clockOffset: null,
         nodeStates: {},
-        playbackMode: 'replay',
+        playbackMode: initialMode,
         isPlaying: false,
-        isLiveFollowing: false,
+        isLiveFollowing: initialMode === 'live',
       })
       await get().loadTimeline(runId)
     },
 
     loadTimeline: async (runId: string) => {
       try {
-        const [eventsResponse, dataFlowResponse] = await Promise.all([
+        const [eventsResponse, dataFlowResponse, statusResponse] = await Promise.all([
           api.executions.getEvents(runId),
-          api.executions.getDataFlows(runId)
+          api.executions.getDataFlows(runId),
+          api.executions.getStatus(runId).catch(() => null)
         ])
 
         const eventsList = (eventsResponse.events ?? []).filter(
           (event): event is ExecutionLog => 
             Boolean(event.id && event.runId && event.nodeId && event.timestamp && event.type && event.level)
         )
-        const { events, totalDuration, timelineStartTime } = prepareTimelineEvents(eventsList)
+        
+        // Use run start time if available, otherwise fallback to first event
+        const status = statusResponse as ExecutionStatusResponse | null
+        const parsedStartTime = status?.startedAt ? new Date(status.startedAt).getTime() : NaN
+        const workflowStartTime = !isNaN(parsedStartTime) ? parsedStartTime : null
+          
+        const { events, totalDuration: eventDuration, timelineStartTime } = prepareTimelineEvents(eventsList, workflowStartTime)
         const packetsList = (dataFlowResponse.packets ?? []).map(packet => {
           let timestamp: string
           if (typeof packet.timestamp === 'number') {
@@ -475,21 +513,25 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
         const dataFlows = normalizeDataPackets(
           packetsList,
           timelineStartTime,
-          totalDuration,
+          eventDuration,
         )
 
         const state = get()
         const isLiveMode = state.playbackMode === 'live'
+        // In replay mode, default to end position (for completed workflows)
+        // In live mode, use current position or end if following
         const initialCurrentTime = isLiveMode
-          ? (state.isLiveFollowing ? totalDuration : Math.min(state.currentTime, totalDuration))
-          : 0
+          ? (state.isLiveFollowing ? eventDuration : Math.min(state.currentTime, eventDuration))
+          : Math.min(state.currentTime, eventDuration) // Keep current position (starts at 0 for new runs)
 
         set({
           events,
           dataFlows,
-          totalDuration,
+          eventDuration,
+          totalDuration: eventDuration,
           currentTime: initialCurrentTime,
           timelineStartTime,
+          clockOffset: null,
           nodeStates: calculateNodeStates(events, dataFlows, initialCurrentTime, timelineStartTime)
         })
       } catch (error) {
@@ -583,8 +625,8 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
 
       set((state) => {
         const derivedDuration =
-          state.totalDuration > 0
-            ? state.totalDuration
+          state.eventDuration > 0
+            ? state.eventDuration
             : state.events.length > 0 && state.timelineStartTime !== null
               ? new Date(state.events[state.events.length - 1].timestamp).getTime() - state.timelineStartTime
               : 0
@@ -605,10 +647,12 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
     goLive: () => {
       const state = get()
       if (!state.selectedRunId) return
+      const liveBaseline = Math.max(state.totalDuration, state.eventDuration)
       set({
         playbackMode: 'live',
         isLiveFollowing: true,
-        currentTime: state.totalDuration,
+        currentTime: liveBaseline,
+        totalDuration: liveBaseline,
       })
     },
 
@@ -622,20 +666,40 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
         return
       }
       liveTickTimestamp = now
-      const elapsed = Math.max(0, now - state.timelineStartTime)
-      const nextDuration = Math.max(state.totalDuration, elapsed)
-      const nextCurrent = state.isLiveFollowing ? nextDuration : Math.min(state.currentTime, nextDuration)
-      if (nextDuration === state.totalDuration && nextCurrent === state.currentTime) {
+      
+      // Use clock offset to calculate server time: serverTime = clientTime + offset
+      // This allows smooth clock progression without constant syncing
+      let serverNow: number
+      if (state.clockOffset !== null) {
+        // Use calculated offset for smooth progression
+        serverNow = now + state.clockOffset
+      } else if (state.events.length > 0) {
+        // Fallback: use last event timestamp (from server) if offset not calculated yet
+        const lastEvent = state.events[state.events.length - 1]
+        serverNow = new Date(lastEvent.timestamp).getTime()
+      } else {
+        // No server time available, use client time as fallback
+        serverNow = now
+      }
+      
+      // Treat elapsed clock time as a projection that can run slightly ahead of the last event.
+      // We never let it fall behind eventDuration so markers stay aligned with real data.
+      const elapsed = Math.max(0, serverNow - state.timelineStartTime)
+      const projectedDuration = Math.max(elapsed, state.eventDuration)
+      const shouldAdvance = state.isLiveFollowing
+      const nextCurrent = shouldAdvance ? projectedDuration : state.currentTime
+
+      if (projectedDuration === state.totalDuration && nextCurrent === state.currentTime) {
         return
       }
       set({
-        totalDuration: nextDuration,
+        totalDuration: projectedDuration,
         currentTime: nextCurrent,
       })
     },
 
     updateFromLiveEvent: (event: ExecutionLog) => {
-      const { events, playbackMode } = get()
+      const { events, playbackMode, timelineStartTime: currentStartTime } = get()
       if (playbackMode !== 'live') return
 
       if (events.some(existing => existing.id === event.id)) {
@@ -643,39 +707,57 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
       }
 
       const combinedEvents = [...events, event]
+      // Preserve existing timelineStartTime if already set correctly (from workflow start time)
+      // This prevents recalculating it from first event timestamp
       const {
         events: preparedEvents,
         totalDuration,
-        timelineStartTime
-      } = prepareTimelineEvents(combinedEvents)
+        timelineStartTime: calculatedStartTime
+      } = prepareTimelineEvents(combinedEvents, currentStartTime)
 
       set((state) => {
-        const resolvedStart = timelineStartTime ?? state.timelineStartTime ?? null
+        // Use calculated start time, which will preserve currentStartTime if it was passed
+        const resolvedStart = calculatedStartTime
         const nextTotal = Math.max(totalDuration, state.totalDuration)
         const shouldFollow = state.isLiveFollowing
         const nextCurrent = shouldFollow ? nextTotal : Math.min(state.currentTime, nextTotal)
+        
+        // Calculate clock offset if not already set (only once per run)
+        // offset = serverTime - clientTime, so serverTime = clientTime + offset
+        let clockOffset = state.clockOffset
+        if (clockOffset === null) {
+          const eventServerTime = new Date(event.timestamp).getTime()
+          const clientTime = Date.now()
+          clockOffset = eventServerTime - clientTime
+        }
+        
+        const presentationCurrent = shouldFollow ? state.currentTime : nextCurrent
         return {
           events: preparedEvents,
-          totalDuration: nextTotal,
+          eventDuration: nextTotal,
+          totalDuration: shouldFollow ? Math.max(state.totalDuration, nextTotal) : nextTotal,
           timelineStartTime: resolvedStart,
-          currentTime: nextCurrent,
-          nodeStates: calculateNodeStates(preparedEvents, state.dataFlows, nextCurrent, resolvedStart),
+          clockOffset,
+          currentTime: presentationCurrent,
+          nodeStates: calculateNodeStates(preparedEvents, state.dataFlows, presentationCurrent, resolvedStart),
         }
       })
     },
 
     switchToLiveMode: () => {
-      const { selectedRunId, totalDuration } = get()
-      if (!selectedRunId) return
+      const state = get()
+      if (!state.selectedRunId) return
 
+      const liveBaseline = Math.max(state.totalDuration, state.eventDuration)
       set({
         playbackMode: 'live',
-        currentTime: totalDuration,
+        currentTime: liveBaseline,
+        totalDuration: liveBaseline,
         isPlaying: false, // Live mode doesn't need play controls
         isLiveFollowing: true,
       })
 
-      get().loadTimeline(selectedRunId)
+      get().loadTimeline(state.selectedRunId)
     },
 
     reset: () => {
@@ -696,24 +778,133 @@ export const initializeTimelineStore = () => {
 
   void import('./executionStore')
     .then(({ useExecutionStore }) => {
+      // Track previous runStatus to detect completion
+      let prevRunStatus: ExecutionStatusResponse | null = null
+      
       unsubscribeExecutionStore = useExecutionStore.subscribe((state) => {
-        const { logs, runId } = state;
+        const { logs, runId, status, runStatus } = state;
         const timelineStore = useExecutionTimelineStore.getState()
+        
+        // Check if workflow has completed or failed
+        const isTerminalStatus = runStatus && TERMINAL_STATUSES.includes(runStatus.status as any)
+        const isTerminalLifecycle = status === 'completed' || status === 'failed'
+        
+        // Check if status changed from non-terminal to terminal (workflow just completed)
+        const statusJustChanged = prevRunStatus && runStatus && 
+          !TERMINAL_STATUSES.includes(prevRunStatus.status as any) && 
+          TERMINAL_STATUSES.includes(runStatus.status as any)
+        
+        // Update prevRunStatus for next comparison
+        prevRunStatus = runStatus
+        
+        // If workflow is done and we're in live mode, switch to replay mode
         if (timelineStore.playbackMode === 'live' && timelineStore.selectedRunId === runId) {
+          if (isTerminalStatus || isTerminalLifecycle || statusJustChanged) {
+            // Workflow completed/failed - switch to replay mode
+            // Reload timeline to ensure all final events are loaded, then position at end
+            if (!runId) return
+            
+            console.log('[TimelineStore] Workflow completed/failed detected, switching from live to replay mode', {
+              isTerminalStatus,
+              isTerminalLifecycle,
+              statusJustChanged,
+              runStatus: runStatus?.status,
+              status,
+            })
+            
+            // Update run in run store to mark it as completed (removes from live runs)
+            if (runStatus) {
+              void import('./runStore').then(({ useRunStore }) => {
+                const runStore = useRunStore.getState()
+                const existingRun = runStore.getRunById(runId)
+                if (existingRun) {
+                  // Update run with final status and endTime
+                  const endTime = runStatus.completedAt || runStatus.updatedAt || new Date().toISOString()
+                  runStore.upsertRun({
+                    ...existingRun,
+                    status: runStatus.status,
+                    endTime,
+                    duration: existingRun.startTime
+                      ? new Date(endTime).getTime() - new Date(existingRun.startTime).getTime()
+                      : existingRun.duration,
+                    isLive: false, // Explicitly mark as not live
+                  })
+                }
+              })
+            }
+            
+            useExecutionTimelineStore.setState({
+              playbackMode: 'replay',
+              isLiveFollowing: false,
+              isPlaying: false,
+            })
+            // Reload timeline to get all final events, then position at end
+            useExecutionTimelineStore.getState().loadTimeline(runId).then(() => {
+              const finalState = useExecutionTimelineStore.getState()
+              useExecutionTimelineStore.setState({
+                currentTime: finalState.totalDuration, // Position at the end, ready for replay
+                nodeStates: calculateNodeStates(
+                  finalState.events,
+                  finalState.dataFlows,
+                  finalState.totalDuration,
+                  finalState.timelineStartTime
+                ),
+              })
+              console.log('[TimelineStore] Successfully switched to replay mode at end position', {
+                totalDuration: finalState.totalDuration,
+                eventsCount: finalState.events.length,
+              })
+            })
+            return
+          }
+          
+          // Continue updating timeline with new logs
+          // Use workflow start time (from runStatus) as the timeline start time if available
+          // This ensures the timeline starts at 0 seconds, not when the first event arrives
+          // Always prefer workflowStartTime when available - it's the authoritative source
+          // This fixes the issue where timelineStartTime might have been set from first event timestamp
+          // before runStatus.startedAt was available
+          const workflowStartTime = runStatus?.startedAt ? new Date(runStatus.startedAt).getTime() : null
+          
           const {
             events,
-            totalDuration,
-            timelineStartTime,
-          } = prepareTimelineEvents(logs)
-          const currentTime = totalDuration
+            totalDuration: eventDuration,
+            timelineStartTime: calculatedStartTime,
+          } = prepareTimelineEvents(logs, workflowStartTime)
+          
+          // Use workflowStartTime if available, otherwise use calculated start time (from first event)
+          const finalStartTime = workflowStartTime ?? calculatedStartTime
+          
+          // Calculate clock offset once when we first get server time
+          // This allows smooth clock progression without constant syncing
+          // Only update if not already set (to avoid constant recalculation)
+          let clockOffset = useExecutionTimelineStore.getState().clockOffset
+          if (clockOffset === null && runStatus?.updatedAt) {
+            const serverTime = new Date(runStatus.updatedAt).getTime()
+            const clientTime = Date.now()
+            clockOffset = serverTime - clientTime
+          }
 
-          useExecutionTimelineStore.setState((state) => ({
-            events,
-            totalDuration,
-            timelineStartTime,
-            currentTime,
-            nodeStates: calculateNodeStates(events, state.dataFlows, currentTime, timelineStartTime),
-          }))
+          useExecutionTimelineStore.setState((state) => {
+            // Maintain two notions of time:
+            // - eventDuration reflects the actual envelope of backend events
+            // - totalDuration/currentTime drive the UI and are only overridden when not following live
+            // Respect user's manual seek position - only update currentTime if following live
+            const shouldFollow = state.isLiveFollowing
+            const nextCurrentTime = shouldFollow 
+              ? state.currentTime
+              : Math.min(state.currentTime, eventDuration) // Don't go past end, but preserve manual position
+            
+            return {
+              events,
+              eventDuration,
+              totalDuration: shouldFollow ? Math.max(state.totalDuration, eventDuration) : eventDuration,
+              timelineStartTime: finalStartTime,
+              clockOffset: clockOffset ?? state.clockOffset,
+              currentTime: nextCurrentTime,
+              nodeStates: calculateNodeStates(events, state.dataFlows, nextCurrentTime, finalStartTime),
+            }
+          })
         }
       })
     })

@@ -77,6 +77,14 @@ describe('WorkflowsController contract coverage', () => {
   const artifactsService = {
     listRunArtifacts: vi.fn().mockResolvedValue({ runId: sampleStatus.runId, artifacts: [] }),
   } as const;
+  const terminalStreamService = {
+    fetchChunks: vi.fn().mockResolvedValue({ cursor: '{}', chunks: [] }),
+  } as const;
+  const terminalArchiveService = {
+    archive: vi.fn(),
+    list: vi.fn(),
+    download: vi.fn(),
+  } as const;
 
   beforeEach(() => {
     controller = new WorkflowsController(
@@ -84,6 +92,8 @@ describe('WorkflowsController contract coverage', () => {
       traceService as any,
       logStreamService as any,
       artifactsService as any,
+      terminalStreamService as any,
+      terminalArchiveService as any,
     );
     vi.clearAllMocks();
   });

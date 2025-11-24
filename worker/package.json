@@ -38,7 +38,8 @@
     "long": "^5.3.2",
     "minio": "^8.0.6",
     "pg": "^8.16.3",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "@types/minio": "^7.1.1",

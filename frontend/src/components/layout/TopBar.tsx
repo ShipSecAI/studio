@@ -6,16 +6,15 @@ import {
   ArrowLeft,
   Save,
   Play,
-  Square,
   PencilLine,
   MonitorPlay,
   Upload,
   Download,
 } from 'lucide-react'
-import { useExecutionStore } from '@/store/executionStore'
+import { useWorkflowExecution } from '@/hooks/useWorkflowExecution'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
-// 
+import { cn } from '@/lib/utils'
 
 interface TopBarProps {
   workflowId?: string
@@ -25,10 +24,6 @@ interface TopBarProps {
   onImport?: (file: File) => Promise<void> | void
   onExport?: () => void
   canManageWorkflows?: boolean
-  isExecuting?: boolean
-  isAutoSaving?: boolean
-  runDisabled?: boolean
-  canOpenExecution?: boolean
 }
 
 export function TopBar({
@@ -37,10 +32,6 @@ export function TopBar({
   onImport,
   onExport,
   canManageWorkflows = true,
-  isExecuting = false,
-  isAutoSaving = false,
-  runDisabled = false,
-  canOpenExecution = false,
 }: TopBarProps) {
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
@@ -48,10 +39,18 @@ export function TopBar({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
-  const { status, runStatus, reset } = useExecutionStore()
+  const { status, runStatus } = useWorkflowExecution()
   const isRunning = status === 'running' || status === 'queued'
   const { mode, setMode } = useWorkflowUiStore()
   const canEdit = Boolean(canManageWorkflows)
+  const progressSummary =
+    runStatus?.progress && typeof runStatus.progress.completedActions === 'number' && typeof runStatus.progress.totalActions === 'number'
+      ? `${runStatus.progress.completedActions}/${runStatus.progress.totalActions} actions`
+      : null
+  const failureReason =
+    runStatus?.status === 'FAILED'
+      ? runStatus.failure?.reason ?? 'Unknown error'
+      : null
 
   const handleSave = async () => {
     if (!canEdit) {
@@ -74,9 +73,7 @@ export function TopBar({
     }
   }
 
-  const handleStop = () => {
-    reset()
-  }
+
 
   const handleExport = () => {
     if (!canEdit) {
@@ -119,7 +116,7 @@ export function TopBar({
   }
 
   return (
-    <div className="h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 flex items-center px-4 gap-4">
+    <div className="h-[60px] border-b bg-background flex items-center px-4 gap-4">
       <Button
         variant="ghost"
         size="icon"
@@ -129,17 +126,17 @@ export function TopBar({
         <ArrowLeft className="h-5 w-5" />
       </Button>
 
-      <div className="flex flex-1 max-w-3xl items-center gap-3">
+      <div className="flex flex-1 max-w-2xl items-center gap-2">
         <Input
           value={metadata.name}
           onChange={(e) => setWorkflowName(e.target.value)}
           readOnly={!canEdit}
           aria-readonly={!canEdit}
-          className="font-semibold border-none bg-transparent focus-visible:ring-0 focus-visible:outline-none px-2"
+          className="font-semibold"
           placeholder="Workflow name"
         />
         {(onImport || onExport) && (
-          <div className="hidden md:flex items-center gap-1 rounded-md border bg-muted/40 px-1.5 py-0.5">
+          <div className="flex items-center gap-2 rounded-full border bg-muted/40 px-2 py-1">
             {onImport && (
               <>
                 <input
@@ -153,13 +150,13 @@ export function TopBar({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 gap-1"
+                  className="h-8 px-3 gap-2"
                   onClick={handleImportClick}
                   disabled={!canEdit || isImporting}
                   aria-label="Import workflow"
                 >
-                  <Upload className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Import</span>
+                  <Upload className="h-4 w-4" />
+                  <span className="text-xs font-medium">Import</span>
                 </Button>
               </>
             )}
@@ -168,25 +165,25 @@ export function TopBar({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 gap-1"
+                className="h-8 px-3 gap-2"
                 onClick={handleExport}
                 disabled={!canEdit}
                 aria-label="Export workflow"
               >
-                <Download className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Export</span>
+                <Download className="h-4 w-4" />
+                <span className="text-xs font-medium">Export</span>
               </Button>
             )}
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-3 ml-auto">
-        <div className="flex rounded-md border bg-muted/40 p-0.5 text-xs font-medium shadow-sm">
+      <div className="flex flex-1 items-center gap-4">
+        <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm">
           <Button
             variant={mode === 'design' ? 'default' : 'ghost'}
             size="sm"
-            className="h-8 px-2 gap-1 rounded-sm"
+            className="h-9 px-3 gap-2 rounded-none"
             onClick={() => {
               if (!canEdit) return
               setMode('design')
@@ -195,113 +192,77 @@ export function TopBar({
             aria-pressed={mode === 'design'}
           >
             <PencilLine className="h-4 w-4" />
-            <span className="text-xs font-medium hidden sm:inline">Design</span>
+            <span className="flex flex-col leading-tight text-left">
+              <span className="text-xs font-semibold">Design</span>
+              <span
+                className={cn(
+                  'text-[10px]',
+                  mode === 'design' ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                )}
+              >
+                Edit workflow
+              </span>
+            </span>
           </Button>
           <Button
             variant={mode === 'execution' ? 'default' : 'ghost'}
             size="sm"
-            className="h-8 px-2 gap-1 rounded-sm"
-            onClick={() => {
-              if (!canOpenExecution) return
-              setMode('execution')
-            }}
+            className="h-9 px-3 gap-2 rounded-none border-l border-border/50"
+            onClick={() => setMode('execution')}
             aria-pressed={mode === 'execution'}
-            disabled={!canOpenExecution}
-            aria-disabled={!canOpenExecution}
-            title={!canOpenExecution ? 'Run the workflow at least once to view executions' : undefined}
           >
             <MonitorPlay className="h-4 w-4" />
-            <span className="text-xs font-medium hidden sm:inline">Execution</span>
+            <span className="flex flex-col leading-tight text-left">
+              <span className="text-xs font-semibold">Execution</span>
+              <span
+                className={cn(
+                  'text-[10px]',
+                  mode === 'execution' ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                )}
+              >
+                Inspect executions
+              </span>
+            </span>
           </Button>
         </div>
 
-        <div className="hidden md:flex items-center gap-2">
-          {/* Save status indicators */}
-          <div className="flex items-center gap-2">
-            {isAutoSaving && (
-              <span className="text-xs text-blue-600 animate-pulse">
-                Auto-saving...
-              </span>
-            )}
-            {isDirty && !isAutoSaving && (
-              <span className="text-xs text-muted-foreground">
-                Unsaved changes
-              </span>
-            )}
-            {!isDirty && !isRunning && !isAutoSaving && (
-              <span className="text-xs text-green-600">
-                All changes saved
-              </span>
-            )}
-          </div>
+        <div className="flex flex-1 items-center justify-center gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={!canEdit || isSaving || isRunning}
+            variant="outline"
+            className="gap-2 min-w-[110px]"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? 'Saving...' : 'Save'}
+          </Button>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleSave}
-              disabled={!canEdit || isSaving || isRunning}
-              variant="outline"
-              className="gap-2 h-9 rounded-md bg-background hover:bg-muted/50 border-border/50"
-            >
-              <Save className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">
-                {isSaving ? 'Saving...' : 'Save'}
-              </span>
-            </Button>
-            
-            {isRunning ? (
-              <Button
-                onClick={handleStop}
-                variant="destructive"
-                disabled={!canEdit}
-                className="gap-2 h-9 rounded-md bg-destructive hover:bg-destructive/90"
-              >
-                <Square className="h-4 w-4 fill-white" />
-                <span className="text-sm font-medium">Stop</span>
-              </Button>
-            ) : (
-              <Button
-                onClick={handleRun}
-              disabled={!canEdit || isRunning || isExecuting || runDisabled}
-                className="gap-2 h-9 rounded-md"
-              >
-                <Play className="h-4 w-4" />
-                <span className="text-sm font-medium">Run</span>
-              </Button>
-            )}
+          <Button
+            onClick={handleRun}
+            disabled={!canEdit}
+            className="gap-2 min-w-[110px]"
+          >
+            <Play className="h-4 w-4" />
+            Run
+          </Button>
+        </div>
 
-            {/* Progress indicator */}
-            {runStatus?.progress && (
-              <span className="text-sm text-muted-foreground font-medium ml-1">
-                {runStatus.progress.completedActions}/{runStatus.progress.totalActions} actions
-              </span>
-            )}
-
-            {/* Status messages */}
-            {status === 'queued' && (
-              <span className="text-sm text-muted-foreground font-medium">
-                Queued…
-              </span>
-            )}
-
-            {status === 'completed' && (
-              <span className="text-sm text-green-600 font-medium">
-                ✓ Completed
-              </span>
-            )}
-
-            {status === 'failed' && (
-              <span className="text-sm text-red-600 font-medium">
-                ✗ Failed
-              </span>
-            )}
-          </div>
-
-          {/* Failure reason */}
-          {status === 'failed' && runStatus?.failure?.reason && (
-            <span className="text-sm text-red-600">
-              {runStatus.failure.reason}
+        <div className="flex flex-col gap-1 text-right text-xs min-w-[150px]">
+          {isDirty && (
+            <span className="text-muted-foreground">
+              Unsaved changes
             </span>
+          )}
+          {progressSummary && (
+            <span className="text-muted-foreground whitespace-nowrap" role="status">
+              {progressSummary}
+            </span>
+          )}
+          {failureReason && (
+            <div className="text-red-500" role="alert">
+              <span className="font-semibold">Failed</span>
+              <span>{failureReason}</span>
+            </div>
           )}
         </div>
       </div>

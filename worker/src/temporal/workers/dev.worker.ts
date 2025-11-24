@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path';
 import { createRequire } from 'node:module';
 import { webcrypto } from 'node:crypto';
 import { Pool } from 'pg';
+import Redis from 'ioredis';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client } from 'minio';
 import { Worker, NativeConnection } from '@temporalio/worker';
@@ -16,7 +17,7 @@ import {
   finalizeRunActivity,
   initializeComponentActivityServices,
 } from '../activities/run-component.activity';
-import { ArtifactAdapter, FileStorageAdapter, LokiLogAdapter, LokiLogClient, SecretsAdapter, TraceAdapter } from '../../adapters';
+import { ArtifactAdapter, FileStorageAdapter, LokiLogAdapter, LokiLogClient, SecretsAdapter, TraceAdapter, RedisTerminalStreamAdapter } from '../../adapters';
 import * as schema from '../../adapters/schema';
 
 // Load environment variables from .env file
@@ -103,8 +104,21 @@ async function main() {
     } catch (error) {
       console.error('⚠️ Failed to initialize Loki logging, continuing without it', error);
     }
+  }
+
+  const terminalRedisUrl = process.env.TERMINAL_REDIS_URL;
+  let terminalStream: RedisTerminalStreamAdapter | undefined;
+  if (terminalRedisUrl) {
+    try {
+      const redis = new Redis(terminalRedisUrl);
+      const maxEntries = Number(process.env.TERMINAL_REDIS_MAXLEN ?? '5000');
+      terminalStream = new RedisTerminalStreamAdapter(redis, { maxEntries });
+      console.log(`✅ Terminal Redis streaming enabled (${terminalRedisUrl})`);
+    } catch (error) {
+      console.error('⚠️ Failed to initialize terminal Redis streaming', error);
+    }
   } else {
-    console.warn('⚠️ LOKI_URL not set; Loki log streaming disabled');
+    console.warn('⚠️ TERMINAL_REDIS_URL not set; terminal streaming disabled');
   }
 
   // Initialize global services for activities
@@ -114,6 +128,7 @@ async function main() {
     logs: logAdapter,
     secrets: secretsAdapter,
     artifacts: artifactAdapter.factory(),
+    terminalStream,
   });
 
   console.log(`✅ Service adapters initialized`);
@@ -140,6 +155,20 @@ async function main() {
     bundlerOptions: {
       ignoreModules: ['child_process'],
       webpackConfigHook: (config: any) => {
+        // Ensure node-pty native bindings are not bundled (they only load at runtime on the host)
+        if (Array.isArray(config?.externals)) {
+          config.externals.push({ 'node-pty': 'commonjs node-pty' });
+        } else if (typeof config?.externals === 'object' && config.externals !== null) {
+          config.externals = {
+            ...config.externals,
+            'node-pty': 'commonjs node-pty',
+          };
+        } else {
+          config.externals = {
+            'node-pty': 'commonjs node-pty',
+          };
+        }
+
         // Force webpack to transpile TypeScript with ts-loader instead of swc-loader.
         // swc native bindings can fail to load on some Node/OS combos when installed via Bun.
         try {

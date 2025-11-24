@@ -45,9 +45,22 @@ export type RunnerConfig =
   | DockerRunnerConfig
   | RemoteRunnerConfig;
 
+export interface TerminalChunkInput {
+  runId: string;
+  nodeRef: string;
+  stream: 'stdout' | 'stderr' | 'console' | 'pty';
+  chunkIndex: number;
+  payload: string;
+  recordedAt: string;
+  deltaMs: number;
+  origin?: string;
+  runnerKind?: RunnerKind;
+}
+
 export interface Logger {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
 }
 
 export interface ProgressEventInput {
@@ -201,6 +214,7 @@ export interface ExecutionContext {
   logger: Logger;
   emitProgress: (progress: ProgressEventInput | string) => void;
   logCollector?: (entry: LogEventInput) => void;
+  terminalCollector?: (chunk: TerminalChunkInput) => void;
   metadata: ExecutionContextMetadata;
 
   // Service interfaces - implemented by adapters

@@ -58,6 +58,7 @@ export function ExecutionTimeline() {
     selectedRunId,
     events,
     totalDuration,
+    eventDuration,
     currentTime,
     playbackMode,
     isPlaying,
@@ -79,6 +80,7 @@ export function ExecutionTimeline() {
   } = useExecutionTimelineStore()
 
   const isLiveMode = playbackMode === 'live'
+  const overviewDuration = Math.max(eventDuration, totalDuration)
   const safeDuration = Math.max(totalDuration, 1)
   const normalizedProgress = clampValue(currentTime / safeDuration, 0, 1)
   const viewportWidth = 1 / timelineZoom
@@ -103,6 +105,7 @@ export function ExecutionTimeline() {
   }, [maxStart])
 
   useEffect(() => {
+    // Always advance the live clock so overall duration keeps moving even when user scrubs away from follow mode.
     if (!isLiveMode) return
     let frame: number
     const pump = () => {
@@ -272,7 +275,7 @@ export function ExecutionTimeline() {
                 variant="outline"
                 size="icon"
                 onClick={stepBackward}
-                disabled={playbackMode === 'live' || currentTime <= 0}
+                disabled={currentTime <= 0}
               >
                 <SkipBack className="h-4 w-4" />
               </Button>
@@ -288,7 +291,7 @@ export function ExecutionTimeline() {
                 variant="outline"
                 size="icon"
                 onClick={stepForward}
-                disabled={playbackMode === 'live' || currentTime >= totalDuration}
+                disabled={currentTime >= totalDuration}
               >
                 <SkipForward className="h-4 w-4" />
               </Button>
@@ -428,7 +431,7 @@ export function ExecutionTimeline() {
             </span>
           </div>
           <div
-            className="relative h-8 bg-muted rounded-lg border overflow-hidden cursor-pointer"
+            className="relative h-8 bg-muted rounded-lg border cursor-pointer"
             onMouseDown={handlePreviewPointer}
             onMouseMove={(event) => {
               if (event.buttons & 1) {
@@ -451,12 +454,33 @@ export function ExecutionTimeline() {
               className="absolute top-0 bottom-0 bg-blue-500/20 border border-blue-400/40 rounded"
               style={{ left: `${clampedStart * 100}%`, width: `${viewportWidth * 100}%` }}
             />
+          </div>
+          <div
+            className="relative h-3 pointer-events-none"
+            aria-hidden="true"
+          >
             <div
-              className="absolute top-0 bottom-0 w-0.5 bg-red-500"
-              style={{ left: `${normalizedProgress * 100}%`, transform: 'translateX(-50%)' }}
+              className="absolute"
+              style={{
+                left: `${normalizedProgress * 100}%`,
+                top: 0,
+                transform: 'translate(-50%, 0)',
+                color: isLiveMode ? '#ef4444' : '#3b82f6',
+              }}
             >
-              <div className="absolute -top-1 -left-1 w-2 h-2 bg-red-500 rounded-full" />
+              <div
+                className="w-0 h-0"
+                style={{
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderBottom: '8px solid currentColor',
+                }}
+              />
             </div>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>{formatTime(0)}</span>
+            <span>{formatTime(overviewDuration)}</span>
           </div>
         </div>
 

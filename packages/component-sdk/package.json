@@ -10,14 +10,16 @@
     ".": "./src/index.ts",
     "./interfaces": "./src/interfaces.ts",
     "./types": "./src/types.ts",
-    "./registry": "./src/registry.ts"
+    "./registry": "./src/registry.ts",
+    "./ports": "./src/ports.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "node-pty": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.11",
@@ -25,5 +27,3 @@
     "typescript": "^5.6.3"
   }
 }
-
-

@@ -6,6 +6,8 @@ Use this guide as the table of contents for all living documentation in the repo
 - `README.md` – Local setup, stack bring-up, and daily workflows.
 - `ARCHITECTURE.md` – High-level system design and package map.
 - `docs/execution-contract.md` – Canonical execution/trace schemas shared across backend, worker, and frontend.
+- `docs/component-development.md` – **Component development guide with REQUIRED file system patterns.**
+- `docs/ISOLATED_VOLUMES.md` – Architecture and security model for isolated container volumes (DinD).
 - `docs/analytics.md` – Frontend analytics (PostHog) setup, privacy defaults, and troubleshooting.
 - `docs/enterprise-components.md` – Enterprise-grade component backlog (secret store, secret fetcher, etc.).
 - `docs/supabase-misconfig.md` – Supabase misconfiguration scan component overview and usage.
@@ -22,7 +24,7 @@ Use this guide as the table of contents for all living documentation in the repo
 - `.ai/implementation-plan.md` – Phase tracker for observability work (keep in sync with execution contract changes).
 - `.ai/visual-execution-notes.md` – Running audit log of trace/streaming experiments.
 - `.ai/temporal-worker-architecture.md` – Worker orchestration strategies.
-- `.ai/component-sdk.md` – Authoritative component interface reference.
+- `.ai/component-sdk.md` – Authoritative component interface reference with **REQUIRED file system patterns**.
 
 When architecture or contract decisions shift, update both the relevant `.ai` log and the public docs above so humans and automation stay aligned.
 

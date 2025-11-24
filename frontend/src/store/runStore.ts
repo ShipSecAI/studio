@@ -65,16 +65,20 @@ const getEntry = (cache: RunStoreState['cache'], key: string): RunCacheEntry => 
 
 const inflightFetches = new Map<string, Promise<ExecutionRun[]>>()
 
+const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT']
+
 const normalizeRun = (run: any): ExecutionRun => {
   const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString()
-  const endTime = typeof run.endTime === 'string' ? run.endTime : undefined
+  const rawEndTime = typeof run.endTime === 'string' ? run.endTime : undefined
   const status = (typeof run.status === 'string' ? run.status.toUpperCase() : 'FAILED') as ExecutionStatus
+  const isActiveStatus = !TERMINAL_STATUSES.includes(status)
+
   const derivedDuration =
     typeof run.duration === 'number'
       ? run.duration
-      : endTime
-        ? new Date(endTime).getTime() - new Date(startTime).getTime()
-        : Date.now() - new Date(startTime).getTime()
+      : rawEndTime && !isActiveStatus
+        ? new Date(rawEndTime).getTime() - new Date(startTime).getTime()
+        : Math.max(0, Date.now() - new Date(startTime).getTime())
 
   return {
     id: String(run.id ?? ''),
@@ -82,12 +86,12 @@ const normalizeRun = (run: any): ExecutionRun => {
     workflowName: String(run.workflowName ?? 'Untitled workflow'),
     status,
     startTime,
-    endTime,
+    endTime: rawEndTime,
     duration: Number.isFinite(derivedDuration) ? derivedDuration : undefined,
     nodeCount: typeof run.nodeCount === 'number' ? run.nodeCount : 0,
     eventCount: typeof run.eventCount === 'number' ? run.eventCount : 0,
     createdAt: startTime,
-    isLive: !endTime && status === 'RUNNING',
+    isLive: isActiveStatus,
     workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
     workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
   }

@@ -124,7 +124,8 @@ export class FetchEventSource implements EventSource {
         method: 'GET',
         headers: {
           'Accept': 'text/event-stream',
-          'Cache-Control': 'no-cache',
+          // Don't send Cache-Control header - backend sets it on response
+          // Including it causes CORS issues
           ...headers,
         },
         signal: this.controller.signal,

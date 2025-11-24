@@ -33,13 +33,25 @@ import {
   TemporalRunQuerySchema,
   WorkflowLogsQueryDto,
   WorkflowLogsQuerySchema,
+  TerminalChunksQueryDto,
+  TerminalChunksQuerySchema,
   UpdateWorkflowRequestDto,
   WorkflowResponseDto,
   ServiceWorkflowResponse,
   WorkflowVersionResponseDto,
 } from './dto/workflow-graph.dto';
+import {
+  TerminalArchiveRequestDto,
+  TerminalRecordingDto,
+  TerminalRecordListDto,
+  TerminalRecordParamDto,
+  TerminalArchiveRequestSchema,
+  TerminalRecordParamSchema,
+} from './dto/terminal-record.dto';
 import { TraceService } from '../trace/trace.service';
 import { WorkflowsService } from './workflows.service';
+import { TerminalStreamService } from '../terminal/terminal-stream.service';
+import { TerminalArchiveService } from './terminal-archive.service';
 import { LogStreamService } from '../trace/log-stream.service';
 import { ArtifactsService } from '../storage/artifacts.service';
 import type { Request, Response } from 'express';
@@ -48,6 +60,15 @@ import type { AuthContext } from '../auth/types';
 import { RequireWorkflowRole, WorkflowRoleGuard } from './workflow-role.guard';
 import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
 import { ArtifactIdParamDto, ArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
+import type { WorkflowTerminalRecord } from '../database/schema';
+
+const TERMINAL_COMPLETION_STATUSES = new Set([
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+  'TERMINATED',
+  'TIMED_OUT',
+]);
 
 const traceFailureSchema = {
   type: 'object',
@@ -212,6 +233,8 @@ export class WorkflowsController {
     private readonly traceService: TraceService,
     private readonly logStreamService: LogStreamService,
     private readonly artifactsService: ArtifactsService,
+    private readonly terminalStreamService: TerminalStreamService,
+    private readonly terminalArchiveService: TerminalArchiveService,
   ) {}
 
   @Post()
@@ -418,8 +441,28 @@ export class WorkflowsController {
       }, auth);
     } catch (error) {
       if (error instanceof HttpException) throw error;
+
+      // Extract detailed error information
       const message = error instanceof Error ? error.message : 'Failed to run workflow';
-      throw new BadRequestException(message);
+      const errorDetails: any = {
+        message,
+        error: 'Bad Request',
+        statusCode: 400,
+      };
+
+      // Include stack trace and cause only in development to avoid leaking internal details
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      if (isDevelopment) {
+        if (error instanceof Error && error.stack) {
+          errorDetails.stack = error.stack;
+        }
+
+        if (error instanceof Error && (error as any).cause) {
+          errorDetails.cause = (error as any).cause;
+        }
+      }
+
+      throw new BadRequestException(errorDetails);
     }
   }
 
@@ -432,7 +475,13 @@ export class WorkflowsController {
     @Query(new ZodValidationPipe(TemporalRunQuerySchema)) query: TemporalRunQueryDto,
     @CurrentAuth() auth: AuthContext | null,
   ) {
-    return this.workflowsService.getRunStatus(runId, query.temporalRunId, auth);
+    const result = await this.workflowsService.getRunStatus(runId, query.temporalRunId, auth);
+    if (TERMINAL_COMPLETION_STATUSES.has(result.status)) {
+      this.terminalArchiveService.archiveRun(auth, runId).catch((error) => {
+        console.warn(`Failed to archive terminal after status fetch for run ${runId}`, error);
+      });
+    }
+    return result;
   }
 
   @Get('/runs/:runId/result')
@@ -557,18 +606,13 @@ export class WorkflowsController {
       (res as any).flushHeaders();
     }
 
+    await this.workflowsService.ensureRunAccess(runId, auth);
+
     let lastSequence = Number.parseInt(query.cursor ?? '0', 10);
+    let terminalCursor = query.terminalCursor;
     if (Number.isNaN(lastSequence) || lastSequence < 0) {
       lastSequence = 0;
     }
-
-    const terminalStatuses = new Set([
-      'COMPLETED',
-      'FAILED',
-      'CANCELLED',
-      'TERMINATED',
-      'TIMED_OUT',
-    ]);
 
     let active = true;
     let lastStatusSignature: string | null = null;
@@ -649,6 +693,14 @@ export class WorkflowsController {
             }
           }
         }
+
+        const terminal = await this.terminalStreamService.fetchChunks(runId, {
+          cursor: terminalCursor,
+        });
+        if (terminal.chunks.length > 0) {
+          terminalCursor = terminal.cursor;
+          send('terminal', { runId, ...terminal });
+        }
       } catch (error) {
         send('error', { message: 'trace_fetch_failed', detail: String(error) });
       }
@@ -659,7 +711,10 @@ export class WorkflowsController {
         if (signature !== lastStatusSignature) {
           lastStatusSignature = signature;
           send('status', status);
-          if (terminalStatuses.has(status.status)) {
+          if (TERMINAL_COMPLETION_STATUSES.has(status.status)) {
+            this.terminalArchiveService.archiveRun(auth, runId).catch((error) => {
+              console.warn(`Failed to archive terminal for run ${runId}`, error);
+            });
             send('complete', { runId, status: status.status });
             cleanup();
           }
@@ -736,12 +791,10 @@ export class WorkflowsController {
 
     await pump();
 
-    // Only set up polling if not using realtime mode
-    if (!unsubscribe) {
-      intervalId = setInterval(() => {
-        void pump();
-      }, 1000);
-    }
+    // Always run a lightweight poll loop so terminal chunks are flushed even when TRACE notifications are realtime.
+    intervalId = setInterval(() => {
+      void pump();
+    }, 1000);
 
     heartbeatId = setInterval(() => {
       if (!active) {
@@ -770,6 +823,88 @@ export class WorkflowsController {
     });
   }
 
+  @Get('/runs/:runId/terminal')
+  @ApiOkResponse({
+    description: 'Terminal chunks for a workflow run',
+  })
+  async terminalChunks(
+    @Param('runId') runId: string,
+    @Query(new ZodValidationPipe(TerminalChunksQuerySchema))
+    query: TerminalChunksQueryDto,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    await this.workflowsService.ensureRunAccess(runId, auth);
+    const result = await this.terminalStreamService.fetchChunks(runId, {
+      cursor: query.cursor,
+      nodeRef: query.nodeRef,
+      stream: query.stream,
+      startTime: query.startTime ? new Date(query.startTime) : undefined,
+      endTime: query.endTime ? new Date(query.endTime) : undefined,
+    });
+    if (result.chunks.length > 0 || !query.nodeRef) {
+      return { runId, ...result };
+    }
+
+    try {
+      const archived = await this.terminalArchiveService.replay(auth, runId, {
+        nodeRef: query.nodeRef,
+        stream: query.stream,
+        cursor: query.cursor,
+      });
+      return { runId, ...archived };
+    } catch (error) {
+      console.warn(`Failed to replay archived terminal for ${runId}`, error);
+      return { runId, ...result };
+    }
+  }
+
+  @Post('/runs/:runId/terminal/archive')
+  @ApiCreatedResponse({ type: TerminalRecordingDto })
+  async archiveTerminal(
+    @Param('runId') runId: string,
+    @Body(new ZodValidationPipe(TerminalArchiveRequestSchema))
+    body: TerminalArchiveRequestDto,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    const record = await this.terminalArchiveService.archive(auth, runId, body);
+    return this.toTerminalRecordingDto(record);
+  }
+
+  @Get('/runs/:runId/terminal/archive')
+  @ApiOkResponse({ type: TerminalRecordListDto })
+  async listTerminalArchives(
+    @Param('runId') runId: string,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    const records = await this.terminalArchiveService.list(auth, runId);
+    return {
+      runId,
+      records: records.map((record) => this.toTerminalRecordingDto(record)),
+    };
+  }
+
+  @Get('/runs/:runId/terminal/archive/:recordId/download')
+  @ApiOkResponse({ description: 'Download terminal recording' })
+  async downloadTerminalArchive(
+    @Param('runId') runId: string,
+    @Param(new ZodValidationPipe(TerminalRecordParamSchema))
+    params: TerminalRecordParamDto,
+    @CurrentAuth() auth: AuthContext | null,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { buffer, file } = await this.terminalArchiveService.download(
+      auth,
+      runId,
+      params.recordId,
+    );
+
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.setHeader('Content-Length', file.size.toString());
+
+    return new StreamableFile(buffer);
+  }
+
   @Get()
   @ApiOkResponse({ type: [WorkflowResponseDto] })
   async findAll(@CurrentAuth() auth: AuthContext | null): Promise<WorkflowResponseDto[]> {
@@ -783,6 +918,19 @@ export class WorkflowsController {
       lastRun: serviceResponse.lastRun?.toISOString() ?? null,
       createdAt: serviceResponse.createdAt.toISOString(),
       updatedAt: serviceResponse.updatedAt.toISOString(),
+    };
+  }
+
+  private toTerminalRecordingDto(record: WorkflowTerminalRecord): TerminalRecordingDto {
+    return {
+      id: record.id,
+      runId: record.runId,
+      nodeRef: record.nodeRef,
+      stream: record.stream,
+      fileId: record.fileId,
+      chunkCount: record.chunkCount,
+      durationMs: record.durationMs,
+      createdAt: (record.createdAt ?? new Date()).toISOString(),
     };
   }
 }

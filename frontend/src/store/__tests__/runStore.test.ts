@@ -70,6 +70,19 @@ describe('runStore', () => {
     expect(listRunsMock.mock.calls.length).toBe(1)
   })
 
+  it('keeps queued/running executions marked as live even when an endTime is set', async () => {
+    listRunsMock.mockImplementation(async () => ({
+      runs: [{
+        ...mockRun,
+        endTime: new Date(Date.now() + 60_000).toISOString(),
+      }],
+    }))
+
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1', force: true })
+    const runs = useRunStore.getState().getRunsForWorkflow('wf-1')
+    expect(runs[0]?.isLive).toBe(true)
+  })
+
   it('allows manual invalidation across caches', async () => {
     await useRunStore.getState().fetchRuns({ workflowId: 'wf-1' })
     listRunsMock.mockClear()
