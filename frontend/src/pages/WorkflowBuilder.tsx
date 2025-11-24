@@ -1224,39 +1224,26 @@ function WorkflowBuilderContent() {
         onExport={handleExportWorkflow}
         canManageWorkflows={canManageWorkflows}
       />
-      {mode === 'design' && (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={toggleLibrary}
-          className={cn(
-            'fixed z-50 flex items-center gap-2 rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-            isLibraryVisible
-              ? 'top-[70px] h-10 w-10 justify-center px-0'
-              : 'top-[70px] h-10 px-4 py-2'
-          )}
-          style={{
-            left: isLibraryVisible
-              ? `calc(${mainSidebarOpen ? '256px' : '64px'} + 320px + 8px)` // Main sidebar + component library + gap
-              : `calc(${mainSidebarOpen ? '256px' : '64px'} + 8px)`, // Main sidebar + gap
-            transition: 'left 0.3s ease-in-out'
-          }}
-          aria-expanded={isLibraryVisible}
-          aria-label={isLibraryVisible ? 'Hide component library' : 'Show component library'}
-          title={isLibraryVisible ? 'Hide components' : 'Show components'}
-        >
-          {isLibraryVisible ? (
-            <PanelLeftClose className="h-5 w-5 flex-shrink-0" />
-          ) : (
+      <div ref={layoutRef} className="flex flex-1 overflow-hidden relative">
+        {/* Show components button - anchored to layout when tray is hidden */}
+        {mode === 'design' && !isLibraryVisible && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={toggleLibrary}
+            className="absolute z-50 top-[10px] left-[0px] h-10 px-4 py-2 flex items-center gap-2 rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            style={{
+              marginLeft: '10px',
+              transition: 'margin-left 0.3s ease-in-out'
+            }}
+            aria-expanded={false}
+            aria-label="Show component library"
+            title="Show components"
+          >
             <PanelLeftOpen className="h-5 w-5 flex-shrink-0" />
-          )}
-          <span className={cn('font-medium whitespace-nowrap', isLibraryVisible ? 'hidden' : 'block')}>
-            Show components
-          </span>
-        </Button>
-      )}
-
-      <div ref={layoutRef} className="flex flex-1 overflow-hidden">
+            <span className="font-medium whitespace-nowrap">Show components</span>
+          </Button>
+        )}
         {/* Loading overlay for initial load */}
         {isLoading && nodes.length === 0 && !isNewWorkflow && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
@@ -1273,6 +1260,20 @@ function WorkflowBuilderContent() {
             isLibraryVisible ? 'border-r w-[320px]' : 'border-r-0 w-0'
           )}
         >
+          {/* Toggle button - anchored to the aside edge when visible */}
+          {isLibraryVisible && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={toggleLibrary}
+              className="absolute z-50 top-[10px] -right-5 h-10 w-10 flex items-center justify-center rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-expanded={true}
+              aria-label="Hide component library"
+              title="Hide components"
+            >
+              <PanelLeftClose className="h-5 w-5 flex-shrink-0" />
+            </Button>
+          )}
           <div
             className={cn(
               'absolute inset-0 transition-opacity duration-150',
