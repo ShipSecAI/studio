@@ -163,7 +163,7 @@ function getSearchResults(payload: unknown): Array<Record<string, unknown>> {
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.atlassian.offboarding',
   label: 'Atlassian Offboarding',
-  category: 'security',
+  category: 'it_ops',
   runner: { kind: 'inline' },
   inputSchema,
   outputSchema,
@@ -173,7 +173,7 @@ const definition: ComponentDefinition<Input, Output> = {
     slug: 'atlassian-offboarding',
     version: '1.0.0',
     type: 'process',
-    category: 'security',
+    category: 'it_ops',
     description:
       'Automate Atlassian user offboarding by chaining Secret Fetch (token) → Atlassian Offboarding (remove accounts) → Console Log/Notify. Supports bulk email usernames and returns structured results.',
     documentation: 'docs/atlassian-offboarding.md',
