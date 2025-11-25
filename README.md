@@ -35,6 +35,7 @@ ShipSec Studio bundles everything you need to design security workflows: a visua
 - [Documentation Map](#documentation-map)
 - [Troubleshooting](#troubleshooting)
 - [Contributing & Support](#contributing--support)
+- [License](#license)
 
 ---
 
@@ -317,3 +318,9 @@ pm2 start pm2.config.cjs
 - Need help? Start with `docs/guide.md`, `.ai/visual-execution-notes.md`, or open a discussion/issue referencing the relevant module.
 
 Bring your own creativity—ShipSec Studio is built to be extended.
+
+---
+
+## License
+
+ShipSec Studio is licensed under the [Apache License 2.0](LICENSE).
