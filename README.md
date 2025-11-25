@@ -84,8 +84,10 @@ studio-main/
 ### 1. Clone & install dependencies
 
 ```bash
-bun install
+./install.sh
 ```
+
+> **macOS users:** The install script automatically handles SDK path configuration for native module compilation. If you prefer to run `bun install` directly, set `export SDKROOT=$(xcrun --show-sdk-path)` first.
 
 ### 2. Configure environment variables
 
@@ -251,6 +253,21 @@ Treat docs like code: update the closest guide whenever behaviour changes and no
 ---
 
 ## Troubleshooting
+
+### macOS: Native module build errors
+
+If you encounter errors about missing C++ headers (`'memory' file not found`) during `bun install`:
+
+```bash
+export SDKROOT=$(xcrun --show-sdk-path)
+bun install
+```
+
+Or use the provided install script which handles this automatically:
+
+```bash
+./install.sh
+```
 
 ### Temporal namespace missing
 

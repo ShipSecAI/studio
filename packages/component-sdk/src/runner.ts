@@ -207,7 +207,9 @@ async function runDockerWithPty<I, O>(
   const spawnPty = await loadPtySpawn();
   if (!spawnPty) {
     context.logger.warn('[Docker][PTY] node-pty unavailable; falling back to standard IO');
-    return runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
+    // Remove -t flag before falling back to standard IO (stdin is not a TTY)
+    const argsWithoutTty = dockerArgs.filter(arg => arg !== '-t');
+    return runDockerWithStandardIO(argsWithoutTty, params, context, timeoutSeconds);
   }
 
   return new Promise<O>((resolve, reject) => {
