@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import type { MouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Workflow, AlertCircle, Trash2 } from 'lucide-react'
+import { Workflow, AlertCircle, Trash2, Loader2 } from 'lucide-react'
 import { api } from '@/services/api'
 import {
   WorkflowMetadataSchema,
@@ -36,6 +36,9 @@ export function WorkflowList() {
   const [workflows, setWorkflows] = useState<WorkflowMetadataNormalized[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const retryCountRef = useRef(0) // Use ref to track actual count
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
   const isReadOnly = !canManageWorkflows
@@ -47,37 +50,85 @@ export function WorkflowList() {
   const token = useAuthStore((state) => state.token)
   const adminUsername = useAuthStore((state) => state.adminUsername)
 
+  const MAX_RETRY_ATTEMPTS = 30 // Try for ~60 seconds (30 attempts × 2s)
+  const RETRY_INTERVAL_MS = 2000 // 2 seconds between retries
+
   useEffect(() => {
     // Wait for auth to be ready before loading workflows
     if (authLoading) {
       return
     }
-    
+
     // Check if we have authentication (either token or admin credentials)
     const hasAuth = isAuthenticated || token || adminUsername
-    
+
     if (hasAuth) {
       loadWorkflows()
     } else {
       setIsLoading(false)
       setError('Please log in to view workflows')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, authLoading, token, adminUsername])
 
-  const loadWorkflows = async () => {
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const loadWorkflows = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
       const data = await api.workflows.list()
       const normalized = data.map((workflow) => WorkflowMetadataSchema.parse(workflow))
       setWorkflows(normalized)
+      setRetryCount(0)
+      retryCountRef.current = 0 // Reset on success
+      setIsLoading(false)
+      // Clear any pending retry timeout
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
       track(Events.WorkflowListViewed, { workflows_count: normalized.length })
     } catch (err) {
       console.error('Failed to load workflows:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load workflows')
-    } finally {
-      setIsLoading(false)
+
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load workflows'
+
+      // Check if it's a connection error (backend not ready)
+      const isConnectionError =
+        errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('fetch')
+
+      // Use ref for accurate count check to prevent going beyond max attempts
+      if (isConnectionError && retryCountRef.current < MAX_RETRY_ATTEMPTS) {
+        // Increment both ref and state
+        retryCountRef.current += 1
+        setRetryCount(retryCountRef.current)
+
+        // Schedule retry - keep loading spinner visible
+        retryTimeoutRef.current = setTimeout(() => {
+          loadWorkflows()
+        }, RETRY_INTERVAL_MS)
+      } else {
+        // Max retries exhausted or non-connection error
+        setError(errorMessage)
+        setIsLoading(false)
+      }
     }
+  }, [MAX_RETRY_ATTEMPTS, RETRY_INTERVAL_MS])
+
+  const handleTryAgain = () => {
+    setRetryCount(0)
+    retryCountRef.current = 0
+    loadWorkflows()
   }
 
   const handleDeleteClick = (event: MouseEvent, workflow: WorkflowMetadataNormalized) => {
@@ -164,6 +215,16 @@ export function WorkflowList() {
 
         {isLoading ? (
           <div className="border rounded-lg bg-card">
+            {retryCount > 0 && (
+              <div className="px-6 py-4 border-b bg-muted/50 text-center">
+                <div className="flex items-center justify-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span className="text-base font-semibold text-foreground">
+                    Waiting for backend to start... (attempt {retryCount}/{MAX_RETRY_ATTEMPTS})
+                  </span>
+                </div>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -177,17 +238,17 @@ export function WorkflowList() {
                 {Array.from({ length: 5 }).map((_, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <Skeleton className="h-4 w-[220px]" />
+                      <Skeleton className="h-4 w-[220px] bg-muted" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-5 w-[80px]" />
+                      <Skeleton className="h-5 w-[80px] bg-muted" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-[160px]" />
+                      <Skeleton className="h-4 w-[160px] bg-muted" />
                     </TableCell>
                     {canManageWorkflows && (
                       <TableCell className="text-right">
-                        <Skeleton className="h-8 w-8 ml-auto rounded-md" />
+                        <Skeleton className="h-8 w-8 ml-auto rounded-md bg-muted" />
                       </TableCell>
                     )}
                   </TableRow>
@@ -200,7 +261,7 @@ export function WorkflowList() {
             <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
             <h3 className="text-lg font-semibold mb-2">Failed to load workflows</h3>
             <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={loadWorkflows} variant="outline">
+            <Button onClick={handleTryAgain} variant="outline">
               Try Again
             </Button>
           </div>
