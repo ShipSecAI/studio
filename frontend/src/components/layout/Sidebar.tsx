@@ -171,11 +171,20 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     return filtered
   }, [componentsByCategory, searchQuery])
 
-  // Compute stable default value for uncontrolled Accordion
-  const accordionDefaultValue = useMemo(() => {
-    const categories = Object.keys(filteredComponentsByCategory)
-    return categories.length > 0 ? [categories[0]] : []
-  }, [filteredComponentsByCategory])
+  // Track open accordion items (controlled)
+  const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([])
+
+  // Auto-expand all matching categories when searching
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      // When searching, open all categories that have matching components
+      setOpenAccordionItems(Object.keys(filteredComponentsByCategory))
+    } else {
+      // When not searching, open only the first category
+      const categories = Object.keys(filteredComponentsByCategory)
+      setOpenAccordionItems(categories.length > 0 ? [categories[0]] : [])
+    }
+  }, [searchQuery, filteredComponentsByCategory])
 
   return (
     <div className="h-full w-full max-w-[320px] border-r bg-background flex flex-col">
@@ -248,7 +257,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
             {searchQuery.trim() && (
               <div className="text-xs text-muted-foreground px-0.5 pb-1">
                 Found {Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0)}
-                {Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0) !== 1 ? ' components' : ' component'}
+                {Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0) !== 1 ? ' components' : ' component'}{' '}
                 matching "{searchQuery}"
               </div>
             )}
@@ -257,7 +266,8 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
             <Accordion 
               type="multiple" 
               className="space-y-2" 
-              defaultValue={accordionDefaultValue}
+              value={openAccordionItems}
+              onValueChange={setOpenAccordionItems}
             >
               {Object.entries(filteredComponentsByCategory).map(([category, components]) => {
                 if (components.length === 0) return null
