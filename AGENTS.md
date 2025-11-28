@@ -29,6 +29,7 @@
 
 ## Commit & Pull Request Guidelines
 - Follow Conventional Commit-style subjects (`feat:`, `fix:`, `docs:`) in imperative voice; include context on the scope touched.
+- Sign off every commit for DCO compliance (`git commit -s` or `--signoff` on amendments).
 - Reference issues or milestones in the PR body, summarise behaviour changes, and attach screenshots or trace snippets for UI/observability updates.
 - Confirm linters and tests pass (`bun run test`, targeted smoke checks) and call out any gaps or blockers explicitly.
 
