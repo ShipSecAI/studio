@@ -36,8 +36,8 @@ const textBlockMetadata = {
   slug: 'text-block',
   name: 'Text',
   version: '1.0.0',
-  type: 'process',
-  category: 'transform',
+  type: 'process' as const,
+  category: 'transform' as const,
   categoryConfig: {
     label: '🔄 Transform',
     color: 'text-orange-600',
@@ -120,6 +120,8 @@ describe('WorkflowNode – text block rendering', () => {
           type="workflow"
           xPos={0}
           yPos={0}
+          zIndex={0}
+          isConnectable={true}
           dragging={false}
         />
       </ReactFlowProvider>
@@ -155,6 +157,8 @@ describe('WorkflowNode – text block rendering', () => {
           type="workflow"
           xPos={0}
           yPos={0}
+          zIndex={0}
+          isConnectable={true}
           dragging={false}
         />
       </ReactFlowProvider>
