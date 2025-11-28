@@ -1,7 +1,5 @@
 import { z } from 'zod';
-import * as path from 'node:path';
-import * as os from 'node:os';
-import { promises as fs } from 'node:fs';
+import { spawn } from 'node:child_process';
 import {
   componentRegistry,
   ComponentDefinition,
@@ -9,6 +7,7 @@ import {
   runComponentWithRunner,
 } from '@shipsec/component-sdk';
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const recommendedFlagOptions = [
   {
@@ -195,6 +194,53 @@ const recommendedFlagMap = new Map<RecommendedFlagId, string[]>(
   recommendedFlagOptions.map((option) => [option.id, [...option.args]]),
 );
 
+async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[]> {
+  const volumeName = volume.getVolumeName();
+  if (!volumeName) return [];
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn('docker', [
+      'run',
+      '--rm',
+      '-v',
+      `${volumeName}:/data`,
+      '--entrypoint',
+      'sh',
+      'alpine:latest',
+      '-c',
+      'ls -1 /data',
+    ]);
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on('error', (error) => {
+      reject(error);
+    });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Failed to list volume files: ${stderr.trim()}`));
+      } else {
+        resolve(
+          stdout
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0),
+        );
+      }
+    });
+  });
+}
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'security.prowler.scan',
   label: 'Prowler Scan',
@@ -374,7 +420,11 @@ const definition: ComponentDefinition<Input, Output> = {
 
     // Prepare AWS environment and optional shared credentials/config files
     const awsEnv: Record<string, string> = {};
-    let hostAwsConfigDir: string | null = null;
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const awsCredsVolume = params.credentials
+      ? new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-aws`)
+      : null;
+
     if (params.credentials) {
       awsEnv.AWS_ACCESS_KEY_ID = params.credentials.accessKeyId;
       awsEnv.AWS_SECRET_ACCESS_KEY = params.credentials.secretAccessKey;
@@ -382,30 +432,10 @@ const definition: ComponentDefinition<Input, Output> = {
         awsEnv.AWS_SESSION_TOKEN = params.credentials.sessionToken;
       }
 
-      // Also materialise ~/.aws files to support any tooling that relies on shared config
-      try {
-        hostAwsConfigDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aws-creds-'));
-        const credsLines = [
-          '[default]',
-          `aws_access_key_id = ${params.credentials.accessKeyId}`,
-          `aws_secret_access_key = ${params.credentials.secretAccessKey}`,
-        ];
-        if (params.credentials.sessionToken) {
-          credsLines.push(`aws_session_token = ${params.credentials.sessionToken}`);
-        }
-        await fs.writeFile(path.join(hostAwsConfigDir, 'credentials'), credsLines.join('\n'), 'utf8');
-
-        const cfgRegion = regions[0] ?? 'us-east-1';
-        const cfgLines = ['[default]', `region = ${cfgRegion}`, 'output = json'];
-        await fs.writeFile(path.join(hostAwsConfigDir, 'config'), cfgLines.join('\n'), 'utf8');
-
-        // Hint to SDKs where to find the shared files
-        awsEnv.AWS_SHARED_CREDENTIALS_FILE = '/home/prowler/.aws/credentials';
-        awsEnv.AWS_CONFIG_FILE = '/home/prowler/.aws/config';
-        awsEnv.AWS_PROFILE = 'default';
-      } catch (e) {
-        context.logger.info(`[ProwlerScan] Failed to prepare shared AWS credentials: ${(e as Error).message}`);
-      }
+      // Hint to SDKs where to find the shared files
+      awsEnv.AWS_SHARED_CREDENTIALS_FILE = '/home/prowler/.aws/credentials';
+      awsEnv.AWS_CONFIG_FILE = '/home/prowler/.aws/config';
+      awsEnv.AWS_PROFILE = 'default';
     }
 
     if (params.scanMode === 'aws' && regions.length > 0) {
@@ -442,8 +472,6 @@ const definition: ComponentDefinition<Input, Output> = {
       }
     }
 
-    // Host-mounted output directory so we can read ASFF files from TS
-    const hostOutputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'prowler-output-'));
     cmd.push('--output-formats', 'json-asff', '--output-directory', '/output', '--output-filename', 'shipsec');
     context.logger.info(`[ProwlerScan] Command: ${cmd.join(' ')}`);
 
@@ -459,17 +487,54 @@ const definition: ComponentDefinition<Input, Output> = {
         ...awsEnv,
       },
       command: cmd,
-      volumes: [
-        { source: hostOutputDir, target: '/output' },
-        ...(hostAwsConfigDir ? [{ source: hostAwsConfigDir, target: '/home/prowler/.aws', readOnly: true as const }] : []),
-      ],
+      volumes: [],
     };
 
     let rawSegments: string[] = [];
     let commandForOutput: string[] = cmd;
     let stderrCombined = '';
+    const outputVolume = new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-out`);
+    let outputVolumeInitialized = false;
+    let awsVolumeInitialized = false;
 
     try {
+      try {
+      // Initialize AWS credentials volume if provided
+      if (awsCredsVolume && params.credentials) {
+        const credsLines = [
+          '[default]',
+          `aws_access_key_id = ${params.credentials.accessKeyId}`,
+          `aws_secret_access_key = ${params.credentials.secretAccessKey}`,
+        ];
+        if (params.credentials.sessionToken) {
+          credsLines.push(`aws_session_token = ${params.credentials.sessionToken}`);
+        }
+
+        const cfgRegion = regions[0] ?? 'us-east-1';
+        const cfgLines = ['[default]', `region = ${cfgRegion}`, 'output = json'];
+
+        await awsCredsVolume.initialize({
+          credentials: credsLines.join('\n'),
+          config: cfgLines.join('\n'),
+        });
+        awsVolumeInitialized = true;
+        context.logger.info(`[ProwlerScan] Created isolated AWS creds volume: ${awsCredsVolume.getVolumeName()}`);
+
+        dockerRunner.volumes = [
+          ...(dockerRunner.volumes ?? []),
+          awsCredsVolume.getVolumeConfig('/home/prowler/.aws', true),
+        ];
+      }
+
+      // Initialize output volume
+      await outputVolume.initialize({});
+      outputVolumeInitialized = true;
+        context.logger.info(`[ProwlerScan] Created isolated output volume: ${outputVolume.getVolumeName()}`);
+        dockerRunner.volumes = [
+          ...(dockerRunner.volumes ?? []),
+          outputVolume.getVolumeConfig('/output', false),
+        ];
+
       const raw = await runComponentWithRunner<Record<string, unknown>, unknown>(
         dockerRunner,
         async () => ({} as unknown),
@@ -494,51 +559,33 @@ const definition: ComponentDefinition<Input, Output> = {
           stderrCombined = result.stderr;
         }
       }
-    } catch (err) {
-      const msg = (err as Error)?.message ?? '';
-      const isFindingsExit = /exit code\s*3/.test(msg);
-      if (isFindingsExit) {
-        // Prowler uses exit code 3 to indicate checks failed (findings present).
-        // Treat this as a successful run for parsing purposes; keep stderr for summary.
-        context.logger.info('[ProwlerScan] Prowler exited with code 3 (findings present); continuing to parse output.');
-        stderrCombined = msg;
-        // Do not cleanup here; we still need to read the mounted output directory.
-      } else {
-        try {
-          await fs.rm(hostOutputDir, { recursive: true, force: true });
-        } catch {}
-        if (hostAwsConfigDir) {
-          try {
-            await fs.rm(hostAwsConfigDir, { recursive: true, force: true });
-          } catch {}
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '';
+        const isFindingsExit = /exit code\s*3/.test(msg);
+        if (isFindingsExit) {
+          // Prowler uses exit code 3 to indicate checks failed (findings present).
+          // Treat this as a successful run for parsing purposes; keep stderr for summary.
+          context.logger.info('[ProwlerScan] Prowler exited with code 3 (findings present); continuing to parse output.');
+          stderrCombined = msg;
+          // Do not cleanup here; we still need to read the mounted output directory.
+        } else {
+          throw err;
         }
-        throw err;
       }
-    }
 
-    // If we didn't get JSON from the container, read ASFF files from the mounted folder
-    if (rawSegments.length === 0) {
-      try {
-        const entries = await fs.readdir(hostOutputDir);
+      // If we didn't get JSON from the container, read ASFF files from the mounted folder
+      if (rawSegments.length === 0) {
+        try {
+          const entries = await listVolumeFiles(outputVolume);
         const jsonFiles = entries.filter((f) => f.toLowerCase().endsWith('.json'));
         const contents: string[] = [];
         for (const file of jsonFiles) {
           try {
-            const text = await fs.readFile(path.join(hostOutputDir, file), 'utf8');
-            contents.push(text);
+            const fileMap = await outputVolume.readFiles([file]);
+            contents.push(fileMap[file]);
           } catch {}
         }
         rawSegments = contents;
-      } catch {}
-    }
-
-    // Cleanup host output dir and AWS creds dir
-    try {
-      await fs.rm(hostOutputDir, { recursive: true, force: true });
-    } catch {}
-    if (hostAwsConfigDir) {
-      try {
-        await fs.rm(hostAwsConfigDir, { recursive: true, force: true });
       } catch {}
     }
 
@@ -599,7 +646,17 @@ const definition: ComponentDefinition<Input, Output> = {
       errors: errors.length > 0 ? errors : undefined,
     };
 
-    return outputSchema.parse(output);
+      return outputSchema.parse(output);
+    } finally {
+      if (outputVolumeInitialized) {
+        await outputVolume.cleanup();
+        context.logger.info('[ProwlerScan] Cleaned up output volume');
+      }
+      if (awsVolumeInitialized && awsCredsVolume) {
+        await awsCredsVolume.cleanup();
+        context.logger.info('[ProwlerScan] Cleaned up AWS creds volume');
+      }
+    }
   },
 };
 
