@@ -8,7 +8,7 @@ This document tracks which security components need migration from file mounts t
 |-----------|--------|------------|----------|-------|
 | **dnsx** | ✅ **Migrated** | Yes (domains, resolvers) | High | PR #100 - Working in DinD |
 | **prowler-scan** | ✅ **Migrated** | Yes (AWS credentials, config) | High | Uses isolated volumes for AWS creds + output |
-| **shuffledns-massdns** | ⚠️ Needs Migration | Yes (domains, wordlists, resolvers) | High | Multiple input files |
+| **shuffledns-massdns** | ✅ **Migrated** | Yes (domains, wordlists, resolvers) | High | Uses isolated volume for inputs |
 | **supabase-scanner** | ✅ **Migrated** | TBD | Medium | Uses isolated volume for config/output |
 | **httpx** | ⏸️ To Review | TBD | Medium | Check if file-based |
 | **subfinder** | ⏸️ To Review | TBD | Medium | Check if file-based |
