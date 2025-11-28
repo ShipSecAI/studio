@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -44,9 +44,9 @@ export function ParameterField({
   onUpdateParameter,
 }: ParameterFieldProps) {
   const currentValue = value !== undefined ? value : parameter.default
-  const [jsonText, setJsonText] = useState<string>('')
   const [jsonError, setJsonError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const secrets = useSecretStore((state) => state.secrets)
   const secretsLoading = useSecretStore((state) => state.loading)
@@ -159,31 +159,6 @@ export function ParameterField({
     }
     return secrets.length > 0 ? 'select' : 'manual'
   })
-
-  useEffect(() => {
-    if (parameter.type !== 'json') {
-      return
-    }
-
-    if (value === undefined || value === null || value === '') {
-      setJsonText('')
-      setJsonError(null)
-      return
-    }
-
-    if (typeof value === 'string') {
-      setJsonText(value)
-      setJsonError(null)
-      return
-    }
-
-    try {
-      setJsonText(JSON.stringify(value, null, 2))
-      setJsonError(null)
-    } catch (error) {
-      console.error('Failed to serialise JSON parameter value', error)
-    }
-  }, [parameter.type, value])
 
   useEffect(() => {
     if (parameter.type !== 'secret') {
@@ -362,17 +337,37 @@ export function ParameterField({
       return inputElement
     }
 
-    case 'textarea':
+    case 'textarea': {
+      const isExternalUpdateRef = useRef(false)
+
+      // Sync external changes to textarea (e.g., workflow undo)
+      useEffect(() => {
+        if (textareaRef.current && textareaRef.current.value !== (currentValue || '')) {
+          isExternalUpdateRef.current = true
+          textareaRef.current.value = currentValue || ''
+          isExternalUpdateRef.current = false
+        }
+      }, [currentValue])
+
+      // Sync to parent only on blur for native undo behavior
+      const handleBlur = useCallback(() => {
+        if (textareaRef.current) {
+          onChange(textareaRef.current.value)
+        }
+      }, [onChange])
+
       return (
         <textarea
+          ref={textareaRef}
           id={parameter.id}
           placeholder={parameter.placeholder}
-          value={currentValue || ''}
-          onChange={(e) => onChange(e.target.value)}
+          defaultValue={currentValue || ''}
+          onBlur={handleBlur}
           rows={parameter.rows || 3}
           className="w-full px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono"
         />
       )
+    }
 
     case 'number':
       return (
@@ -682,30 +677,70 @@ export function ParameterField({
       )
     }
 
-    case 'json':
+    case 'json': {
+      const jsonTextareaRef = useRef<HTMLTextAreaElement>(null)
+      const isExternalJsonUpdateRef = useRef(false)
+
+      // Sync external changes to JSON textarea
+      useEffect(() => {
+        if (!jsonTextareaRef.current) return
+
+        let textValue = ''
+        if (value === undefined || value === null || value === '') {
+          textValue = ''
+        } else if (typeof value === 'string') {
+          textValue = value
+        } else {
+          try {
+            textValue = JSON.stringify(value, null, 2)
+          } catch (error) {
+            console.error('Failed to serialize JSON parameter value', error)
+            return
+          }
+        }
+
+        if (jsonTextareaRef.current.value !== textValue) {
+          isExternalJsonUpdateRef.current = true
+          jsonTextareaRef.current.value = textValue
+          setJsonError(null)
+          isExternalJsonUpdateRef.current = false
+        }
+      }, [value])
+
+      // Sync to parent only on blur for native undo behavior
+      const handleJsonBlur = useCallback(() => {
+        if (!jsonTextareaRef.current) return
+        const nextValue = jsonTextareaRef.current.value
+
+        if (nextValue.trim() === '') {
+          setJsonError(null)
+          onChange(undefined)
+          return
+        }
+
+        try {
+          const parsed = JSON.parse(nextValue)
+          setJsonError(null)
+          onChange(parsed)
+        } catch (error) {
+          setJsonError('Invalid JSON')
+          // Keep showing error, don't update parent
+        }
+      }, [onChange])
+
       return (
         <div className="space-y-2">
           <textarea
+            ref={jsonTextareaRef}
             id={parameter.id}
-            value={jsonText}
-            onChange={(e) => {
-              const nextValue = e.target.value
-              setJsonText(nextValue)
-
-              if (nextValue.trim() === '') {
-                setJsonError(null)
-                onChange(undefined)
-                return
-              }
-
-              try {
-                const parsed = JSON.parse(nextValue)
-                setJsonError(null)
-                onChange(parsed)
-              } catch (error) {
-                setJsonError('Invalid JSON')
-              }
-            }}
+            defaultValue={
+              value === undefined || value === null || value === ''
+                ? ''
+                : typeof value === 'string'
+                ? value
+                : JSON.stringify(value, null, 2)
+            }
+            onBlur={handleJsonBlur}
             className="w-full px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono"
             rows={parameter.rows || 4}
             placeholder={parameter.placeholder || '{\n  "key": "value"\n}'}
@@ -715,6 +750,7 @@ export function ParameterField({
           )}
         </div>
       )
+    }
 
     default:
       return (

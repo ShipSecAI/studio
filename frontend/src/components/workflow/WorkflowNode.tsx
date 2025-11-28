@@ -1,11 +1,13 @@
-import { memo, useEffect, useState } from 'react'
-import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow'
-import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon } from 'lucide-react'
+import { memo, useEffect, useRef, useState } from 'react'
+import { Handle, NodeResizer, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from 'reactflow'
+import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Pencil } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MarkdownView } from '@/components/ui/markdown'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
+import { useWorkflowStore } from '@/store/workflowStore'
 import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
 import { NodeTerminalPanel } from '../terminal/NodeTerminalPanel'
 import type { NodeData } from '@/schemas/node'
@@ -27,14 +29,31 @@ const STATUS_ICONS = {
  */
 export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) => {
   const { getComponent, loading } = useComponentStore()
-  const { getNodes, getEdges } = useReactFlow()
+  const { getNodes, getEdges, setNodes } = useReactFlow()
+  const updateNodeInternals = useUpdateNodeInternals()
   const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode, isLiveFollowing } = useExecutionTimelineStore()
+  const { markDirty } = useWorkflowStore()
   const { mode } = useWorkflowUiStore()
-  const [isHovered, setIsHovered] = useState(false)
+  // Note: hover effects use CSS :hover instead of React state to avoid re-renders (which cause image flicker)
   const prefetchTerminal = useExecutionStore((state) => state.prefetchTerminal)
   const terminalSession = useExecutionStore((state) => state.getTerminalSession(id, 'pty'))
   const [isTerminalOpen, setIsTerminalOpen] = useState(false)
   const [isTerminalLoading, setIsTerminalLoading] = useState(false)
+  const nodeRef = useRef<HTMLDivElement | null>(null)
+
+  const MIN_TEXT_WIDTH = 280
+  const MAX_TEXT_WIDTH = 1800
+  const MIN_TEXT_HEIGHT = 220
+  const MAX_TEXT_HEIGHT = 1200
+  const DEFAULT_TEXT_WIDTH = 320
+  const DEFAULT_TEXT_HEIGHT = 300
+  const [textSize, setTextSize] = useState<{ width: number; height: number }>(() => {
+    const uiSize = (data as any)?.ui?.size as { width?: number; height?: number } | undefined
+    return {
+      width: uiSize?.width ?? DEFAULT_TEXT_WIDTH,
+      height: uiSize?.height ?? DEFAULT_TEXT_HEIGHT,
+    }
+  })
 
   useEffect(() => {
     if (!isTerminalOpen) {
@@ -103,6 +122,34 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   // Enhanced styling for timeline visualization
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
   const hasEvents = isTimelineActive && visualState.eventCount > 0
+
+  const isTextBlock = component.slug === 'text-block' || component.id === 'core.ui.text'
+  useEffect(() => {
+    if (!isTextBlock) return
+    const uiSize = (nodeData as any)?.ui?.size as { width?: number; height?: number } | undefined
+    if (!uiSize) return
+    setTextSize((current) => {
+      const nextWidth = uiSize.width ?? current.width
+      const nextHeight = uiSize.height ?? current.height
+      const clamped = {
+        width: Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, nextWidth)),
+        height: Math.max(MIN_TEXT_HEIGHT, Math.min(MAX_TEXT_HEIGHT, nextHeight)),
+      }
+      if (current.width === clamped.width && current.height === clamped.height) {
+        return current
+      }
+      return clamped
+    })
+  }, [isTextBlock, nodeData])
+  useEffect(() => {
+    if (isTextBlock) {
+      updateNodeInternals(id)
+    }
+  }, [id, isTextBlock, textSize.width, textSize.height, updateNodeInternals])
+  const textBlockContent = typeof nodeData.parameters?.content === 'string'
+    ? nodeData.parameters.content
+    : ''
+  const trimmedTextBlockContent = textBlockContent.trim()
 
   // Display label (custom or component name)
   const displayLabel = data.label || component.name
@@ -296,10 +343,54 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
     return `${typeBorderColor} border-2`
   }
 
+  const clampWidth = (width: number) =>
+    Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, width))
+
+  const clampHeight = (height: number) =>
+    Math.max(MIN_TEXT_HEIGHT, Math.min(MAX_TEXT_HEIGHT, height))
+
+  const persistSize = (width: number, height: number) => {
+    const clampedWidth = clampWidth(width)
+    const clampedHeight = clampHeight(height)
+    setTextSize({ width: clampedWidth, height: clampedHeight })
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id
+          ? {
+              ...node,
+              data: {
+                ...(node.data as any),
+                ui: {
+                  ...(node.data as any).ui,
+                  size: {
+                    width: clampedWidth,
+                    height: clampedHeight,
+                  },
+                },
+              },
+            }
+          : node
+      )
+    )
+    updateNodeInternals(id)
+    markDirty()
+  }
+
+  const handleResize = (_evt: unknown, params: { width: number; height: number }) => {
+    const clampedWidth = clampWidth(params.width)
+    const clampedHeight = clampHeight(params.height)
+    setTextSize({ width: clampedWidth, height: clampedHeight })
+  }
+
+  const handleResizeEnd = (_evt: unknown, params: { width: number; height: number }) => {
+    persistSize(params.width, params.height)
+  }
+
   return (
     <div
       className={cn(
-        'shadow-lg rounded-lg border-2 min-w-[240px] max-w-[280px] transition-all relative',
+        'shadow-lg rounded-lg border-2 transition-all relative',
+        isTextBlock ? 'min-w-[240px] max-w-none flex flex-col' : 'min-w-[240px] max-w-[280px]',
         // Enhanced border styling for timeline
         isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
         isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
@@ -319,14 +410,40 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
         !isTimelineActive && hasUnfilledRequired && !nodeData.status && 'shadow-red-100',
         getValidationBorderColor(),
 
-        // Interactive states
-        isHovered && 'shadow-xl transform scale-[1.02]',
+        // Interactive states - use CSS hover to avoid re-renders
+        'hover:shadow-xl hover:scale-[1.02]',
         selectedRunId && 'cursor-pointer'
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      ref={nodeRef}
       onClick={() => selectedRunId && selectNode(id)}
+      style={
+        isTextBlock
+          ? {
+              width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
+              minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
+            }
+          : undefined
+      }
     >
+      {isTextBlock && mode === 'design' && (
+        <NodeResizer
+          minWidth={MIN_TEXT_WIDTH}
+          maxWidth={MAX_TEXT_WIDTH}
+          minHeight={MIN_TEXT_HEIGHT}
+          maxHeight={MAX_TEXT_HEIGHT}
+          isVisible
+          handleStyle={{
+            width: 12,
+            height: 12,
+            borderRadius: 4,
+            border: '1px solid hsl(var(--border))',
+            background: 'hsl(var(--muted))',
+          }}
+          lineStyle={{ borderColor: 'hsl(var(--border))' }}
+          onResize={handleResize}
+          onResizeEnd={handleResizeEnd}
+        />
+      )}
       {/* Header */}
       <div className="px-3 py-2 border-b border-border/50 relative">
         {/* Event count badge */}
@@ -355,6 +472,21 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                 <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
               </div>
               <div className="flex items-center gap-1">
+                {/* Edit button for text blocks - explicitly select node for editing */}
+                {isTextBlock && mode === 'design' && (
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Edit content"
+                    aria-label="Edit content"
+                    onClick={() => {
+                      // Don't stop propagation - let React Flow handle the selection
+                      // This will select the node and open the config panel
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {hasUnfilledRequired && !nodeData.status && (
                   <span className="text-red-500 text-xs" title="Required fields missing">!</span>
                 )}
@@ -446,7 +578,10 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
       </div>
 
       {/* Body - Input/Output Ports */}
-      <div className="px-3 py-3 space-y-2">
+      <div className={cn(
+        "px-3 py-3 pb-4 space-y-2",
+        isTextBlock && "flex flex-col flex-1"
+      )}>
         {isTimelineActive && (
           <>
             <ProgressBar
@@ -460,6 +595,51 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
           </>
         )}
 
+        {isTextBlock && (
+          trimmedTextBlockContent.length > 0 ? (
+            <MarkdownView
+              content={trimmedTextBlockContent}
+              dataTestId="text-block-content"
+              className={cn(
+                'w-full rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-3 overflow-x-hidden overflow-y-auto break-words',
+                'prose prose-base dark:prose-invert max-w-none text-foreground',
+                'flex-1 min-h-0'
+              )}
+              onEdit={(next) => {
+                console.log('[WorkflowNode] Checkbox clicked, updating content:', next)
+                setNodes((nds) => nds.map((n) => {
+                  if (n.id !== id) return n
+                  const currentParams = (n.data as any).parameters || {}
+                  const updatedParams = { ...currentParams, content: next }
+                  return {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      // Update both parameters and config to keep them in sync
+                      // The serializer uses parameters || config, and the graph signature
+                      // needs both to be updated for change detection to work
+                      parameters: updatedParams,
+                      config: updatedParams,
+                    },
+                  }
+                }))
+                // Mark workflow as dirty so changes can be saved
+                markDirty()
+              }}
+            />
+          ) : (
+            // Fallback helper text (children only, no dangerouslySetInnerHTML)
+            <div
+              className={cn(
+                'rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 text-sm text-muted-foreground leading-relaxed',
+                'flex-1 min-h-0'
+              )}
+              data-testid="text-block-content"
+            >
+              {'Add notes in the configuration panel to share context with teammates.'}
+            </div>
+          )
+        )}
         {/* Input Ports */}
         {componentInputs.length > 0 && (
           <div className="space-y-1.5">

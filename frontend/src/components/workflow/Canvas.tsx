@@ -329,6 +329,22 @@ export function Canvas({
     setSelectedNode(node as Node<NodeData>)
   }, [mode, selectNode, selectEvent])
 
+  // Handle node double-click for text-block editing
+  const onNodeDoubleClick: NodeMouseHandler = useCallback((event, node) => {
+    if (mode !== 'design') return
+
+    // Check if this is a text-block node
+    const nodeData = node.data as any
+    const componentRef = nodeData?.componentId || nodeData?.componentSlug
+    const isTextBlock = componentRef === 'text-block' || componentRef === 'core.ui.text'
+
+    if (isTextBlock) {
+      event.stopPropagation()
+      // Select the node to open config panel for editing
+      setSelectedNode(node as Node<NodeData>)
+    }
+  }, [mode])
+
   // Handle pane click to deselect
   const onPaneClick = useCallback(() => {
     setSelectedNode(null)
@@ -533,6 +549,7 @@ export function Canvas({
             onDrop={onDrop}
             onDragOver={onDragOver}
             onNodeClick={onNodeClick}
+            onNodeDoubleClick={onNodeDoubleClick}
             onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}

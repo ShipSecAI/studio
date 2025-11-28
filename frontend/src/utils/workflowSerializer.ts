@@ -24,13 +24,21 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
       node.type ||
       'unknown'
 
+    // Get base config from parameters or config
+    const baseConfig = node.data.parameters || node.data.config || {}
+
+    // Include UI metadata (like size for text blocks) in config
+    // This preserves UI state across saves without requiring backend schema changes
+    const ui = (node.data as any).ui
+    const configWithUi = ui ? { ...baseConfig, __ui: ui } : baseConfig
+
     return {
       id: node.id,
       type: componentId,
       position: node.position,
       data: {
         label: node.data.label || '',
-        config: node.data.parameters || node.data.config || {},
+        config: configWithUi,
       },
     }
   })
@@ -124,23 +132,31 @@ export function deserializeNodes(workflow: { graph: { nodes: BackendNode[], edge
     }
   }
 
-  return nodes.map((node) => ({
-    id: node.id,
-    type: 'workflow', // All nodes use the same React Flow type
-    position: node.position,
-    data: {
-      // Backend's data.label and data.config (required)
-      label: node.data.label,
-      config: node.data.config,
-      // Frontend extensions
-      componentId: node.type,
-      componentSlug: node.type,
-      componentVersion: '1.0.0', // Default version if not specified
-      parameters: node.data.config || {}, // Map config to parameters for frontend
-      status: 'idle', // Reset execution state
-      inputs: inputMappingsByNode.get(node.id) ?? {},
-    },
-  }))
+  return nodes.map((node) => {
+    // Extract UI metadata from config if present
+    const configWithPossibleUi = node.data.config || {}
+    const { __ui, ...cleanConfig } = configWithPossibleUi as { __ui?: any; [key: string]: any }
+
+    return {
+      id: node.id,
+      type: 'workflow', // All nodes use the same React Flow type
+      position: node.position,
+      data: {
+        // Backend's data.label and data.config (required)
+        label: node.data.label,
+        config: cleanConfig,
+        // Frontend extensions
+        componentId: node.type,
+        componentSlug: node.type,
+        componentVersion: '1.0.0', // Default version if not specified
+        parameters: cleanConfig, // Map config to parameters for frontend (without __ui)
+        status: 'idle', // Reset execution state
+        inputs: inputMappingsByNode.get(node.id) ?? {},
+        // Restore UI metadata (like size for text blocks)
+        ...__ui ? { ui: __ui } : {},
+      },
+    }
+  })
 }
 
 /**

@@ -206,6 +206,8 @@ export interface ComponentUiMetadata {
   outputs?: ComponentPortMetadata[];
   parameters?: ComponentParameterMetadata[];
   examples?: string[];
+  /** UI-only component - should not be included in workflow execution */
+  uiOnly?: boolean;
 }
 
 export interface ExecutionContext {
