@@ -1,7 +1,4 @@
 import { z } from 'zod';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { promises as fs } from 'node:fs';
 import {
   componentRegistry,
   ComponentDefinition,
@@ -9,6 +6,7 @@ import {
   runComponentWithRunner,
 } from '@shipsec/component-sdk';
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 // Extract Supabase project ref from a standard URL like https://<project-ref>.supabase.co
 function inferProjectRef(supabaseUrl: string): string | null {
@@ -235,19 +233,15 @@ const definition: ComponentDefinition<Input, Output> = {
       );
     }
 
-    // Prepare temp workspace on host
-    const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'supabase-scan-'));
-    const hostConfigDir = path.join(baseDir, 'config');
-    const hostOutputDir = path.join(baseDir, 'output');
-    await fs.mkdir(hostConfigDir, { recursive: true });
-    await fs.mkdir(hostOutputDir, { recursive: true });
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const mountPath = '/data';
+    const configFilename = 'scanner_config.yaml';
+    const outputFilename = 'report.json';
+    const containerConfigPath = `${mountPath}/${configFilename}`;
+    const containerOutputFile = `${mountPath}/${outputFilename}`;
 
-    const containerConfigPath = '/configs/scanner_config.yaml';
-    const containerOutputFile = '/output/report.json';
-    const hostConfigPath = path.join(hostConfigDir, 'scanner_config.yaml');
-    const hostOutputPath = path.join(hostOutputDir, 'report.json');
-
-    // Build scanner_config.yaml
+    // Build scanner_config.yaml to place inside the isolated volume
     const configYamlLines: string[] = [];
     configYamlLines.push('project:');
     configYamlLines.push(`  ref: ${input.projectRef}`);
@@ -271,74 +265,82 @@ const definition: ComponentDefinition<Input, Output> = {
     configYamlLines.push(`  fail_on_critical: ${input.failOnCritical === true ? 'true' : 'false'}`);
 
     const configYaml = configYamlLines.join('\n') + '\n';
-    await fs.writeFile(hostConfigPath, configYaml, 'utf8');
+    let stdoutCombined = '';
+    const errors: string[] = [];
+    let volumeInitialized = false;
 
-    // Build runner with mounts
+    // Build runner with isolated volume mounts
     const baseRunner = definition.runner;
     const runner: DockerRunnerConfig = {
-      ...(baseRunner.kind === 'docker' ? baseRunner : { kind: 'docker', image: 'ghcr.io/shipsecai/supabase-scanner:latest', command: [containerConfigPath] }),
-      volumes: [
-        { source: hostConfigPath, target: containerConfigPath, readOnly: true },
-        { source: hostOutputDir, target: '/output', readOnly: false },
-      ],
+      ...(baseRunner.kind === 'docker'
+        ? baseRunner
+        : { kind: 'docker', image: 'ghcr.io/shipsecai/supabase-scanner:latest', command: [containerConfigPath] }),
+      env: { ...(baseRunner.kind === 'docker' ? baseRunner.env ?? {} : {}) },
+      command: [containerConfigPath],
+      volumes: [],
     } as DockerRunnerConfig;
 
-    let stdoutCombined = '';
-    let errors: string[] = [];
-
-    try {
-      const result = await runComponentWithRunner(runner, async () => ({}), input, context);
-      if (typeof result === 'string') {
-        stdoutCombined = result;
-      } else if (result && typeof result === 'object') {
-        // Some images might echo JSON – capture it
-        try {
-          stdoutCombined = JSON.stringify(result);
-        } catch {
-          stdoutCombined = '[object]';
-        }
-      }
-    } catch (err) {
-      const msg = (err as Error)?.message ?? 'Unknown error';
-      // If scanner enforces thresholds it may exit non‑zero; still try to parse output file
-      context.logger.error(`[SupabaseScanner] Scanner failed: ${msg}`);
-      errors.push(msg);
-    }
-
-    // Read JSON report from the mounted output file
     let report: unknown = {};
     let score: number | null = null;
     let summary: unknown | undefined;
     let issues: unknown[] | undefined;
 
     try {
-      const text = await fs.readFile(hostOutputPath, 'utf8');
-      // Try parse object; fall back to raw text on failure
-      try {
-        const parsed = JSON.parse(text);
-        const safe = scannerReportSchema.safeParse(parsed);
-        report = parsed;
-        if (safe.success) {
-          score = safe.data.score ?? null;
-          summary = safe.data.summary;
-          issues = Array.isArray(safe.data.issues) ? (safe.data.issues as unknown[]) : undefined;
-        }
-        // Prefer file JSON as rawOutput for debuggability
-        stdoutCombined = text.trim();
-      } catch (e) {
-        report = { raw: text };
-        stdoutCombined = text.trim();
-      }
-    } catch (e) {
-      // File missing – keep whatever stdout we captured
-      context.logger.error('[SupabaseScanner] Output JSON file not found or unreadable.');
-      errors.push('Scanner output file not found.');
-    }
+      const volumeName = await volume.initialize({ [configFilename]: configYaml });
+      volumeInitialized = true;
+      context.logger.info(`[SupabaseScanner] Created isolated volume: ${volumeName}`);
 
-    // Cleanup temp dir (best-effort)
-    try {
-      await fs.rm(baseDir, { recursive: true, force: true });
-    } catch {}
+      runner.volumes = [volume.getVolumeConfig(mountPath, false)];
+
+      try {
+        const result = await runComponentWithRunner(runner, async () => ({}), input, context);
+        if (typeof result === 'string') {
+          stdoutCombined = result;
+        } else if (result && typeof result === 'object') {
+          try {
+            stdoutCombined = JSON.stringify(result);
+          } catch {
+            stdoutCombined = '[object]';
+          }
+        }
+      } catch (err) {
+        const msg = (err as Error)?.message ?? 'Unknown error';
+        context.logger.error(`[SupabaseScanner] Scanner failed: ${msg}`);
+        errors.push(msg);
+      }
+
+      // Read JSON report from the mounted output file
+      try {
+        const files = await volume.readFiles([outputFilename]);
+        const text = files[outputFilename];
+        try {
+          const parsed = JSON.parse(text);
+          const safe = scannerReportSchema.safeParse(parsed);
+          report = parsed;
+          if (safe.success) {
+            score = safe.data.score ?? null;
+            summary = safe.data.summary;
+            issues = Array.isArray(safe.data.issues) ? (safe.data.issues as unknown[]) : undefined;
+          }
+          stdoutCombined = text.trim();
+        } catch (e) {
+          report = { raw: text };
+          stdoutCombined = text.trim();
+        }
+      } catch (e) {
+        context.logger.error('[SupabaseScanner] Output JSON file not found or unreadable.');
+        errors.push('Scanner output file not found.');
+      }
+    } catch (err) {
+      const msg = (err as Error)?.message ?? 'Unknown error';
+      context.logger.error(`[SupabaseScanner] Scanner failed: ${msg}`);
+      errors.push(msg);
+    } finally {
+      if (volumeInitialized) {
+        await volume.cleanup();
+        context.logger.info('[SupabaseScanner] Cleaned up isolated volume');
+      }
+    }
 
     const output: Output = {
       projectRef: input.projectRef ?? null,

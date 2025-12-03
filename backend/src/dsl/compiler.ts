@@ -54,10 +54,21 @@ function topoSort(nodes: string[], edges: Array<{ source: string; target: string
 }
 
 export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinition {
-  const nodeIds = graph.nodes.map((node: WorkflowNodeDto) => node.id);
+  // Filter out UI-only nodes (like text-block) that shouldn't be executed
+  const executableNodes = graph.nodes.filter((node: WorkflowNodeDto) => {
+    const component = componentRegistry.get(node.type);
+    if (!component) {
+      return true; // Let validation catch unknown components
+    }
+    // Skip UI-only components (they're for documentation/notes, not execution)
+    const isUiOnly = (component.metadata as any)?.uiOnly === true;
+    return !isUiOnly;
+  });
 
-  // Ensure all nodes reference registered components.
-  for (const node of graph.nodes) {
+  const nodeIds = executableNodes.map((node: WorkflowNodeDto) => node.id);
+
+  // Ensure all executable nodes reference registered components.
+  for (const node of executableNodes) {
     if (!componentRegistry.get(node.type)) {
       throw new Error(`Component not registered: ${node.type}`);
     }
@@ -77,7 +88,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
   }
 
   const nodesMetadata: Record<string, WorkflowNodeMetadata> = {};
-  for (const node of graph.nodes) {
+  for (const node of executableNodes) {
     const config = (node.data?.config ?? {}) as Record<string, unknown>;
     const joinStrategyValue = config.joinStrategy;
     const joinStrategy =
@@ -103,7 +114,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
   }
 
   const actions: WorkflowAction[] = orderedIds.map((id) => {
-    const node = graph.nodes.find((n: WorkflowNodeDto) => n.id === id)!;
+    const node = executableNodes.find((n: WorkflowNodeDto) => n.id === id)!;
     const config = (node.data?.config ?? {}) as Record<string, unknown>;
     const {
       joinStrategy: _joinStrategy,

@@ -7,9 +7,9 @@ This document tracks which security components need migration from file mounts t
 | Component | Status | Uses Files | Priority | Notes |
 |-----------|--------|------------|----------|-------|
 | **dnsx** | ✅ **Migrated** | Yes (domains, resolvers) | High | PR #100 - Working in DinD |
-| **prowler-scan** | ⚠️ Needs Migration | Yes (AWS credentials, config) | High | Uses `mkdtemp` for AWS creds |
-| **shuffledns-massdns** | ⚠️ Needs Migration | Yes (domains, wordlists, resolvers) | High | Multiple input files |
-| **supabase-scanner** | ⚠️ Needs Migration | TBD | Medium | Check if using temp files |
+| **prowler-scan** | ✅ **Migrated** | Yes (AWS credentials, config) | High | Uses isolated volumes for AWS creds + output |
+| **shuffledns-massdns** | ✅ **Migrated** | Yes (domains, wordlists, resolvers) | High | Uses isolated volume for inputs |
+| **supabase-scanner** | ✅ **Migrated** | TBD | Medium | Uses isolated volume for config/output |
 | **httpx** | ⏸️ To Review | TBD | Medium | Check if file-based |
 | **subfinder** | ⏸️ To Review | TBD | Medium | Check if file-based |
 | **naabu** | ⏸️ To Review | TBD | Medium | Check if file-based |
@@ -89,13 +89,13 @@ await volume.initialize(files);
 
 ### 3. supabase-scanner (Medium Priority)
 
-**Status:** Needs investigation
+**Status:** Migrated — now uses `IsolatedContainerVolume` for config/output mounts (no host temp dirs).
 
 **Action Items:**
-- [ ] Check if component uses temp files
-- [ ] Determine if Docker runner or inline
-- [ ] Identify file dependencies
-- [ ] Create migration plan if needed
+- [x] Check if component uses temp files
+- [x] Determine if Docker runner or inline
+- [x] Identify file dependencies
+- [x] Create migration plan if needed
 
 ---
 

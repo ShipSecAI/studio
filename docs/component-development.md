@@ -5,6 +5,7 @@ This guide provides best practices and required patterns for developing ShipSec 
 ## Table of Contents
 
 - [Component Basics](#component-basics)
+- [UI-Only Components](#ui-only-components)
 - [File System Access (REQUIRED)](#file-system-access-required)
 - [Security Requirements](#security-requirements)
 - [Testing Checklist](#testing-checklist)
@@ -49,6 +50,37 @@ const definition: ComponentDefinition<Input, Output> = {
 
 componentRegistry.register(definition);
 ```
+
+---
+
+## UI-Only Components
+
+Some components are purely for UI purposes (documentation, notes) and should not be executed during workflow runs. Mark these with `uiOnly: true` in metadata:
+
+```typescript
+const definition: ComponentDefinition<Input, void> = {
+  id: 'core.ui.text',
+  label: 'Text Block',
+  category: 'input',
+  runner: { kind: 'inline' },
+  inputSchema,
+  outputSchema: z.void(),
+  metadata: {
+    // ... other metadata
+    uiOnly: true,  // Excluded from workflow execution
+  },
+  async execute() {
+    // No-op for UI-only components
+  }
+};
+```
+
+UI-only components:
+- Are stored in workflow definitions (for display in the canvas)
+- Are excluded from the execution graph by the compiler
+- Cannot have inputs/outputs (no port connections)
+
+See [docs/text-block.md](./text-block.md) for a complete example.
 
 ---
 

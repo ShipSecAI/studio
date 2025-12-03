@@ -180,6 +180,7 @@ function WorkflowBuilderContent() {
   const [pendingVersionId, setPendingVersionId] = useState<string | null>(null)
   const [lastSavedGraphSignature, setLastSavedGraphSignature] = useState<string | null>(null)
   const [lastSavedMetadata, setLastSavedMetadata] = useState<{ name: string; description: string } | null>(null)
+  const isSavingShortcutRef = useRef(false)
   const [hasGraphChanges, setHasGraphChanges] = useState(false)
   const [hasMetadataChanges, setHasMetadataChanges] = useState(false)
   const libraryOpen = useWorkflowUiStore((state) => state.libraryOpen)
@@ -1324,6 +1325,37 @@ function WorkflowBuilderContent() {
     isDirty,
     buildGraphSignature,
   ])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) {
+        return
+      }
+
+      const key = event.key?.toLowerCase()
+      const isSaveCombo = (event.metaKey || event.ctrlKey) && key === 's'
+
+      if (!isSaveCombo || mode !== 'design') {
+        return
+      }
+
+      // Allow the shortcut even while typing, but avoid hijacking other embedded apps that might prevent default
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (isSavingShortcutRef.current) {
+        return
+      }
+
+      isSavingShortcutRef.current = true
+      void handleSave().finally(() => {
+        isSavingShortcutRef.current = false
+      })
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleSave, mode])
 
 
   const handleInspectorResizeStart = useCallback((event: React.MouseEvent) => {

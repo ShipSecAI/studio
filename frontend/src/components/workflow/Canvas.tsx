@@ -68,10 +68,11 @@ export function Canvas({
   const { nodeStates } = useExecutionStore()
   const { markDirty } = useWorkflowStore()
   const { dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
-  const { mode } = useWorkflowUiStore()
+  const mode = useWorkflowUiStore((state) => state.mode)
   const { toast } = useToast()
   const applyEdgesChange = onEdgesChange
   const deleteHistoryRef = useRef<DeleteHistoryEntry[]>([])
+  const hasUserInteractedRef = useRef(false)
 
   useEffect(() => {
     if (mode === 'execution') {
@@ -216,6 +217,17 @@ export function Canvas({
     [setEdges, setNodes, nodes, edges, getComponent, markDirty, mode, toast]
   )
 
+  useEffect(() => {
+    if (!reactFlowInstance || nodes.length === 0 || hasUserInteractedRef.current) {
+      return
+    }
+    try {
+      reactFlowInstance.fitView({ padding: 0.2, duration: 300 })
+    } catch (error) {
+      console.warn('Failed to fit view:', error)
+    }
+  }, [reactFlowInstance, nodes.length, edges.length])
+
   const onDragOver = useCallback((event: React.DragEvent) => {
     if (mode !== 'design') return
     event.preventDefault()
@@ -329,8 +341,25 @@ export function Canvas({
     setSelectedNode(node as Node<NodeData>)
   }, [mode, selectNode, selectEvent])
 
+  // Handle node double-click for text-block editing
+  const onNodeDoubleClick: NodeMouseHandler = useCallback((event, node) => {
+    if (mode !== 'design') return
+
+    // Check if this is a text-block node
+    const nodeData = node.data as any
+    const componentRef = nodeData?.componentId || nodeData?.componentSlug
+    const isTextBlock = componentRef === 'text-block' || componentRef === 'core.ui.text'
+
+    if (isTextBlock) {
+      event.stopPropagation()
+      // Select the node to open config panel for editing
+      setSelectedNode(node as Node<NodeData>)
+    }
+  }, [mode])
+
   // Handle pane click to deselect
   const onPaneClick = useCallback(() => {
+    hasUserInteractedRef.current = true
     setSelectedNode(null)
   }, [])
 
@@ -529,11 +558,24 @@ export function Canvas({
             onNodesChange={onNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}
-            onInit={setReactFlowInstance}
+            onInit={(instance) => {
+              setReactFlowInstance(instance)
+              if (nodes.length > 0) {
+                try {
+                  instance.fitView({ padding: 0.2, duration: 0 })
+                } catch (error) {
+                  console.warn('Failed to fit view on init:', error)
+                }
+              }
+            }}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onNodeClick={onNodeClick}
+            onNodeDoubleClick={onNodeDoubleClick}
             onPaneClick={onPaneClick}
+            onMoveStart={() => {
+              hasUserInteractedRef.current = true
+            }}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             attributionPosition="bottom-left"
@@ -564,6 +606,9 @@ export function Canvas({
             <Controls position="bottom-left" />
             <MiniMap
               position="bottom-right"
+              pannable
+              zoomable
+              className="cursor-grab active:cursor-grabbing"
               nodeColor={(node) => {
                 switch (node.data?.status) {
                   case 'running':

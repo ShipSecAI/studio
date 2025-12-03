@@ -6,6 +6,7 @@ import {
   runComponentWithRunner,
   type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const DEFAULT_RESOLVERS = ['1.1.1.1', '8.8.8.8'] as const;
 
@@ -240,44 +241,48 @@ const definition: ComponentDefinition<Input, Output> = {
       flags.push('-mcmd', input.massdnsCmd.trim());
     }
 
-    // Write any provided lists to host temp dir and mount into the container.
-    // This avoids requiring a shell inside the image.
-    const fs = await import('node:fs/promises');
-    const os = await import('node:os');
-    const path = await import('node:path');
+    // Write lists to an isolated volume and mount into the container
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const WORDS = 'words.txt';
+    const SEEDS = 'seeds.txt';
+    const RESOLVERS = 'resolvers.txt';
+    const TRUSTED = 'trusted.txt';
 
-    const hostInputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'shuffledns-input-'));
-    const WORDS = '/input/words.txt';
-    const SEEDS = '/input/seeds.txt';
-    const RESOLVERS = '/input/resolvers.txt';
-    const TRUSTED = '/input/trusted.txt';
-
-    const writeIfAny = async (values: string[] | undefined, file: string) => {
+    const writeIfAny = (values: string[] | undefined, filename: string) => {
       if (Array.isArray(values) && values.length > 0) {
-        const contents = values.map((s) => s.trim()).filter(Boolean).join('\n');
-        await fs.writeFile(path.join(hostInputDir, path.basename(file)), contents, 'utf8');
-        return true;
+        return { filename, contents: values.map((s) => s.trim()).filter(Boolean).join('\n') };
       }
-      return false;
+      return null;
     };
 
-    const wroteWords = await writeIfAny(input.words, WORDS);
-    const wroteSeeds = await writeIfAny(input.seeds, SEEDS);
-    const wroteResolvers = await writeIfAny(input.resolvers, RESOLVERS);
-    const wroteTrusted = await writeIfAny(input.trustedResolvers, TRUSTED);
+    const filesToWrite: Record<string, string> = {};
+    const wroteWords = writeIfAny(input.words, WORDS);
+    const wroteSeeds = writeIfAny(input.seeds, SEEDS);
+    const wroteResolvers = writeIfAny(input.resolvers, RESOLVERS);
+    const wroteTrusted = writeIfAny(input.trustedResolvers, TRUSTED);
+
+    [wroteWords, wroteSeeds, wroteResolvers, wroteTrusted].forEach((file) => {
+      if (file) {
+        filesToWrite[file.filename] = file.contents;
+      }
+    });
+
+    await volume.initialize(filesToWrite);
+    context.logger.info(`[ShufflednsMassdns] Created isolated volume: ${volume.getVolumeName()}`);
 
     // Attach file flags if present
     if (wroteWords) {
-      flags.push('-w', WORDS);
+      flags.push('-w', `/input/${WORDS}`);
     }
     if (wroteSeeds) {
-      flags.push('-list', SEEDS);
+      flags.push('-list', `/input/${SEEDS}`);
     }
     if (wroteResolvers) {
-      flags.push('-r', RESOLVERS);
+      flags.push('-r', `/input/${RESOLVERS}`);
     }
     if (wroteTrusted) {
-      flags.push('-tr', TRUSTED);
+      flags.push('-tr', `/input/${TRUSTED}`);
     }
 
     const baseRunner = definition.runner;
@@ -295,7 +300,7 @@ const definition: ComponentDefinition<Input, Output> = {
       entrypoint: 'shuffledns',
       command: flags,
       volumes: [
-        { source: hostInputDir, target: '/input', readOnly: true },
+        volume.getVolumeConfig('/input', true),
       ],
     };
 
@@ -308,9 +313,8 @@ const definition: ComponentDefinition<Input, Output> = {
         context,
       )) as unknown;
     } finally {
-      try {
-        await fs.rm(hostInputDir, { recursive: true, force: true });
-      } catch {}
+      await volume.cleanup();
+      context.logger.info('[ShufflednsMassdns] Cleaned up isolated volume');
     }
 
     // Shuffledns with -silent prints hostnames (plain text). Normalise string output.
