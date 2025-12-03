@@ -30,6 +30,7 @@ import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { track, Events } from '@/features/analytics/events'
 import { useAuth } from '@/auth/auth-context'
+import { useRunStore } from '@/store/runStore'
 
 export function WorkflowList() {
   const navigate = useNavigate()
@@ -230,6 +231,8 @@ export function WorkflowList() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Nodes</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Run</TableHead>
                   <TableHead>Last Updated</TableHead>
                   {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
@@ -242,6 +245,12 @@ export function WorkflowList() {
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-5 w-[80px] bg-muted" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-[80px] bg-muted" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-[160px] bg-muted" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-[160px] bg-muted" />
@@ -283,43 +292,25 @@ export function WorkflowList() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Nodes</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Run</TableHead>
                   <TableHead>Last Updated</TableHead>
                   {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {workflows.map((workflow) => {
-                  const nodeCount = workflow.nodes.length
-                  return (
-                    <TableRow
-                      key={workflow.id}
-                      onClick={() => navigate(`/workflows/${workflow.id}`)}
-                      className="cursor-pointer hover:bg-muted/50"
-                    >
-                      <TableCell className="font-medium">{workflow.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{nodeCount} nodes</Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(workflow.updatedAt)}
-                      </TableCell>
-                      {canManageWorkflows && (
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={(event) => handleDeleteClick(event, workflow)}
-                            disabled={isLoading || isDeleting}
-                            aria-label={`Delete workflow ${workflow.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })}
+                {workflows.map((workflow) => (
+                  <WorkflowRowItem
+                    key={workflow.id}
+                    workflow={workflow}
+                    canManageWorkflows={canManageWorkflows}
+                    isDeleting={isDeleting}
+                    isLoading={isLoading}
+                    formatDate={formatDate}
+                    onRowClick={() => navigate(`/workflows/${workflow.id}`)}
+                    onDeleteClick={handleDeleteClick}
+                  />
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -368,3 +359,82 @@ export function WorkflowList() {
     </div>
   )
 }
+
+type WorkflowRowItemProps = {
+  workflow: WorkflowMetadataNormalized
+  canManageWorkflows: boolean
+  isDeleting: boolean
+  isLoading: boolean
+  formatDate: (dateString: string) => string
+  onRowClick: () => void
+  onDeleteClick: (event: MouseEvent, workflow: WorkflowMetadataNormalized) => void
+}
+
+function WorkflowRowItem({
+  workflow,
+  canManageWorkflows,
+  isDeleting,
+  isLoading,
+  formatDate,
+  onRowClick,
+  onDeleteClick,
+}: WorkflowRowItemProps) {
+  const fetchRuns = useRunStore((state) => state.fetchRuns)
+  const latestRun = useRunStore((state) => state.getLatestRun(workflow.id))
+
+  useEffect(() => {
+    fetchRuns({ workflowId: workflow.id }).catch(()=>undefined)
+  }, [workflow.id, fetchRuns])
+
+  const nodeCount = workflow.nodes.length
+
+  const statusBadge = latestRun ? (
+    <Badge
+      variant={latestRun.status === 'RUNNING' ? 'default' : latestRun.status === 'FAILED' ? 'destructive' : 'secondary'}
+      className="text-xs"
+    >
+      {latestRun.status}
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="text-xs">
+      NOT TRIGGERED
+    </Badge>
+  )
+
+  return (
+    <TableRow
+      key={workflow.id}
+      onClick={onRowClick}
+      className="cursor-pointer hover:bg-muted/50"
+    >
+      <TableCell className="font-medium">{workflow.name}</TableCell>
+      <TableCell>
+        <Badge variant="secondary">{nodeCount} nodes</Badge>
+      </TableCell>
+      <TableCell>
+        {statusBadge}
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        {workflow.lastRun ? formatDate(workflow.lastRun) : 'N/A'}
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        {formatDate(workflow.updatedAt)}
+      </TableCell>
+      {canManageWorkflows && (
+        <TableCell className="text-right">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={(event) => onDeleteClick(event, workflow)}
+            disabled={isLoading || isDeleting}
+            aria-label={`Delete workflow ${workflow.name}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TableCell>
+      )}
+    </TableRow>
+  )
+}
+
