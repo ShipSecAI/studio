@@ -3,42 +3,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
+import { useRunStore } from '@/store/runStore'
 import { api } from '@/services/api'
 import { cn } from '@/lib/utils'
+import { useAgentStream } from '@/hooks/useAgentStream'
+import type { AgentNodeOutput } from '@/types/agent'
+import { useWorkflowExecution } from '@/hooks/useWorkflowExecution'
 
-type AgentStep = {
-  step?: number
-  thought?: string
-  finishReason?: string
-  actions?: Array<{
-    toolCallId?: string
-    toolName?: string
-    args?: unknown
-  }>
-  observations?: Array<{
-    toolCallId?: string
-    toolName?: string
-    args?: unknown
-    result?: unknown
-  }>
-}
-
-type AgentToolInvocation = {
-  id?: string
-  toolName?: string
-  args?: unknown
-  result?: unknown
-  timestamp?: string
-}
-
-type AgentNodeOutput = {
-  responseText?: string
-  reasoningTrace?: AgentStep[]
-  toolInvocations?: AgentToolInvocation[]
-  conversationState?: unknown
-  usage?: unknown
-  [key: string]: unknown
-}
+const ACTIVE_RUN_STATUSES = new Set(['RUNNING', 'QUEUED'])
 
 type WorkflowRunResult = {
   runId: string
@@ -73,6 +45,7 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
   const selectNode = useExecutionTimelineStore((state) => state.selectNode)
   const setInspectorTab = useWorkflowUiStore((state) => state.setInspectorTab)
   const setMode = useWorkflowUiStore((state) => state.setMode)
+  const { runId: liveRunId, status: executionStatus } = useWorkflowExecution()
 
   useEffect(() => {
     let cancelled = false
@@ -108,12 +81,59 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
     }
   }, [runId])
 
-  const agentEntries = useMemo(() => {
-    return Object.entries(outputs).filter(([, payload]) => {
-      if (!payload || typeof payload !== 'object') return false
-      return Array.isArray(payload.reasoningTrace) || Array.isArray(payload.toolInvocations)
+  const selectedRun = useRunStore((state) => (runId ? state.getRunById(runId) : undefined))
+  const runStatus = selectedRun?.status ?? null
+  const executionStatusUpper = executionStatus?.toUpperCase()
+  const fallbackStatus =
+    runId && liveRunId === runId && executionStatusUpper && ACTIVE_RUN_STATUSES.has(executionStatusUpper)
+      ? executionStatusUpper
+      : null
+  const effectiveRunStatus = runStatus ?? fallbackStatus ?? null
+  const { nodes: streamNodes, connected: streamConnected } = useAgentStream(runId, effectiveRunStatus)
+
+  const mergedEntries = useMemo(() => {
+    const merged = new Map<string, AgentNodeOutput>()
+
+    Object.entries(outputs).forEach(([nodeId, payload]) => {
+      if (payload) {
+        merged.set(nodeId, payload)
+      }
     })
-  }, [outputs])
+
+    Object.entries(streamNodes).forEach(([nodeId, nodeState]) => {
+      const existing = merged.get(nodeId) ?? {}
+      const next: AgentNodeOutput = {
+        ...existing,
+        responseText: nodeState.responseText ?? existing.responseText,
+        reasoningTrace:
+          nodeState.steps && nodeState.steps.length > 0
+            ? nodeState.steps
+            : existing.reasoningTrace,
+        toolInvocations:
+          nodeState.toolInvocations && nodeState.toolInvocations.length > 0
+            ? nodeState.toolInvocations
+            : existing.toolInvocations,
+        live: nodeState.live ?? existing.live ?? true,
+      }
+      merged.set(nodeId, next)
+    })
+
+    return Array.from(merged.entries()).filter(([, payload]) => {
+      if (!payload || typeof payload !== 'object') {
+        return false
+      }
+      const hasTrace = Array.isArray(payload.reasoningTrace) && payload.reasoningTrace.length > 0
+      const hasTools =
+        Array.isArray(payload.toolInvocations) && payload.toolInvocations.length > 0
+      const hasResponse =
+        typeof payload.responseText === 'string' && payload.responseText.trim().length > 0
+      const isLive = Boolean(payload.live)
+      return hasTrace || hasTools || hasResponse || isLive
+    })
+  }, [outputs, streamNodes])
+
+  const isActiveRun = Boolean(effectiveRunStatus && ACTIVE_RUN_STATUSES.has(effectiveRunStatus))
+  const hasEntries = mergedEntries.length > 0
 
   if (!runId) {
     return (
@@ -123,27 +143,36 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
     )
   }
 
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center text-sm text-muted-foreground px-6 text-center">
-        Loading agent outputs…
-      </div>
-    )
-  }
+  if (!hasEntries) {
+    if (isActiveRun) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
+          <p>Waiting for live agent reasoning…</p>
+          <p>The agent stream will appear here as soon as the run emits events.</p>
+        </div>
+      )
+    }
 
-  if (error) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
-        <p className="text-sm font-medium text-destructive">Failed to load agent trace.</p>
-        <p className="text-xs text-muted-foreground">{error}</p>
-        <Button size="sm" variant="outline" onClick={() => setOutputs({})}>
-          Retry
-        </Button>
-      </div>
-    )
-  }
+    if (loading) {
+      return (
+        <div className="h-full flex items-center justify-center text-sm text-muted-foreground px-6 text-center">
+          Loading agent outputs…
+        </div>
+      )
+    }
 
-  if (agentEntries.length === 0) {
+    if (error) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
+          <p className="text-sm font-medium text-destructive">Failed to load agent trace.</p>
+          <p className="text-xs text-muted-foreground">{error}</p>
+          <Button size="sm" variant="outline" onClick={() => setOutputs({})}>
+            Retry
+          </Button>
+        </div>
+      )
+    }
+
     return (
       <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
         <p>No AI agent outputs were recorded for this run.</p>
@@ -155,11 +184,25 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
   return (
     <div className="h-full flex flex-col overflow-y-auto bg-background/40">
       <div className="border-b bg-background/80 px-4 py-2 text-xs text-muted-foreground">
-        {agentEntries.length} agent node{agentEntries.length === 1 ? '' : 's'} captured reasoning for this run.
-        Select a node to highlight it on the timeline.
+        <div className="flex items-center justify-between">
+          <span>
+            {mergedEntries.length} agent node{mergedEntries.length === 1 ? '' : 's'} captured reasoning for this run.
+            Select a node to highlight it on the timeline.
+          </span>
+          {isActiveRun && (
+            <span
+              className={cn(
+                'font-semibold uppercase tracking-wide',
+                streamConnected ? 'text-green-600' : 'text-muted-foreground'
+              )}
+            >
+              {streamConnected ? 'Streaming' : 'Connecting…'}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex-1 space-y-4 p-4">
-        {agentEntries.map(([nodeId, payload]) => {
+        {mergedEntries.map(([nodeId, payload]) => {
           const reasoningTrace = Array.isArray(payload.reasoningTrace) ? payload.reasoningTrace : []
           const toolInvocations = Array.isArray(payload.toolInvocations) ? payload.toolInvocations : []
           const isSelected = selectedNodeId === nodeId
@@ -180,17 +223,24 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
                     {toolInvocations.length} tool invocation{toolInvocations.length === 1 ? '' : 's'}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant={isSelected ? 'default' : 'outline'}
-                  onClick={() => {
-                    setMode('execution')
-                    setInspectorTab('events')
-                    selectNode(nodeId)
-                  }}
-                >
-                  {isSelected ? 'Focused' : 'Focus in timeline'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {payload.live && (
+                    <Badge variant="default" className="bg-emerald-600 text-white animate-pulse">
+                      Live
+                    </Badge>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={isSelected ? 'default' : 'outline'}
+                    onClick={() => {
+                      setMode('execution')
+                      setInspectorTab('events')
+                      selectNode(nodeId)
+                    }}
+                  >
+                    {isSelected ? 'Focused' : 'Focus in timeline'}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-4 p-4">
                 {payload.responseText && (

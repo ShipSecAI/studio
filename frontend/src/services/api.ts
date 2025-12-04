@@ -579,4 +579,8 @@ export async function getApiAuthHeaders(): Promise<Record<string, string>> {
   return getAuthHeaders()
 }
 
+export function buildApiUrl(path: string): string {
+  return apiClient.buildUrl(path)
+}
+
 export default api

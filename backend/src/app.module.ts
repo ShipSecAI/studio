@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { authConfig } from './config/auth.config';
+import { AgentsModule } from './agents/agents.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './auth/roles.guard';
@@ -17,6 +18,7 @@ import { TestingSupportModule } from './testing/testing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 
 const coreModules = [
+  AgentsModule,
   AuthModule,
   WorkflowsModule,
   TraceModule,

@@ -51,6 +51,15 @@ export class ShipSecApiClient {
     }
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  buildUrl(path: string): string {
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    return new URL(normalized, this.baseUrl).toString();
+  }
+
   /**
    * Add middleware to the client
    */

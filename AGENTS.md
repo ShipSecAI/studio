@@ -14,6 +14,7 @@
 - `pm2 start pm2.config.cjs` — run backend API and worker (inspect with `timeout 5s pm2 logs backend --nostream --lines 200` so the command exits on its own).
 - `bun --cwd frontend dev` and `bun --cwd backend run dev` — start frontend and API locally.
 - `bun run test`, `bun run lint`, `bun run typecheck` — monorepo test, lint, and type gates; target runs via `bun --cwd backend run migration:smoke` when narrowing failures.
+- **OpenAPI + backend client workflow:** whenever backend routes change, regenerate the spec with `bun --cwd backend run generate:openapi`, then rebuild the typed client via `bun --cwd packages/backend-client run generate`. Do not hand-edit the client—always go spec → generator → import.
 
 ## Coding Style & Naming Conventions
 - TypeScript everywhere with ESM modules and two-space indentation; keep import order stable and skip extra semicolons.

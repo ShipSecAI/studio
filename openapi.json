@@ -15,6 +15,29 @@
         ]
       }
     },
+    "/api/v1/agents/{runId}/stream": {
+      "get": {
+        "operationId": "AgentsController_stream",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent events stream for agent reasoning updates"
+          }
+        },
+        "tags": [
+          "agents"
+        ]
+      }
+    },
     "/api/v1/workflows": {
       "post": {
         "operationId": "WorkflowsController_create",

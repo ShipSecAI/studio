@@ -19,6 +19,11 @@
     "dev:infra": "bash -lc 'docker compose -f docker/docker-compose.infra.yml -p shipsec up -d && pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --time'",
     "dev:stack": "bun run dev:infra && pm2 logs shipsec-frontend",
     "dev:stack:stop": "bash -lc 'pm2 delete shipsec-frontend shipsec-backend shipsec-worker || true && docker compose -f docker/docker-compose.infra.yml -p shipsec down'",
+    "mcp:start": "pm2 startOrReload pm2.config.cjs --only shipsec-mcp-server --time",
+    "mcp:stop": "pm2 stop shipsec-mcp-server || true",
+    "mcp:delete": "pm2 delete shipsec-mcp-server || true",
+    "mcp:logs": "pm2 logs shipsec-mcp-server",
+    "mcp:status": "pm2 status shipsec-mcp-server",
     "typecheck": "bun --filter='@shipsec/*' typecheck",
     "test": "bun --filter='@shipsec/*' run test"
   },

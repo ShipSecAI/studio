@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api'
+import { buildApiUrl, getApiAuthHeaders } from '@/services/api'
 import { FetchEventSource } from '@/utils/sse-client'
 import type { AgentStep, AgentToolInvocation } from '@/types/agent'
 
@@ -160,6 +160,7 @@ export function useAgentStream(runId: string | null, runStatus?: string | null):
   useEffect(() => {
     if (!runId || !enabled) {
       if (sourceRef.current) {
+        console.debug('[useAgentStream] closing stream', { runId, reason: enabled ? 'no-run-id' : 'disabled' })
         sourceRef.current.close()
         sourceRef.current = null
       }
@@ -176,17 +177,20 @@ export function useAgentStream(runId: string | null, runStatus?: string | null):
           return
         }
 
-        const url = new URL(`/agents/${runId}/stream`, API_BASE_URL)
-        const eventSource = new FetchEventSource(url.toString(), { headers })
+        const endpoint = buildApiUrl(`/api/v1/agents/${runId}/stream`)
+        console.debug('[useAgentStream] connecting', { url: endpoint, runId, runStatus })
+        const eventSource = new FetchEventSource(endpoint, { headers })
         sourceRef.current = eventSource
 
         eventSource.addEventListener('open', () => {
+          console.debug('[useAgentStream] connected', { runId })
           if (!cancelled) {
             setState((prev) => ({ ...prev, connected: true }))
           }
         })
 
         eventSource.addEventListener('error', () => {
+          console.warn('[useAgentStream] stream error', { runId })
           if (!cancelled) {
             setState((prev) => ({ ...prev, connected: false }))
           }

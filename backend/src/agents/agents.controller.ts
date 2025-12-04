@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, Res, Req } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, Req, Logger } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Response, Request } from 'express';
 import { ZodValidationPipe } from 'nestjs-zod';
-import { AgentStreamQueryDto, AgentStreamQuerySchema } from './dto/agent-stream-query.dto';
+import { AgentStreamQuerySchema } from './dto/agent-stream-query.dto';
+import type { AgentStreamQueryDto } from './dto/agent-stream-query.dto';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { TraceService } from '../trace/trace.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
@@ -11,6 +12,8 @@ import type { AuthContext } from '../auth/types';
 @ApiTags('agents')
 @Controller('agents')
 export class AgentsController {
+  private readonly logger = new Logger(AgentsController.name);
+
   constructor(
     private readonly workflowsService: WorkflowsService,
     private readonly traceService: TraceService,
@@ -25,6 +28,8 @@ export class AgentsController {
     @Res() res: Response,
     @Req() req: Request,
   ): Promise<void> {
+    this.logger.log(`Agent stream requested for run ${runId} (node: ${query.nodeId ?? 'ALL'})`);
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -48,6 +53,7 @@ export class AgentsController {
       if (!active) {
         return;
       }
+      this.logger.debug(`Sending agent SSE (${event}) for run ${runId} payload=${JSON.stringify(payload).slice(0, 200)}...`);
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
@@ -73,12 +79,16 @@ export class AgentsController {
 
       try {
         const { events } = await this.traceService.listSince(runId, lastSequence, auth);
+        this.logger.debug(`Agent stream pump retrieved ${events.length} events for run ${runId}`);
         const agentEvents = events.filter((event) => {
           if (targetNodeId && event.nodeId !== targetNodeId) {
             return false;
           }
           return typeof event.data?.agentEvent === 'string';
         });
+        this.logger.debug(
+          `Agent stream pump filtered ${agentEvents.length} agent events for run ${runId} (cursor=${lastSequence})`,
+        );
 
         if (agentEvents.length > 0) {
           const lastId = agentEvents[agentEvents.length - 1]?.id;
@@ -105,6 +115,7 @@ export class AgentsController {
           });
         }
       } catch (error) {
+        this.logger.error(`Agent stream pump failed for run ${runId}`, error instanceof Error ? error.stack : String(error));
         send('error', {
           message: 'agent_stream_failed',
           detail: error instanceof Error ? error.message : String(error),
