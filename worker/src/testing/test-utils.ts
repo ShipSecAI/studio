@@ -11,6 +11,7 @@ export function createMockExecutionContext(
       info: vi.fn(),
       error: vi.fn(),
       warn: vi.fn(),
+      debug: vi.fn(),
     },
     emitProgress: vi.fn(),
     secrets: undefined,
