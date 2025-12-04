@@ -49,11 +49,26 @@
             "schema": {
               "type": "string"
             }
-          },
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns stored agent trace parts"
+          }
+        },
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agentRunId}/chat": {
+      "post": {
+        "operationId": "AgentsController_chat",
+        "parameters": [
           {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
+            "name": "agentRunId",
+            "required": true,
+            "in": "path",
             "schema": {
               "type": "string"
             }
@@ -61,32 +76,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Stored agent trace parts",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "agentRunId": { "type": "string" },
-                    "workflowRunId": { "type": "string" },
-                    "nodeRef": { "type": "string" },
-                    "cursor": { "type": "number" },
-                    "parts": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "sequence": { "type": "number" },
-                          "timestamp": { "type": "string" },
-                          "type": { "type": "string" },
-                          "payload": { "type": "object", "additionalProperties": true }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "AI SDK-compatible SSE for agent run"
           }
         },
         "tags": [
@@ -1387,6 +1377,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "logCursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -1460,6 +1460,26 @@
           },
           {
             "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "startTime",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "endTime",
             "required": false,
             "in": "query",
             "schema": {

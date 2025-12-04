@@ -40,5 +40,6 @@ export type AgentNodeOutput = {
   conversationState?: unknown
   usage?: unknown
   live?: boolean
+  agentRunId?: string
   [key: string]: unknown
 }

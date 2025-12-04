@@ -26,7 +26,7 @@ This roadmap tracks how we evolve the `core.ai.agent` component from a model-onl
 ### Backend
 - [ ] Add `POST /api/v1/agents/:agentRunId/chat` that proxies the worker result and returns `result.toUIMessageStreamResponse()` for live runs.
 - [x] Add `/api/v1/agents/:agentRunId/stream` (SSE) and `/api/v1/agents/:agentRunId/parts` that read from the new repository and stream/return stored UI message parts in order with cursor metadata.
-- [ ] Deprecate and then remove `/api/v1/agents/:runId/stream` once consumers switch to the new endpoints.
+- [x] Fully remove the legacy `/api/v1/agents/:runId/stream` path from backend code, OpenAPI, and the generated client in favor of the new agentRunId routes.
 
 ### Frontend
 - [ ] Replace `useAgentStream` + custom reducers with `useChat` (or other AI SDK UI primitives) pointed at the new `/chat` endpoint, using `initialMessages` from `/parts` for quick hydration.

@@ -6,9 +6,7 @@
 export interface paths {
     "/api/v1/health": {
         parameters: {
-            query?: {
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -48,6 +46,22 @@ export interface paths {
         get: operations["AgentsController_parts"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/{agentRunId}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AgentsController_chat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1271,9 +1285,7 @@ export interface operations {
     };
     AgentsController_parts: {
         parameters: {
-            query?: {
-                cursor?: string;
-            };
+            query?: never;
             header?: never;
             path: {
                 agentRunId: string;
@@ -1282,29 +1294,32 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Stored agent trace parts */
+            /** @description Returns stored agent trace parts */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        schema: {
-                            agentRunId?: string;
-                            workflowRunId?: string;
-                            nodeRef?: string;
-                            cursor?: number;
-                            parts?: {
-                                sequence?: number;
-                                timestamp?: string;
-                                type?: string;
-                                payload?: {
-                                    [key: string]: unknown;
-                                };
-                            }[];
-                        };
-                    };
+                content?: never;
+            };
+        };
+    };
+    AgentsController_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AI SDK-compatible SSE for agent run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };
@@ -1951,6 +1966,7 @@ export interface operations {
                 temporalRunId?: string;
                 cursor?: string;
                 terminalCursor?: string;
+                logCursor?: number;
             };
             header?: never;
             path: {
@@ -1977,6 +1993,8 @@ export interface operations {
                 level?: "debug" | "info" | "warn" | "error";
                 limit?: number;
                 cursor?: string;
+                startTime?: string;
+                endTime?: string;
             };
             header?: never;
             path: {

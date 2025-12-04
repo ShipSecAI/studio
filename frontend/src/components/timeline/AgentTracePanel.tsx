@@ -6,7 +6,7 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { useRunStore } from '@/store/runStore'
 import { api } from '@/services/api'
 import { cn } from '@/lib/utils'
-import { useAgentStream } from '@/hooks/useAgentStream'
+import { useAgentTraces } from '@/hooks/useAgentTraces'
 import type { AgentNodeOutput } from '@/types/agent'
 import { useWorkflowExecution } from '@/hooks/useWorkflowExecution'
 
@@ -89,7 +89,21 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
       ? executionStatusUpper
       : null
   const effectiveRunStatus = runStatus ?? fallbackStatus ?? null
-  const { nodes: streamNodes, connected: streamConnected } = useAgentStream(runId, effectiveRunStatus)
+  const agentDescriptors = useMemo(
+    () =>
+      Object.entries(outputs).map(([nodeId, payload]) => ({
+        nodeId,
+        agentRunId:
+          payload && typeof payload === 'object' && 'agentRunId' in payload && typeof (payload as any).agentRunId === 'string'
+            ? ((payload as any).agentRunId as string)
+            : null,
+      })),
+    [outputs],
+  )
+  const { nodes: streamNodes, connected: streamConnected } = useAgentTraces(
+    agentDescriptors,
+    Boolean(effectiveRunStatus && ACTIVE_RUN_STATUSES.has(effectiveRunStatus)),
+  )
 
   const mergedEntries = useMemo(() => {
     const merged = new Map<string, AgentNodeOutput>()
@@ -102,20 +116,10 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
 
     Object.entries(streamNodes).forEach(([nodeId, nodeState]) => {
       const existing = merged.get(nodeId) ?? {}
-      const next: AgentNodeOutput = {
+      merged.set(nodeId, {
         ...existing,
-        responseText: nodeState.responseText ?? existing.responseText,
-        reasoningTrace:
-          nodeState.steps && nodeState.steps.length > 0
-            ? nodeState.steps
-            : existing.reasoningTrace,
-        toolInvocations:
-          nodeState.toolInvocations && nodeState.toolInvocations.length > 0
-            ? nodeState.toolInvocations
-            : existing.toolInvocations,
-        live: nodeState.live ?? existing.live ?? true,
-      }
-      merged.set(nodeId, next)
+        ...nodeState,
+      })
     })
 
     return Array.from(merged.entries()).filter(([, payload]) => {
