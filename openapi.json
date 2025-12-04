@@ -15,12 +15,12 @@
         ]
       }
     },
-    "/api/v1/agents/{runId}/stream": {
+    "/api/v1/agents/{agentRunId}/stream": {
       "get": {
         "operationId": "AgentsController_stream",
         "parameters": [
           {
-            "name": "runId",
+            "name": "agentRunId",
             "required": true,
             "in": "path",
             "schema": {
@@ -31,6 +31,62 @@
         "responses": {
           "200": {
             "description": "Server-sent events stream for agent reasoning updates"
+          }
+        },
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/api/v1/agents/{agentRunId}/parts": {
+      "get": {
+        "operationId": "AgentsController_parts",
+        "parameters": [
+          {
+            "name": "agentRunId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored agent trace parts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agentRunId": { "type": "string" },
+                    "workflowRunId": { "type": "string" },
+                    "nodeRef": { "type": "string" },
+                    "cursor": { "type": "number" },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sequence": { "type": "number" },
+                          "timestamp": { "type": "string" },
+                          "type": { "type": "string" },
+                          "payload": { "type": "object", "additionalProperties": true }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [

@@ -6,7 +6,9 @@
 export interface paths {
     "/api/v1/health": {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -20,7 +22,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/agents/{runId}/stream": {
+    "/api/v1/agents/{agentRunId}/stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -28,6 +30,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["AgentsController_stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/{agentRunId}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentsController_parts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1236,7 +1254,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                runId: string;
+                agentRunId: string;
             };
             cookie?: never;
         };
@@ -1248,6 +1266,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    AgentsController_parts: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                agentRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stored agent trace parts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        schema: {
+                            agentRunId?: string;
+                            workflowRunId?: string;
+                            nodeRef?: string;
+                            cursor?: number;
+                            parts?: {
+                                sequence?: number;
+                                timestamp?: string;
+                                type?: string;
+                                payload?: {
+                                    [key: string]: unknown;
+                                };
+                            }[];
+                        };
+                    };
+                };
             };
         };
     };
