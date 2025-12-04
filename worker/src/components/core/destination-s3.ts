@@ -1,13 +1,7 @@
 import { z } from 'zod';
 import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
 import { DestinationConfigSchema, type DestinationConfig } from '@shipsec/shared';
-
-const credentialObjectSchema = z.object({
-  accessKeyId: z.string(),
-  secretAccessKey: z.string(),
-  sessionToken: z.string().optional(),
-  region: z.string().optional(),
-});
+import { awsCredentialSchema, awsCredentialContractName } from './credentials/aws-contract';
 
 const inputSchema = z.object({
   bucket: z.string().min(1, 'Bucket is required'),
@@ -17,7 +11,7 @@ const inputSchema = z.object({
   endpoint: z.string().optional(),
   forcePathStyle: z.boolean().default(false),
   publicUrl: z.string().optional(),
-  credentials: credentialObjectSchema.describe('Resolved AWS credentials bundle'),
+  credentials: awsCredentialSchema.describe('Resolved AWS credentials bundle'),
   label: z.string().optional(),
   description: z.string().optional(),
 });
@@ -49,7 +43,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'credentials',
         label: 'AWS Credentials',
-        dataType: port.credential(),
+        dataType: port.credential(awsCredentialContractName),
         required: true,
         description: 'Connect the AWS Credentials bundle component.',
       },

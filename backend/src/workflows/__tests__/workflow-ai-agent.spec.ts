@@ -39,17 +39,13 @@ const workflowGraph = WorkflowGraphSchema.parse({
       },
     },
     {
-      id: 'gemini-chat',
-      type: 'core.gemini.chat',
+      id: 'gemini-provider',
+      type: 'core.provider.gemini',
       position: { x: 320, y: 0 },
       data: {
-        label: 'Gemini Chat',
+        label: 'Gemini Provider',
         config: {
-          systemPrompt: 'Translate the request into a Gemini answer.',
-          userPrompt: '{{inputs.userPrompt}}',
           model: 'gemini-2.5-flash',
-          temperature: 0.7,
-          maxTokens: 1024,
           apiKey: 'secret:gemini-demo',
         },
       },
@@ -66,7 +62,7 @@ const workflowGraph = WorkflowGraphSchema.parse({
           maxTokens: 1024,
           memorySize: 8,
           stepLimit: 4,
-          userInput: '{{gemini-chat.responseText}}',
+          userInput: '{{manual-trigger.userPrompt}}',
           chatModel: {
             provider: 'gemini',
             modelId: 'gemini-2.5-flash',
@@ -90,22 +86,15 @@ const workflowGraph = WorkflowGraphSchema.parse({
   ],
   edges: [
     {
-      id: 'manual-to-gemini',
+      id: 'manual-to-agent',
       source: 'manual-trigger',
-      target: 'gemini-chat',
-      sourceHandle: 'userPrompt',
-      targetHandle: 'userPrompt',
-    },
-    {
-      id: 'gemini-to-agent-input',
-      source: 'gemini-chat',
       target: 'agent-node',
-      sourceHandle: 'responseText',
+      sourceHandle: 'userPrompt',
       targetHandle: 'userInput',
     },
     {
       id: 'gemini-to-agent-model',
-      source: 'gemini-chat',
+      source: 'gemini-provider',
       target: 'agent-node',
       sourceHandle: 'chatModel',
       targetHandle: 'chatModel',
@@ -128,26 +117,22 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
     expect(definition.entrypoint.ref).toBe('manual-trigger');
     expect(definition.actions.map((action) => action.ref)).toEqual([
       'manual-trigger',
-      'gemini-chat',
+      'gemini-provider',
       'agent-node',
       'console-log',
     ]);
 
-    const geminiAction = definition.actions.find((action) => action.ref === 'gemini-chat');
-    expect(geminiAction?.dependsOn).toEqual(['manual-trigger']);
-    expect(geminiAction?.inputMappings?.userPrompt).toEqual({
+    const geminiAction = definition.actions.find((action) => action.ref === 'gemini-provider');
+    expect(geminiAction?.dependsOn).toEqual([]);
+
+    const agentAction = definition.actions.find((action) => action.componentId === 'core.ai.agent');
+    expect(agentAction?.dependsOn).toEqual(['manual-trigger', 'gemini-provider']);
+    expect(agentAction?.inputMappings?.userInput).toEqual({
       sourceRef: 'manual-trigger',
       sourceHandle: 'userPrompt',
     });
-
-    const agentAction = definition.actions.find((action) => action.componentId === 'core.ai.agent');
-    expect(agentAction?.dependsOn).toEqual(['gemini-chat']);
-    expect(agentAction?.inputMappings?.userInput).toEqual({
-      sourceRef: 'gemini-chat',
-      sourceHandle: 'responseText',
-    });
     expect(agentAction?.inputMappings?.chatModel).toEqual({
-      sourceRef: 'gemini-chat',
+      sourceRef: 'gemini-provider',
       sourceHandle: 'chatModel',
     });
 

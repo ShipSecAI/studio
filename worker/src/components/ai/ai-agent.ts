@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import {
   ToolLoopAgent as ToolLoopAgentImpl,
+  generateText,
   stepCountIs as stepCountIsImpl,
   tool as toolImpl,
   type ToolCallOptions,
@@ -13,6 +14,19 @@ import {
   ComponentDefinition,
   port,
 } from '@shipsec/component-sdk';
+import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
+import { createOpenAI } from '@ai-sdk/openai';
+import { open } from 'fs';
+import { Provider } from 'ai';
+
+function test() {
+  let openai: Provider  = createOpenAI({
+    apiKey: 'test',
+    baseURL: 'test',
+  });
+
+
+}
 
 // Define types for dependencies to enable dependency injection for testing
 export type ToolLoopAgentClass = typeof ToolLoopAgentImpl;
@@ -83,14 +97,6 @@ const reasoningStepSchema = z.object({
   observations: z.array(reasoningObservationSchema),
 });
 
-const chatModelSchema = z.object({
-  provider: z.enum(['openai', 'gemini', 'openrouter']).default('openai'),
-  modelId: z.string().optional(),
-  apiKey: z.string().optional(),
-  baseUrl: z.string().optional(),
-  headers: z.record(z.string(), z.string()).optional(),
-});
-
 const mcpConfigSchema = z.object({
   endpoint: z.string().default(''),
 });
@@ -108,7 +114,7 @@ const inputSchema = z.object({
   conversationState: conversationStateSchema
     .optional()
     .describe('Optional prior conversation state to maintain memory across turns.'),
-  chatModel: chatModelSchema
+  chatModel: LLMProviderSchema
     .default({
       provider: 'openai',
       modelId: DEFAULT_OPENAI_MODEL,
@@ -327,7 +333,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
       {
         id: 'chatModel',
         label: 'Chat Model',
-        dataType: port.json(),
+        dataType: port.credential(llmProviderContractName),
         required: false,
         description: 'Provider configuration. Example: {"provider":"gemini","modelId":"gemini-2.5-flash","apiKey":"gm-..."}',
       },
@@ -498,8 +504,11 @@ Loop the Conversation State output back into the next agent invocation to keep m
     debugLog('Resolved base URL', { explicitBaseUrl, baseUrl });
 
     const sanitizedHeaders =
-      chatModel?.headers && Object.keys(chatModel.headers).length > 0
-        ? Object.entries(chatModel.headers as Record<string, string>).reduce<Record<string, string>>(
+      chatModel &&
+      (chatModel.provider === 'openai' || chatModel.provider === 'openrouter') &&
+      chatModel.headers &&
+      Object.keys(chatModel.headers).length > 0
+        ? Object.entries(chatModel.headers).reduce<Record<string, string>>(
             (acc, [key, value]) => {
               const trimmedKey = key.trim();
               const trimmedValue = value.trim();

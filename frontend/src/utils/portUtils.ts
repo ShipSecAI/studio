@@ -25,9 +25,16 @@ const isMap = (
 ): dataType is Extract<PortDataType, { kind: 'map' }> =>
   dataType.kind === 'map'
 
-const isContract = (
-  dataType: PortDataType,
-): dataType is Extract<PortDataType, { kind: 'contract' }> =>
+type ContractPort = Extract<
+  PortDataType,
+  {
+    kind: 'contract';
+    name: string;
+    credential?: boolean;
+  }
+>
+
+const isContract = (dataType: PortDataType): dataType is ContractPort =>
   dataType.kind === 'contract'
 
 const canCoercePrimitive = (
@@ -93,7 +100,7 @@ export const describePortDataType = (dataType: PortDataType): string => {
   }
 
   if (isContract(dataType)) {
-    return `contract:${dataType.name}`
+    return dataType.credential ? `credential:${dataType.name}` : `contract:${dataType.name}`
   }
 
   if (isList(dataType)) {
@@ -114,6 +121,21 @@ export const inputSupportsManualValue = (input: InputPort): boolean =>
 
 export const runtimeInputTypeToPortDataType = (type: string): PortDataType => {
   const normalized = type.toLowerCase()
+
+  if (normalized === 'credential') {
+    return { kind: 'contract', name: '__runtime.credential__', credential: true }
+  }
+
+  if (normalized.startsWith('credential:')) {
+    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.credential__'
+    return { kind: 'contract', name: contractName, credential: true }
+  }
+
+  if (normalized.startsWith('contract:')) {
+    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.contract__'
+    return { kind: 'contract', name: contractName }
+  }
+
   switch (normalized) {
     case 'any':
       return { kind: 'primitive', name: 'any' }

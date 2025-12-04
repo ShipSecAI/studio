@@ -84,7 +84,6 @@ export type PrimitivePortTypeName =
   | 'any'
   | 'text'
   | 'secret'
-  | 'credential'
   | 'number'
   | 'boolean'
   | 'file'
@@ -116,6 +115,7 @@ export interface MapPortType {
 export interface ContractPortType {
   kind: 'contract';
   name: string;
+  credential?: boolean;
 }
 
 export type PortDataType =

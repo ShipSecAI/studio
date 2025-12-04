@@ -26,8 +26,8 @@ function canCoercePrimitive(source: PrimitivePort, target: PrimitivePort): boole
     return true;
   }
 
-  // 'secret', 'credential', and 'file' types cannot be coerced from other types
-  if (source.name === 'secret' || source.name === 'credential' || source.name === 'file') {
+  // 'secret' and 'file' types cannot be coerced from other types
+  if (source.name === 'secret' || source.name === 'file') {
     return false;
   }
 
@@ -73,7 +73,7 @@ export function describePortDataType(dataType: PortDataType): string {
   }
 
   if (isContract(dataType)) {
-    return `contract:${dataType.name}`;
+    return dataType.credential ? `credential:${dataType.name}` : `contract:${dataType.name}`;
   }
 
   if (isList(dataType)) {
@@ -89,6 +89,21 @@ export function describePortDataType(dataType: PortDataType): string {
 
 export function runtimeInputTypeToPortDataType(type: string): PortDataType {
   const normalized = type.toLowerCase();
+
+  if (normalized === 'credential') {
+    return { kind: 'contract', name: '__runtime.credential__', credential: true };
+  }
+
+  if (normalized.startsWith('credential:')) {
+    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.credential__';
+    return { kind: 'contract', name: contractName, credential: true };
+  }
+
+  if (normalized.startsWith('contract:')) {
+    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.contract__';
+    return { kind: 'contract', name: contractName };
+  }
+
   switch (normalized) {
     case 'any':
       return { kind: 'primitive', name: 'any' };
@@ -101,8 +116,6 @@ export function runtimeInputTypeToPortDataType(type: string): PortDataType {
       return { kind: 'primitive', name: 'boolean' };
     case 'secret':
       return { kind: 'primitive', name: 'secret' };
-    case 'credential':
-      return { kind: 'primitive', name: 'credential' };
     case 'file':
       return { kind: 'primitive', name: 'file' };
     case 'json':
@@ -130,8 +143,6 @@ export function createPlaceholderForPort(dataType?: PortDataType): unknown {
         return '__placeholder__';
       case 'secret':
         return 'secret-placeholder';
-      case 'credential':
-        return 'credential-placeholder';
       case 'number':
         return 1;
       case 'boolean':
@@ -157,7 +168,7 @@ export function createPlaceholderForPort(dataType?: PortDataType): unknown {
 
   // Contract types vary per component; use empty object as best effort placeholder
   if (isContract(dataType)) {
-    return {};
+    return dataType.credential ? 'credential-placeholder' : {};
   }
 
   return null;

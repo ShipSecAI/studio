@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { awsCredentialSchema, awsCredentialContractName } from './credentials/aws-contract';
 
 const inputSchema = z.object({
   accessKeyId: z.string().min(1, 'Access key ID is required'),
@@ -11,12 +12,7 @@ const inputSchema = z.object({
 type Input = z.infer<typeof inputSchema>;
 
 const outputSchema = z.object({
-  credentials: z.object({
-    accessKeyId: z.string(),
-    secretAccessKey: z.string(),
-    sessionToken: z.string().optional(),
-    region: z.string().optional(),
-  }),
+  credentials: awsCredentialSchema,
 });
 
 type Output = z.infer<typeof outputSchema>;
@@ -70,7 +66,7 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'credentials',
         label: 'AWS Credentials',
-        dataType: port.credential(),
+        dataType: port.credential(awsCredentialContractName),
         description: 'Sensitive credential bundle that can be consumed by AWS-aware components.',
       },
     ],

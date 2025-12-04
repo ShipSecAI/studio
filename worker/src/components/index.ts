@@ -23,10 +23,14 @@ import './core/credentials-aws';
 import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
-import './ai/openai-chat';
-import './ai/gemini-chat';
-import './ai/openrouter-chat';
+import './ai/openai-provider';
+import './ai/gemini-provider';
+import './ai/openrouter-provider';
 import './ai/ai-agent';
+import './ai/llm-generate-text';
+import './ai/mcp-tool-contract';
+import './ai/mcp-http-provider';
+import './ai/mcp-tool-merge';
 
 // Security components
 import './security/subfinder';
