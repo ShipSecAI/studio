@@ -312,7 +312,7 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
                   </div>
                 )}
 
-                {payload.usage && (
+                {payload.usage !== undefined && payload.usage !== null && (
                   <div className="rounded bg-muted/30 p-2 text-xs">
                     <p className="text-[11px] font-semibold text-muted-foreground uppercase">Usage</p>
                     <pre className="whitespace-pre-wrap">{formatStructured(payload.usage)}</pre>

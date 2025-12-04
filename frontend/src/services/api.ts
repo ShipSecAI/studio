@@ -575,4 +575,8 @@ export const api = {
   },
 }
 
+export async function getApiAuthHeaders(): Promise<Record<string, string>> {
+  return getAuthHeaders()
+}
+
 export default api

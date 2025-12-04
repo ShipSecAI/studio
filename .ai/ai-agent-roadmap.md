@@ -43,6 +43,8 @@ This roadmap tracks how we evolve the `core.ai.agent` component from a model-onl
 
 **Goal:** Allow the agent to call external tools via MCP and stream those calls to the UI in real time, still without touching ShipSec components.
 
+> **Update — 2025‑11‑28:** MCP plumbing now exists end-to-end: worker emits per-step `agent_event` payloads, the backend exposes `/agents/:runId/stream`, and the frontend ships a `useAgentStream` hook that connects via SSE. The Agent Trace panel, however, still fetches the completed run output once—wire it to `useAgentStream` to unlock live updates.
+
 ### Backend/Worker
 - [ ] Expand agent node config to accept MCP endpoint + credentials in the builder (`WorkflowBuilder` node sidebar).
 - [ ] Ensure `core.ai.agent` registers a `call_mcp_tool` tool per the Vercel AI SDK contract and surfaces every invocation in `toolInvocations`.

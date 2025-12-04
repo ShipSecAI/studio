@@ -1,11 +1,10 @@
 import { randomUUID } from 'crypto';
-import { z } from 'zod';
+import { z, ZodTypeAny } from 'zod';
 import {
   ToolLoopAgent as ToolLoopAgentImpl,
-  generateText,
   stepCountIs as stepCountIsImpl,
   tool as toolImpl,
-  type ToolCallOptions,
+  type Tool,
 } from 'ai';
 import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
@@ -15,18 +14,11 @@ import {
   port,
 } from '@shipsec/component-sdk';
 import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
-import { createOpenAI } from '@ai-sdk/openai';
-import { open } from 'fs';
-import { Provider } from 'ai';
-
-function test() {
-  let openai: Provider  = createOpenAI({
-    apiKey: 'test',
-    baseURL: 'test',
-  });
-
-
-}
+import {
+  McpToolArgumentSchema,
+  McpToolDefinitionSchema,
+  mcpToolContractName,
+} from './mcp-tool-contract';
 
 // Define types for dependencies to enable dependency injection for testing
 export type ToolLoopAgentClass = typeof ToolLoopAgentImpl;
@@ -62,12 +54,21 @@ type CoreMessage = {
   content: string;
 };
 
+const toolInvocationMetadataSchema = z.object({
+  toolId: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  source: z.string().optional(),
+  endpoint: z.string().optional(),
+});
+
 const toolInvocationSchema = z.object({
   id: z.string(),
   toolName: z.string(),
   args: z.unknown(),
   result: z.unknown().nullable(),
   timestamp: z.string(),
+  metadata: toolInvocationMetadataSchema.optional(),
 });
 
 const conversationStateSchema = z.object({
@@ -97,15 +98,6 @@ const reasoningStepSchema = z.object({
   observations: z.array(reasoningObservationSchema),
 });
 
-const mcpConfigSchema = z.object({
-  endpoint: z.string().default(''),
-});
-
-const callMcpToolParametersSchema = z.object({
-  toolName: z.string().min(1),
-  arguments: z.unknown().optional(),
-});
-
 const inputSchema = z.object({
   userInput: z
     .string()
@@ -124,11 +116,10 @@ const inputSchema = z.object({
     .string()
     .optional()
     .describe('Optional API key override supplied via a Secret Loader node.'),
-  mcp: mcpConfigSchema
-    .default({
-      endpoint: '',
-    })
-    .describe('MCP configuration such as the endpoint that exposes external tools.'),
+  mcpTools: z
+    .array(McpToolDefinitionSchema)
+    .optional()
+    .describe('Normalized MCP tool definitions emitted by provider components.'),
   systemPrompt: z
     .string()
     .default('')
@@ -167,6 +158,8 @@ type Input = z.infer<typeof inputSchema>;
 type ConversationState = z.infer<typeof conversationStateSchema>;
 type ToolInvocationEntry = z.infer<typeof toolInvocationSchema>;
 
+type McpToolArgument = z.infer<typeof McpToolArgumentSchema>;
+
 type ReasoningStep = z.infer<typeof reasoningStepSchema>;
 
 type Output = {
@@ -187,13 +180,64 @@ const outputSchema = z.object({
   rawResponse: z.unknown(),
 });
 
+type AgentStatusEvent = {
+  kind: 'status';
+  status: 'starting' | 'completed';
+};
+
+type AgentStepEvent = {
+  kind: 'step';
+  step: ReasoningStep;
+};
+
+type AgentToolCallEvent = {
+  kind: 'tool_call';
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  metadata?: RegisteredToolMetadata;
+};
+
+type AgentToolResultEvent = {
+  kind: 'tool_result';
+  toolCallId: string;
+  toolName: string;
+  result: unknown;
+  metadata?: RegisteredToolMetadata;
+};
+
+type AgentToolErrorEvent = {
+  kind: 'tool_error';
+  toolCallId: string;
+  toolName: string;
+  error: string;
+  metadata?: RegisteredToolMetadata;
+};
+
+type AgentFinalEvent = {
+  kind: 'final';
+  responseText: string;
+  reasoningTrace: ReasoningStep[];
+  toolInvocations: ToolInvocationEntry[];
+};
+
+type AgentProgressEvent =
+  | AgentStatusEvent
+  | AgentStepEvent
+  | AgentToolCallEvent
+  | AgentToolResultEvent
+  | AgentToolErrorEvent
+  | AgentFinalEvent;
+
 class MCPClient {
   private readonly endpoint: string;
   private readonly sessionId: string;
+  private readonly headers?: Record<string, string>;
 
-  constructor(endpoint: string, sessionId: string) {
-    this.endpoint = endpoint.replace(/\/+$/, '');
-    this.sessionId = sessionId;
+  constructor(options: { endpoint: string; sessionId: string; headers?: Record<string, string> }) {
+    this.endpoint = options.endpoint.replace(/\/+$/, '');
+    this.sessionId = options.sessionId;
+    this.headers = sanitizeHeaders(options.headers);
   }
 
   async execute(toolName: string, args: unknown): Promise<unknown> {
@@ -209,6 +253,7 @@ class MCPClient {
         'Content-Type': 'application/json',
         'X-MCP-Session': this.sessionId,
         'X-MCP-Tool': toolName,
+        ...(this.headers ?? {}),
       },
       body: JSON.stringify(payload),
     });
@@ -291,6 +336,249 @@ function trimConversation(history: AgentMessage[], memorySize: number): AgentMes
   return [...systemMessages.slice(0, 1), ...trimmedNonSystem];
 }
 
+function sanitizeHeaders(headers?: Record<string, string | undefined> | null): Record<string, string> | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  const entries = Object.entries(headers).reduce<Record<string, string>>((acc, [key, value]) => {
+    const trimmedKey = key.trim();
+    const trimmedValue = typeof value === 'string' ? value.trim() : '';
+    if (trimmedKey.length > 0 && trimmedValue.length > 0) {
+      acc[trimmedKey] = trimmedValue;
+    }
+    return acc;
+  }, {});
+
+  return Object.keys(entries).length > 0 ? entries : undefined;
+}
+
+type RegisteredToolMetadata = z.infer<typeof toolInvocationMetadataSchema>;
+
+type RegisteredMcpTool = {
+  name: string;
+  tool: Tool<any, any>;
+  metadata: RegisteredToolMetadata;
+};
+
+type RegisterMcpToolParams = {
+  tools?: Array<z.infer<typeof McpToolDefinitionSchema>>;
+  sessionId: string;
+  toolFactory: ToolFn;
+  emitEvent: (event: AgentProgressEvent) => void;
+  logger?: {
+    warn?: (...args: unknown[]) => void;
+  };
+};
+
+function registerMcpTools({
+  tools,
+  sessionId,
+  toolFactory,
+  emitEvent,
+  logger,
+}: RegisterMcpToolParams): RegisteredMcpTool[] {
+  if (!Array.isArray(tools) || tools.length === 0) {
+    return [];
+  }
+
+  const seenIds = new Set<string>();
+  const usedNames = new Set<string>();
+  const registered: RegisteredMcpTool[] = [];
+
+  tools.forEach((tool, index) => {
+    if (!tool || typeof tool !== 'object') {
+      return;
+    }
+
+    if (seenIds.has(tool.id)) {
+      logger?.warn?.(
+        `[AIAgent] Skipping MCP tool "${tool.id}" because a duplicate id was detected.`,
+      );
+      return;
+    }
+    seenIds.add(tool.id);
+
+    const endpoint = typeof tool.endpoint === 'string' ? tool.endpoint.trim() : '';
+    if (!endpoint) {
+      logger?.warn?.(
+        `[AIAgent] Skipping MCP tool "${tool.id}" because the endpoint is missing or empty.`,
+      );
+      return;
+    }
+
+    const remoteToolName = (tool.metadata?.toolName ?? tool.id).trim() || tool.id;
+    const toolName = ensureUniqueToolName(remoteToolName, usedNames, index);
+
+    const client = new MCPClient({
+      endpoint,
+      sessionId,
+      headers: tool.headers,
+    });
+
+    const description =
+      tool.description ??
+      (tool.title ? `Invoke ${tool.title}` : `Invoke MCP tool ${remoteToolName}`);
+
+    const metadata: RegisteredToolMetadata = {
+      toolId: tool.id,
+      title: tool.title ?? remoteToolName,
+      description: tool.description,
+      source: tool.metadata?.source,
+      endpoint,
+    };
+
+    const registeredTool = toolFactory<Record<string, unknown>, unknown>({
+      type: 'dynamic',
+      description,
+      inputSchema: buildToolArgumentSchema(tool.arguments),
+      execute: async (args: Record<string, unknown>) => {
+        const invocationId = `${tool.id}-${randomUUID()}`;
+        const normalizedArgs = args ?? {};
+        emitEvent({
+          kind: 'tool_call',
+          toolCallId: invocationId,
+          toolName,
+          args: normalizedArgs,
+          metadata,
+        });
+
+        try {
+          const result = await client.execute(remoteToolName, normalizedArgs);
+          emitEvent({
+            kind: 'tool_result',
+            toolCallId: invocationId,
+            toolName,
+            result,
+            metadata,
+          });
+          return result;
+        } catch (error) {
+          emitEvent({
+            kind: 'tool_error',
+            toolCallId: invocationId,
+            toolName,
+            error: error instanceof Error ? error.message : String(error),
+            metadata,
+          });
+          throw error;
+        }
+      },
+    });
+
+    registered.push({
+      name: toolName,
+      tool: registeredTool,
+      metadata,
+    });
+  });
+
+  return registered;
+}
+
+function ensureUniqueToolName(baseName: string, usedNames: Set<string>, index: number): string {
+  const sanitized = sanitizeToolKey(baseName);
+  let candidate = sanitized.length > 0 ? sanitized : `mcp_tool_${index + 1}`;
+  let suffix = 2;
+
+  while (usedNames.has(candidate)) {
+    const prefix = sanitized.length > 0 ? sanitized : `mcp_tool_${index + 1}`;
+    candidate = `${prefix}_${suffix++}`;
+  }
+
+  usedNames.add(candidate);
+  return candidate;
+}
+
+function sanitizeToolKey(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toLowerCase();
+}
+
+function buildToolArgumentSchema(args?: McpToolArgument[]) {
+  if (!Array.isArray(args) || args.length === 0) {
+    return z.object({}).passthrough();
+  }
+
+  const shape = args.reduce<Record<string, ZodTypeAny>>((acc, arg) => {
+    const key = arg.name.trim();
+    if (!key) {
+      return acc;
+    }
+
+    let field: ZodTypeAny;
+    switch (arg.type) {
+      case 'number':
+        field = z.number();
+        break;
+      case 'boolean':
+        field = z.boolean();
+        break;
+      case 'json':
+        field = z.any();
+        break;
+      case 'string':
+      default:
+        field = z.string();
+        break;
+    }
+
+    if (Array.isArray(arg.enum) && arg.enum.length > 0) {
+      const stringValues = arg.enum.filter((value): value is string => typeof value === 'string');
+      if (stringValues.length === arg.enum.length && stringValues.length > 0) {
+        const enumValues = stringValues as [string, ...string[]];
+        field = z.enum(enumValues);
+      }
+    }
+
+    if (arg.description) {
+      field = field.describe(arg.description);
+    }
+
+    if (!arg.required) {
+      field = field.optional();
+    }
+
+    acc[key] = field;
+    return acc;
+  }, {});
+
+  return z.object(shape).passthrough();
+}
+
+function mapStepToReasoning(step: any, index: number, sessionId: string): ReasoningStep {
+  const getArgs = (entity: any) =>
+    entity?.args !== undefined ? entity.args : entity?.input ?? null;
+  const getOutput = (entity: any) =>
+    entity?.result !== undefined ? entity.result : entity?.output ?? null;
+
+  return {
+    step: index + 1,
+    thought: typeof step?.text === 'string' ? step.text : JSON.stringify(step?.text ?? ''),
+    finishReason: typeof step?.finishReason === 'string' ? step.finishReason : 'other',
+    actions: Array.isArray(step?.toolCalls)
+      ? step.toolCalls.map((toolCall: any) => ({
+          toolCallId: toolCall?.toolCallId ?? `${sessionId}-tool-${index + 1}`,
+          toolName: toolCall?.toolName ?? 'tool',
+          args: getArgs(toolCall),
+        }))
+      : [],
+    observations: Array.isArray(step?.toolResults)
+      ? step.toolResults.map((toolResult: any) => ({
+          toolCallId: toolResult?.toolCallId ?? `${sessionId}-tool-${index + 1}`,
+          toolName: toolResult?.toolName ?? 'tool',
+          args: getArgs(toolResult),
+          result: getOutput(toolResult),
+        }))
+      : [],
+  };
+}
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.ai.agent',
   label: 'AI SDK Agent',
@@ -345,11 +633,11 @@ Loop the Conversation State output back into the next agent invocation to keep m
         description: 'Optional override API key supplied via a Secret Loader output.',
       },
       {
-        id: 'mcp',
-        label: 'MCP',
-        dataType: port.json(),
+        id: 'mcpTools',
+        label: 'MCP Tools',
+        dataType: port.list(port.contract(mcpToolContractName)),
         required: false,
-        description: 'MCP connection settings. Example: {"endpoint":"https://mcp.example.com/session"}',
+        description: 'Connect outputs from MCP tool providers or mergers.',
       },
     ],
     outputs: [
@@ -446,7 +734,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
       userInput,
       conversationState,
       chatModel,
-      mcp,
+      mcpTools,
       systemPrompt,
       temperature,
       maxTokens,
@@ -455,12 +743,22 @@ Loop the Conversation State output back into the next agent invocation to keep m
     } = params;
 
     const debugLog = (...args: unknown[]) => console.log('[AI Agent Debug]', ...args);
+    const emitAgentProgress = (event: AgentProgressEvent) => {
+      context.emitProgress({
+        level: event.kind === 'tool_error' ? 'error' : 'info',
+        message: `[AIAgent] ${event.kind}`,
+        data: {
+          agentEvent: event.kind,
+          ...event,
+        },
+      });
+    };
 
     debugLog('Incoming params', {
       userInput,
       conversationState,
       chatModel,
-      mcp,
+      mcpTools,
       systemPrompt,
       temperature,
       maxTokens,
@@ -474,6 +772,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
     if (!trimmedInput) {
       throw new Error('AI Agent requires a non-empty user input.');
     }
+
+    emitAgentProgress({ kind: 'status', status: 'starting' });
 
     const effectiveProvider = (chatModel?.provider ?? 'openai') as ModelProvider;
     const effectiveModel = ensureModelName(effectiveProvider, chatModel?.modelId ?? null);
@@ -504,21 +804,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
     debugLog('Resolved base URL', { explicitBaseUrl, baseUrl });
 
     const sanitizedHeaders =
-      chatModel &&
-      (chatModel.provider === 'openai' || chatModel.provider === 'openrouter') &&
-      chatModel.headers &&
-      Object.keys(chatModel.headers).length > 0
-        ? Object.entries(chatModel.headers).reduce<Record<string, string>>(
-            (acc, [key, value]) => {
-              const trimmedKey = key.trim();
-              const trimmedValue = value.trim();
-              if (trimmedKey.length > 0 && trimmedValue.length > 0) {
-                acc[trimmedKey] = trimmedValue;
-              }
-              return acc;
-            },
-            {},
-          )
+      chatModel && (chatModel.provider === 'openai' || chatModel.provider === 'openrouter')
+        ? sanitizeHeaders(chatModel.headers)
         : undefined;
     debugLog('Sanitized headers', sanitizedHeaders);
 
@@ -544,32 +831,28 @@ Loop the Conversation State output back into the next agent invocation to keep m
     const historyWithUser = trimConversation([...history, userMessage], memorySize);
     debugLog('History with user message', historyWithUser);
 
-    const mcpEndpoint = mcp?.endpoint?.trim() ?? '';
-    const mcpClient = mcpEndpoint.length > 0 ? new MCPClient(mcpEndpoint, sessionId) : null;
-    debugLog('MCP configuration', { mcpEndpoint, hasMcpClient: Boolean(mcpClient) });
-
     const toolFn = dependencies?.tool ?? toolImpl;
-    const callMcpTool =
-      mcpClient !== null
-        ? toolFn({
-            type: 'dynamic',
-            description:
-              'Execute a tool via the configured MCP endpoint. Provide {"toolName": string, "arguments": any}.',
-            inputSchema: callMcpToolParametersSchema,
-            execute: async (
-              { toolName, arguments: args }: z.infer<typeof callMcpToolParametersSchema>,
-              _options: ToolCallOptions,
-            ) => {
-              const result = await mcpClient!.execute(toolName, args ?? {});
-              debugLog('MCP tool execution result', { toolName, args, result });
-              return result;
-            },
-          })
-        : null;
+    const toolMetadataByName = new Map<string, RegisteredToolMetadata>();
+    const registeredTools: Record<string, Tool<any, any>> = {};
 
-    const toolsConfig = callMcpTool ? { call_mcp_tool: callMcpTool } : undefined;
-    const availableToolsCount = callMcpTool ? 1 : 0;
-    debugLog('Tools configuration', { availableToolsCount, toolsConfigKeys: toolsConfig ? Object.keys(toolsConfig) : [] });
+    const registeredMcpTools = registerMcpTools({
+      tools: mcpTools,
+      sessionId,
+      toolFactory: toolFn,
+      emitEvent: emitAgentProgress,
+      logger: context.logger,
+    });
+    for (const entry of registeredMcpTools) {
+      registeredTools[entry.name] = entry.tool;
+      toolMetadataByName.set(entry.name, entry.metadata);
+    }
+
+    const availableToolsCount = Object.keys(registeredTools).length;
+    const toolsConfig = availableToolsCount > 0 ? registeredTools : undefined;
+    debugLog('Tools configuration', {
+      availableToolsCount,
+      toolsConfigKeys: toolsConfig ? Object.keys(toolsConfig) : [],
+    });
 
     const systemMessageEntry = historyWithUser.find((message) => message.role === 'system');
     const resolvedSystemPrompt =
@@ -620,6 +903,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
     const ToolLoopAgent = dependencies?.ToolLoopAgent ?? ToolLoopAgentImpl;
     const stepCountIs = dependencies?.stepCountIs ?? stepCountIsImpl;
+    let streamedStepCount = 0;
     const agent = new ToolLoopAgent({
       id: `${sessionId}-agent`,
       model,
@@ -628,6 +912,14 @@ Loop the Conversation State output back into the next agent invocation to keep m
       temperature,
       maxOutputTokens: maxTokens,
       stopWhen: stepCountIs(stepLimit),
+      onStepFinish: (stepResult: unknown) => {
+        const mappedStep = mapStepToReasoning(stepResult, streamedStepCount, sessionId);
+        streamedStepCount += 1;
+        emitAgentProgress({
+          kind: 'step',
+          step: mappedStep,
+        });
+      },
     });
     debugLog('ToolLoopAgent instantiated', {
       id: `${sessionId}-agent`,
@@ -663,37 +955,22 @@ Loop the Conversation State output back into the next agent invocation to keep m
       entity?.result !== undefined ? entity.result : entity?.output ?? null;
 
     const reasoningTrace: ReasoningStep[] = Array.isArray(generationResult.steps)
-      ? generationResult.steps.map((step: any, index: number) => ({
-          step: index + 1,
-          thought: typeof step?.text === 'string' ? step.text : JSON.stringify(step?.text ?? ''),
-          finishReason: typeof step?.finishReason === 'string' ? step.finishReason : 'other',
-          actions: Array.isArray(step?.toolCalls)
-            ? step.toolCalls.map((toolCall: any) => ({
-                toolCallId: toolCall?.toolCallId ?? `${sessionId}-tool-${index + 1}`,
-                toolName: toolCall?.toolName ?? 'tool',
-                args: getToolArgs(toolCall),
-              }))
-            : [],
-          observations: Array.isArray(step?.toolResults)
-            ? step.toolResults.map((toolResult: any) => ({
-                toolCallId: toolResult?.toolCallId ?? `${sessionId}-tool-${index + 1}`,
-                toolName: toolResult?.toolName ?? 'tool',
-                args: getToolArgs(toolResult),
-                result: getToolOutput(toolResult),
-              }))
-            : [],
-        }))
+      ? generationResult.steps.map((step: any, index: number) => mapStepToReasoning(step, index, sessionId))
       : [];
     debugLog('Reasoning trace', reasoningTrace);
 
     const toolLogEntries: ToolInvocationEntry[] = Array.isArray(generationResult.toolResults)
-      ? generationResult.toolResults.map((toolResult: any, index: number) => ({
-          id: `${sessionId}-${toolResult?.toolCallId ?? index + 1}`,
-          toolName: toolResult?.toolName ?? 'tool',
-          args: getToolArgs(toolResult),
-          result: getToolOutput(toolResult),
-          timestamp: currentTimestamp,
-        }))
+      ? generationResult.toolResults.map((toolResult: any, index: number) => {
+          const toolName = toolResult?.toolName ?? 'tool';
+          return {
+            id: `${sessionId}-${toolResult?.toolCallId ?? index + 1}`,
+            toolName,
+            args: getToolArgs(toolResult),
+            result: getToolOutput(toolResult),
+            timestamp: currentTimestamp,
+            metadata: toolMetadataByName.get(toolName),
+          };
+        })
       : [];
     debugLog('Tool log entries', toolLogEntries);
 
@@ -730,6 +1007,13 @@ Loop the Conversation State output back into the next agent invocation to keep m
     };
     debugLog('Next conversation state', nextState);
 
+    emitAgentProgress({
+      kind: 'final',
+      responseText,
+      reasoningTrace,
+      toolInvocations: toolLogEntries,
+    });
+    emitAgentProgress({ kind: 'status', status: 'completed' });
     context.emitProgress('AI agent completed.');
     debugLog('Final output payload', {
       responseText,
