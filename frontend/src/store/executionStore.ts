@@ -91,8 +91,8 @@ const mapStatusToLifecycle = (status: ExecutionStatus | undefined): ExecutionLif
     case 'FAILED':
       return 'failed'
     case 'CANCELLED':
-      return 'cancelled'
     case 'TERMINATED':
+      return 'cancelled'
     case 'TIMED_OUT':
       return 'failed'
     default:

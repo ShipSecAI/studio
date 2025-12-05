@@ -122,12 +122,17 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
     })
   }
 
+  const getStatusLabel = (status: string) => {
+    if (status === 'TERMINATED') return 'STOPPED'
+    return status.toUpperCase()
+  }
+
   const statusBadge = selectedRun ? (
     <Badge
       variant={selectedRun.status === 'RUNNING' ? 'default' : selectedRun.status === 'FAILED' ? 'destructive' : 'secondary'}
       className="text-xs"
     >
-      {selectedRun.status.toUpperCase()}
+      {getStatusLabel(selectedRun.status)}
     </Badge>
   ) : null
   const runVersion = typeof selectedRun?.workflowVersion === 'number' ? selectedRun.workflowVersion : null
