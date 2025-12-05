@@ -12,6 +12,7 @@ import {
 interface CreateWorkflowRunInput {
   runId: string;
   workflowId: string;
+  triggerType: string;
   workflowVersionId: string;
   workflowVersion: number;
   temporalRunId: string;
@@ -31,6 +32,7 @@ export class WorkflowRunRepository {
     const values: WorkflowRunInsert = {
       runId: input.runId,
       workflowId: input.workflowId,
+      triggerType: input.triggerType,
       workflowVersionId: input.workflowVersionId,
       workflowVersion: input.workflowVersion,
       temporalRunId: input.temporalRunId,

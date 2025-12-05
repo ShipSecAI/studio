@@ -43,6 +43,7 @@ interface ExecutionStoreActions {
       inputs?: Record<string, unknown>
       versionId?: string
       version?: number
+      triggerType?: string
     }
   ) => Promise<string | undefined>
   stopExecution: () => Promise<void>
@@ -172,6 +173,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     inputs?: Record<string, unknown>
     versionId?: string
     version?: number
+    triggerType?: string
   }) => {
     try {
       // Stop previous run if any, but don't reset everything to avoid full re-render

@@ -36,6 +36,7 @@ export interface WorkflowRunRequest {
   inputs?: Record<string, unknown>;
   versionId?: string;
   version?: number;
+  triggerType?: string;
 }
 
 export interface WorkflowRunHandle {
@@ -428,6 +429,8 @@ export class WorkflowsService {
     request: WorkflowRunRequest = {},
     auth?: AuthContext | null,
   ): Promise<WorkflowRunHandle> {
+
+    console.log("================================",request);
     const organizationId = this.requireOrganizationId(auth);
     const workflow = await this.repository.findById(id, { organizationId });
     if (!workflow) {
@@ -473,6 +476,7 @@ export class WorkflowsService {
       await this.runRepository.upsert({
         runId,
         workflowId: workflow.id,
+        triggerType: request.triggerType ?? "MANUAL",
         workflowVersionId: version.id,
         workflowVersion: version.version,
         temporalRunId: temporalRun.runId,
@@ -613,6 +617,7 @@ export class WorkflowsService {
     return {
       runId: run.runId,
       workflowId: run.workflowId,
+      triggerType: run.triggerType,
       workflowVersionId: run.workflowVersionId ?? null,
       workflowVersion: run.workflowVersion ?? null,
       inputs: run.inputs ?? {},

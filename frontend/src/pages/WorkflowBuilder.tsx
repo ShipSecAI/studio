@@ -619,6 +619,7 @@ function WorkflowBuilderContent() {
     inputs?: Record<string, unknown>
     versionId?: string | null
     version?: number
+    triggerType?: string
   }) => {
     if (!canManageWorkflows) {
       toast({
@@ -662,6 +663,7 @@ function WorkflowBuilderContent() {
           inputs: options?.inputs,
           versionId: options?.versionId ?? pendingVersionId ?? undefined,
           version: options?.version,
+          triggerType: options?.triggerType,
         }
       )
 
@@ -850,7 +852,7 @@ function WorkflowBuilderContent() {
     }
 
     // No runtime inputs needed, run directly
-    await executeWorkflow()
+    await executeWorkflow({triggerType: 'MANUAL' })
   }
 
   const handleRerun = useCallback(
@@ -923,6 +925,7 @@ function WorkflowBuilderContent() {
         await executeWorkflow({
           inputs: config.inputs ?? {},
           versionId: config.workflowVersionId ?? null,
+          triggerType: config.triggerType ?? 'MANUAL',
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error'
@@ -1532,7 +1535,7 @@ function WorkflowBuilderContent() {
         onOpenChange={setRunDialogOpen}
         runtimeInputs={runtimeInputs}
         initialValues={prefilledRuntimeValues}
-        onRun={(inputs) => executeWorkflow({ inputs, versionId: pendingVersionId })}
+        onRun={(inputs) => executeWorkflow({ inputs, triggerType:"MANUAL", versionId: pendingVersionId })}
       />
     </div>
   )

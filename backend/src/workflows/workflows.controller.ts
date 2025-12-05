@@ -485,6 +485,7 @@ export class WorkflowsController {
         inputs: body.inputs,
         versionId: body.versionId,
         version: body.version,
+        triggerType: body.triggerType,
       }, auth);
     } catch (error) {
       if (error instanceof HttpException) throw error;

@@ -3,6 +3,7 @@ import { integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle
 export const workflowRunsTable = pgTable('workflow_runs', {
   runId: text('run_id').primaryKey(),
   workflowId: uuid('workflow_id').notNull(),
+  triggerType: text('trigger_type').notNull(),
   workflowVersionId: uuid('workflow_version_id'),
   workflowVersion: integer('workflow_version'),
   temporalRunId: text('temporal_run_id'),

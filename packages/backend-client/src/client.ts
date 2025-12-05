@@ -962,6 +962,7 @@ export interface components {
             /** Format: uuid */
             versionId?: string;
             version?: number;
+            triggerType?: string;
         };
         RunArtifactsResponseDto: {
             runId: string;
@@ -1666,6 +1667,7 @@ export interface operations {
                     "application/json": {
                         runId?: string;
                         workflowId?: string;
+                        triggerType?: string;
                         workflowVersionId?: string | null;
                         workflowVersion?: number | null;
                         inputs?: {

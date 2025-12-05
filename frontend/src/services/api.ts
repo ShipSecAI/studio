@@ -362,6 +362,7 @@ export const api = {
         inputs?: Record<string, unknown>
         versionId?: string
         version?: number
+        triggerType?: string
       }
     ): Promise<{ executionId: string }> => {
       const payload = options
@@ -369,6 +370,7 @@ export const api = {
             inputs: options.inputs,
             versionId: options.versionId,
             version: options.version,
+            triggerType: options.triggerType,
           }
         : undefined
       const response = await apiClient.runWorkflow(workflowId, payload)

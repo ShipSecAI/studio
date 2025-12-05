@@ -120,6 +120,7 @@ export type TraceStreamEnvelope = z.infer<typeof TraceStreamEnvelopeSchema>;
 export const WorkflowRunConfigSchema = z.object({
   runId: z.string(),
   workflowId: z.string(),
+  triggerType: z.string(),
   workflowVersionId: z.string().uuid().nullable(),
   workflowVersion: z.number().int().positive().nullable(),
   inputs: z.record(z.string(), z.unknown()).default({}),

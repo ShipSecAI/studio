@@ -60,6 +60,7 @@ export const RunWorkflowRequestSchema = z
     inputs: z.record(z.string(), z.unknown()).optional(),
     versionId: z.string().uuid().optional(),
     version: z.coerce.number().int().min(1).optional(),
+    triggerType: z.string().min(1).optional(),
   })
   .refine(
     (value) => !(value.version && value.versionId),
