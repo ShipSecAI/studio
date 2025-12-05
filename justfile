@@ -160,6 +160,7 @@ help:
     @echo "  just prod         Start with cached images"
     @echo "  just prod build   Rebuild and start"
     @echo "  just prod stop    Stop production"
+    @echo "  just prod logs    View production logs"
     @echo "  just prod clean   Remove all data"
     @echo ""
     @echo "Utilities:"
