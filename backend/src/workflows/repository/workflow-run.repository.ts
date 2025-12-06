@@ -49,6 +49,7 @@ export class WorkflowRunRepository {
         target: workflowRunsTable.runId,
         set: {
           workflowId: input.workflowId,
+          triggerType: input.triggerType,
           workflowVersionId: input.workflowVersionId,
           workflowVersion: input.workflowVersion,
           temporalRunId: input.temporalRunId,
