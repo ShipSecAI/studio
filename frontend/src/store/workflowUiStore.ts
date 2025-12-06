@@ -8,6 +8,8 @@ interface WorkflowUiState {
   inspectorTab: 'events' | 'logs' | 'artifacts'
   libraryOpen: boolean
   inspectorWidth: number
+  /** Currently focused terminal panel's node ID (for z-index stacking) */
+  focusedTerminalNodeId: string | null
 }
 
 interface WorkflowUiActions {
@@ -16,6 +18,8 @@ interface WorkflowUiActions {
   setLibraryOpen: (open: boolean) => void
   toggleLibrary: () => void
   setInspectorWidth: (width: number) => void
+  /** Bring a terminal panel to the front by setting it as focused */
+  bringTerminalToFront: (nodeId: string) => void
 }
 
 export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
@@ -25,6 +29,7 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
       inspectorTab: 'events',
       libraryOpen: true,
       inspectorWidth: 360,
+      focusedTerminalNodeId: null,
       setMode: (mode) => set((state) => ({
         mode,
         inspectorTab: mode === 'execution' ? state.inspectorTab ?? 'events' : 'events',
@@ -36,6 +41,7 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
       setInspectorWidth: (width) => set(() => ({
         inspectorWidth: Math.max(280, Math.min(520, Math.round(width)))
       })),
+      bringTerminalToFront: (nodeId) => set({ focusedTerminalNodeId: nodeId }),
     }),
     {
       name: 'workflow-ui-preferences',

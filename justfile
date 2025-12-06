@@ -129,6 +129,21 @@ infra action="up":
 
 # === Utilities ===
 
+# Show status of all services
+status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "📊 ShipSec Studio Status"
+    echo ""
+    echo "=== PM2 Services ==="
+    pm2 status 2>/dev/null || echo "  (PM2 not running)"
+    echo ""
+    echo "=== Infrastructure Containers ==="
+    docker compose -f docker/docker-compose.infra.yml ps 2>/dev/null || echo "  (Infrastructure not running)"
+    echo ""
+    echo "=== Production Containers ==="
+    docker compose -f docker/docker-compose.full.yml ps 2>/dev/null || echo "  (Production not running)"
+
 # Reset database (drops all data)
 db-reset:
     #!/usr/bin/env bash
@@ -164,6 +179,7 @@ help:
     @echo "  just prod clean   Remove all data"
     @echo ""
     @echo "Utilities:"
+    @echo "  just status       Show status of all services"
     @echo "  just infra up     Start only infrastructure"
     @echo "  just db-reset     Reset database"
     @echo "  just build        Build images only"
