@@ -84,6 +84,8 @@ const TERMINAL_RUN_STATUSES: ExecutionStatus[] = [
   'TIMED_OUT',
 ]
 
+const DEFAULT_TRIGGER_TYPE: TriggerType = 'SCHEDULE'
+
 const normalizeRunSummary = (run: any): ExecutionRun => {
   const status = (typeof run.status === 'string' ? run.status.toUpperCase() : 'FAILED') as ExecutionStatus
   const startTime =
@@ -853,7 +855,7 @@ function WorkflowBuilderContent() {
     }
 
     // No runtime inputs needed, run directly
-    await executeWorkflow({triggerType: 'MANUAL' })
+    await executeWorkflow({ triggerType: DEFAULT_TRIGGER_TYPE })
   }
 
   const handleRerun = useCallback(
@@ -926,7 +928,7 @@ function WorkflowBuilderContent() {
         await executeWorkflow({
           inputs: config.inputs ?? {},
           versionId: config.workflowVersionId ?? null,
-          triggerType: (config.triggerType as TriggerType) ?? "MANUAL",
+          triggerType: (config.triggerType as TriggerType) ?? DEFAULT_TRIGGER_TYPE,
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error'
@@ -1536,7 +1538,7 @@ function WorkflowBuilderContent() {
         onOpenChange={setRunDialogOpen}
         runtimeInputs={runtimeInputs}
         initialValues={prefilledRuntimeValues}
-        onRun={(inputs) => executeWorkflow({ inputs, triggerType:"MANUAL", versionId: pendingVersionId })}
+        onRun={(inputs) => executeWorkflow({ inputs, triggerType: DEFAULT_TRIGGER_TYPE, versionId: pendingVersionId })}
       />
     </div>
   )
