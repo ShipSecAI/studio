@@ -237,6 +237,7 @@ describe('WorkflowsService', () => {
     async upsert(data: {
       runId: string;
       workflowId: string;
+      triggerType: string;
       workflowVersionId: string;
       workflowVersion: number;
       temporalRunId: string;
@@ -247,6 +248,7 @@ describe('WorkflowsService', () => {
       storedRunMeta = {
         runId: data.runId,
         workflowId: data.workflowId,
+        triggerType: data.triggerType,
         workflowVersionId: data.workflowVersionId,
         workflowVersion: data.workflowVersion,
         temporalRunId: data.temporalRunId,

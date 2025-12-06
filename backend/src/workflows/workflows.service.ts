@@ -429,8 +429,6 @@ export class WorkflowsService {
     request: WorkflowRunRequest = {},
     auth?: AuthContext | null,
   ): Promise<WorkflowRunHandle> {
-
-    console.log("================================",request);
     const organizationId = this.requireOrganizationId(auth);
     const workflow = await this.repository.findById(id, { organizationId });
     if (!workflow) {
