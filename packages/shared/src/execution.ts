@@ -10,6 +10,14 @@ export const EXECUTION_STATUS = [
   'TIMED_OUT'
 ] as const;
 
+export const TRIGGER_TYPES = [
+  'MANUAL',
+  'SCHEDULE',
+  'WEBHOOK',
+] as const;
+
+export type TriggerType = (typeof TRIGGER_TYPES)[number];
+
 export type ExecutionStatus = (typeof EXECUTION_STATUS)[number];
 
 export const ExecutionStatusSchema = z.enum(EXECUTION_STATUS);

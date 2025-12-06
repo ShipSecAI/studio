@@ -33,6 +33,7 @@ import {
 } from '@/utils/workflowSerializer'
 import type { FrontendNodeData } from '@/schemas/node'
 import type { ExecutionStatus } from '@/schemas/execution'
+import type { TriggerType } from '@shipsec/shared'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { WorkflowImportSchema, DEFAULT_WORKFLOW_VIEWPORT } from '@/schemas/workflow'
@@ -619,7 +620,7 @@ function WorkflowBuilderContent() {
     inputs?: Record<string, unknown>
     versionId?: string | null
     version?: number
-    triggerType?: string
+    triggerType?: TriggerType
   }) => {
     if (!canManageWorkflows) {
       toast({
@@ -925,7 +926,7 @@ function WorkflowBuilderContent() {
         await executeWorkflow({
           inputs: config.inputs ?? {},
           versionId: config.workflowVersionId ?? null,
-          triggerType: config.triggerType ?? 'MANUAL',
+          triggerType: (config.triggerType as TriggerType) ?? "MANUAL",
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error'
