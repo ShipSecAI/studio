@@ -75,22 +75,24 @@ jobs:
       - name: Prepare image tags
         id: tags
         run: |
-          VERSION_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.version_clean }}"
+          # Convert repository owner to lowercase for Docker registry compatibility
+          IMAGE_PREFIX_LOWER=$(echo "${{ env.IMAGE_PREFIX }}" | tr '[:upper:]' '[:lower:]')
+          VERSION_TAG="${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-backend:${{ steps.version.outputs.version_clean }}"
           
           if [ "${{ steps.is_latest.outputs.is_latest }}" = "true" ]; then
             echo "backend_tags<<EOF" >> $GITHUB_OUTPUT
             echo "$VERSION_TAG" >> $GITHUB_OUTPUT
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:latest" >> $GITHUB_OUTPUT
+            echo "${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-backend:latest" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
             
             echo "worker_tags<<EOF" >> $GITHUB_OUTPUT
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker:latest" >> $GITHUB_OUTPUT
+            echo "${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-worker:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
+            echo "${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-worker:latest" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
             
             echo "frontend_tags<<EOF" >> $GITHUB_OUTPUT
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:latest" >> $GITHUB_OUTPUT
+            echo "${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-frontend:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
+            echo "${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-frontend:latest" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
             echo "backend_tags<<EOF" >> $GITHUB_OUTPUT
@@ -98,11 +100,11 @@ jobs:
             echo "EOF" >> $GITHUB_OUTPUT
             
             echo "worker_tags<<EOF" >> $GITHUB_OUTPUT
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
+            echo "${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-worker:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
             
             echo "frontend_tags<<EOF" >> $GITHUB_OUTPUT
-            echo "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
+            echo "${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-frontend:${{ steps.version.outputs.version_clean }}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 
@@ -151,6 +153,9 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
+          # Convert repository owner to lowercase for Docker registry compatibility
+          IMAGE_PREFIX_LOWER=$(echo "${{ env.IMAGE_PREFIX }}" | tr '[:upper:]' '[:lower:]')
+          
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No previous tag found, generating full changelog"
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
@@ -168,9 +173,9 @@ jobs:
             echo ""
             echo "### Docker Images"
             echo ""
-            echo "- Backend: \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.version_clean }}\`"
-            echo "- Worker: \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker:${{ steps.version.outputs.version_clean }}\`"
-            echo "- Frontend: \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.version_clean }}\`"
+            echo "- Backend: \`${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-backend:${{ steps.version.outputs.version_clean }}\`"
+            echo "- Worker: \`${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-worker:${{ steps.version.outputs.version_clean }}\`"
+            echo "- Frontend: \`${{ env.REGISTRY }}/${IMAGE_PREFIX_LOWER}-frontend:${{ steps.version.outputs.version_clean }}\`"
             echo ""
             echo "### Changes"
             echo ""
