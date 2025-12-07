@@ -263,6 +263,7 @@ describe('WorkflowsController', () => {
       async upsert(data: {
         runId: string;
         workflowId: string;
+        triggerType: string;
         workflowVersionId: string;
         workflowVersion: number;
         temporalRunId: string;
@@ -272,6 +273,7 @@ describe('WorkflowsController', () => {
         const record = {
           runId: data.runId,
           workflowId: data.workflowId,
+          triggerType: data.triggerType,
           workflowVersionId: data.workflowVersionId,
           workflowVersion: data.workflowVersion,
           temporalRunId: data.temporalRunId,

@@ -84,7 +84,7 @@ const TERMINAL_RUN_STATUSES: ExecutionStatus[] = [
   'TIMED_OUT',
 ]
 
-const DEFAULT_TRIGGER_TYPE: TriggerType = 'SCHEDULE'
+const DEFAULT_TRIGGER_TYPE: TriggerType = 'MANUAL'
 
 const normalizeRunSummary = (run: any): ExecutionRun => {
   const status = (typeof run.status === 'string' ? run.status.toUpperCase() : 'FAILED') as ExecutionStatus
@@ -95,6 +95,7 @@ const normalizeRunSummary = (run: any): ExecutionRun => {
   return {
     id: String(run.id ?? run.runId ?? ''),
     workflowId: String(run.workflowId ?? ''),
+    triggerType: run.triggerType ?? DEFAULT_TRIGGER_TYPE,
     workflowName: String(run.workflowName ?? 'Untitled workflow'),
     status,
     startTime,

@@ -1443,6 +1443,7 @@ export interface operations {
                         runs?: {
                             id?: string;
                             workflowId?: string;
+                            triggerType?: string;
                             /** @enum {string} */
                             status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
                             /** Format: date-time */
@@ -1482,6 +1483,7 @@ export interface operations {
                     "application/json": {
                         id?: string;
                         workflowId?: string;
+                        triggerType?: string;
                         /** @enum {string} */
                         status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
                         /** Format: date-time */

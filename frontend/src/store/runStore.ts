@@ -6,6 +6,7 @@ import type { ExecutionStatus } from '@/schemas/execution'
 export interface ExecutionRun {
   id: string
   workflowId: string
+  triggerType: string
   workflowName: string
   status: ExecutionStatus
   startTime: string
@@ -83,6 +84,7 @@ const normalizeRun = (run: any): ExecutionRun => {
   return {
     id: String(run.id ?? ''),
     workflowId: String(run.workflowId ?? ''),
+    triggerType: run.triggerType,
     workflowName: String(run.workflowName ?? 'Untitled workflow'),
     status,
     startTime,

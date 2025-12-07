@@ -295,6 +295,9 @@
                           "workflowId": {
                             "type": "string"
                           },
+                          "triggerType": {
+                            "type": "string"
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -379,6 +382,9 @@
                       "type": "string"
                     },
                     "workflowId": {
+                      "type": "string"
+                    },
+                    "triggerType": {
                       "type": "string"
                     },
                     "status": {

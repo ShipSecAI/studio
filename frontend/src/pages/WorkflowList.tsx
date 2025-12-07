@@ -239,6 +239,7 @@ export function WorkflowList() {
                   <TableHead>Name</TableHead>
                   <TableHead>Nodes</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Trigger Type</TableHead>
                   <TableHead>
                     <TooltipProvider>
                       <Tooltip>
@@ -328,6 +329,7 @@ export function WorkflowList() {
                   <TableHead>Name</TableHead>
                   <TableHead>Nodes</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Trigger Type</TableHead>
                   <TableHead>
                     <TooltipProvider>
                       <Tooltip>
@@ -469,6 +471,12 @@ function WorkflowRowItem({
     </Badge>
   )
 
+  const triggerTypeBadge = (
+    <Badge variant={'secondary'} className="text-xs">
+      {latestRun?.triggerType || 'UNKNOWN'}
+    </Badge>
+  )
+
   return (
     <TableRow
       key={workflow.id}
@@ -481,6 +489,9 @@ function WorkflowRowItem({
       </TableCell>
       <TableCell>
         {statusBadge}
+      </TableCell>
+      <TableCell>
+        {triggerTypeBadge}
       </TableCell>
       <TableCell className="text-muted-foreground">
         {workflow.lastRun ? formatDate(workflow.lastRun) : 'N/A'}

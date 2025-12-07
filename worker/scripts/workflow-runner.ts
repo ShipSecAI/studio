@@ -11,6 +11,7 @@ import { shipsecWorkflowRun } from '../src/temporal/workflows';
 
 type ListEntry = {
   workflowId: string;
+  triggerType: string;
   runId: string;
   status: string;
   startTime: string;
@@ -120,6 +121,7 @@ async function listRuns(
 
     const entry: ListEntry = {
       workflowId: info.workflowId,
+      triggerType: (firstArg as any).triggerType as string,
       runId: info.runId,
       status: info.status.name,
       startTime: info.startTime.toISOString(),
