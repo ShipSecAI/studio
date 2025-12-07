@@ -97,6 +97,7 @@ describe('runStore', () => {
     store.upsertRun({
       id: 'run-new',
       workflowId: 'wf-1',
+      triggerType: 'MANUAL',
       workflowName: 'Example workflow',
       status: 'COMPLETED',
       startTime: new Date(Date.now() - RUNS_STALE_MS).toISOString(),
@@ -111,6 +112,7 @@ describe('runStore', () => {
     store.upsertRun({
       id: 'run-earlier',
       workflowId: 'wf-1',
+      triggerType: 'MANUAL',
       workflowName: 'Example workflow',
       status: 'FAILED',
       startTime: '2023-12-31T00:00:00.000Z',
