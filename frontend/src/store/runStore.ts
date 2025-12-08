@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { api } from '@/services/api'
 import type { ExecutionStatus } from '@/schemas/execution'
+import type { ExecutionTriggerType, ExecutionInputPreview } from '@shipsec/shared'
 
 export interface ExecutionRun {
   id: string
@@ -17,6 +18,10 @@ export interface ExecutionRun {
   isLive: boolean
   workflowVersionId: string | null
   workflowVersion: number | null
+  triggerType: ExecutionTriggerType
+  triggerSource: string | null
+  triggerLabel: string | null
+  inputPreview: ExecutionInputPreview
 }
 
 interface RunCacheEntry {
@@ -94,6 +99,11 @@ const normalizeRun = (run: any): ExecutionRun => {
     isLive: isActiveStatus,
     workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
     workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
+    triggerType: (run.triggerType as ExecutionTriggerType) ?? 'manual',
+    triggerSource: typeof run.triggerSource === 'string' ? run.triggerSource : null,
+    triggerLabel: typeof run.triggerLabel === 'string' ? run.triggerLabel : null,
+    inputPreview:
+      (run.inputPreview as ExecutionInputPreview) ?? { runtimeInputs: {}, nodeOverrides: {} },
   }
 }
 

@@ -103,6 +103,14 @@ const normalizeRunSummary = (run: any): ExecutionRun => {
     isLive: !TERMINAL_RUN_STATUSES.includes(status),
     workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
     workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
+    triggerType: (run.triggerType ?? 'manual') as ExecutionRun['triggerType'],
+    triggerSource: typeof run.triggerSource === 'string' ? run.triggerSource : null,
+    triggerLabel: typeof run.triggerLabel === 'string' ? run.triggerLabel : null,
+    inputPreview:
+      run.inputPreview ?? {
+        runtimeInputs: {},
+        nodeOverrides: {},
+      },
   }
 }
 

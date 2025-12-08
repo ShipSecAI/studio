@@ -106,6 +106,10 @@ describe('runStore', () => {
       isLive: false,
       workflowVersionId: null,
       workflowVersion: null,
+      triggerType: 'manual',
+      triggerSource: null,
+      triggerLabel: 'Manual run',
+      inputPreview: { runtimeInputs: {}, nodeOverrides: {} },
     })
 
     store.upsertRun({
@@ -120,6 +124,10 @@ describe('runStore', () => {
       isLive: false,
       workflowVersionId: null,
       workflowVersion: null,
+      triggerType: 'manual',
+      triggerSource: null,
+      triggerLabel: 'Manual run',
+      inputPreview: { runtimeInputs: {}, nodeOverrides: {} },
     })
 
     const runs = useRunStore.getState().getRunsForWorkflow('wf-1')

@@ -8,6 +8,7 @@ import {
   type WorkflowRunInsert,
   type WorkflowRunRecord,
 } from '../../database/schema';
+import type { ExecutionInputPreview, ExecutionTriggerType } from '@shipsec/shared';
 
 interface CreateWorkflowRunInput {
   runId: string;
@@ -18,6 +19,10 @@ interface CreateWorkflowRunInput {
   totalActions: number;
   inputs: Record<string, unknown>;
   organizationId?: string | null;
+  triggerType: ExecutionTriggerType;
+  triggerSource?: string | null;
+  triggerLabel?: string | null;
+  inputPreview?: ExecutionInputPreview;
 }
 
 @Injectable()
@@ -36,6 +41,10 @@ export class WorkflowRunRepository {
       temporalRunId: input.temporalRunId,
       totalActions: input.totalActions,
       inputs: input.inputs ?? {},
+      triggerType: input.triggerType,
+      triggerSource: input.triggerSource ?? null,
+      triggerLabel: input.triggerLabel ?? 'Manual run',
+      inputPreview: input.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} },
       updatedAt: new Date(),
       organizationId: input.organizationId ?? null,
     };
@@ -52,6 +61,10 @@ export class WorkflowRunRepository {
           temporalRunId: input.temporalRunId,
           totalActions: input.totalActions,
           inputs: input.inputs ?? {},
+          triggerType: input.triggerType,
+          triggerSource: input.triggerSource ?? null,
+          triggerLabel: input.triggerLabel ?? 'Manual run',
+          inputPreview: input.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} },
           updatedAt: new Date(),
           organizationId: input.organizationId ?? null,
         },

@@ -302,6 +302,28 @@ export class WorkflowsController {
               eventCount: { type: 'number' },
               nodeCount: { type: 'number' },
               duration: { type: 'number' },
+              triggerType: {
+                type: 'string',
+                enum: ['manual', 'schedule', 'api'],
+              },
+              triggerSource: { type: 'string', nullable: true },
+              triggerLabel: { type: 'string', nullable: true },
+              inputPreview: {
+                type: 'object',
+                properties: {
+                  runtimeInputs: {
+                    type: 'object',
+                    additionalProperties: true,
+                  },
+                  nodeOverrides: {
+                    type: 'object',
+                    additionalProperties: {
+                      type: 'object',
+                      additionalProperties: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -340,6 +362,28 @@ export class WorkflowsController {
         eventCount: { type: 'number' },
         nodeCount: { type: 'number' },
         duration: { type: 'number' },
+        triggerType: {
+          type: 'string',
+          enum: ['manual', 'schedule', 'api'],
+        },
+        triggerSource: { type: 'string', nullable: true },
+        triggerLabel: { type: 'string', nullable: true },
+        inputPreview: {
+          type: 'object',
+          properties: {
+            runtimeInputs: {
+              type: 'object',
+              additionalProperties: true,
+            },
+            nodeOverrides: {
+              type: 'object',
+              additionalProperties: {
+                type: 'object',
+                additionalProperties: true,
+              },
+            },
+          },
+        },
       },
     },
   })

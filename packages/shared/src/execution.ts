@@ -14,6 +14,29 @@ export type ExecutionStatus = (typeof EXECUTION_STATUS)[number];
 
 export const ExecutionStatusSchema = z.enum(EXECUTION_STATUS);
 
+export const EXECUTION_TRIGGER_TYPES = ['manual', 'schedule', 'api'] as const;
+export type ExecutionTriggerType = (typeof EXECUTION_TRIGGER_TYPES)[number];
+export const ExecutionTriggerTypeSchema = z.enum(EXECUTION_TRIGGER_TYPES);
+
+export const ExecutionTriggerMetadataSchema = z.object({
+  type: ExecutionTriggerTypeSchema,
+  sourceId: z.string().optional().nullable(),
+  label: z.string().optional().nullable(),
+}).strip();
+
+export type ExecutionTriggerMetadata = z.infer<typeof ExecutionTriggerMetadataSchema>;
+
+export const ExecutionInputPreviewSchema = z
+  .object({
+    runtimeInputs: z.record(z.string(), z.unknown()).default({}),
+    nodeOverrides: z
+      .record(z.string(), z.record(z.string(), z.unknown()))
+      .default({}),
+  })
+  .strip();
+
+export type ExecutionInputPreview = z.infer<typeof ExecutionInputPreviewSchema>;
+
 export const FailureSummarySchema = z.object({
   reason: z.string(),
   temporalCode: z.string().optional(),

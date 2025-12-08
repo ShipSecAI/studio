@@ -28,6 +28,8 @@ import {
   WorkflowRunStatusPayload,
   TraceEventPayload,
   WorkflowRunConfigPayload,
+  ExecutionTriggerType,
+  ExecutionInputPreview,
 } from '@shipsec/shared';
 import type { WorkflowRunRecord, WorkflowVersionRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
@@ -61,6 +63,10 @@ export interface WorkflowRunSummary {
   eventCount: number;
   nodeCount: number;
   duration: number;
+  triggerType: ExecutionTriggerType;
+  triggerSource?: string | null;
+  triggerLabel?: string | null;
+  inputPreview: ExecutionInputPreview;
 }
 
 const SHIPSEC_WORKFLOW_TYPE = 'shipsecWorkflowRun';
@@ -349,6 +355,12 @@ export class WorkflowsService {
       this.logger.warn(`Failed to get status for run ${run.runId}: ${error}`);
     }
 
+    const triggerType = (run.triggerType as ExecutionTriggerType) ?? 'manual';
+    const triggerSource = run.triggerSource ?? null;
+    const triggerLabel = run.triggerLabel ?? (triggerType === 'manual' ? 'Manual run' : null);
+    const inputPreview: ExecutionInputPreview =
+      run.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} };
+
     return {
       id: run.runId,
       workflowId: run.workflowId,
@@ -362,6 +374,10 @@ export class WorkflowsService {
       eventCount,
       nodeCount,
       duration: this.computeDuration(run.createdAt, run.updatedAt),
+      triggerType,
+      triggerSource,
+      triggerLabel,
+      inputPreview,
     };
   }
 
@@ -438,6 +454,8 @@ export class WorkflowsService {
       `Received run request for workflow ${workflow.id} (inputs=${inputSummary})`,
     );
 
+    const triggerMetadata = this.buildManualTriggerMetadata(auth);
+    const inputPreview = this.buildInputPreview(request.inputs);
     const version = await this.resolveWorkflowVersion(workflow.id, request, organizationId);
     const compiledDefinition = await this.ensureDefinitionForVersion(
       workflow,
@@ -479,6 +497,10 @@ export class WorkflowsService {
         totalActions: compiledDefinition.actions.length,
         inputs: request.inputs ?? {},
         organizationId,
+        triggerType: triggerMetadata.type,
+        triggerSource: triggerMetadata.sourceId,
+        triggerLabel: triggerMetadata.label,
+        inputPreview,
       });
 
       return {
@@ -861,6 +883,28 @@ export class WorkflowsService {
     return Object.entries(inputs)
       .map(([key, value]) => `${key}=${this.describeValue(value)}`)
       .join(', ');
+  }
+
+  private buildManualTriggerMetadata(auth?: AuthContext | null): {
+    type: ExecutionTriggerType;
+    sourceId: string | null;
+    label: string;
+  } {
+    const sourceId = auth?.userId ?? null;
+    const label = sourceId ? `Manual run by ${sourceId}` : 'Manual run';
+    return {
+      type: 'manual',
+      sourceId,
+      label,
+    };
+  }
+
+  private buildInputPreview(inputs?: Record<string, unknown>): ExecutionInputPreview {
+    const runtimeInputs = inputs ? { ...inputs } : {};
+    return {
+      runtimeInputs,
+      nodeOverrides: {},
+    };
   }
 
   private describeValue(value: unknown): string {

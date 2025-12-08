@@ -1455,6 +1455,20 @@ export interface operations {
                             eventCount?: number;
                             nodeCount?: number;
                             duration?: number;
+                            /** @enum {string} */
+                            triggerType?: "manual" | "schedule" | "api";
+                            triggerSource?: string | null;
+                            triggerLabel?: string | null;
+                            inputPreview?: {
+                                runtimeInputs?: {
+                                    [key: string]: unknown;
+                                };
+                                nodeOverrides?: {
+                                    [key: string]: {
+                                        [key: string]: unknown;
+                                    };
+                                };
+                            };
                         }[];
                     };
                 };
@@ -1494,6 +1508,20 @@ export interface operations {
                         eventCount?: number;
                         nodeCount?: number;
                         duration?: number;
+                        /** @enum {string} */
+                        triggerType?: "manual" | "schedule" | "api";
+                        triggerSource?: string | null;
+                        triggerLabel?: string | null;
+                        inputPreview?: {
+                            runtimeInputs?: {
+                                [key: string]: unknown;
+                            };
+                            nodeOverrides?: {
+                                [key: string]: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
                     };
                 };
             };
