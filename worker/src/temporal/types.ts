@@ -1,5 +1,6 @@
 // Shared types between workflows and activities
 // This file MUST NOT import anything that executes code or external libraries
+import type { ExecutionTriggerMetadata } from '@shipsec/shared';
 
 // Inline workflow definition types to avoid importing Zod
 export interface WorkflowAction {
@@ -146,4 +147,15 @@ export interface WorkflowLogEntry {
 
 export interface WorkflowLogSink {
   append(entry: WorkflowLogEntry): Promise<void>;
+}
+
+export interface PrepareRunPayloadActivityInput {
+  workflowId: string;
+  versionId?: string;
+  version?: number;
+  inputs?: Record<string, unknown>;
+  nodeOverrides?: Record<string, Record<string, unknown>>;
+  trigger?: ExecutionTriggerMetadata;
+  runId?: string;
+  organizationId?: string | null;
 }

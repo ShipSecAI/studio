@@ -15,7 +15,7 @@ interface CreateWorkflowRunInput {
   workflowId: string;
   workflowVersionId: string;
   workflowVersion: number;
-  temporalRunId: string;
+  temporalRunId?: string | null;
   totalActions: number;
   inputs: Record<string, unknown>;
   organizationId?: string | null;
@@ -38,7 +38,7 @@ export class WorkflowRunRepository {
       workflowId: input.workflowId,
       workflowVersionId: input.workflowVersionId,
       workflowVersion: input.workflowVersion,
-      temporalRunId: input.temporalRunId,
+      temporalRunId: input.temporalRunId ?? null,
       totalActions: input.totalActions,
       inputs: input.inputs ?? {},
       triggerType: input.triggerType,
@@ -58,7 +58,7 @@ export class WorkflowRunRepository {
           workflowId: input.workflowId,
           workflowVersionId: input.workflowVersionId,
           workflowVersion: input.workflowVersion,
-          temporalRunId: input.temporalRunId,
+          temporalRunId: input.temporalRunId ?? null,
           totalActions: input.totalActions,
           inputs: input.inputs ?? {},
           triggerType: input.triggerType,

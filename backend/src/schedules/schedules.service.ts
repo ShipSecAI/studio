@@ -10,7 +10,7 @@ import type { AuthContext } from '../auth/types';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { ScheduleRepository } from './repository/schedule.repository';
 import type { WorkflowScheduleRecord } from '../database/schema';
-import { TemporalService } from '../temporal/temporal.service';
+import { TemporalService, type ScheduleTriggerWorkflowArgs } from '../temporal/temporal.service';
 import { CreateScheduleRequestDto, UpdateScheduleRequestDto } from './dto/schedule.dto';
 import type { ScheduleRepositoryFilters } from './repository/schedule.repository';
 
@@ -46,7 +46,10 @@ export class SchedulesService {
       auth,
     );
 
-    this.validateSchedulePayload(context.definition, dto.inputPayload);
+    const normalizedPayload: ScheduleInputPayload =
+      dto.inputPayload ?? { runtimeInputs: {}, nodeOverrides: {} };
+
+    this.validateSchedulePayload(context.definition, normalizedPayload);
 
     const record = await this.repository.create({
       workflowId: context.workflow.id,
@@ -60,13 +63,24 @@ export class SchedulesService {
       overlapPolicy: dto.overlapPolicy ?? 'skip',
       catchupWindowSeconds: dto.catchupWindowSeconds ?? 0,
       status: 'active',
-      inputPayload: dto.inputPayload ?? { runtimeInputs: {}, nodeOverrides: {} },
+      inputPayload: normalizedPayload,
       organizationId: context.organizationId,
+    });
+
+    const dispatchArgs = this.buildDispatchArgs({
+      workflowId: record.workflowId,
+      workflowVersionId: record.workflowVersionId,
+      workflowVersion: record.workflowVersion,
+      organizationId: record.organizationId ?? null,
+      scheduleId: record.id,
+      scheduleName: record.name,
+      payload: normalizedPayload,
     });
 
     try {
       await this.temporalService.createSchedule({
         scheduleId: record.id,
+        organizationId: context.organizationId,
         cronExpression: record.cronExpression,
         timezone: record.timezone,
         overlapPolicy: (record.overlapPolicy as ScheduleOverlapPolicy) ?? 'skip',
@@ -77,6 +91,7 @@ export class SchedulesService {
           workflowVersion: record.workflowVersion,
           inputPayload: record.inputPayload,
         },
+        dispatchArgs,
       });
     } catch (error) {
       this.logger.error(
@@ -114,13 +129,25 @@ export class SchedulesService {
       auth,
     );
 
-    const nextPayload = dto.inputPayload ?? (existing.inputPayload as ScheduleInputPayload);
+    const nextPayload =
+      dto.inputPayload ?? (existing.inputPayload as ScheduleInputPayload);
     this.validateSchedulePayload(context.definition, nextPayload);
+
+    const dispatchArgs = this.buildDispatchArgs({
+      workflowId: context.workflow.id,
+      workflowVersionId: context.version.id,
+      workflowVersion: context.version.version,
+      organizationId: existing.organizationId ?? null,
+      scheduleId: existing.id,
+      scheduleName: dto.name ?? existing.name,
+      payload: nextPayload,
+    });
 
     const temporalScheduleId = existing.temporalScheduleId ?? existing.id;
     if (temporalScheduleId) {
       await this.temporalService.updateSchedule({
         scheduleId: temporalScheduleId,
+        organizationId: context.organizationId,
         cronExpression: dto.cronExpression ?? existing.cronExpression,
         timezone: dto.timezone ?? existing.timezone,
         overlapPolicy: (dto.overlapPolicy ??
@@ -133,6 +160,7 @@ export class SchedulesService {
           workflowVersion: context.version.version,
           inputPayload: nextPayload,
         },
+        dispatchArgs,
       });
     }
 
@@ -230,7 +258,6 @@ export class SchedulesService {
           sourceId: existing.id,
           label: existing.name,
         },
-        inputPreview: payload,
         nodeOverrides: payload.nodeOverrides ?? {},
       },
     );
@@ -273,6 +300,32 @@ export class SchedulesService {
       organizationId: record.organizationId ?? null,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
+    };
+  }
+
+  private buildDispatchArgs(options: {
+    workflowId: string;
+    workflowVersionId: string | null;
+    workflowVersion: number | null;
+    organizationId: string | null;
+    scheduleId: string;
+    scheduleName: string;
+    payload: ScheduleInputPayload;
+  }): ScheduleTriggerWorkflowArgs {
+    return {
+      workflowId: options.workflowId,
+      workflowVersionId: options.workflowVersionId ?? undefined,
+      workflowVersion: options.workflowVersion ?? undefined,
+      organizationId: options.organizationId ?? null,
+      scheduleId: options.scheduleId,
+      scheduleName: options.scheduleName,
+      runtimeInputs: options.payload.runtimeInputs ?? {},
+      nodeOverrides: options.payload.nodeOverrides ?? {},
+      trigger: {
+        type: 'schedule',
+        sourceId: options.scheduleId,
+        label: options.scheduleName,
+      },
     };
   }
 

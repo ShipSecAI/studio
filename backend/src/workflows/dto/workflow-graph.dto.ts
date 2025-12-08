@@ -1,4 +1,7 @@
-import { ExecutionStatusSchema } from '@shipsec/shared';
+import {
+  ExecutionStatusSchema,
+  ExecutionTriggerMetadataSchema,
+} from '@shipsec/shared';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -67,6 +70,18 @@ export const RunWorkflowRequestSchema = z
   );
 
 export class RunWorkflowRequestDto extends createZodDto(RunWorkflowRequestSchema) {}
+export const NodeOverridesSchema = z
+  .record(z.string(), z.record(z.string(), z.unknown()))
+  .optional();
+
+export const PrepareRunRequestSchema = RunWorkflowRequestSchema.extend({
+  workflowId: z.string().uuid(),
+  nodeOverrides: NodeOverridesSchema,
+  trigger: ExecutionTriggerMetadataSchema.optional(),
+  runId: z.string().optional(),
+});
+
+export class PrepareRunRequestDto extends createZodDto(PrepareRunRequestSchema) {}
 
 export const ListRunsQuerySchema = z.object({
   workflowId: z

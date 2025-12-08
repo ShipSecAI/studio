@@ -16,8 +16,8 @@ import {
 
 // Import workflow functions (for type safety during client.start())
 // Note: Actual implementation runs in the worker
-import { shipsecWorkflowRun, testMinimalWorkflow, minimalWorkflow } from '@shipsec/studio-worker/workflows';
-import type { ScheduleOverlapPolicy } from '@shipsec/shared';
+import { shipsecWorkflowRun, testMinimalWorkflow, scheduleTriggerWorkflow } from '@shipsec/studio-worker/workflows';
+import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
 
 export interface StartWorkflowOptions {
   workflowType: string;
@@ -52,14 +52,28 @@ export interface WorkflowRunStatus {
 
 export interface CreateTemporalScheduleInput {
   scheduleId: string;
+  organizationId: string | null;
   cronExpression: string;
   timezone: string;
   overlapPolicy: ScheduleOverlapPolicy;
   catchupWindowSeconds?: number;
   memo?: Record<string, unknown>;
+  dispatchArgs: ScheduleTriggerWorkflowArgs;
 }
 
 export interface UpdateTemporalScheduleInput extends CreateTemporalScheduleInput {}
+
+export interface ScheduleTriggerWorkflowArgs {
+  workflowId: string;
+  workflowVersionId?: string | null;
+  workflowVersion?: number | null;
+  organizationId?: string | null;
+  scheduleId?: string;
+  scheduleName?: string | null;
+  runtimeInputs?: Record<string, unknown>;
+  nodeOverrides?: Record<string, Record<string, unknown>>;
+  trigger?: ExecutionTriggerMetadata;
+}
 
 @Injectable()
 export class TemporalService implements OnModuleDestroy {
@@ -126,8 +140,8 @@ export class TemporalService implements OnModuleDestroy {
         return shipsecWorkflowRun;
       case 'testMinimalWorkflow':
         return testMinimalWorkflow;
-      case 'minimalWorkflow':
-        return minimalWorkflow;
+      case 'scheduleTriggerWorkflow':
+        return scheduleTriggerWorkflow;
       default:
         throw new Error(`Unknown workflow type: ${workflowType}`);
     }
@@ -310,9 +324,9 @@ export class TemporalService implements OnModuleDestroy {
       },
       action: {
         type: 'startWorkflow',
-        workflowType: 'minimalWorkflow',
+        workflowType: 'scheduleTriggerWorkflow',
         taskQueue: this.defaultTaskQueue,
-        args: [],
+        args: [options.dispatchArgs],
         workflowId: `schedule-${options.scheduleId}`,
       },
       policies: {
@@ -335,9 +349,9 @@ export class TemporalService implements OnModuleDestroy {
       memo: options.memo,
       action: {
         type: 'startWorkflow',
-        workflowType: 'minimalWorkflow',
+        workflowType: 'scheduleTriggerWorkflow',
         taskQueue: this.defaultTaskQueue,
-        args: [],
+        args: [options.dispatchArgs],
         workflowId: `schedule-${options.scheduleId}`,
       },
       policies: {

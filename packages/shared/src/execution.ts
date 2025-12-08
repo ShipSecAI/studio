@@ -157,3 +157,36 @@ export const ExecutionContractSchema = z.object({
 });
 
 export type ExecutionContract = z.infer<typeof ExecutionContractSchema>;
+
+export const WorkflowRunDispatchRequestSchema = z
+  .object({
+    workflowId: z.string().uuid(),
+    versionId: z.string().uuid().optional(),
+    version: z.number().int().positive().optional(),
+    inputs: z.record(z.string(), z.unknown()).optional(),
+    nodeOverrides: z
+      .record(z.string(), z.record(z.string(), z.unknown()))
+      .optional(),
+    trigger: ExecutionTriggerMetadataSchema.optional(),
+    runId: z.string().optional(),
+  })
+  .refine(
+    (value) => !(value.version && value.versionId),
+    'Provide either version or versionId, not both',
+  );
+
+export type WorkflowRunDispatchRequest = z.infer<typeof WorkflowRunDispatchRequestSchema>;
+
+export const PreparedRunPayloadSchema = z.object({
+  runId: z.string(),
+  workflowId: z.string().uuid(),
+  workflowVersionId: z.string().uuid(),
+  workflowVersion: z.number().int().positive(),
+  organizationId: z.string(),
+  definition: z.unknown(),
+  inputs: z.record(z.string(), z.unknown()).default({}),
+  trigger: ExecutionTriggerMetadataSchema,
+  inputPreview: ExecutionInputPreviewSchema,
+});
+
+export type PreparedRunPayload = z.infer<typeof PreparedRunPayloadSchema>;

@@ -1,12 +1,14 @@
-import { ApplicationFailure, proxyActivities } from '@temporalio/workflow';
+import { ApplicationFailure, proxyActivities, startChild, uuid4 } from '@temporalio/workflow';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionParams } from '../input-resolver';
+import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
   RunComponentActivityOutput,
   RunWorkflowActivityInput,
   RunWorkflowActivityOutput,
   WorkflowAction,
+  PrepareRunPayloadActivityInput,
 } from '../types';
 
 const {
@@ -19,6 +21,14 @@ const {
   finalizeRunActivity(input: { runId: string }): Promise<void>;
 }>({
   startToCloseTimeout: '10 minutes',
+});
+
+const { prepareRunPayloadActivity } = proxyActivities<{
+  prepareRunPayloadActivity(
+    input: PrepareRunPayloadActivityInput,
+  ): Promise<PreparedRunPayload>;
+}>({
+  startToCloseTimeout: '2 minutes',
 });
 
 export async function shipsecWorkflowRun(
@@ -170,4 +180,58 @@ export async function testMinimalWorkflow(
   input: RunWorkflowActivityInput,
 ): Promise<RunWorkflowActivityOutput> {
   return shipsecWorkflowRun(input);
+}
+
+export interface ScheduleTriggerWorkflowInput {
+  workflowId: string;
+  workflowVersionId?: string | null;
+  workflowVersion?: number | null;
+  organizationId?: string | null;
+  scheduleId?: string;
+  scheduleName?: string | null;
+  runtimeInputs?: Record<string, unknown>;
+  nodeOverrides?: Record<string, Record<string, unknown>>;
+  trigger?: ExecutionTriggerMetadata;
+}
+
+export async function scheduleTriggerWorkflow(
+  input: ScheduleTriggerWorkflowInput,
+): Promise<RunWorkflowActivityOutput> {
+  const triggerMetadata =
+    input.trigger ??
+    ({
+      type: 'schedule',
+      sourceId: input.scheduleId,
+      label: input.scheduleName ?? 'Scheduled run',
+    } satisfies ExecutionTriggerMetadata);
+
+  const runId = `shipsec-run-${uuid4()}`;
+
+  const prepared = await prepareRunPayloadActivity({
+    workflowId: input.workflowId,
+    versionId: input.workflowVersionId ?? undefined,
+    version: input.workflowVersion ?? undefined,
+    inputs: input.runtimeInputs ?? {},
+    nodeOverrides: input.nodeOverrides ?? {},
+    trigger: triggerMetadata,
+    organizationId: input.organizationId ?? null,
+    runId,
+  });
+
+  const child = await startChild(shipsecWorkflowRun, {
+    args: [
+      {
+        runId: prepared.runId,
+        workflowId: prepared.workflowId,
+        definition: prepared.definition as RunWorkflowActivityInput['definition'],
+        inputs: prepared.inputs ?? {},
+        workflowVersionId: prepared.workflowVersionId,
+        workflowVersion: prepared.workflowVersion,
+        organizationId: prepared.organizationId,
+      },
+    ],
+    workflowId: prepared.runId,
+  });
+
+  return child.result();
 }

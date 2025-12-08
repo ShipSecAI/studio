@@ -30,6 +30,7 @@ import {
   WorkflowRunConfigPayload,
   ExecutionTriggerType,
   ExecutionInputPreview,
+  ExecutionTriggerMetadata,
 } from '@shipsec/shared';
 import type { WorkflowRunRecord, WorkflowVersionRecord } from '../database/schema';
 import type { AuthContext } from '../auth/types';
@@ -70,6 +71,18 @@ export interface WorkflowRunSummary {
 }
 
 const SHIPSEC_WORKFLOW_TYPE = 'shipsecWorkflowRun';
+export interface PreparedRunPayload {
+  runId: string;
+  workflowId: string;
+  workflowVersionId: string;
+  workflowVersion: number;
+  organizationId: string;
+  definition: WorkflowDefinition;
+  inputs: Record<string, unknown>;
+  triggerMetadata: ExecutionTriggerMetadata;
+  inputPreview: ExecutionInputPreview;
+  totalActions: number;
+}
 
 export interface DataFlowPacketDto {
   id: string;
@@ -476,83 +489,67 @@ export class WorkflowsService {
     request: WorkflowRunRequest = {},
     auth?: AuthContext | null,
     options: {
-      trigger?: {
-        type: ExecutionTriggerType;
-        sourceId?: string | null;
-        label?: string | null;
-      };
-      inputPreview?: ExecutionInputPreview;
+      trigger?: ExecutionTriggerMetadata;
       nodeOverrides?: Record<string, Record<string, unknown>>;
+      runId?: string;
     } = {},
   ): Promise<WorkflowRunHandle> {
-    const organizationId = this.requireOrganizationId(auth);
-    const workflow = await this.repository.findById(id, { organizationId });
-    if (!workflow) {
-      throw new NotFoundException(`Workflow ${id} not found`);
-    }
-    const inputSummary = this.formatInputSummary(request.inputs);
+    const prepared = await this.prepareRunPayload(id, request, auth, {
+      trigger: options.trigger,
+      nodeOverrides: options.nodeOverrides,
+      runId: options.runId,
+    });
+
+    const inputSummary = this.formatInputSummary(prepared.inputs);
     this.logger.log(
-      `Received run request for workflow ${workflow.id} (inputs=${inputSummary})`,
+      `Starting workflow ${prepared.workflowId} (runId=${prepared.runId}, inputs=${inputSummary})`,
     );
 
-    const triggerMetadata = options.trigger ?? this.buildEntryPointTriggerMetadata(auth);
-    const inputPreview = options.inputPreview ?? this.buildInputPreview(request.inputs);
-    const version = await this.resolveWorkflowVersion(workflow.id, request, organizationId);
-    const compiledDefinition = await this.ensureDefinitionForVersion(
-      workflow,
-      version,
-      organizationId,
-    );
-    const definitionWithOverrides = this.applyNodeOverrides(
-      compiledDefinition,
-      options.nodeOverrides,
-    );
-    const runId = `shipsec-run-${randomUUID()}`;
-
-    // Track execution stats
-    await this.repository.incrementRunCount(id, { organizationId });
+    await this.repository.incrementRunCount(prepared.workflowId, {
+      organizationId: prepared.organizationId,
+    });
 
     try {
       const temporalRun = await this.temporalService.startWorkflow({
         workflowType: SHIPSEC_WORKFLOW_TYPE,
-        workflowId: runId,
+        workflowId: prepared.runId,
         args: [
           {
-            runId,
-            workflowId: workflow.id,
-            definition: definitionWithOverrides,
-            inputs: request.inputs ?? {},
-            workflowVersionId: version.id,
-            workflowVersion: version.version,
-            organizationId,
+            runId: prepared.runId,
+            workflowId: prepared.workflowId,
+            definition: prepared.definition,
+            inputs: prepared.inputs,
+            workflowVersionId: prepared.workflowVersionId,
+            workflowVersion: prepared.workflowVersion,
+            organizationId: prepared.organizationId,
           },
         ],
       });
 
       this.logger.log(
-        `Started workflow run ${runId} (workflowVersion=${version.version}, temporalRunId=${temporalRun.runId}, taskQueue=${temporalRun.taskQueue}, actions=${compiledDefinition.actions.length})`,
+        `Started workflow run ${prepared.runId} (workflowVersion=${prepared.workflowVersion}, temporalRunId=${temporalRun.runId}, taskQueue=${temporalRun.taskQueue}, actions=${prepared.totalActions})`,
       );
 
       await this.runRepository.upsert({
-        runId,
-        workflowId: workflow.id,
-        workflowVersionId: version.id,
-        workflowVersion: version.version,
+        runId: prepared.runId,
+        workflowId: prepared.workflowId,
+        workflowVersionId: prepared.workflowVersionId,
+        workflowVersion: prepared.workflowVersion,
         temporalRunId: temporalRun.runId,
-        totalActions: compiledDefinition.actions.length,
-        inputs: request.inputs ?? {},
-        organizationId,
-        triggerType: triggerMetadata.type,
-        triggerSource: triggerMetadata.sourceId,
-        triggerLabel: triggerMetadata.label,
-        inputPreview,
+        totalActions: prepared.totalActions,
+        inputs: prepared.inputs,
+        organizationId: prepared.organizationId,
+        triggerType: prepared.triggerMetadata.type,
+        triggerSource: prepared.triggerMetadata.sourceId,
+        triggerLabel: prepared.triggerMetadata.label,
+        inputPreview: prepared.inputPreview,
       });
 
       return {
-        runId,
-        workflowId: workflow.id,
-        workflowVersionId: version.id,
-        workflowVersion: version.version,
+        runId: prepared.runId,
+        workflowId: prepared.workflowId,
+        workflowVersionId: prepared.workflowVersionId,
+        workflowVersion: prepared.workflowVersion,
         temporalRunId: temporalRun.runId,
         status: 'RUNNING',
         taskQueue: temporalRun.taskQueue,
@@ -562,18 +559,76 @@ export class WorkflowsService {
       const errorStack = error instanceof Error ? error.stack : undefined;
 
       this.logger.error(
-        `Failed to start workflow ${workflow.id} run ${runId}: ${errorMessage}`,
+        `Failed to start workflow ${prepared.workflowId} run ${prepared.runId}: ${errorMessage}`,
       );
 
       if (errorStack) {
         this.logger.error(`Stack trace: ${errorStack}`);
       }
 
-      // Log the full error object for debugging
       this.logger.debug(`Full error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
 
       throw error;
     }
+  }
+
+  async prepareRunPayload(
+    id: string,
+    request: WorkflowRunRequest = {},
+    auth?: AuthContext | null,
+    options: {
+      trigger?: ExecutionTriggerMetadata;
+      nodeOverrides?: Record<string, Record<string, unknown>>;
+      runId?: string;
+    } = {},
+  ): Promise<PreparedRunPayload> {
+    const organizationId = this.requireOrganizationId(auth);
+    const workflow = await this.repository.findById(id, { organizationId });
+    if (!workflow) {
+      throw new NotFoundException(`Workflow ${id} not found`);
+    }
+
+    const version = await this.resolveWorkflowVersion(workflow.id, request, organizationId);
+    const compiledDefinition = await this.ensureDefinitionForVersion(
+      workflow,
+      version,
+      organizationId,
+    );
+
+    const nodeOverrides = options.nodeOverrides ?? {};
+    const definitionWithOverrides = this.applyNodeOverrides(compiledDefinition, nodeOverrides);
+    const runId = options.runId ?? `shipsec-run-${randomUUID()}`;
+    const triggerMetadata = options.trigger ?? this.buildEntryPointTriggerMetadata(auth);
+    const inputs = request.inputs ?? {};
+    const inputPreview = this.buildInputPreview(inputs, nodeOverrides);
+
+    await this.runRepository.upsert({
+      runId,
+      workflowId: workflow.id,
+      workflowVersionId: version.id,
+      workflowVersion: version.version,
+      temporalRunId: null,
+      totalActions: definitionWithOverrides.actions.length,
+      inputs,
+      organizationId,
+      triggerType: triggerMetadata.type,
+      triggerSource: triggerMetadata.sourceId,
+      triggerLabel: triggerMetadata.label,
+      inputPreview,
+    });
+
+    return {
+      runId,
+      workflowId: workflow.id,
+      workflowVersionId: version.id,
+      workflowVersion: version.version,
+      organizationId,
+      definition: definitionWithOverrides,
+      inputs,
+      triggerMetadata,
+      inputPreview,
+      totalActions: definitionWithOverrides.actions.length,
+    };
   }
 
   private async resolveWorkflowVersion(
@@ -973,11 +1028,15 @@ export class WorkflowsService {
     };
   }
 
-  private buildInputPreview(inputs?: Record<string, unknown>): ExecutionInputPreview {
+  private buildInputPreview(
+    inputs?: Record<string, unknown>,
+    nodeOverrides?: Record<string, Record<string, unknown>>,
+  ): ExecutionInputPreview {
     const runtimeInputs = inputs ? { ...inputs } : {};
+    const overrides = nodeOverrides ? { ...nodeOverrides } : {};
     return {
       runtimeInputs,
-      nodeOverrides: {},
+      nodeOverrides: overrides,
     };
   }
 
