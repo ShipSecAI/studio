@@ -13,7 +13,7 @@ describe('compileWorkflowGraph', () => {
       nodes: [
         {
           id: 'trigger',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
           data: {
             label: 'Trigger',
@@ -118,7 +118,7 @@ describe('compileWorkflowGraph', () => {
   });
 
   it('throws when workflow contains a cycle', () => {
-    const registeredComponent = componentRegistry.get('core.trigger.manual');
+    const registeredComponent = componentRegistry.get('core.workflow.entrypoint');
     if (!registeredComponent) {
       throw new Error('Default components must be registered for tests');
     }
@@ -171,7 +171,7 @@ describe('compileWorkflowGraph', () => {
       nodes: [
         {
           id: 'start',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
           data: {
             label: 'Start',
@@ -184,7 +184,7 @@ describe('compileWorkflowGraph', () => {
         },
         {
           id: 'branchA',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: -100, y: 100 },
           data: {
             label: 'Branch A',
@@ -197,7 +197,7 @@ describe('compileWorkflowGraph', () => {
         },
         {
           id: 'branchB',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: 100, y: 100 },
           data: {
             label: 'Branch B',
@@ -210,7 +210,7 @@ describe('compileWorkflowGraph', () => {
         },
         {
           id: 'merge',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: 0, y: 200 },
           data: {
             label: 'Merge',

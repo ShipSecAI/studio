@@ -454,7 +454,7 @@ export class WorkflowsService {
       `Received run request for workflow ${workflow.id} (inputs=${inputSummary})`,
     );
 
-    const triggerMetadata = this.buildManualTriggerMetadata(auth);
+    const triggerMetadata = this.buildEntryPointTriggerMetadata(auth);
     const inputPreview = this.buildInputPreview(request.inputs);
     const version = await this.resolveWorkflowVersion(workflow.id, request, organizationId);
     const compiledDefinition = await this.ensureDefinitionForVersion(
@@ -885,7 +885,7 @@ export class WorkflowsService {
       .join(', ');
   }
 
-  private buildManualTriggerMetadata(auth?: AuthContext | null): {
+  private buildEntryPointTriggerMetadata(auth?: AuthContext | null): {
     type: ExecutionTriggerType;
     sourceId: string | null;
     label: string;

@@ -1,6 +1,7 @@
 import { X, ExternalLink } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -23,6 +24,10 @@ import {
   inputSupportsManualValue,
   isListOfTextPortDataType,
 } from '@/utils/portUtils'
+import { API_BASE_URL } from '@/services/api'
+import { useWorkflowStore } from '@/store/workflowStore'
+
+const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
 
 interface ConfigPanelProps {
   selectedNode: Node<NodeData> | null
@@ -46,6 +51,37 @@ const formatManualValue = (value: unknown): string => {
     console.error('Failed to serialise manual value for preview', error)
     return String(value)
   }
+}
+
+const buildSampleValueForRuntimeInput = (type?: string, id?: string) => {
+  switch (type) {
+    case 'number':
+      return 0
+    case 'json':
+      return { example: true }
+    case 'array':
+      return ['value-1']
+    case 'file':
+      return 'upload-file-id'
+    case 'text':
+    default:
+      return id ? `${id}-value` : 'value'
+  }
+}
+
+const normalizeRuntimeInputs = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
 }
 
 interface ManualListChipsInputProps {
@@ -173,6 +209,8 @@ function ManualListChipsInput({
  */
 export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanelProps) {
   const { getComponent, loading } = useComponentStore()
+  const workflowId = useWorkflowStore((state) => state.metadata.id)
+  const navigate = useNavigate()
 
   const handleParameterChange = (paramId: string, value: any) => {
     if (!selectedNode || !onUpdateNode) return
@@ -248,6 +286,30 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
     ...(component.examples ?? []),
   ].filter((value): value is string => Boolean(value && value.trim().length > 0))
   const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
+  const handleManageSchedules = useCallback(() => {
+    if (!workflowId) {
+      navigate('/schedules')
+      return
+    }
+    navigate(`/schedules?workflowId=${workflowId}`)
+  }, [navigate, workflowId])
+  const isEntryPointComponent = component.id === ENTRY_COMPONENT_ID
+  const runtimeInputDefinitions = normalizeRuntimeInputs(manualParameters.runtimeInputs)
+  const entryPointPayload = {
+    inputs: runtimeInputDefinitions.reduce<Record<string, unknown>>((acc, input: any) => {
+      if (input?.id) {
+        acc[input.id] = buildSampleValueForRuntimeInput(input.type, input.id)
+      }
+      return acc
+    }, {}),
+  }
+  const workflowInvokeUrl = workflowId
+    ? `${API_BASE_URL}/workflows/${workflowId}/run`
+    : `${API_BASE_URL}/workflows/{workflowId}/run`
+  const entryPointPayloadString = JSON.stringify(entryPointPayload, null, 2)
+  const safeEntryPayload = JSON.stringify(entryPointPayload).replace(/'/g, "\\'")
+  const entryPointCurlSnippet = `curl -X POST '${workflowInvokeUrl}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${safeEntryPayload}'`
+  const schedulesDisabled = !workflowId
 
   return (
     <div className="config-panel w-[400px] border-l bg-background flex flex-col h-full overflow-hidden">
@@ -599,6 +661,66 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                       onUpdateParameter={handleParameterChange}
                     />
                   ))}
+              </div>
+            </div>
+          )}
+
+          {isEntryPointComponent && (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div>
+                  <h5 className="text-sm font-semibold text-foreground">
+                    Invoke via API
+                  </h5>
+                  <p className="text-xs text-muted-foreground">
+                    POST runtime inputs to this endpoint to start the workflow programmatically.
+                  </p>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
+                    Endpoint
+                  </div>
+                  <code className="block w-full overflow-x-auto rounded border bg-background px-2 py-1 text-xs font-mono text-foreground break-all">
+                    {workflowInvokeUrl}
+                  </code>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
+                    Payload
+                  </div>
+                  <pre className="rounded-lg border bg-background px-2 py-2 text-xs font-mono text-foreground overflow-x-auto">
+                    {entryPointPayloadString}
+                  </pre>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
+                    curl
+                  </div>
+                  <pre className="rounded-lg border bg-background px-2 py-2 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre-wrap">
+                    {entryPointCurlSnippet}
+                  </pre>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div>
+                  <h5 className="text-sm font-semibold text-foreground">
+                    Schedules
+                  </h5>
+                  <p className="text-xs text-muted-foreground">
+                    {workflowId
+                      ? 'View, pause, or create Temporal schedules for this workflow.'
+                      : 'Save this workflow to start managing schedules.'}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleManageSchedules}
+                  disabled={schedulesDisabled}
+                >
+                  Manage schedules
+                </Button>
               </div>
             </div>
           )}

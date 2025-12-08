@@ -125,7 +125,7 @@ import { WorkflowRunConfigPayload } from '@shipsec/shared';
 | `workflowId` | `string` | Workflow record ID that produced the run. |
 | `workflowVersionId` | `string \| null` | Snapshot identifier used for execution. |
 | `workflowVersion` | `number \| null` | Monotonic version number invoked for the run. |
-| `inputs` | `Record<string, unknown>` | Runtime inputs provided at execution time (including manual trigger runtime data). |
+| `inputs` | `Record<string, unknown>` | Runtime inputs provided at execution time (including entry point runtime data). |
 
 Frontend clients use this endpoint to prefill “Run this again” flows. Always treat `inputs` as untrusted data—validate against the current runtime input schema before replaying a run. When `workflowVersionId` differs from the builder’s current version, the UI should highlight the mismatch but continue to target the stored version so the replay matches the original graph.
 

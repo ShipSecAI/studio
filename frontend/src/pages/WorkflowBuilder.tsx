@@ -38,6 +38,23 @@ import { hasAdminRole } from '@/utils/auth'
 import { WorkflowImportSchema, DEFAULT_WORKFLOW_VIEWPORT } from '@/schemas/workflow'
 import { track, Events } from '@/features/analytics/events'
 
+const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
+const ENTRY_COMPONENT_SLUG = 'entry-point'
+const ENTRY_DEFAULT_RUNTIME_INPUTS = [
+  {
+    id: 'input1',
+    label: 'Input 1',
+    type: 'array',
+    required: true,
+    description: '',
+  },
+] as const
+
+const isEntryPointNode = (node?: ReactFlowNode<FrontendNodeData>) => {
+  if (!node) return false
+  const componentRef = node.data?.componentId ?? node.data?.componentSlug
+  return componentRef === ENTRY_COMPONENT_ID || componentRef === ENTRY_COMPONENT_SLUG
+}
 const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
   nodes.map((node) => ({
     ...node,
@@ -162,16 +179,55 @@ function WorkflowBuilderContent() {
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState([])
+  const { toast } = useToast()
   const mode = useWorkflowUiStore((state) => state.mode)
 
   // Wrap change handlers to mark workflow as dirty
   const onNodesChange = useCallback((changes: any[]) => {
-    onNodesChangeBase(changes)
-    // Mark as dirty when nodes change (only in design mode)
-    if (mode === 'design' && changes.length > 0) {
+    if (changes.length === 0) {
+      return
+    }
+
+    const totalEntryNodes = nodesRef.current.filter(isEntryPointNode).length
+    const removingLastEntry = changes.some((change) => {
+      if (change.type !== 'remove') return false
+      const node = nodesRef.current.find((n) => n.id === change.id)
+      return isEntryPointNode(node) && totalEntryNodes <= 1
+    })
+
+    if (removingLastEntry) {
+      toast({
+        variant: 'destructive',
+        title: 'Entry Point required',
+        description: 'Each workflow must keep one Entry Point node.',
+      })
+      return
+    }
+
+    const filteredChanges = changes.filter((change) => {
+      if (change.type === 'add' && 'item' in change) {
+        const node = (change as any).item as ReactFlowNode<FrontendNodeData>
+        if (isEntryPointNode(node) && nodesRef.current.some(isEntryPointNode)) {
+          toast({
+            variant: 'destructive',
+            title: 'Entry Point already exists',
+            description: 'Each workflow can only have one Entry Point.',
+          })
+          return false
+        }
+      }
+      return true
+    })
+
+    if (filteredChanges.length === 0) {
+      return
+    }
+
+    onNodesChangeBase(filteredChanges)
+    if (mode === 'design') {
       markDirty()
     }
-  }, [onNodesChangeBase, markDirty, mode])
+  }, [onNodesChangeBase, markDirty, mode, toast])
 
   const onEdgesChange = useCallback((changes: any[]) => {
     onEdgesChangeBase(changes)
@@ -181,6 +237,27 @@ function WorkflowBuilderContent() {
     }
   }, [onEdgesChangeBase, markDirty, mode])
   const { getComponent } = useComponentStore()
+  const createEntryPointNode = useCallback((): ReactFlowNode<FrontendNodeData> => {
+    const component = getComponent(ENTRY_COMPONENT_ID)
+    const slug = component?.slug ?? ENTRY_COMPONENT_SLUG
+    return {
+      id: `${slug}-${Date.now()}`,
+      type: 'workflow',
+      position: { x: 0, y: 0 },
+      data: {
+        label: component?.name ?? 'Entry Point',
+        config: {},
+        componentId: ENTRY_COMPONENT_ID,
+        componentSlug: slug,
+        componentVersion: component?.version ?? '1.0.0',
+        parameters: {
+          runtimeInputs: ENTRY_DEFAULT_RUNTIME_INPUTS.map((input) => ({ ...input })),
+        },
+        inputs: {},
+        status: 'idle',
+      },
+    }
+  }, [getComponent])
   const [isLoading, setIsLoading] = useState(false)
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [runtimeInputs, setRuntimeInputs] = useState<any[]>([])
@@ -205,7 +282,6 @@ function WorkflowBuilderContent() {
   const workflowCacheKey = metadata.id ?? '__global__'
   const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs)
   const runs = scopedRuns ?? []
-  const { toast } = useToast()
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const inspectorResizingRef = useRef(false)
   const isLibraryVisible = libraryOpen && mode === 'design'
@@ -450,20 +526,22 @@ function WorkflowBuilderContent() {
       }
 
       if (isNewWorkflow) {
-        // Reset store for new workflow
-        resetWorkflow()
-        setNodes([])
-        setEdges([])
-        historicalGraphRef.current = null
-        setHistoricalVersionId(null)
-        const baseMetadata = useWorkflowStore.getState().metadata
-        setLastSavedGraphSignature(computeGraphSignature([], []))
-        setLastSavedMetadata({
-          name: baseMetadata.name,
-          description: baseMetadata.description ?? '',
-        })
-        setHasGraphChanges(false)
-        setHasMetadataChanges(false)
+        if (nodesRef.current.length === 0) {
+          resetWorkflow()
+          const entryNode = createEntryPointNode()
+          setNodes([entryNode])
+          setEdges([])
+          historicalGraphRef.current = null
+          setHistoricalVersionId(null)
+          const baseMetadata = useWorkflowStore.getState().metadata
+          setLastSavedGraphSignature(computeGraphSignature([entryNode], []))
+          setLastSavedMetadata({
+            name: baseMetadata.name,
+            description: baseMetadata.description ?? '',
+          })
+          setHasGraphChanges(false)
+          setHasMetadataChanges(false)
+        }
         track(Events.WorkflowBuilderLoaded, { is_new: true })
         return
       }
@@ -584,6 +662,7 @@ function WorkflowBuilderContent() {
     setLastSavedMetadata,
     setHasGraphChanges,
     setHasMetadataChanges,
+    createEntryPointNode,
   ])
 
   const resolveRuntimeInputDefinitions = useCallback(() => {
@@ -591,7 +670,7 @@ function WorkflowBuilderContent() {
       const nodeData = node.data as any
       const componentRef = nodeData.componentId ?? nodeData.componentSlug
       const component = getComponent(componentRef)
-      return component?.id === 'core.trigger.manual'
+      return component?.id === 'core.workflow.entrypoint'
     })
 
     if (!triggerNode) {

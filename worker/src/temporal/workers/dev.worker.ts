@@ -9,7 +9,7 @@ import { Client } from 'minio';
 import { Worker, NativeConnection } from '@temporalio/worker';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import Long from 'long';
-import { isGrpcServiceError } from '@temporalio/client';
+import { isGrpcServiceError, Client as TemporalClient } from '@temporalio/client';
 import { config } from 'dotenv';
 import {
   runComponentActivity,

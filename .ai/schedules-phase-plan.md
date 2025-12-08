@@ -3,20 +3,20 @@
 This document captures the phase-by-phase rollout for introducing Workflow Entry Points (`core.workflow.entrypoint`) and the Temporal-backed schedules experience.
 
 ## Phase 0 – Entry Point Alignment
-1. **Component rename**
-   - Update component metadata to `core.workflow.entrypoint` (label “Entry Point”) while keeping compatibility with existing graphs.
-   - Refresh frontend copy/tests to use “Entry Point” terminology; keep `component.id` stable for persisted workflows.
-2. **Single-entry enforcement**
-   - Builder: prevent adding multiple Entry Points, auto-place one in new workflows, and disallow deleting the last entry node.
-   - Backend validator: error when the compiled graph has zero or multiple entry nodes.
-3. **Inspector upgrades**
-   - Entry Point inspector shows runtime input editor + “Invoke Workflow” panel (API payload, `curl` snippet) and a “Manage schedules” CTA linking to `/schedules?workflowId=...`.
+- [x] **Component rename**
+  - [x] Update component metadata to `core.workflow.entrypoint` (label “Entry Point”).
+  - [x] Refresh frontend copy/tests to use “Entry Point” terminology.
+- [x] **Single-entry enforcement**
+  - [x] Builder prevents multiple Entry Points, auto-places one on new workflows, and disallows deleting the last entry node.
+  - [x] Backend validator errors when the compiled graph has zero or multiple entry nodes.
+- [x] **Inspector upgrades**
+  - [x] Entry Point inspector shows runtime input editor + “Invoke Workflow” panel (`POST /workflows/:id/run` sample) and “Manage schedules” CTA linking to `/schedules?workflowId=...`.
 
 ## Phase 1 – Contracts & Schema
-1. Add shared Zod schemas for `Schedule`, `ScheduleInputPayload`, and `ExecutionTriggerMetadata` in `packages/shared`.
-2. DB migration for `workflow_schedules` (JSONB payload, cadence fields, status).
-3. Extend run payloads (backend + frontend) with `triggerType`, `triggerSource`, `triggerLabel`, `inputPreview`.
-4. Update OpenAPI spec + generated backend client to expose schedule endpoints and trigger metadata.
+- [x] Add shared Zod schemas for `Schedule`, `ScheduleInputPayload`, and `ExecutionTriggerMetadata` in `packages/shared`.
+- [x] DB migration for `workflow_schedules` (JSONB payload, cadence fields, status).
+- [x] Extend run payloads (backend + frontend) with `triggerType`, `triggerSource`, `triggerLabel`, `inputPreview`.
+- [x] Update OpenAPI spec + generated backend client to expose schedule endpoints and trigger metadata.
 
 ## Phase 2 – Backend Schedules Module
 1. Create `backend/src/modules/schedules` with controller/service/repository + DTOs.

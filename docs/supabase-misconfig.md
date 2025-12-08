@@ -44,7 +44,7 @@ to keep traces noisy enough for observability dashboards.
 - Full suite currently requires installing `pg` headers but no live Supabase project.
 
 ## Workflow Template
-- Manual trigger collects two runtime inputs:
+- Entry point collects two runtime inputs:
   - `supabaseUrl` (`text`)
   - `serviceRoleKey` (`secret`) – ensure the workflow node maps this secret port.
 - The component schema still expects default values at compile time, so placeholders are

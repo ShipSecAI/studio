@@ -49,7 +49,7 @@ export async function shipsecWorkflowRun(
         const mergedParams: Record<string, unknown> = { ...params };
 
         if (input.definition.entrypoint.ref === action.ref && input.inputs) {
-          if (action.componentId === 'core.trigger.manual') {
+          if (action.componentId === 'core.workflow.entrypoint') {
             mergedParams.__runtimeData = input.inputs;
           } else {
             Object.assign(mergedParams, input.inputs);

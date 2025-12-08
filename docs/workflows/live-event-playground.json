@@ -1,13 +1,13 @@
 {
   "name": "Live Event Playground",
-  "description": "Manual trigger feeding the Live Event Heartbeat component so we can observe five minutes of live trace streaming.",
+  "description": "Entry point feeding the Live Event Heartbeat component so we can observe five minutes of live trace streaming.",
   "nodes": [
     {
-      "id": "manual-trigger",
-      "type": "core.trigger.manual",
+      "id": "entry-point",
+      "type": "core.workflow.entrypoint",
       "position": { "x": 0, "y": 0 },
       "data": {
-        "label": "Manual Trigger",
+        "label": "Entry Point",
         "config": {
           "runtimeInputs": [
             { "id": "label", "label": "Stream Label", "type": "text", "required": true, "defaultValue": "Live Run Diagnostics" },
@@ -52,21 +52,21 @@
   "edges": [
     {
       "id": "trigger-to-heartbeat-label",
-      "source": "manual-trigger",
+      "source": "entry-point",
       "target": "live-heartbeat",
       "sourceHandle": "label",
       "targetHandle": "label"
     },
     {
       "id": "trigger-to-heartbeat-duration",
-      "source": "manual-trigger",
+      "source": "entry-point",
       "target": "live-heartbeat",
       "sourceHandle": "durationSeconds",
       "targetHandle": "durationSeconds"
     },
     {
       "id": "trigger-to-heartbeat-interval",
-      "source": "manual-trigger",
+      "source": "entry-point",
       "target": "live-heartbeat",
       "sourceHandle": "intervalSeconds",
       "targetHandle": "intervalSeconds"

@@ -14,14 +14,14 @@ for a set of users when an offboarding request lands in ShipSec.
 ## Recommended Workflow
 
 ```
-Manual Trigger / Webhook
+Entry Point / Webhook
         ↓
 Secret Fetch ──┐
                ├─→ Atlassian Offboarding ─→ Console Log / Notify
 Input builder ─┘
 ```
 
-1. **Manual Trigger / Webhook** – receives the list of users to offboard (for
+1. **Entry Point / Webhook** – receives the list of users to offboard (for
    example from HR automation).
 2. **Secret Fetch** – resolves the Atlassian bearer token stored in ShipSec
    secrets.
@@ -40,7 +40,7 @@ Input builder ─┘
 | `limit`           | `number`    | Optional search limit (default `20`).                                      |
 
 > **Tip:** Connect `Secret Fetch.secret` to `accessToken` so credentials are
-> masked in logs. Provide `emailUsernames` via manual trigger input or transform.
+> masked in logs. Provide `emailUsernames` via entry point input or transform.
 
 ## Outputs
 
@@ -67,7 +67,7 @@ Input builder ─┘
    - Connect `Secret Fetch → secret` to `Atlassian Offboarding → accessToken`.
    - Enter your Atlassian `orgId` in the parameters panel (UUID format).
    - Provide email usernames via:
-     - Manual Trigger input (one per line) wired to `emailUsernames`, or
+     - Entry Point input (one per line) wired to `emailUsernames`, or
      - A JSON/List builder before the offboarding component.
    - Optionally set `limit` (default 20) to control search batch size.
 

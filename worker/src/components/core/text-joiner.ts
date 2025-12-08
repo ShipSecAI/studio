@@ -150,10 +150,10 @@ const definition: ComponentDefinition<Input, Output> = {
         .filter(item => item.length > 0);
       context.logger.info(`[TextJoiner] Processing file input: ${params.items.name} (${itemsArray.length} items)`);
     } else {
-      // Case 4: File object from manual trigger (no content)
-      throw new Error(`File object from manual trigger has no content. File ID: ${params.items.id}, Name: ${params.items.fileName}.
+      // Case 4: File object from entry point (no content)
+      throw new Error(`File object from entry point has no content. File ID: ${params.items.id}, Name: ${params.items.fileName}.
 Please use a File Loader component to extract file content before passing to Text Joiner.
-Expected workflow: Manual Trigger → File Loader → Text Joiner`);
+Expected workflow: Entry Point → File Loader → Text Joiner`);
     }
 
     // Handle escape sequences

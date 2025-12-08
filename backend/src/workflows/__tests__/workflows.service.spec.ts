@@ -27,7 +27,7 @@ const sampleGraph = WorkflowGraphSchema.parse({
   nodes: [
     {
       id: 'trigger',
-      type: 'core.trigger.manual',
+      type: 'core.workflow.entrypoint',
       position: { x: 0, y: 0 },
       data: {
         label: 'Trigger',

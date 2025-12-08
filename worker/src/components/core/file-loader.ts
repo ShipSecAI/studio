@@ -71,7 +71,7 @@ const definition: ComponentDefinition<Input, Output> = {
         label: 'File ID',
         dataType: port.text({ coerceFrom: [] }),
         required: true,
-        description: 'File ID from uploaded file (typically from Manual Trigger runtime input).',
+        description: 'File ID from uploaded file (typically from Entry Point runtime input).',
       },
     ],
     outputs: [

@@ -22,6 +22,7 @@ import {
   mcpToolContractName,
 } from './mcp-tool-contract';
 
+
 // Define types for dependencies to enable dependency injection for testing
 export type ToolLoopAgentClass = typeof ToolLoopAgentImpl;
 export type StepCountIsFn = typeof stepCountIsImpl;
@@ -653,7 +654,7 @@ How it behaves:
 - MCP → Supply an MCP endpoint through the MCP input to expose your external tools.
 
 Typical workflow:
-1. Manual Trigger (or upstream Chat Model) → wire its text output into User Input.
+1. Entry Point (or upstream Chat Model) → wire its text output into User Input.
 2. AI SDK Agent (this node) → loops with Think/Act/Observe, logging tool calls and keeping state.
 3. Downstream node (Console Log, Storage, etc.) → consume responseText or reasoningTrace.
 

@@ -261,7 +261,7 @@ describe('executeWorkflow', () => {
       actions: [
         {
           ref: 'start',
-          componentId: 'core.trigger.manual',
+          componentId: 'core.workflow.entrypoint',
           params: {},
           dependsOn: [],
           inputMappings: {},
@@ -379,7 +379,7 @@ describe('executeWorkflow', () => {
       actions: [
         {
           ref: 'start',
-          componentId: 'core.trigger.manual',
+          componentId: 'core.workflow.entrypoint',
           params: {},
           dependsOn: [],
           inputMappings: {},
@@ -540,7 +540,7 @@ describe('executeWorkflow', () => {
       actions: [
         {
           ref: 'start',
-          componentId: 'core.trigger.manual',
+          componentId: 'core.workflow.entrypoint',
           params: {},
           dependsOn: [],
           inputMappings: {},
@@ -627,7 +627,7 @@ describe('executeWorkflow', () => {
       actions: [
         {
           ref: 'start',
-          componentId: 'core.trigger.manual',
+          componentId: 'core.workflow.entrypoint',
           params: {},
           dependsOn: [],
           inputMappings: {},
