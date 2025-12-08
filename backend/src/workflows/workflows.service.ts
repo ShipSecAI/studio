@@ -117,6 +117,38 @@ export class WorkflowsService {
     return auth?.organizationId ?? null;
   }
 
+  async ensureWorkflowAdminAccess(
+    workflowId: string,
+    auth?: AuthContext | null,
+  ): Promise<string> {
+    return this.requireWorkflowAdmin(workflowId, auth);
+  }
+
+  async getCompiledWorkflowContext(
+    workflowId: string,
+    request: WorkflowRunRequest = {},
+    auth?: AuthContext | null,
+  ): Promise<{
+    workflow: WorkflowRecord;
+    version: WorkflowVersionRecord;
+    definition: WorkflowDefinition;
+    organizationId: string;
+  }> {
+    const organizationId = this.requireOrganizationId(auth);
+    const workflow = await this.repository.findById(workflowId, { organizationId });
+    if (!workflow) {
+      throw new NotFoundException(`Workflow ${workflowId} not found`);
+    }
+    const version = await this.resolveWorkflowVersion(workflowId, request, organizationId);
+    const definition = await this.ensureDefinitionForVersion(workflow, version, organizationId);
+    return {
+      workflow,
+      version,
+      definition,
+      organizationId,
+    };
+  }
+
   private requireOrganizationId(auth?: AuthContext | null): string {
     const organizationId = this.resolveOrganizationId(auth);
     if (!organizationId) {
@@ -443,6 +475,15 @@ export class WorkflowsService {
     id: string,
     request: WorkflowRunRequest = {},
     auth?: AuthContext | null,
+    options: {
+      trigger?: {
+        type: ExecutionTriggerType;
+        sourceId?: string | null;
+        label?: string | null;
+      };
+      inputPreview?: ExecutionInputPreview;
+      nodeOverrides?: Record<string, Record<string, unknown>>;
+    } = {},
   ): Promise<WorkflowRunHandle> {
     const organizationId = this.requireOrganizationId(auth);
     const workflow = await this.repository.findById(id, { organizationId });
@@ -454,13 +495,17 @@ export class WorkflowsService {
       `Received run request for workflow ${workflow.id} (inputs=${inputSummary})`,
     );
 
-    const triggerMetadata = this.buildEntryPointTriggerMetadata(auth);
-    const inputPreview = this.buildInputPreview(request.inputs);
+    const triggerMetadata = options.trigger ?? this.buildEntryPointTriggerMetadata(auth);
+    const inputPreview = options.inputPreview ?? this.buildInputPreview(request.inputs);
     const version = await this.resolveWorkflowVersion(workflow.id, request, organizationId);
     const compiledDefinition = await this.ensureDefinitionForVersion(
       workflow,
       version,
       organizationId,
+    );
+    const definitionWithOverrides = this.applyNodeOverrides(
+      compiledDefinition,
+      options.nodeOverrides,
     );
     const runId = `shipsec-run-${randomUUID()}`;
 
@@ -475,7 +520,7 @@ export class WorkflowsService {
           {
             runId,
             workflowId: workflow.id,
-            definition: compiledDefinition,
+            definition: definitionWithOverrides,
             inputs: request.inputs ?? {},
             workflowVersionId: version.id,
             workflowVersion: version.version,
@@ -883,6 +928,35 @@ export class WorkflowsService {
     return Object.entries(inputs)
       .map(([key, value]) => `${key}=${this.describeValue(value)}`)
       .join(', ');
+  }
+
+  private applyNodeOverrides(
+    definition: WorkflowDefinition,
+    overrides?: Record<string, Record<string, unknown>>,
+  ): WorkflowDefinition {
+    if (!overrides || Object.keys(overrides).length === 0) {
+      return definition;
+    }
+
+    const updatedActions = definition.actions.map((action) => {
+      const override = overrides[action.ref];
+      if (!override || Object.keys(override).length === 0) {
+        return action;
+      }
+
+      return {
+        ...action,
+        params: {
+          ...(action.params ?? {}),
+          ...override,
+        },
+      };
+    });
+
+    return {
+      ...definition,
+      actions: updatedActions,
+    };
   }
 
   private buildEntryPointTriggerMetadata(auth?: AuthContext | null): {

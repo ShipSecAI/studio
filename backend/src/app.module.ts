@@ -16,6 +16,7 @@ import { TraceModule } from './trace/trace.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { TestingSupportModule } from './testing/testing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { SchedulesModule } from './schedules/schedules.module';
 
 const coreModules = [
   AgentsModule,
@@ -26,6 +27,7 @@ const coreModules = [
   StorageModule,
   SecretsModule,
   IntegrationsModule,
+  SchedulesModule,
 ];
 const testingModules =
   process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
