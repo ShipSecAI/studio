@@ -12,7 +12,7 @@ ShipSec Studio is a security automation platform for building and running reconn
 1. **Clone repository**
    ```bash
    git clone <repo-url>
-   cd shipsec-studio-worktree
+   cd studio
    ```
 
 2. **Setup everything**
