@@ -159,8 +159,8 @@ export async function executeWorkflow(
       }
 
       if (definition.entrypoint.ref === action.ref && request.inputs) {
-        // For Manual Trigger, pass runtime inputs in __runtimeData key
-        if (action.componentId === 'core.trigger.manual') {
+        // For Entry Point, pass runtime inputs in __runtimeData key
+        if (action.componentId === 'core.workflow.entrypoint') {
           params.__runtimeData = request.inputs;
         } else {
           // For other components, merge directly

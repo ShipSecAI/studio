@@ -1,7 +1,7 @@
 # Schedule Navigation & Temporal Schedule Integration Plan
 
 ## Context
-- Workflows currently require a workflow entry point node (`core.workflow.entrypoint`, previously `core.trigger.manual`) that surfaces runtime-input forms via `WorkflowBuilder` and `RuntimeInputsEditor` (see `frontend/src/pages/WorkflowBuilder.tsx` and `frontend/src/components/workflow/RuntimeInputsEditor.tsx`). No persistent scheduling primitive exists today.
+- Workflows currently require a workflow entry point node (`core.workflow.entrypoint`, previously `core.workflow.entrypoint`) that surfaces runtime-input forms via `WorkflowBuilder` and `RuntimeInputsEditor` (see `frontend/src/pages/WorkflowBuilder.tsx` and `frontend/src/components/workflow/RuntimeInputsEditor.tsx`). No persistent scheduling primitive exists today.
 - Execution UI (Run selector, timeline, inspector in `frontend/src/components/timeline/*`) displays runs from `useRunStore`, but the store schema only tracks start/end metadata and whether a run is live—there is no `triggerType` or schedule attribution.
 - The backend/worker stack launches runs directly through the existing workflows module; Temporal Schedule APIs are not used and there is no REST contract for creating or managing calendar-based runs.
 - Users want to configure recurring execution without polluting the workflow canvas with Cron nodes, and operations teams need a global view to pause or audit every cadence.

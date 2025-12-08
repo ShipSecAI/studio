@@ -54,10 +54,10 @@ export class WorkflowsBootstrapService implements OnModuleInit {
       nodes: [
         {
           id: 'trigger',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
           data: {
-            label: 'Manual Trigger',
+            label: 'Entry Point',
             config: {
               runtimeInputs: [
                 { id: 'fileId', label: 'File ID', type: 'text', required: true },

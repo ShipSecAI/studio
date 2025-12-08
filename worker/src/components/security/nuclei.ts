@@ -258,7 +258,7 @@ const definition: ComponentDefinition<Input, Output> = {
     examples: [
       'Specific CVE scan: Use templateIds=["CVE-2024-1234", "CVE-2024-5678"] to scan for known vulnerabilities',
       'Custom template testing: Paste YAML directly into customTemplateYaml for rapid iteration',
-      'Bulk custom scan: Upload zip archive via Manual Trigger → File Loader → Nuclei',
+      'Bulk custom scan: Upload zip archive via Entry Point → File Loader → Nuclei',
       'Comprehensive scan: Combine custom archive + built-in templates for complete coverage',
     ],
     parameters: [

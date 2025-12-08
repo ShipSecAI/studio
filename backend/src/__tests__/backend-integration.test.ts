@@ -27,10 +27,10 @@ const api = (path: string) => `${baseUrl}${path}`;
 
 const normalizeNode = (override: Partial<WorkflowNodeDto> = {}): WorkflowNodeDto => ({
   id: override.id ?? 'node-1',
-  type: override.type ?? 'core.trigger.manual',
+  type: override.type ?? 'core.workflow.entrypoint',
   position: override.position ?? { x: 0, y: 0 },
   data: {
-    label: override.data?.label ?? 'Manual Trigger',
+    label: override.data?.label ?? 'Entry Point',
     config: override.data?.config ?? {},
   },
 });
@@ -234,7 +234,7 @@ interface Component {
       const workflow: WorkflowResponseDto = await readJson(response);
       expect(workflow.id).toBe(created.id);
       expect(workflow.name).toBe('Test Workflow');
-      expect(workflow.graph.nodes[0].data.label).toBe('Manual Trigger');
+      expect(workflow.graph.nodes[0].data.label).toBe('Entry Point');
     });
 
     it('should update a workflow', async () => {
@@ -440,10 +440,10 @@ interface Component {
     });
 
     it('should get a specific component by id', async () => {
-      const response = await fetch(api('/components/core.trigger.manual'));
+      const response = await fetch(api('/components/core.workflow.entrypoint'));
       expect(response.ok).toBe(true);
       const component: Component = await readJson(response);
-      expect(component.id).toBe('core.trigger.manual');
+      expect(component.id).toBe('core.workflow.entrypoint');
       expect(component).toHaveProperty('name');
       expect(Array.isArray(component.inputs)).toBe(true);
       expect(Array.isArray(component.outputs)).toBe(true);

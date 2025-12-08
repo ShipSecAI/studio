@@ -1015,7 +1015,7 @@ export function ParameterFieldWrapper({
   parameters,
   onUpdateParameter,
 }: ParameterFieldWrapperProps) {
-  // Special case: Runtime Inputs Editor for Manual Trigger
+  // Special case: Runtime Inputs Editor for Entry Point
   if (parameter.id === 'runtimeInputs') {
     return (
       <div className="p-3 rounded-lg border bg-background space-y-2">

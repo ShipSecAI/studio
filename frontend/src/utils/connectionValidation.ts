@@ -63,8 +63,8 @@ export function validateConnection(
   // Get port metadata (with support for dynamic outputs)
   let sourceOutputs = sourceComponent.outputs ?? []
   
-  // Special case: Manual Trigger has dynamic outputs based on runtimeInputs parameter
-  if (sourceComponent.id === 'core.trigger.manual') {
+  // Special case: Entry Point has dynamic outputs based on runtimeInputs parameter
+  if (sourceComponent.id === 'core.workflow.entrypoint') {
     const sourceNodeData = sourceNode.data
     const runtimeInputsParam = sourceNodeData.parameters?.runtimeInputs
     

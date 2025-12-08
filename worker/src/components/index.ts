@@ -8,7 +8,7 @@ import { initializeDestinationAdapters } from '../destinations';
 initializeDestinationAdapters();
 
 // Core components
-import './core/trigger-manual';
+import './core/entry-point';
 import './core/file-loader';
 import './core/webhook';
 import './core/text-splitter';

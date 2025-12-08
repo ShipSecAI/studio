@@ -113,7 +113,7 @@ workerDescribe('Worker Integration Tests', () => {
         actions: [
           {
             ref: 'trigger',
-            componentId: 'core.trigger.manual',
+            componentId: 'core.workflow.entrypoint',
             params: {
               payload: {
                 test: true,
@@ -195,7 +195,7 @@ workerDescribe('Worker Integration Tests', () => {
         actions: [
           {
             ref: 'trigger',
-            componentId: 'core.trigger.manual',
+            componentId: 'core.workflow.entrypoint',
             params: {},
             dependsOn: [],
             inputMappings: {},
@@ -364,7 +364,7 @@ workerDescribe('Worker Integration Tests', () => {
         actions: [
           {
             ref: 'trigger',
-            componentId: 'core.trigger.manual',
+            componentId: 'core.workflow.entrypoint',
             params: {
               payload: { step: 1 },
             },
@@ -373,7 +373,7 @@ workerDescribe('Worker Integration Tests', () => {
           },
           {
             ref: 'step2',
-            componentId: 'core.trigger.manual',
+            componentId: 'core.workflow.entrypoint',
             params: {
               payload: { step: 2 },
             },
@@ -382,7 +382,7 @@ workerDescribe('Worker Integration Tests', () => {
           },
           {
             ref: 'step3',
-            componentId: 'core.trigger.manual',
+            componentId: 'core.workflow.entrypoint',
             params: {
               payload: { step: 3 },
             },
@@ -463,7 +463,7 @@ workerDescribe('Worker Integration Tests', () => {
         actions: [
           {
             ref: 'trigger',
-            componentId: 'core.trigger.manual',
+            componentId: 'core.workflow.entrypoint',
             params: {},
             dependsOn: [],
             inputMappings: {},
@@ -565,7 +565,7 @@ workerDescribe('Worker Integration Tests', () => {
       actions: [
         {
           ref: 'trigger',
-          componentId: 'core.trigger.manual',
+          componentId: 'core.workflow.entrypoint',
           params: {},
           dependsOn: [],
           inputMappings: {},
