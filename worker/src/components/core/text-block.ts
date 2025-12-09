@@ -18,7 +18,7 @@ const definition: ComponentDefinition<Input, void> = {
   outputSchema,
   docs: 'Add markdown notes and documentation to your workflow. Supports GFM including checklists, tables, and code blocks.',
   metadata: {
-    slug: 'core.textblock',
+    slug: 'text-block',
     version: '1.0.0',
     type: 'input',
     category: 'input',

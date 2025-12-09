@@ -19,6 +19,7 @@ export function useWorkflowExecution(workflowId?: string | null) {
       isCurrentExecution: false,
       // Keep actions available so we can start new runs
       startExecution: executionState.startExecution,
+      stopExecution: executionState.stopExecution,
       reset: executionState.reset,
     }
   }

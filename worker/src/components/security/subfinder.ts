@@ -6,6 +6,7 @@ import {
   runComponentWithRunner,
   type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const domainValueSchema = z.union([z.string(), z.array(z.string())]);
 
@@ -67,6 +68,8 @@ const outputSchema = z.object({
   subdomainCount: z.number(),
 });
 
+const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.subfinder.run',
   label: 'Subfinder',
@@ -86,58 +89,15 @@ if [ -n "$SUBFINDER_PROVIDER_CONFIG_B64" ]; then
   printf '%s' "$SUBFINDER_PROVIDER_CONFIG_B64" | base64 -d > "$CONFIG_DIR/provider-config.yaml"
 fi
 
-INPUT=$(cat)
-
-DOMAINS=$(
-  printf "%s" "$INPUT" |
-  tr '"[],{}' '\n' |
-  grep -E '^[A-Za-z0-9.-]+$' |
-  grep -v '^domains$' |
-  sed '/^$/d' || true
-)
-
-if [ -z "$DOMAINS" ]; then
-  printf '{"subdomains":[],"rawOutput":"","domainCount":0,"subdomainCount":0}'
-  exit 0
-fi
-
-RAW_FILE=$(mktemp)
-DEDUP_FILE=$(mktemp)
-trap 'rm -f "$RAW_FILE" "$DEDUP_FILE"' EXIT
-
-DOMAIN_COUNT=0
-
-for DOMAIN in $DOMAINS; do
-  if [ -n "$DOMAIN" ]; then
-    DOMAIN_COUNT=$((DOMAIN_COUNT + 1))
-    (
-      subfinder -silent -d "$DOMAIN" 2>/dev/null |
-      sed 's/\r//g' |
-      sed '/^$/d'
-    ) >> "$RAW_FILE" || true
-  fi
-done
-
-if [ ! -s "$RAW_FILE" ]; then
-  printf '{"subdomains":[],"rawOutput":"","domainCount":%d,"subdomainCount":0}' "$DOMAIN_COUNT"
-  exit 0
-fi
-
-sort -u "$RAW_FILE" > "$DEDUP_FILE"
-SUBDOMAIN_COUNT=$(wc -l < "$DEDUP_FILE" | tr -d ' ')
-
-SUBDOMAIN_JSON=$(awk 'NR==1{printf("[\"%s\"", $0); next} {printf(",\"%s\"", $0)} END {if (NR==0) printf("[]"); else printf("]");}' "$DEDUP_FILE")
-
-RAW_OUTPUT_ESCAPED=$(printf '%s' "$(cat "$RAW_FILE")" | sed ':a;N;$!ba;s/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g')
-
-printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}' \
-  "$SUBDOMAIN_JSON" \
-  "$RAW_OUTPUT_ESCAPED" \
-  "$DOMAIN_COUNT" \
-  "$SUBDOMAIN_COUNT"
+# NOTE: We intentionally DO NOT use the -json flag for subfinder
+# Reason: Subfinder's -json outputs JSONL (one JSON per line), not a JSON array
+# JSONL requires line-by-line parsing: output.split('\n').map(line => JSON.parse(line))
+# Plain text is simpler: output.split('\n').filter(line => line.length > 0)
+# See docs/component-development.md "Output Format Selection" for details
+subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
 `,
-    ],
-    timeoutSeconds: 120,
+      ],
+    timeoutSeconds: SUBFINDER_TIMEOUT_SECONDS,
     env: {
       HOME: '/root',
     },
@@ -203,83 +163,108 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d}'
       throw new Error('Subfinder runner is expected to be docker-based.');
     }
 
-    const runnerConfig: DockerRunnerConfig = {
-      ...baseRunner,
-      env: { ...(baseRunner.env ?? {}) },
-    };
+    if (input.domains.length === 0) {
+      return {
+        subdomains: [],
+        rawOutput: '',
+        domainCount: 0,
+        subdomainCount: 0,
+      };
+    }
 
-    if (input.providerConfig) {
-      const encoded = Buffer.from(input.providerConfig, 'utf8').toString('base64');
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
-      if (runnerConfig.kind === 'docker') {
+    try {
+      await volume.initialize({
+        'domains.txt': input.domains.join('\n'),
+      });
+      context.logger.info(`[Subfinder] Created isolated volume for ${input.domains.length} domain(s).`);
+
+      const runnerConfig: DockerRunnerConfig = {
+        ...baseRunner,
+        env: { ...(baseRunner.env ?? {}) },
+        volumes: [volume.getVolumeConfig('/inputs', true)],
+      };
+
+      if (input.providerConfig) {
+        const encoded = Buffer.from(input.providerConfig, 'utf8').toString('base64');
+
         runnerConfig.env = {
           ...(runnerConfig.env ?? {}),
           SUBFINDER_PROVIDER_CONFIG_B64: encoded,
         };
+
+        context.logger.info('[Subfinder] Provider configuration secret injected into runner environment.');
       }
 
-      context.logger.info('[Subfinder] Provider configuration secret injected into runner environment.');
-    }
+      const result = await runComponentWithRunner(
+        runnerConfig,
+        async () => ({}),
+        input,
+        context,
+      );
 
-    const result = await runComponentWithRunner(
-      runnerConfig,
-      async () => ({}),
-      input,
-      context,
-    );
+      if (typeof result === 'string') {
+        const rawOutput = result;
+        const dedupedSubdomains = Array.from(
+          new Set(
+            rawOutput
+              .split('\n')
+              .map(line => line.trim())
+              .filter(line => line.length > 0),
+          ),
+        );
 
-    if (typeof result === 'string') {
-      const rawOutput = result;
-      const subdomains = rawOutput
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
+        return {
+          subdomains: dedupedSubdomains,
+          rawOutput,
+          domainCount: input.domains.length,
+          subdomainCount: dedupedSubdomains.length,
+        };
+      }
+
+      if (result && typeof result === 'object') {
+        const parsed = outputSchema.safeParse(result);
+        if (parsed.success) {
+          return parsed.data;
+        }
+
+        // Fallback: attempt to normalise unexpected object shapes
+        const maybeRaw = 'rawOutput' in result ? String((result as any).rawOutput ?? '') : '';
+        const subdomainsValue = Array.isArray((result as any).subdomains)
+          ? ((result as any).subdomains as unknown[])
+              .map(value => (typeof value === 'string' ? value.trim() : String(value)))
+              .filter(value => value.length > 0)
+          : maybeRaw
+              .split('\n')
+              .map(line => line.trim())
+              .filter(line => line.length > 0);
+
+        const output: Output = {
+          subdomains: subdomainsValue,
+          rawOutput: maybeRaw || subdomainsValue.join('\n'),
+          domainCount: typeof (result as any).domainCount === 'number'
+            ? (result as any).domainCount
+            : input.domains.length,
+          subdomainCount: typeof (result as any).subdomainCount === 'number'
+            ? (result as any).subdomainCount
+            : subdomainsValue.length,
+        };
+
+        return output;
+      }
 
       return {
-        subdomains,
-        rawOutput,
+        subdomains: [],
+        rawOutput: '',
         domainCount: input.domains.length,
-        subdomainCount: subdomains.length,
+        subdomainCount: 0,
       };
+    } finally {
+      await volume.cleanup();
+      context.logger.info('[Subfinder] Cleaned up isolated volume.');
     }
-
-    if (result && typeof result === 'object') {
-      const parsed = outputSchema.safeParse(result);
-      if (parsed.success) {
-        return parsed.data;
-      }
-
-      // Fallback: attempt to normalise unexpected object shapes
-      const maybeRaw = 'rawOutput' in result ? String((result as any).rawOutput ?? '') : '';
-      const subdomainsValue = Array.isArray((result as any).subdomains)
-        ? ((result as any).subdomains as unknown[])
-            .map(value => (typeof value === 'string' ? value.trim() : String(value)))
-            .filter(value => value.length > 0)
-        : maybeRaw
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
-
-      const output: Output = {
-        subdomains: subdomainsValue,
-        rawOutput: maybeRaw || subdomainsValue.join('\n'),
-        domainCount: typeof (result as any).domainCount === 'number'
-          ? (result as any).domainCount
-          : input.domains.length,
-        subdomainCount: typeof (result as any).subdomainCount === 'number'
-          ? (result as any).subdomainCount
-          : subdomainsValue.length,
-      };
-
-      return output;
-    }
-
-    return {
-      subdomains: [],
-      rawOutput: '',
-      domainCount: input.domains.length,
-      subdomainCount: 0,
-    };
   },
 };
 

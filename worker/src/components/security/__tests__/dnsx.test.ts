@@ -162,7 +162,7 @@ describe('dnsx component', () => {
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
       expect(component.runner.image).toBe('projectdiscovery/dnsx:latest');
-      expect(component.runner.entrypoint).toBe('dnsx');
+      expect(component.runner.entrypoint).toBe('sh');
     }
   });
 });

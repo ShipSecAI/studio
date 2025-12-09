@@ -54,30 +54,31 @@ export function ExecutionTimeline() {
   const [isDragging, setIsDragging] = useState(false)
   const timelineRef = useRef<HTMLDivElement>(null)
 
-  const {
-    selectedRunId,
-    events,
-    totalDuration,
-    eventDuration,
-    currentTime,
-    playbackMode,
-    isPlaying,
-    playbackSpeed,
-    isSeeking,
-    nodeStates,
-    showTimeline,
-    timelineZoom,
-    play,
-    pause,
-    seek,
-    setPlaybackSpeed,
-    stepForward,
-    stepBackward,
-    setTimelineZoom,
-    isLiveFollowing,
-    goLive,
-    tickLiveClock,
-  } = useExecutionTimelineStore()
+  const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
+  const events = useExecutionTimelineStore((state) => state.events)
+  const totalDuration = useExecutionTimelineStore((state) => state.totalDuration)
+  const eventDuration = useExecutionTimelineStore((state) => state.eventDuration)
+  const currentTime = useExecutionTimelineStore((state) => state.currentTime)
+  const playbackMode = useExecutionTimelineStore((state) => state.playbackMode)
+  const isPlaying = useExecutionTimelineStore((state) => state.isPlaying)
+  const playbackSpeed = useExecutionTimelineStore((state) => state.playbackSpeed)
+  const isSeeking = useExecutionTimelineStore((state) => state.isSeeking)
+  const nodeStates = useExecutionTimelineStore((state) => state.nodeStates)
+  const showTimeline = useExecutionTimelineStore((state) => state.showTimeline)
+  const timelineZoom = useExecutionTimelineStore((state) => state.timelineZoom)
+  const play = useExecutionTimelineStore((state) => state.play)
+  const pause = useExecutionTimelineStore((state) => state.pause)
+  const seek = useExecutionTimelineStore((state) => state.seek)
+  const setPlaybackSpeed = useExecutionTimelineStore((state) => state.setPlaybackSpeed)
+  const stepForward = useExecutionTimelineStore((state) => state.stepForward)
+  const stepBackward = useExecutionTimelineStore((state) => state.stepBackward)
+  const setTimelineZoom = useExecutionTimelineStore((state) => state.setTimelineZoom)
+  const isLiveFollowing = useExecutionTimelineStore((state) => state.isLiveFollowing)
+  const goLive = useExecutionTimelineStore((state) => state.goLive)
+  const tickLiveClock = useExecutionTimelineStore((state) => state.tickLiveClock)
+  const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime)
+  const agentMarkersRunId = useExecutionTimelineStore((state) => state.agentMarkersRunId)
+  const agentMarkers = useExecutionTimelineStore((state) => state.agentMarkers)
 
   const isLiveMode = playbackMode === 'live'
   const overviewDuration = Math.max(eventDuration, totalDuration)
@@ -230,6 +231,42 @@ export function ExecutionTimeline() {
   }, [events, safeDuration, clampedStart, viewportWidth])
 
   const visibleMarkers = markerData.filter((marker) => marker.visible)
+  const baseTimelineStart =
+    timelineStartTime ??
+    (events.length > 0 ? new Date(events[0].timestamp).getTime() : null)
+  const agentMarkerData = useMemo(() => {
+    if (!baseTimelineStart) {
+      return []
+    }
+    if (!selectedRunId || agentMarkersRunId !== selectedRunId) {
+      return []
+    }
+    const flatMarkers = Object.values(agentMarkers).flat()
+    return flatMarkers.map((marker) => {
+      const markerTime = new Date(marker.timestamp).getTime()
+      const offsetMs = markerTime - baseTimelineStart
+      const normalized = clampValue(offsetMs / safeDuration, 0, 1)
+      const viewportPosition =
+        viewportWidth >= 1 ? normalized : (normalized - clampedStart) / viewportWidth
+      return {
+        id: marker.id,
+        label: marker.label,
+        timestamp: marker.timestamp,
+        viewportPosition,
+        normalizedPosition: normalized,
+        visible: viewportPosition >= 0 && viewportPosition <= 1,
+      }
+    })
+  }, [
+    agentMarkers,
+    agentMarkersRunId,
+    baseTimelineStart,
+    clampedStart,
+    safeDuration,
+    selectedRunId,
+    viewportWidth,
+  ])
+  const visibleAgentMarkers = agentMarkerData.filter((marker) => marker.visible)
 
   const handlePreviewPointer = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -370,6 +407,16 @@ export function ExecutionTimeline() {
                 style={{ left: `${marker.viewportPosition * 100}%` }}
                 title={`${marker.type} • ${formatTimestamp(marker.timestamp)}`}
               />
+            ))}
+            {visibleAgentMarkers.map((marker) => (
+              <div
+                key={`agent-${marker.id}`}
+                className="absolute top-1 bottom-1 flex items-center justify-center"
+                style={{ left: `${marker.viewportPosition * 100}%` }}
+                title={`${marker.label} • ${formatTimestamp(marker.timestamp)}`}
+              >
+                <div className="w-3 h-3 rotate-45 border border-amber-500 bg-amber-200 shadow-sm" />
+              </div>
             ))}
             {(playbackMode === 'replay' || isLiveMode) && (
               <div className="absolute inset-0 pointer-events-none">

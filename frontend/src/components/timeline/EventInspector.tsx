@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { ChevronDown, FileText, AlertCircle, CheckCircle, Activity } from 'lucide-react'
+import { ChevronDown, FileText, AlertCircle, CheckCircle, Activity, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { MessageModal } from '@/components/ui/MessageModal'
 import { createPreview } from '@/utils/textPreview'
@@ -320,6 +320,20 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
               'Select a run to explore execution events.'
             )}
           </p>
+          {selectedNodeId && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Node filter</span>
+              <button
+                type="button"
+                onClick={() => selectNode(null)}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 font-medium text-muted-foreground transition hover:bg-muted"
+                aria-label="Clear node filter"
+              >
+                {selectedNodeId}
+                <X className="h-3 w-3 opacity-70" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div

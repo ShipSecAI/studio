@@ -5,6 +5,7 @@ import {
   port,
   runComponentWithRunner,
 } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const inputSchema = z.object({
   targets: z
@@ -116,124 +117,10 @@ const definition: ComponentDefinition<Input, Output> = {
   runner: {
     kind: 'docker',
     image: 'projectdiscovery/httpx:latest',
-    entrypoint: 'sh',
+    entrypoint: 'httpx',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,
-    command: [
-      '-c',
-      String.raw`set -eo pipefail
-
-INPUT=$(cat)
-
-TARGETS_SECTION=$(printf "%s" "$INPUT" | tr -d '\n' | sed -n 's/.*"targets":[[:space:]]*\[\([^]]*\)\].*/\1/p')
-
-if [ -z "$TARGETS_SECTION" ]; then
-  exit 0
-fi
-
-TARGETS=$(printf "%s" "$TARGETS_SECTION" | tr ',' '\n' | sed 's/"//g; s/^[[:space:]]*//; s/[[:space:]]*$//' | sed '/^$/d')
-
-if [ -z "$TARGETS" ]; then
-  exit 0
-fi
-
-extract_string() {
-  key="$1"
-  value=$(printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*\"[^\"]*\"" | head -n1 | sed "s/.*\"$key\":[[:space:]]*\"\([^\"]*\)\".*/\1/" || true)
-  printf "%s" "$value"
-}
-
-extract_number() {
-  key="$1"
-  value=$(printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*[0-9][0-9]*" | head -n1 | sed 's/[^0-9]//g' || true)
-  printf "%s" "$value"
-}
-
-extract_bool() {
-  key="$1"
-  default="$2"
-  value=$(printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*\\(true\\|false\\)" | head -n1 | sed 's/.*://; s/[[:space:]]//g' || true)
-  if [ -z "$value" ]; then
-    echo "$default"
-  elif [ "$value" = "true" ]; then
-    echo "true"
-  else
-    echo "false"
-  fi
-}
-
-PORTS=$(extract_string "ports" | tr -d ' ')
-STATUS_CODES=$(extract_string "statusCodes" | tr -d ' ')
-PATH_VALUE=$(extract_string "path")
-THREADS=$(extract_number "threads")
-FOLLOW_REDIRECTS=$(extract_bool "followRedirects" "false")
-TLS_PROBE=$(extract_bool "tlsProbe" "false")
-PREFER_HTTPS=$(extract_bool "preferHttps" "false")
-
-LIST_FILE=$(mktemp)
-OUTPUT_FILE=$(mktemp)
-STDERR_FILE=$(mktemp)
-
-cleanup() {
-  rm -f "$LIST_FILE" "$OUTPUT_FILE" "$STDERR_FILE"
-}
-
-trap cleanup EXIT
-
-printf "%s\n" $TARGETS > "$LIST_FILE"
-
-set -- httpx -json -silent -l "$LIST_FILE"
-
-if [ -n "$PORTS" ]; then
-  set -- "$@" -ports "$PORTS"
-fi
-if [ -n "$STATUS_CODES" ]; then
-  set -- "$@" -status-code "$STATUS_CODES"
-fi
-if [ -n "$THREADS" ]; then
-  set -- "$@" -threads "$THREADS"
-fi
-if [ -n "$PATH_VALUE" ]; then
-  set -- "$@" -path "$PATH_VALUE"
-fi
-if [ "$FOLLOW_REDIRECTS" = "true" ]; then
-  set -- "$@" -follow-redirects
-fi
-if [ "$TLS_PROBE" = "true" ]; then
-  set -- "$@" -tls-probe
-fi
-if [ "$PREFER_HTTPS" = "true" ]; then
-  set -- "$@" -prefer-https
-fi
-
-set +e
-"$@" > "$OUTPUT_FILE" 2> "$STDERR_FILE"
-STATUS=$?
-set -e
-
-RAW_OUTPUT=$(cat "$OUTPUT_FILE")
-STDERR_OUTPUT=$(cat "$STDERR_FILE")
-
-if [ -s "$OUTPUT_FILE" ]; then
-  RESULTS_JSON=$(awk 'NR==1{printf("[%s", $0); next} {printf(",%s", $0)} END {if (NR==0) printf("[]"); else printf("]");}' "$OUTPUT_FILE")
-else
-  RESULTS_JSON="[]"
-fi
-
-escape_json() {
-  printf '%s' "$1" | awk 'BEGIN { ORS="" } { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); if (NR > 1) printf "\\n"; printf "%s", $0 }'
-}
-
-RAW_ESCAPED=$(escape_json "$RAW_OUTPUT")
-STDERR_ESCAPED=$(escape_json "$STDERR_OUTPUT")
-
-printf '{"results":%s,"raw":"%s","stderr":"%s","exitCode":%d}' \
-  "$RESULTS_JSON" \
-  "$RAW_ESCAPED" \
-  "$STDERR_ESCAPED" \
-  "$STATUS"
-`,
-    ],
+    command: ['-version'],
     env: {
       HOME: '/root',
     },
@@ -385,103 +272,103 @@ printf '{"results":%s,"raw":"%s","stderr":"%s","exitCode":%d}' \
       data: { targets: runnerParams.targets.slice(0, 5) },
     });
 
-    const rawRunnerResult = await runComponentWithRunner(
-      this.runner,
-      async () => ({}) as Output,
-      runnerParams,
-      context,
-    );
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
-    let candidateResult: unknown = rawRunnerResult;
-    if (typeof candidateResult === 'string') {
-      const trimmed = candidateResult.trim();
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        try {
-          candidateResult = JSON.parse(trimmed);
-        } catch {
-          candidateResult = rawRunnerResult;
+    try {
+      const targets = Array.from(
+        new Set(
+          runnerParams.targets
+            .map(target => target.trim())
+            .filter(target => target.length > 0),
+        ),
+      );
+
+      await volume.initialize({
+        'targets.txt': targets.join('\n'),
+      });
+
+      const httpxArgs: string[] = ['-json', '-silent', '-l', '/inputs/targets.txt', '-stream'];
+
+      if (runnerParams.ports) {
+        httpxArgs.push('-ports', runnerParams.ports);
+      }
+      if (runnerParams.statusCodes) {
+        httpxArgs.push('-status-code', runnerParams.statusCodes);
+      }
+      if (typeof runnerParams.threads === 'number') {
+        httpxArgs.push('-threads', String(runnerParams.threads));
+      }
+      if (runnerParams.path) {
+        httpxArgs.push('-path', runnerParams.path);
+      }
+      if (runnerParams.followRedirects) {
+        httpxArgs.push('-follow-redirects');
+      }
+      if (runnerParams.tlsProbe) {
+        httpxArgs.push('-tls-probe');
+      }
+      if (runnerParams.preferHttps) {
+        httpxArgs.push('-prefer-https');
+      }
+
+      const runnerConfig = {
+        ...definition.runner,
+        entrypoint: 'httpx',
+        command: httpxArgs,
+        volumes: [volume.getVolumeConfig('/inputs', true)],
+      };
+
+      const rawRunnerResult = await runComponentWithRunner(
+        runnerConfig,
+        async () => ({}) as Output,
+        runnerParams,
+        context,
+      );
+
+      let runnerOutput = '';
+
+      if (typeof rawRunnerResult === 'string') {
+        runnerOutput = rawRunnerResult;
+      } else if (rawRunnerResult && typeof rawRunnerResult === 'object') {
+        const parsedOutput = outputSchema.safeParse(rawRunnerResult);
+        if (parsedOutput.success) {
+          return parsedOutput.data;
         }
-      }
-    }
 
-    const parsedRunnerResult = httpxRunnerOutputSchema.safeParse(candidateResult);
-
-    let runnerOutput = '';
-    let stderrOutput = '';
-    let exitCode = 0;
-
-    if (parsedRunnerResult.success) {
-      const { results, raw, stderr, exitCode: runnerExitCode } = parsedRunnerResult.data;
-      const rawCandidate = raw ?? '';
-      stderrOutput = stderr ?? '';
-      exitCode = runnerExitCode ?? 0;
-
-      const serialisedResults = (results ?? [])
-        .map(entry => {
-          if (typeof entry === 'string') {
-            return entry;
-          }
-          try {
-            return JSON.stringify(entry);
-          } catch (_error) {
-            return null;
-          }
-        })
-        .filter((line): line is string => !!line && line.trim().length > 0)
-        .join('\n');
-
-      runnerOutput = rawCandidate.trim().length > 0 ? rawCandidate : serialisedResults;
-
-      if (exitCode !== 0) {
-        throw new Error(
-          stderrOutput
-            ? `httpx exited with code ${exitCode}: ${stderrOutput}`
-            : `httpx exited with code ${exitCode}`,
-        );
-      }
-    } else if (typeof rawRunnerResult === 'string') {
-      runnerOutput = rawRunnerResult;
-    } else if (rawRunnerResult && typeof rawRunnerResult === 'object') {
-      const parsedOutput = outputSchema.safeParse(rawRunnerResult);
-      if (parsedOutput.success) {
-        return parsedOutput.data;
+        runnerOutput =
+          'rawOutput' in rawRunnerResult
+            ? String((rawRunnerResult as Record<string, unknown>).rawOutput ?? '')
+            : JSON.stringify(rawRunnerResult);
       }
 
-      runnerOutput =
-        'rawOutput' in rawRunnerResult
-          ? String((rawRunnerResult as Record<string, unknown>).rawOutput ?? '')
-          : JSON.stringify(rawRunnerResult);
-    } else {
-      runnerOutput = '';
+      const findings = parseHttpxOutput(runnerOutput);
+
+      context.logger.info(
+        `[httpx] Completed probe with ${findings.length} result(s) from ${runnerParams.targets.length} target(s)`,
+      );
+
+      const output: Output = {
+        results: findings,
+        rawOutput: runnerOutput,
+        targetCount: runnerParams.targets.length,
+        resultCount: findings.length,
+        options: {
+          followRedirects: runnerParams.followRedirects,
+          tlsProbe: runnerParams.tlsProbe,
+          preferHttps: runnerParams.preferHttps,
+          ports: runnerParams.ports ?? null,
+          statusCodes: runnerParams.statusCodes ?? null,
+          threads: runnerParams.threads ?? null,
+          path: runnerParams.path ?? null,
+        },
+      };
+
+      return outputSchema.parse(output);
+    } finally {
+      await volume.cleanup();
+      context.logger.info('[httpx] Cleaned up isolated volume.');
     }
-
-    const findings = parseHttpxOutput(runnerOutput);
-
-    if (stderrOutput) {
-      context.logger.info(`[httpx] stderr output: ${stderrOutput}`);
-    }
-
-    context.logger.info(
-      `[httpx] Completed probe with ${findings.length} result(s) from ${runnerParams.targets.length} target(s)`,
-    );
-
-    const output: Output = {
-      results: findings,
-      rawOutput: runnerOutput,
-      targetCount: runnerParams.targets.length,
-      resultCount: findings.length,
-      options: {
-        followRedirects: runnerParams.followRedirects,
-        tlsProbe: runnerParams.tlsProbe,
-        preferHttps: runnerParams.preferHttps,
-        ports: runnerParams.ports ?? null,
-        statusCodes: runnerParams.statusCodes ?? null,
-        threads: runnerParams.threads ?? null,
-        path: runnerParams.path ?? null,
-      },
-    };
-
-    return outputSchema.parse(output);
   },
 };
 

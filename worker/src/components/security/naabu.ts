@@ -182,6 +182,13 @@ if [ -n "$INTERFACE" ]; then
   CMD="$CMD -interface $INTERFACE"
 fi
 
+# CRITICAL: Enable stream mode to prevent output buffering
+# ProjectDiscovery tools buffer output by default, causing containers to appear hung
+# -stream flag: Disables buffering + forces immediate output flush
+# Without this, naabu buffers up to 8KB before flushing, causing timeout failures
+# See docs/component-development.md "Output Buffering" section for details
+CMD="$CMD -stream"
+
 eval "$CMD"
 `,
     ],

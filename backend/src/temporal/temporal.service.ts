@@ -146,9 +146,11 @@ export class TemporalService implements OnModuleDestroy {
   async cancelWorkflow(ref: WorkflowRunReference): Promise<void> {
     const handle = await this.getWorkflowHandle(ref);
     this.logger.warn(
-      `Cancelling workflow ${handle.workflowId} (runId=${ref.runId ?? 'latest'})`,
+      `Terminating workflow ${handle.workflowId} (runId=${ref.runId ?? 'latest'})`,
     );
-    await handle.cancel();
+    // Use terminate() for immediate stop - shows as TERMINATED status
+    // cancel() requires workflow cooperation and may show as FAILED if not handled
+    await handle.terminate('User requested stop');
   }
 
   private async getWorkflowHandle(ref: WorkflowRunReference): Promise<WorkflowHandle<any>> {

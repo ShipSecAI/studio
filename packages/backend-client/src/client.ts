@@ -20,6 +20,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/{agentRunId}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentsController_parts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/{agentRunId}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AgentsController_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows": {
         parameters: {
             query?: never;
@@ -1215,6 +1247,46 @@ export interface operations {
             };
         };
     };
+    AgentsController_parts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Returns stored agent trace parts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentsController_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AI SDK-compatible SSE for agent run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     WorkflowsController_findAll: {
         parameters: {
             query?: never;
@@ -1858,6 +1930,7 @@ export interface operations {
                 temporalRunId?: string;
                 cursor?: string;
                 terminalCursor?: string;
+                logCursor?: number;
             };
             header?: never;
             path: {
@@ -1880,8 +1953,12 @@ export interface operations {
         parameters: {
             query?: {
                 nodeRef?: string;
-                stream?: string;
+                stream?: "stdout" | "stderr" | "console";
+                level?: "debug" | "info" | "warn" | "error";
                 limit?: number;
+                cursor?: string;
+                startTime?: string;
+                endTime?: string;
             };
             header?: never;
             path: {
@@ -1891,12 +1968,29 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Log streams for a workflow run */
+            /** @description Logs for a workflow run */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        runId?: string;
+                        logs?: {
+                            id?: string;
+                            runId?: string;
+                            nodeId?: string;
+                            /** @enum {string} */
+                            level?: "debug" | "info" | "warn" | "error";
+                            message?: string;
+                            /** Format: date-time */
+                            timestamp?: string;
+                        }[];
+                        totalCount?: number;
+                        hasMore?: boolean;
+                        nextCursor?: string | null;
+                    };
+                };
             };
         };
     };

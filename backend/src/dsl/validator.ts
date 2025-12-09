@@ -135,6 +135,10 @@ function isPlaceholderIssue(issue: ZodIssue, placeholderFields: Set<string>): bo
       return true;
     case 'invalid_format':
       return true;
+    case 'too_small':
+      return true;
+    case 'too_big':
+      return true;
     case 'invalid_union':
       if ('unionErrors' in issue) {
         const unionIssue = issue as ZodIssue & { unionErrors: ZodError[] };

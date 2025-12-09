@@ -55,6 +55,13 @@ type RawDataPacket = {
   visualTime?: number
 }
 
+export interface AgentTimelineMarker {
+  id: string
+  nodeId: string
+  label: string
+  timestamp: string
+}
+
 export interface TimelineState {
   // Run selection
   selectedRunId: string | null
@@ -84,6 +91,8 @@ export interface TimelineState {
   showEventInspector: boolean
   timelineZoom: number // 1.0 - 100.0
   isLiveFollowing: boolean
+  agentMarkersRunId: string | null
+  agentMarkers: Record<string, AgentTimelineMarker[]>
 }
 
 export interface TimelineActions {
@@ -102,7 +111,7 @@ export interface TimelineActions {
   stepBackward: () => void
 
   // Node interaction
-  selectNode: (nodeId: string) => void
+  selectNode: (nodeId: string | null) => void
   selectEvent: (eventId: string | null) => void
 
   // UI controls
@@ -117,6 +126,8 @@ export interface TimelineActions {
 
   goLive: () => void
   tickLiveClock: () => void
+
+  setAgentMarkers: (runId: string, nodeId: string, markers: AgentTimelineMarker[]) => void
 
   // Cleanup
   reset: () => void
@@ -445,6 +456,8 @@ const INITIAL_STATE: TimelineState = {
   showEventInspector: false,
   timelineZoom: 1,
   isLiveFollowing: false,
+  agentMarkersRunId: null,
+  agentMarkers: {},
 }
 
 export const useExecutionTimelineStore = create<TimelineStore>()(
@@ -466,6 +479,8 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
         playbackMode: initialMode,
         isPlaying: false,
         isLiveFollowing: initialMode === 'live',
+        agentMarkersRunId: null,
+        agentMarkers: {},
       })
       await get().loadTimeline(runId)
     },
@@ -477,6 +492,11 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
           api.executions.getDataFlows(runId),
           api.executions.getStatus(runId).catch(() => null)
         ])
+
+        // Also fetch historical logs for the run
+        void import('./executionStore').then(({ useExecutionStore }) => {
+          useExecutionStore.getState().fetchHistoricalLogs(runId)
+        })
 
         const eventsList = (eventsResponse.events ?? []).filter(
           (event): event is ExecutionLog => 
@@ -518,11 +538,13 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
 
         const state = get()
         const isLiveMode = state.playbackMode === 'live'
-        // In replay mode, default to end position (for completed workflows)
-        // In live mode, use current position or end if following
+        const hadTimeline = state.events.length > 0
+        // In replay mode we want the transcript/timeline to start at the end for fresh loads
+        // so the full run is visible. When the user has already been scrubbing (events exist)
+        // we preserve their current position. Live mode keeps its current behaviour.
         const initialCurrentTime = isLiveMode
           ? (state.isLiveFollowing ? eventDuration : Math.min(state.currentTime, eventDuration))
-          : Math.min(state.currentTime, eventDuration) // Keep current position (starts at 0 for new runs)
+          : (hadTimeline ? Math.min(state.currentTime, eventDuration) : eventDuration)
 
         set({
           events,
@@ -598,7 +620,7 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
       }
     },
 
-    selectNode: (nodeId: string) => {
+    selectNode: (nodeId: string | null) => {
       set({ selectedNodeId: nodeId, selectedEventId: null })
     },
 
@@ -758,6 +780,38 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
       })
 
       get().loadTimeline(state.selectedRunId)
+    },
+
+    setAgentMarkers: (runId: string, nodeId: string, markers: AgentTimelineMarker[]) => {
+      set((state) => {
+        const sameRun = state.agentMarkersRunId === runId
+        const currentMarkers = sameRun ? state.agentMarkers[nodeId] ?? [] : []
+        const isEqual =
+          sameRun &&
+          currentMarkers.length === markers.length &&
+          currentMarkers.every((marker, index) => {
+            const next = markers[index]
+            return (
+              marker.id === next?.id &&
+              marker.nodeId === next?.nodeId &&
+              marker.label === next?.label &&
+              marker.timestamp === next?.timestamp
+            )
+          })
+        if (isEqual) {
+          return state
+        }
+        const base = sameRun ? { ...state.agentMarkers } : {}
+        if (markers.length > 0) {
+          base[nodeId] = markers
+        } else {
+          delete base[nodeId]
+        }
+        return {
+          agentMarkersRunId: runId,
+          agentMarkers: base,
+        }
+      })
     },
 
     reset: () => {

@@ -51,7 +51,7 @@ const inputSchema = z.object({
           'Resolvers should be hostnames or IPs, optionally including port (e.g. 1.1.1.1:53).',
         ),
     )
-    .default([]),
+    .default(['1.1.1.1:53', '1.0.0.1:53', '8.8.8.8:53', '8.8.4.4:53']),
   retryCount: z.number().int().min(1).max(10).default(2),
   rateLimit: z.number().int().positive().max(10000).optional(),
   threads: z.number().int().min(1).max(10000).default(100),
@@ -301,6 +301,13 @@ const buildDnsxArgs = (options: BuildDnsxArgsOptions): string[] => {
     }
   }
 
+  // CRITICAL: Enable stream mode to prevent output buffering
+  // ProjectDiscovery tools buffer output by default, causing containers to appear hung
+  // -stream flag: Disables buffering + forces immediate output flush
+  // Without this, dnsx buffers up to 8KB before flushing, causing 180s timeout failures
+  // See docs/component-development.md "Output Buffering" section for details
+  args.push('-stream');
+
   for (const flag of options.customFlags) {
     if (flag.length > 0) {
       args.push(flag);
@@ -317,13 +324,19 @@ const definition: ComponentDefinition<Input, Output> = {
   runner: {
     kind: 'docker',
     image: DNSX_IMAGE,
-    entrypoint: 'dnsx',
+    // IMPORTANT: Use shell wrapper for PTY compatibility
+    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
+    // The shell wrapper ensures proper TTY signal handling and clean exit
+    // See docs/component-development.md "Docker Entrypoint Pattern" for details
+    entrypoint: 'sh',
     network: 'bridge',
     timeoutSeconds: DNSX_TIMEOUT_SECONDS,
     env: {
       HOME: '/root',
     },
-    command: ['-h'],
+    // Shell wrapper pattern: sh -c 'dnsx "$@"' -- [args...]
+    // This allows dynamic args to be appended and properly passed to dnsx
+    command: ['-c', 'dnsx "$@"', '--'],
   },
   inputSchema,
   outputSchema,
@@ -642,8 +655,12 @@ const definition: ComponentDefinition<Input, Output> = {
         network: baseRunner.network,
         timeoutSeconds: baseRunner.timeoutSeconds ?? DNSX_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
-        entrypoint: 'dnsx',
-        command: dnsxArgs,
+        // Preserve the shell wrapper from baseRunner (sh -c 'dnsx "$@"' --)
+        // This is critical for PTY compatibility - do not override with 'dnsx'
+        entrypoint: baseRunner.entrypoint,
+        // Append dnsx arguments to shell wrapper command
+        // Resulting command: ['sh', '-c', 'dnsx "$@"', '--', ...dnsxArgs]
+        command: [...(baseRunner.command ?? []), ...dnsxArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
 

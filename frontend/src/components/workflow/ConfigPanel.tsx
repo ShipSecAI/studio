@@ -325,7 +325,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                         : String(manualValue)
                   const manualValuePreview = formatManualValue(manualValue)
                   const useSecretSelect =
-                    (component.slug === 'secret-fetch' || component.id === 'core.secret.fetch') &&
+                    component.id === 'core.secret.fetch' &&
                     input.id === 'secretId'
                   const manualPlaceholder = useSecretSelect
                     ? 'Select a secret...'
@@ -594,7 +594,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                       value={nodeData.parameters?.[param.id]}
                       onChange={(value) => handleParameterChange(param.id, value)}
                       connectedInput={nodeData.inputs?.[param.id]}
-                      componentSlug={component.slug ?? component.id}
+                      componentId={component.id}
                       parameters={nodeData.parameters}
                       onUpdateParameter={handleParameterChange}
                     />
