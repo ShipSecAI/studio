@@ -38,7 +38,6 @@ export class WorkflowRunRepository {
       workflowId: input.workflowId,
       workflowVersionId: input.workflowVersionId,
       workflowVersion: input.workflowVersion,
-      temporalRunId: input.temporalRunId ?? null,
       totalActions: input.totalActions,
       inputs: input.inputs ?? {},
       triggerType: input.triggerType,
@@ -49,25 +48,34 @@ export class WorkflowRunRepository {
       organizationId: input.organizationId ?? null,
     };
 
+    if (input.temporalRunId !== undefined) {
+      values.temporalRunId = input.temporalRunId;
+    }
+
+    const updateValues: Partial<WorkflowRunInsert> = {
+      workflowId: input.workflowId,
+      workflowVersionId: input.workflowVersionId,
+      workflowVersion: input.workflowVersion,
+      totalActions: input.totalActions,
+      inputs: input.inputs ?? {},
+      triggerType: input.triggerType,
+      triggerSource: input.triggerSource ?? null,
+      triggerLabel: input.triggerLabel ?? 'Manual run',
+      inputPreview: input.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} },
+      updatedAt: new Date(),
+      organizationId: input.organizationId ?? null,
+    };
+
+    if (input.temporalRunId !== undefined) {
+      updateValues.temporalRunId = input.temporalRunId;
+    }
+
     const [record] = await this.db
       .insert(workflowRunsTable)
       .values(values)
       .onConflictDoUpdate({
         target: workflowRunsTable.runId,
-        set: {
-          workflowId: input.workflowId,
-          workflowVersionId: input.workflowVersionId,
-          workflowVersion: input.workflowVersion,
-          temporalRunId: input.temporalRunId ?? null,
-          totalActions: input.totalActions,
-          inputs: input.inputs ?? {},
-          triggerType: input.triggerType,
-          triggerSource: input.triggerSource ?? null,
-          triggerLabel: input.triggerLabel ?? 'Manual run',
-          inputPreview: input.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} },
-          updatedAt: new Date(),
-          organizationId: input.organizationId ?? null,
-        },
+        set: updateValues,
       })
       .returning();
 

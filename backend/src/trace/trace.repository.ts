@@ -79,7 +79,7 @@ export class TraceRepository implements OnModuleDestroy {
    */
   async notifyRun(runId: string, payload: string): Promise<void> {
     const channel = `trace_events_${runId}`;
-    await this.pool.query(`NOTIFY "${channel}", $1`, [payload]);
+    await this.pool.query('SELECT pg_notify($1, $2)', [channel, payload]);
   }
 
   async append(event: PersistedTraceEvent): Promise<void> {

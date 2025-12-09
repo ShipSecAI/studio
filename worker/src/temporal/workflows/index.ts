@@ -58,11 +58,30 @@ export async function shipsecWorkflowRun(
         const { params, warnings } = buildActionParams(action, results);
         const mergedParams: Record<string, unknown> = { ...params };
 
-        if (input.definition.entrypoint.ref === action.ref && input.inputs) {
-          if (action.componentId === 'core.workflow.entrypoint') {
+        // Only apply inputs to the actual entrypoint component, not just any node matching the entrypoint ref
+        const isEntrypointRef = input.definition.entrypoint.ref === action.ref;
+        const isEntrypointComponent = action.componentId === 'core.workflow.entrypoint';
+        
+        if (isEntrypointRef && input.inputs) {
+          if (isEntrypointComponent) {
+            console.log(
+              `[Workflow] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`
+            );
             mergedParams.__runtimeData = input.inputs;
           } else {
-            Object.assign(mergedParams, input.inputs);
+            // Entrypoint ref points to a non-entrypoint component - this is a configuration error
+            // Log warning but don't apply inputs to wrong component
+            console.error(
+              `[Workflow] CRITICAL: Entrypoint ref '${input.definition.entrypoint.ref}' points to component '${action.componentId}' instead of 'core.workflow.entrypoint'. ` +
+              `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`
+            );
+          }
+        } else if (input.inputs && Object.keys(input.inputs).length > 0) {
+          // Log when inputs exist but are not being applied (for debugging)
+          if (isEntrypointRef && !isEntrypointComponent) {
+            console.warn(
+              `[Workflow] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`
+            );
           }
         }
 

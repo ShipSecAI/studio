@@ -41,6 +41,7 @@ export class InternalRunsController {
         trigger: triggerMetadata,
         nodeOverrides: body.nodeOverrides ?? undefined,
         runId: body.runId,
+        idempotencyKey: body.idempotencyKey,
       },
     );
 

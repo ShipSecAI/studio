@@ -245,7 +245,7 @@ export class SchedulesService {
       nodeOverrides: {},
     };
 
-    await this.workflowsService.run(
+    const prepared = await this.workflowsService.prepareRunPayload(
       existing.workflowId,
       {
         inputs: payload.runtimeInputs ?? {},
@@ -261,6 +261,8 @@ export class SchedulesService {
         nodeOverrides: payload.nodeOverrides ?? {},
       },
     );
+
+    await this.workflowsService.startPreparedRun(prepared);
   }
 
   private async findOwnedScheduleOrThrow(id: string, auth: AuthContext | null) {

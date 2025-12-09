@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 
@@ -135,6 +135,22 @@ export class WorkflowsService {
     auth?: AuthContext | null,
   ): Promise<string> {
     return this.requireWorkflowAdmin(workflowId, auth);
+  }
+
+  private normalizeIdempotencyKey(key?: string | null): string | undefined {
+    if (!key) {
+      return undefined;
+    }
+    const trimmed = key.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    return trimmed.slice(0, 128);
+  }
+
+  private runIdFromIdempotencyKey(key: string): string {
+    const hash = createHash('sha256').update(key).digest('hex');
+    return `shipsec-run-${hash}`;
   }
 
   async getCompiledWorkflowContext(
@@ -492,23 +508,49 @@ export class WorkflowsService {
       trigger?: ExecutionTriggerMetadata;
       nodeOverrides?: Record<string, Record<string, unknown>>;
       runId?: string;
+      idempotencyKey?: string;
     } = {},
   ): Promise<WorkflowRunHandle> {
     const prepared = await this.prepareRunPayload(id, request, auth, {
       trigger: options.trigger,
       nodeOverrides: options.nodeOverrides,
       runId: options.runId,
+      idempotencyKey: options.idempotencyKey,
     });
 
+    return this.startPreparedRun(prepared);
+  }
+
+  async startPreparedRun(prepared: PreparedRunPayload): Promise<WorkflowRunHandle> {
     const inputSummary = this.formatInputSummary(prepared.inputs);
     this.logger.log(
       `Starting workflow ${prepared.workflowId} (runId=${prepared.runId}, inputs=${inputSummary})`,
     );
 
+    const existingRecord = await this.runRepository.findByRunId(prepared.runId, {
+      organizationId: prepared.organizationId,
+    });
+
+    if (existingRecord?.temporalRunId) {
+      this.logger.log(
+        `Run ${prepared.runId} already started (temporalRunId=${existingRecord.temporalRunId})`,
+      );
+      return {
+        runId: existingRecord.runId,
+        workflowId: existingRecord.workflowId,
+        workflowVersionId: existingRecord.workflowVersionId ?? prepared.workflowVersionId,
+        workflowVersion: existingRecord.workflowVersion ?? prepared.workflowVersion,
+        temporalRunId: existingRecord.temporalRunId,
+        status: 'RUNNING',
+        taskQueue: this.temporalService.getDefaultTaskQueue(),
+      };
+    }
+
     await this.repository.incrementRunCount(prepared.workflowId, {
       organizationId: prepared.organizationId,
     });
 
+    let temporalRunId: string | null = null;
     try {
       const temporalRun = await this.temporalService.startWorkflow({
         workflowType: SHIPSEC_WORKFLOW_TYPE,
@@ -525,6 +567,7 @@ export class WorkflowsService {
           },
         ],
       });
+      temporalRunId = temporalRun.runId;
 
       this.logger.log(
         `Started workflow run ${prepared.runId} (workflowVersion=${prepared.workflowVersion}, temporalRunId=${temporalRun.runId}, taskQueue=${temporalRun.taskQueue}, actions=${prepared.totalActions})`,
@@ -555,6 +598,40 @@ export class WorkflowsService {
         taskQueue: temporalRun.taskQueue,
       };
     } catch (error) {
+      if (temporalRunId) {
+        this.logger.warn(
+          `Temporal workflow ${prepared.runId} reported error after start: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      if (
+        error &&
+        typeof error === 'object' &&
+        'message' in error &&
+        typeof (error as any).message === 'string' &&
+        (error as any).message.includes('Workflow execution already started')
+      ) {
+        const existing = await this.runRepository.findByRunId(prepared.runId, {
+          organizationId: prepared.organizationId,
+        });
+        if (existing?.temporalRunId) {
+          this.logger.warn(
+            `Workflow run ${prepared.runId} already active (temporalRunId=${existing.temporalRunId})`,
+          );
+          return {
+            runId: existing.runId,
+            workflowId: existing.workflowId,
+            workflowVersionId: existing.workflowVersionId ?? prepared.workflowVersionId,
+            workflowVersion: existing.workflowVersion ?? prepared.workflowVersion,
+            temporalRunId: existing.temporalRunId,
+            status: 'RUNNING',
+            taskQueue: this.temporalService.getDefaultTaskQueue(),
+          };
+        }
+      }
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
 
@@ -580,6 +657,7 @@ export class WorkflowsService {
       trigger?: ExecutionTriggerMetadata;
       nodeOverrides?: Record<string, Record<string, unknown>>;
       runId?: string;
+      idempotencyKey?: string;
     } = {},
   ): Promise<PreparedRunPayload> {
     const organizationId = this.requireOrganizationId(auth);
@@ -597,7 +675,8 @@ export class WorkflowsService {
 
     const nodeOverrides = options.nodeOverrides ?? {};
     const definitionWithOverrides = this.applyNodeOverrides(compiledDefinition, nodeOverrides);
-    const runId = options.runId ?? `shipsec-run-${randomUUID()}`;
+    const normalizedKey = this.normalizeIdempotencyKey(options.idempotencyKey);
+    const runId = options.runId ?? (normalizedKey ? this.runIdFromIdempotencyKey(normalizedKey) : `shipsec-run-${randomUUID()}`);
     const triggerMetadata = options.trigger ?? this.buildEntryPointTriggerMetadata(auth);
     const inputs = request.inputs ?? {};
     const inputPreview = this.buildInputPreview(inputs, nodeOverrides);
@@ -607,7 +686,6 @@ export class WorkflowsService {
       workflowId: workflow.id,
       workflowVersionId: version.id,
       workflowVersion: version.version,
-      temporalRunId: null,
       totalActions: definitionWithOverrides.actions.length,
       inputs,
       organizationId,
@@ -677,7 +755,32 @@ export class WorkflowsService {
     organizationId: string | null,
   ): Promise<WorkflowDefinition> {
     if (version.compiledDefinition) {
-      return version.compiledDefinition as WorkflowDefinition;
+      const definition = version.compiledDefinition as WorkflowDefinition;
+      const entryAction = definition.actions.find(
+        (action) => action.componentId === 'core.workflow.entrypoint',
+      );
+
+      if (
+        entryAction &&
+        (!definition.entrypoint || definition.entrypoint.ref !== entryAction.ref)
+      ) {
+        const patchedDefinition: WorkflowDefinition = {
+          ...definition,
+          entrypoint: { ref: entryAction.ref },
+        };
+
+        await this.versionRepository.setCompiledDefinition(
+          version.id,
+          patchedDefinition,
+          {
+            organizationId: organizationId ?? undefined,
+          },
+        );
+
+        return patchedDefinition;
+      }
+
+      return definition;
     }
 
     this.logger.log(

@@ -14,6 +14,7 @@ import {
   BadRequestException,
   HttpException,
   StreamableFile,
+  Headers,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -523,13 +524,22 @@ export class WorkflowsController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(RunWorkflowRequestSchema))
     body: RunWorkflowRequestDto,
+    @Headers() headers?: Record<string, string | string[] | undefined>,
   ) {
     try {
-      return await this.workflowsService.run(id, {
-        inputs: body.inputs,
-        versionId: body.versionId,
-        version: body.version,
-      }, auth);
+      const idempotencyKey = this.extractIdempotencyKey(headers);
+      const prepared = await this.workflowsService.prepareRunPayload(
+        id,
+        {
+          inputs: body.inputs,
+          versionId: body.versionId,
+          version: body.version,
+        },
+        auth,
+        { idempotencyKey },
+      );
+
+      return await this.workflowsService.startPreparedRun(prepared);
     } catch (error) {
       if (error instanceof HttpException) throw error;
 
@@ -701,12 +711,9 @@ export class WorkflowsController {
 
     let lastSequence = Number.parseInt(query.cursor ?? '0', 10);
     let terminalCursor = query.terminalCursor;
-    let lastLogSequence = query.logCursor ?? 0;
+    let lastLogCursor = query.logCursor ?? null;
     if (Number.isNaN(lastSequence) || lastSequence < 0) {
       lastSequence = 0;
-    }
-    if (lastLogSequence < 0) {
-      lastLogSequence = 0;
     }
 
     let active = true;
@@ -797,11 +804,14 @@ export class WorkflowsController {
           send('terminal', { runId, ...terminal });
         }
 
-        const newLogs = await this.logStreamService.fetchRecentLogs(runId, lastLogSequence);
+        const { logs: newLogs, cursor: nextCursor } = await this.logStreamService.fetchRecentLogs(
+          runId,
+          auth?.organizationId ?? null,
+          lastLogCursor,
+        );
         if (newLogs.length > 0) {
-          const lastLog = newLogs[newLogs.length - 1];
-          lastLogSequence = lastLog.sequence;
-          send('logs', { logs: newLogs, cursor: lastLogSequence.toString() });
+          lastLogCursor = nextCursor ?? lastLogCursor;
+          send('logs', { logs: newLogs, cursor: lastLogCursor });
         }
       } catch (error) {
         send('error', { message: 'trace_fetch_failed', detail: String(error) });
@@ -1061,5 +1071,34 @@ export class WorkflowsController {
       durationMs: record.durationMs,
       createdAt: (record.createdAt ?? new Date()).toISOString(),
     };
+  }
+
+  private extractIdempotencyKey(
+    headers: Record<string, string | string[] | undefined> | undefined,
+  ): string | undefined {
+    if (!headers) {
+      return undefined;
+    }
+
+    const normalized = Object.entries(headers).reduce<
+      Record<string, string | string[] | undefined>
+    >((acc, [key, value]) => {
+      acc[key.toLowerCase()] = value;
+      return acc;
+    }, {});
+
+    for (const candidate of ['idempotency-key', 'x-idempotency-key']) {
+      const raw = normalized[candidate];
+      if (Array.isArray(raw)) {
+        const first = raw.find((entry) => typeof entry === 'string' && entry.trim().length > 0);
+        if (first) {
+          return first;
+        }
+      } else if (typeof raw === 'string' && raw.trim().length > 0) {
+        return raw;
+      }
+    }
+
+    return undefined;
   }
 }

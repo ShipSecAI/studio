@@ -185,7 +185,13 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     };
   });
 
-  const entryNode = orderedIds[0];
+  const entrypointAction = actions.find(
+    (action) => action.componentId === 'core.workflow.entrypoint',
+  );
+  if (!entrypointAction) {
+    throw new Error('Workflow requires an Entry Point component (core.workflow.entrypoint).');
+  }
+  const entryNode = entrypointAction.ref;
 
   const dependencyCounts: Record<string, number> = {};
   for (const action of actions) {
@@ -200,6 +206,16 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     targetHandle: edge.targetHandle,
     kind: 'success',
   }));
+
+  // Verify the entrypoint ref points to an entrypoint component
+  const entrypointActionVerify = actions.find((action) => action.ref === entryNode);
+  if (!entrypointActionVerify || entrypointActionVerify.componentId !== 'core.workflow.entrypoint') {
+    throw new Error(
+      `Workflow compilation error: Entrypoint ref '${entryNode}' does not point to an Entry Point component. ` +
+      `Found component: ${entrypointActionVerify?.componentId ?? 'none'}. ` +
+      `This indicates a workflow configuration error.`
+    );
+  }
 
   const definition: WorkflowDefinition = {
     version: 2,

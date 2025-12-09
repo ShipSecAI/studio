@@ -1,0 +1,536 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  CalendarClock,
+  PauseCircle,
+  PlayCircle,
+  RefreshCw,
+  Search,
+  Edit3,
+  Plus,
+} from 'lucide-react'
+import { useScheduleStore } from '@/store/scheduleStore'
+import { useToast } from '@/components/ui/use-toast'
+import { api } from '@/services/api'
+import { ScheduleEditorDrawer, type WorkflowOption } from '@/components/schedules/ScheduleEditorDrawer'
+import type { WorkflowSchedule } from '@shipsec/shared'
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'error', label: 'Error' },
+]
+
+const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  active: 'default',
+  paused: 'secondary',
+  error: 'destructive',
+}
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    timeZoneName: 'short',
+  }).format(date)
+}
+
+const getWorkflowName = (
+  workflowId: string,
+  workflows: WorkflowOption[],
+): string => {
+  const match = workflows.find((workflow) => workflow.id === workflowId)
+  return match?.name ?? 'Unknown workflow'
+}
+
+export function SchedulesPage() {
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [workflowOptions, setWorkflowOptions] = useState<WorkflowOption[]>([])
+  const [workflowsLoading, setWorkflowsLoading] = useState(true)
+  const [actionState, setActionState] = useState<Record<string, 'run' | 'toggle'>>({})
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorMode, setEditorMode] = useState<'create' | 'edit'>('create')
+  const [activeSchedule, setActiveSchedule] = useState<WorkflowSchedule | null>(null)
+
+  const schedules = useScheduleStore((state) => state.schedules)
+  const isLoading = useScheduleStore((state) => state.isLoading)
+  const error = useScheduleStore((state) => state.error)
+  const filters = useScheduleStore((state) => state.filters)
+  const fetchSchedules = useScheduleStore((state) => state.fetchSchedules)
+  const refreshSchedules = useScheduleStore((state) => state.refreshSchedules)
+  const setFilters = useScheduleStore((state) => state.setFilters)
+  const pauseSchedule = useScheduleStore((state) => state.pauseSchedule)
+  const resumeSchedule = useScheduleStore((state) => state.resumeSchedule)
+  const runSchedule = useScheduleStore((state) => state.runSchedule)
+  const upsertSchedule = useScheduleStore((state) => state.upsertSchedule)
+
+  useEffect(() => {
+    const initialWorkflowId = searchParams.get('workflowId')
+    if (initialWorkflowId) {
+      setFilters({ workflowId: initialWorkflowId })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    fetchSchedules({ force: true }).catch(() => {
+      /* errors handled in store */
+    })
+  }, [fetchSchedules, filters.workflowId, filters.status])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const workflowList = await api.workflows.list()
+        if (cancelled) return
+        const normalized = workflowList.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name ?? 'Untitled workflow',
+        }))
+        setWorkflowOptions(normalized)
+      } catch (err) {
+        console.error('Failed to load workflows', err)
+        toast({
+          title: 'Unable to load workflows',
+          description:
+            err instanceof Error ? err.message : 'Please try refreshing the page.',
+          variant: 'destructive',
+        })
+      } finally {
+        if (!cancelled) {
+          setWorkflowsLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [toast])
+
+  const filteredSchedules = useMemo(() => {
+    const query = filters.search.trim().toLowerCase()
+
+    return schedules.filter((schedule) => {
+      const workflowName = getWorkflowName(schedule.workflowId, workflowOptions)
+      const matchesSearch =
+        query.length === 0 ||
+        schedule.name.toLowerCase().includes(query) ||
+        workflowName.toLowerCase().includes(query)
+
+      return matchesSearch
+    })
+  }, [filters.search, schedules, workflowOptions])
+
+  const markAction = (id: string, action: 'run' | 'toggle') => {
+    setActionState((state) => ({ ...state, [id]: action }))
+  }
+
+  const clearAction = (id: string) => {
+    setActionState((state) => {
+      const next = { ...state }
+      delete next[id]
+      return next
+    })
+  }
+
+  const handleWorkflowFilterChange = (value: string) => {
+    const workflowId = value === 'all' ? null : value
+    setFilters({ workflowId })
+    const nextParams = new URLSearchParams(searchParams)
+    if (workflowId) {
+      nextParams.set('workflowId', workflowId)
+    } else {
+      nextParams.delete('workflowId')
+    }
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  const handleStatusFilterChange = (value: string) => {
+    setFilters({ status: value as typeof filters.status })
+  }
+
+  const openCreateDrawer = () => {
+    setEditorMode('create')
+    setActiveSchedule(null)
+    setEditorOpen(true)
+  }
+
+  const openEditDrawer = (schedule: WorkflowSchedule) => {
+    setEditorMode('edit')
+    setActiveSchedule(schedule)
+    setEditorOpen(true)
+  }
+
+  const handleScheduleSaved = (
+    savedSchedule: WorkflowSchedule,
+    mode: 'create' | 'edit',
+  ) => {
+    upsertSchedule(savedSchedule)
+    toast({
+      title: mode === 'create' ? 'Schedule created' : 'Schedule updated',
+      description:
+        mode === 'create'
+          ? `"${savedSchedule.name}" is now active.`
+          : `"${savedSchedule.name}" has been updated.`,
+    })
+  }
+
+  const handlePauseResume = async (schedule: WorkflowSchedule) => {
+    markAction(schedule.id, 'toggle')
+    try {
+      if (schedule.status === 'active') {
+        await pauseSchedule(schedule.id)
+        toast({
+          title: 'Schedule paused',
+          description: `"${schedule.name}" has been paused.`,
+        })
+      } else {
+        await resumeSchedule(schedule.id)
+        toast({
+          title: 'Schedule resumed',
+          description: `"${schedule.name}" is active again.`,
+        })
+      }
+    } catch (err) {
+      toast({
+        title: 'Schedule update failed',
+        description: err instanceof Error ? err.message : 'Try again in a moment.',
+        variant: 'destructive',
+      })
+    } finally {
+      clearAction(schedule.id)
+    }
+  }
+
+  const handleRunNow = async (schedule: WorkflowSchedule) => {
+    markAction(schedule.id, 'run')
+    try {
+      await runSchedule(schedule.id)
+      toast({
+        title: 'Run requested',
+        description: `Scheduled cadence "${schedule.name}" is executing now.`,
+      })
+    } catch (err) {
+      toast({
+        title: 'Failed to trigger schedule',
+        description: err instanceof Error ? err.message : 'Try again in a moment.',
+        variant: 'destructive',
+      })
+    } finally {
+      clearAction(schedule.id)
+    }
+  }
+
+  const handleRefresh = async () => {
+    try {
+      await refreshSchedules()
+      toast({
+        title: 'Schedules refreshed',
+        description: 'Latest schedule statuses have been loaded.',
+      })
+    } catch (err) {
+      toast({
+        title: 'Refresh failed',
+        description: err instanceof Error ? err.message : 'Try again in a moment.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleEdit = (schedule: WorkflowSchedule) => {
+    openEditDrawer(schedule)
+  }
+
+  const isActionBusy = (id: string) => Boolean(actionState[id])
+
+  const renderStatusBadge = (status: string) => {
+    const variant = STATUS_VARIANTS[status] || 'outline'
+    const label = status.charAt(0).toUpperCase() + status.slice(1)
+    return <Badge variant={variant}>{label}</Badge>
+  }
+
+  const hasData = filteredSchedules.length > 0
+
+  return (
+    <TooltipProvider>
+      <div className="flex-1 bg-background">
+        <div className="container mx-auto px-4 py-8 space-y-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold flex items-center gap-2">
+                <CalendarClock className="h-6 w-6 text-primary" />
+                Workflow schedules
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                View every Temporal cadence from one place. Pause noisy runs, fire an ad-hoc
+                execution, or jump into the workflow that owns it.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={handleRefresh}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button
+                variant="default"
+                className="gap-2"
+                onClick={openCreateDrawer}
+              >
+                <Plus className="h-4 w-4" />
+                New schedule
+              </Button>
+              <Button
+                variant="ghost"
+                className="gap-2"
+                onClick={() => navigate('/')}
+              >
+                Open workflow builder
+              </Button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center justify-between">
+              <span>{error}</span>
+              <Button variant="outline" size="sm" onClick={handleRefresh}>
+                Try again
+              </Button>
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-xs uppercase text-muted-foreground flex items-center gap-2">
+                <Search className="h-3.5 w-3.5" />
+                Search
+              </label>
+              <Input
+                placeholder="Filter by schedule or workflow"
+                value={filters.search}
+                onChange={(event) => setFilters({ search: event.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs uppercase text-muted-foreground">Status</label>
+              <Select value={filters.status} onValueChange={handleStatusFilterChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs uppercase text-muted-foreground">Workflow</label>
+              <Select
+                value={filters.workflowId ?? 'all'}
+                onValueChange={handleWorkflowFilterChange}
+                disabled={workflowsLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All workflows" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All workflows</SelectItem>
+                  {workflowOptions.map((workflow) => (
+                    <SelectItem key={workflow.id} value={workflow.id}>
+                      {workflow.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Workflow</TableHead>
+                  <TableHead>Cadence</TableHead>
+                  <TableHead>Next run</TableHead>
+                  <TableHead>Last run</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && !hasData
+                  ? Array.from({ length: 4 }).map((_, index) => (
+                      <TableRow key={`skeleton-${index}`}>
+                        {Array.from({ length: 7 }).map((_, cell) => (
+                          <TableCell key={`cell-${cell}`}>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  : null}
+                {!isLoading && hasData
+                  ? filteredSchedules.map((schedule) => {
+                      const workflowName = getWorkflowName(
+                        schedule.workflowId,
+                        workflowOptions,
+                      )
+                      const cadenceLabel = schedule.humanLabel
+                        ? `${schedule.humanLabel} (${schedule.cronExpression})`
+                        : schedule.cronExpression
+
+                      const isPaused = schedule.status !== 'active'
+
+                      return (
+                        <TableRow key={schedule.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col">
+                              <span>{schedule.name}</span>
+                              {schedule.description && (
+                                <span className="text-xs text-muted-foreground">
+                                  {schedule.description}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{workflowName}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {schedule.workflowId}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span>{cadenceLabel}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {schedule.timezone}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{formatDateTime(schedule.nextRunAt)}</TableCell>
+                          <TableCell>{formatDateTime(schedule.lastRunAt)}</TableCell>
+                          <TableCell>{renderStatusBadge(schedule.status)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1"
+                                onClick={() => handleRunNow(schedule)}
+                                disabled={isActionBusy(schedule.id)}
+                              >
+                                <PlayCircle className="h-4 w-4" />
+                                Run now
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="gap-1"
+                                onClick={() => handlePauseResume(schedule)}
+                                disabled={isActionBusy(schedule.id)}
+                              >
+                                {isPaused ? (
+                                  <>
+                                    <PlayCircle className="h-4 w-4" />
+                                    Resume
+                                  </>
+                                ) : (
+                                  <>
+                                    <PauseCircle className="h-4 w-4" />
+                                    Pause
+                                  </>
+                                )}
+                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label="Edit schedule"
+                                    onClick={() => handleEdit(schedule)}
+                                  >
+                                    <Edit3 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  Edit schedule configuration
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  : null}
+                {!isLoading && !hasData && (
+                  <TableRow>
+                    <TableCell colSpan={7}>
+                      <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
+                        <p className="font-medium">No schedules found</p>
+                        <p className="text-sm text-muted-foreground max-w-lg">
+                          Create your first cadence with the “New schedule” button or tweak the filters above.
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </div>
+      <ScheduleEditorDrawer
+        open={editorOpen}
+        mode={editorMode}
+        schedule={activeSchedule ?? undefined}
+        defaultWorkflowId={editorMode === 'create' ? filters.workflowId : activeSchedule?.workflowId}
+        workflowOptions={workflowOptions}
+        onClose={() => setEditorOpen(false)}
+        onSaved={handleScheduleSaved}
+      />
+    </TooltipProvider>
+  )
+}

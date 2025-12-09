@@ -220,6 +220,8 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
     currentLiveRunVersion !== null &&
     typeof currentWorkflowVersion === 'number' &&
     currentLiveRunVersion !== currentWorkflowVersion
+  const isCurrentLiveSelected =
+    currentLiveRun ? selectedRunId === currentLiveRun.id : false
 
   const getStatusIcon = (status: string) => {
     const IconComponent = STATUS_ICONS[status as keyof typeof STATUS_ICONS]
@@ -412,14 +414,24 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
 
         <DropdownMenuContent className="w-96" align="start">
           {/* Current Live Run */}
-          {currentLiveRun && currentLiveRun.id !== selectedRunId && (
+          {currentLiveRun && isRunLive(currentLiveRun) && (
             <>
               <div className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Current Live Run
               </div>
               <DropdownMenuItem
-                onSelect={handleSwitchToLive}
-                className="flex items-center gap-3 p-3 cursor-pointer bg-blue-50 dark:bg-blue-950/20"
+                onSelect={(event) => {
+                  event.preventDefault()
+                  if (!isCurrentLiveSelected) {
+                    handleSwitchToLive()
+                  } else {
+                    setIsOpen(false)
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-3 p-3 cursor-pointer bg-blue-50 dark:bg-blue-950/20",
+                  isCurrentLiveSelected ? "ring-1 ring-primary/60" : undefined,
+                )}
               >
                 <div className={cn("flex-shrink-0", getStatusColor(currentLiveRun.status))}>
                   {getStatusIcon(currentLiveRun.status)}
@@ -458,7 +470,7 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
                   </div>
                 </div>
 
-                <Play className="h-4 w-4 text-blue-500" />
+                <Play className={cn("h-4 w-4 text-blue-500", isCurrentLiveSelected && "opacity-50")} />
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />

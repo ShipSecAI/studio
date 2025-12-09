@@ -169,6 +169,7 @@ export const WorkflowRunDispatchRequestSchema = z
       .optional(),
     trigger: ExecutionTriggerMetadataSchema.optional(),
     runId: z.string().optional(),
+    idempotencyKey: z.string().trim().min(1).max(128).optional(),
   })
   .refine(
     (value) => !(value.version && value.versionId),

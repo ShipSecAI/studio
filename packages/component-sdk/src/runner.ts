@@ -5,6 +5,22 @@ import { createTerminalChunkEmitter } from './terminal';
 type PtySpawn = typeof import('node-pty')['spawn'];
 let cachedPtySpawn: PtySpawn | null = null;
 
+function formatArgs(args: string[]): string {
+  return args
+    .map((part, index) => {
+      if (!part) {
+        return '';
+      }
+      const hasNewlines = part.includes('\n');
+      const isLong = part.length > 120;
+      if (hasNewlines || isLong) {
+        return `<arg-${index}:${part.length} chars>`;
+      }
+      return part;
+    })
+    .join(' ');
+}
+
 async function loadPtySpawn(): Promise<PtySpawn | null> {
   if (cachedPtySpawn) {
     return cachedPtySpawn;
@@ -41,7 +57,7 @@ async function runComponentInDocker<I, O>(
 ): Promise<O> {
   const { image, command, entrypoint, env = {}, network = 'none', platform, volumes, timeoutSeconds = 300 } = runner;
 
-  context.logger.info(`[Docker] Running ${image} with command: ${command.join(' ')}`);
+  context.logger.info(`[Docker] Running ${image} with command: ${formatArgs(command)}`);
   context.emitProgress(`Starting Docker container: ${image}`);
 
   const dockerArgs = [
@@ -230,7 +246,7 @@ async function runDockerWithPty<I, O>(
     let ptyProcess: ReturnType<typeof spawnPty>;
     try {
       // Debug: Log the full docker command
-      context.logger.info(`[Docker][PTY] Spawning: docker ${dockerArgs.join(' ')}`);
+      context.logger.info(`[Docker][PTY] Spawning: docker ${formatArgs(dockerArgs)}`);
 
       ptyProcess = spawnPty('docker', dockerArgs, {
         name: 'xterm-color',

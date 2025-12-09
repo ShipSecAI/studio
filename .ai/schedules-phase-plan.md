@@ -29,9 +29,11 @@ This document captures the phase-by-phase rollout for introducing Workflow Entry
 
 ## Phase 3 – Unified Run Payload API
 - [x] Add internal backend endpoint/service that accepts `{ workflowId, trigger, scheduleId?, overrides? }`, generates a run ID, compiles the workflow, stores the run row, and returns `{ runId, definition, inputs, workflowVersionId, organizationId, triggerMetadata }`.
-- [ ] Make the public `POST /workflows/:id/run` call the new internal method and pass the returned payload to Temporal (no duplicated logic).
-- [ ] Introduce idempotency keys so repeated worker calls (e.g., schedule retries) reuse the same run row instead of creating duplicates.
-- [ ] Expose the internal endpoint securely for worker access (internal token + org header) and document expected headers/response.
+- [x] Make the public `POST /workflows/:id/run` call the new internal method and pass the returned payload to Temporal (no duplicated logic).
+- [x] Introduce idempotency keys so repeated worker calls (e.g., schedule retries) reuse the same run row instead of creating duplicates.
+- [x] Expose the internal endpoint securely for worker access (internal token + org header) and document expected headers/response.
+
+> Internal run payload API (`POST /internal/runs`) now mirrors the worker request schema from `@shipsec/shared`. Workers must send `X-Internal-Token` plus `X-Organization-Id`, and manual/API callers can pass `Idempotency-Key` (or `X-Idempotency-Key`) to reuse the same run ID across retries.
 
 ## Phase 4 – Schedule Dispatcher Workflow
 - [x] Implement `scheduleTriggerWorkflow` in the worker that runs an activity to call the internal run-payload endpoint with schedule metadata.
@@ -40,13 +42,15 @@ This document captures the phase-by-phase rollout for introducing Workflow Entry
 - [x] Ensure dispatcher workflow logs/propagates trigger metadata and handles retries (activity + child workflow) without duplicating runs.
 
 ## Phase 5 – Frontend Navigation & Store
-- [ ] Add `Schedules` route/page listing all schedules with filters (workflow, status, timezone, next run) and row actions (Run now, Pause/Resume, Edit).
-- [ ] Build `useScheduleStore` (Zustand) for caching + mutations via the generated client.
-- [ ] Update global navigation to include Schedules; support query params for workflow scoping (`/schedules?workflowId=...`).
-- [ ] Add inline “Manage schedules” panel on workflow detail (Design tab) referencing the global page.
+- [x] Add `Schedules` route/page listing all schedules with filters (workflow, status, timezone, next run) and row actions (Run now, Pause/Resume, Edit).
+- [x] Build `useScheduleStore` (Zustand) for caching + mutations via the generated client.
+- [x] Update global navigation to include Schedules; support query params for workflow scoping (`/schedules?workflowId=...`).
+- [x] Add inline “Manage schedules” panel on workflow detail (Design tab) referencing the global page.
 
 ## Phase 6 – Schedule Editor + Entry Point UX
 - [ ] Implement `ScheduleEditorDrawer` accessible from both the Schedules page and workflow CTA (basics, cadence builder, runtime input preview, node override diff).
+  - [x] Wire the drawer into the global Schedules page with runtime inputs + node overrides.
+  - [ ] Hook workflow-level CTA so designers can open the drawer without leaving the workflow.
 - [ ] Add per-workflow CTA (“Create schedule”) that opens the drawer pre-filtered for the current workflow.
 - [ ] Entry Point inspector lists existing schedules (chips with status & quick actions) and links to edit/pause/run now.
 

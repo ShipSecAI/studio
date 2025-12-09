@@ -58,28 +58,32 @@ export const UpdateWorkflowMetadataSchema = z.object({
 
 export class UpdateWorkflowMetadataDto extends createZodDto(UpdateWorkflowMetadataSchema) {}
 
-export const RunWorkflowRequestSchema = z
-  .object({
-    inputs: z.record(z.string(), z.unknown()).optional(),
-    versionId: z.string().uuid().optional(),
-    version: z.coerce.number().int().min(1).optional(),
-  })
-  .refine(
-    (value) => !(value.version && value.versionId),
-    'Provide either version or versionId, not both',
-  );
+const BaseRunWorkflowRequestSchema = z.object({
+  inputs: z.record(z.string(), z.unknown()).optional(),
+  versionId: z.string().uuid().optional(),
+  version: z.coerce.number().int().min(1).optional(),
+});
+
+const validateVersionSelection = (value: { versionId?: string; version?: number }) =>
+  !(value.version && value.versionId);
+
+export const RunWorkflowRequestSchema = BaseRunWorkflowRequestSchema.refine(
+  validateVersionSelection,
+  'Provide either version or versionId, not both',
+);
 
 export class RunWorkflowRequestDto extends createZodDto(RunWorkflowRequestSchema) {}
 export const NodeOverridesSchema = z
   .record(z.string(), z.record(z.string(), z.unknown()))
   .optional();
 
-export const PrepareRunRequestSchema = RunWorkflowRequestSchema.extend({
+export const PrepareRunRequestSchema = BaseRunWorkflowRequestSchema.extend({
   workflowId: z.string().uuid(),
   nodeOverrides: NodeOverridesSchema,
   trigger: ExecutionTriggerMetadataSchema.optional(),
   runId: z.string().optional(),
-});
+  idempotencyKey: z.string().trim().min(1).max(128).optional(),
+}).refine(validateVersionSelection, 'Provide either version or versionId, not both');
 
 export class PrepareRunRequestDto extends createZodDto(PrepareRunRequestSchema) {}
 
@@ -117,7 +121,10 @@ export const StreamRunQuerySchema = TemporalRunQuerySchema.extend({
     .min(1)
     .optional(),
   terminalCursor: z.string().trim().optional(),
-  logCursor: z.coerce.number().int().min(0).optional(),
+  logCursor: z
+    .string()
+    .datetime()
+    .optional(),
 });
 
 export class StreamRunQueryDto extends createZodDto(StreamRunQuerySchema) {}

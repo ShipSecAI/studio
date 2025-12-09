@@ -161,7 +161,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
     if (playbackMode === 'live') {
       setLogMode('live')
     } else if (playbackMode === 'replay') {
-      setLogMode('scrubbing')
+      // For replay mode, use historical logs initially (scrubbing mode is only for timeline scrubbing)
+      setLogMode('historical')
     }
   }, [playbackMode, setLogMode])
 

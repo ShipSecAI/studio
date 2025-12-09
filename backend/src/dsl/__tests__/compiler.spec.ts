@@ -165,6 +165,46 @@ describe('compileWorkflowGraph', () => {
     );
   });
 
+  it('always marks the Entry Point component as the workflow entrypoint', () => {
+    const graph: WorkflowGraphDto = {
+      name: 'misordered root workflow',
+      nodes: [
+        {
+          id: 'log-node',
+          type: 'core.console.log',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Console',
+            config: {
+              label: 'Log',
+              data: 'hello',
+              level: 'info',
+            },
+          },
+        },
+        {
+          id: 'entry-node',
+          type: 'core.workflow.entrypoint',
+          position: { x: 0, y: 150 },
+          data: {
+            label: 'Entry Point',
+            config: {
+              runtimeInputs: [
+                { id: 'inputA', label: 'Input A', type: 'text', required: true },
+              ],
+            },
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    };
+
+    const definition = compileWorkflowGraph(graph);
+
+    expect(definition.entrypoint.ref).toBe('entry-node');
+  });
+
   it('tracks dependency counts and metadata for converging branches', () => {
     const graph: WorkflowGraphDto = {
       name: 'Diamond workflow',
