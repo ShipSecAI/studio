@@ -1,0 +1,81 @@
+name: Update Version Check Service
+
+# Trigger on release published events
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-version:
+    name: Update Version Check Service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract version from release tag
+        id: extract_version
+        run: |
+          # Extract version from tag name (removes 'v' prefix if present)
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix (e.g., v1.5.0 -> 1.5.0)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Extracted version: $VERSION"
+
+      - name: Update version check service
+        env:
+          VERSION_CHECK_URL: ${{ secrets.VERSION_CHECK_URL || 'https://version.shipsec.ai' }}
+          VERSION_CHECK_ADMIN_SECRET: ${{ secrets.VERSION_CHECK_ADMIN_SECRET }}
+        run: |
+          echo "🚀 Updating version check service..."
+          echo "   App: studio"
+          echo "   Version: ${{ steps.extract_version.outputs.version }}"
+          echo "   Endpoint: $VERSION_CHECK_URL/api/admin/update-version"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST "$VERSION_CHECK_URL/api/admin/update-version" \
+            -H "Authorization: Bearer $VERSION_CHECK_ADMIN_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"app\":\"studio\",\"version\":\"${{ steps.extract_version.outputs.version }}\"}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "Response: $body"
+
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Version check service updated successfully!"
+          else
+            echo "❌ Failed to update version check service (HTTP $http_code)"
+            echo "Response: $body"
+            exit 1
+          fi
+
+      - name: Verify version update
+        env:
+          VERSION_CHECK_URL: ${{ secrets.VERSION_CHECK_URL || 'https://version.shipsec.ai' }}
+        run: |
+          echo "🔍 Verifying version update..."
+
+          # Wait a moment for cache to update
+          sleep 2
+
+          # Check if the version was updated
+          response=$(curl -s "$VERSION_CHECK_URL/api/version/check?app=studio&version=0.0.1")
+          latest_version=$(echo "$response" | grep -o '"latest_version":"[^"]*"' | cut -d'"' -f4)
+
+          echo "Latest version returned by API: $latest_version"
+          echo "Expected version: ${{ steps.extract_version.outputs.version }}"
+
+          if [ "$latest_version" = "${{ steps.extract_version.outputs.version }}" ]; then
+            echo "✅ Verification successful! Version check service is returning the correct version."
+          else
+            echo "⚠️ Warning: API returned different version than expected"
+            echo "   This might be expected if GitHub release fetching is enabled"
+          fi
+
+      - name: Summary
+        run: |
+          echo "📋 Summary:"
+          echo "   ✅ Release published: ${{ github.event.release.tag_name }}"
+          echo "   ✅ Version extracted: ${{ steps.extract_version.outputs.version }}"
+          echo "   ✅ Version check service updated"
+          echo ""
+          echo "🎉 Users will now receive update notifications for version ${{ steps.extract_version.outputs.version }}"
