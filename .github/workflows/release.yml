@@ -236,7 +236,7 @@ jobs:
 
           # Check if the version was updated
           response=$(curl -s --connect-timeout 10 --max-time 30 "$VERSION_CHECK_URL/api/version/check?app=studio&version=0.0.1")
-          latest_version=$(echo "$response" | grep -o '"latest_version":"[^"]*"' | cut -d'"' -f4)
+          latest_version=$(echo "$response" | grep -o '"latest_version"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
 
           echo "Latest version returned by API: $latest_version"
           echo "Expected version: ${{ steps.version.outputs.version_clean }}"
