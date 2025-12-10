@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import {
@@ -140,7 +140,13 @@ function formatErrorMessage(message: string): string {
 function WorkflowBuilderContent() {
   const { id, runId: routeRunId } = useParams<{ id: string; runId?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const isNewWorkflow = id === 'new'
+  
+  // Determine if we're on the execution tab based on URL
+  // /workflows/:id/runs or /workflows/:id/runs/:runId = execution mode
+  // /workflows/:id = design mode
+  const isExecutionRoute = location.pathname.includes('/runs')
   const {
     metadata,
     isDirty,
@@ -209,6 +215,46 @@ function WorkflowBuilderContent() {
   } | null>(null)
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
+  
+  // Separate canvas states for Design and Execution tabs, keyed by workflow ID
+  // Each workflow maintains its own independent state for both tabs
+  // Design Tab: stores user's "dirty state" (unsaved changes)
+  // Execution Tab: stores last-viewed run state (defaults to empty canvas)
+  type DesignState = {
+    nodes: ReactFlowNode<FrontendNodeData>[]
+    edges: ReactFlowEdge[]
+  }
+  type ExecutionState = {
+    nodes: ReactFlowNode<FrontendNodeData>[]
+    edges: ReactFlowEdge[]
+    runId: string | null
+  }
+  const designStatesRef = useRef<Map<string, DesignState>>(new Map())
+  const executionStatesRef = useRef<Map<string, ExecutionState>>(new Map())
+  
+  // Helper to get current workflow's design state
+  const getDesignState = useCallback((workflowId: string | null): DesignState | null => {
+    if (!workflowId) return null
+    return designStatesRef.current.get(workflowId) ?? null
+  }, [])
+  
+  // Helper to set current workflow's design state
+  const setDesignState = useCallback((workflowId: string | null, state: DesignState) => {
+    if (!workflowId) return
+    designStatesRef.current.set(workflowId, state)
+  }, [])
+  
+  // Helper to get current workflow's execution state
+  const getExecutionState = useCallback((workflowId: string | null): ExecutionState => {
+    if (!workflowId) return { nodes: [], edges: [], runId: null }
+    return executionStatesRef.current.get(workflowId) ?? { nodes: [], edges: [], runId: null }
+  }, [])
+  
+  // Helper to set current workflow's execution state
+  const setExecutionState = useCallback((workflowId: string | null, state: ExecutionState) => {
+    if (!workflowId) return
+    executionStatesRef.current.set(workflowId, state)
+  }, [])
 
   useEffect(() => {
     nodesRef.current = nodes
@@ -275,6 +321,118 @@ function WorkflowBuilderContent() {
       setMode('design')
     }
   }, [isNewWorkflow, setMode])
+
+  // Handle tab switching - save current state, restore new state, and navigate
+  const handleModeSwitch = useCallback((newMode: 'design' | 'execution') => {
+    if (!id || isNewWorkflow) return
+    if (newMode === mode) return // Already in this mode
+    
+    // Save current canvas state before switching (keyed by workflow ID)
+    if (mode === 'design') {
+      // Save design state (the working workflow)
+      setDesignState(id, {
+        nodes: cloneNodes(nodesRef.current),
+        edges: cloneEdges(edgesRef.current),
+      })
+    } else if (mode === 'execution' && selectedRunId) {
+      // Only save execution state if a run was actually selected
+      setExecutionState(id, {
+        nodes: cloneNodes(nodesRef.current),
+        edges: cloneEdges(edgesRef.current),
+        runId: selectedRunId,
+      })
+    }
+    
+    // Immediately restore the target state before navigating
+    if (newMode === 'design') {
+      // Restore design state immediately (the working workflow)
+      const designState = getDesignState(id)
+      if (designState) {
+        setNodes(designState.nodes)
+        setEdges(designState.edges)
+      }
+      // Clear execution timeline selection when leaving execution tab
+      useExecutionTimelineStore.setState({ selectedRunId: null })
+      navigate(`/workflows/${id}`)
+    } else {
+      // Execution Tab: check if there's a previously viewed run
+      const execState = getExecutionState(id)
+      const lastViewedRunId = execState.runId
+      
+      if (lastViewedRunId) {
+        // Restore the last viewed run's state
+        setNodes(execState.nodes)
+        setEdges(execState.edges)
+        navigate(`/workflows/${id}/runs/${lastViewedRunId}`)
+      } else {
+        // No run selected - show empty canvas
+        setNodes([])
+        setEdges([])
+        navigate(`/workflows/${id}/runs`)
+      }
+    }
+  }, [id, isNewWorkflow, mode, navigate, selectedRunId, setDesignState, setExecutionState, getDesignState, getExecutionState, setNodes, setEdges])
+
+  // Track previous workflow ID to detect workflow changes
+  const prevWorkflowIdRef = useRef<string | null>(null)
+  
+  // Sync mode with URL and restore state - URL is the single source of truth
+  // This effect handles URL changes from browser navigation (back/forward) or direct URL entry
+  useEffect(() => {
+    if (isNewWorkflow || !id) return
+    
+    const targetMode = isExecutionRoute ? 'execution' : 'design'
+    const workflowChanged = prevWorkflowIdRef.current !== null && prevWorkflowIdRef.current !== id
+    
+    // Update the previous workflow ID
+    prevWorkflowIdRef.current = id
+    
+    // Handle workflow change OR mode change
+    if (mode !== targetMode || workflowChanged) {
+      setMode(targetMode)
+      
+      // If workflow changed, clear the global selectedRunId first
+      if (workflowChanged) {
+        useExecutionTimelineStore.setState({ selectedRunId: null })
+      }
+      
+      // Restore the appropriate state based on the target mode
+      if (targetMode === 'design') {
+        // Restore design state (the working workflow)
+        const designState = getDesignState(id)
+        if (designState) {
+          setNodes(designState.nodes)
+          setEdges(designState.edges)
+        }
+      } else if (targetMode === 'execution' && !routeRunId) {
+        // Execution mode with no specific run in URL
+        const execState = getExecutionState(id)
+        if (execState.runId) {
+          // There was a previously viewed run for THIS workflow - restore it
+          setNodes(execState.nodes)
+          setEdges(execState.edges)
+          selectRun(execState.runId, 'replay')
+        } else {
+          // No run was ever selected for this workflow - show empty canvas
+          setNodes([])
+          setEdges([])
+        }
+      }
+    }
+  }, [isExecutionRoute, isNewWorkflow, id, mode, setMode, routeRunId, setNodes, setEdges, selectRun, getDesignState, getExecutionState])
+
+  // Keep execution state in sync ONLY when a run is actually selected
+  // Don't sync if no run is selected (should stay empty canvas)
+  useEffect(() => {
+    if (mode === 'execution' && !isNewWorkflow && id && selectedRunId) {
+      // Only update execution state when there's an actual run selected
+      setExecutionState(id, {
+        nodes: cloneNodes(nodesRef.current),
+        edges: cloneEdges(edgesRef.current),
+        runId: selectedRunId,
+      })
+    }
+  }, [mode, isNewWorkflow, id, selectedRunId, setExecutionState])
 
   useEffect(() => {
     if (!metadata.id) {
@@ -350,8 +508,16 @@ function WorkflowBuilderContent() {
     }
   }, [metadata.id, routeRunId, selectedRunId, refreshRuns, getRunById, upsertRun, selectRun, navigate, toast])
 
+  // Load historical workflow version when a run is selected (ONLY in execution mode)
+  // This effect should NOT run when switching to design mode
   useEffect(() => {
-    if (!metadata.id) {
+    // Only load historical versions in execution mode
+    if (!metadata.id || mode !== 'execution') {
+      // Clear historical version tracking when leaving execution mode
+      if (mode === 'design') {
+        historicalGraphRef.current = null
+        setHistoricalVersionId(null)
+      }
       return
     }
 
@@ -359,11 +525,8 @@ function WorkflowBuilderContent() {
     const versionId = run?.workflowVersionId ?? null
 
     if (!run || !versionId || versionId === metadata.currentVersionId) {
-      if (historicalVersionId && historicalGraphRef.current) {
-        setNodes(cloneNodes(historicalGraphRef.current.nodes))
-        setEdges(cloneEdges(historicalGraphRef.current.edges))
-        historicalGraphRef.current = null
-      }
+      // No run selected or run uses current version - clear historical state
+      // But DON'T restore historicalGraphRef here as that would overwrite execution state
       setHistoricalVersionId(null)
       return
     }
@@ -376,13 +539,6 @@ function WorkflowBuilderContent() {
 
     const previewHistoricalVersion = async () => {
       try {
-        if (!historicalVersionId && !historicalGraphRef.current) {
-          historicalGraphRef.current = {
-            nodes: cloneNodes(nodesRef.current),
-            edges: cloneEdges(edgesRef.current),
-          }
-        }
-
         const workflowIdForRun = run.workflowId ?? metadata.id
         if (!workflowIdForRun) {
           return
@@ -419,6 +575,7 @@ function WorkflowBuilderContent() {
     workflowRuns,
     selectedRunId,
     historicalVersionId,
+    mode,
     setNodes,
     setEdges,
     toast,
@@ -486,6 +643,12 @@ function WorkflowBuilderContent() {
           edges: cloneEdges(workflowEdges),
         }
         setHistoricalVersionId(null)
+        
+        // Initialize design state for this workflow with loaded data
+        designStatesRef.current.set(workflow.id, {
+          nodes: cloneNodes(workflowNodes),
+          edges: cloneEdges(workflowEdges),
+        })
 
         // Mark as clean (no unsaved changes)
         markClean()
@@ -505,36 +668,9 @@ function WorkflowBuilderContent() {
           node_count: workflowNodes.length,
         })
 
-        // Check for active runs to resume monitoring
-        try {
-          const { runs } = await api.executions.listRuns({
-            workflowId: workflow.id,
-            limit: 1,
-          })
-
-          if (runs && runs.length > 0) {
-            const latestRun = runs[0]
-            if (latestRun && latestRun.id && latestRun.status) {
-              const isActive = ['QUEUED', 'RUNNING'].includes(latestRun.status)
-              if (isActive) {
-                console.log('[WorkflowBuilder] Found active run, resuming monitoring:', latestRun.id)
-
-                // Resume monitoring in execution store
-                useExecutionStore.getState().monitorRun(latestRun.id, workflow.id)
-
-                // Switch timeline to live mode
-                useExecutionTimelineStore.getState().selectRun(latestRun.id, 'live')
-
-                toast({
-                  title: 'Resumed live monitoring',
-                  description: `Connected to active run ${latestRun.id.slice(-6)}`,
-                })
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Failed to check for active runs:', error)
-        }
+        // NOTE: Auto-monitoring of active runs has been disabled.
+        // Users must explicitly select a run from the Execution tab.
+        // This ensures the Execution tab starts with an empty canvas by default.
       } catch (error) {
         console.error('Failed to load workflow:', error)
 
@@ -680,17 +816,18 @@ function WorkflowBuilderContent() {
           isLiveFollowing: true,
           isPlaying: false,
         })
-        // Optionally switch to execution mode smoothly (user can still switch back)
-        // Only switch if we're in design mode to avoid jarring transitions
-        if (mode === 'design') {
-          // Use setTimeout to allow state updates to settle first
-          setTimeout(() => setMode('execution'), 0)
-        }
+        // Navigate to the run URL which will switch to execution mode via URL-driven context
+        // Save design state for this workflow before switching
+        designStatesRef.current.set(workflowId, {
+          nodes: cloneNodes(nodesRef.current),
+          edges: cloneEdges(edgesRef.current),
+        })
+        navigate(`/workflows/${workflowId}/runs/${runId}`)
         // Timeline will be populated by live updates from execution store subscription
         toast({
           variant: 'success',
           title: 'Workflow started',
-          description: `Execution ID: ${runId}. Check the review tab for live status.`,
+          description: `Execution ID: ${runId}. Check the Execution tab for live status.`,
         })
       } else {
         toast({
@@ -1435,6 +1572,7 @@ function WorkflowBuilderContent() {
         onImport={handleImportWorkflow}
         onExport={handleExportWorkflow}
         canManageWorkflows={canManageWorkflows}
+        onModeSwitch={handleModeSwitch}
       />
       <div ref={layoutRef} className="flex flex-1 overflow-hidden relative">
         {/* Show components button - anchored to layout when tray is hidden */}

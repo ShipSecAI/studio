@@ -26,6 +26,7 @@ interface TopBarProps {
   onImport?: (file: File) => Promise<void> | void
   onExport?: () => void
   canManageWorkflows?: boolean
+  onModeSwitch?: (mode: 'design' | 'execution') => void
 }
 
 export function TopBar({
@@ -34,6 +35,7 @@ export function TopBar({
   onImport,
   onExport,
   canManageWorkflows = true,
+  onModeSwitch,
 }: TopBarProps) {
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
@@ -112,16 +114,30 @@ export function TopBar({
     }
   }
 
+  const handleDesignClick = () => {
+    if (!canEdit) return
+    if (onModeSwitch) {
+      onModeSwitch('design')
+    } else {
+      setMode('design')
+    }
+  }
+
+  const handleExecutionClick = () => {
+    if (onModeSwitch) {
+      onModeSwitch('execution')
+    } else {
+      setMode('execution')
+    }
+  }
+
   const modeToggle = (
     <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm">
       <Button
         variant={mode === 'design' ? 'default' : 'ghost'}
         size="sm"
         className="h-9 px-3 gap-2 rounded-none"
-        onClick={() => {
-          if (!canEdit) return
-          setMode('design')
-        }}
+        onClick={handleDesignClick}
         disabled={!canEdit}
         aria-pressed={mode === 'design'}
       >
@@ -142,7 +158,7 @@ export function TopBar({
         variant={mode === 'execution' ? 'default' : 'ghost'}
         size="sm"
         className="h-9 px-3 gap-2 rounded-none border-l border-border/50"
-        onClick={() => setMode('execution')}
+        onClick={handleExecutionClick}
         aria-pressed={mode === 'execution'}
       >
         <MonitorPlay className="h-4 w-4" />
@@ -221,7 +237,8 @@ export function TopBar({
           <div className="flex items-center justify-end gap-3">
             <div className="flex flex-col items-end gap-1">
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {onImport && (
+                {/* Hide Import/Export/Save buttons in Execution mode */}
+                {mode === 'design' && onImport && (
                   <>
                     <input
                       ref={fileInputRef}
@@ -244,7 +261,7 @@ export function TopBar({
                     </Button>
                   </>
                 )}
-                {onExport && (
+                {mode === 'design' && onExport && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -258,30 +275,32 @@ export function TopBar({
                     <span className="text-xs font-medium">Export</span>
                   </Button>
                 )}
-                <Button
-                  onClick={handleSave}
-                  disabled={!canEdit || isSaving || saveState === 'clean'}
-                  variant="outline"
-                  className={saveButtonClasses}
-                  title={
-                    saveState === 'dirty'
-                      ? 'Changes pending sync'
-                      : saveState === 'saving'
-                        ? 'Syncing now…'
-                        : 'No pending edits'
-                  }
-                >
-                  {saveIcon}
-                  <span>{saveLabel}</span>
-                  <span
-                    className={cn(
-                      'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-1',
-                      saveBadgeTone
-                    )}
+                {mode === 'design' && (
+                  <Button
+                    onClick={handleSave}
+                    disabled={!canEdit || isSaving || saveState === 'clean'}
+                    variant="outline"
+                    className={saveButtonClasses}
+                    title={
+                      saveState === 'dirty'
+                        ? 'Changes pending sync'
+                        : saveState === 'saving'
+                          ? 'Syncing now…'
+                          : 'No pending edits'
+                    }
                   >
-                    {saveBadgeText}
-                  </span>
-                </Button>
+                    {saveIcon}
+                    <span>{saveLabel}</span>
+                    <span
+                      className={cn(
+                        'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-1',
+                        saveBadgeTone
+                      )}
+                    >
+                      {saveBadgeText}
+                    </span>
+                  </Button>
+                )}
 
                 <Button
                   onClick={handleRun}

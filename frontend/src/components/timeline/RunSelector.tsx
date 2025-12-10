@@ -143,55 +143,9 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
     fetchRuns({ workflowId }).catch(() => undefined)
   }, [fetchRuns, workflowId])
 
-  // Auto-load a live run if it exists and nothing is selected
-  useEffect(() => {
-    if (selectedRunId || routeRunId) {
-      return
-    }
-    if (currentLiveRunId) {
-      const liveRun = runs.find((run) => run.id === currentLiveRunId)
-      if (!workflowId || liveRun?.workflowId === workflowId) {
-        const initialMode = liveRun ? (isRunLive(liveRun) ? 'live' : 'replay') : 'live'
-        void selectRun(currentLiveRunId, initialMode)
-        if (liveRun && isRunLive(liveRun)) {
-          monitorRun(currentLiveRunId, liveRun.workflowId)
-        }
-        navigateToRun(currentLiveRunId, { replace: true })
-        return
-      }
-    }
-    if (liveRuns.length > 0) {
-      void selectRun(liveRuns[0].id, 'live')
-      monitorRun(liveRuns[0].id, liveRuns[0].workflowId)
-      navigateToRun(liveRuns[0].id, { replace: true })
-    }
-  }, [
-    currentLiveRunId,
-    selectedRunId,
-    selectRun,
-    workflowId,
-    runs,
-    liveRuns,
-    monitorRun,
-    navigateToRun,
-    routeRunId,
-  ])
-
-  // Fallback to the most recent historical run when nothing is selected
-  useEffect(() => {
-    if (selectedRunId || currentLiveRunId || filteredRuns.length === 0 || routeRunId) {
-      return
-    }
-
-    const [latestRun] = [...filteredRuns].sort(
-      (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-    )
-
-    if (latestRun) {
-      selectRun(latestRun.id)
-      navigateToRun(latestRun.id, { replace: true })
-    }
-  }, [filteredRuns, selectedRunId, currentLiveRunId, selectRun, navigateToRun, routeRunId])
+  // NOTE: Auto-selection of runs has been removed.
+  // Users must explicitly select a run from the dropdown.
+  // This allows the execution tab to start with an empty canvas by default.
 
   useEffect(() => {
     if (!workflowId && !currentLiveRunId && liveRuns.length === 0) {

@@ -32,6 +32,7 @@ function App() {
               <ProtectedRoute>
                 <Routes>
                   <Route path="/" element={<WorkflowList />} />
+                  {/* Design Tab: /workflows/{workflow_id} */}
                   <Route
                     path="/workflows/:id"
                     element={
@@ -40,6 +41,16 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+                  {/* Execution Tab (no run selected): /workflows/{workflow_id}/runs */}
+                  <Route
+                    path="/workflows/:id/runs"
+                    element={
+                      <ProtectedRoute>
+                        <WorkflowBuilder />
+                      </ProtectedRoute>
+                    }
+                  />
+                  {/* Execution Tab (run selected): /workflows/{workflow_id}/runs/{run_id} */}
                   <Route
                     path="/workflows/:id/runs/:runId"
                     element={
