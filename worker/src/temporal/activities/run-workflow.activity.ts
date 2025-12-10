@@ -6,8 +6,8 @@ import type {
   WorkflowLogSink,
 } from '../types';
 import type { IFileStorageService, ITraceService, ISecretsService } from '@shipsec/component-sdk';
-import { TraceAdapter } from '../../adapters';
 import type { ArtifactServiceFactory } from '../artifact-factory';
+import { isTraceMetadataAware } from '../utils/trace-metadata';
 
 // Global service container (set by worker initialization)
 let globalStorage: IFileStorageService | undefined;
@@ -37,7 +37,7 @@ export async function runWorkflowActivity(
   console.log(`🔧 [ACTIVITY] Workflow: ${input.workflowId}, Actions: ${input.definition.actions.length}`);
 
   try {
-    if (globalTrace instanceof TraceAdapter) {
+    if (isTraceMetadataAware(globalTrace)) {
       globalTrace.setRunMetadata(input.runId, {
         workflowId: input.workflowId,
         organizationId: input.organizationId ?? null,
@@ -69,7 +69,7 @@ export async function runWorkflowActivity(
     console.error(`❌ [ACTIVITY] runWorkflow failed for run: ${input.runId}`, error);
     throw error;
   } finally {
-    if (globalTrace instanceof TraceAdapter) {
+    if (isTraceMetadataAware(globalTrace) && typeof globalTrace.finalizeRun === 'function') {
       globalTrace.finalizeRun(input.runId);
     }
   }

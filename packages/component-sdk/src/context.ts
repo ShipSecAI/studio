@@ -21,6 +21,7 @@ import type {
   ProgressEventInput,
   LogEventInput,
   TerminalChunkInput,
+  AgentTracePublisher,
 } from './types';
 import type {
   IFileStorageService,
@@ -39,10 +40,11 @@ export interface CreateContextOptions {
   trace?: ITraceService;
   logCollector?: (entry: LogEventInput) => void;
   terminalCollector?: (chunk: TerminalChunkInput) => void;
+  agentTracePublisher?: AgentTracePublisher;
 }
 
 export function createExecutionContext(options: CreateContextOptions): ExecutionContext {
-  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector } =
+  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector, agentTracePublisher } =
     options;
   const metadata = createMetadata(runId, componentRef, metadataInput);
   const scopedTrace = trace ? createScopedTrace(trace, metadata) : undefined;
@@ -87,6 +89,10 @@ export function createExecutionContext(options: CreateContextOptions): Execution
   };
 
   const logger: Logger = Object.freeze({
+    debug: (...args: unknown[]) => {
+      pushLog('stdout', 'debug', args);
+      console.debug(`[${componentRef}]`, ...args);
+    },
     info: (...args: unknown[]) => {
       pushLog('stdout', 'info', args);
       console.log(`[${componentRef}]`, ...args);
@@ -100,6 +106,7 @@ export function createExecutionContext(options: CreateContextOptions): Execution
       console.error(`[${componentRef}]`, ...args);
     },
   }) as Logger;
+
 
   const emitProgress = (progress: ProgressEventInput | string) => {
     const normalized: ProgressEventInput =
@@ -133,7 +140,65 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     logCollector,
     terminalCollector,
     metadata,
+    agentTracePublisher,
   };
+
+  // Override logger methods to use logCollector instead of trace.record
+  if (logCollector) {
+    const loggerWithCollector: Logger = Object.freeze({
+      debug: (...args: unknown[]) => {
+        logCollector({
+          runId,
+          nodeRef: componentRef,
+          stream: 'stdout',
+          level: 'debug',
+          message: format(...args),
+          timestamp: new Date().toISOString(),
+          metadata,
+        });
+        console.debug(`[${componentRef}]`, ...args);
+      },
+      info: (...args: unknown[]) => {
+        logCollector({
+          runId,
+          nodeRef: componentRef,
+          stream: 'stdout',
+          level: 'info',
+          message: format(...args),
+          timestamp: new Date().toISOString(),
+          metadata,
+        });
+        console.log(`[${componentRef}]`, ...args);
+      },
+      warn: (...args: unknown[]) => {
+        logCollector({
+          runId,
+          nodeRef: componentRef,
+          stream: 'stdout',
+          level: 'warn',
+          message: format(...args),
+          timestamp: new Date().toISOString(),
+          metadata,
+        });
+        console.warn(`[${componentRef}]`, ...args);
+      },
+      error: (...args: unknown[]) => {
+        logCollector({
+          runId,
+          nodeRef: componentRef,
+          stream: 'stderr',
+          level: 'error',
+          message: format(...args),
+          timestamp: new Date().toISOString(),
+          metadata,
+        });
+        console.error(`[${componentRef}]`, ...args);
+      },
+    }) as Logger;
+
+    // Replace the logger in context
+    (context as any).logger = loggerWithCollector;
+  }
 
   return Object.freeze(context) as ExecutionContext;
 }

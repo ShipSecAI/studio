@@ -4,8 +4,7 @@ import {
   ComponentDefinition,
   port,
 } from '@shipsec/component-sdk';
-import { admin } from '@googleapis/admin';
-import { GoogleAuth } from 'google-auth-library';
+import { admin, auth as googleAdminAuth } from '@googleapis/admin';
 
 const inputSchema = z.object({
   primary_email: z.string().email(),
@@ -75,7 +74,7 @@ const outputSchema = z.object({
 async function initializeGoogleClient(serviceAccountKey: string) {
   const credentials = JSON.parse(serviceAccountKey);
 
-  const auth = new GoogleAuth({
+  const auth = new googleAdminAuth.GoogleAuth({
     credentials,
     scopes: [
       'https://www.googleapis.com/auth/admin.directory.user'

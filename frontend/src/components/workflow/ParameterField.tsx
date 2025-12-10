@@ -26,7 +26,7 @@ interface ParameterFieldProps {
   value: any
   onChange: (value: any) => void
   connectedInput?: InputMapping
-  componentSlug?: string
+  componentId?: string
   parameters?: Record<string, unknown> | undefined
   onUpdateParameter?: (paramId: string, value: any) => void
 }
@@ -39,7 +39,7 @@ export function ParameterField({
   value,
   onChange,
   connectedInput,
-  componentSlug,
+  componentId,
   parameters,
   onUpdateParameter,
 }: ParameterFieldProps) {
@@ -75,8 +75,8 @@ export function ParameterField({
     return 'manual'
   }, [parameters])
 
-  const isRemoveGithubComponent = componentSlug === 'github-remove-org-membership'
-  const isProviderGithubComponent = componentSlug === 'github-connection-provider'
+  const isRemoveGithubComponent = componentId === 'github.org.membership.remove'
+  const isProviderGithubComponent = componentId === 'github.connection.provider'
   const isGitHubConnectionComponent = isRemoveGithubComponent || isProviderGithubComponent
   const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId'
   const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection'
@@ -998,7 +998,7 @@ interface ParameterFieldWrapperProps {
   value: any
   onChange: (value: any) => void
   connectedInput?: InputMapping
-  componentSlug?: string
+  componentId?: string
   parameters?: Record<string, unknown> | undefined
   onUpdateParameter?: (paramId: string, value: any) => void
 }
@@ -1011,7 +1011,7 @@ export function ParameterFieldWrapper({
   value,
   onChange,
   connectedInput,
-  componentSlug,
+  componentId,
   parameters,
   onUpdateParameter,
 }: ParameterFieldWrapperProps) {
@@ -1059,7 +1059,7 @@ export function ParameterFieldWrapper({
         value={value}
         onChange={onChange}
         connectedInput={connectedInput}
-        componentSlug={componentSlug}
+        componentId={componentId}
         parameters={parameters}
         onUpdateParameter={onUpdateParameter}
       />

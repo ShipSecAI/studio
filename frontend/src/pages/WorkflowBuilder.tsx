@@ -719,7 +719,7 @@ function WorkflowBuilderContent() {
       const nodeData = node.data as any
       const componentRef = nodeData.componentId ?? nodeData.componentSlug
       const component = getComponent(componentRef)
-      return component?.slug === 'manual-trigger'
+      return component?.id === 'core.trigger.manual'
     })
 
     if (!triggerNode) {
@@ -823,6 +823,14 @@ function WorkflowBuilderContent() {
           edges: cloneEdges(edgesRef.current),
         })
         navigate(`/workflows/${workflowId}/runs/${runId}`)
+        // Optionally switch to execution mode smoothly (user can still switch back)
+        // Only switch if we're in design mode to avoid jarring transitions
+        if (mode === 'design') {
+          // Use setTimeout to allow state updates to settle first
+          setTimeout(() => setMode('execution'), 0)
+        }
+        // Navigate to the new run URL so user can see and share it
+        navigate(`/workflows/${workflowId}/runs/${runId}`, { replace: true })
         // Timeline will be populated by live updates from execution store subscription
         toast({
           variant: 'success',

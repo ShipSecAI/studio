@@ -657,8 +657,12 @@ export class WorkflowsController {
 
     let lastSequence = Number.parseInt(query.cursor ?? '0', 10);
     let terminalCursor = query.terminalCursor;
+    let lastLogSequence = query.logCursor ?? 0;
     if (Number.isNaN(lastSequence) || lastSequence < 0) {
       lastSequence = 0;
+    }
+    if (lastLogSequence < 0) {
+      lastLogSequence = 0;
     }
 
     let active = true;
@@ -747,6 +751,13 @@ export class WorkflowsController {
         if (terminal.chunks.length > 0) {
           terminalCursor = terminal.cursor;
           send('terminal', { runId, ...terminal });
+        }
+
+        const newLogs = await this.logStreamService.fetchRecentLogs(runId, lastLogSequence);
+        if (newLogs.length > 0) {
+          const lastLog = newLogs[newLogs.length - 1];
+          lastLogSequence = lastLog.sequence;
+          send('logs', { logs: newLogs, cursor: lastLogSequence.toString() });
         }
       } catch (error) {
         send('error', { message: 'trace_fetch_failed', detail: String(error) });
@@ -855,7 +866,30 @@ export class WorkflowsController {
 
   @Get('/runs/:runId/logs')
   @ApiOkResponse({
-    description: 'Log streams for a workflow run',
+    description: 'Logs for a workflow run',
+    schema: {
+      type: 'object',
+      properties: {
+        runId: { type: 'string' },
+        logs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              runId: { type: 'string' },
+              nodeId: { type: 'string' },
+              level: { type: 'string', enum: ['debug', 'info', 'warn', 'error'] },
+              message: { type: 'string' },
+              timestamp: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+        totalCount: { type: 'number' },
+        hasMore: { type: 'boolean' },
+        nextCursor: { type: 'string', nullable: true },
+      },
+    },
   })
   async logs(
     @Param('runId') runId: string,
@@ -866,7 +900,11 @@ export class WorkflowsController {
     return this.logStreamService.fetch(runId, auth, {
       nodeRef: query.nodeRef,
       stream: query.stream,
+      level: query.level,
       limit: query.limit,
+      cursor: query.cursor,
+      startTime: query.startTime,
+      endTime: query.endTime,
     });
   }
 

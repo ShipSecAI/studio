@@ -32,7 +32,7 @@ const STATUS_COLORS = {
   COMPLETED: 'text-green-500',
   FAILED: 'text-red-500',
   CANCELLED: 'text-gray-500',
-  TERMINATED: 'text-red-500',
+  TERMINATED: 'text-gray-500',  // User-initiated stop - same as CANCELLED
   TIMED_OUT: 'text-orange-500',
   QUEUED: 'text-yellow-500',
 } as const

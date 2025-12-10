@@ -305,9 +305,18 @@ function extractFailureMessage(value: { success: boolean; error?: unknown }): st
 
 function maskSecretOutputs(component: RegisteredComponent, output: unknown): unknown {
   const secretPorts =
-    component.metadata?.outputs?.filter((port) =>
-      port.dataType?.kind === 'primitive' && port.dataType.name === 'secret',
-    ) ?? [];
+    component.metadata?.outputs?.filter((port) => {
+      if (!port.dataType) {
+        return false;
+      }
+      if (port.dataType.kind === 'primitive') {
+        return port.dataType.name === 'secret';
+      }
+      if (port.dataType.kind === 'contract') {
+        return Boolean(port.dataType.credential);
+      }
+      return false;
+    }) ?? [];
   if (secretPorts.length === 0) {
     return output;
   }

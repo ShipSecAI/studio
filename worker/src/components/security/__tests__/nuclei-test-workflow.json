@@ -1,0 +1,90 @@
+{
+  "name": "Nuclei Vulnerability Scanner - Test Workflow",
+  "description": "Test workflow demonstrating nuclei component with template IDs and custom templates",
+  "nodes": [
+    {
+      "id": "trigger-1",
+      "type": "core.trigger.manual",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "Manual Trigger",
+        "config": {
+          "runtimeInputs": [
+            {
+              "id": "targetUrl",
+              "label": "Target URL",
+              "type": "text",
+              "required": true,
+              "placeholder": "https://example.com",
+              "description": "URL to scan for vulnerabilities"
+            },
+            {
+              "id": "scanType",
+              "label": "Scan Type",
+              "type": "select",
+              "required": true,
+              "options": [
+                { "label": "Quick Scan (Specific CVEs)", "value": "quick" },
+                { "label": "Template IDs Scan", "value": "templateIds" },
+                { "label": "Custom Template Scan", "value": "custom" },
+                { "label": "Comprehensive Scan", "value": "comprehensive" }
+              ],
+              "default": "quick"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "nuclei-1",
+      "type": "security.nuclei",
+      "position": { "x": 100, "y": 300 },
+      "data": {
+        "label": "Nuclei Scanner",
+        "config": {
+          "targets": ["{{trigger.targetUrl}}"],
+          "templateIds": [
+            "CVE-2024-1234",
+            "http-missing-security-headers",
+            "git-config",
+            "wordpress-login-exposure"
+          ],
+          "rateLimit": 150,
+          "concurrency": 25,
+          "timeout": 10,
+          "retries": 1,
+          "updateTemplates": false,
+          "includeRaw": false
+        }
+      }
+    },
+    {
+      "id": "console-1",
+      "type": "core.console-log",
+      "position": { "x": 100, "y": 500 },
+      "data": {
+        "label": "Log Results",
+        "config": {
+          "message": "Found {{nuclei.findings | length}} vulnerabilities"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "trigger-1",
+      "target": "nuclei-1",
+      "sourceHandle": "output",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "nuclei-1",
+      "target": "console-1",
+      "sourceHandle": "output",
+      "targetHandle": "input"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}

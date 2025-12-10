@@ -91,7 +91,6 @@ async function listRuns(
   const runs: ListEntry[] = [];
   const maxMatches = Math.max(limit * 3, limit);
 
-  const subfinderRef = definition.actions.find((action) => action.componentId === 'shipsec.subfinder.run')?.ref;
   const query = 'WorkflowType = "shipsecWorkflowRun"';
 
   for await (const info of client.workflow.list({ query, pageSize: 50 })) {
@@ -131,13 +130,6 @@ async function listRuns(
     try {
       const result = await handle.result();
       entry.result = result;
-      const outputs = (result as any)?.outputs ?? {};
-      if (subfinderRef && outputs[subfinderRef]) {
-        entry.result = {
-          ...result,
-          subfinder: outputs[subfinderRef],
-        };
-      }
     } catch (error) {
       entry.error = error instanceof Error ? error.message : String(error);
     }

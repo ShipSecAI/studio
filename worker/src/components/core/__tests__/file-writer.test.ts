@@ -1,11 +1,11 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, it, mock, vi } from 'bun:test';
 import { componentRegistry, createExecutionContext, type IArtifactService } from '@shipsec/component-sdk';
 import type { ComponentDefinition } from '@shipsec/component-sdk';
 import type { FileWriterInput, FileWriterOutput } from '../file-writer';
 
 const s3SendMock = vi.fn();
 
-vi.mock('@aws-sdk/client-s3', () => {
+mock.module('@aws-sdk/client-s3', () => {
   return {
     S3Client: vi.fn(() => ({
       send: s3SendMock,

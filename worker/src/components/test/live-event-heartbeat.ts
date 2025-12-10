@@ -101,10 +101,20 @@ const definition: ComponentDefinition<Input, Output> = {
     ],
   },
   async execute(params, context) {
+    const { logger } = context;
     const intervalMs = params.intervalSeconds * 1000;
     const targetDurationMs = params.durationSeconds * 1000;
     const iterations = Math.max(1, Math.ceil(targetDurationMs / intervalMs));
     const startedAt = new Date();
+    logger?.info(
+      'Starting heartbeat run',
+      JSON.stringify({
+        label: params.label,
+        iterations,
+        intervalSeconds: params.intervalSeconds,
+        durationSeconds: params.durationSeconds,
+      }),
+    );
 
     for (let index = 0; index < iterations; index += 1) {
       const timestamp = new Date();
@@ -112,6 +122,15 @@ const definition: ComponentDefinition<Input, Output> = {
       const remainingMs = Math.max(0, targetDurationMs - elapsedMs);
       const eventNumber = index + 1;
       const message = `[${timestamp.toISOString()}] ${params.label} heartbeat ${eventNumber}/${iterations}`;
+      logger?.info(
+        'Heartbeat event',
+        JSON.stringify({
+          eventNumber,
+          totalEvents: iterations,
+          elapsedSeconds: Number((elapsedMs / 1000).toFixed(2)),
+          remainingSeconds: Number((remainingMs / 1000).toFixed(2)),
+        }),
+      );
 
       context.emitProgress({
         level: 'info',
@@ -135,6 +154,14 @@ const definition: ComponentDefinition<Input, Output> = {
     }
 
     const endedAt = new Date();
+    logger?.info(
+      'Heartbeat run completed',
+      JSON.stringify({
+        durationSeconds: Number(((endedAt.getTime() - startedAt.getTime()) / 1000).toFixed(2)),
+        totalEvents: iterations,
+        endedAt: endedAt.toISOString(),
+      }),
+    );
     return {
       summary: {
         label: params.label,
