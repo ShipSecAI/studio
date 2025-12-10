@@ -76,7 +76,7 @@ const definition: ComponentDefinition<Input, Output> = {
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'projectdiscovery/subfinder:latest',
+    image: 'projectdiscovery/subfinder:v2.10.1',
     entrypoint: 'sh',
     network: 'bridge',
     command: [

@@ -116,7 +116,7 @@ const definition: ComponentDefinition<Input, Output> = {
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'projectdiscovery/httpx:latest',
+    image: 'projectdiscovery/httpx:v1.7.4',
     entrypoint: 'httpx',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,

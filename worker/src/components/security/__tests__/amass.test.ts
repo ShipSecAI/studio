@@ -132,7 +132,7 @@ describe('amass component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('owaspamass/amass:latest');
+      expect(component.runner.image).toBe('owaspamass/amass:v4.2.0');
       expect(component.runner.entrypoint).toBe('sh');
       expect(component.runner.command).toBeInstanceOf(Array);
     }

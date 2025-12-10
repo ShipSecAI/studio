@@ -206,7 +206,7 @@ async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[
       `${volumeName}:/data`,
       '--entrypoint',
       'sh',
-      'alpine:latest',
+      'alpine:3.20',
       '-c',
       'ls -1 /data',
     ]);
@@ -478,7 +478,7 @@ const definition: ComponentDefinition<Input, Output> = {
     // Prepare a one-off runner with dynamic command and volume
     const dockerRunner: DockerRunnerConfig = {
       kind: 'docker',
-      image: 'prowlercloud/prowler:latest',
+      image: 'prowlercloud/prowler:5.14.2',
       platform: 'linux/amd64',
       network: 'bridge',
       timeoutSeconds: 900,

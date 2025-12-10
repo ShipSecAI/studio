@@ -1,7 +1,7 @@
 {
   "name": "shipsec-studio",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.2",
   "packageManager": "bun@1.1.20",
   "workspaces": [
     "frontend",

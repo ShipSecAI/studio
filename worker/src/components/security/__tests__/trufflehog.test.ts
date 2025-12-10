@@ -25,7 +25,7 @@ describe('trufflehog component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('trufflesecurity/trufflehog:latest');
+      expect(component.runner.image).toBe('trufflesecurity/trufflehog:v3.92.1');
     }
   });
 

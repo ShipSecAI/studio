@@ -26,7 +26,7 @@ const recordTypeEnum = z.enum([
 
 const outputModeEnum = z.enum(['silent', 'json']);
 
-const DNSX_IMAGE = 'projectdiscovery/dnsx:latest';
+const DNSX_IMAGE = 'projectdiscovery/dnsx:v1.2.3';
 const DNSX_TIMEOUT_SECONDS = 180;
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;

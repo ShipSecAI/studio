@@ -140,7 +140,7 @@ const definition: ComponentDefinition<Input, Output> = {
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'owaspamass/amass:latest',
+    image: 'owaspamass/amass:v4.2.0',
     entrypoint: 'sh',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,

@@ -197,3 +197,63 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Update version check service
+        env:
+          VERSION_CHECK_URL: ${{ secrets.VERSION_CHECK_URL || 'https://version.shipsec.ai' }}
+          VERSION_CHECK_ADMIN_SECRET: ${{ secrets.VERSION_CHECK_ADMIN_SECRET }}
+        run: |
+          echo "🚀 Updating version check service..."
+          echo "   App: studio"
+          echo "   Version: ${{ steps.version.outputs.version_clean }}"
+          echo "   Endpoint: $VERSION_CHECK_URL/api/admin/update-version"
+
+          response=$(curl -s --connect-timeout 10 --max-time 30 -w "\n%{http_code}" -X POST "$VERSION_CHECK_URL/api/admin/update-version" \
+            -H "Authorization: Bearer $VERSION_CHECK_ADMIN_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"app\":\"studio\",\"version\":\"${{ steps.version.outputs.version_clean }}\"}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "Response: $body"
+
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Version check service updated successfully!"
+          else
+            echo "❌ Failed to update version check service (HTTP $http_code)"
+            echo "Response: $body"
+            exit 1
+          fi
+
+      - name: Verify version update
+        env:
+          VERSION_CHECK_URL: ${{ secrets.VERSION_CHECK_URL || 'https://version.shipsec.ai' }}
+        run: |
+          echo "🔍 Verifying version update..."
+
+          # Wait a moment for cache to update
+          sleep 2
+
+          # Check if the version was updated
+          response=$(curl -s --connect-timeout 10 --max-time 30 "$VERSION_CHECK_URL/api/version/check?app=studio&version=0.0.1")
+          latest_version=$(echo "$response" | jq -r '.latest_version')
+
+          echo "Latest version returned by API: $latest_version"
+          echo "Expected version: ${{ steps.version.outputs.version_clean }}"
+
+          if [ "$latest_version" = "${{ steps.version.outputs.version_clean }}" ]; then
+            echo "✅ Verification successful! Version check service is returning the correct version."
+          else
+            echo "⚠️ Warning: API returned different version than expected"
+            echo "   This might be expected if GitHub release fetching is enabled"
+          fi
+
+      - name: Release summary
+        run: |
+          echo "📋 Release Summary:"
+          echo "   ✅ Docker images built and pushed"
+          echo "   ✅ GitHub Release created: ${{ steps.version.outputs.version }}"
+          echo "   ✅ Version check service updated"
+          echo ""
+          echo "🎉 Users will now receive update notifications for version ${{ steps.version.outputs.version_clean }}"
+

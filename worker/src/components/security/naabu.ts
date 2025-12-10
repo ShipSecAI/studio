@@ -100,7 +100,7 @@ const definition: ComponentDefinition<Input, Output> = {
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'projectdiscovery/naabu:latest',
+    image: 'projectdiscovery/naabu:v2.3.7',
     entrypoint: 'sh',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,
