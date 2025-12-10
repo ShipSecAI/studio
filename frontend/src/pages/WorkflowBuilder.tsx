@@ -843,7 +843,7 @@ function WorkflowBuilderContent() {
           title: 'Workflow started',
           description: 'Execution initiated, but no run ID was returned.',
         })
-      }
+      } 
     } catch (error) {
       // Log full error details to console for debugging
       console.group('❌ Workflow Execution Failed')
