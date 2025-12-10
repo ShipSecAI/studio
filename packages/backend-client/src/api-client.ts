@@ -51,6 +51,15 @@ export class ShipSecApiClient {
     }
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  buildUrl(path: string): string {
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    return new URL(normalized, this.baseUrl).toString();
+  }
+
   /**
    * Add middleware to the client
    */
@@ -156,9 +165,9 @@ export class ShipSecApiClient {
 
   async cancelWorkflowRun(runId: string, temporalRunId?: string) {
     return this.client.POST('/api/v1/workflows/runs/{runId}/cancel', {
-      params: { 
+      params: {
         path: { runId },
-        query: { temporalRunId: temporalRunId || '' } as any,
+        ...(temporalRunId ? { query: { temporalRunId } } : {}),
       },
     });
   }
@@ -188,6 +197,27 @@ export class ShipSecApiClient {
   async getWorkflowRunEvents(runId: string) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/events', {
       params: { path: { runId } },
+    });
+  }
+
+  async getWorkflowRunLogs(runId: string, options?: {
+    nodeRef?: string;
+    stream?: 'stdout' | 'stderr' | 'console';
+    level?: 'debug' | 'info' | 'warn' | 'error';
+    limit?: number;
+    cursor?: string;
+  }) {
+    return this.client.GET('/api/v1/workflows/runs/{runId}/logs', {
+      params: {
+        path: { runId },
+        query: {
+          nodeRef: options?.nodeRef,
+          stream: options?.stream,
+          level: options?.level,
+          limit: options?.limit,
+          cursor: options?.cursor,
+        },
+      },
     });
   }
 

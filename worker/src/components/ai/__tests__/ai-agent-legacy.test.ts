@@ -372,7 +372,14 @@ describe('core.ai.agent component', () => {
 
       const params = aiAgent.inputSchema.parse({
         userInput: 'Check DNS for example.com',
-        mcp: { endpoint: 'https://mcp.local/session' },
+        mcpTools: [
+          {
+            id: 'dns_lookup',
+            title: 'DNS Lookup',
+            endpoint: 'https://mcp.local/session',
+            metadata: { toolName: 'call_mcp_tool' },
+          },
+        ],
         chatModel: {
           provider: 'openai',
           modelId: 'gpt-4o-mini',

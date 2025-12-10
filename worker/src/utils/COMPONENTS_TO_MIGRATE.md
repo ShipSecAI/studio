@@ -10,8 +10,8 @@ This document tracks which security components need migration from file mounts t
 | **prowler-scan** | ✅ **Migrated** | Yes (AWS credentials, config) | High | Uses isolated volumes for AWS creds + output |
 | **shuffledns-massdns** | ✅ **Migrated** | Yes (domains, wordlists, resolvers) | High | Uses isolated volume for inputs |
 | **supabase-scanner** | ✅ **Migrated** | TBD | Medium | Uses isolated volume for config/output |
-| **httpx** | ⏸️ To Review | TBD | Medium | Check if file-based |
-| **subfinder** | ⏸️ To Review | TBD | Medium | Check if file-based |
+| **httpx** | ✅ **Migrated** | Yes (targets list) | Medium | Uses isolated volume for targets input |
+| **subfinder** | ✅ **Migrated** | Yes (domains list) | Medium | Uses isolated volume for domain inputs |
 | **naabu** | ⏸️ To Review | TBD | Medium | Check if file-based |
 | **amass** | ⏸️ To Review | TBD | Medium | Check if file-based |
 

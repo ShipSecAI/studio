@@ -33,6 +33,7 @@ dockerDescribe('Docker Runner', () => {
         componentRef: 'test-component',
       },
       logger: {
+        debug: (...args: unknown[]) => logs.push(`DEBUG: ${args.join(' ')}`),
         info: (...args: unknown[]) => logs.push(`INFO: ${args.join(' ')}`),
         warn: (...args: unknown[]) => logs.push(`WARN: ${args.join(' ')}`),
         error: (...args: unknown[]) => logs.push(`ERROR: ${args.join(' ')}`),

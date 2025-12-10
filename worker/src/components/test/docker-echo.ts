@@ -20,7 +20,7 @@ const definition: ComponentDefinition<Input, Output> = {
   category: 'transform',
   runner: {
     kind: 'docker',
-    image: 'alpine:latest',
+    image: 'alpine:3.20',
     command: ['sh', '-c', 'cat'],
     timeoutSeconds: 10,
   },

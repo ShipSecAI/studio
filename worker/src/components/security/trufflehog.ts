@@ -225,7 +225,7 @@ const definition: ComponentDefinition<Input, Output> = {
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'trufflesecurity/trufflehog:latest',
+    image: 'trufflesecurity/trufflehog:v3.92.1',
     entrypoint: 'trufflehog',
     network: 'bridge',
     command: [], // Will be built dynamically in execute

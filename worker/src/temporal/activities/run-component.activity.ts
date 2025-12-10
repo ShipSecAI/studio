@@ -8,14 +8,16 @@ import {
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
+  type AgentTracePublisher,
 } from '@shipsec/component-sdk';
-import { TraceAdapter, RedisTerminalStreamAdapter } from '../../adapters';
+import { RedisTerminalStreamAdapter } from '../../adapters';
 import type {
   RunComponentActivityInput,
   RunComponentActivityOutput,
   WorkflowLogSink,
 } from '../types';
 import type { ArtifactServiceFactory } from '../artifact-factory';
+import { isTraceMetadataAware } from '../utils/trace-metadata';
 
 let globalStorage: IFileStorageService | undefined;
 let globalSecrets: ISecretsService | undefined;
@@ -23,6 +25,7 @@ let globalArtifacts: ArtifactServiceFactory | undefined;
 let globalTrace: ITraceService | undefined;
 let globalLogs: WorkflowLogSink | undefined;
 let globalTerminal: RedisTerminalStreamAdapter | undefined;
+let globalAgentTracePublisher: AgentTracePublisher | undefined;
 
 export function initializeComponentActivityServices(options: {
   storage: IFileStorageService;
@@ -31,6 +34,7 @@ export function initializeComponentActivityServices(options: {
   trace: ITraceService;
   logs?: WorkflowLogSink;
   terminalStream?: RedisTerminalStreamAdapter;
+  agentTracePublisher?: AgentTracePublisher;
 }) {
   globalStorage = options.storage;
   globalSecrets = options.secrets;
@@ -38,6 +42,7 @@ export function initializeComponentActivityServices(options: {
   globalTrace = options.trace;
   globalLogs = options.logs;
   globalTerminal = options.terminalStream;
+  globalAgentTracePublisher = options.agentTracePublisher;
 }
 
 export async function setRunMetadataActivity(input: {
@@ -45,7 +50,7 @@ export async function setRunMetadataActivity(input: {
   workflowId: string;
   organizationId?: string | null;
 }): Promise<void> {
-  if (globalTrace instanceof TraceAdapter) {
+  if (isTraceMetadataAware(globalTrace)) {
     globalTrace.setRunMetadata(input.runId, {
       workflowId: input.workflowId,
       organizationId: input.organizationId ?? null,
@@ -54,7 +59,7 @@ export async function setRunMetadataActivity(input: {
 }
 
 export async function finalizeRunActivity(input: { runId: string }): Promise<void> {
-  if (globalTrace instanceof TraceAdapter) {
+  if (isTraceMetadataAware(globalTrace) && typeof globalTrace.finalizeRun === 'function') {
     globalTrace.finalizeRun(input.runId);
   }
 }
@@ -203,6 +208,7 @@ export async function runComponentActivity(
             });
         }
       : undefined,
+    agentTracePublisher: globalAgentTracePublisher,
   });
 
   try {

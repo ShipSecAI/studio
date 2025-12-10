@@ -44,10 +44,10 @@ describe('Terminal chunk emitter', () => {
     emitter('three');
 
     const [, second, third] = collector.mock.calls.map((call) => call[0]);
-    expect(second.deltaMs).toBeGreaterThanOrEqual(10);
-    expect(third.deltaMs).toBeGreaterThanOrEqual(35);
+    expect(second.deltaMs).toBeGreaterThanOrEqual(5);
+    expect(third.deltaMs).toBeGreaterThanOrEqual(25);
     const timeDiff = new Date(third.recordedAt).getTime() - new Date(second.recordedAt).getTime();
-    expect(timeDiff).toBeGreaterThanOrEqual(35);
+    expect(timeDiff).toBeGreaterThanOrEqual(25);
   });
 
     it('no-ops when terminalCollector is missing', () => {

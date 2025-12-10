@@ -33,22 +33,19 @@ const sampleTrace = TraceStreamEnvelopeSchema.parse({
 
 const sampleLogs = {
   runId: 'shipsec-run-123',
-  streams: [
+  logs: [
     {
-      nodeRef: 'node-1',
-      stream: 'stdout',
-      labels: { run_id: 'shipsec-run-123', node: 'node-1', stream: 'stdout' },
-      firstTimestamp: new Date().toISOString(),
-      lastTimestamp: new Date().toISOString(),
-      lineCount: 2,
-      entries: [
-        {
-          timestamp: new Date().toISOString(),
-          message: 'line one',
-        },
-      ],
+      id: 'log-1',
+      runId: 'shipsec-run-123',
+      nodeId: 'node-1',
+      level: 'info',
+      message: 'line one',
+      timestamp: new Date().toISOString(),
     },
   ],
+  totalCount: 1,
+  hasMore: false,
+  nextCursor: undefined,
 };
 
 const authContext = {
@@ -124,7 +121,9 @@ describe('WorkflowsController contract coverage', () => {
     expect(logStreamService.fetch).toHaveBeenCalledWith('shipsec-run-123', authContext, {
       nodeRef: 'node-1',
       stream: 'stdout',
+      level: undefined,
       limit: 10,
+      cursor: undefined,
     });
   });
 });

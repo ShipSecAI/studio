@@ -17,7 +17,7 @@ import {
   finalizeRunActivity,
   initializeComponentActivityServices,
 } from '../activities/run-component.activity';
-import { ArtifactAdapter, FileStorageAdapter, LokiLogAdapter, LokiLogClient, SecretsAdapter, TraceAdapter, RedisTerminalStreamAdapter } from '../../adapters';
+import { ArtifactAdapter, FileStorageAdapter, SecretsAdapter, RedisTerminalStreamAdapter, KafkaLogAdapter, KafkaTraceAdapter, KafkaAgentTracePublisher } from '../../adapters';
 import * as schema from '../../adapters/schema';
 
 // Load environment variables from .env file
@@ -86,24 +86,40 @@ async function main() {
   // Create service adapters (implementing SDK interfaces)
   const storageAdapter = new FileStorageAdapter(minioClient, db, minioBucketName);
   const artifactAdapter = new ArtifactAdapter(minioClient, db, minioBucketName);
-  const traceAdapter = new TraceAdapter(db);
   const secretsAdapter = new SecretsAdapter(db);
 
-  const lokiUrl = process.env.LOKI_URL;
-  let logAdapter: LokiLogAdapter | undefined;
-  if (lokiUrl) {
-    try {
-      const lokiClient = new LokiLogClient({
-        baseUrl: lokiUrl,
-        tenantId: process.env.LOKI_TENANT_ID,
-        username: process.env.LOKI_USERNAME,
-        password: process.env.LOKI_PASSWORD,
-      });
-      logAdapter = new LokiLogAdapter(lokiClient, db);
-      console.log(`✅ Loki logging enabled (${lokiUrl})`);
-    } catch (error) {
-      console.error('⚠️ Failed to initialize Loki logging, continuing without it', error);
-    }
+  const kafkaBrokerEnv = process.env.LOG_KAFKA_BROKERS;
+  const kafkaBrokers = kafkaBrokerEnv
+    ? kafkaBrokerEnv.split(',').map((broker) => broker.trim()).filter(Boolean)
+    : [];
+
+  if (kafkaBrokers.length === 0) {
+    throw new Error('LOG_KAFKA_BROKERS must be configured for workflow logging');
+  }
+
+  const traceAdapter = new KafkaTraceAdapter({
+    brokers: kafkaBrokers,
+    topic: process.env.EVENT_KAFKA_TOPIC ?? 'telemetry.events',
+    clientId: process.env.EVENT_KAFKA_CLIENT_ID ?? 'shipsec-worker-events',
+  });
+
+  const agentTracePublisher = new KafkaAgentTracePublisher({
+    brokers: kafkaBrokers,
+    topic: process.env.AGENT_TRACE_KAFKA_TOPIC ?? 'telemetry.agent-trace',
+    clientId: process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? 'shipsec-worker-agent-trace',
+  });
+
+  let logAdapter: KafkaLogAdapter;
+  try {
+    logAdapter = new KafkaLogAdapter({
+      brokers: kafkaBrokers,
+      topic: process.env.LOG_KAFKA_TOPIC ?? 'telemetry.logs',
+      clientId: process.env.LOG_KAFKA_CLIENT_ID ?? 'shipsec-worker',
+    });
+    console.log(`✅ Kafka logging enabled (${kafkaBrokers.join(', ')})`);
+  } catch (error) {
+    console.error('❌ Failed to initialize Kafka logging', error);
+    throw error;
   }
 
   const terminalRedisUrl = process.env.TERMINAL_REDIS_URL;
@@ -129,6 +145,7 @@ async function main() {
     secrets: secretsAdapter,
     artifacts: artifactAdapter.factory(),
     terminalStream,
+    agentTracePublisher,
   });
 
   console.log(`✅ Service adapters initialized`);

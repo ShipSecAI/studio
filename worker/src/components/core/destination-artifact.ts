@@ -66,7 +66,7 @@ const definition: ComponentDefinition<Input, Output> = {
       },
     ],
   },
-  async execute(params): Promise<Output> {
+  async execute(params, context): Promise<Output> {
     const destinations: Array<'run' | 'library'> = [];
     if (params.saveToRunArtifacts) {
       destinations.push('run');
@@ -77,6 +77,8 @@ const definition: ComponentDefinition<Input, Output> = {
     if (destinations.length === 0) {
       destinations.push('run');
     }
+
+    context.logger.info(`[ArtifactDestination] Configured destinations: ${destinations.join(', ')}`);
 
     const destination: DestinationConfig = {
       adapterId: 'artifact',

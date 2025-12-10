@@ -89,11 +89,8 @@ export function AppTopBar({
       </Button>
 
       {/* Page title section */}
-      <div className="flex flex-col">
-        <h1 className="text-lg font-semibold leading-tight">{pageInfo.title}</h1>
-        {pageInfo.subtitle && (
-          <p className="text-xs text-muted-foreground leading-tight">{pageInfo.subtitle}</p>
-        )}
+      <div className="flex items-center">
+        <h1 className="text-xl font-semibold">{pageInfo.title}</h1>
       </div>
 
       {/* Spacer */}

@@ -4,24 +4,35 @@ import { componentRegistry, createExecutionContext } from '@shipsec/component-sd
 
 async function main() {
   await import('../src/components/index');
-  const component = componentRegistry.get('core.gemini.chat');
-  if (!component) {
-    console.error('Component not found');
+  const provider = componentRegistry.get('core.provider.gemini');
+  const generator = componentRegistry.get('core.ai.generate-text');
+  if (!provider || !generator) {
+    console.error('Provider or generator component not found');
     process.exit(1);
   }
 
-  const context = createExecutionContext({
+  const providerContext = createExecutionContext({
     runId: 'test-run',
-    componentRef: 'gemini-test',
+    componentRef: 'gemini-provider',
+  });
+  const generateContext = createExecutionContext({
+    runId: 'test-run',
+    componentRef: 'gemini-generate',
   });
 
-  const params = component.inputSchema.parse({
+  const providerParams = provider.inputSchema.parse({
+    model: 'gemini-2.5-flash',
+    apiKey: process.env.GEMINI_API_KEY ?? 'replace-with-real-key',
+  });
+  const providerOutput = await provider.execute(providerParams, providerContext);
+
+  const generateParams = generator.inputSchema.parse({
     systemPrompt: 'You are helpful.',
     userPrompt: 'What is 2+2?',
-    apiKey: 'AIzaSyArjdbc9tz8EGL94kyDLutWOAhVnzbcnjc',
+    chatModel: providerOutput.chatModel,
   });
 
-  const output = await component.execute(params, context);
+  const output = await generator.execute(generateParams, generateContext);
   console.log(output);
 }
 
