@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { PanelLeftClose, PanelLeftOpen, Plus, ChevronLeft, ChevronRight, Loader2, Pencil, Play, Pause } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Plus, ChevronRight, Loader2, Pencil, Play, Pause, Zap, ExternalLink } from 'lucide-react'
 import {
   ReactFlowProvider,
   useNodesState,
@@ -1729,25 +1729,15 @@ function WorkflowBuilderContent() {
 
         <main className="flex-1 relative flex">
           <div className="flex-1 h-full relative">
-            {workflowId && mode === 'design' && (
-              <div
-                className={cn(
-                  'absolute z-40 transition-all',
-                  schedulePanelExpanded
-                    ? 'right-0 top-4 bottom-4'
-                    : 'right-4 top-4',
-                )}
-              >
-                <WorkflowSchedulesPanel
+            {mode === 'design' && workflowId && !schedulePanelExpanded && (
+              <div className="absolute right-2 top-2 z-40 flex justify-end w-full">
+                <WorkflowSchedulesSummaryBar
                   schedules={workflowSchedules}
                   isLoading={workflowSchedulesLoading}
                   error={workflowSchedulesError}
-                  expanded={schedulePanelExpanded}
-                  onToggle={() => setSchedulePanelExpanded((prev) => !prev)}
                   onCreate={() => openScheduleDrawer('create')}
-                  onManage={navigateToSchedules}
-                  onEdit={(schedule) => openScheduleDrawer('edit', schedule)}
-                  onAction={handleScheduleAction}
+                  onExpand={() => setSchedulePanelExpanded(true)}
+                  onViewAll={navigateToSchedules}
                 />
               </div>
             )}
@@ -1769,6 +1759,20 @@ function WorkflowBuilderContent() {
               onViewSchedules={navigateToSchedules}
             />
           </div>
+          {mode === 'design' && workflowId && schedulePanelExpanded && (
+            <aside className="w-[432px] border-l bg-background">
+              <WorkflowSchedulesSidebar
+                schedules={workflowSchedules}
+                isLoading={workflowSchedulesLoading}
+                error={workflowSchedulesError}
+                onClose={() => setSchedulePanelExpanded(false)}
+                onCreate={() => openScheduleDrawer('create')}
+                onManage={navigateToSchedules}
+                onEdit={(schedule) => openScheduleDrawer('edit', schedule)}
+                onAction={handleScheduleAction}
+              />
+            </aside>
+          )}
           {isInspectorVisible && (
             <aside
               className="relative h-full border-l bg-background"
@@ -1819,31 +1823,122 @@ export function WorkflowBuilder() {
   )
 }
 
-interface WorkflowSchedulesPanelProps {
+interface WorkflowSchedulesSummaryBarProps {
   schedules: WorkflowSchedule[]
   isLoading: boolean
   error?: string | null
-  expanded: boolean
-  onToggle: () => void
+  onCreate: () => void
+  onExpand: () => void
+  onViewAll: () => void
+}
+
+function WorkflowSchedulesSummaryBar({
+  schedules,
+  isLoading,
+  error,
+  onCreate,
+  onExpand,
+  onViewAll,
+}: WorkflowSchedulesSummaryBarProps) {
+  const summarySchedules = schedules.slice(0, 8)
+  const countActive = schedules.filter((s) => s.status === 'active').length
+  const countPaused = schedules.filter((s) => s.status === 'paused').length
+  const countError = schedules.filter((s) => s.status === 'error').length
+
+  return (
+    <div className="pointer-events-auto flex items-center gap-3 rounded-xl border bg-background/95 px-4 py-2 ring-1 ring-border/60">
+      <div className="space-y-0.5">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Schedules
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          {isLoading ? (
+            <span className="inline-flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading…
+            </span>
+          ) : error ? (
+            <span className="text-destructive">{error}</span>
+          ) : schedules.length === 0 ? (
+            <span>No schedules configured</span>
+          ) : (
+            <>
+              {countActive > 0 && (
+                <span>{countActive} active</span>
+              )}
+              {countPaused > 0 && (
+                <span className="ml-2">{countPaused} paused</span>
+              )}
+              {countError > 0 && (
+                <span className="ml-2 text-destructive">{countError} error</span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 px-3 text-xs"
+          onClick={onCreate}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" />
+          New
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-8 px-3 text-xs"
+          onClick={onExpand}
+        >
+          Manage
+        </Button>
+        <div className="relative group">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            title="Go to schedule manager"
+            aria-label="Go to schedule manager"
+            onClick={onViewAll}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+          <div className="pointer-events-none absolute -bottom-8 right-0 whitespace-nowrap rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground opacity-0 transition group-hover:opacity-100">
+            Go to schedule manager
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface WorkflowSchedulesSidebarProps {
+  schedules: WorkflowSchedule[]
+  isLoading: boolean
+  error?: string | null
+  onClose: () => void
   onCreate: () => void
   onManage: () => void
   onEdit: (schedule: WorkflowSchedule) => void
   onAction: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
 }
 
-function WorkflowSchedulesPanel({
+function WorkflowSchedulesSidebar({
   schedules,
   isLoading,
   error,
-  expanded,
-  onToggle,
+  onClose,
   onCreate,
   onManage,
   onEdit,
   onAction,
-}: WorkflowSchedulesPanelProps) {
-  const topSchedules = schedules.slice(0, 3)
+}: WorkflowSchedulesSidebarProps) {
   const [actionState, setActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
+
   const handleAction = useCallback(
     async (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => {
       setActionState((state) => ({ ...state, [schedule.id]: action }))
@@ -1861,14 +1956,9 @@ function WorkflowSchedulesPanel({
   )
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border bg-background/95 shadow-xl ring-1 ring-black/5 backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-all flex flex-col',
-        expanded ? 'w-[360px] h-full max-h-full' : 'w-[260px]',
-      )}
-    >
-      <div className="flex items-start justify-between gap-2 border-b px-4 py-3">
-        <div className="flex-1">
+    <div className="flex h-full flex-col border-l bg-background">
+      <div className="border-b px-4 py-3 space-y-3">
+        <div>
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-foreground">Schedules</p>
             <Badge variant="outline" className="text-[11px] font-medium">
@@ -1876,41 +1966,43 @@ function WorkflowSchedulesPanel({
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Automate this workflow on a cadence.
+            Create, pause, and run workflow cadences.
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={onCreate}>
             <Plus className="mr-1 h-4 w-4" />
             New
           </Button>
           <Button size="sm" variant="outline" onClick={onManage}>
-            View all
+            View page
           </Button>
           <Button
             type="button"
+            size="sm"
             variant="ghost"
-            size="icon"
-            onClick={onToggle}
-            aria-label={expanded ? 'Collapse schedules' : 'Expand schedules'}
+            className="gap-1"
+            aria-label="Collapse schedules"
+            onClick={onClose}
           >
-            {expanded ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            <ChevronRight className="h-4 w-4" />
+            Hide
           </Button>
         </div>
       </div>
-      <div className={cn('px-4 py-3 space-y-3 flex-1 overflow-hidden', expanded ? 'overflow-y-auto' : '')}>
+      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {isLoading ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
             Loading schedules…
           </div>
         ) : error ? (
-          <p className="text-xs text-destructive">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         ) : schedules.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
+          <div className="text-sm text-muted-foreground">
             No schedules yet. Create one to run this workflow automatically.
-          </p>
-        ) : expanded ? (
+          </div>
+        ) : (
           schedules.map((schedule) => {
             const isActive = schedule.status === 'active'
             const actionLabel = isActive ? 'Pause' : 'Resume'
@@ -1919,12 +2011,12 @@ function WorkflowSchedulesPanel({
             return (
               <div
                 key={schedule.id}
-                className="rounded-lg border bg-muted/30 px-3 py-2 space-y-2"
+                className="space-y-2 rounded-lg border bg-muted/30 px-3 py-2"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{schedule.name}</span>
+                      <span className="text-sm font-semibold">{schedule.name}</span>
                       <Badge
                         variant={scheduleStatusVariant[schedule.status]}
                         className="text-[11px] capitalize"
@@ -1936,7 +2028,42 @@ function WorkflowSchedulesPanel({
                       Next: {formatScheduleTimestamp(schedule.nextRunAt)}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 px-3 text-xs"
+                      disabled={Boolean(pendingAction && pendingAction !== actionKey)}
+                      onClick={() => handleAction(schedule, actionKey as 'pause' | 'resume')}
+                      title={actionLabel}
+                      aria-label={actionLabel}
+                    >
+                      {pendingAction === 'pause' || pendingAction === 'resume' ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : isActive ? (
+                        <Pause className="mr-1 h-3.5 w-3.5" />
+                      ) : (
+                        <Play className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      {actionLabel}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      disabled={Boolean(pendingAction && pendingAction !== 'run')}
+                      onClick={() => handleAction(schedule, 'run')}
+                      title="Run now"
+                      aria-label="Run now"
+                    >
+                      {pendingAction === 'run' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Zap className="h-4 w-4" />
+                      )}
+                    </Button>
                     <Button
                       type="button"
                       size="icon"
@@ -1944,43 +2071,11 @@ function WorkflowSchedulesPanel({
                       className="h-8 w-8"
                       onClick={() => onEdit(schedule)}
                       title="Edit schedule"
+                      aria-label="Edit schedule"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      disabled={Boolean(pendingAction)}
-                      onClick={() => handleAction(schedule, 'run')}
-                      title="Run now"
-                    >
-                      {pendingAction === 'run' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </Button>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={Boolean(pendingAction && pendingAction !== 'run')}
-                    onClick={() => handleAction(schedule, actionKey as 'pause' | 'resume')}
-                  >
-                    {pendingAction === 'pause' || pendingAction === 'resume' ? (
-                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                    ) : isActive ? (
-                      <Pause className="mr-1 h-3.5 w-3.5" />
-                    ) : (
-                      <Play className="mr-1 h-3.5 w-3.5" />
-                    )}
-                    {actionLabel}
-                  </Button>
                 </div>
                 {schedule.description && (
                   <p className="text-xs text-muted-foreground">{schedule.description}</p>
@@ -1988,40 +2083,6 @@ function WorkflowSchedulesPanel({
               </div>
             )
           })
-        ) : (
-          <div className="space-y-2">
-            {topSchedules.map((schedule) => (
-              <div
-                key={schedule.id}
-                className="rounded-lg border bg-muted/40 px-3 py-2 space-y-1"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{schedule.name}</span>
-                      <Badge
-                        variant={scheduleStatusVariant[schedule.status]}
-                        className="text-[11px] capitalize"
-                      >
-                        {schedule.status}
-                      </Badge>
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Next: {formatScheduleTimestamp(schedule.nextRunAt)}
-                    </div>
-                  </div>
-                  <Button size="icon" variant="ghost" onClick={() => onEdit(schedule)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {schedules.length > topSchedules.length && (
-              <Badge variant="outline" className="text-xs font-medium w-fit">
-                +{schedules.length - topSchedules.length} more
-              </Badge>
-            )}
-          </div>
         )}
       </div>
     </div>

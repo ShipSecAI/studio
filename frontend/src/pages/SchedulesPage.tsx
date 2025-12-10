@@ -26,7 +26,6 @@ import {
 } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  CalendarClock,
   PauseCircle,
   PlayCircle,
   RefreshCw,
@@ -288,16 +287,17 @@ export function SchedulesPage() {
     <TooltipProvider>
       <div className="flex-1 bg-background">
         <div className="container mx-auto px-4 py-8 space-y-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold flex items-center gap-2">
-                <CalendarClock className="h-6 w-6 text-primary" />
-                Workflow schedules
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                View every Temporal cadence from one place. Pause noisy runs, fire an ad-hoc
-                execution, or jump into the workflow that owns it.
-              </p>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="flex-1 space-y-2">
+              <label className="text-xs uppercase text-muted-foreground flex items-center gap-2">
+                <Search className="h-3.5 w-3.5" />
+                Search schedules or workflows
+              </label>
+              <Input
+                placeholder="Filter by schedule or workflow"
+                value={filters.search}
+                onChange={(event) => setFilters({ search: event.target.value })}
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -317,13 +317,6 @@ export function SchedulesPage() {
                 <Plus className="h-4 w-4" />
                 New schedule
               </Button>
-              <Button
-                variant="ghost"
-                className="gap-2"
-                onClick={() => navigate('/')}
-              >
-                Open workflow builder
-              </Button>
             </div>
           </div>
 
@@ -336,18 +329,7 @@ export function SchedulesPage() {
             </div>
           )}
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-xs uppercase text-muted-foreground flex items-center gap-2">
-                <Search className="h-3.5 w-3.5" />
-                Search
-              </label>
-              <Input
-                placeholder="Filter by schedule or workflow"
-                value={filters.search}
-                onChange={(event) => setFilters({ search: event.target.value })}
-              />
-            </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <label className="text-xs uppercase text-muted-foreground">Status</label>
               <Select value={filters.status} onValueChange={handleStatusFilterChange}>
