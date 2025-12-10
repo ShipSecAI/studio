@@ -210,8 +210,8 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
       )
     }
     return (
-      <div className="px-4 py-3 shadow-md rounded-lg border-2 border-red-500 bg-red-50 min-w-[200px]">
-        <div className="text-sm text-red-600">
+      <div className="px-4 py-3 shadow-md rounded-lg border-2 border-red-500 bg-red-50 dark:bg-red-950/30 min-w-[200px]">
+        <div className="text-sm text-red-600 dark:text-red-400">
           Component not found: {componentRef ?? 'unknown'}
         </div>
       </div>

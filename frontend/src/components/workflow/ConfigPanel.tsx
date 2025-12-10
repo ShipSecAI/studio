@@ -229,7 +229,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
           </Button>
         </div>
         <div className="flex-1 p-4">
-          <div className="text-sm text-red-600">
+          <div className="text-sm text-red-600 dark:text-red-400">
             Component not found: {componentRef ?? 'unknown'}
           </div>
         </div>
@@ -346,7 +346,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium">{input.label}</span>
                         {input.required && (
-                          <span className="text-xs text-red-500">*required</span>
+                          <span className="text-xs text-red-500 dark:text-red-400">*required</span>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mb-2">
@@ -475,13 +475,13 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                         <div className="text-xs space-y-1">
                           {manualValueProvided ? (
                             <>
-                              <div className="text-blue-600 flex items-center gap-1">
+                              <div className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
                                 • <span className="font-medium">Manual value in use</span>
                               </div>
                               {inputSupportsManualValue(input) && manualValuePreview && (
                                 <div className="text-muted-foreground break-words">
                                   Value:{' '}
-                                  <span className="font-mono text-blue-600">
+                                  <span className="font-mono text-blue-600 dark:text-blue-400">
                                     {manualValuePreview}
                                   </span>
                                 </div>
@@ -489,7 +489,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                               {hasConnection ? (
                                 <div className="text-muted-foreground">
                                   Manual override active even though a port is connected. Clear the manual value to use{' '}
-                                  <span className="font-mono text-blue-600">
+                                  <span className="font-mono text-blue-600 dark:text-blue-400">
                                     {connection?.source}.{connection?.output}
                                   </span>.
                                 </div>
@@ -501,18 +501,18 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                             </>
                           ) : hasConnection ? (
                             <div className="space-y-1">
-                              <div className="text-green-600 flex items-center gap-1">
+                              <div className="text-green-600 dark:text-green-400 flex items-center gap-1">
                                 ✓ <span className="font-medium">Connected</span>
                               </div>
                               <div className="text-muted-foreground">
                                 Source:{' '}
-                                <span className="font-mono text-blue-600">
+                                <span className="font-mono text-blue-600 dark:text-blue-400">
                                   {connection?.source}
                                 </span>
                               </div>
                               <div className="text-muted-foreground">
                                 Output:{' '}
-                                <span className="font-mono text-blue-600">
+                                <span className="font-mono text-blue-600 dark:text-blue-400">
                                   {connection?.output}
                                 </span>
                               </div>
@@ -523,7 +523,7 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                           ) : (
                             <div className="flex items-center gap-1">
                               {input.required ? (
-                                <span className="text-red-500">
+                                <span className="text-red-500 dark:text-red-400">
                                   ⚠ <span className="font-medium">Required but not connected</span>
                                 </span>
                               ) : (

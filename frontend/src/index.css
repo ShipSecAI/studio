@@ -32,24 +32,24 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --background: 224 71% 0%;
+    --foreground: 213 31% 92%;
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+    --popover: 222 47% 11%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 222.2 47.4% 11.2%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 216 34% 17%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 216 0% 30%;
+    --input: 216 34% 17%;
     --ring: 224.3 76.3% 48%;
     --color-success: 142.1 70.6% 45.3%;
     --color-warning: 47.9 95.8% 53.1%;
@@ -92,4 +92,68 @@ textarea {
 .config-panel {
   z-index: 100;
   pointer-events: auto !important;
+}
+
+/* Semantic color utilities for light/dark mode compatibility */
+.text-success {
+  color: hsl(var(--color-success));
+}
+
+.text-warning {
+  color: hsl(var(--color-warning));
+}
+
+.text-error {
+  color: hsl(var(--color-error));
+}
+
+/* Status colors that adapt to theme */
+.status-success {
+  color: #16a34a; /* green-600 */
+}
+.dark .status-success {
+  color: #4ade80; /* green-400 */
+}
+
+.status-error {
+  color: #dc2626; /* red-600 */
+}
+.dark .status-error {
+  color: #f87171; /* red-400 */
+}
+
+.status-info {
+  color: #2563eb; /* blue-600 */
+}
+.dark .status-info {
+  color: #60a5fa; /* blue-400 */
+}
+
+.status-warning {
+  color: #d97706; /* amber-600 */
+}
+.dark .status-warning {
+  color: #fbbf24; /* amber-400 */
+}
+
+/* Background variants for status */
+.bg-status-success {
+  background-color: #f0fdf4; /* green-50 */
+}
+.dark .bg-status-success {
+  background-color: rgb(20 83 45 / 0.3); /* green-950/30 */
+}
+
+.bg-status-error {
+  background-color: #fef2f2; /* red-50 */
+}
+.dark .bg-status-error {
+  background-color: rgb(69 10 10 / 0.3); /* red-950/30 */
+}
+
+.bg-status-info {
+  background-color: #eff6ff; /* blue-50 */
+}
+.dark .bg-status-info {
+  background-color: rgb(23 37 84 / 0.3); /* blue-950/30 */
 }

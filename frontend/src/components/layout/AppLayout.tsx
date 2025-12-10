@@ -2,13 +2,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive, Sun, Moon } from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { UserButton } from '@/components/auth/UserButton'
 import { useAuth, useAuthProvider } from '@/auth/auth-context'
 import { env } from '@/config/env'
+import { useThemeStore } from '@/store/themeStore'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -40,6 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { isAuthenticated } = useAuth()
   const authProvider = useAuthProvider()
   const showUserButton = isAuthenticated || authProvider.name === 'clerk'
+  const { theme, toggleTheme } = useThemeStore()
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA
@@ -142,7 +144,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-        <SidebarHeader className="flex items-center gap-3 p-4 border-b">
+        <SidebarHeader className="flex items-center justify-between p-4 border-b">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex-shrink-0">
               <img
@@ -171,6 +173,20 @@ export function AppLayout({ children }: AppLayoutProps) {
               ShipSec Studio
             </span>
           </Link>
+          {/* Dark mode toggle - only show when sidebar is open */}
+          {sidebarOpen && (
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-5 w-5 text-amber-500" />
+              ) : (
+                <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              )}
+            </button>
+          )}
         </SidebarHeader>
 
         <SidebarContent>
@@ -216,7 +232,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </SidebarContent>
 
         <SidebarFooter className="border-t">
-          <div className="flex flex-col gap-2 p-">
+          <div className="flex flex-col gap-2 p-2">
             {/* Auth components - UserButton includes organization switching */}
             {showUserButton && (
               <div className={`flex ${sidebarOpen ? 'justify-start' : 'justify-center'}`}>

@@ -42,9 +42,9 @@ const generateId = () => {
 // Keep variants minimal so the base class controls readability.
 const variantStyles: Record<ToastVariant, string> = {
   default: '',
-  success: 'ring-emerald-400/40',
-  warning: 'ring-amber-400/40',
-  destructive: 'ring-red-500/40',
+  success: 'ring-emerald-400/40 dark:ring-emerald-500/40',
+  warning: 'ring-amber-400/40 dark:ring-amber-500/40',
+  destructive: 'ring-red-500/40 dark:ring-red-400/40',
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -105,16 +105,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={id}
             className={cn(
-              // Dark, high-contrast base + subtle ring by variant
+              // High-contrast base + subtle ring by variant - supports light and dark mode
               'pointer-events-auto flex w-full max-w-sm items-start justify-between gap-4 rounded-md px-4 py-3 sm:max-w-md rounded-xl',
-              'border border-neutral-200 bg-white/95 text-neutral-900 shadow-lg shadow-black/10 ring-1 ring-black/5 backdrop-blur-sm',
+              'border border-border bg-card text-card-foreground shadow-lg shadow-black/10 dark:shadow-black/30 ring-1 ring-black/5 dark:ring-white/10 backdrop-blur-sm',
               variantStyles[variant] ?? '',
             )}
           >
             <div className="flex-1">
-              <p className="text-sm font-semibold text-neutral-900">{title}</p>
+              <p className="text-sm font-semibold text-foreground">{title}</p>
               {description && (
-                <div className="mt-1 text-sm text-neutral-700">
+                <div className="mt-1 text-sm text-muted-foreground">
                   {typeof description === 'string' ? (
                     <p>{description}</p>
                   ) : (
@@ -126,7 +126,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => removeToast(id)}
-              className="text-xs font-semibold text-neutral-600 transition hover:text-neutral-900"
+              className="text-xs font-semibold text-muted-foreground transition hover:text-foreground"
               aria-label="Dismiss notification"
             >
               Close

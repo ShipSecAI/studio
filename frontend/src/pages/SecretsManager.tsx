@@ -418,7 +418,7 @@ export function SecretsManager() {
 
               {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-              {formSuccess && <p className="text-sm text-green-600">{formSuccess}</p>}
+              {formSuccess && <p className="text-sm text-green-600 dark:text-green-400">{formSuccess}</p>}
 
               <Button type="submit" disabled={!isFormValid || disableCreate}>
                 {isSubmitting ? 'Saving…' : 'Create secret'}
@@ -450,7 +450,7 @@ export function SecretsManager() {
             </div>
 
             {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
-            {listSuccess && <div className="mb-4 text-sm text-green-600">{listSuccess}</div>}
+            {listSuccess && <div className="mb-4 text-sm text-green-600 dark:text-green-400">{listSuccess}</div>}
 
             {loading && secrets.length === 0 ? (
               <div className="text-sm text-muted-foreground">Loading secrets…</div>
