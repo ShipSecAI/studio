@@ -224,40 +224,37 @@ describe('compileWorkflowGraph', () => {
         },
         {
           id: 'branchA',
-          type: 'core.workflow.entrypoint',
+          type: 'core.text.splitter',
           position: { x: -100, y: 100 },
           data: {
             label: 'Branch A',
             config: {
-              runtimeInputs: [
-                { id: 'branchAInput', label: 'Branch A Input', type: 'text', required: false },
-              ],
+              text: 'Branch A payload',
+              separator: '\n',
             },
           },
         },
         {
           id: 'branchB',
-          type: 'core.workflow.entrypoint',
+          type: 'core.text.splitter',
           position: { x: 100, y: 100 },
           data: {
             label: 'Branch B',
             config: {
-              runtimeInputs: [
-                { id: 'branchBInput', label: 'Branch B Input', type: 'text', required: false },
-              ],
+              text: 'Branch B payload',
+              separator: '\n',
             },
           },
         },
         {
           id: 'merge',
-          type: 'core.workflow.entrypoint',
+          type: 'core.text.splitter',
           position: { x: 0, y: 200 },
           data: {
             label: 'Merge',
             config: {
-              runtimeInputs: [
-                { id: 'mergeInput', label: 'Merge Input', type: 'text', required: false },
-              ],
+              text: 'Merge payload',
+              separator: '\n',
             },
           },
         },

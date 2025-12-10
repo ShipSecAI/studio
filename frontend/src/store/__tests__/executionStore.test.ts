@@ -112,7 +112,7 @@ describe('useExecutionStore', () => {
       runId: 'run-1',
       workflowId: 'wf-1',
       status: 'running',
-      logs: [initialEvent],
+      events: [initialEvent],
     })
 
     mockExecutions.getStatus.mockResolvedValue(baseStatus())
@@ -127,8 +127,8 @@ describe('useExecutionStore', () => {
 
     await useExecutionStore.getState().pollOnce()
 
-    const { logs, nodeStates } = useExecutionStore.getState()
-    expect(logs).toHaveLength(2)
+    const { events, nodeStates } = useExecutionStore.getState()
+    expect(events).toHaveLength(2)
     expect(nodeStates['node-1']).toBe('success')
   })
 
@@ -185,10 +185,10 @@ describe('useExecutionStore', () => {
         cursor: '2'
       })
 
-      const { logs, nodeStates } = useExecutionStore.getState()
-      expect(logs).toHaveLength(2)
+      const { events, nodeStates } = useExecutionStore.getState()
+      expect(events).toHaveLength(2)
       expect(nodeStates['node-1']).toBe('running')
-      expect(logs[1].message).toBe('Processing...')
+      expect(events[1].message).toBe('Processing...')
     })
 
     it('handles status updates from stream', async () => {

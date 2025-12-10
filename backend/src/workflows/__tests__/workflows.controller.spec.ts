@@ -299,6 +299,13 @@ describe('WorkflowsController', () => {
       async countByType() {
         return 1;
       },
+      async getEventTimeRange() {
+        const base = Date.now();
+        return {
+          earliest: base - 100,
+          latest: base,
+        };
+      },
     };
 
     const workflowRoleRepositoryStub = {
