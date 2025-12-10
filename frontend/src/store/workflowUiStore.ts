@@ -25,11 +25,20 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
       inspectorTab: 'events',
       libraryOpen: true,
       inspectorWidth: 360,
-      setMode: (mode) => set((state) => ({
-        mode,
-        inspectorTab: mode === 'execution' ? state.inspectorTab ?? 'events' : 'events',
-        libraryOpen: mode === 'design'
-      })),
+      setMode: (mode) => {
+        // When switching to execution mode, reset the execution timeline store
+        // to show an empty canvas (no pre-selected run from previous sessions)
+        if (mode === 'execution') {
+          void import('./executionTimelineStore').then(({ useExecutionTimelineStore }) => {
+            useExecutionTimelineStore.getState().reset()
+          })
+        }
+        set((state) => ({
+          mode,
+          inspectorTab: mode === 'execution' ? state.inspectorTab ?? 'events' : 'events',
+          libraryOpen: mode === 'design'
+        }))
+      },
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setLibraryOpen: (open) => set({ libraryOpen: open }),
       toggleLibrary: () => set((state) => ({ libraryOpen: !state.libraryOpen })),

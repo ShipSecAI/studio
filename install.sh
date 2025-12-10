@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# install.sh - Interactive cross-platform bootstrap for ShipSecAI/studio
-# - Works on macOS, Linux, and Windows (WSL / Git Bash / MSYS)
-# - Asks before installing any tools (Docker, bun, pm2, just)
-# - Asks before cloning the repo
-# - Asks before trying to start Docker Desktop/daemon
+# install.sh - Interactive bootstrap for ShipSecAI/studio
+# Works on macOS, Linux, and Windows (WSL / Git Bash / MSYS)
+# Matches README flow:
+#   1) just init
+#   2) just dev
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -27,7 +27,6 @@ command_exists() { command -v "$1" >/dev/null 2>&1; }
 
 ask_yes_no() {
   # Usage: ask_yes_no "Question" "default"
-  # default: y or n
   local prompt default answer
   prompt="$1"
   default="${2:-n}"
@@ -57,15 +56,28 @@ case "$OS_RAW" in
 esac
 log "Platform detected: $PLATFORM"
 
-# ---------- 1) Repo check / clone ----------
+# ---------- 1) Repo detection / clone ----------
 log "Repository check"
-if [ -d .git ] || [ -d backend ] || [ -d frontend ] || [ -d worker ]; then
-  info "Looks like you're already inside the project repo: $(pwd)"
+
+IN_REPO=false
+if [ -d .git ] || [ -f justfile ] || [ -f Justfile ]; then
+  IN_REPO=true
 else
+  # common case: user runs from parent folder that already has ./studio
+  if [ -d "$REPO_DIR" ] && [ -d "$REPO_DIR/.git" -o -f "$REPO_DIR/justfile" -o -f "$REPO_DIR/Justfile" ]; then
+    info "Detected existing repo in ./$REPO_DIR"
+    if ask_yes_no "Use './$REPO_DIR' and cd into it?" "y"; then
+      cd "$REPO_DIR"
+      IN_REPO=true
+    fi
+  fi
+fi
+
+if [ "$IN_REPO" = false ]; then
   info "No repo detected in current directory."
-  if ask_yes_no "Clone ShipSecAI/studio from GitHub into './$REPO_DIR'?" "y"; then
+  if ask_yes_no "Clone ShipSecAI/studio into './$REPO_DIR' now?" "y"; then
     if ! command_exists git; then
-      err "git is required to clone the repo. Install git and re-run."
+      err "git is required to clone the repo. Please install git and rerun."
       exit 1
     fi
     if [ -d "$REPO_DIR" ]; then
@@ -74,9 +86,8 @@ else
       git clone "$REPO_URL" "$REPO_DIR" || { err "git clone failed"; exit 1; }
     fi
     cd "$REPO_DIR"
-    info "Now in $(pwd)"
   else
-    err "Repo not present and cloning declined. Cannot continue."
+    err "Cannot continue without the repository. Exiting."
     exit 1
   fi
 fi
@@ -84,46 +95,45 @@ fi
 PROJECT_ROOT="$(pwd)"
 info "Project root: $PROJECT_ROOT"
 
-# ---------- 2) Docker helpers (install + start) ----------
+# ---------- 2) Docker helpers ----------
 install_docker_cli() {
-  info "Starting Docker installation flow for $PLATFORM..."
+  info "Attempting Docker install for $PLATFORM..."
   case "$PLATFORM" in
     macos)
-      if ! command_exists brew; then
-        warn "Homebrew not found. Please install Docker Desktop manually from https://www.docker.com/products/docker-desktop"
-        return
+      if command_exists brew; then
+        brew install --cask docker || warn "brew failed to install Docker Desktop."
+      else
+        warn "Homebrew not found. Install Docker Desktop manually: https://www.docker.com/products/docker-desktop"
       fi
-      info "Using Homebrew to install Docker Desktop (GUI)..."
-      brew install --cask docker || warn "brew --cask docker failed. You may need to install Docker Desktop manually."
       ;;
     linux)
       if command_exists apt-get; then
         sudo apt-get update -y || true
-        sudo apt-get install -y docker.io docker-compose-plugin || warn "apt-get failed to install docker"
+        sudo apt-get install -y docker.io docker-compose-plugin || warn "apt-get failed to install docker."
       elif command_exists dnf; then
-        sudo dnf install -y docker docker-compose || warn "dnf failed to install docker"
+        sudo dnf install -y docker docker-compose || warn "dnf failed to install docker."
       elif command_exists yum; then
-        sudo yum install -y docker docker-compose || warn "yum failed to install docker"
+        sudo yum install -y docker docker-compose || warn "yum failed to install docker."
       elif command_exists pacman; then
-        sudo pacman -S --noconfirm docker docker-compose || warn "pacman failed to install docker"
+        sudo pacman -S --noconfirm docker docker-compose || warn "pacman failed to install docker."
       elif command_exists zypper; then
-        sudo zypper install -y docker docker-compose || warn "zypper failed to install docker"
+        sudo zypper install -y docker docker-compose || warn "zypper failed to install docker."
       else
-        warn "No known package manager to install Docker automatically. Install it manually from Docker docs."
+        warn "No known package manager. Install Docker manually from the official docs."
       fi
       ;;
     windows-msys)
-      warn "On Windows, this script can try choco/winget for Docker Desktop, but it may need admin."
+      warn "On Windows, attempting Docker Desktop via choco/winget (may require admin)."
       if command_exists choco; then
-        choco install -y docker-desktop || warn "choco failed to install Docker Desktop"
+        choco install -y docker-desktop || warn "choco failed to install Docker Desktop."
       elif command_exists winget; then
-        winget install -e --id Docker.DockerDesktop || warn "winget failed to install Docker Desktop"
+        winget install -e --id Docker.DockerDesktop || warn "winget failed to install Docker Desktop."
       else
-        warn "No choco/winget found. Install Docker Desktop manually from https://www.docker.com/get-started"
+        warn "No choco/winget found. Install Docker Desktop manually: https://www.docker.com/get-started"
       fi
       ;;
     *)
-      warn "Platform unknown. Please install Docker manually from https://www.docker.com/get-started"
+      warn "Unknown platform; install Docker manually: https://www.docker.com/get-started"
       ;;
   esac
 }
@@ -131,53 +141,51 @@ install_docker_cli() {
 start_docker_daemon() {
   case "$PLATFORM" in
     macos)
-      info "Trying to start Docker Desktop on macOS..."
+      info "Trying to start Docker Desktop..."
       open -a Docker >/dev/null 2>&1 || warn "Couldn't auto-open Docker.app. Start Docker Desktop manually."
       ;;
     windows-msys)
-      info "Trying to start Docker Desktop on Windows..."
+      info "Trying to start Docker Desktop (Windows)..."
       WIN_DOCKER_EXE_PATH='C:\Program Files\Docker\Docker\Docker Desktop.exe'
-      powershell.exe -NoProfile -Command "Try { Start-Process -FilePath '$WIN_DOCKER_EXE_PATH' -ErrorAction Stop } Catch { Exit 1 }" >/dev/null 2>&1 || \
-        warn "Couldn't auto-start Docker Desktop. Start it manually."
+      powershell.exe -NoProfile -Command "Try { Start-Process -FilePath '$WIN_DOCKER_EXE_PATH' -ErrorAction Stop } Catch { Exit 1 }" \
+        >/dev/null 2>&1 || warn "Couldn't auto-start Docker Desktop. Start it manually."
       ;;
     linux)
-      info "Trying to start docker service on Linux..."
+      info "Trying to start docker service..."
       if command_exists systemctl; then
-        sudo systemctl start docker 2>/dev/null || warn "systemctl start docker failed. Try: sudo systemctl start docker"
+        sudo systemctl start docker 2>/dev/null || warn "systemctl start docker failed."
       elif command_exists service; then
-        sudo service docker start 2>/dev/null || warn "service docker start failed"
+        sudo service docker start 2>/dev/null || warn "service docker start failed."
       else
-        warn "No systemctl/service available to start docker; start it manually."
+        warn "No systemctl/service; start docker manually."
       fi
       ;;
     *)
-      warn "Don't know how to auto-start Docker on this platform. Start it manually."
+      warn "Don't know how to auto-start Docker on this platform."
       ;;
   esac
 }
 
-# ---------- 3) Docker flow (interactive) ----------
-log "Docker CLI & daemon"
+# ---------- 3) Docker flow ----------
+log "Docker (Desktop/Engine)"
+
 DOCKER_OK=false
 
 if ! command_exists docker; then
-  warn "docker CLI is not installed."
-  if ask_yes_no "Do you want this script to attempt installing Docker now?" "n"; then
+  warn "docker CLI not found."
+  if ask_yes_no "Should I try to install Docker for you?" "n"; then
     install_docker_cli
-  else
-    warn "Docker will NOT be installed by this script. Infra-related steps may fail."
   fi
 fi
 
 if command_exists docker; then
   info "docker CLI: $(docker --version 2>/dev/null || echo 'version unknown')"
-
   if docker info >/dev/null 2>&1; then
     info "Docker daemon is running."
     DOCKER_OK=true
   else
     warn "Docker daemon is NOT running."
-    if ask_yes_no "Do you want this script to try starting Docker now?" "y"; then
+    if ask_yes_no "Try to start Docker now?" "y"; then
       start_docker_daemon
       ATTEMPTS=30
       while ! docker info >/dev/null 2>&1 && [ $ATTEMPTS -gt 0 ]; do
@@ -189,116 +197,92 @@ if command_exists docker; then
         info "Docker daemon is now running."
         DOCKER_OK=true
       else
-        warn "Docker is still not running. You may need to open Docker Desktop manually."
-        DOCKER_OK=false
+        warn "Docker is still not running."
+        if ask_yes_no "Continue anyway (services that need Docker will fail)?" "n"; then
+          DOCKER_OK=false
+        else
+          err "Docker is required for the dev environment. Exiting."
+          exit 1
+        fi
       fi
     else
-      warn "Skipping Docker start. Infra that uses Docker may fail."
-      DOCKER_OK=false
+      if ask_yes_no "Continue without starting Docker? (dev env will fail)" "n"; then
+        DOCKER_OK=false
+      else
+        err "Docker needs to be running to continue. Exiting."
+        exit 1
+      fi
     fi
   fi
-
-  if [ "$DOCKER_OK" = true ]; then
-    info "Make sure Docker has at least ~8GB RAM allocated for this stack."
-  fi
 else
-  warn "Docker CLI not available. Skipping infra steps that depend on it."
+  warn "Docker CLI not available at all."
+  if ! ask_yes_no "Continue without Docker? (dev env will NOT work)" "n"; then
+    err "Docker is required. Exiting."
+    exit 1
+  fi
 fi
 
-# ---------- 4) Bun runtime (interactive) ----------
+# ---------- 4) Bun runtime ----------
 log "Bun runtime (bun.sh)"
 
 if command_exists bun; then
   info "bun present: $(bun --version 2>/dev/null || echo 'unknown')"
 else
-  warn "bun runtime not found."
+  warn "bun is not installed (required by project)."
   if [ "$PLATFORM" = "macos" ] || [ "$PLATFORM" = "linux" ]; then
-    if ask_yes_no "Install bun via the official bun.sh script now?" "n"; then
-      if command_exists curl || command_exists wget; then
-        if command_exists curl; then
-          curl -fsSL https://bun.sh/install | bash || warn "bun install script failed."
-        else
-          wget -qO- https://bun.sh/install | bash || warn "bun install script failed."
-        fi
-        if [ -f "$HOME/.bun/bin/bun" ]; then
-          export PATH="$HOME/.bun/bin:$PATH"
-          info "Added ~/.bun/bin to PATH for this session."
-        fi
-        if command_exists bun; then
-          info "bun installed: $(bun --version)"
-        else
-          warn "bun not available on PATH after install. You may need to restart your shell."
-        fi
+    if ask_yes_no "Install bun via bun.sh now?" "y"; then
+      if command_exists curl; then
+        curl -fsSL https://bun.sh/install | bash || warn "bun install script failed."
+      elif command_exists wget; then
+        wget -qO- https://bun.sh/install | bash || warn "bun install script failed."
       else
-        warn "curl/wget not found. Cannot run bun installer script."
+        warn "Neither curl nor wget found. Can't run bun installer."
       fi
-    else
-      warn "Skipping bun installation. If no bun is present, npm will be used where possible."
+      if [ -f "$HOME/.bun/bin/bun" ]; then
+        export PATH="$HOME/.bun/bin:$PATH"
+        info "Added ~/.bun/bin to PATH for this session."
+      fi
     fi
   else
-    warn "Automatic bun install not configured for this platform. Install manually if desired."
+    warn "Automatic bun install not configured for this platform. Install it manually."
   fi
 fi
 
-# ---------- 5) Node/npm & PM2 (interactive install) ----------
-log "Node/npm & PM2"
-
-NPM_PRESENT=false
-if command_exists npm; then
-  NPM_PRESENT=true
-  info "npm present: $(npm --version 2>/dev/null || echo 'unknown')"
-else
-  warn "npm (Node.js) not found. PM2 global installation via npm won't be possible."
+if ! command_exists bun; then
+  err "bun runtime is required for this project (just recipes use it). Exiting."
+  exit 1
 fi
 
-if command_exists pm2; then
-  info "pm2 present: $(pm2 --version 2>/dev/null || echo 'unknown')"
-else
-  warn "pm2 (process manager) is not installed."
-  if [ "$NPM_PRESENT" = true ]; then
-    if ask_yes_no "Install pm2 globally via 'npm install -g pm2'?" "n"; then
-      if command_exists sudo && [ "$(id -u)" -ne 0 ]; then
-        sudo npm install -g pm2 || warn "npm install -g pm2 failed."
-      else
-        npm install -g pm2 || warn "npm install -g pm2 failed."
-      fi
-    else
-      warn "Skipping pm2 global install. Script will try using 'bunx pm2' (if bun exists) or skip PM2-based management."
-    fi
-  else
-    warn "No npm found to install pm2. If bun is available, we'll try 'bunx pm2' later."
-  fi
-fi
-
-# ---------- 6) just command runner (interactive) ----------
+# ---------- 5) just command runner ----------
 log "Checking 'just' command runner"
 
 if command_exists just; then
   info "just present: $(just --version 2>/dev/null || echo 'unknown')"
 else
-  warn "'just' is not installed. It's used for infra commands like 'just infra-up'."
-  if ask_yes_no "Attempt to install 'just' using your platform package manager?" "n"; then
+  warn "'just' is not installed (required for 'just init' / 'just dev')."
+  if ask_yes_no "Try to install 'just' using your package manager?" "y"; then
     if [ "$PLATFORM" = "macos" ] && command_exists brew; then
       brew install just || warn "brew install just failed."
     elif command_exists pacman; then
       sudo pacman -S --noconfirm just || warn "pacman install just failed."
-    elif command_exists apt-get; then
+    elif command_exists apt-get ]; then
       if command_exists cargo; then
         cargo install just || warn "cargo install just failed."
       else
-        warn "No cargo found. See https://github.com/casey/just for install options."
+        warn "Install Rust/cargo then run 'cargo install just', or see https://github.com/casey/just"
       fi
-    elif [ "$PLATFORM" = "windows-msys" ]; then
-      warn "On Windows, install 'just' via Scoop/Chocolatey or use WSL."
     else
-      warn "Automatic install for 'just' not configured on this platform."
+      warn "Automatic install for 'just' not configured here. Install manually."
     fi
-  else
-    warn "Skipping 'just' installation. Infra steps using 'just' will be skipped."
   fi
 fi
 
-# ---------- 7) Port checks (no installs, just info) ----------
+if ! command_exists just; then
+  err "'just' is required to run 'just init' and 'just dev'. Exiting."
+  exit 1
+fi
+
+# ---------- 6) Port checks (informational) ----------
 log "Checking required ports: ${REQUIRED_PORTS[*]}"
 PORT_ISSUES=0
 for p in "${REQUIRED_PORTS[@]}"; do
@@ -312,147 +296,44 @@ for p in "${REQUIRED_PORTS[@]}"; do
       warn "Port $p is already in use."
       PORT_ISSUES=$((PORT_ISSUES+1))
     fi
-  else
-    info "No lsof/ss available to check port $p; skipping."
   fi
 done
 if [ "$PORT_ISSUES" -gt 0 ]; then
-  warn "$PORT_ISSUES required port(s) are in use. This may block services."
+  warn "$PORT_ISSUES required port(s) are in use. Dev env may fail until you free them."
 fi
 
-# ---------- 8) Create .env from .env.example ----------
-log "Ensuring .env files exist (backend, worker, frontend)"
+# ---------- 7) Run `just init` ----------
+log "Project initialization (just init)"
 
-for sub in backend worker frontend; do
-  if [ -d "$sub" ]; then
-    if [ -f "$sub/.env" ]; then
-      info "$sub/.env already exists - leaving it untouched."
-    else
-      if [ -f "$sub/.env.example" ]; then
-        cp "$sub/.env.example" "$sub/.env"
-        info "Created $sub/.env from $sub/.env.example"
-      else
-        warn "No $sub/.env.example found - skipping."
-      fi
-    fi
-  fi
-done
-
-# ---------- 9) Install dependencies (bun / npm) ----------
-log "Installing dependencies (bun preferred, npm fallback)"
-
-install_deps() {
-  local dir="$1"
-  if [ ! -d "$dir" ]; then return; fi
-
-  pushd "$dir" >/dev/null
-  info "Installing dependencies in $dir"
-
-  if command_exists bun && [ -f package.json ]; then
-    bun install || warn "bun install failed in $dir"
-  elif command_exists npm && [ -f package.json ]; then
-    npm install || warn "npm install failed in $dir"
-  else
-    warn "No bun/npm found or no package.json in $dir; skipping."
-  fi
-
-  popd >/dev/null
-}
-
-install_deps "."
-install_deps "backend"
-install_deps "worker"
-install_deps "frontend"
-
-# ---------- 10) Infra via just (if available & user agrees) ----------
-if command_exists just && [ "$DOCKER_OK" = true ]; then
-  log "Shared infrastructure (Postgres, Temporal, MinIO, Loki) via 'just'"
-
-  if ask_yes_no "Run 'just infra-up' to start infra services now?" "y"; then
-    just infra-up || warn "'just infra-up' failed; check Docker and just configuration."
-    if ask_yes_no "Run 'just status' to check infra health?" "y"; then
-      just status || warn "'just status' reported issues or failed."
-    fi
-  else
-    warn "Skipping 'just infra-up'. You can run it later manually."
-  fi
+if ask_yes_no "Run 'just init' (install deps, create .env files) now?" "y"; then
+  just init
+  info "'just init' completed."
 else
-  warn "Either 'just' is not installed or Docker isn't running; skipping infra startup."
+  warn "Skipping 'just init'. If deps/.env are missing, 'just dev' will prompt you later."
 fi
 
-# ---------- 11) Run migrations ----------
-log "Running database migrations (if scripts exist)"
-if command_exists bun && [ -f package.json ]; then
-  bun run migrate || warn "bun run migrate failed."
-elif command_exists bun && [ -f backend/package.json ]; then
-  bun --cwd backend run migrate || warn "bun --cwd backend run migrate failed."
-elif command_exists npm && [ -f package.json ]; then
-  npm run migrate || warn "npm run migrate failed."
-elif command_exists npm && [ -f backend/package.json ]; then
-  npm --prefix backend run migrate || warn "backend migrations with npm failed."
+# ---------- 8) Run `just dev` ----------
+log "Development environment (just dev)"
+
+if ask_yes_no "Start the dev environment now with 'just dev'?" "y"; then
+  printf "${CYAN}I'll now run 'just dev'.${NC}\n"
+  printf "${CYAN}- It will start Docker infra, run migrations, and launch backend/worker/frontend.${NC}\n"
+  printf "${CYAN}- To stop: press Ctrl+C in this terminal, or run 'just dev stop' from another terminal.${NC}\n\n"
+  # This will run until user stops it or it errors; due to set -e, errors will exit the script.
+  just dev
 else
-  warn "No migrate script found or no bun/npm available; skipping migrations."
+  warn "Skipping 'just dev'. You can start it later with:" 
+  printf "  just dev\n\n"
 fi
 
-# ---------- 12) Start services via PM2 ----------
-log "Starting backend/worker/frontend via PM2 (pm2.config.cjs)"
+# ---------- 9) Summary ----------
+printf "\n${GREEN}=== Setup summary ===${NC}\n"
+printf "${CYAN}To (re)initialize project:${NC}  just init\n"
+printf "${CYAN}To start dev environment:${NC}   just dev\n"
+printf "${CYAN}To stop dev environment:${NC}    just dev stop  (or Ctrl+C in the running terminal)\n"
+printf "${CYAN}Frontend will be available at:${NC} http://localhost:5173\n\n"
 
-if [ -f pm2.config.cjs ]; then
-  if command_exists pm2; then
-    pm2 start pm2.config.cjs || warn "pm2 start failed."
-  elif command_exists bun; then
-    warn "pm2 not installed globally. Will try transient 'bunx pm2'."
-    bunx pm2 start pm2.config.cjs || warn "bunx pm2 start failed. Consider installing pm2 globally."
-  else
-    warn "No pm2 or bunx available to manage processes."
-  fi
-else
-  warn "pm2.config.cjs not found. Skipping PM2 start."
-fi
-
-# ---------- 13) PM2 status/logs (if available) ----------
-if command_exists pm2; then
-  echo ""
-  info "PM2 status:"
-  pm2 status || true
-
-  for name in backend worker frontend; do
-    if pm2 pid "$name" >/dev/null 2>&1; then
-      echo ""
-      info "Last 50 lines for PM2 process '$name':"
-      pm2 logs "$name" --lines 50 --nostream || pm2 logs "$name" --lines 50 || true
-    fi
-  done
-else
-  warn "pm2 not present, skipping PM2 status/logs."
-fi
-
-# ---------- 14) Dev hint & summary ----------
-echo ""
-info "To run frontend dev server directly:"
-echo "  bun --cwd frontend dev"
-echo "  # or"
-echo "  (cd frontend && npm run dev)"
-
-echo ""
-printf "${GREEN}=== Quick endpoints (default) ===${NC}\n"
-echo "Frontend builder -> http://localhost:5173"
-echo "Backend API      -> http://localhost:3211"
-echo "Temporal UI      -> http://localhost:8081"
-echo "MinIO console    -> http://localhost:9001"
-echo ""
-
-if [ "${DOCKER_OK:-false}" = false ]; then
-  warn "Docker is not running or not available. Infra components may not be up."
-fi
-
-echo ""
-info "You can re-run individual steps manually if needed:"
-echo "  - just infra-up / just status"
-echo "  - bun run migrate  (or npm run migrate)"
-echo "  - pm2 start pm2.config.cjs"
-echo "  - bun --cwd frontend dev"
-echo ""
-echo "${GREEN}Interactive setup complete.${NC}"
+printf "${GREEN}Interactive setup complete.${NC}\n"
 
 exit 0
+
