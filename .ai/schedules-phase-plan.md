@@ -60,10 +60,10 @@ This document captures the phase-by-phase rollout for introducing Workflow Entry
 - [x] Surface trigger info in the inspector/log panels (“Triggered by Daily Quick Scan”) and add rerun actions that mirror the overview bar.
 
 ## Phase 8 – Validation, Tests, Observability
-- [ ] Backend tests: unified run endpoint, dispatcher workflow, schedule lifecycle (create/update/pause/resume/trigger) with idempotency + failure cases.
-- [ ] Frontend tests: store unit tests, component/story coverage for Schedules page, editor drawer, Entry Point inspector.
-- [ ] Document manual verification steps in `.ai/visual-execution-notes.md` (creating schedules, verifying dispatcher workflow, observing run badges).
-- [ ] Monitor schedule health via stored status snapshots; configure alerts when Temporal describes show errors or dispatcher retries.
+- [x] Backend tests: unified run endpoint, dispatcher workflow, schedule lifecycle (create/update/pause/resume/trigger) with idempotency + failure cases.
+- [x] Frontend tests: store unit tests, component/story coverage for Schedules page, editor drawer, Entry Point inspector.
+- [x] Document manual verification steps in `.ai/visual-execution-notes.md` (creating schedules, verifying dispatcher workflow, observing run badges).
+- [x] Monitor schedule health via stored status snapshots; configure alerts when Temporal describes show errors or dispatcher retries.
 
 ## Dependencies & Notes
 - Entry Point inspector enhancements rely on Phase 0 work.

@@ -72,6 +72,12 @@ const inflightFetches = new Map<string, Promise<ExecutionRun[]>>()
 
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT']
 
+const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
+  manual: 'Manual run',
+  schedule: 'Scheduled run',
+  api: 'API run',
+}
+
 const normalizeRun = (run: any): ExecutionRun => {
   const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString()
   const rawEndTime = typeof run.endTime === 'string' ? run.endTime : undefined
@@ -87,6 +93,9 @@ const normalizeRun = (run: any): ExecutionRun => {
         ? new Date(rawEndTime).getTime() - new Date(startTime).getTime()
         : Math.max(0, Date.now() - new Date(startTime).getTime())
 
+  const triggerType = (run.triggerType as ExecutionTriggerType) ?? 'manual'
+  const triggerLabelRaw = typeof run.triggerLabel === 'string' ? run.triggerLabel.trim() : ''
+
   return {
     id: String(run.id ?? ''),
     workflowId: String(run.workflowId ?? ''),
@@ -101,9 +110,9 @@ const normalizeRun = (run: any): ExecutionRun => {
     isLive: isActiveStatus,
     workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
     workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
-    triggerType: (run.triggerType as ExecutionTriggerType) ?? 'manual',
+    triggerType,
     triggerSource: typeof run.triggerSource === 'string' ? run.triggerSource : null,
-    triggerLabel: typeof run.triggerLabel === 'string' ? run.triggerLabel : null,
+    triggerLabel: triggerLabelRaw.length > 0 ? triggerLabelRaw : TRIGGER_LABELS[triggerType],
     inputPreview:
       (run.inputPreview as ExecutionInputPreview) ?? { runtimeInputs: {}, nodeOverrides: {} },
   }

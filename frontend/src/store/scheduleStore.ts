@@ -40,12 +40,16 @@ const INITIAL_FILTERS: ScheduleFilters = {
   search: '',
 }
 
-export const useScheduleStore = create<ScheduleStore>((set, get) => ({
+const createInitialState = (): ScheduleStoreState => ({
   schedules: [],
   isLoading: false,
   error: null,
   lastFetched: null,
-  filters: INITIAL_FILTERS,
+  filters: { ...INITIAL_FILTERS },
+})
+
+export const useScheduleStore = create<ScheduleStore>((set, get) => ({
+  ...createInitialState(),
 
   fetchSchedules: async (options) => {
     const { lastFetched, isLoading, filters } = get()
@@ -139,3 +143,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     set({ error: message })
   },
 }))
+
+export const resetScheduleStoreState = () => {
+  useScheduleStore.setState({ ...createInitialState() })
+}
