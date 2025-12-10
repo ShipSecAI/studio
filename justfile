@@ -70,6 +70,10 @@ dev action="start":
             echo ""
             echo "💡 just dev logs   - View application logs"
             echo "💡 just dev stop   - Stop everything"
+            echo ""
+
+            # Version check
+            bun backend/scripts/version-check-summary.ts 2>/dev/null || true
             ;;
         stop)
             echo "🛑 Stopping development environment..."
@@ -104,6 +108,10 @@ prod action="start":
             echo "   Frontend:    http://localhost:8090"
             echo "   Backend:     http://localhost:3211"
             echo "   Temporal UI: http://localhost:8081"
+            echo ""
+
+            # Version check
+            bun backend/scripts/version-check-summary.ts 2>/dev/null || true
             ;;
         stop)
             docker compose -f docker/docker-compose.full.yml down
@@ -115,6 +123,10 @@ prod action="start":
             echo "✅ Production built and started"
             echo "   Frontend: http://localhost:8090"
             echo "   Backend:  http://localhost:3211"
+            echo ""
+
+            # Version check
+            bun backend/scripts/version-check-summary.ts 2>/dev/null || true
             ;;
         logs)
             docker compose -f docker/docker-compose.full.yml logs -f
