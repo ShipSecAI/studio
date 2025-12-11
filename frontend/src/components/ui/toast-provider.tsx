@@ -107,7 +107,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             className={cn(
               // Dark, high-contrast base + subtle ring by variant
               'pointer-events-auto flex w-full max-w-sm items-start justify-between gap-4 rounded-md px-4 py-3 sm:max-w-md rounded-xl',
-              'border border-white/80 bg-white/95 text-neutral-900 shadow-lg shadow-black/10 ring-1 ring-black/5 backdrop-blur-sm',
+              'border border-neutral-200 bg-white/95 text-neutral-900 shadow-lg shadow-black/10 ring-1 ring-black/5 backdrop-blur-sm',
               variantStyles[variant] ?? '',
             )}
           >

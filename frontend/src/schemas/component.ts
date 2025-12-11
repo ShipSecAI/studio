@@ -23,6 +23,7 @@ const PrimitivePortSchema = z.object({
 const ContractPortSchema = z.object({
   kind: z.literal('contract'),
   name: z.string().min(1),
+  credential: z.boolean().optional(),
 })
 
 const ListPortSchema = z.object({

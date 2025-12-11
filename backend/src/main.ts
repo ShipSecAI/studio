@@ -4,9 +4,12 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 
+import { isVersionCheckDisabled, performVersionCheck } from './version-check';
+
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  await enforceVersionCheck();
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn'],
   });
@@ -48,6 +51,38 @@ async function bootstrap() {
 
   await app.listen(port, host);
   console.log(`🚀 ShipSec backend listening on http://${host}:${port}`);
+}
+
+async function enforceVersionCheck() {
+  if (isVersionCheckDisabled(process.env)) {
+    console.warn('[version-check] Skipping version validation (disabled via env).');
+    return;
+  }
+
+  try {
+    const result = await performVersionCheck();
+    const currentVersion = process.env.SHIPSEC_VERSION_CHECK_VERSION ?? result.response.min_supported_version;
+    const latest = result.response.latest_version;
+
+    if (result.outcome === 'unsupported') {
+      console.error(`[version-check] Version ${currentVersion} is no longer supported. Latest available: ${latest}.`);
+      if (result.response.upgrade_url) {
+        console.error(`[version-check] Upgrade URL: ${result.response.upgrade_url}`);
+      }
+      process.exit(1);
+    }
+
+    if (result.outcome === 'upgrade') {
+      console.warn(`[version-check] Version ${latest} is available. You are running ${currentVersion}.`);
+      if (result.response.upgrade_url) {
+        console.warn(`[version-check] Upgrade URL: ${result.response.upgrade_url}`);
+      }
+    } else if (result.outcome === 'ok') {
+      console.log(`[version-check] Version ${currentVersion} is supported.`);
+    }
+  } catch (error) {
+    console.warn('[version-check] Failed to contact version service. Continuing without enforcement.', error);
+  }
 }
 
 bootstrap().catch((error) => {

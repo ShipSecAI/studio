@@ -23,9 +23,13 @@ interface ExecutionStoreState {
   status: ExecutionLifecycle
   runStatus: ExecutionStatusResponse | null
   logs: ExecutionLog[]
+  liveLogs: ExecutionLog[] // Logs from SSE during live execution
+  scrubberLogs: ExecutionLog[] // Logs for timeline scrubbing
+  logMode: 'live' | 'scrubbing' | 'historical' // Which log set to display
   nodeStates: Record<string, NodeStatus>
   cursor: string | null
   terminalCursor: string | null
+  logCursor: string | null
   terminalStreams: Record<string, TerminalStreamState>
   pollingInterval: NodeJS.Timeout | null
   eventSource: EventSource | null
@@ -41,6 +45,7 @@ interface ExecutionStoreActions {
       version?: number
     }
   ) => Promise<string | undefined>
+  stopExecution: () => Promise<void>
   monitorRun: (runId: string, workflowId?: string | null) => void
   pollOnce: () => Promise<void>
   stopPolling: () => void
@@ -52,6 +57,10 @@ interface ExecutionStoreActions {
   getLastLogMessage: (nodeId: string) => string | null
   prefetchTerminal: (nodeId: string, stream?: 'pty' | 'stdout' | 'stderr', runIdOverride?: string | null) => Promise<void>
   getTerminalSession: (nodeId: string, stream?: 'pty' | 'stdout' | 'stderr') => TerminalStreamState | undefined
+  fetchLogsForTimeRange: (startTime: Date, endTime: Date) => Promise<void>
+  fetchHistoricalLogs: (runId: string) => Promise<void>
+  setLogMode: (mode: 'live' | 'scrubbing' | 'historical') => void
+  getDisplayLogs: () => ExecutionLog[]
 }
 
 type ExecutionStore = ExecutionStoreState & ExecutionStoreActions
@@ -90,8 +99,8 @@ const mapStatusToLifecycle = (status: ExecutionStatus | undefined): ExecutionLif
     case 'FAILED':
       return 'failed'
     case 'CANCELLED':
-      return 'cancelled'
     case 'TERMINATED':
+      return 'cancelled'
     case 'TIMED_OUT':
       return 'failed'
     default:
@@ -143,9 +152,13 @@ const INITIAL_STATE: ExecutionStoreState = {
   status: 'idle',
   runStatus: null,
   logs: [],
+  liveLogs: [],
+  scrubberLogs: [],
+  logMode: 'live',
   nodeStates: {},
   cursor: null,
   terminalCursor: null,
+  logCursor: null,
   terminalStreams: {},
   pollingInterval: null,
   eventSource: null,
@@ -172,9 +185,13 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         workflowId,
         // Clear only what's needed for new run, keep terminal streams if same workflow
         logs: [],
+        liveLogs: [],
+        scrubberLogs: [],
+        logMode: 'live',
         nodeStates: {},
         cursor: null,
         terminalCursor: null,
+        logCursor: null,
       })
 
       const { executionId } = await api.executions.start(workflowId, options)
@@ -199,6 +216,46 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       console.error('Failed to start execution:', error)
       set({ status: 'failed' })
       throw error
+    }
+  },
+
+  stopExecution: async () => {
+    const runId = get().runId
+    if (!runId) return
+
+    try {
+      await api.executions.cancel(runId)
+
+      // Fetch final status before stopping polling so runStatus reflects terminal state.
+      // This ensures timeline store and other consumers see the TERMINATED/CANCELLED status.
+      try {
+        const statusPayload = await api.executions.getStatus(runId)
+        if (statusPayload) {
+          const status = (statusPayload as any)?.status as ExecutionStatus | undefined
+          const lifecycle = mapStatusToLifecycle(status)
+          set({
+            runStatus: statusPayload as ExecutionStatusResponse,
+            status: lifecycle,
+          })
+        } else {
+          set({ status: 'cancelled' })
+        }
+      } catch (statusError) {
+        console.warn('Failed to fetch final status after stop:', statusError)
+        set({ status: 'cancelled' })
+      }
+
+      get().stopPolling()
+
+      const workflowId = get().workflowId
+      if (workflowId) {
+        void useRunStore.getState().refreshRuns(workflowId)
+      }
+    } catch (error) {
+      console.error('Failed to stop execution:', error)
+      // Still stop polling on cancel failure to avoid zombie polling
+      get().stopPolling()
+      set({ status: 'cancelled' })
     }
   },
 
@@ -468,6 +525,49 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         }
       })
 
+      source.addEventListener('logs', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data) as {
+            logs?: Array<{
+              id: string;
+              runId: string;
+              nodeId: string;
+              level: string;
+              message: string;
+              timestamp: string;
+            }>;
+            cursor?: string;
+          }
+
+          if (!payload.logs || payload.logs.length === 0) {
+            return
+          }
+
+          set((state) => {
+            // Transform logs to ExecutionLog format
+            const newLogs: ExecutionLog[] = payload.logs!.map((log) => ({
+              id: log.id,
+              runId: log.runId,
+              nodeId: log.nodeId,
+              type: 'PROGRESS' as const,
+              level: log.level as any,
+              timestamp: log.timestamp,
+              message: log.message,
+            }));
+
+            // Merge with existing live logs
+            const mergedLogs = mergeLogs(state.liveLogs, newLogs);
+
+            return {
+              liveLogs: mergedLogs,
+              logCursor: payload.cursor ?? state.logCursor,
+            };
+          });
+        } catch (error) {
+          console.error('Failed to parse logs payload from stream', error, (event as MessageEvent).data);
+        }
+      });
+
       source.addEventListener('ready', (event) => {
         try {
           const payload = JSON.parse((event as MessageEvent).data) as {
@@ -596,4 +696,91 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     const lastLog = nodeLogs[nodeLogs.length - 1]
     return lastLog.message || lastLog.error?.message || `${lastLog.type}`
   },
+
+  fetchLogsForTimeRange: async (startTime: Date, endTime: Date) => {
+    const runId = get().runId
+    if (!runId) return
+
+    try {
+      const result = await api.executions.getLogs(runId, {
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        limit: 200, // More logs for timeline scrubbing
+      })
+
+      set(() => ({
+        scrubberLogs: result.logs as ExecutionLog[],
+        logMode: 'scrubbing',
+      }))
+    } catch (error) {
+      console.error('Failed to fetch logs for time range', error)
+    }
+  },
+
+  fetchHistoricalLogs: async (runId: string) => {
+    try {
+      const result = await api.executions.getLogs(runId, {
+        limit: 500, // Fetch up to 500 logs for historical view
+      })
+
+      set(() => ({
+        logs: result.logs as ExecutionLog[],
+        logMode: 'historical',
+      }))
+    } catch (error) {
+      console.error('Failed to fetch historical logs', error)
+    }
+  },
+
+  setLogMode: (mode: 'live' | 'scrubbing' | 'historical') => {
+    set({ logMode: mode })
+  },
+
+  getDisplayLogs: () => {
+    const state = get()
+    switch (state.logMode) {
+      case 'live':
+        return state.liveLogs
+      case 'scrubbing':
+        return state.scrubberLogs
+      case 'historical':
+        return state.logs
+      default:
+        return state.liveLogs
+    }
+  },
 }))
+
+// Initialize timeline scrubbing subscription
+let timelineUnsubscribe: (() => void) | null = null
+
+export const initializeExecutionStore = () => {
+  if (timelineUnsubscribe) {
+    timelineUnsubscribe()
+    timelineUnsubscribe = null
+  }
+
+  void import('./executionTimelineStore')
+    .then(({ useExecutionTimelineStore }) => {
+      timelineUnsubscribe = useExecutionTimelineStore.subscribe(
+        (state) => ({ currentTime: state.currentTime, playbackMode: state.playbackMode, selectedRunId: state.selectedRunId }),
+        ({ currentTime, playbackMode, selectedRunId }) => {
+          // Only fetch logs when scrubbing in replay mode
+          if (playbackMode === 'replay' && selectedRunId) {
+            const executionStore = useExecutionStore.getState()
+            if (executionStore.logMode === 'scrubbing' && executionStore.runId === selectedRunId) {
+              // Calculate time range for scrubbing (current time +/- some buffer)
+              const bufferMs = 5000 // 5 seconds buffer
+              const startTime = new Date(currentTime - bufferMs)
+              const endTime = new Date(currentTime + bufferMs)
+
+              void executionStore.fetchLogsForTimeRange(startTime, endTime)
+            }
+          }
+        }
+      )
+    })
+    .catch((error) => {
+      console.error('Failed to initialize execution store timeline subscription', error)
+    })
+}

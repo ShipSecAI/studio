@@ -297,12 +297,12 @@ export function RunWorkflowDialog({
               {input.label}
               {input.required && <span className="text-red-500 ml-1">*</span>}
             </Label>
-            <Input
+            <Textarea
               id={input.id}
-              type="text"
               placeholder="Enter text"
               onChange={(e) => handleInputChange(input.id, e.target.value, inputType)}
-              className={hasError ? 'border-red-500' : ''}
+              className={hasError ? 'border-red-500 font-mono' : 'font-mono'}
+              rows={8}
               defaultValue={
                 inputs[input.id] !== undefined && inputs[input.id] !== null
                   ? String(inputs[input.id])

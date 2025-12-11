@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Pencil } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
@@ -25,6 +26,117 @@ const STATUS_ICONS = {
 } as const
 
 /**
+ * Terminal button with portal-based panel rendering.
+ * Uses portal to render terminal panels outside ReactFlow's stacking context,
+ * allowing proper z-index stacking between terminals from different nodes.
+ */
+interface TerminalButtonProps {
+  id: string
+  isTerminalOpen: boolean
+  setIsTerminalOpen: (open: boolean | ((prev: boolean) => boolean)) => void
+  isTerminalLoading: boolean
+  terminalSession: { chunks?: unknown[] } | undefined
+  selectedRunId: string
+  mode: string
+  playbackMode: string
+  isLiveFollowing: boolean
+  focusedTerminalNodeId: string | null
+  bringTerminalToFront: (nodeId: string) => void
+}
+
+function TerminalButton({
+  id,
+  isTerminalOpen,
+  setIsTerminalOpen,
+  isTerminalLoading,
+  terminalSession,
+  selectedRunId,
+  mode,
+  playbackMode,
+  isLiveFollowing,
+  focusedTerminalNodeId,
+  bringTerminalToFront,
+}: TerminalButtonProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [portalPosition, setPortalPosition] = useState({ top: 0, left: 0 })
+
+  // Update portal position when terminal opens or button moves
+  useEffect(() => {
+    if (!isTerminalOpen || !buttonRef.current) return
+
+    const updatePosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (rect) {
+        // Position above the button, centered
+        setPortalPosition({
+          top: rect.top - 16, // 16px gap above button
+          left: rect.left + rect.width / 2,
+        })
+      }
+    }
+
+    updatePosition()
+
+    // Update position on scroll/resize
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [isTerminalOpen])
+
+  return (
+    <div className="relative flex justify-center">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => {
+          setIsTerminalOpen((prev) => !prev)
+          bringTerminalToFront(id)
+        }}
+        className={cn(
+          'flex items-center gap-1 rounded-full px-2 py-1 text-[11px] border transition-colors',
+          isTerminalOpen
+            ? 'bg-blue-600/15 text-blue-600 border-blue-400 shadow-sm ring-2 ring-blue-300/60'
+            : 'bg-slate-900/60 text-slate-100 border-slate-700',
+        )}
+        title="Live Logs"
+        aria-label="Live Logs"
+      >
+        <TerminalIcon className="h-3 w-3 text-current" />
+        {isTerminalLoading && <span className="animate-pulse">…</span>}
+        {!isTerminalLoading && terminalSession?.chunks?.length ? (
+          <span className="w-2 h-2 rounded-full bg-green-400" />
+        ) : null}
+      </button>
+      {isTerminalOpen &&
+        createPortal(
+          <div
+            className="fixed -translate-x-1/2"
+            style={{
+              top: portalPosition.top,
+              left: portalPosition.left,
+              transform: 'translate(-50%, -100%)',
+              zIndex: focusedTerminalNodeId === id ? 1070 : 1060,
+            }}
+          >
+            <NodeTerminalPanel
+              nodeId={id}
+              runId={selectedRunId}
+              onClose={() => setIsTerminalOpen(false)}
+              timelineSync={mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing)}
+              onFocus={() => bringTerminalToFront(id)}
+            />
+          </div>,
+          document.body
+        )}
+    </div>
+  )
+}
+
+/**
  * Enhanced WorkflowNode - Visual representation with timeline states
  */
 export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) => {
@@ -33,7 +145,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   const updateNodeInternals = useUpdateNodeInternals()
   const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode, isLiveFollowing } = useExecutionTimelineStore()
   const { markDirty } = useWorkflowStore()
-  const { mode } = useWorkflowUiStore()
+  const { mode, focusedTerminalNodeId, bringTerminalToFront } = useWorkflowUiStore()
   // Note: hover effects use CSS :hover instead of React state to avoid re-renders (which cause image flicker)
   const prefetchTerminal = useExecutionStore((state) => state.prefetchTerminal)
   const terminalSession = useExecutionStore((state) => state.getTerminalSession(id, 'pty'))
@@ -123,7 +235,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
   const hasEvents = isTimelineActive && visualState.eventCount > 0
 
-  const isTextBlock = component.slug === 'text-block' || component.id === 'core.ui.text'
+  const isTextBlock = component.id === 'core.ui.text'
   useEffect(() => {
     if (!isTextBlock) return
     const uiSize = (nodeData as any)?.ui?.size as { width?: number; height?: number } | undefined
@@ -163,7 +275,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
 
   // DYNAMIC OUTPUTS: For Manual Trigger, generate outputs based on runtimeInputs parameter
   let effectiveOutputs = component.outputs ?? []
-  if (component.slug === 'manual-trigger' && nodeData.parameters?.runtimeInputs) {
+  if (component.id === 'core.trigger.manual' && nodeData.parameters?.runtimeInputs) {
     try {
       const runtimeInputs = typeof nodeData.parameters.runtimeInputs === 'string'
         ? JSON.parse(nodeData.parameters.runtimeInputs)
@@ -502,36 +614,19 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
                 )}
                 {/* Only docker-runner components expose live logs (they have streaming terminal output). */}
                 {supportsLiveLogs && mode === 'execution' && selectedRunId && (
-                  <div className="relative flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setIsTerminalOpen((prev) => !prev)}
-                      className={cn(
-                        'flex items-center gap-1 rounded-full px-2 py-1 text-[11px] border transition-colors',
-                        isTerminalOpen
-                          ? 'bg-blue-600/15 text-blue-600 border-blue-400 shadow-sm ring-2 ring-blue-300/60'
-                          : 'bg-slate-900/60 text-slate-100 border-slate-700',
-                      )}
-                      title="Live Logs"
-                      aria-label="Live Logs"
-                    >
-                      <TerminalIcon className="h-3 w-3 text-current" />
-                      {isTerminalLoading && <span className="animate-pulse">…</span>}
-                      {!isTerminalLoading && terminalSession?.chunks?.length ? (
-                        <span className="w-2 h-2 rounded-full bg-green-400" />
-                      ) : null}
-                    </button>
-                    {isTerminalOpen && (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 z-[60]">
-                        <NodeTerminalPanel
-                          nodeId={id}
-                          runId={selectedRunId}
-                          onClose={() => setIsTerminalOpen(false)}
-                          timelineSync={mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing)}
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <TerminalButton
+                    id={id}
+                    isTerminalOpen={isTerminalOpen}
+                    setIsTerminalOpen={setIsTerminalOpen}
+                    isTerminalLoading={isTerminalLoading}
+                    terminalSession={terminalSession}
+                    selectedRunId={selectedRunId}
+                    mode={mode}
+                    playbackMode={playbackMode}
+                    isLiveFollowing={isLiveFollowing}
+                    focusedTerminalNodeId={focusedTerminalNodeId}
+                    bringTerminalToFront={bringTerminalToFront}
+                  />
                 )}
               </div>
             </div>

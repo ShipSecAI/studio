@@ -24,6 +24,10 @@ export interface UseTimelineTerminalStreamResult extends UseTerminalStreamResult
    * Whether chunks are being fetched for timeline position
    */
   isFetchingTimeline: boolean
+  /**
+   * Whether there is any data available (regardless of timeline filtering)
+   */
+  hasData: boolean
 }
 
 /**
@@ -220,7 +224,13 @@ export function useTimelineTerminalStream(
 
   // When timeline sync is active, disable regular stream mode to prevent double rendering
   const finalMode = timelineSync && playbackMode !== 'live' ? 'replay' : terminalResult.mode
-  
+
+  // hasData indicates whether any terminal data is available (regardless of timeline filtering)
+  // In timeline sync mode, check allChunks; otherwise check terminalResult.chunks
+  const hasData = timelineSync && !isLiveView
+    ? allChunks.length > 0
+    : terminalResult.chunks.length > 0
+
   return {
     ...terminalResult,
     chunks: displayChunks,
@@ -228,5 +238,6 @@ export function useTimelineTerminalStream(
     mode: finalMode,
     isTimelineSync: timelineSync && playbackMode !== 'live',
     isFetchingTimeline,
+    hasData,
   }
 }

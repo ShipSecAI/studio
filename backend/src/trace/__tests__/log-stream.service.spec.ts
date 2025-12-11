@@ -81,18 +81,23 @@ const originalFetch = global.fetch;
     const service = new LogStreamService(repository);
     const result = await service.fetch('run-123', authContext, { nodeRef: 'node-1', stream: 'stdout' });
 
-    expect(result.streams).toHaveLength(1);
-    const [stream] = result.streams;
-    expect(stream.entries).toEqual([
-      {
-        timestamp: record.firstTimestamp.toISOString(),
-        message: 'line one',
-      },
-      {
-        timestamp: new Date(record.firstTimestamp.getTime() + 500).toISOString(),
-        message: 'line two',
-      },
-    ]);
+    expect(result.logs).toHaveLength(2);
+    expect(result.logs[0]).toEqual({
+      id: `run-123-${record.firstTimestamp.toISOString()}-0`,
+      runId: 'run-123',
+      nodeId: 'unknown',
+      level: 'info',
+      message: 'line one',
+      timestamp: record.firstTimestamp.toISOString(),
+    });
+    expect(result.logs[1]).toEqual({
+      id: `run-123-${new Date(record.firstTimestamp.getTime() + 500).toISOString()}-1`,
+      runId: 'run-123',
+      nodeId: 'unknown',
+      level: 'info',
+      message: 'line two',
+      timestamp: new Date(record.firstTimestamp.getTime() + 500).toISOString(),
+    });
     expect(calls).toHaveLength(1);
     const calledUrl = decodeURIComponent(calls[0].input.toString());
     expect(calledUrl).toContain('/loki/api/v1/query_range');

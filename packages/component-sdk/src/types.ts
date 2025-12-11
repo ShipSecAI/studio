@@ -58,6 +58,7 @@ export interface TerminalChunkInput {
 }
 
 export interface Logger {
+  debug: (...args: unknown[]) => void;
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
@@ -80,11 +81,28 @@ export interface LogEventInput {
   metadata?: ExecutionContextMetadata;
 }
 
+export interface AgentTracePart {
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface AgentTraceEvent {
+  agentRunId: string;
+  workflowRunId: string;
+  nodeRef: string;
+  sequence: number;
+  timestamp: string;
+  part: AgentTracePart;
+}
+
+export interface AgentTracePublisher {
+  publish(event: AgentTraceEvent): Promise<void> | void;
+}
+
 export type PrimitivePortTypeName =
   | 'any'
   | 'text'
   | 'secret'
-  | 'credential'
   | 'number'
   | 'boolean'
   | 'file'
@@ -116,6 +134,7 @@ export interface MapPortType {
 export interface ContractPortType {
   kind: 'contract';
   name: string;
+  credential?: boolean;
 }
 
 export type PortDataType =
@@ -213,11 +232,12 @@ export interface ComponentUiMetadata {
 export interface ExecutionContext {
   runId: string;
   componentRef: string;
-  logger: Logger;
+    logger: Logger;
   emitProgress: (progress: ProgressEventInput | string) => void;
   logCollector?: (entry: LogEventInput) => void;
   terminalCollector?: (chunk: TerminalChunkInput) => void;
   metadata: ExecutionContextMetadata;
+  agentTracePublisher?: AgentTracePublisher;
 
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;

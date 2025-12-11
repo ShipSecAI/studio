@@ -100,12 +100,50 @@ services:
       timeout: 10s
       retries: 5
 
+  redpanda:
+    image: redpandadata/redpanda:v24.2.5
+    container_name: shipsec-redpanda
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9644/v1/status/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redpanda-console:
+    image: redpandadata/console:v2.7.2
+    container_name: shipsec-redpanda-console
+    depends_on:
+      - redpanda
+    environment:
+      CONFIG_FILEPATH: /etc/redpanda/console-config.yaml
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./redpanda-console-config.yaml:/etc/redpanda/console-config.yaml:ro
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   minio_data:
   loki_data:
   temporal_data:
   redis_data:
+  redpanda_data:
 
 networks:
   default:

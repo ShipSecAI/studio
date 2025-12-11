@@ -64,7 +64,7 @@ export function validateConnection(
   let sourceOutputs = sourceComponent.outputs ?? []
   
   // Special case: Manual Trigger has dynamic outputs based on runtimeInputs parameter
-  if (sourceComponent.slug === 'manual-trigger') {
+  if (sourceComponent.id === 'core.trigger.manual') {
     const sourceNodeData = sourceNode.data
     const runtimeInputsParam = sourceNodeData.parameters?.runtimeInputs
     

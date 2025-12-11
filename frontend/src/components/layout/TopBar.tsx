@@ -1,4 +1,4 @@
-import { useState, useRef, type ChangeEvent } from 'react'
+import { useState, useRef, type ChangeEvent, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,8 @@ interface TopBarProps {
   canManageWorkflows?: boolean
 }
 
+const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow'
+
 export function TopBar({
   onRun,
   onSave,
@@ -38,6 +40,7 @@ export function TopBar({
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [tempWorkflowName, setTempWorkflowName] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
@@ -48,6 +51,18 @@ export function TopBar({
     runStatus?.status === 'FAILED'
       ? runStatus.failure?.reason ?? 'Unknown error'
       : null
+
+  const handleChangeWorkflowName = () => {
+    const trimmed = (tempWorkflowName ?? '').trim()
+    if (!trimmed) {
+      setWorkflowName(DEFAULT_WORKFLOW_NAME)
+      setTempWorkflowName(DEFAULT_WORKFLOW_NAME)
+      return
+    }
+    if (trimmed !== metadata.name) {
+      setWorkflowName(trimmed)
+    }
+  }
 
   const handleSave = async () => {
     if (!canEdit) {
@@ -111,6 +126,14 @@ export function TopBar({
       setIsImporting(false)
     }
   }
+
+  useEffect(() => {
+    if (metadata.name) {
+      setTempWorkflowName(metadata.name)
+    } else {
+      setTempWorkflowName(DEFAULT_WORKFLOW_NAME)
+    }
+  }, [metadata.name])
 
   const modeToggle = (
     <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm">
@@ -208,8 +231,9 @@ export function TopBar({
           <div className="flex items-center justify-start">
             <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 shadow-sm min-w-[220px] max-w-[360px] w-full">
               <Input
-                value={metadata.name}
-                onChange={(e) => setWorkflowName(e.target.value)}
+                value={tempWorkflowName}
+                onChange={(e) => setTempWorkflowName(e.target.value)}
+                onBlur={handleChangeWorkflowName}
                 readOnly={!canEdit}
                 aria-readonly={!canEdit}
                 className="font-semibold bg-transparent border-none shadow-none h-7 px-0 py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0"

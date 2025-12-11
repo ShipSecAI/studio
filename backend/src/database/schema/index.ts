@@ -11,3 +11,4 @@ export * from './workflow-roles';
 export * from './integrations';
 
 export * from './terminal-records';
+export * from './agent-trace-events';

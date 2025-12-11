@@ -75,11 +75,13 @@ async function runComponentInDocker<I, O>(
 
   const useTerminal = Boolean(context.terminalCollector);
   if (useTerminal) {
-    if (!dockerArgs.includes('-t')) {
-      dockerArgs.splice(2, 0, '-t');
+    // Remove -i flag for PTY mode (stdin not needed with TTY)
+    const argsWithoutStdin = dockerArgs.filter(arg => arg !== '-i');
+    if (!argsWithoutStdin.includes('-t')) {
+      argsWithoutStdin.splice(2, 0, '-t');
     }
     // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
-    return runDockerWithPty(dockerArgs, params, context, timeoutSeconds);
+    return runDockerWithPty(argsWithoutStdin, params, context, timeoutSeconds);
   }
 
   return runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
@@ -164,6 +166,14 @@ function runDockerWithStandardIO<I, O>(
       if (code !== 0) {
         context.logger.error(`[Docker] Exited with code ${code}`);
         context.logger.error(`[Docker] stderr: ${stderr}`);
+
+        // Emit error to UI
+        context.emitProgress({
+          message: `Docker container failed with exit code ${code}`,
+          level: 'error',
+          data: { exitCode: code, stderr },
+        });
+
         reject(new Error(`Docker container failed with exit code ${code}: ${stderr}`));
         return;
       }
@@ -219,6 +229,9 @@ async function runDockerWithPty<I, O>(
 
     let ptyProcess: ReturnType<typeof spawnPty>;
     try {
+      // Debug: Log the full docker command
+      context.logger.info(`[Docker][PTY] Spawning: docker ${dockerArgs.join(' ')}`);
+
       ptyProcess = spawnPty('docker', dockerArgs, {
         name: 'xterm-color',
         cols: 120,
@@ -251,7 +264,20 @@ async function runDockerWithPty<I, O>(
       if (exitCode !== 0) {
         stderr = stdout;
         context.logger.error(`[Docker][PTY] Exited with code ${exitCode}`);
-        reject(new Error(`Docker PTY execution failed with exit code ${exitCode}`));
+        context.logger.error(`[Docker][PTY] Output: ${stdout.trim()}`);
+
+        // Emit error to UI
+        context.emitProgress({
+          message: `Docker container failed with exit code ${exitCode}`,
+          level: 'error',
+          data: { exitCode, output: stdout.trim() },
+        });
+
+        // Include the actual output in the error message
+        const outputPreview = stdout.trim().slice(-500); // Last 500 chars
+        reject(new Error(
+          `Docker PTY execution failed with exit code ${exitCode}\n\nOutput:\n${outputPreview}`
+        ));
         return;
       }
 

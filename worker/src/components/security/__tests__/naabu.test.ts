@@ -94,7 +94,7 @@ describe('naabu component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('projectdiscovery/naabu:latest');
+      expect(component.runner.image).toBe('projectdiscovery/naabu:v2.3.7');
       expect(component.runner.entrypoint).toBe('sh');
       expect(component.runner.command).toBeInstanceOf(Array);
     }
