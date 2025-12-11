@@ -4,10 +4,10 @@
   "nodes": [
     {
       "id": "trigger-1",
-      "type": "core.trigger.manual",
+      "type": "core.workflow.entrypoint",
       "position": { "x": 100, "y": 100 },
       "data": {
-        "label": "Manual Trigger",
+        "label": "Entry Point",
         "config": {
           "runtimeInputs": [
             {

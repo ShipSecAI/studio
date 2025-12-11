@@ -493,10 +493,12 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
           api.executions.getStatus(runId).catch(() => null)
         ])
 
-        // Also fetch historical logs for the run
-        void import('./executionStore').then(({ useExecutionStore }) => {
-          useExecutionStore.getState().fetchHistoricalLogs(runId)
-        })
+        // Only fetch historical logs when we're in replay mode (live runs rely on SSE live logs)
+        if (get().playbackMode !== 'live') {
+          void import('./executionStore').then(({ useExecutionStore }) => {
+            useExecutionStore.getState().fetchHistoricalLogs(runId)
+          })
+        }
 
         const eventsList = (eventsResponse.events ?? []).filter(
           (event): event is ExecutionLog => 
@@ -836,7 +838,7 @@ export const initializeTimelineStore = () => {
       let prevRunStatus: ExecutionStatusResponse | null = null
       
       unsubscribeExecutionStore = useExecutionStore.subscribe((state) => {
-        const { logs, runId, status, runStatus } = state;
+        const { events: liveEvents, runId, status, runStatus } = state;
         const timelineStore = useExecutionTimelineStore.getState()
         
         // Check if workflow has completed or failed
@@ -921,10 +923,10 @@ export const initializeTimelineStore = () => {
           const workflowStartTime = runStatus?.startedAt ? new Date(runStatus.startedAt).getTime() : null
           
           const {
-            events,
+            events: preparedEvents,
             totalDuration: eventDuration,
             timelineStartTime: calculatedStartTime,
-          } = prepareTimelineEvents(logs, workflowStartTime)
+          } = prepareTimelineEvents(liveEvents, workflowStartTime)
           
           // Use workflowStartTime if available, otherwise use calculated start time (from first event)
           const finalStartTime = workflowStartTime ?? calculatedStartTime
@@ -950,13 +952,13 @@ export const initializeTimelineStore = () => {
               : Math.min(state.currentTime, eventDuration) // Don't go past end, but preserve manual position
             
             return {
-              events,
+              events: preparedEvents,
               eventDuration,
               totalDuration: shouldFollow ? Math.max(state.totalDuration, eventDuration) : eventDuration,
               timelineStartTime: finalStartTime,
               clockOffset: clockOffset ?? state.clockOffset,
               currentTime: nextCurrentTime,
-              nodeStates: calculateNodeStates(events, state.dataFlows, nextCurrentTime, finalStartTime),
+              nodeStates: calculateNodeStates(preparedEvents, state.dataFlows, nextCurrentTime, finalStartTime),
             }
           })
         }

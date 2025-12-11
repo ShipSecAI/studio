@@ -1,0 +1,193 @@
+---
+title: "Release Process"
+description: "Docker image releases and npm package versioning"
+---
+
+This document describes the release process for ShipSec Studio, including Docker image releases and npm package versioning.
+
+---
+
+## Docker Image Releases
+
+### Automatic Release (Recommended)
+
+When you push a git tag matching the pattern `v*.*.*` (e.g., `v1.0.0`, `v1.2.3`), the GitHub Actions workflow automatically:
+
+1. **Builds** all three Docker images (backend, worker, frontend)
+2. **Tags** images with:
+   - Version tag: `ghcr.io/shipsecai/studio-{service}:{version}`
+   - Latest tag: `ghcr.io/shipsecai/studio-{service}:latest`
+3. **Pushes** images to GitHub Container Registry (GHCR)
+4. **Creates** a GitHub release with changelog
+
+### Creating a Release
+
+```bash
+# 1. Ensure you're on main branch and up to date
+git checkout main
+git pull origin main
+
+# 2. Create and push a tag
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+
+# The workflow will automatically build and release
+```
+
+### Manual Release
+
+You can also trigger a release manually via GitHub Actions UI:
+
+1. Go to Actions → Release workflow
+2. Click "Run workflow"
+3. Enter the version tag (e.g., `v1.0.0`)
+
+---
+
+## Image Tags
+
+Images are tagged as:
+
+| Service | Image |
+|---------|-------|
+| Backend | `ghcr.io/shipsecai/studio-backend:{version}` |
+| Worker | `ghcr.io/shipsecai/studio-worker:{version}` |
+| Frontend | `ghcr.io/shipsecai/studio-frontend:{version}` |
+
+All images also have a `:latest` tag.
+
+### Pulling Images
+
+```bash
+# Pull a specific version
+docker pull ghcr.io/shipsecai/studio-backend:1.0.0
+
+# Pull latest
+docker pull ghcr.io/shipsecai/studio-backend:latest
+```
+
+---
+
+## NPM Package Versioning
+
+### Current State
+
+This is a **monorepo** with workspace packages:
+
+| Package | Version | Published |
+|---------|---------|-----------|
+| `@shipsec/shared` | v0.1.0 | No |
+| `@shipsec/component-sdk` | v0.1.0 | No (private) |
+| `@shipsec/backend-client` | v0.1.0 | No |
+| `@shipsec/studio-backend` | v0.1.0 | No |
+| `@shipsec/studio-worker` | v0.1.0 | No (private) |
+| `@shipsec/studio-frontend` | v1.0.0 | No |
+
+<Note>
+  These packages are **workspace dependencies** and are **not published to npm**. They're consumed internally within the monorepo.
+</Note>
+
+### Versioning Options
+
+#### Option 1: Manual Versioning (Current)
+
+**When to use**: Small teams, infrequent releases, packages not published to npm.
+
+```bash
+# Update package.json versions manually before release
+# Commit version changes
+# Tag release
+```
+
+#### Option 2: Sync with Docker Release Tag (Recommended)
+
+Since packages aren't published to npm, sync versions with Docker releases:
+
+```bash
+# Sync all package versions with release tag
+bun run scripts/sync-versions.ts v1.0.0
+```
+
+#### Option 3: Changesets (For Published Packages)
+
+**When to use**: If you plan to publish packages to npm.
+
+```bash
+bun add -D @changesets/cli
+bun changeset init
+bun changeset          # Add changeset
+bun changeset version  # Version packages
+bun changeset publish  # Publish to npm
+```
+
+---
+
+## Release Checklist
+
+Before creating a release:
+
+- [ ] Update CHANGELOG.md (if maintained)
+- [ ] Run tests: `bun run test`
+- [ ] Run typecheck: `bun run typecheck`
+- [ ] Run lint: `bun run lint`
+- [ ] Update package versions (if syncing): `bun run scripts/sync-versions.ts v1.0.0`
+- [ ] Commit version changes (if any)
+
+Create the release:
+
+- [ ] Create and push tag: `git tag -a v1.0.0 -m "Release v1.0.0" && git push origin v1.0.0`
+- [ ] Verify GitHub Actions workflow completes
+- [ ] Verify images are available in GHCR
+- [ ] Verify GitHub release is created
+
+---
+
+## Required GitHub Secrets
+
+The release workflow uses `GITHUB_TOKEN` which is automatically provided by GitHub Actions. No additional secrets are required for GHCR.
+
+---
+
+## Troubleshooting
+
+### Images not appearing in GHCR
+
+1. Check workflow logs for errors
+2. Verify `GITHUB_TOKEN` has `packages:write` permission
+3. Ensure repository has GitHub Packages enabled
+
+### Release not created
+
+1. Check workflow logs
+2. Verify tag format matches `v*.*.*`
+3. Check GitHub Actions permissions
+
+### Build failures
+
+1. Run tests locally: `bun run test`
+2. Run typecheck: `bun run typecheck`
+3. Check for uncommitted changes
+4. Verify all dependencies are installed
+
+---
+
+## Semantic Versioning
+
+Follow [Semantic Versioning](https://semver.org/):
+
+| Change Type | Version Bump | Example |
+|-------------|--------------|---------|
+| Breaking changes | Major | `1.0.0` → `2.0.0` |
+| New features | Minor | `1.0.0` → `1.1.0` |
+| Bug fixes | Patch | `1.0.0` → `1.0.1` |
+
+### Commit Message Convention
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+feat: add new workflow component
+fix: resolve authentication issue
+docs: update installation guide
+chore: update dependencies
+```

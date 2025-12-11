@@ -1,0 +1,218 @@
+---
+title: "AI Components"
+description: "LLM integrations for intelligent workflow automation"
+---
+
+AI components enable chat completions with OpenAI, Google Gemini, and OpenRouter models.
+
+---
+
+## OpenAI Chat
+
+Executes chat completion against OpenAI-compatible endpoints.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `systemPrompt` | String | Optional system message |
+| `userPrompt` | String | Primary user prompt |
+| `apiKey` | Secret | OpenAI API key via Secret Loader |
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | Select | gpt-5-mini, gpt-5-pro, gpt-5, gpt-4o, gpt-4.1-mini |
+| `temperature` | Number | Sampling temperature |
+| `maxTokens` | Number | Max tokens to generate |
+| `apiBaseUrl` | String | Override API base URL |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `responseText` | String | Assistant response |
+| `usage` | Object | Token usage metadata |
+| `chatModel` | Object | Model config for downstream nodes |
+
+---
+
+## Gemini Chat
+
+Chat completion using Google's Gemini models.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `systemPrompt` | String | Optional system instructions |
+| `userPrompt` | String | User input |
+| `apiKey` | Secret | Gemini API key |
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | Select | gemini-2.5-flash, gemini-2.5-pro, gemini-1.5-flash, gemini-1.5-pro |
+| `temperature` | Number | Sampling temperature |
+| `maxTokens` | Number | Max tokens (up to 8192) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `responseText` | String | Model response |
+| `usage` | Object | Token usage |
+
+---
+
+## OpenRouter Chat
+
+Access multiple LLM providers through OpenRouter's unified API.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `systemPrompt` | String | Optional system message |
+| `userPrompt` | String | User input |
+| `apiKey` | Secret | OpenRouter API key |
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | String | Model identifier (e.g., `openrouter/auto`, `anthropic/claude-sonnet-4`) |
+| `temperature` | Number | Sampling temperature |
+| `maxTokens` | Number | Max tokens to generate |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `responseText` | String | Model response |
+| `usage` | Object | Token usage and costs |
+
+---
+
+## AI Agent
+
+Autonomous agent with tool-calling capabilities for complex reasoning tasks.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `task` | String | Task description |
+| `context` | Object | Additional context |
+| `tools` | Array | Available tools for the agent |
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | Select | LLM to use for reasoning |
+| `maxIterations` | Number | Max tool-calling iterations |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `result` | Any | Final agent output |
+| `reasoning` | Array | Agent's reasoning steps |
+| `toolCalls` | Array | Tools invoked during execution |
+
+---
+
+## Use Cases
+
+### Security Analysis
+
+```
+TruffleHog → OpenAI Chat → Notify
+```
+
+Use AI to analyze and prioritize detected secrets before alerting.
+
+**Example prompt:**
+```
+Analyze the following detected secrets and provide:
+1. Risk severity (critical/high/medium/low)
+2. Potential impact if exposed
+3. Recommended remediation steps
+
+Detected secrets:
+{{secrets}}
+```
+
+### Report Generation
+
+```
+httpx → Gemini Chat → Artifact Writer
+```
+
+Generate human-readable security reports from scan results.
+
+**Example prompt:**
+```
+Create an executive summary report for the following HTTP probe results.
+Include:
+- Total hosts scanned
+- Notable findings (unusual ports, outdated servers)
+- Security recommendations
+
+Results:
+{{httpxResults}}
+```
+
+### Intelligent Triage
+
+```
+Subfinder → AI Agent → Notify
+```
+
+Let an AI agent decide which subdomains require immediate attention.
+
+**Example task:**
+```
+Review the discovered subdomains and identify any that:
+1. Might be development/staging environments
+2. Could indicate shadow IT
+3. May have security implications
+
+Prioritize findings and create actionable alerts.
+
+Subdomains:
+{{subdomains}}
+```
+
+### Vulnerability Prioritization
+
+```
+Nuclei → OpenAI Chat → Notify
+```
+
+Automatically triage and create tickets for vulnerabilities.
+
+**Example prompt:**
+```
+Analyze these vulnerability findings and:
+1. Deduplicate similar issues
+2. Assign priority based on CVSS and exploitability
+3. Format as Jira ticket descriptions
+
+Findings:
+{{nucleiResults}}
+```
+
+---
+
+## Best Practices
+
+<Note>
+  **API Key Security**: Always use the [Secret Loader](/components/core#secret-loader) component to inject API keys. Never hardcode credentials in prompts.
+</Note>
+
+### Prompt Engineering Tips
+
+1. **Be specific** – Clear instructions produce better results
+2. **Provide context** – Include relevant background information
+3. **Define output format** – Specify JSON structure if needed for downstream components
+4. **Set boundaries** – Use system prompts to constrain behavior
+
+### Token Management
+
+| Model | Context Window | Recommended Max Output |
+|-------|---------------|----------------------|
+| GPT-5 | 128K | 16384 |
+| GPT-5 Mini | 128K | 16384 |
+| GPT-4o | 128K | 4096 |
+| Gemini 2.5 Pro | 1M | 8192 |
+| Gemini 2.5 Flash | 1M | 8192 |
+| Claude Sonnet 4 | 200K | 8192 |
+
+### Error Handling
+
+AI components include automatic retry logic for:
+- Rate limiting (429 errors)
+- Temporary server errors (500-503)
+- Network timeouts
+
+Configure retry behavior in the component parameters.

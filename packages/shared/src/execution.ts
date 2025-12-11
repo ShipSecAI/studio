@@ -14,6 +14,29 @@ export type ExecutionStatus = (typeof EXECUTION_STATUS)[number];
 
 export const ExecutionStatusSchema = z.enum(EXECUTION_STATUS);
 
+export const EXECUTION_TRIGGER_TYPES = ['manual', 'schedule', 'api'] as const;
+export type ExecutionTriggerType = (typeof EXECUTION_TRIGGER_TYPES)[number];
+export const ExecutionTriggerTypeSchema = z.enum(EXECUTION_TRIGGER_TYPES);
+
+export const ExecutionTriggerMetadataSchema = z.object({
+  type: ExecutionTriggerTypeSchema,
+  sourceId: z.string().optional().nullable(),
+  label: z.string().optional().nullable(),
+}).strip();
+
+export type ExecutionTriggerMetadata = z.infer<typeof ExecutionTriggerMetadataSchema>;
+
+export const ExecutionInputPreviewSchema = z
+  .object({
+    runtimeInputs: z.record(z.string(), z.unknown()).default({}),
+    nodeOverrides: z
+      .record(z.string(), z.record(z.string(), z.unknown()))
+      .default({}),
+  })
+  .strip();
+
+export type ExecutionInputPreview = z.infer<typeof ExecutionInputPreviewSchema>;
+
 export const FailureSummarySchema = z.object({
   reason: z.string(),
   temporalCode: z.string().optional(),
@@ -134,3 +157,37 @@ export const ExecutionContractSchema = z.object({
 });
 
 export type ExecutionContract = z.infer<typeof ExecutionContractSchema>;
+
+export const WorkflowRunDispatchRequestSchema = z
+  .object({
+    workflowId: z.string().uuid(),
+    versionId: z.string().uuid().optional(),
+    version: z.number().int().positive().optional(),
+    inputs: z.record(z.string(), z.unknown()).optional(),
+    nodeOverrides: z
+      .record(z.string(), z.record(z.string(), z.unknown()))
+      .optional(),
+    trigger: ExecutionTriggerMetadataSchema.optional(),
+    runId: z.string().optional(),
+    idempotencyKey: z.string().trim().min(1).max(128).optional(),
+  })
+  .refine(
+    (value) => !(value.version && value.versionId),
+    'Provide either version or versionId, not both',
+  );
+
+export type WorkflowRunDispatchRequest = z.infer<typeof WorkflowRunDispatchRequestSchema>;
+
+export const PreparedRunPayloadSchema = z.object({
+  runId: z.string(),
+  workflowId: z.string().uuid(),
+  workflowVersionId: z.string().uuid(),
+  workflowVersion: z.number().int().positive(),
+  organizationId: z.string(),
+  definition: z.unknown(),
+  inputs: z.record(z.string(), z.unknown()).default({}),
+  trigger: ExecutionTriggerMetadataSchema,
+  inputPreview: ExecutionInputPreviewSchema,
+});
+
+export type PreparedRunPayload = z.infer<typeof PreparedRunPayloadSchema>;

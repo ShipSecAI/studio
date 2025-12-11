@@ -9,7 +9,7 @@ import { Client } from 'minio';
 import { Worker, NativeConnection } from '@temporalio/worker';
 import { status as grpcStatus } from '@grpc/grpc-js';
 import Long from 'long';
-import { isGrpcServiceError } from '@temporalio/client';
+import { isGrpcServiceError, Client as TemporalClient } from '@temporalio/client';
 import { config } from 'dotenv';
 import {
   runComponentActivity,
@@ -17,6 +17,7 @@ import {
   finalizeRunActivity,
   initializeComponentActivityServices,
 } from '../activities/run-component.activity';
+import { prepareRunPayloadActivity } from '../activities/run-dispatcher.activity';
 import { ArtifactAdapter, FileStorageAdapter, SecretsAdapter, RedisTerminalStreamAdapter, KafkaLogAdapter, KafkaTraceAdapter, KafkaAgentTracePublisher } from '../../adapters';
 import * as schema from '../../adapters/schema';
 
@@ -151,11 +152,27 @@ async function main() {
   console.log(`✅ Service adapters initialized`);
 
   console.log(`🏗️ Creating Temporal worker...`);
-  console.log(`   - Activities: ${Object.keys({ runComponentActivity, setRunMetadataActivity, finalizeRunActivity }).join(', ')}`);
+  console.log(
+    `   - Activities: ${Object.keys({
+      runComponentActivity,
+      setRunMetadataActivity,
+      finalizeRunActivity,
+      prepareRunPayloadActivity,
+    }).join(', ')}`,
+  );
 
   console.log(`🔍 Worker Configuration Details:`);
   console.log(`   - Workflows Path: ${workflowsPath}`);
-  console.log(`   - Activities Count: ${Object.keys({ runComponentActivity, setRunMetadataActivity, finalizeRunActivity }).length}`);
+  console.log(
+    `   - Activities Count: ${
+      Object.keys({
+        runComponentActivity,
+        setRunMetadataActivity,
+        finalizeRunActivity,
+        prepareRunPayloadActivity,
+      }).length
+    }`,
+  );
   console.log(`   - Task Queue: ${taskQueue}`);
   console.log(`   - Namespace: ${namespace}`);
 
@@ -168,6 +185,7 @@ async function main() {
       runComponentActivity,
       setRunMetadataActivity,
       finalizeRunActivity,
+      prepareRunPayloadActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

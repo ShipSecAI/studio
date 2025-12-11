@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Plus, ChevronRight, Loader2, Pencil, Play, Pause, Zap, ExternalLink } from 'lucide-react'
 import {
   ReactFlowProvider,
   useNodesState,
@@ -15,6 +15,7 @@ import { ExecutionInspector } from '@/components/timeline/ExecutionInspector'
 import { RunWorkflowDialog } from '@/components/workflow/RunWorkflowDialog'
 import { useToast } from '@/components/ui/use-toast'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useComponentStore } from '@/store/componentStore'
@@ -37,7 +38,26 @@ import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { WorkflowImportSchema, DEFAULT_WORKFLOW_VIEWPORT } from '@/schemas/workflow'
 import { track, Events } from '@/features/analytics/events'
+import { ScheduleEditorDrawer, type WorkflowOption } from '@/components/schedules/ScheduleEditorDrawer'
+import type { WorkflowSchedule } from '@shipsec/shared'
 
+const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
+const ENTRY_COMPONENT_SLUG = 'entry-point'
+const ENTRY_DEFAULT_RUNTIME_INPUTS = [
+  {
+    id: 'input1',
+    label: 'Input 1',
+    type: 'array',
+    required: true,
+    description: '',
+  },
+] as const
+
+const isEntryPointNode = (node?: ReactFlowNode<FrontendNodeData>) => {
+  if (!node) return false
+  const componentRef = node.data?.componentId ?? node.data?.componentSlug
+  return componentRef === ENTRY_COMPONENT_ID || componentRef === ENTRY_COMPONENT_SLUG
+}
 const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
   nodes.map((node) => ({
     ...node,
@@ -103,6 +123,14 @@ const normalizeRunSummary = (run: any): ExecutionRun => {
     isLive: !TERMINAL_RUN_STATUSES.includes(status),
     workflowVersionId: typeof run.workflowVersionId === 'string' ? run.workflowVersionId : null,
     workflowVersion: typeof run.workflowVersion === 'number' ? run.workflowVersion : null,
+    triggerType: (run.triggerType ?? 'manual') as ExecutionRun['triggerType'],
+    triggerSource: typeof run.triggerSource === 'string' ? run.triggerSource : null,
+    triggerLabel: typeof run.triggerLabel === 'string' ? run.triggerLabel : null,
+    inputPreview:
+      run.inputPreview ?? {
+        runtimeInputs: {},
+        nodeOverrides: {},
+      },
   }
 }
 
@@ -137,6 +165,31 @@ function formatErrorMessage(message: string): string {
   return formatted
 }
 
+const formatScheduleTimestamp = (value?: string | null) => {
+  if (!value) return 'Not scheduled'
+  try {
+    const date = new Date(value)
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      timeZoneName: 'short',
+    }).format(date)
+  } catch {
+    return value
+  }
+}
+
+const scheduleStatusVariant: Record<
+  WorkflowSchedule['status'],
+  'default' | 'secondary' | 'destructive'
+> = {
+  active: 'default',
+  paused: 'secondary',
+  error: 'destructive',
+}
+
 function WorkflowBuilderContent() {
   const { id, runId: routeRunId } = useParams<{ id: string; runId?: string }>()
   const navigate = useNavigate()
@@ -154,16 +207,169 @@ function WorkflowBuilderContent() {
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState([])
+  const { toast } = useToast()
   const mode = useWorkflowUiStore((state) => state.mode)
+  const workflowId = metadata.id
+  const workflowName = metadata.name || 'Untitled workflow'
+  const [workflowSchedules, setWorkflowSchedules] = useState<WorkflowSchedule[]>([])
+  const [workflowSchedulesLoading, setWorkflowSchedulesLoading] = useState(false)
+  const [workflowSchedulesError, setWorkflowSchedulesError] = useState<string | null>(null)
+  const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false)
+  const [scheduleEditorMode, setScheduleEditorMode] = useState<'create' | 'edit'>('create')
+  const [editingSchedule, setEditingSchedule] = useState<WorkflowSchedule | null>(null)
+  const [schedulePanelExpanded, setSchedulePanelExpanded] = useState(false)
+  const scheduleWorkflowOptions = useMemo<WorkflowOption[]>(() => {
+    if (!workflowId) return []
+    return [
+      {
+        id: workflowId,
+        name: workflowName,
+      },
+    ]
+  }, [workflowId, workflowName])
 
   // Wrap change handlers to mark workflow as dirty
+  const navigateToSchedules = useCallback(() => {
+    if (workflowId) {
+      navigate(`/schedules?workflowId=${workflowId}`)
+    } else {
+      navigate('/schedules')
+    }
+  }, [navigate, workflowId])
+
+  const refreshWorkflowSchedules = useCallback(async () => {
+    if (!workflowId) {
+      setWorkflowSchedules([])
+      setWorkflowSchedulesError(null)
+      return
+    }
+    setWorkflowSchedulesLoading(true)
+    try {
+      const list = await api.schedules.list({ workflowId })
+      setWorkflowSchedules(list)
+      setWorkflowSchedulesError(null)
+    } catch (error) {
+      console.error('Failed to load workflow schedules', error)
+      setWorkflowSchedulesError(
+        error instanceof Error ? error.message : 'Failed to load schedules',
+      )
+    } finally {
+      setWorkflowSchedulesLoading(false)
+    }
+  }, [workflowId])
+
+  useEffect(() => {
+    if (!workflowId) {
+      setWorkflowSchedules([])
+      return
+    }
+    void refreshWorkflowSchedules()
+  }, [workflowId, refreshWorkflowSchedules])
+
+  const openScheduleDrawer = useCallback(
+    (mode: 'create' | 'edit', schedule?: WorkflowSchedule | null) => {
+      if (!workflowId) {
+        toast({
+          title: 'Save workflow to manage schedules',
+          description: 'Schedules can be created after the workflow has an ID.',
+          variant: 'destructive',
+        })
+        return
+      }
+      setScheduleEditorMode(mode)
+      setEditingSchedule(schedule ?? null)
+      setScheduleEditorOpen(true)
+    },
+    [toast, workflowId],
+  )
+
+  const handleScheduleSaved = useCallback(
+    (schedule: WorkflowSchedule, _mode: 'create' | 'edit') => {
+      setScheduleEditorOpen(false)
+      setEditingSchedule(null)
+      // Optimistically update list
+      setWorkflowSchedules((prev) => {
+        const exists = prev.find((item) => item.id === schedule.id)
+        if (exists) {
+          return prev.map((item) => (item.id === schedule.id ? schedule : item))
+        }
+        return [...prev, schedule]
+      })
+      void refreshWorkflowSchedules()
+    },
+    [refreshWorkflowSchedules],
+  )
+
+  const handleScheduleAction = useCallback(
+    async (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => {
+      try {
+        if (action === 'pause') {
+          await api.schedules.pause(schedule.id)
+          toast({ title: 'Schedule paused', description: schedule.name })
+        } else if (action === 'resume') {
+          await api.schedules.resume(schedule.id)
+          toast({ title: 'Schedule resumed', description: schedule.name })
+        } else {
+          await api.schedules.runNow(schedule.id)
+          toast({ title: 'Schedule triggered', description: schedule.name })
+        }
+        void refreshWorkflowSchedules()
+      } catch (error) {
+        toast({
+          title: 'Schedule action failed',
+          description: error instanceof Error ? error.message : 'Please try again.',
+          variant: 'destructive',
+        })
+      }
+    },
+    [refreshWorkflowSchedules, toast],
+  )
+
   const onNodesChange = useCallback((changes: any[]) => {
-    onNodesChangeBase(changes)
-    // Mark as dirty when nodes change (only in design mode)
-    if (mode === 'design' && changes.length > 0) {
+    if (changes.length === 0) {
+      return
+    }
+
+    const totalEntryNodes = nodesRef.current.filter(isEntryPointNode).length
+    const removingLastEntry = changes.some((change) => {
+      if (change.type !== 'remove') return false
+      const node = nodesRef.current.find((n) => n.id === change.id)
+      return isEntryPointNode(node) && totalEntryNodes <= 1
+    })
+
+    if (removingLastEntry) {
+      toast({
+        variant: 'destructive',
+        title: 'Entry Point required',
+        description: 'Each workflow must keep one Entry Point node.',
+      })
+      return
+    }
+
+    const filteredChanges = changes.filter((change) => {
+      if (change.type === 'add' && 'item' in change) {
+        const node = (change as any).item as ReactFlowNode<FrontendNodeData>
+        if (isEntryPointNode(node) && nodesRef.current.some(isEntryPointNode)) {
+          toast({
+            variant: 'destructive',
+            title: 'Entry Point already exists',
+            description: 'Each workflow can only have one Entry Point.',
+          })
+          return false
+        }
+      }
+      return true
+    })
+
+    if (filteredChanges.length === 0) {
+      return
+    }
+
+    onNodesChangeBase(filteredChanges)
+    if (mode === 'design') {
       markDirty()
     }
-  }, [onNodesChangeBase, markDirty, mode])
+  }, [onNodesChangeBase, markDirty, mode, toast])
 
   const onEdgesChange = useCallback((changes: any[]) => {
     onEdgesChangeBase(changes)
@@ -173,6 +379,27 @@ function WorkflowBuilderContent() {
     }
   }, [onEdgesChangeBase, markDirty, mode])
   const { getComponent } = useComponentStore()
+  const createEntryPointNode = useCallback((): ReactFlowNode<FrontendNodeData> => {
+    const component = getComponent(ENTRY_COMPONENT_ID)
+    const slug = component?.slug ?? ENTRY_COMPONENT_SLUG
+    return {
+      id: `${slug}-${Date.now()}`,
+      type: 'workflow',
+      position: { x: 0, y: 0 },
+      data: {
+        label: component?.name ?? 'Entry Point',
+        config: {},
+        componentId: ENTRY_COMPONENT_ID,
+        componentSlug: slug,
+        componentVersion: component?.version ?? '1.0.0',
+        parameters: {
+          runtimeInputs: ENTRY_DEFAULT_RUNTIME_INPUTS.map((input) => ({ ...input })),
+        },
+        inputs: {},
+        status: 'idle',
+      },
+    }
+  }, [getComponent])
   const [isLoading, setIsLoading] = useState(false)
   const [runDialogOpen, setRunDialogOpen] = useState(false)
   const [runtimeInputs, setRuntimeInputs] = useState<any[]>([])
@@ -197,7 +424,6 @@ function WorkflowBuilderContent() {
   const workflowCacheKey = metadata.id ?? '__global__'
   const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs)
   const runs = scopedRuns ?? []
-  const { toast } = useToast()
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const inspectorResizingRef = useRef(false)
   const isLibraryVisible = libraryOpen && mode === 'design'
@@ -442,20 +668,22 @@ function WorkflowBuilderContent() {
       }
 
       if (isNewWorkflow) {
-        // Reset store for new workflow
-        resetWorkflow()
-        setNodes([])
-        setEdges([])
-        historicalGraphRef.current = null
-        setHistoricalVersionId(null)
-        const baseMetadata = useWorkflowStore.getState().metadata
-        setLastSavedGraphSignature(computeGraphSignature([], []))
-        setLastSavedMetadata({
-          name: baseMetadata.name,
-          description: baseMetadata.description ?? '',
-        })
-        setHasGraphChanges(false)
-        setHasMetadataChanges(false)
+        if (nodesRef.current.length === 0) {
+          resetWorkflow()
+          const entryNode = createEntryPointNode()
+          setNodes([entryNode])
+          setEdges([])
+          historicalGraphRef.current = null
+          setHistoricalVersionId(null)
+          const baseMetadata = useWorkflowStore.getState().metadata
+          setLastSavedGraphSignature(computeGraphSignature([entryNode], []))
+          setLastSavedMetadata({
+            name: baseMetadata.name,
+            description: baseMetadata.description ?? '',
+          })
+          setHasGraphChanges(false)
+          setHasMetadataChanges(false)
+        }
         track(Events.WorkflowBuilderLoaded, { is_new: true })
         return
       }
@@ -576,6 +804,7 @@ function WorkflowBuilderContent() {
     setLastSavedMetadata,
     setHasGraphChanges,
     setHasMetadataChanges,
+    createEntryPointNode,
   ])
 
   const resolveRuntimeInputDefinitions = useCallback(() => {
@@ -583,7 +812,7 @@ function WorkflowBuilderContent() {
       const nodeData = node.data as any
       const componentRef = nodeData.componentId ?? nodeData.componentSlug
       const component = getComponent(componentRef)
-      return component?.id === 'core.trigger.manual'
+      return component?.id === 'core.workflow.entrypoint'
     })
 
     if (!triggerNode) {
@@ -1499,15 +1728,51 @@ function WorkflowBuilderContent() {
         </aside>
 
         <main className="flex-1 relative flex">
-          <Canvas
-            className="flex-1 h-full relative"
-            nodes={nodes}
-            edges={edges}
-            setNodes={setNodes}
-            setEdges={setEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-          />
+          <div className="flex-1 h-full relative">
+            {mode === 'design' && workflowId && !schedulePanelExpanded && (
+              <div className="absolute right-2 top-2 z-40 flex justify-end w-full">
+                <WorkflowSchedulesSummaryBar
+                  schedules={workflowSchedules}
+                  isLoading={workflowSchedulesLoading}
+                  error={workflowSchedulesError}
+                  onCreate={() => openScheduleDrawer('create')}
+                  onExpand={() => setSchedulePanelExpanded(true)}
+                  onViewAll={navigateToSchedules}
+                />
+              </div>
+            )}
+            <Canvas
+              className="flex-1 h-full relative"
+              nodes={nodes}
+              edges={edges}
+              setNodes={setNodes}
+              setEdges={setEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              workflowId={workflowId}
+              workflowSchedules={workflowSchedules}
+              schedulesLoading={workflowSchedulesLoading}
+              scheduleError={workflowSchedulesError}
+              onScheduleCreate={() => openScheduleDrawer('create')}
+              onScheduleEdit={(schedule) => openScheduleDrawer('edit', schedule)}
+              onScheduleAction={handleScheduleAction}
+              onViewSchedules={navigateToSchedules}
+            />
+          </div>
+          {mode === 'design' && workflowId && schedulePanelExpanded && (
+            <aside className="w-[432px] border-l bg-background">
+              <WorkflowSchedulesSidebar
+                schedules={workflowSchedules}
+                isLoading={workflowSchedulesLoading}
+                error={workflowSchedulesError}
+                onClose={() => setSchedulePanelExpanded(false)}
+                onCreate={() => openScheduleDrawer('create')}
+                onManage={navigateToSchedules}
+                onEdit={(schedule) => openScheduleDrawer('edit', schedule)}
+                onAction={handleScheduleAction}
+              />
+            </aside>
+          )}
           {isInspectorVisible && (
             <aside
               className="relative h-full border-l bg-background"
@@ -1527,6 +1792,18 @@ function WorkflowBuilderContent() {
 
       {/* Bottom panel removed in favor of contextual inspectors */}
 
+      {workflowId && (
+        <ScheduleEditorDrawer
+          open={scheduleEditorOpen}
+          mode={scheduleEditorMode}
+          schedule={editingSchedule}
+          defaultWorkflowId={workflowId}
+          workflowOptions={scheduleWorkflowOptions}
+          onClose={() => setScheduleEditorOpen(false)}
+          onSaved={handleScheduleSaved}
+        />
+      )}
+
       <RunWorkflowDialog
         open={runDialogOpen}
         onOpenChange={setRunDialogOpen}
@@ -1543,5 +1820,270 @@ export function WorkflowBuilder() {
     <ReactFlowProvider>
       <WorkflowBuilderContent />
     </ReactFlowProvider>
+  )
+}
+
+interface WorkflowSchedulesSummaryBarProps {
+  schedules: WorkflowSchedule[]
+  isLoading: boolean
+  error?: string | null
+  onCreate: () => void
+  onExpand: () => void
+  onViewAll: () => void
+}
+
+function WorkflowSchedulesSummaryBar({
+  schedules,
+  isLoading,
+  error,
+  onCreate,
+  onExpand,
+  onViewAll,
+}: WorkflowSchedulesSummaryBarProps) {
+  const countActive = schedules.filter((s) => s.status === 'active').length
+  const countPaused = schedules.filter((s) => s.status === 'paused').length
+  const countError = schedules.filter((s) => s.status === 'error').length
+
+  return (
+    <div className="pointer-events-auto flex items-center gap-3 rounded-xl border bg-background/95 px-4 py-2 ring-1 ring-border/60">
+      <div className="space-y-0.5">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Schedules
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          {isLoading ? (
+            <span className="inline-flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading…
+            </span>
+          ) : error ? (
+            <span className="text-destructive">{error}</span>
+          ) : schedules.length === 0 ? (
+            <span>No schedules configured</span>
+          ) : (
+            <>
+              {countActive > 0 && (
+                <span>{countActive} active</span>
+              )}
+              {countPaused > 0 && (
+                <span className="ml-2">{countPaused} paused</span>
+              )}
+              {countError > 0 && (
+                <span className="ml-2 text-destructive">{countError} error</span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 px-3 text-xs"
+          onClick={onCreate}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" />
+          New
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-8 px-3 text-xs"
+          onClick={onExpand}
+        >
+          Manage
+        </Button>
+        <div className="relative group">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            title="Go to schedule manager"
+            aria-label="Go to schedule manager"
+            onClick={onViewAll}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+          <div className="pointer-events-none absolute -bottom-8 right-0 whitespace-nowrap rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground opacity-0 transition group-hover:opacity-100">
+            Go to schedule manager
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface WorkflowSchedulesSidebarProps {
+  schedules: WorkflowSchedule[]
+  isLoading: boolean
+  error?: string | null
+  onClose: () => void
+  onCreate: () => void
+  onManage: () => void
+  onEdit: (schedule: WorkflowSchedule) => void
+  onAction: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
+}
+
+function WorkflowSchedulesSidebar({
+  schedules,
+  isLoading,
+  error,
+  onClose,
+  onCreate,
+  onManage,
+  onEdit,
+  onAction,
+}: WorkflowSchedulesSidebarProps) {
+  const [actionState, setActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
+
+  const handleAction = useCallback(
+    async (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => {
+      setActionState((state) => ({ ...state, [schedule.id]: action }))
+      try {
+        await onAction(schedule, action)
+      } finally {
+        setActionState((state) => {
+          const next = { ...state }
+          delete next[schedule.id]
+          return next
+        })
+      }
+    },
+    [onAction],
+  )
+
+  return (
+    <div className="flex h-full flex-col border-l bg-background">
+      <div className="border-b px-4 py-3 space-y-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-foreground">Schedules</p>
+            <Badge variant="outline" className="text-[11px] font-medium">
+              {schedules.length}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Create, pause, and run workflow cadences.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={onCreate}>
+            <Plus className="mr-1 h-4 w-4" />
+            New
+          </Button>
+          <Button size="sm" variant="outline" onClick={onManage}>
+            View page
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="gap-1"
+            aria-label="Collapse schedules"
+            onClick={onClose}
+          >
+            <ChevronRight className="h-4 w-4" />
+            Hide
+          </Button>
+        </div>
+      </div>
+      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading schedules…
+          </div>
+        ) : error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : schedules.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No schedules yet. Create one to run this workflow automatically.
+          </div>
+        ) : (
+          schedules.map((schedule) => {
+            const isActive = schedule.status === 'active'
+            const actionLabel = isActive ? 'Pause' : 'Resume'
+            const actionKey = isActive ? 'pause' : 'resume'
+            const pendingAction = actionState[schedule.id]
+            return (
+              <div
+                key={schedule.id}
+                className="space-y-2 rounded-lg border bg-muted/30 px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{schedule.name}</span>
+                      <Badge
+                        variant={scheduleStatusVariant[schedule.status]}
+                        className="text-[11px] capitalize"
+                      >
+                        {schedule.status}
+                      </Badge>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Next: {formatScheduleTimestamp(schedule.nextRunAt)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 px-3 text-xs"
+                      disabled={Boolean(pendingAction && pendingAction !== actionKey)}
+                      onClick={() => handleAction(schedule, actionKey as 'pause' | 'resume')}
+                      title={actionLabel}
+                      aria-label={actionLabel}
+                    >
+                      {pendingAction === 'pause' || pendingAction === 'resume' ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : isActive ? (
+                        <Pause className="mr-1 h-3.5 w-3.5" />
+                      ) : (
+                        <Play className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      {actionLabel}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      disabled={Boolean(pendingAction && pendingAction !== 'run')}
+                      onClick={() => handleAction(schedule, 'run')}
+                      title="Run now"
+                      aria-label="Run now"
+                    >
+                      {pendingAction === 'run' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Zap className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => onEdit(schedule)}
+                      title="Edit schedule"
+                      aria-label="Edit schedule"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                {schedule.description && (
+                  <p className="text-xs text-muted-foreground">{schedule.description}</p>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
   )
 }

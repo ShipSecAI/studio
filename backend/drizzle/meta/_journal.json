@@ -78,6 +78,13 @@
       "when": 1737500000000,
       "tag": "0014_create-terminal-records",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1738200000000,
+      "tag": "0015_create-workflow-schedules",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
 
-// Support both direct text and file objects from manual trigger
+// Support both direct text and file objects from entry point
 const manualTriggerFileSchema = z.object({
   id: z.string(),
   fileName: z.string(),
@@ -119,10 +119,10 @@ const definition: ComponentDefinition<Input, Output> = {
       textContent = Buffer.from(base64Content, 'base64').toString('utf-8');
       context.logger.info(`[TextSplitter] Processing file-loader input: ${params.text.name} (${textContent.length} characters)`);
     } else {
-      // Case 3: File object from manual trigger (only metadata, no content)
-      throw new Error(`File object from manual trigger has no content. File ID: ${params.text.id}, Name: ${params.text.fileName}.
+      // Case 3: File object from entry point (only metadata, no content)
+      throw new Error(`File object from entry point has no content. File ID: ${params.text.id}, Name: ${params.text.fileName}.
 Please use a File Loader component to extract file content before passing to Text Splitter.
-Expected workflow: Manual Trigger → File Loader → Text Splitter`);
+Expected workflow: Entry Point → File Loader → Text Splitter`);
     }
 
     // Split the text

@@ -103,4 +103,43 @@ const originalFetch = global.fetch;
     expect(calledUrl).toContain('/loki/api/v1/query_range');
     expect(calledUrl).toContain('run_id="run-123"');
   });
+
+  it('derives start and end timestamps from stored metadata', async () => {
+    const calls: Array<{ input: string | URL; init?: RequestInit }> = [];
+    const first = new Date('2025-02-01T00:00:00Z');
+    const last = new Date('2025-02-01T00:05:00Z');
+    const firstNs = (BigInt(first.getTime()) * 1000000n).toString();
+    const lastNs = (BigInt(last.getTime()) * 1000000n).toString();
+
+    // @ts-expect-error override global fetch for test
+    global.fetch = async (input: string | URL) => {
+      calls.push({ input });
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            result: [],
+          },
+        }),
+      } as Response;
+    };
+
+    const repository = {
+      listByRunId: async () => [
+        {
+          ...record,
+          firstTimestamp: first,
+          lastTimestamp: last,
+        },
+      ],
+    } as unknown as LogStreamRepository;
+
+    const service = new LogStreamService(repository);
+    await service.fetch('run-456', authContext, {});
+
+    expect(calls).toHaveLength(1);
+    const calledUrl = calls[0].input.toString();
+    expect(calledUrl).toContain(`start=${firstNs}`);
+    expect(calledUrl).toContain(`end=${lastNs}`);
+  });
 });

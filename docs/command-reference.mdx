@@ -1,0 +1,247 @@
+---
+title: "Command Reference"
+description: "Complete reference for just commands and development utilities"
+---
+
+ShipSec Studio uses [just](https://github.com/casey/just) as its command runner. Run `just` or `just help` to see all available commands.
+
+---
+
+## Getting Started
+
+### Initialize Project
+
+```bash
+just init
+```
+
+Sets up the development environment:
+- Installs dependencies with Bun
+- Creates environment files from examples (`backend/.env`, `worker/.env`, `frontend/.env`)
+
+---
+
+## Development Commands
+
+### Start Development Environment
+
+```bash
+just dev
+```
+
+Starts the full development environment with hot-reload:
+- Checks for environment files
+- Starts Docker infrastructure (Postgres, Temporal, MinIO, Loki)
+- Waits for services to be ready
+- Runs database migrations
+- Starts backend, worker, and frontend via PM2
+
+**Access points:**
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend | http://localhost:3211 |
+| Temporal UI | http://localhost:8081 |
+
+### Stop Development
+
+```bash
+just dev stop
+```
+
+Stops all PM2 processes and Docker infrastructure.
+
+### View Logs
+
+```bash
+just dev logs
+```
+
+Streams logs from all application processes via PM2.
+
+### Check Status
+
+```bash
+just dev status
+```
+
+Shows status of PM2 processes and Docker containers.
+
+---
+
+## Production Commands
+
+### Start Production
+
+```bash
+just prod
+```
+
+Starts the production environment using Docker Compose with pre-built images.
+
+**Access points:**
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:8090 |
+| Backend | http://localhost:3211 |
+| Temporal UI | http://localhost:8081 |
+
+### Build and Start
+
+```bash
+just prod build
+```
+
+Builds Docker images and starts the production environment.
+
+### Stop Production
+
+```bash
+just prod stop
+```
+
+Stops all production containers.
+
+### View Production Logs
+
+```bash
+just prod logs
+```
+
+Streams logs from all production containers.
+
+### Check Production Status
+
+```bash
+just prod status
+```
+
+Shows status of production containers.
+
+### Clean Production
+
+<Danger>This deletes all data.</Danger>
+
+```bash
+just prod clean
+```
+
+Stops containers, removes volumes, and prunes Docker system.
+
+
+---
+
+## Infrastructure Commands
+
+### Start Infrastructure
+
+```bash
+just infra up
+```
+
+Starts only the infrastructure containers:
+- PostgreSQL
+- Temporal
+- MinIO
+- Redis
+- Loki
+
+### Stop Infrastructure
+
+```bash
+just infra down
+```
+
+Stops all infrastructure containers.
+
+### View Infrastructure Logs
+
+```bash
+just infra logs
+```
+
+Streams logs from infrastructure containers.
+
+### Clean Infrastructure
+
+```bash
+just infra clean
+```
+
+Stops infrastructure and removes all volumes. 
+
+<Danger>This deletes all data.</Danger>
+
+---
+
+## Utility Commands
+
+### Show All Status
+
+```bash
+just status
+```
+
+Comprehensive status check showing:
+- PM2 services
+- Infrastructure containers
+- Production containers
+
+### Reset Database
+
+```bash
+just db-reset
+```
+
+Drops and recreates the database, then runs migrations. **This deletes all data.**
+
+<Warning>
+  This command requires PostgreSQL to be running (`just dev` or `just infra up`).
+</Warning>
+
+### Build Images Only
+
+```bash
+just build
+```
+
+Builds production Docker images without starting containers.
+
+---
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `just init` | Initialize environment |
+| `just dev` | Start development |
+| `just dev stop` | Stop development |
+| `just dev logs` | View dev logs |
+| `just dev status` | Check dev status |
+| `just prod` | Start production |
+| `just prod build` | Build and start production |
+| `just prod stop` | Stop production |
+| `just prod logs` | View production logs |
+| `just prod clean` | Clean production data |
+| `just infra up` | Start infrastructure |
+| `just infra down` | Stop infrastructure |
+| `just infra logs` | View infrastructure logs |
+| `just infra clean` | Clean infrastructure data |
+| `just status` | Show all status |
+| `just db-reset` | Reset database |
+| `just build` | Build images |
+| `just help` | Show help |
+
+---
+
+## Environment Files
+
+The `just init` command creates these environment files:
+
+| File | Purpose |
+|------|---------|
+| `backend/.env` | Backend API configuration |
+| `worker/.env` | Worker configuration |
+| `frontend/.env` | Frontend configuration |
+
+Each file is created from its corresponding `.env.example` template.

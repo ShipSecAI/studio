@@ -1,0 +1,322 @@
+---
+title: "Architecture"
+description: "System design and module responsibilities for ShipSec Studio"
+---
+
+## Overview
+
+ShipSec Studio is an open source, no-code security workflow orchestration platform designed for security teams to build, execute, and monitor security automation workflows. Focus on security, not infrastructure.
+
+The system is composed of four main layers:
+
+```
+Frontend (React 19) ←→ Backend (NestJS) ←→ Temporal ←→ Worker (Node.js)
+     ↓                      ↓                  ↓              ↓
+  Visual Builder         REST API          Workflow        Component
+  & Timeline             & Auth          Orchestration     Execution
+```
+
+---
+
+## Technology Stack
+
+| Layer | Technologies |
+|-------|-------------|
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, Radix UI, ReactFlow, xterm.js |
+| **Backend** | NestJS, TypeScript, Bun runtime, PostgreSQL, Drizzle ORM, Clerk Auth |
+| **Worker** | Node.js, TypeScript, Temporal.io, Docker containers |
+| **Infrastructure** | PostgreSQL, Temporal, MinIO, Redis, Loki, Redpanda (Kafka) |
+
+---
+
+## Monorepo Structure
+
+```
+shipsec-studio/
+├── packages/
+│   ├── component-sdk/          # Framework-agnostic component SDK
+│   ├── backend-client/         # Generated TypeScript API client
+│   └── shared/                 # Shared types and schemas
+│
+├── worker/                     # Component execution engine
+│   └── src/
+│       ├── components/         # Security component implementations
+│       ├── adapters/           # Service interface implementations
+│       └── temporal/           # Workflow orchestration
+│
+├── backend/                    # REST API and orchestration
+│   └── src/
+│       ├── workflows/          # Workflow CRUD + compilation
+│       ├── storage/            # File upload/download API
+│       ├── secrets/            # Encrypted secrets management
+│       └── temporal/           # Temporal client wrapper
+│
+└── frontend/                   # React workflow builder
+    └── src/
+        ├── components/
+        │   ├── workflow-builder/  # ReactFlow visual editor
+        │   ├── terminal/          # Real-time terminal display
+        │   └── timeline/          # Execution timeline
+        ├── store/                 # Zustand state management
+        └── hooks/                 # API and real-time hooks
+```
+
+---
+
+## Core System Components
+
+### Component SDK
+
+Framework-agnostic component definition system with zero runtime dependencies (except Zod).
+
+```typescript
+interface ComponentDefinition<Input, Output> {
+  id: string;
+  label: string;
+  category: 'triggers' | 'discovery' | 'transform' | 'output';
+  runner: DockerRunnerConfig | InlineRunnerConfig;
+  inputSchema: ZodSchema<Input>;
+  outputSchema: ZodSchema<Output>;
+  execute: (input: Input, context: ExecutionContext) => Promise<Output>;
+}
+```
+
+**Component Categories:**
+- **Triggers**: Manual, schedule, webhook, file monitor
+- **Discovery**: Subfinder, DNSx, Nmap, HTTPx, Katana
+- **Transform**: JSON/CSV/text processing and data enrichment
+- **Output**: Email, Slack, file export, database storage
+
+### Service Interfaces
+
+```typescript
+interface IFileStorageService {
+  upload(buffer: Buffer, mimeType: string): Promise<string>;
+  download(key: string): Promise<Buffer>;
+  delete(key: string): Promise<void>;
+}
+
+interface ISecretsService {
+  getSecret(secretId: string): Promise<string>;
+  rotateSecret(secretId: string, newValue: string): Promise<void>;
+}
+
+interface ITraceService {
+  record(event: TraceEvent): Promise<void>;
+  setRunMetadata(runId: RunMetadata): void;
+  finalizeRun(runId: string): void;
+}
+```
+
+---
+
+## Logging Infrastructure
+
+The system implements a three-pipeline logging architecture:
+
+### Terminal Streaming Pipeline
+
+Real-time terminal output capture and delivery:
+- **Capture**: Docker container output captured as base64-encoded chunks
+- **Transport**: Redis Streams with pattern `terminal:{runId}:{nodeRef}:{stream}`
+- **Frontend**: xterm.js renders real-time terminal output with timeline synchronization
+
+### Log Streaming Architecture
+
+Structured log transport and persistence:
+- **Sources**: Component stdout/stderr and console logs
+- **Multi-transport**: Kafka for streaming, Loki for aggregation, PostgreSQL for metadata
+- **Query Interface**: Frontend queries logs by run ID, node, time range, and level
+
+### Event Streaming Pipeline
+
+Workflow lifecycle event tracking:
+- **Event Types**: NODE_STARTED, NODE_COMPLETED, NODE_FAILED, NODE_PROGRESS
+- **Transport**: Kafka-based with per-run sequence numbering
+- **Timeline Generation**: Events processed to create visual execution timeline
+
+---
+
+## Worker Architecture
+
+Executes components in isolated environments with real service implementations.
+
+```typescript
+async function runComponentActivity(
+  componentId: string,
+  input: unknown,
+  context: ActivityContext
+): Promise<unknown> {
+  const component = componentRegistry.getComponent(componentId);
+  const executionContext = createExecutionContext({
+    storage: globalStorage,
+    secrets: allowSecrets ? globalSecrets : undefined,
+    artifacts: scopedArtifacts,
+    trace: globalTrace,
+    logCollector: globalLogs,
+    terminalCollector: globalTerminal,
+  });
+
+  return await component.execute(input, executionContext);
+}
+```
+
+**Service Adapters:**
+- **File Storage**: MinIO integration with PostgreSQL metadata
+- **Secrets**: HashiCorp Vault with AES-256 encryption
+- **Tracing**: Redis/pubsub for real-time events
+- **Logging**: Kafka, Loki, and database persistence
+- **Terminal**: Redis streams for real-time output
+
+---
+
+## Backend Services
+
+#### Core Modules
+
+- **WorkflowsModule**: Workflow CRUD, compilation, Temporal integration
+- **AuthModule**: Clerk-based authentication and multi-tenancy
+- **SecretsModule**: Encrypted secrets management with versioning
+- **IntegrationsModule**: OAuth orchestration and token vault
+- **TraceModule**: Event management and timeline generation
+- **LoggingModule**: Log ingestion and processing
+
+
+#### Key API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/workflows` | Create and compile workflows |
+| `POST /api/v1/workflows/{id}/runs` | Execute workflows |
+| `GET /api/v1/runs/{runId}/terminal` | Get terminal chunks |
+| `GET /api/v1/runs/{runId}/logs` | Get execution logs |
+| `GET /api/v1/runs/{runId}/events` | Get trace events |
+| `GET /api/v1/runs/{runId}/stream` | SSE streaming endpoint |
+
+
+## Frontend Architecture
+
+#### Real-time Features
+
+- **Visual Builder**: ReactFlow-based workflow editor with drag-and-drop
+- **Terminal Display**: xterm.js integration for real-time terminal output
+- **Execution Timeline**: Zustand-based timeline state with event synchronization
+- **Live Updates**: WebSocket/SSE streaming for real-time status updates
+
+#### State Management
+
+- **Timeline Store**: Zustand for execution timeline state
+- **API State**: React Query for server state management
+- **Component State**: Local React state with hooks
+
+
+## Workflow Execution Flow
+
+```
+1. Frontend creates workflow graph (ReactFlow)
+   └─> POST /api/v1/workflows with nodes & edges
+
+2. Backend validates and compiles
+   └─> Validates nodes against componentRegistry
+   └─> Compiles graph → DSL (topological sort + join strategies)
+   └─> Stores in PostgreSQL
+   └─> Calls TemporalService.startWorkflow()
+
+3. Temporal orchestrates execution
+   └─> Schedules workflow on "shipsec-workflows" queue
+   └─> Worker picks up and executes components via activities
+
+4. Component execution in Worker
+   └─> runComponentActivity() looks up component in registry
+   └─> Creates ExecutionContext with injected services
+   └─> Executes in Docker container with isolation
+   └─> Streams logs, events, and terminal output in real-time
+
+5. Real-time monitoring
+   └─> Events → Kafka → Backend → WebSocket to Frontend
+   └─> Terminal → Redis Streams → SSE to Frontend
+   └─> Logs → Kafka → Loki → Backend API queries
+```
+
+---
+
+## Workflow Replay
+
+#### Data Sources for Replay
+
+- **Terminal Cast Files**: Asciinema-compatible `.cast` files stored in MinIO
+- **Structured Logs**: Loki with nanosecond precision
+- **Trace Events**: PostgreSQL with sequence numbers
+- **Artifacts**: MinIO with component outputs
+
+#### Timeline Features
+
+- Playback controls (play, pause, seek)
+- Node state visualization
+- Data flow display
+- Terminal seeking
+- Speed control
+
+---
+
+## Database Schema
+
+```sql
+-- Workflow definitions
+workflows (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  graph JSONB NOT NULL,
+  compiled_definition JSONB,
+  organization_id VARCHAR
+);
+
+-- Workflow execution instances
+workflow_runs (
+  run_id TEXT PRIMARY KEY,
+  workflow_id UUID NOT NULL,
+  temporal_run_id TEXT,
+  inputs JSONB NOT NULL,
+  status VARCHAR,
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP
+);
+
+-- Component execution results
+workflow_nodes (
+  id UUID PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  node_ref TEXT NOT NULL,
+  component_id TEXT NOT NULL,
+  inputs JSONB,
+  outputs JSONB,
+  status VARCHAR,
+  error_message TEXT
+);
+
+-- Secure storage
+secrets (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  current_version INTEGER DEFAULT 1,
+  versions JSONB NOT NULL,
+  organization_id VARCHAR
+);
+```
+
+---
+
+## Security Architecture
+
+### Multi-tenant Authentication
+
+- **Clerk Integration**: Production-ready authentication
+- **Organization Isolation**: Tenant-based data separation
+- **Role-Based Access**: Admin, User, Viewer roles
+
+### Data Security
+
+- **Secrets Encryption**: AES-256-GCM encryption at rest
+- **Container Isolation**: Docker isolation for component execution
+- **Network Security**: TLS encryption, proper CORS configuration
+- **Access Control**: Fine-grained permissions and audit logging

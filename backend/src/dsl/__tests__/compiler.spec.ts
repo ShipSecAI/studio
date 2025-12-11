@@ -13,7 +13,7 @@ describe('compileWorkflowGraph', () => {
       nodes: [
         {
           id: 'trigger',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
           data: {
             label: 'Trigger',
@@ -118,7 +118,7 @@ describe('compileWorkflowGraph', () => {
   });
 
   it('throws when workflow contains a cycle', () => {
-    const registeredComponent = componentRegistry.get('core.trigger.manual');
+    const registeredComponent = componentRegistry.get('core.workflow.entrypoint');
     if (!registeredComponent) {
       throw new Error('Default components must be registered for tests');
     }
@@ -165,13 +165,53 @@ describe('compileWorkflowGraph', () => {
     );
   });
 
+  it('always marks the Entry Point component as the workflow entrypoint', () => {
+    const graph: WorkflowGraphDto = {
+      name: 'misordered root workflow',
+      nodes: [
+        {
+          id: 'log-node',
+          type: 'core.console.log',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Console',
+            config: {
+              label: 'Log',
+              data: 'hello',
+              level: 'info',
+            },
+          },
+        },
+        {
+          id: 'entry-node',
+          type: 'core.workflow.entrypoint',
+          position: { x: 0, y: 150 },
+          data: {
+            label: 'Entry Point',
+            config: {
+              runtimeInputs: [
+                { id: 'inputA', label: 'Input A', type: 'text', required: true },
+              ],
+            },
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    };
+
+    const definition = compileWorkflowGraph(graph);
+
+    expect(definition.entrypoint.ref).toBe('entry-node');
+  });
+
   it('tracks dependency counts and metadata for converging branches', () => {
     const graph: WorkflowGraphDto = {
       name: 'Diamond workflow',
       nodes: [
         {
           id: 'start',
-          type: 'core.trigger.manual',
+          type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
           data: {
             label: 'Start',
@@ -184,40 +224,37 @@ describe('compileWorkflowGraph', () => {
         },
         {
           id: 'branchA',
-          type: 'core.trigger.manual',
+          type: 'core.text.splitter',
           position: { x: -100, y: 100 },
           data: {
             label: 'Branch A',
             config: {
-              runtimeInputs: [
-                { id: 'branchAInput', label: 'Branch A Input', type: 'text', required: false },
-              ],
+              text: 'Branch A payload',
+              separator: '\n',
             },
           },
         },
         {
           id: 'branchB',
-          type: 'core.trigger.manual',
+          type: 'core.text.splitter',
           position: { x: 100, y: 100 },
           data: {
             label: 'Branch B',
             config: {
-              runtimeInputs: [
-                { id: 'branchBInput', label: 'Branch B Input', type: 'text', required: false },
-              ],
+              text: 'Branch B payload',
+              separator: '\n',
             },
           },
         },
         {
           id: 'merge',
-          type: 'core.trigger.manual',
+          type: 'core.text.splitter',
           position: { x: 0, y: 200 },
           data: {
             label: 'Merge',
             config: {
-              runtimeInputs: [
-                { id: 'mergeInput', label: 'Merge Input', type: 'text', required: false },
-              ],
+              text: 'Merge payload',
+              separator: '\n',
             },
           },
         },

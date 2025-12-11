@@ -1,20 +1,21 @@
-# Docker-in-Docker File Mounting Solution
+---
+title: "Isolated Volumes"
+description: "Docker-in-Docker file mounting solution for multi-tenant security"
+---
 
 ## Problem Summary
 
 In a Docker-in-Docker (DinD) setup where the worker container runs inside Docker and creates containers:
 
-1. **Volume Path Mismatch**: When the worker creates a container with volume mounts, those paths are relative to the Docker daemon's filesystem, not the worker container's filesystem
-2. **Security Risk**: Shared volumes in multi-tenant SaaS allow one tenant to access another tenant's data
-3. **Limited stdin Approach**: Previous fix used stdin to pass data, which:
-   - ❌ Can't use file-based features (config files, custom resolvers)
-   - ❌ Doesn't work for binary files
-   - ❌ Can't handle tools that write output files
-   - ❌ Has memory limits for large inputs
+1. **Volume Path Mismatch**: Volume mount paths are relative to the Docker daemon's filesystem, not the worker container
+2. **Security Risk**: Shared volumes in multi-tenant SaaS allow cross-tenant data access
+3. **Limited stdin Approach**: Using stdin for data transfer doesn't support file-based tools
+
+---
 
 ## Solution: Isolated Named Volumes
 
-Use **unique Docker named volumes** created per `tenantId + runId + timestamp`:
+Use unique Docker named volumes created per `tenantId + runId + timestamp`:
 
 ```
 tenant-${tenantId}-run-${runId}-${timestamp}
@@ -57,10 +58,12 @@ tenant-${tenantId}-run-${runId}-${timestamp}
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Security Benefits
+---
 
-| Aspect | Old Approach | New Approach |
-|--------|-------------|--------------|
+## Security Benefits
+
+| Aspect | Old Approach | Isolated Volumes |
+|--------|-------------|------------------|
 | **Tenant Isolation** | ❌ Shared volume or stdin | ✅ Unique volume per tenant+run |
 | **Path Traversal** | ⚠️ Possible with file mounts | ✅ Validated filenames |
 | **Data Leakage** | ❌ Files persist in shared space | ✅ Immediate cleanup |
@@ -74,43 +77,28 @@ tenant-${tenantId}-run-${runId}-${timestamp}
 ### Before: File Mounting (Broken in DinD)
 
 ```typescript
-// worker/src/components/security/dnsx.ts (OLD)
-
+// ❌ WRONG - Breaks in DinD, no tenant isolation
 const hostInputDir = await mkdtemp(path.join(tmpdir(), 'dnsx-input-'));
-const domainFilePath = path.join(hostInputDir, DOMAIN_FILE_NAME);
-await writeFile(domainFilePath, normalisedDomains.join('\n'), 'utf8');
+await writeFile(path.join(hostInputDir, 'file.txt'), data);
 
 const runnerConfig: DockerRunnerConfig = {
   volumes: [
     { source: hostInputDir, target: '/inputs', readOnly: true }
   ]
 };
-
-try {
-  await runComponentWithRunner(runnerConfig, ...);
-} finally {
-  await rm(hostInputDir, { recursive: true, force: true });
-}
 ```
-
-**Issues:**
-- `hostInputDir` is a path inside the worker container
-- Docker daemon can't access this path (different filesystem)
-- Volume mount silently fails in DinD
 
 ### After: Isolated Volumes (DinD Compatible)
 
 ```typescript
-// worker/src/components/security/dnsx.ts (NEW)
-
+// ✅ CORRECT - DinD compatible, tenant isolated
 const tenantId = context.tenantId ?? 'default-tenant';
 const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
 try {
-  // Write input files to isolated volume
   await volume.initialize({
-    [DOMAIN_FILE_NAME]: normalisedDomains.join('\n'),
-    [RESOLVER_FILE_NAME]: resolverList.join('\n')
+    'domains.txt': domains.join('\n'),
+    'resolvers.txt': resolvers.join('\n')
   });
 
   const runnerConfig: DockerRunnerConfig = {
@@ -119,19 +107,12 @@ try {
 
   await runComponentWithRunner(runnerConfig, ...);
 
-  // Can also read output files
   const outputs = await volume.readFiles(['results.json']);
 
 } finally {
   await volume.cleanup();
 }
 ```
-
-**Benefits:**
-- ✅ Works in DinD (named volumes are in Docker daemon's namespace)
-- ✅ Tenant isolated (unique volume per execution)
-- ✅ Can read output files
-- ✅ Automatic cleanup
 
 ---
 
@@ -146,7 +127,6 @@ try {
 | **Binary files** | ✅ Yes | ❌ No | ✅ Yes |
 | **Large files** | ✅ Yes | ⚠️ Memory limits | ✅ Yes |
 | **Tenant isolation** | ❌ No | ⚠️ Process-level | ✅ Volume-level |
-| **Complexity** | Low | Low | Medium |
 
 ---
 
@@ -178,12 +158,10 @@ try {
 const volume = new IsolatedContainerVolume(tenantId, runId);
 
 try {
-  // Write inputs
   await volume.initialize({
     'config.yaml': yamlConfig
   });
 
-  // Tool writes to same volume
   const config = {
     command: ['--input', '/data/config.yaml', '--output', '/data/results.json'],
     volumes: [volume.getVolumeConfig('/data', false)] // Read-write
@@ -191,7 +169,6 @@ try {
 
   await runTool(config);
 
-  // Read outputs
   const outputs = await volume.readFiles(['results.json', 'summary.txt']);
   return JSON.parse(outputs['results.json']);
 
@@ -241,7 +218,7 @@ try {
 
 ### Automatic Cleanup
 
-Volumes are **always** cleaned up via `finally` blocks:
+Volumes are always cleaned up via `finally` blocks:
 
 ```typescript
 try {
@@ -256,16 +233,6 @@ try {
 
 For volumes that weren't cleaned up (e.g., worker crash):
 
-```typescript
-import { cleanupOrphanedVolumes } from './utils';
-
-// Run daily via cron
-const removed = await cleanupOrphanedVolumes(24); // 24 hours
-console.log(`Removed ${removed} orphaned volumes`);
-```
-
-Or manually:
-
 ```bash
 # List studio-managed volumes
 docker volume ls --filter "label=studio.managed=true"
@@ -276,7 +243,61 @@ docker volume prune --filter "label=studio.managed=true"
 
 ---
 
-## Performance Considerations
+## Security Requirements
+
+### Tenant Isolation
+
+Every execution gets a unique volume:
+```
+tenant-{tenantId}-run-{runId}-{timestamp}
+```
+
+Example: `tenant-acme-run-wf-abc123-1732150000`
+
+### Read-Only Mounts
+
+```typescript
+// Input files should be read-only
+volume.getVolumeConfig('/inputs', true)  // ✅ read-only
+
+// Only make writable if tool needs to write
+volume.getVolumeConfig('/outputs', false)  // ⚠️ read-write
+```
+
+### Path Validation
+
+Filenames are automatically validated:
+
+```typescript
+// ✅ OK
+await volume.initialize({
+  'file.txt': data,
+  'subdir/file.txt': data  // Subdirs OK
+});
+
+// ❌ Rejected (security)
+await volume.initialize({
+  '../file.txt': data,     // Path traversal blocked
+  '/etc/passwd': data      // Absolute paths blocked
+});
+```
+
+---
+
+## Security Guarantees
+
+| Security Feature | How It Works |
+|-----------------|--------------|
+| **Tenant Isolation** | Volume name includes tenant ID |
+| **No Collisions** | Timestamp prevents conflicts |
+| **Path Safety** | Filenames validated (no `..` or `/`) |
+| **Automatic Cleanup** | Finally blocks guarantee removal |
+| **Audit Trail** | Volumes labeled `studio.managed=true` |
+| **DinD Compatible** | Named volumes work in nested Docker |
+
+---
+
+## Performance
 
 ### Volume Creation Overhead
 
@@ -293,21 +314,6 @@ This is acceptable for security tools that typically run for seconds/minutes.
 1. **Batch file writes**: Write all files in one `initialize()` call
 2. **Reuse volumes**: For sequential operations in same run, reuse the volume
 3. **Lazy cleanup**: Clean up volumes in background job if latency-sensitive
-
----
-
-## Migration Checklist
-
-To migrate a component to use isolated volumes:
-
-- [ ] Import `IsolatedContainerVolume`
-- [ ] Get `tenantId` from context (use fallback for now)
-- [ ] Create volume instance: `new IsolatedContainerVolume(tenantId, runId)`
-- [ ] Replace file writes with `volume.initialize({ files })`
-- [ ] Replace volume mount with `volume.getVolumeConfig()`
-- [ ] Add `finally` block with `volume.cleanup()`
-- [ ] If tool writes outputs, use `volume.readFiles()` to retrieve them
-- [ ] Test in DinD environment
 
 ---
 
@@ -333,34 +339,15 @@ To migrate a component to use isolated volumes:
 
 ---
 
-## Future Enhancements
+## Migration Checklist
 
-1. **Add tenantId to ExecutionContext**: Update SDK to include `tenantId`
-   ```typescript
-   export interface ExecutionContext {
-     runId: string;
-     tenantId: string;  // Add this
-     ...
-   }
-   ```
+To migrate a component to use isolated volumes:
 
-2. **Volume Metrics**: Track volume usage, size, creation time
-3. **Encryption**: Encrypt volume contents at rest
-4. **S3 Integration**: For very large files, use object storage
-5. **Caching**: Reuse volumes for identical inputs (hash-based)
-
----
-
-## Questions?
-
-- Technical questions: #engineering-core
-- Security questions: #security
-- Bug reports: GitHub Issues
-
----
-
-## Related Documentation
-
-- [Isolated Volume Utility README](./README.md)
-- [Component SDK Documentation](../../packages/component-sdk/README.md)
-- [Docker Volume Documentation](https://docs.docker.com/storage/volumes/)
+- [ ] Import `IsolatedContainerVolume`
+- [ ] Get `tenantId` from context (use fallback for now)
+- [ ] Create volume instance: `new IsolatedContainerVolume(tenantId, runId)`
+- [ ] Replace file writes with `volume.initialize({ files })`
+- [ ] Replace volume mount with `volume.getVolumeConfig()`
+- [ ] Add `finally` block with `volume.cleanup()`
+- [ ] If tool writes outputs, use `volume.readFiles()` to retrieve them
+- [ ] Test in DinD environment

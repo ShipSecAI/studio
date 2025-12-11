@@ -1,0 +1,173 @@
+---
+title: "Analytics"
+description: "PostHog integration for product analytics and session recording"
+---
+
+ShipSec Studio uses PostHog for product analytics and session recording in the frontend. The integration is gated so local clones without environment variables continue to work without errors.
+
+---
+
+## Environment Variables
+
+Frontend variables (set in your hosting provider):
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_PUBLIC_POSTHOG_KEY` | Project API key |
+| `VITE_PUBLIC_POSTHOG_HOST` | PostHog host (e.g., `https://us.i.posthog.com`) |
+
+See `frontend/.env.example` for a template. If these are not set, analytics is fully disabled at runtime (no client init, helpers no-op).
+
+---
+
+## Initialization
+
+`frontend/src/main.tsx` initializes the global `posthog` client via `posthog.init(...)` and mounts `PostHogProvider` when both variables are present.
+
+Configuration:
+- Session recording enabled with privacy defaults
+- `maskAllInputs: true` - All input fields masked
+- `maskAllText: false` - On-screen text visible for useful context
+- Exceptions captured automatically
+- Pageviews captured by router listener
+
+---
+
+## SPA Pageviews
+
+`frontend/src/features/analytics/AnalyticsRouterListener.tsx` captures `$pageview` on `react-router` navigation. It checks `isAnalyticsEnabled()` before sending.
+
+---
+
+## User Identification
+
+`frontend/src/features/analytics/PostHogClerkBridge.tsx` bridges Clerk auth to PostHog (only when analytics is enabled and Clerk is the active provider):
+
+- Calls `posthog.identify(user.id, { email, name, username })`
+- Sets the `organization` group when available
+- Calls `posthog.reset()` on sign-out
+
+---
+
+## Event Taxonomy
+
+| Event | Description | Properties |
+|-------|-------------|------------|
+| `ui_workflow_list_viewed` | Workflow list loads | `workflows_count?` |
+| `ui_workflow_create_clicked` | User clicked create workflow CTA | - |
+| `ui_workflow_builder_loaded` | Builder opened | `workflow_id?`, `is_new`, `node_count?` |
+| `ui_workflow_created` | After successful create | `workflow_id`, `node_count`, `edge_count` |
+| `ui_workflow_saved` | After successful update | `workflow_id`, `node_count`, `edge_count` |
+| `ui_workflow_run_started` | Run kicked off | `workflow_id`, `run_id?`, `node_count?` |
+| `ui_node_added` | Component dropped on canvas | `workflow_id?`, `component_slug` |
+| `ui_secret_created` | Secret created | `has_tags?`, `tag_count?`, `name_length?` |
+| `ui_secret_deleted` | Secret deleted | `name_length?` |
+
+Helpers live in `frontend/src/features/analytics/events.ts` and validate payloads with Zod. All helper calls no-op when analytics is disabled.
+
+---
+
+## Privacy & Controls
+
+| Feature | Implementation |
+|---------|---------------|
+| **Do Not Track** | Respected via `respect_dnt: true` |
+| **Session Recording** | Inputs masked, on-screen text unmasked |
+| **Secrets Manager** | Events never send raw secret identifiers |
+| **Local/Dev Safety** | Analytics only initializes when both env vars present |
+
+<Note>
+  Optional runtime kill-switch can be added later (e.g., `VITE_ENABLE_ANALYTICS=false`).
+</Note>
+
+---
+
+## Local Verification
+
+<Steps>
+  <Step title="Start the frontend">
+    Run the frontend with PostHog environment variables set.
+  </Step>
+  
+  <Step title="Log in and navigate">
+    Log in to the application and navigate between pages.
+  </Step>
+  
+  <Step title="Verify in PostHog">
+    Check PostHog Live Events for `$pageview` events.
+  </Step>
+  
+  <Step title="Check session recording">
+    Confirm a session recording is created and inputs are masked.
+  </Step>
+</Steps>
+
+---
+
+## Troubleshooting
+
+### Events not arriving
+
+Ensure both env vars are set and `main.tsx` initializes `posthog` (search for `posthog.init`).
+
+### Helpers send but nothing recorded
+
+Confirm provider uses `<PostHogProvider client={posthog}>` (not apiKey prop) so the global singleton is the same instance.
+
+### Compile error '@/config/env'
+
+Ensure `frontend/src/config/env.ts` exists; it provides typed access to optional branch labels used by Sidebar.
+
+---
+
+## Adding New Events
+
+To add a new analytics event:
+
+1. **Define the event schema** in `frontend/src/features/analytics/events.ts`:
+
+```typescript
+const workflowDuplicatedSchema = z.object({
+  workflow_id: z.string(),
+  source_workflow_id: z.string(),
+});
+
+export function trackWorkflowDuplicated(props: z.infer<typeof workflowDuplicatedSchema>) {
+  if (!isAnalyticsEnabled()) return;
+  
+  const validated = workflowDuplicatedSchema.parse(props);
+  posthog.capture('ui_workflow_duplicated', validated);
+}
+```
+
+2. **Call the helper** in your component:
+
+```typescript
+import { trackWorkflowDuplicated } from '@/features/analytics/events';
+
+// In your component
+trackWorkflowDuplicated({
+  workflow_id: newWorkflow.id,
+  source_workflow_id: sourceWorkflow.id,
+});
+```
+
+3. **Document the event** in this page's Event Taxonomy table.
+
+---
+
+## Best Practices
+
+### Do
+
+- ✅ Use typed event helpers with Zod validation
+- ✅ Include relevant context (IDs, counts) for analysis
+- ✅ Keep property names consistent (`snake_case`)
+- ✅ Test events locally before deploying
+
+### Don't
+
+- ❌ Send PII (emails, names) in event properties
+- ❌ Send raw secret values or API keys
+- ❌ Send sensitive file contents
+- ❌ Bypass the `isAnalyticsEnabled()` check

@@ -1,0 +1,207 @@
+---
+title: "Core Components"
+description: "Essential building blocks for workflow inputs, outputs, and data transformation"
+---
+
+Core components handle workflow triggers, file operations, data transformation, and output destinations.
+
+---
+
+## Triggers
+
+### Manual Trigger
+
+Starts a workflow manually. Configure runtime inputs to collect data (files, text, etc.) when triggered.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `runtimeInputs` | JSON | Define inputs to collect at runtime |
+
+**Supported input types:** `file`, `text`, `number`, `json`, `array`
+
+**Example use cases:**
+- Collect uploaded scope files before running security scans
+- Prompt operators for target domains or API keys
+
+---
+
+### Webhook
+
+Sends JSON payloads to external HTTP endpoints with retries and timeouts.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `url` | URL | Destination endpoint |
+| `method` | Select | POST, PUT, or PATCH |
+| `payload` | JSON | Request body |
+| `headers` | JSON | HTTP headers |
+| `timeoutMs` | Number | Request timeout (default: 30000) |
+| `retries` | Number | Retry attempts (default: 3) |
+
+**Example use cases:**
+- Send scan results to Slack or Teams
+- POST assets to a custom API
+
+---
+
+## File Operations
+
+### File Loader
+
+Loads file content from storage for use in workflows.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `fileId` | UUID | File ID from uploaded file |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `file` | Object | File metadata + base64 content |
+| `textContent` | String | Decoded UTF-8 text |
+
+---
+
+### Text Splitter
+
+Splits text into an array of strings by separator.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `text` | String/File | Text content to split |
+| `separator` | String | Split character (default: `\n`) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `items` | Array | Split strings |
+| `count` | Number | Number of items |
+
+**Example:** Split newline-delimited subdomains before passing to scanners.
+
+---
+
+### Text Joiner
+
+Joins array elements into a single string.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `items` | Array | Array of strings to join |
+| `separator` | String | Join character (default: `\n`) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `text` | String | Joined string |
+
+---
+
+## Secrets
+
+### Secret Loader
+
+Fetches secrets from the ShipSec-managed secret store.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `secretId` | Secret | Secret name or UUID |
+| `version` | Number | Optional version pin |
+| `outputFormat` | Select | `raw` or `json` |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `secret` | Any | Resolved secret value (masked in logs) |
+| `metadata` | Object | Secret version info |
+
+<Note>
+  Secret values are automatically masked in all logs and terminal output.
+</Note>
+
+---
+
+## Data Transformation
+
+### Array Pick
+
+Extracts specific items from an array by index.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `array` | Array | Source array |
+| `indices` | Array | Indices to pick |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `picked` | Array | Selected items |
+
+### Array Pack
+
+Combines multiple values into a single array.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `values` | Any[] | Values to pack |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `array` | Array | Packed array |
+
+### Console Log
+
+Outputs data to workflow logs for debugging.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `data` | Any | Data to log |
+| `label` | String | Optional label |
+
+---
+
+## Storage Destinations
+
+### Artifact Writer
+
+Writes workflow artifacts to ShipSec storage.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `content` | Any | Content to store |
+| `filename` | String | Artifact filename |
+| `mimeType` | String | Content type |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `artifactId` | UUID | Stored artifact ID |
+| `url` | String | Download URL |
+
+### File Writer
+
+Writes content to a file in workflow storage.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `content` | String | File content |
+| `path` | String | File path |
+
+### Destination S3
+
+Uploads files to an S3-compatible bucket.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `bucket` | String | S3 bucket name |
+| `key` | String | Object key |
+| `content` | Buffer | File content |
+| `credentials` | Object | AWS credentials |
+
+### AWS Credentials
+
+Provides AWS credentials for S3 operations.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accessKeyId` | Secret | AWS Access Key ID |
+| `secretAccessKey` | Secret | AWS Secret Access Key |
+| `region` | String | AWS region |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `credentials` | Object | Credential object for S3 components |

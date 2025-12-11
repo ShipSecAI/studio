@@ -1,22 +1,22 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { createExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
-import type { ManualTriggerInput, ManualTriggerOutput } from '../trigger-manual';
+import type { EntryPointInput, EntryPointOutput } from '../entry-point';
 
-describe('trigger-manual component', () => {
+describe('entry-point component', () => {
   beforeAll(async () => {
     await import('../../index');
   });
 
   it('should be registered', () => {
-    const component = componentRegistry.get<ManualTriggerInput, ManualTriggerOutput>('core.trigger.manual');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
     expect(component).toBeDefined();
-    expect(component!.label).toBe('Manual Trigger');
+    expect(component!.label).toBe('Entry Point');
     expect(component!.category).toBe('input');
   });
 
   it('should map runtime inputs to outputs', async () => {
-    const component = componentRegistry.get<ManualTriggerInput, ManualTriggerOutput>('core.trigger.manual');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({
@@ -47,7 +47,7 @@ describe('trigger-manual component', () => {
   });
 
   it('should normalise legacy string runtime input types', async () => {
-    const component = componentRegistry.get('core.trigger.manual');
+    const component = componentRegistry.get('core.workflow.entrypoint');
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({
@@ -72,7 +72,7 @@ describe('trigger-manual component', () => {
   });
 
   it('should handle empty runtime input configuration', async () => {
-    const component = componentRegistry.get<ManualTriggerInput, ManualTriggerOutput>('core.trigger.manual');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({
@@ -88,7 +88,7 @@ describe('trigger-manual component', () => {
   });
 
   it('should throw when required runtime input is missing', async () => {
-    const component = componentRegistry.get<ManualTriggerInput, ManualTriggerOutput>('core.trigger.manual');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({

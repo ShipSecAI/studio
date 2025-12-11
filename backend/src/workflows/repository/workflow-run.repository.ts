@@ -8,16 +8,21 @@ import {
   type WorkflowRunInsert,
   type WorkflowRunRecord,
 } from '../../database/schema';
+import type { ExecutionInputPreview, ExecutionTriggerType } from '@shipsec/shared';
 
 interface CreateWorkflowRunInput {
   runId: string;
   workflowId: string;
   workflowVersionId: string;
   workflowVersion: number;
-  temporalRunId: string;
+  temporalRunId?: string | null;
   totalActions: number;
   inputs: Record<string, unknown>;
   organizationId?: string | null;
+  triggerType: ExecutionTriggerType;
+  triggerSource?: string | null;
+  triggerLabel?: string | null;
+  inputPreview?: ExecutionInputPreview;
 }
 
 @Injectable()
@@ -33,28 +38,44 @@ export class WorkflowRunRepository {
       workflowId: input.workflowId,
       workflowVersionId: input.workflowVersionId,
       workflowVersion: input.workflowVersion,
-      temporalRunId: input.temporalRunId,
       totalActions: input.totalActions,
       inputs: input.inputs ?? {},
+      triggerType: input.triggerType,
+      triggerSource: input.triggerSource ?? null,
+      triggerLabel: input.triggerLabel ?? 'Manual run',
+      inputPreview: input.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} },
       updatedAt: new Date(),
       organizationId: input.organizationId ?? null,
     };
+
+    if (input.temporalRunId !== undefined) {
+      values.temporalRunId = input.temporalRunId;
+    }
+
+    const updateValues: Partial<WorkflowRunInsert> = {
+      workflowId: input.workflowId,
+      workflowVersionId: input.workflowVersionId,
+      workflowVersion: input.workflowVersion,
+      totalActions: input.totalActions,
+      inputs: input.inputs ?? {},
+      triggerType: input.triggerType,
+      triggerSource: input.triggerSource ?? null,
+      triggerLabel: input.triggerLabel ?? 'Manual run',
+      inputPreview: input.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} },
+      updatedAt: new Date(),
+      organizationId: input.organizationId ?? null,
+    };
+
+    if (input.temporalRunId !== undefined) {
+      updateValues.temporalRunId = input.temporalRunId;
+    }
 
     const [record] = await this.db
       .insert(workflowRunsTable)
       .values(values)
       .onConflictDoUpdate({
         target: workflowRunsTable.runId,
-        set: {
-          workflowId: input.workflowId,
-          workflowVersionId: input.workflowVersionId,
-          workflowVersion: input.workflowVersion,
-          temporalRunId: input.temporalRunId,
-          totalActions: input.totalActions,
-          inputs: input.inputs ?? {},
-          updatedAt: new Date(),
-          organizationId: input.organizationId ?? null,
-        },
+        set: updateValues,
       })
       .returning();
 

@@ -5,7 +5,7 @@ import { EventInspector } from '@/components/timeline/EventInspector'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MessageModal } from '@/components/ui/MessageModal'
-import { StopCircle, Link2 } from 'lucide-react'
+import { StopCircle, Link2, RefreshCw } from 'lucide-react'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowExecution } from '@/hooks/useWorkflowExecution'
@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils'
 import type { ExecutionLog } from '@/schemas/execution'
 import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel'
 import { AgentTracePanel } from '@/components/timeline/AgentTracePanel'
+import { getTriggerDisplay } from '@/utils/triggerDisplay'
+import { RunInfoDisplay } from '@/components/timeline/RunInfoDisplay'
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp)
@@ -122,9 +124,13 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   }, [rawLogs, logLevelFilter])
   const { toast } = useToast()
 
-  const selectedRun = useMemo(() => (
-    runs.find(run => run.id === selectedRunId)
-  ), [runs, selectedRunId])
+  const selectedRun = useMemo(
+    () => runs.find((run) => run.id === selectedRunId),
+    [runs, selectedRunId],
+  )
+  const triggerDisplay = selectedRun
+    ? getTriggerDisplay(selectedRun.triggerType, selectedRun.triggerLabel)
+    : null
 
   const handleCopyLink = useCallback(async () => {
     if (!selectedRun) return
@@ -161,7 +167,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
     if (playbackMode === 'live') {
       setLogMode('live')
     } else if (playbackMode === 'replay') {
-      setLogMode('scrubbing')
+      // For replay mode, use historical logs initially (scrubbing mode is only for timeline scrubbing)
+      setLogMode('historical')
     }
   }, [playbackMode, setLogMode])
 
@@ -188,8 +195,20 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
 
   const statusBadge = selectedRun ? (
     <Badge
-      variant={selectedRun.status === 'RUNNING' ? 'default' : selectedRun.status === 'FAILED' ? 'destructive' : 'secondary'}
-      className="text-xs"
+      variant={
+        selectedRun.status === 'RUNNING'
+          ? 'default'
+          : selectedRun.status === 'FAILED'
+            ? 'outline'
+            : selectedRun.status === 'COMPLETED'
+              ? 'outline'
+              : 'secondary'
+      }
+      className={cn(
+        'text-[11px] font-semibold',
+        selectedRun.status === 'COMPLETED' && 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        selectedRun.status === 'FAILED' && 'bg-red-50 text-red-700 border-red-300',
+      )}
     >
       {getStatusLabel(selectedRun.status)}
     </Badge>
@@ -239,10 +258,12 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
             </div>
           </div>
           {selectedRun && (
-            <div className="rounded-md border bg-background px-3 py-2 text-xs space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-sm truncate">{selectedRun.workflowName}</span>
-                <div className="flex items-center gap-2">
+            <div className="rounded-md border bg-background px-3 py-3 space-y-2">
+              <div className="flex items-start gap-3">
+                <p className="font-semibold text-base truncate flex-1 min-w-0">
+                  {selectedRun.workflowName}
+                </p>
+                <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -253,23 +274,38 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                   >
                     <Link2 className="h-3.5 w-3.5" />
                   </Button>
-                  {versionBadge}
-                  {statusBadge}
+                  {onRerunRun && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-3 gap-1.5"
+                      onClick={() => onRerunRun(selectedRun.id)}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Rerun
+                    </Button>
+                  )}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                <span>Run #{selectedRun.id.slice(-6)}</span>
-                {selectedRun.duration && <span>{Math.round(selectedRun.duration / 1000)}s</span>}
-                <span>{selectedRun.eventCount} events</span>
-                {selectedRun.nodeCount > 0 && <span>{selectedRun.nodeCount} nodes</span>}
-                {runVersion !== null && (
-                  <span className={cn(versionMismatch ? 'text-amber-500' : undefined)}>
-                    v{runVersion}
-                    {versionMismatch && typeof currentWorkflowVersion === 'number'
-                      ? ` (current v${currentWorkflowVersion})`
-                      : ''}
-                  </span>
-                )}
+              <RunInfoDisplay 
+                run={selectedRun} 
+                currentWorkflowVersion={currentWorkflowVersion}
+                showBadges={false}
+              />
+              <div className="flex items-center justify-between gap-2 text-[10px]">
+                <div className="flex items-center gap-2">
+                  {versionBadge}
+                  {triggerDisplay && (
+                    <Badge
+                      variant={triggerDisplay.variant}
+                      className="text-[10px] gap-1 max-w-[160px] truncate"
+                    >
+                      <span aria-hidden="true">{triggerDisplay.icon}</span>
+                      <span className="truncate">{triggerDisplay.label}</span>
+                    </Badge>
+                  )}
+                </div>
+                <div>{statusBadge}</div>
               </div>
             </div>
           )}
@@ -355,8 +391,14 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
           {inspectorTab === 'logs' && (
             <div className="flex flex-col h-full min-h-0">
               <div className="flex items-center justify-between px-3 py-2 border-b bg-background/70 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span>{`${filteredLogs.length} log entries`}</span>
+                  {triggerDisplay && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/80">
+                      <span aria-hidden="true">{triggerDisplay.icon}</span>
+                      Triggered by {triggerDisplay.label}
+                    </span>
+                  )}
                 </div>
                 <span className={cn('font-medium', playbackMode === 'live' ? 'text-green-600' : 'text-blue-600')}>
                   {playbackMode === 'live' ? (isPlaying ? 'Live (following)' : 'Live paused') : 'Execution playback'}

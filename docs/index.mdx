@@ -1,0 +1,78 @@
+---
+title: "Introduction"
+description: "Open source, no-code security automation platform for security teams"
+---
+
+**ShipSec Studio** is the open source, no-code security automation platform for security teams. Design reusable security workflows, see every run unfold live, and keep humans in the loop with opinionated guardrails.
+
+<Frame>
+  <img src="/media/workflow-sample.png" alt="Workflow Builder" />
+</Frame>
+
+## Why ShipSec Studio?
+
+- **No code required** – Build powerful security workflows by connecting components visually. No scripting, no glue code, no maintenance headaches.
+- **Built for security teams** – Pre-built components for subdomain discovery, vulnerability scanning, secret detection, and more. Focus on security, not infrastructure.
+- **Workflows that don't fail silently** – Automatic retries, resumable executions, and real-time log streaming, giving visibility into every step. Know exactly what's happening and why.
+- **Self-hosted and open source** – Your data stays on your infrastructure. Run it on a laptop or scale to production with the same codebase.
+- **Secure by default** – Encrypted secrets, isolated container execution, and team-based access controls built in from day one.
+
+## Product Tour
+
+<CardGroup cols={2}>
+  <Card title="Workflow Builder" icon="diagram-project">
+    Visual drag-and-drop editor for building security workflows
+    <Frame>
+      <img src="/media/workflow-sample.png" alt="Workflow Builder" />
+    </Frame>
+  </Card>
+  <Card title="Live Execution" icon="play">
+    Watch workflow execution unfold in real-time with streaming logs
+    <Frame>
+      <img src="/media/workflow-execution.png" alt="Execution Timeline" />
+    </Frame>
+  </Card>
+  <Card title="Secrets Management" icon="key">
+    Secure storage for API keys and credentials
+    <Frame>
+      <img src="/media/secret-manager.png" alt="Secret Manager" />
+    </Frame>
+  </Card>
+  <Card title="Connections" icon="plug">
+    Integrate with external services and APIs
+    <Frame>
+      <img src="/media/connections-screen.png" alt="Connections Catalog" />
+    </Frame>
+  </Card>
+</CardGroup>
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Self-host on your own infrastructure
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Understand the system design
+  </Card>
+  <Card title="Components" icon="cube" href="/components/overview">
+    Explore available components
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+| Layer | Technologies |
+|-------|-------------|
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, Radix UI, ReactFlow, xterm.js |
+| **Backend** | NestJS, TypeScript, Bun runtime, PostgreSQL, Drizzle ORM, Clerk Auth |
+| **Worker** | Node.js, TypeScript, Temporal.io, Docker containers |
+| **Infrastructure** | PostgreSQL, Temporal, MinIO, Redis, Loki, Redpanda (Kafka) |
+
+## Need Help?
+
+- **Support** – [support@shipsec.ai](mailto:support@shipsec.ai)
+- **GitHub** – [github.com/shipsecai/studio](https://github.com/shipsecai/studio)

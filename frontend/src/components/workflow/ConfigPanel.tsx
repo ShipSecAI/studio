@@ -1,6 +1,7 @@
-import { X, ExternalLink } from 'lucide-react'
+import { X, ExternalLink, Loader2 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -23,11 +24,24 @@ import {
   inputSupportsManualValue,
   isListOfTextPortDataType,
 } from '@/utils/portUtils'
+import { API_BASE_URL } from '@/services/api'
+import { useWorkflowStore } from '@/store/workflowStore'
+import type { WorkflowSchedule } from '@shipsec/shared'
+
+const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
 
 interface ConfigPanelProps {
   selectedNode: Node<NodeData> | null
   onClose: () => void
   onUpdateNode?: (nodeId: string, data: Partial<NodeData>) => void
+  workflowId?: string | null
+  workflowSchedules?: WorkflowSchedule[]
+  schedulesLoading?: boolean
+  scheduleError?: string | null
+  onScheduleCreate?: () => void
+  onScheduleEdit?: (schedule: WorkflowSchedule) => void
+  onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
+  onViewSchedules?: () => void
 }
 
 const formatManualValue = (value: unknown): string => {
@@ -46,6 +60,62 @@ const formatManualValue = (value: unknown): string => {
     console.error('Failed to serialise manual value for preview', error)
     return String(value)
   }
+}
+
+const buildSampleValueForRuntimeInput = (type?: string, id?: string) => {
+  switch (type) {
+    case 'number':
+      return 0
+    case 'json':
+      return { example: true }
+    case 'array':
+      return ['value-1']
+    case 'file':
+      return 'upload-file-id'
+    case 'text':
+    default:
+      return id ? `${id}-value` : 'value'
+  }
+}
+
+const normalizeRuntimeInputs = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+const formatScheduleTimestamp = (value?: string | null) => {
+  if (!value) return 'Not scheduled'
+  try {
+    const date = new Date(value)
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      timeZoneName: 'short',
+    }).format(date)
+  } catch {
+    return value
+  }
+}
+
+const scheduleStatusVariant: Record<
+  WorkflowSchedule['status'],
+  'default' | 'secondary' | 'destructive'
+> = {
+  active: 'default',
+  paused: 'secondary',
+  error: 'destructive',
 }
 
 interface ManualListChipsInputProps {
@@ -171,8 +241,23 @@ function ManualListChipsInput({
  *
  * Shows component information and allows editing node parameters
  */
-export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanelProps) {
+export function ConfigPanel({
+  selectedNode,
+  onClose,
+  onUpdateNode,
+  workflowId: workflowIdProp,
+  workflowSchedules,
+  schedulesLoading,
+  scheduleError,
+  onScheduleCreate,
+  onScheduleEdit,
+  onScheduleAction,
+  onViewSchedules,
+}: ConfigPanelProps) {
   const { getComponent, loading } = useComponentStore()
+  const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id)
+  const workflowId = workflowIdProp ?? fallbackWorkflowId
+  const navigate = useNavigate()
 
   const handleParameterChange = (paramId: string, value: any) => {
     if (!selectedNode || !onUpdateNode) return
@@ -248,6 +333,72 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
     ...(component.examples ?? []),
   ].filter((value): value is string => Boolean(value && value.trim().length > 0))
   const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
+  const [scheduleActionState, setScheduleActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
+  const handleNavigateSchedules = useCallback(() => {
+    if (!workflowId) {
+      navigate('/schedules')
+      return
+    }
+    navigate(`/schedules?workflowId=${workflowId}`)
+  }, [navigate, workflowId])
+  const viewSchedules = onViewSchedules ?? handleNavigateSchedules
+  const schedulesDisabled = !workflowId
+  const handleCreateSchedule = useCallback(() => {
+    if (schedulesDisabled) {
+      viewSchedules()
+      return
+    }
+    if (onScheduleCreate) {
+      onScheduleCreate()
+    } else {
+      viewSchedules()
+    }
+  }, [onScheduleCreate, schedulesDisabled, viewSchedules])
+  const handleEditSchedule = useCallback(
+    (schedule: WorkflowSchedule) => {
+      if (onScheduleEdit) {
+        onScheduleEdit(schedule)
+      } else {
+        viewSchedules()
+      }
+    },
+    [onScheduleEdit, viewSchedules],
+  )
+  const handleScheduleActionClick = useCallback(
+    async (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => {
+      if (!onScheduleAction) {
+        viewSchedules()
+        return
+      }
+      setScheduleActionState((state) => ({ ...state, [schedule.id]: action }))
+      try {
+        await onScheduleAction(schedule, action)
+      } finally {
+        setScheduleActionState((state) => {
+          const next = { ...state }
+          delete next[schedule.id]
+          return next
+        })
+      }
+    },
+    [onScheduleAction, viewSchedules],
+  )
+  const isEntryPointComponent = component.id === ENTRY_COMPONENT_ID
+  const runtimeInputDefinitions = normalizeRuntimeInputs(manualParameters.runtimeInputs)
+  const entryPointPayload = {
+    inputs: runtimeInputDefinitions.reduce<Record<string, unknown>>((acc, input: any) => {
+      if (input?.id) {
+        acc[input.id] = buildSampleValueForRuntimeInput(input.type, input.id)
+      }
+      return acc
+    }, {}),
+  }
+  const workflowInvokeUrl = workflowId
+    ? `${API_BASE_URL}/workflows/${workflowId}/run`
+    : `${API_BASE_URL}/workflows/{workflowId}/run`
+  const entryPointPayloadString = JSON.stringify(entryPointPayload, null, 2)
+  const safeEntryPayload = JSON.stringify(entryPointPayload).replace(/'/g, "\\'")
+  const entryPointCurlSnippet = `curl -X POST '${workflowInvokeUrl}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${safeEntryPayload}'`
 
   return (
     <div className="config-panel w-[400px] border-l bg-background flex flex-col h-full overflow-hidden">
@@ -599,6 +750,174 @@ export function ConfigPanel({ selectedNode, onClose, onUpdateNode }: ConfigPanel
                       onUpdateParameter={handleParameterChange}
                     />
                   ))}
+              </div>
+            </div>
+          )}
+
+          {isEntryPointComponent && (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div>
+                  <h5 className="text-sm font-semibold text-foreground">
+                    Invoke via API
+                  </h5>
+                  <p className="text-xs text-muted-foreground">
+                    POST runtime inputs to this endpoint to start the workflow programmatically.
+                  </p>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
+                    Endpoint
+                  </div>
+                  <code className="block w-full overflow-x-auto rounded border bg-background px-2 py-1 text-xs font-mono text-foreground break-all">
+                    {workflowInvokeUrl}
+                  </code>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
+                    Payload
+                  </div>
+                  <pre className="rounded-lg border bg-background px-2 py-2 text-xs font-mono text-foreground overflow-x-auto">
+                    {entryPointPayloadString}
+                  </pre>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
+                    curl
+                  </div>
+                  <pre className="rounded-lg border bg-background px-2 py-2 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre-wrap">
+                    {entryPointCurlSnippet}
+                  </pre>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h5 className="text-sm font-semibold text-foreground">
+                      Schedules
+                    </h5>
+                    <p className="text-xs text-muted-foreground">
+                      {workflowId
+                        ? 'Create recurring runs and manage Temporal schedules for this workflow.'
+                        : 'Save this workflow to start managing schedules.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleCreateSchedule}
+                      disabled={schedulesDisabled}
+                    >
+                      Create schedule
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={viewSchedules}
+                    >
+                      View all
+                    </Button>
+                  </div>
+                </div>
+                {schedulesDisabled ? (
+                  <div className="rounded border border-dashed bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+                    Save this workflow to configure schedules.
+                  </div>
+                ) : schedulesLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading schedules…
+                  </div>
+                ) : scheduleError ? (
+                  <div className="rounded border border-dashed border-destructive/50 bg-background/60 px-3 py-2 text-xs text-destructive">
+                    {scheduleError}
+                  </div>
+                ) : workflowSchedules && workflowSchedules.length > 0 ? (
+                  <div className="space-y-3">
+                    {workflowSchedules.map((schedule) => {
+                      const actionLabel =
+                        schedule.status === 'active' ? 'Pause' : 'Resume'
+                      const actionKey =
+                        schedule.status === 'active' ? 'pause' : 'resume'
+                      const pendingAction = scheduleActionState[schedule.id]
+                      return (
+                        <div
+                          key={schedule.id}
+                          className="rounded-lg border bg-background px-3 py-2 space-y-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold">
+                                  {schedule.name}
+                                </span>
+                                <Badge
+                                  variant={scheduleStatusVariant[schedule.status]}
+                                  className="text-[11px] capitalize"
+                                >
+                                  {schedule.status}
+                                </Badge>
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Next: {formatScheduleTimestamp(schedule.nextRunAt)}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                disabled={Boolean(pendingAction)}
+                                onClick={() =>
+                                  handleScheduleActionClick(
+                                    schedule,
+                                    actionKey as 'pause' | 'resume',
+                                  )
+                                }
+                              >
+                                {pendingAction === 'pause' ||
+                                pendingAction === 'resume' ? (
+                                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                                ) : null}
+                                {actionLabel}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={Boolean(pendingAction)}
+                                onClick={() =>
+                                  handleScheduleActionClick(schedule, 'run')
+                                }
+                              >
+                                Run now
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditSchedule(schedule)}
+                              >
+                                Edit
+                              </Button>
+                            </div>
+                          </div>
+                          {schedule.description && (
+                            <p className="text-xs text-muted-foreground">
+                              {schedule.description}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded border border-dashed bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+                    No schedules yet.
+                  </div>
+                )}
               </div>
             </div>
           )}

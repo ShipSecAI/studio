@@ -692,7 +692,7 @@ function extractAssistantText(messages: UIMessage[]): string | null {
 }
 
 function extractAgentPrompt(outputs: Record<string, AgentNodeOutput>): string | undefined {
-  const direct = outputs['manual-trigger']
+  const direct = outputs['entry-point']
   if (direct && typeof direct === 'object') {
     const candidate = (direct as Record<string, unknown>).userPrompt
     if (typeof candidate === 'string' && candidate.trim().length > 0) {

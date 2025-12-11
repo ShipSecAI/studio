@@ -23,7 +23,7 @@ Stores expose selectors (e.g. `getComponent`, `getNodeLogs`) to avoid manual tra
 ## Execution Monitoring Pipeline
 1. `RunWorkflowDialog` invokes `useExecutionStore.startExecution`, which calls `api.executions.start()` (wrapping `POST /workflows/{id}/run`).
 2. `monitorRun` seeds a poll + optional SSE stream (`api.executions.stream`). Responses are validated with `ExecutionStatusResponseSchema` and `TraceStreamEnvelopeSchema`.
-3. `mergeLogs` dedupes events by id; `deriveNodeStates` converts trace events into canvas node badges (see `WorkflowNode.tsx`).
+3. `mergeEvents` dedupes trace events by id; `deriveNodeStates` converts those events into canvas node badges (see `WorkflowNode.tsx`). Separate helpers (`mergeLogEntries`) handle raw Loki log lines for the log viewer.
 4. `useRunStore.fetchRuns` calls `api.executions.listRuns` scoped to the requested workflow and exposes cached metadata to `RunSelector`, inspectors, and `useExecutionTimelineStore`.
 
 When the backend contract expands (new trace fields, statuses), update:
