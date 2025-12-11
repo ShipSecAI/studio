@@ -194,3 +194,54 @@ table tbody tr:hover {
   background-color: hsl(var(--accent) / 0.3);
   box-shadow: inset 3px 0 0 0 hsl(var(--primary));
 }
+
+/* Resize handle styles */
+.resize-handle-horizontal {
+  cursor: col-resize;
+  transition: background-color 0.15s ease;
+}
+
+.resize-handle-horizontal:hover {
+  background-color: hsl(var(--primary) / 0.2);
+}
+
+.resize-handle-horizontal:active {
+  background-color: hsl(var(--primary) / 0.4);
+}
+
+.resize-handle-vertical {
+  cursor: row-resize;
+  transition: background-color 0.15s ease;
+}
+
+.resize-handle-vertical:hover {
+  background-color: hsl(var(--primary) / 0.2);
+}
+
+.resize-handle-vertical:active {
+  background-color: hsl(var(--primary) / 0.4);
+}
+
+/* Timeline resize indicator */
+.timeline-resize-handle {
+  position: relative;
+}
+
+.timeline-resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: hsl(var(--border));
+  opacity: 0.6;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.timeline-resize-handle:hover::after {
+  opacity: 1;
+  background: hsl(var(--primary) / 0.5);
+}
