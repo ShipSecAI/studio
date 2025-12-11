@@ -236,6 +236,7 @@ module.exports = {
         EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || 'shipsec-backend-events',
         EVENT_KAFKA_GROUP_ID: process.env.EVENT_KAFKA_GROUP_ID || 'shipsec-event-ingestor',
         ENABLE_INGEST_SERVICES: process.env.ENABLE_INGEST_SERVICES || 'true',
+        INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
@@ -265,6 +266,8 @@ module.exports = {
         {
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
+          INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
+          STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || 'http://localhost:3211/api/v1',
           TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
           LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
           LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',

@@ -5,9 +5,9 @@ import type { ComponentMetadata } from '@/schemas/component'
 
 const mockComponents: ComponentMetadata[] = [
   {
-    id: 'core.trigger.manual',
-    slug: 'manual-trigger',
-    name: 'Manual Trigger',
+    id: 'core.workflow.entrypoint',
+    slug: 'entry-point',
+    name: 'Entry Point',
     version: '2.0.0',
     type: 'trigger',
     category: 'input',

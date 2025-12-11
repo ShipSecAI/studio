@@ -57,7 +57,7 @@ const serialDefinition: WorkflowDefinition = {
     stepC: 1,
   },
   actions: [
-    { ref: 'start', componentId: 'core.trigger.manual', params: {}, dependsOn: [], inputMappings: {} },
+    { ref: 'start', componentId: 'core.workflow.entrypoint', params: {}, dependsOn: [], inputMappings: {} },
     { ref: 'stepA', componentId: 'test.sleep.parallel', params: { delay: 150, label: 'A' }, dependsOn: ['start'], inputMappings: {} },
     { ref: 'stepB', componentId: 'test.sleep.parallel', params: { delay: 150, label: 'B' }, dependsOn: ['stepA'], inputMappings: {} },
     { ref: 'stepC', componentId: 'test.sleep.parallel', params: { delay: 150, label: 'C' }, dependsOn: ['stepB'], inputMappings: {} },
@@ -92,7 +92,7 @@ const parallelDefinition: WorkflowDefinition = {
     merge: 2,
   },
   actions: [
-    { ref: 'start', componentId: 'core.trigger.manual', params: {}, dependsOn: [], inputMappings: {} },
+    { ref: 'start', componentId: 'core.workflow.entrypoint', params: {}, dependsOn: [], inputMappings: {} },
     { ref: 'branch1', componentId: 'test.sleep.parallel', params: { delay: 150, label: 'branch-1' }, dependsOn: ['start'], inputMappings: {} },
     { ref: 'branch2', componentId: 'test.sleep.parallel', params: { delay: 150, label: 'branch-2' }, dependsOn: ['start'], inputMappings: {} },
     { ref: 'merge', componentId: 'core.console.log', params: { data: 'merge complete' }, dependsOn: ['branch1', 'branch2'], inputMappings: {} },

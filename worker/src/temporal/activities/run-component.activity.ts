@@ -246,6 +246,7 @@ export async function runComponentActivity(
       runId: input.runId,
       nodeRef: action.ref,
       timestamp: new Date().toISOString(),
+      message: errorMsg,
       error: errorMsg,
       level: 'error',
       context: {

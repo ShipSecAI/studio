@@ -93,7 +93,13 @@ export async function runWorkflowWithScheduler(
     nodeStates.set(action.ref, state);
 
     if (successParents.size === 0 && failureParents.size === 0) {
-      readyQueue.push({ ref: action.ref, context: { joinStrategy: strategy } });
+      // Prioritize entrypoint to run first if it has no dependencies
+      const isEntrypoint = action.ref === definition.entrypoint.ref;
+      if (isEntrypoint) {
+        readyQueue.unshift({ ref: action.ref, context: { joinStrategy: strategy } });
+      } else {
+        readyQueue.push({ ref: action.ref, context: { joinStrategy: strategy } });
+      }
     }
   }
 
@@ -105,6 +111,15 @@ export async function runWorkflowWithScheduler(
         'Workflow scheduler deadlock: no ready actions while workflow still incomplete',
       );
     }
+
+    // Sort ready queue to ensure entrypoint runs first if present
+    readyQueue.sort((a, b) => {
+      const aIsEntrypoint = a.ref === definition.entrypoint.ref;
+      const bIsEntrypoint = b.ref === definition.entrypoint.ref;
+      if (aIsEntrypoint && !bIsEntrypoint) return -1;
+      if (!aIsEntrypoint && bIsEntrypoint) return 1;
+      return 0;
+    });
 
     const batch = readyQueue.splice(0);
     const executions: Array<{ ref: string; context: WorkflowSchedulerRunContext }> = [];

@@ -26,11 +26,11 @@ const workflowGraph = WorkflowGraphSchema.parse({
   description: 'Manual prompt to Gemini, forward to LangGraph-style agent, log response.',
   nodes: [
     {
-      id: 'manual-trigger',
-      type: 'core.trigger.manual',
+      id: 'entry-point',
+      type: 'core.workflow.entrypoint',
       position: { x: 0, y: 0 },
       data: {
-        label: 'Manual Trigger',
+        label: 'Entry Point',
         config: {
           runtimeInputs: [
             { id: 'userPrompt', label: 'User Prompt', type: 'text', required: true },
@@ -62,7 +62,7 @@ const workflowGraph = WorkflowGraphSchema.parse({
           maxTokens: 1024,
           memorySize: 8,
           stepLimit: 4,
-          userInput: '{{manual-trigger.userPrompt}}',
+          userInput: '{{entry-point.userPrompt}}',
           chatModel: {
             provider: 'gemini',
             modelId: 'gemini-2.5-flash',
@@ -87,7 +87,7 @@ const workflowGraph = WorkflowGraphSchema.parse({
   edges: [
     {
       id: 'manual-to-agent',
-      source: 'manual-trigger',
+      source: 'entry-point',
       target: 'agent-node',
       sourceHandle: 'userPrompt',
       targetHandle: 'userInput',
@@ -114,9 +114,9 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
   it('compiles the workflow graph into ordered actions', () => {
     const definition = compileWorkflowGraph(workflowGraph);
 
-    expect(definition.entrypoint.ref).toBe('manual-trigger');
+    expect(definition.entrypoint.ref).toBe('entry-point');
     expect(definition.actions.map((action) => action.ref)).toEqual([
-      'manual-trigger',
+      'entry-point',
       'gemini-provider',
       'agent-node',
       'console-log',
@@ -126,9 +126,9 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
     expect(geminiAction?.dependsOn).toEqual([]);
 
     const agentAction = definition.actions.find((action) => action.componentId === 'core.ai.agent');
-    expect(agentAction?.dependsOn).toEqual(['manual-trigger', 'gemini-provider']);
+    expect(agentAction?.dependsOn).toEqual(['entry-point', 'gemini-provider']);
     expect(agentAction?.inputMappings?.userInput).toEqual({
-      sourceRef: 'manual-trigger',
+      sourceRef: 'entry-point',
       sourceHandle: 'userPrompt',
     });
     expect(agentAction?.inputMappings?.chatModel).toEqual({

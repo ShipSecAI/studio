@@ -1,12 +1,14 @@
-import { ApplicationFailure, proxyActivities } from '@temporalio/workflow';
+import { ApplicationFailure, proxyActivities, startChild, uuid4 } from '@temporalio/workflow';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionParams } from '../input-resolver';
+import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
   RunComponentActivityOutput,
   RunWorkflowActivityInput,
   RunWorkflowActivityOutput,
   WorkflowAction,
+  PrepareRunPayloadActivityInput,
 } from '../types';
 
 const {
@@ -19,6 +21,14 @@ const {
   finalizeRunActivity(input: { runId: string }): Promise<void>;
 }>({
   startToCloseTimeout: '10 minutes',
+});
+
+const { prepareRunPayloadActivity } = proxyActivities<{
+  prepareRunPayloadActivity(
+    input: PrepareRunPayloadActivityInput,
+  ): Promise<PreparedRunPayload>;
+}>({
+  startToCloseTimeout: '2 minutes',
 });
 
 export async function shipsecWorkflowRun(
@@ -48,11 +58,30 @@ export async function shipsecWorkflowRun(
         const { params, warnings } = buildActionParams(action, results);
         const mergedParams: Record<string, unknown> = { ...params };
 
-        if (input.definition.entrypoint.ref === action.ref && input.inputs) {
-          if (action.componentId === 'core.trigger.manual') {
+        // Only apply inputs to the actual entrypoint component, not just any node matching the entrypoint ref
+        const isEntrypointRef = input.definition.entrypoint.ref === action.ref;
+        const isEntrypointComponent = action.componentId === 'core.workflow.entrypoint';
+        
+        if (isEntrypointRef && input.inputs) {
+          if (isEntrypointComponent) {
+            console.log(
+              `[Workflow] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`
+            );
             mergedParams.__runtimeData = input.inputs;
           } else {
-            Object.assign(mergedParams, input.inputs);
+            // Entrypoint ref points to a non-entrypoint component - this is a configuration error
+            // Log warning but don't apply inputs to wrong component
+            console.error(
+              `[Workflow] CRITICAL: Entrypoint ref '${input.definition.entrypoint.ref}' points to component '${action.componentId}' instead of 'core.workflow.entrypoint'. ` +
+              `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`
+            );
+          }
+        } else if (input.inputs && Object.keys(input.inputs).length > 0) {
+          // Log when inputs exist but are not being applied (for debugging)
+          if (isEntrypointRef && !isEntrypointComponent) {
+            console.warn(
+              `[Workflow] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`
+            );
           }
         }
 
@@ -170,4 +199,58 @@ export async function testMinimalWorkflow(
   input: RunWorkflowActivityInput,
 ): Promise<RunWorkflowActivityOutput> {
   return shipsecWorkflowRun(input);
+}
+
+export interface ScheduleTriggerWorkflowInput {
+  workflowId: string;
+  workflowVersionId?: string | null;
+  workflowVersion?: number | null;
+  organizationId?: string | null;
+  scheduleId?: string;
+  scheduleName?: string | null;
+  runtimeInputs?: Record<string, unknown>;
+  nodeOverrides?: Record<string, Record<string, unknown>>;
+  trigger?: ExecutionTriggerMetadata;
+}
+
+export async function scheduleTriggerWorkflow(
+  input: ScheduleTriggerWorkflowInput,
+): Promise<RunWorkflowActivityOutput> {
+  const triggerMetadata =
+    input.trigger ??
+    ({
+      type: 'schedule',
+      sourceId: input.scheduleId,
+      label: input.scheduleName ?? 'Scheduled run',
+    } satisfies ExecutionTriggerMetadata);
+
+  const runId = `shipsec-run-${uuid4()}`;
+
+  const prepared = await prepareRunPayloadActivity({
+    workflowId: input.workflowId,
+    versionId: input.workflowVersionId ?? undefined,
+    version: input.workflowVersion ?? undefined,
+    inputs: input.runtimeInputs ?? {},
+    nodeOverrides: input.nodeOverrides ?? {},
+    trigger: triggerMetadata,
+    organizationId: input.organizationId ?? null,
+    runId,
+  });
+
+  const child = await startChild(shipsecWorkflowRun, {
+    args: [
+      {
+        runId: prepared.runId,
+        workflowId: prepared.workflowId,
+        definition: prepared.definition as RunWorkflowActivityInput['definition'],
+        inputs: prepared.inputs ?? {},
+        workflowVersionId: prepared.workflowVersionId,
+        workflowVersion: prepared.workflowVersion,
+        organizationId: prepared.organizationId,
+      },
+    ],
+    workflowId: prepared.runId,
+  });
+
+  return child.result();
 }

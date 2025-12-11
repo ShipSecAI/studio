@@ -12,6 +12,7 @@ import type {
 import { WorkflowRepository } from '../repository/workflow.repository';
 import { WorkflowsService } from '../workflows.service';
 import type { AuthContext } from '../../auth/types';
+import type { ExecutionInputPreview, ExecutionTriggerType } from '@shipsec/shared';
 
 const TEST_ORG = 'test-org';
 const authContext: AuthContext = {
@@ -27,7 +28,7 @@ const sampleGraph = WorkflowGraphSchema.parse({
   nodes: [
     {
       id: 'trigger',
-      type: 'core.trigger.manual',
+      type: 'core.workflow.entrypoint',
       position: { x: 0, y: 0 },
       data: {
         label: 'Trigger',
@@ -239,22 +240,28 @@ describe('WorkflowsService', () => {
       workflowId: string;
       workflowVersionId: string;
       workflowVersion: number;
-      temporalRunId: string;
       totalActions: number;
       inputs?: Record<string, unknown>;
       organizationId?: string | null;
+      triggerType?: ExecutionTriggerType;
+      triggerSource?: string | null;
+      triggerLabel?: string | null;
+      inputPreview?: ExecutionInputPreview;
     }) {
       storedRunMeta = {
         runId: data.runId,
         workflowId: data.workflowId,
         workflowVersionId: data.workflowVersionId,
         workflowVersion: data.workflowVersion,
-        temporalRunId: data.temporalRunId,
         totalActions: data.totalActions,
-         inputs: data.inputs ?? {},
+        inputs: data.inputs ?? {},
         createdAt: new Date(now),
         updatedAt: new Date(now),
         organizationId: data.organizationId ?? TEST_ORG,
+        triggerType: data.triggerType ?? 'manual',
+        triggerSource: data.triggerSource ?? null,
+        triggerLabel: data.triggerLabel ?? null,
+        inputPreview: data.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} },
       };
       return storedRunMeta;
     },
@@ -293,6 +300,16 @@ describe('WorkflowsService', () => {
         return storedRunMeta.totalActions ?? 0;
       }
       return 0;
+    },
+    async getEventTimeRange(runId: string) {
+      if (!storedRunMeta || storedRunMeta.runId !== runId) {
+        return null;
+      }
+      const base = Date.now();
+      return {
+        earliest: base - 1000,
+        latest: base,
+      };
     },
   };
 
@@ -465,6 +482,53 @@ describe('WorkflowsService', () => {
     expect(summary.eventCount).toBeGreaterThanOrEqual(0);
     expect(summary.duration).toBeGreaterThanOrEqual(0);
     expect(summary.status).toBe('RUNNING');
+  });
+
+  it('prepares run payloads with trigger metadata and idempotent run ids', async () => {
+    await service.create(sampleGraph, authContext);
+    const definition = compileWorkflowGraph(sampleGraph);
+    repositoryMock.findById = async () => ({
+      id: 'workflow-id',
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+      name: sampleGraph.name,
+      description: sampleGraph.description ?? null,
+      graph: sampleGraph,
+      compiledDefinition: definition,
+      lastRun: null,
+      runCount: 0,
+      organizationId: TEST_ORG,
+    });
+
+    const trigger = {
+      type: 'schedule',
+      sourceId: 'schedule-123',
+      label: 'Nightly quick scan',
+    } as const;
+
+    const first = await service.prepareRunPayload(
+      'workflow-id',
+      { inputs: { domain: 'acme.com' } },
+      authContext,
+      { trigger, idempotencyKey: 'phase-8-key' },
+    );
+
+    expect(first.triggerMetadata).toEqual(trigger);
+    expect(first.inputPreview.runtimeInputs).toEqual({ domain: 'acme.com' });
+    expect(storedRunMeta).toMatchObject({
+      triggerType: 'schedule',
+      triggerSource: 'schedule-123',
+      triggerLabel: 'Nightly quick scan',
+    });
+
+    const second = await service.prepareRunPayload(
+      'workflow-id',
+      { inputs: { domain: 'acme.com' } },
+      authContext,
+      { trigger, idempotencyKey: 'phase-8-key' },
+    );
+
+    expect(second.runId).toBe(first.runId);
   });
 
   it('delegates status, result, and cancel operations to the Temporal service', async () => {

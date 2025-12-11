@@ -35,19 +35,19 @@ type Output = Record<string, unknown>;
 const outputSchema = z.record(z.string(), z.unknown());
 
 const definition: ComponentDefinition<Input, Output> = {
-  id: 'core.trigger.manual',
-  label: 'Manual Trigger',
+  id: 'core.workflow.entrypoint',
+  label: 'Entry Point',
   category: 'input',
   runner: { kind: 'inline' },
   inputSchema,
   outputSchema,
-  docs: 'Acts as the workflow entrypoint. Configure runtime inputs to collect data (files, text, etc.) when the workflow is triggered.',
+  docs: 'Defines the workflow entry point. Configure runtime inputs to collect data (files, text, etc.) when the workflow is triggered.',
   metadata: {
-    slug: 'manual-trigger',
+    slug: 'entry-point',
     version: '2.0.0',
     type: 'trigger',
     category: 'input',
-    description: 'Starts a workflow manually. Configure runtime inputs to collect data when triggered.',
+    description: 'Starts a workflow and captures runtime inputs from manual/API/scheduled invocations.',
     icon: 'Play',
     author: {
       name: 'ShipSecAI',
@@ -105,12 +105,11 @@ const definition: ComponentDefinition<Input, Output> = {
   },
   async execute(params, context) {
     const { runtimeInputs, __runtimeData } = params;
-    
-    context.logger.info(`[ManualTrigger] Executing with runtime inputs: ${JSON.stringify(runtimeInputs)}`);
+    context.logger.info(`[EntryPoint] Executing with runtime inputs: ${JSON.stringify(runtimeInputs)}`);
     
     // If no runtime inputs defined, return empty object
     if (!runtimeInputs || runtimeInputs.length === 0) {
-      context.logger.info('[ManualTrigger] No runtime inputs configured, returning empty output');
+      context.logger.info('[EntryPoint] No runtime inputs configured, returning empty output');
       return {};
     }
 
@@ -123,9 +122,8 @@ const definition: ComponentDefinition<Input, Output> = {
       if (inputDef.required && (value === undefined || value === null)) {
         throw new Error(`Required runtime input '${inputDef.label}' (${inputDef.id}) was not provided`);
       }
-      
       outputs[inputDef.id] = value;
-      context.logger.info(`[ManualTrigger] Output '${inputDef.id}' = ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+      context.logger.info(`[EntryPoint] Output '${inputDef.id}' = ${typeof value === 'object' ? JSON.stringify(value) : value}`);
     }
 
     context.emitProgress(`Collected ${Object.keys(outputs).length} runtime inputs`);
@@ -135,7 +133,7 @@ const definition: ComponentDefinition<Input, Output> = {
 
 componentRegistry.register(definition);
 
-export type { Input as ManualTriggerInput, Output as ManualTriggerOutput };
+export type { Input as EntryPointInput, Output as EntryPointOutput };
 
 function runtimeInputTypeToPort(type: string) {
   switch (type) {

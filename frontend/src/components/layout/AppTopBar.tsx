@@ -39,6 +39,13 @@ export function AppTopBar({
       }
     }
 
+    if (location.pathname.startsWith('/schedules')) {
+      return {
+        title: 'Workflow schedules',
+        subtitle: 'Manage recurring workflow cadences'
+      }
+    }
+
     if (location.pathname === '/secrets') {
       return {
         title: 'Secret Manager',

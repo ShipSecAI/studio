@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Loader2,
 } from 'lucide-react'
-import { useWorkflowExecution } from '@/hooks/useWorkflowExecution'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { cn } from '@/lib/utils'
@@ -44,13 +43,8 @@ export function TopBar({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
-  const { runStatus } = useWorkflowExecution()
   const { mode, setMode } = useWorkflowUiStore()
   const canEdit = Boolean(canManageWorkflows)
-  const failureReason =
-    runStatus?.status === 'FAILED'
-      ? runStatus.failure?.reason ?? 'Unknown error'
-      : null
 
   const handleChangeWorkflowName = () => {
     const trimmed = (tempWorkflowName ?? '').trim()
@@ -184,12 +178,6 @@ export function TopBar({
     </div>
   )
 
-  const statusItems: Array<{ text: string; tone: 'neutral' | 'error' }> = []
-  if (failureReason) {
-    statusItems.push({ text: `Failed: ${failureReason}`, tone: 'error' })
-  }
-  const compactStatusItems = statusItems.slice(0, 2)
-
   const saveState = isSaving ? 'saving' : isDirty ? 'dirty' : 'clean'
 
   const saveLabel = saveState === 'clean' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Save'
@@ -317,21 +305,6 @@ export function TopBar({
                 </Button>
               </div>
 
-              {compactStatusItems.length > 0 && (
-                <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-[11px] leading-tight">
-                  {compactStatusItems.map((item, index) => (
-                    <span
-                      key={`${item.text}-${index}`}
-                      className={cn(
-                        'text-muted-foreground',
-                        item.tone === 'error' && 'text-red-500 font-semibold'
-                      )}
-                    >
-                      {item.text}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>

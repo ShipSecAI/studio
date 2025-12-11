@@ -404,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalRunsController_prepareRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/files/upload": {
         parameters: {
             query?: never;
@@ -718,6 +734,86 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["IntegrationsController_issueConnectionToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SchedulesController_list"];
+        put?: never;
+        post: operations["SchedulesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SchedulesController_getOne"];
+        put?: never;
+        post?: never;
+        delete: operations["SchedulesController_delete"];
+        options?: never;
+        head?: never;
+        patch: operations["SchedulesController_update"];
+        trace?: never;
+    };
+    "/api/v1/schedules/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SchedulesController_pause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedules/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SchedulesController_resume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedules/{id}/trigger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SchedulesController_trigger"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1040,6 +1136,29 @@ export interface components {
                 createdAt: string;
             }[];
         };
+        PrepareRunRequestDto: {
+            inputs?: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            versionId?: string;
+            version?: number;
+            /** Format: uuid */
+            workflowId: string;
+            nodeOverrides?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            trigger?: {
+                /** @enum {string} */
+                type: "manual" | "schedule" | "api";
+                sourceId?: string | null;
+                label?: string | null;
+            };
+            runId?: string;
+            idempotencyKey?: string;
+        };
         ArtifactListResponseDto: {
             artifacts: {
                 /** Format: uuid */
@@ -1220,6 +1339,80 @@ export interface components {
             tokenType: string;
             scopes: string[];
             expiresAt?: string;
+        };
+        CreateScheduleRequestDto: {
+            /** Format: uuid */
+            workflowId: string;
+            /** Format: uuid */
+            workflowVersionId?: string;
+            name: string;
+            description?: string | null;
+            cronExpression: string;
+            timezone: string;
+            humanLabel?: string | null;
+            /**
+             * @default skip
+             * @enum {string}
+             */
+            overlapPolicy: "skip" | "buffer" | "allow";
+            /** @default 0 */
+            catchupWindowSeconds: number;
+            /**
+             * @default {
+             *       "runtimeInputs": {},
+             *       "nodeOverrides": {}
+             *     }
+             */
+            inputPayload: {
+                /** @default {} */
+                runtimeInputs: {
+                    [key: string]: unknown;
+                };
+                /** @default {} */
+                nodeOverrides: {
+                    [key: string]: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        UpdateScheduleRequestDto: {
+            /** Format: uuid */
+            workflowId?: string;
+            /** Format: uuid */
+            workflowVersionId?: string;
+            name?: string;
+            description?: string | null;
+            cronExpression?: string;
+            timezone?: string;
+            humanLabel?: string | null;
+            /**
+             * @default skip
+             * @enum {string}
+             */
+            overlapPolicy: "skip" | "buffer" | "allow";
+            /** @default 0 */
+            catchupWindowSeconds: number;
+            /**
+             * @default {
+             *       "runtimeInputs": {},
+             *       "nodeOverrides": {}
+             *     }
+             */
+            inputPayload: {
+                /** @default {} */
+                runtimeInputs: {
+                    [key: string]: unknown;
+                };
+                /** @default {} */
+                nodeOverrides: {
+                    [key: string]: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @enum {string} */
+            status?: "active" | "paused" | "error";
         };
     };
     responses: never;
@@ -1455,6 +1648,20 @@ export interface operations {
                             eventCount?: number;
                             nodeCount?: number;
                             duration?: number;
+                            /** @enum {string} */
+                            triggerType?: "manual" | "schedule" | "api";
+                            triggerSource?: string | null;
+                            triggerLabel?: string | null;
+                            inputPreview?: {
+                                runtimeInputs?: {
+                                    [key: string]: unknown;
+                                };
+                                nodeOverrides?: {
+                                    [key: string]: {
+                                        [key: string]: unknown;
+                                    };
+                                };
+                            };
                         }[];
                     };
                 };
@@ -1494,6 +1701,20 @@ export interface operations {
                         eventCount?: number;
                         nodeCount?: number;
                         duration?: number;
+                        /** @enum {string} */
+                        triggerType?: "manual" | "schedule" | "api";
+                        triggerSource?: string | null;
+                        triggerLabel?: string | null;
+                        inputPreview?: {
+                            runtimeInputs?: {
+                                [key: string]: unknown;
+                            };
+                            nodeOverrides?: {
+                                [key: string]: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
                     };
                 };
             };
@@ -2080,6 +2301,27 @@ export interface operations {
         responses: {
             /** @description Download terminal recording */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalRunsController_prepareRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrepareRunRequestDto"];
+            };
+        };
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2858,6 +3100,165 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ConnectionTokenResponseDto"];
                 };
+            };
+        };
+    };
+    SchedulesController_list: {
+        parameters: {
+            query?: {
+                workflowId?: string;
+                status?: "active" | "paused" | "error";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SchedulesController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateScheduleRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SchedulesController_getOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SchedulesController_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SchedulesController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateScheduleRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SchedulesController_pause: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SchedulesController_resume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SchedulesController_trigger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

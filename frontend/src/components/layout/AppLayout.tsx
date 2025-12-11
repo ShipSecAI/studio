@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock } from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
@@ -86,6 +86,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       icon: Workflow,
     },
     {
+      name: 'Schedules',
+      href: '/schedules',
+      icon: CalendarClock,
+    },
+    {
       name: 'Secrets',
       href: '/secrets',
       icon: KeyRound,
@@ -106,7 +111,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (path === '/') {
       return location.pathname === '/' || location.pathname.startsWith('/workflows')
     }
-    return location.pathname === path
+    return location.pathname === path || location.pathname.startsWith(`${path}/`)
   }
 
   // Get page-specific actions
