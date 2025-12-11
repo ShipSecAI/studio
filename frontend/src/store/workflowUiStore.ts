@@ -44,11 +44,6 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
         }))
       },
       focusedTerminalNodeId: null,
-      setMode: (mode) => set((state) => ({
-        mode,
-        inspectorTab: mode === 'execution' ? state.inspectorTab ?? 'events' : 'events',
-        libraryOpen: mode === 'design'
-      })),
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setLibraryOpen: (open) => set({ libraryOpen: open }),
       toggleLibrary: () => set((state) => ({ libraryOpen: !state.libraryOpen })),
