@@ -173,20 +173,6 @@ export function AppLayout({ children }: AppLayoutProps) {
               ShipSec Studio
             </span>
           </Link>
-          {/* Dark mode toggle - only show when sidebar is open */}
-          {sidebarOpen && (
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {theme === 'dark' ? (
-                <Sun className="h-5 w-5 text-amber-500" />
-              ) : (
-                <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-              )}
-            </button>
-          )}
         </SidebarHeader>
 
         <SidebarContent>
@@ -235,11 +221,41 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex flex-col gap-2 p-2">
             {/* Auth components - UserButton includes organization switching */}
             {showUserButton && (
-              <div className={`flex ${sidebarOpen ? 'justify-start' : 'justify-center'}`}>
+              <div className={`flex items-center gap-2 ${sidebarOpen ? 'justify-between' : 'justify-center'}`}>
                 <UserButton
-                  className={sidebarOpen ? 'w-full' : 'w-auto'}
+                  className={sidebarOpen ? 'flex-1' : 'w-auto'}
                   sidebarCollapsed={!sidebarOpen}
                 />
+                {/* Dark mode toggle */}
+                {sidebarOpen && (
+                  <button
+                    onClick={toggleTheme}
+                    className="p-2 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground text-muted-foreground flex-shrink-0"
+                    aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                  >
+                    {theme === 'dark' ? (
+                      <Sun className="h-5 w-5 text-amber-500" />
+                    ) : (
+                      <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Dark mode toggle when no user button */}
+            {!showUserButton && (
+              <div className={`flex ${sidebarOpen ? 'justify-end' : 'justify-center'}`}>
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                  aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="h-5 w-5 text-amber-500" />
+                  ) : (
+                    <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                  )}
+                </button>
               </div>
             )}
             

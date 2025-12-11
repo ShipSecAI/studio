@@ -56,8 +56,13 @@ export default {
   			DEFAULT: 'hsl(var(--card))',
   			foreground: 'hsl(var(--card-foreground))'
   		},
+  		// Text Tertiary: #7A7C80
+  		tertiary: {
+  			DEFAULT: '#7A7C80',
+  			foreground: '#7A7C80'
+  		},
   		blue: {
-  			'500': '#3b82f6'
+  			'500': '#3C82F6'
   		},
   		orange: {
   			'500': '#f97316'
@@ -66,13 +71,13 @@ export default {
   			'500': '#a855f7'
   		},
   		green: {
-  			'500': '#22c55e'
+  			'500': '#4ADE80'
   		},
   		yellow: {
-  			'500': '#eab308'
+  			'500': '#FACC15'
   		},
   		red: {
-  			'500': '#ef4444'
+  			'500': '#EF4444'
   		},
   		gray: {
   			'500': '#6b7280'

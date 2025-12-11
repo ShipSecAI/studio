@@ -29,31 +29,49 @@
     --color-success: 142.1 76.2% 36.3%;
     --color-warning: 37.7 92.1% 50.2%;
     --color-error: 0 84.2% 60.2%;
+    --tertiary: 220 9% 46%;
   }
 
   .dark {
-    --background: 224 71% 0%;
-    --foreground: 213 31% 92%;
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 222.2 47.4% 11.2%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 223 47% 11%;
-    --muted-foreground: 215.4 16.3% 56.9%;
-    --accent: 216 34% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 216 0% 30%;
-    --input: 216 34% 17%;
-    --ring: 224.3 76.3% 48%;
-    --color-success: 142.1 70.6% 45.3%;
-    --color-warning: 47.9 95.8% 53.1%;
-    --color-error: 0 72.2% 50.6%;
+    /* BG: #1C1C1C */
+    --background: 0 0% 11%;
+    /* Text Primary: #FFFFFF */
+    --foreground: 0 0% 100%;
+    /* Card: #232427 */
+    --card: 225 8% 15%;
+    --card-foreground: 0 0% 100%;
+    /* BG Alt: #1F2023 */
+    --popover: 225 6% 13%;
+    --popover-foreground: 0 0% 100%;
+    /* Accent Blue: #3C82F6 */
+    --primary: 217 92% 60%;
+    --primary-foreground: 0 0% 100%;
+    /* BG Alt: #1F2023 */
+    --secondary: 225 6% 13%;
+    --secondary-foreground: 0 0% 100%;
+    /* Card: #232427 */
+    --muted: 225 8% 15%;
+    /* Text Secondary: #C6C7C8 */
+    --muted-foreground: 210 2% 78%;
+    /* Slightly lighter than card for hover states */
+    --accent: 225 8% 18%;
+    --accent-foreground: 0 0% 100%;
+    /* Accent Error: #EF4444 */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    /* Border: #2A2B2D */
+    --border: 220 5% 17%;
+    --input: 220 5% 17%;
+    /* Accent Blue: #3C82F6 */
+    --ring: 217 92% 60%;
+    /* Accent Success: #4ADE80 */
+    --color-success: 142 69% 58%;
+    /* Accent Warning: #FACC15 */
+    --color-warning: 48 96% 53%;
+    /* Accent Error: #EF4444 */
+    --color-error: 0 84% 60%;
+    /* Text Tertiary: #7A7C80 */
+    --tertiary: 220 3% 49%;
   }
 }
 
@@ -112,28 +130,28 @@ textarea {
   color: #16a34a; /* green-600 */
 }
 .dark .status-success {
-  color: #4ade80; /* green-400 */
+  color: #4ADE80; /* Accent Success */
 }
 
 .status-error {
   color: #dc2626; /* red-600 */
 }
 .dark .status-error {
-  color: #f87171; /* red-400 */
+  color: #EF4444; /* Accent Error */
 }
 
 .status-info {
   color: #2563eb; /* blue-600 */
 }
 .dark .status-info {
-  color: #60a5fa; /* blue-400 */
+  color: #3C82F6; /* Accent Blue */
 }
 
 .status-warning {
   color: #d97706; /* amber-600 */
 }
 .dark .status-warning {
-  color: #fbbf24; /* amber-400 */
+  color: #FACC15; /* Accent Warning */
 }
 
 /* Background variants for status */
