@@ -6,6 +6,7 @@ import { IntegrationsManager } from '@/pages/IntegrationsManager'
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary'
 import { IntegrationCallback } from '@/pages/IntegrationCallback'
 import { NotFound } from '@/pages/NotFound'
+import { SchedulesPage } from '@/pages/SchedulesPage'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { AuthProvider } from '@/auth/auth-context'
@@ -50,6 +51,7 @@ function App() {
                   />
                   <Route path="/secrets" element={<SecretsManager />} />
                   <Route path="/integrations" element={<IntegrationsManager />} />
+                  <Route path="/schedules" element={<SchedulesPage />} />
                   <Route path="/artifacts" element={<ArtifactLibrary />} />
                   <Route
                     path="/integrations/callback/:provider"

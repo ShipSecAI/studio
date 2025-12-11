@@ -1,5 +1,4 @@
 import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { Consumer, Kafka } from 'kafkajs';
 
 import { LogStreamRepository } from './log-stream.repository';
 import type { WorkflowLogStreamRecord } from '../database/schema';
@@ -28,30 +27,55 @@ export class LogStreamService {
   private readonly tenantId?: string;
   private readonly username?: string;
   private readonly password?: string;
-  private readonly kafkaBrokers: string[];
-  private readonly kafkaTopic: string;
+  private readonly defaultTailWindowMs = 60_000;
 
   constructor(private readonly repository: LogStreamRepository) {
     this.baseUrl = process.env.LOKI_URL;
     this.tenantId = process.env.LOKI_TENANT_ID;
     this.username = process.env.LOKI_USERNAME;
     this.password = process.env.LOKI_PASSWORD;
-
-    const brokerEnv = process.env.LOG_KAFKA_BROKERS ?? '';
-    this.kafkaBrokers = brokerEnv
-      .split(',')
-      .map((broker) => broker.trim())
-      .filter(Boolean);
-    this.kafkaTopic = process.env.LOG_KAFKA_TOPIC ?? 'telemetry.logs';
   }
 
   async fetch(runId: string, auth: AuthContext | null, options: FetchLogsOptions = {}) {
     if (!this.baseUrl) {
+      console.warn(`[LogStreamService] Loki not configured (LOKI_URL not set) for runId: ${runId}`);
       throw new ServiceUnavailableException('Loki integration is not configured');
     }
 
     const organizationId = this.requireOrganizationId(auth);
     const limit = options.limit && options.limit > 0 ? Math.min(options.limit, 2000) : 500;
+    const streams = await this.repository.listByRunId(
+      runId,
+      organizationId,
+      options.nodeRef,
+      options.stream as 'stdout' | 'stderr' | 'console' | undefined,
+    );
+
+    let startTime = options.startTime;
+    let endTime = options.endTime;
+
+    if ((!startTime || !endTime) && streams.length > 0) {
+      const earliest = streams.reduce<Date | null>((acc, stream) => {
+        if (!acc || stream.firstTimestamp < acc) {
+          return stream.firstTimestamp;
+        }
+        return acc;
+      }, null);
+
+      const latest = streams.reduce<Date | null>((acc, stream) => {
+        if (!acc || stream.lastTimestamp > acc) {
+          return stream.lastTimestamp;
+        }
+        return acc;
+      }, null);
+
+      if (!startTime && earliest) {
+        startTime = earliest.toISOString();
+      }
+      if (!endTime && latest) {
+        endTime = latest.toISOString();
+      }
+    }
 
     // Build Loki query selector
     const selectorLabels: Record<string, string> = { run_id: runId };
@@ -60,11 +84,15 @@ export class LogStreamService {
     if (options.level) selectorLabels.level = options.level;
 
     const selector = this.buildSelector(selectorLabels);
+    console.log(`[LogStreamService] Fetching logs for runId: ${runId}, selector: ${selector}, limit: ${limit}`);
 
     // Query Loki - use time range if provided (for timeline scrubbing), otherwise use pagination
-    const entries = options.startTime && options.endTime
-      ? await this.queryLokiTimeRange(selector, options.startTime, options.endTime, limit)
-      : await this.queryLokiRange(selector, limit, options.cursor);
+    const entries =
+      startTime && endTime
+        ? await this.queryLokiTimeRange(selector, startTime, endTime, limit)
+        : await this.queryLokiRange(selector, limit, options.cursor);
+
+    console.log(`[LogStreamService] Found ${entries.length} log entries for runId: ${runId}`);
 
     // Transform to flat log list
     const logs = entries.map((entry, index) => ({
@@ -85,98 +113,68 @@ export class LogStreamService {
     };
   }
 
-  async fetchRecentLogs(runId: string, lastSequence?: number): Promise<Array<{
-    id: string;
-    runId: string;
-    nodeId: string;
-    level: string;
-    message: string;
-    timestamp: string;
-    sequence: number;
-  }>> {
-    if (this.kafkaBrokers.length === 0) {
-      return []; // No Kafka configured, return empty
-    }
+  async fetchRecentLogs(
+    runId: string,
+    organizationId?: string | null,
+    lastCursor?: string | null,
+  ): Promise<{
+    logs: Array<{
+      id: string;
+      runId: string;
+      nodeId: string;
+      level: string;
+      message: string;
+      timestamp: string;
+      sequence: number;
+    }>;
+    cursor: string | null;
+  }> {
+    const selector = this.buildSelector({ run_id: runId });
+    const startTime =
+      lastCursor ??
+      (await this.resolveEarliestTimestamp(runId, organizationId))?.toISOString() ??
+      new Date(Date.now() - this.defaultTailWindowMs).toISOString();
+    const endTime = new Date().toISOString();
 
-    const kafka = new Kafka({
-      clientId: 'log-stream-fetcher',
-      brokers: this.kafkaBrokers,
+    const entries = await this.queryLokiTimeRange(selector, startTime, endTime, 500);
+    const filtered = entries.filter((entry) => {
+      if (!lastCursor) {
+        return true;
+      }
+      const ts = Date.parse(entry.timestamp);
+      const lastTs = Date.parse(lastCursor);
+      if (Number.isNaN(ts) || Number.isNaN(lastTs)) {
+        return true;
+      }
+      return ts > lastTs;
     });
 
-    const consumer = kafka.consumer({
-      groupId: `log-stream-${runId}-${Date.now()}`,
-      readUncommitted: false,
+    if (filtered.length === 0) {
+      return { logs: [], cursor: lastCursor ?? startTime ?? null };
+    }
+
+    const logs = filtered.map((entry, index) => {
+      const timestampValue = Date.parse(entry.timestamp);
+      const sequence =
+        Number.isNaN(timestampValue) || timestampValue < 0
+          ? (Date.now() + index)
+          : timestampValue;
+      return {
+        id: `${runId}-${sequence}-${index}`,
+        runId,
+        nodeId: entry.nodeId || 'unknown',
+        level: entry.level || 'info',
+        message: entry.message,
+        timestamp: entry.timestamp,
+        sequence,
+      };
     });
 
-    try {
-      await consumer.connect();
-      await consumer.subscribe({
-        topic: this.kafkaTopic,
-        fromBeginning: false
-      });
-
-      const messages: Array<{
-        id: string;
-        runId: string;
-        nodeId: string;
-        level: string;
-        message: string;
-        timestamp: string;
-        sequence: number;
-      }> = [];
-
-      // Consume messages for a short time
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          consumer.disconnect().catch(console.error);
-          resolve();
-        }, 1000); // 1 second timeout
-
-        consumer.run({
-          eachMessage: async ({ message }) => {
-            if (!message.value) return;
-
-            try {
-              const payload = JSON.parse(message.value.toString()) as {
-                runId: string;
-                nodeRef: string;
-                level: string;
-                message: string;
-                timestamp: string;
-                sequence: number;
-              };
-
-              if (payload.runId === runId && (!lastSequence || payload.sequence > lastSequence)) {
-                messages.push({
-                  id: `${runId}-${payload.timestamp}-${payload.sequence}`,
-                  runId: payload.runId,
-                  nodeId: payload.nodeRef,
-                  level: payload.level,
-                  message: payload.message,
-                  timestamp: payload.timestamp,
-                  sequence: payload.sequence,
-                });
-              }
-            } catch (error) {
-              // Ignore parse errors
-            }
-          },
-        }).then(() => {
-          clearTimeout(timeout);
-          resolve();
-        }).catch(() => {
-          clearTimeout(timeout);
-          resolve();
-        });
-      });
-
-      // Sort by sequence
-      messages.sort((a, b) => a.sequence - b.sequence);
-
-      return messages;
-    } finally {
-      await consumer.disconnect().catch(console.error);
-    }
+    const nextCursor = logs[logs.length - 1]?.timestamp ?? lastCursor ?? startTime ?? null;
+    return {
+      logs,
+      cursor: nextCursor,
+    };
   }
 
   private async queryLoki(record: WorkflowLogStreamRecord, limit: number): Promise<LokiEntry[]> {
@@ -284,13 +282,17 @@ export class LogStreamService {
       params.set('end', this.toNanoseconds(new Date(cursor)));
     }
 
-    const response = await fetch(this.resolveUrl(`/loki/api/v1/query_range?${params.toString()}`), {
+    const url = this.resolveUrl(`/loki/api/v1/query_range?${params.toString()}`);
+    console.log(`[LogStreamService] Querying Loki: ${url}`);
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: this.buildHeaders(),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[LogStreamService] Loki query failed: ${response.status} ${response.statusText} - ${errorText}`);
       throw new ServiceUnavailableException(
         `Loki query failed: ${response.status} ${response.statusText} - ${errorText}`,
       );
@@ -304,6 +306,11 @@ export class LogStreamService {
         }>;
       };
     };
+
+    console.log(`[LogStreamService] Loki response: ${JSON.stringify({ 
+      resultCount: payload.data?.result?.length ?? 0,
+      totalValues: payload.data?.result?.reduce((sum, r) => sum + (r.values?.length ?? 0), 0) ?? 0
+    })}`);
 
     const entries: LokiEntry[] = [];
     const results = payload.data?.result ?? [];
@@ -345,6 +352,22 @@ export class LogStreamService {
   private resolveUrl(path: string): string {
     const base = (this.baseUrl ?? '').replace(/\/+$/, '');
     return `${base}${path}`;
+  }
+
+  private async resolveEarliestTimestamp(
+    runId: string,
+    organizationId?: string | null,
+  ): Promise<Date | null> {
+    const streams = await this.repository.listByRunId(runId, organizationId ?? null);
+    if (!streams.length) {
+      return null;
+    }
+    return streams.reduce<Date | null>((earliest, stream) => {
+      if (!earliest || stream.firstTimestamp < earliest) {
+        return stream.firstTimestamp;
+      }
+      return earliest;
+    }, null);
   }
 
   private buildSelector(labels: Record<string, string>): string {

@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { ChevronDown, FileText, AlertCircle, CheckCircle, Activity, X } from 'lucide-react'
+import { ChevronDown, FileText, AlertCircle, CheckCircle, Activity, X, Wrench } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { MessageModal } from '@/components/ui/MessageModal'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createPreview } from '@/utils/textPreview'
 import { useExecutionTimelineStore, type TimelineEvent } from '@/store/executionTimelineStore'
 import { cn } from '@/lib/utils'
@@ -99,6 +101,7 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
     message: '',
     title: ''
   })
+  const [diagnosticsDialogOpen, setDiagnosticsDialogOpen] = useState<string | null>(null)
   const autoSelectionSignatureRef = useRef<string | null>(null)
   const eventsListRef = useRef<HTMLUListElement>(null)
   const autoScrollRef = useRef<boolean>(true)
@@ -221,7 +224,9 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
     }
   }
 
-  const handleEventToggle = (event: TimelineEvent) => {
+  const handleEventToggle = (event: TimelineEvent, hasExpandableContent: boolean) => {
+    if (!hasExpandableContent) return
+    
     if (event.nodeId) {
       selectNode(event.nodeId)
     }
@@ -368,6 +373,7 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                   ? dataFlows.filter(flow => flow.sourceNode === event.nodeId || flow.targetNode === event.nodeId)
                   : []
                 const normalizedPayload = normalizeEventPayload(event.data)
+                const hasExpandableContent = Boolean(normalizedPayload || messagePreview?.truncated)
                 const preset = EVENT_LAYOUT_PRESETS[layoutVariant]
                 return (
                   <li key={event.id}
@@ -386,10 +392,11 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                   >
                     <button
                       type="button"
-                      onClick={() => handleEventToggle(event)}
+                      onClick={() => handleEventToggle(event, hasExpandableContent)}
                       className={cn(
-                        'flex w-full items-start justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition',
-                        preset.button
+                        'relative flex w-full items-start justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition',
+                        preset.button,
+                        !hasExpandableContent && 'cursor-default'
                       )}
                     >
                       <div className="flex flex-1 items-start gap-3 relative z-10">
@@ -426,11 +433,11 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                           {(messagePreviewText || expandedMessage) && (
                             <p
                               className={cn(
-                                'break-words text-[13px] text-muted-foreground/80',
+                                'break-words text-[13px] text-muted-foreground/80 leading-snug',
                                 preset.message,
                                 isExpanded
-                                  ? 'line-clamp-none whitespace-pre-wrap leading-relaxed max-h-36 overflow-auto pr-1'
-                                  : 'line-clamp-2 leading-snug'
+                                  ? 'line-clamp-none whitespace-pre-wrap max-h-36 overflow-auto pr-1'
+                                  : 'line-clamp-2'
                               )}
                             >
                               {isExpanded ? expandedMessage : messagePreviewText}
@@ -447,205 +454,196 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                           )}
                         </div>
                       </div>
-                      <ChevronDown
-                        className={cn('mt-1 h-4 w-4 flex-shrink-0 transition-transform text-muted-foreground', isExpanded && 'rotate-180')}
-                      />
+                      <div className="flex items-center">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDiagnosticsDialogOpen(event.id)
+                                }}
+                                className="flex items-center justify-center rounded-md border border-border/60 bg-muted/20 p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                                aria-label="View diagnostics"
+                              >
+                                <Wrench className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Diagnostics</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      {hasExpandableContent && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEventToggle(event, hasExpandableContent)
+                          }}
+                          className="absolute bottom-2 right-2 z-20 flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                        >
+                          <ChevronDown
+                            className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')}
+                          />
+                        </button>
+                      )}
                     </button>
 
-                    {isExpanded && (
+                    {isExpanded && normalizedPayload && (
                       <div className="mt-3 space-y-4 rounded-md border bg-background/80 p-3 text-xs">
-                        {normalizedPayload && (
-                          <section>
-                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                              Payload
-                            </div>
-                            <pre className="mt-2 max-h-52 overflow-auto rounded-md bg-muted/20 px-3 py-2 font-mono text-[11px]">
-                              {formatData(normalizedPayload)}
-                            </pre>
-                          </section>
-                        )}
+                        <section>
+                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Payload
+                          </div>
+                          <pre className="mt-2 max-h-52 overflow-auto rounded-md bg-muted/20 px-3 py-2 font-mono text-[11px]">
+                            {formatData(normalizedPayload)}
+                          </pre>
+                        </section>
+                      </div>
+                    )}
 
-                        <details className="group px-1 text-[11px] text-muted-foreground">
-                          <summary className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground [&::-webkit-details-marker]:hidden">
-                            <span>Diagnostics</span>
-                            <ChevronDown className="h-3 w-3 shrink-0 transition group-open:rotate-180" />
-                          </summary>
-                          <div className="mt-3 space-y-4 rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-3">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Event ID</span>
+                    <Dialog open={diagnosticsDialogOpen === event.id} onOpenChange={(open) => setDiagnosticsDialogOpen(open ? event.id : null)}>
+                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Diagnostics - {event.type}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-3 text-[11px] text-muted-foreground">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <span className="block text-[10px] uppercase tracking-wide">Event ID</span>
+                              <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                {event.id}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] uppercase tracking-wide">Elapsed</span>
+                              <div className="mt-1 font-mono text-[11px] text-foreground">
+                                {formatDuration(displayEvents[0].timestamp, event.timestamp)}
+                              </div>
+                            </div>
+                            {event.metadata?.correlationId && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase tracking-wide">Correlation</span>
                                 <div className="mt-1 font-mono text-[11px] text-foreground break-all">
-                                  {event.id}
+                                  {event.metadata.correlationId}
                                 </div>
                               </div>
+                            )}
+                            {event.metadata?.streamId && (
                               <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Timestamp</span>
-                                <div className="mt-1 font-mono text-[11px] text-foreground">
-                                  {event.timestamp}
+                                <span className="block text-[10px] uppercase tracking-wide">Stream</span>
+                                <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                  {event.metadata.streamId}
                                 </div>
                               </div>
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Node</span>
-                                <div className="mt-1 font-mono text-[11px] text-foreground">
-                                  {event.nodeId ?? 'System'}
+                            )}
+                            {event.metadata?.triggeredBy && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase tracking-wide">Triggered by</span>
+                                <div className="mt-1 font-mono text-[11px] text-foreground break-all">
+                                  {event.metadata.triggeredBy}
                                 </div>
                               </div>
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Elapsed</span>
-                                <div className="mt-1 font-mono text-[11px] text-foreground">
-                                  {formatDuration(displayEvents[0].timestamp, event.timestamp)}
-                                </div>
-                              </div>
-                              {typeof event.metadata?.attempt === 'number' && (
-                                <div>
-                                  <span className="block text-[10px] uppercase tracking-wide">Attempt</span>
-                                  <div className="mt-1 font-mono text-[11px] text-foreground">
-                                    {event.metadata.attempt}
-                                  </div>
-                                </div>
-                              )}
-                              {event.metadata?.activityId && (
-                                <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase tracking-wide">Activity</span>
-                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
-                                    {event.metadata.activityId}
-                                  </div>
-                                </div>
-                              )}
-                              {event.metadata?.correlationId && (
-                                <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase tracking-wide">Correlation</span>
-                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
-                                    {event.metadata.correlationId}
-                                  </div>
-                                </div>
-                              )}
-                              {event.metadata?.streamId && (
-                                <div>
-                                  <span className="block text-[10px] uppercase tracking-wide">Stream</span>
-                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
-                                    {event.metadata.streamId}
-                                  </div>
-                                </div>
-                              )}
-                              {event.metadata?.triggeredBy && (
-                                <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase tracking-wide">Triggered by</span>
-                                  <div className="mt-1 font-mono text-[11px] text-foreground break-all">
-                                    {event.metadata.triggeredBy}
-                                  </div>
-                                </div>
-                              )}
-                              {event.metadata?.retryPolicy && (
-                                <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase tracking-wide">Retry policy</span>
-                                  <div className="mt-1 rounded border border-border/60 bg-background/60 px-2 py-1 font-mono text-[10px] space-y-1">
-                                    {event.metadata.retryPolicy.maxAttempts !== undefined && (
-                                      <div>maxAttempts: {event.metadata.retryPolicy.maxAttempts}</div>
-                                    )}
-                                    {event.metadata.retryPolicy.initialIntervalSeconds !== undefined && (
-                                      <div>initialIntervalSeconds: {event.metadata.retryPolicy.initialIntervalSeconds}s</div>
-                                    )}
-                                    {event.metadata.retryPolicy.maximumIntervalSeconds !== undefined && (
-                                      <div>maximumIntervalSeconds: {event.metadata.retryPolicy.maximumIntervalSeconds}s</div>
-                                    )}
-                                    {event.metadata.retryPolicy.backoffCoefficient !== undefined && (
-                                      <div>backoffCoefficient: {event.metadata.retryPolicy.backoffCoefficient}</div>
-                                    )}
-                                    {event.metadata.retryPolicy.nonRetryableErrorTypes && event.metadata.retryPolicy.nonRetryableErrorTypes.length > 0 && (
-                                      <div>nonRetryableErrorTypes: {event.metadata.retryPolicy.nonRetryableErrorTypes.join(', ')}</div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                              {event.metadata?.failure && (
-                                <div className="col-span-2">
-                                  <span className="block text-[10px] uppercase tracking-wide">Failure context</span>
-                                  <div className="mt-1 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive space-y-1">
-                                    {event.metadata.failure.at && <div>at: {event.metadata.failure.at}</div>}
-                                    {event.metadata.failure.reason?.message && <div>message: {event.metadata.failure.reason.message}</div>}
-                                    {event.metadata.failure.reason?.name && <div>name: {event.metadata.failure.reason.name}</div>}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {nodeState && (
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Node state</span>
-                                <div className="mt-1 grid grid-cols-2 gap-3 text-muted-foreground">
-                                  <div>
-                                    <span className="text-[10px] uppercase">Status</span>
-                                    <div className="font-mono text-[11px] text-foreground">
-                                      {nodeState.status}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <span className="text-[10px] uppercase">Progress</span>
-                                    <div className="font-mono text-[11px] text-foreground">
-                                      {Math.round(nodeState.progress)}%
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <span className="text-[10px] uppercase">Events</span>
-                                    <div className="font-mono text-[11px] text-foreground">
-                                      {nodeState.eventCount}
-                                    </div>
-                                  </div>
-                                  {nodeState.retryCount > 0 && (
-                                    <div>
-                                      <span className="text-[10px] uppercase">Retries</span>
-                                      <div className="font-mono text-[11px] text-foreground">
-                                        {nodeState.retryCount}
-                                      </div>
-                                    </div>
+                            )}
+                            {event.metadata?.retryPolicy && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase tracking-wide">Retry policy</span>
+                                <div className="mt-1 rounded border border-border/60 bg-background/60 px-2 py-1 font-mono text-[10px] space-y-1">
+                                  {event.metadata.retryPolicy.maxAttempts !== undefined && (
+                                    <div>maxAttempts: {event.metadata.retryPolicy.maxAttempts}</div>
                                   )}
-                                  {nodeState.startTime && (
-                                    <div>
-                                      <span className="text-[10px] uppercase">Started</span>
-                                      <div className="font-mono text-[11px] text-foreground">
-                                        {formatTimestamp(new Date(nodeState.startTime).toISOString())}
-                                      </div>
-                                    </div>
+                                  {event.metadata.retryPolicy.initialIntervalSeconds !== undefined && (
+                                    <div>initialIntervalSeconds: {event.metadata.retryPolicy.initialIntervalSeconds}s</div>
                                   )}
-                                  {nodeState.lastActivityId && (
-                                    <div className="col-span-2">
-                                      <span className="text-[10px] uppercase">Latest activity</span>
-                                      <div className="font-mono text-[11px] text-foreground break-all">
-                                        {nodeState.lastActivityId}
-                                      </div>
-                                    </div>
+                                  {event.metadata.retryPolicy.maximumIntervalSeconds !== undefined && (
+                                    <div>maximumIntervalSeconds: {event.metadata.retryPolicy.maximumIntervalSeconds}s</div>
+                                  )}
+                                  {event.metadata.retryPolicy.backoffCoefficient !== undefined && (
+                                    <div>backoffCoefficient: {event.metadata.retryPolicy.backoffCoefficient}</div>
+                                  )}
+                                  {event.metadata.retryPolicy.nonRetryableErrorTypes && event.metadata.retryPolicy.nonRetryableErrorTypes.length > 0 && (
+                                    <div>nonRetryableErrorTypes: {event.metadata.retryPolicy.nonRetryableErrorTypes.join(', ')}</div>
                                   )}
                                 </div>
                               </div>
                             )}
-
-                            {event.nodeId && (
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Data flows</span>
-                                <div className="mt-1 space-y-1">
-                                  {relatedFlows.slice(0, 5).map((flow, index) => (
-                                    <div key={`${flow.sourceNode}-${flow.targetNode}-${index}`} className="rounded border border-border/60 bg-background/60 px-2 py-1 text-[11px]">
-                                      <div className="font-medium text-foreground/90">
-                                        {flow.sourceNode} → {flow.targetNode}
-                                      </div>
-                                      <div className="text-muted-foreground">
-                                        {flow.type} • {(flow.size / 1024).toFixed(1)}KB
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {relatedFlows.length === 0 && (
-                                    <div className="rounded border border-dashed border-border/60 bg-background/40 px-2 py-1 text-muted-foreground/80">
-                                      No data packets recorded for this event.
-                                    </div>
-                                  )}
+                            {event.metadata?.failure && (
+                              <div className="col-span-2">
+                                <span className="block text-[10px] uppercase tracking-wide">Failure context</span>
+                                <div className="mt-1 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive space-y-1">
+                                  {event.metadata.failure.at && <div>at: {event.metadata.failure.at}</div>}
+                                  {event.metadata.failure.reason?.message && <div>message: {event.metadata.failure.reason.message}</div>}
+                                  {event.metadata.failure.reason?.name && <div>name: {event.metadata.failure.reason.name}</div>}
                                 </div>
                               </div>
                             )}
                           </div>
-                        </details>
-                      </div>
-                    )}
+
+                          {nodeState && (
+                            <div>
+                              <span className="block text-[10px] uppercase tracking-wide">Node state</span>
+                              <div className="mt-1 grid grid-cols-2 gap-3 text-muted-foreground">
+                                <div>
+                                  <span className="text-[10px] uppercase">Status</span>
+                                  <div className="font-mono text-[11px] text-foreground">
+                                    {nodeState.status}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase">Progress</span>
+                                  <div className="font-mono text-[11px] text-foreground">
+                                    {Math.round(nodeState.progress)}%
+                                  </div>
+                                </div>
+                                {nodeState.retryCount > 0 && (
+                                  <div>
+                                    <span className="text-[10px] uppercase">Retries</span>
+                                    <div className="font-mono text-[11px] text-foreground">
+                                      {nodeState.retryCount}
+                                    </div>
+                                  </div>
+                                )}
+                                {nodeState.lastActivityId && nodeState.lastActivityId !== event.metadata?.activityId && (
+                                  <div className="col-span-2">
+                                    <span className="text-[10px] uppercase">Latest activity</span>
+                                    <div className="font-mono text-[11px] text-foreground break-all">
+                                      {nodeState.lastActivityId}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {event.nodeId && (
+                            <div>
+                              <span className="block text-[10px] uppercase tracking-wide">Data flows</span>
+                              <div className="mt-1 space-y-1">
+                                {relatedFlows.slice(0, 5).map((flow, index) => (
+                                  <div key={`${flow.sourceNode}-${flow.targetNode}-${index}`} className="rounded border border-border/60 bg-background/60 px-2 py-1 text-[11px]">
+                                    <div className="font-medium text-foreground/90">
+                                      {flow.sourceNode} → {flow.targetNode}
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                      {flow.type} • {(flow.size / 1024).toFixed(1)}KB
+                                    </div>
+                                  </div>
+                                ))}
+                                {relatedFlows.length === 0 && (
+                                  <div className="rounded border border-dashed border-border/60 bg-background/40 px-2 py-1 text-muted-foreground/80">
+                                    No data packets recorded for this event.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                 </li>
               )
             })}

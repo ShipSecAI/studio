@@ -1,0 +1,91 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "palm",
+  "name": "ShipSec Studio",
+  "colors": {
+    "primary": "#1472D0",
+    "light": "#1472D0",
+    "dark": "#1472D0"
+  },
+  "favicon": "/favicon.ico",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "index",
+              "quickstart",
+              "installation",
+              "command-reference"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/overview",
+              "components/core",
+              "components/security",
+              "components/ai"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/component-development",
+              "development/isolated-volumes",
+              "development/analytics",
+              "development/release-process"
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Website",
+          "href": "https://studio.shipsec.ai",
+          "icon": "globe"
+        },
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/shipsecai/studio",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/logo-dark.svg",
+    "dark": "/logo/logo-light.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:support@shipsec.ai"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://beta.shipsec.ai"
+    }
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/shipsecai",
+      "github": "https://github.com/shipsecai",
+      "linkedin": "https://linkedin.com/company/shipsecai"
+    }
+  }
+}

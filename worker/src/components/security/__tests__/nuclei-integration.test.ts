@@ -404,7 +404,7 @@ this is not json
       expect(parsed.targets).toHaveLength(2);
     });
 
-    test('should work with manual trigger → file loader → nuclei', async () => {
+    test('should work with entry point → file loader → nuclei', async () => {
       // Simulated workflow
       const manualTriggerOutput = {
         templateZip: 'file-uuid-123',

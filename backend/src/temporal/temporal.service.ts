@@ -6,6 +6,9 @@ import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
 import Long from 'long';
 import {
   Connection,
+  ScheduleClient,
+  ScheduleDescription,
+  ScheduleOverlapPolicy as TemporalScheduleOverlapPolicy,
   WorkflowClient,
   type WorkflowExecutionStatusName,
   type WorkflowHandle,
@@ -13,7 +16,8 @@ import {
 
 // Import workflow functions (for type safety during client.start())
 // Note: Actual implementation runs in the worker
-import { shipsecWorkflowRun, testMinimalWorkflow, minimalWorkflow } from '@shipsec/studio-worker/workflows';
+import { shipsecWorkflowRun, testMinimalWorkflow, scheduleTriggerWorkflow } from '@shipsec/studio-worker/workflows';
+import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
 
 export interface StartWorkflowOptions {
   workflowType: string;
@@ -46,6 +50,31 @@ export interface WorkflowRunStatus {
   failure?: unknown;
 }
 
+export interface CreateTemporalScheduleInput {
+  scheduleId: string;
+  organizationId: string | null;
+  cronExpression: string;
+  timezone: string;
+  overlapPolicy: ScheduleOverlapPolicy;
+  catchupWindowSeconds?: number;
+  memo?: Record<string, unknown>;
+  dispatchArgs: ScheduleTriggerWorkflowArgs;
+}
+
+export interface UpdateTemporalScheduleInput extends CreateTemporalScheduleInput {}
+
+export interface ScheduleTriggerWorkflowArgs {
+  workflowId: string;
+  workflowVersionId?: string | null;
+  workflowVersion?: number | null;
+  organizationId?: string | null;
+  scheduleId?: string;
+  scheduleName?: string | null;
+  runtimeInputs?: Record<string, unknown>;
+  nodeOverrides?: Record<string, Record<string, unknown>>;
+  trigger?: ExecutionTriggerMetadata;
+}
+
 @Injectable()
 export class TemporalService implements OnModuleDestroy {
   private readonly logger = new Logger(TemporalService.name);
@@ -53,6 +82,7 @@ export class TemporalService implements OnModuleDestroy {
   private readonly namespace: string;
   private readonly defaultTaskQueue: string;
   private clientPromise?: Promise<WorkflowClient>;
+  private scheduleClientPromise?: Promise<ScheduleClient>;
   private connection?: Connection;
 
   constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
@@ -110,8 +140,8 @@ export class TemporalService implements OnModuleDestroy {
         return shipsecWorkflowRun;
       case 'testMinimalWorkflow':
         return testMinimalWorkflow;
-      case 'minimalWorkflow':
-        return minimalWorkflow;
+      case 'scheduleTriggerWorkflow':
+        return scheduleTriggerWorkflow;
       default:
         throw new Error(`Unknown workflow type: ${workflowType}`);
     }
@@ -264,4 +294,120 @@ export class TemporalService implements OnModuleDestroy {
       })
       .join(' | ');
   }
+  private async getScheduleClient(): Promise<ScheduleClient> {
+    if (this.scheduleClientPromise) {
+      return this.scheduleClientPromise;
+    }
+
+    this.scheduleClientPromise = (async () => {
+      await this.getClient();
+      if (!this.connection) {
+        throw new Error('Temporal connection not established');
+      }
+      return new ScheduleClient({
+        connection: this.connection,
+        namespace: this.namespace,
+      });
+    })();
+
+    return this.scheduleClientPromise;
+  }
+
+  async createSchedule(options: CreateTemporalScheduleInput): Promise<void> {
+    const client = await this.getScheduleClient();
+    await client.create({
+      scheduleId: options.scheduleId,
+      memo: options.memo,
+      spec: {
+        cronExpressions: [options.cronExpression],
+        timezone: options.timezone,
+      },
+      action: {
+        type: 'startWorkflow',
+        workflowType: 'scheduleTriggerWorkflow',
+        taskQueue: this.defaultTaskQueue,
+        args: [options.dispatchArgs],
+        workflowId: `schedule-${options.scheduleId}`,
+      },
+      policies: {
+        overlap: this.mapOverlapPolicy(options.overlapPolicy),
+        catchupWindow: options.catchupWindowSeconds
+          ? options.catchupWindowSeconds * 1000
+          : undefined,
+      },
+    });
+  }
+
+  async updateSchedule(options: UpdateTemporalScheduleInput): Promise<void> {
+    const client = await this.getScheduleClient();
+    const handle = client.getHandle(options.scheduleId);
+    await handle.update((previous) => ({
+      spec: {
+        cronExpressions: [options.cronExpression],
+        timezone: options.timezone,
+      },
+      memo: options.memo,
+      action: {
+        type: 'startWorkflow',
+        workflowType: 'scheduleTriggerWorkflow',
+        taskQueue: this.defaultTaskQueue,
+        args: [options.dispatchArgs],
+        workflowId: `schedule-${options.scheduleId}`,
+      },
+      policies: {
+        overlap: this.mapOverlapPolicy(options.overlapPolicy),
+        catchupWindow: options.catchupWindowSeconds
+          ? options.catchupWindowSeconds * 1000
+          : undefined,
+      },
+      state: {
+        paused: previous.state.paused,
+        note: previous.state.note,
+        remainingActions: previous.state.remainingActions,
+      },
+    }));
+  }
+
+  async deleteSchedule(scheduleId: string): Promise<void> {
+    const client = await this.getScheduleClient();
+    const handle = client.getHandle(scheduleId);
+    await handle.delete();
+  }
+
+  async pauseSchedule(scheduleId: string, note = 'Paused via API'): Promise<void> {
+    const client = await this.getScheduleClient();
+    const handle = client.getHandle(scheduleId);
+    await handle.pause(note);
+  }
+
+  async resumeSchedule(scheduleId: string, note = 'Resumed via API'): Promise<void> {
+    const client = await this.getScheduleClient();
+    const handle = client.getHandle(scheduleId);
+    await handle.unpause(note);
+  }
+
+  async triggerSchedule(scheduleId: string): Promise<void> {
+    const client = await this.getScheduleClient();
+    const handle = client.getHandle(scheduleId);
+    await handle.trigger();
+  }
+
+  async describeSchedule(scheduleId: string): Promise<ScheduleDescription> {
+    const client = await this.getScheduleClient();
+    const handle = client.getHandle(scheduleId);
+    return handle.describe();
+  }
+
+  private mapOverlapPolicy(policy: ScheduleOverlapPolicy): TemporalScheduleOverlapPolicy {
+    switch (policy) {
+      case 'allow':
+        return TemporalScheduleOverlapPolicy.ALLOW_ALL;
+      case 'buffer':
+        return TemporalScheduleOverlapPolicy.BUFFER_ONE;
+      case 'skip':
+      default:
+        return TemporalScheduleOverlapPolicy.SKIP;
+    }
+  }
+
 }

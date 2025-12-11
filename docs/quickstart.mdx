@@ -1,0 +1,95 @@
+---
+title: "Quickstart"
+description: "Get ShipSec Studio running in 5 minutes"
+---
+
+## Prerequisites
+
+- Docker Desktop (≥8 GB RAM)
+- [Bun](https://bun.sh) runtime
+- [just](https://github.com/casey/just) command runner
+
+## Quick Setup
+
+<Steps>
+  <Step title="Clone and initialize">
+    ```bash
+    git clone https://github.com/shipsecai/studio.git
+    cd studio
+    just init
+    ```
+    
+    This automatically installs dependencies and creates environment files.
+  </Step>
+  
+  <Step title="Start development environment">
+    ```bash
+    just dev
+    ```
+    
+    This starts all infrastructure (Postgres, Temporal, MinIO, Loki), runs migrations, and launches the full stack with hot-reload.
+  </Step>
+  
+  <Step title="Open ShipSec Studio">
+    Navigate to [http://localhost:5173](http://localhost:5173) and sign in or create an account.
+  </Step>
+</Steps>
+
+## Access Points
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:3211 |
+| Temporal UI | http://localhost:8081 |
+
+## Your First Workflow
+
+<Steps>
+  <Step title="Create a new workflow">
+    Click **New Workflow** in the dashboard. Name it "Subdomain Discovery".
+  </Step>
+
+  <Step title="Add components">
+    - Drag **Manual Trigger** to the canvas
+    - Drag **Subfinder** component to the canvas
+    - Connect the trigger output to the Subfinder input
+  </Step>
+
+  <Step title="Run the workflow">
+    Click **Save**, then **Run**. Watch the execution unfold in real-time with streaming logs and terminal output.
+  </Step>
+</Steps>
+
+## Common Commands
+
+```bash
+# View logs
+just dev logs
+
+# Check status
+just dev status
+
+# Stop everything
+just dev stop
+
+# Restart
+just dev stop && just dev
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Full Installation" icon="download" href="/installation">
+    Detailed setup and configuration options
+  </Card>
+  <Card title="Command Reference" icon="terminal" href="/command-reference">
+    All available just commands
+  </Card>
+  <Card title="Components" icon="cube" href="/components/overview">
+    Explore available components
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Understand the system design
+  </Card>
+</CardGroup>

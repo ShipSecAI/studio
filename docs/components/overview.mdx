@@ -1,0 +1,86 @@
+---
+title: "Components Overview"
+description: "Drag-and-drop building blocks for security automation workflows"
+---
+
+Components are the building blocks of ShipSec Studio workflows. Each component performs a specific task and can be connected together to create powerful automation pipelines.
+
+## Component Categories
+
+<CardGroup cols={2}>
+  <Card title="Core" icon="cube" href="/components/core">
+    Triggers, file handling, data transformation, and outputs
+  </Card>
+  <Card title="Security" icon="shield" href="/components/security">
+    Subdomain discovery, port scanning, DNS resolution, secret detection
+  </Card>
+  <Card title="AI" icon="brain" href="/components/ai">
+    OpenAI, Gemini, and OpenRouter chat completions
+  </Card>
+</CardGroup>
+
+## How Components Work
+
+Each component has:
+
+- **Inputs** – Data ports that accept connections from other components
+- **Outputs** – Data ports that can be connected to downstream components  
+- **Parameters** – Configurable settings in the sidebar
+
+Components run inside Docker containers for isolation and reliability. Workflows are orchestrated by [Temporal](https://temporal.io/) with automatic retries and resumability.
+
+## Component Structure
+
+```typescript
+interface ComponentDefinition<Input, Output> {
+  id: string;           // Unique identifier
+  label: string;        // Display name
+  category: string;     // Category for grouping
+  runner: RunnerConfig; // Execution configuration
+  inputSchema: ZodSchema<Input>;
+  outputSchema: ZodSchema<Output>;
+  execute: (input: Input, context: ExecutionContext) => Promise<Output>;
+}
+```
+
+## Example Pipelines
+
+### Attack Surface Discovery
+
+```
+Manual Trigger → Subfinder → DNSx → httpx → Notify
+```
+
+1. **Manual Trigger** – User provides target domains
+2. **Subfinder** – Discovers subdomains
+3. **DNSx** – Resolves DNS records
+4. **httpx** – Probes for live HTTP services
+5. **Notify** – Sends results to Slack, Discord, or Teams
+
+### Secret Detection
+
+```
+Manual Trigger → TruffleHog → OpenAI Chat → Notify
+```
+
+1. **Manual Trigger** – User provides repository URL
+2. **TruffleHog** – Scans for leaked credentials
+3. **OpenAI Chat** – Analyzes and prioritizes findings
+4. **Notify** – Alerts team via Slack, Discord, or email
+
+## Execution Context
+
+Components receive an `ExecutionContext` with access to:
+
+| Service | Description |
+|---------|-------------|
+| `storage` | File upload/download to MinIO |
+| `secrets` | Encrypted secrets access |
+| `artifacts` | Workflow artifact storage |
+| `trace` | Event recording |
+| `logger` | Structured logging |
+| `terminal` | Terminal output streaming |
+
+## Building Custom Components
+
+See the [Component Development Guide](/development/component-development) for detailed instructions on building your own components.

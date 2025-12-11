@@ -50,8 +50,18 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
+        requestTimeout: 30000, // 30 seconds
+        retry: {
+          retries: 1,
+          initialRetryTime: 100,
+          maxRetryTime: 30000,
+        },
       });
-      this.consumer = kafka.consumer({ groupId: this.kafkaGroupId });
+      this.consumer = kafka.consumer({ 
+        groupId: this.kafkaGroupId,
+        sessionTimeout: 30000, // 30 seconds
+        heartbeatInterval: 3000, // 3 seconds
+      });
       await this.consumer.connect();
       await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
       await this.consumer.run({
@@ -148,24 +158,16 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildLines(message: string, timestamp: Date) {
-    // Check if message is JSON (starts with { or [) - keep as single line
-    const trimmed = message.trim();
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-      return [{
-        message: trimmed,
-        timestamp,
-      }];
+    const normalized = message.replace(/\r/g, '').trim();
+    if (!normalized) {
+      return [];
     }
 
-    // For non-JSON messages, split by newlines
-    const segments = message.split(/\r?\n/);
-    return segments
-      .map((segment) => segment.trimEnd())
-      .filter((segment) => segment.length > 0)
-      .map((segment, index) => ({
-        message: segment,
-        timestamp: index === 0 ? timestamp : new Date(timestamp.getTime() + index),
-      }));
+    return [
+      {
+        message: normalized,
+        timestamp,
+      },
+    ];
   }
 }

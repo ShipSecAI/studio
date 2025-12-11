@@ -1,0 +1,236 @@
+---
+title: "Installation"
+description: "Self-host ShipSec Studio on your infrastructure"
+---
+
+## Prerequisites
+
+- Docker Desktop with ≥8 GB RAM
+- [Bun](https://bun.sh) runtime
+- [just](https://github.com/casey/just) command runner
+- Open ports: `5433`, `7233`, `8081`, `9000`, `9001`, `3100`
+
+---
+
+## Installation Steps
+
+### 1. Clone & initialize
+
+```bash
+git clone https://github.com/shipsecai/studio.git
+cd studio
+just init
+```
+
+<Note>
+  **macOS users:** If you see native module errors, run:
+  ```bash
+  export SDKROOT=$(xcrun --show-sdk-path)
+  bun install
+  ```
+</Note>
+
+The `just init` command automatically:
+- Installs project dependencies with Bun
+- Creates environment files from examples (`backend/.env`, `worker/.env`, `frontend/.env`)
+
+### 2. Configure environment variables
+
+Edit the generated `.env` files as needed:
+
+```bash
+# Edit environment files
+nano backend/.env
+nano worker/.env
+nano frontend/.env
+```
+
+### 3. Start development environment
+
+```bash
+just dev
+```
+
+The `just dev` command automatically:
+- Checks that environment files exist
+- Starts Docker infrastructure (Postgres, Temporal, MinIO, Loki)
+- Waits for services to be ready
+- Runs database migrations
+- Starts backend, worker, and frontend with hot-reload
+
+---
+
+## Service Endpoints
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| Frontend | http://localhost:5173 | Workflow builder |
+| Backend API | http://localhost:3211 | REST API |
+| Temporal UI | http://localhost:8081 | Workflow management |
+| PostgreSQL | http://localhost:5433 | Database |
+| MinIO | http://localhost:9000 | Object storage |
+| MinIO Console | http://localhost:9001 | Credentials: `minioadmin/minioadmin` |
+| Loki | http://localhost:3100 | Logs |
+
+---
+
+## Production Deployment
+
+For production, use the Docker-based deployment:
+
+```bash
+# Start production environment with cached images
+just prod
+
+# Or build and start
+just prod build
+```
+
+Production endpoints:
+- Frontend: http://localhost:8090
+- Backend: http://localhost:3211
+- Temporal UI: http://localhost:8081
+
+---
+
+## Common Commands
+
+### Development
+
+```bash
+just dev          # Start development environment
+just dev stop     # Stop everything
+just dev logs     # View application logs
+just dev status   # Check service status
+just dev clean    # Stop and remove all data
+```
+
+### Production
+
+```bash
+just prod          # Start with cached images
+just prod build    # Rebuild and start
+just prod stop     # Stop production
+just prod logs     # View production logs
+just prod status   # Check production status
+just prod clean    # Remove all data
+```
+
+### Infrastructure
+
+```bash
+just infra up     # Start infrastructure only
+just infra down   # Stop infrastructure
+just infra logs   # View infrastructure logs
+just infra clean  # Remove infrastructure data
+```
+
+### Utilities
+
+```bash
+just status       # Show status of all services
+just db-reset     # Reset database (drops all data)
+just build        # Build images only
+```
+
+---
+
+## Troubleshooting
+
+### macOS: Native module build errors
+
+```bash
+export SDKROOT=$(xcrun --show-sdk-path)
+bun install
+```
+
+### Services not starting
+
+```bash
+# Check status
+just dev status
+
+# Restart everything
+just dev stop
+just dev
+```
+
+### Database connection failed
+
+```bash
+# Run migrations manually
+bun run migrate
+
+# Check database logs
+just infra logs
+```
+
+### PM2 processes failing
+
+```bash
+# Check environment files
+ls -la */.env
+
+# Restart everything
+just dev stop
+just dev
+
+# Check logs
+just dev logs
+```
+
+### Frontend not loading
+
+```bash
+# Check if dev server is running
+just dev status
+
+# Start manually if needed
+bun --cwd frontend dev
+```
+
+### Temporal namespace missing
+
+```bash
+docker compose -p shipsec --profile setup up -d
+```
+
+### Clean rebuild
+
+```bash
+just dev stop
+just infra clean
+just infra up
+bun run migrate
+just dev
+```
+
+---
+
+## Manual Setup (Optional)
+
+If you need more control over the setup process:
+
+### Infrastructure only
+
+```bash
+just infra up
+just status
+just infra logs
+```
+
+### Applications only
+
+```bash
+pm2 start pm2.config.cjs
+pm2 status
+pm2 logs
+```
+
+---
+
+## Getting Help
+
+- Check [GitHub Issues](https://github.com/shipsecai/studio/issues) for similar problems
+- Review logs with `just dev logs` for error details
+- Email support at [support@shipsec.ai](mailto:support@shipsec.ai)

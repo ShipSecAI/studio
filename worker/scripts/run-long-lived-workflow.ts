@@ -72,7 +72,7 @@ const longLivedDefinition: WorkflowDefinition = {
   actions: [
     {
       ref: 'start',
-      componentId: 'core.trigger.manual',
+      componentId: 'core.workflow.entrypoint',
       params: {},
       dependsOn: [],
       inputMappings: {},

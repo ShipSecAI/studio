@@ -79,7 +79,7 @@ export class TraceRepository implements OnModuleDestroy {
    */
   async notifyRun(runId: string, payload: string): Promise<void> {
     const channel = `trace_events_${runId}`;
-    await this.pool.query(`NOTIFY "${channel}", $1`, [payload]);
+    await this.pool.query('SELECT pg_notify($1, $2)', [channel, payload]);
   }
 
   async append(event: PersistedTraceEvent): Promise<void> {
@@ -153,6 +153,28 @@ export class TraceRepository implements OnModuleDestroy {
       );
 
     return Number(result?.value ?? 0);
+  }
+
+  /**
+   * Get the first and last event timestamps for a run to calculate accurate duration
+   */
+  async getEventTimeRange(
+    runId: string,
+    organizationId?: string | null,
+  ): Promise<{ firstTimestamp: Date | null; lastTimestamp: Date | null }> {
+    const runFilter = this.buildRunFilter(runId, organizationId);
+    const [result] = await this.db
+      .select({
+        firstTimestamp: sql<Date>`min(${workflowTracesTable.timestamp})`,
+        lastTimestamp: sql<Date>`max(${workflowTracesTable.timestamp})`,
+      })
+      .from(workflowTracesTable)
+      .where(runFilter);
+
+    return {
+      firstTimestamp: result?.firstTimestamp ?? null,
+      lastTimestamp: result?.lastTimestamp ?? null,
+    };
   }
 
   private mapToInsert(event: PersistedTraceEvent) {

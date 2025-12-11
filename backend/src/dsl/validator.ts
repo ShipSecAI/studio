@@ -107,8 +107,8 @@ export function validateWorkflowGraph(
   // 4. Validate input mappings
   validateInputMappings(graph, compiledDefinition, actionPorts, errors, warnings);
 
-  // 5. Validate manual trigger runtime inputs configuration
-  validateManualTriggerConfiguration(graph, compiledDefinition, errors, warnings);
+  // 5. Validate entry point runtime inputs configuration
+  validateEntryPointConfiguration(graph, compiledDefinition, errors, warnings);
 
   // 6. Validate edge type compatibility
   validateEdgeCompatibility(compiledDefinition, actionPorts, errors);
@@ -349,26 +349,44 @@ function validateEdgeCompatibility(
 }
 
 /**
- * Validate manual trigger runtime inputs configuration
+ * Validate entry point runtime inputs configuration
  */
-function validateManualTriggerConfiguration(
+function validateEntryPointConfiguration(
   _graph: WorkflowGraphDto,
   compiledDefinition: WorkflowDefinition,
   errors: ValidationError[],
   warnings: ValidationError[],
 ) {
-  const manualTriggerActions = compiledDefinition.actions.filter(
-    (action) => action.componentId === 'core.trigger.manual',
+  const entryPointActions = compiledDefinition.actions.filter(
+    (action) => action.componentId === 'core.workflow.entrypoint',
   );
 
-  for (const action of manualTriggerActions) {
+  if (entryPointActions.length === 0) {
+    errors.push({
+      node: 'entry-point',
+      field: 'componentId',
+      message: 'Entry Point is required to start the workflow',
+      severity: 'error',
+      suggestion: 'Add an Entry Point component to define how the workflow is invoked',
+    });
+  } else if (entryPointActions.length > 1) {
+    errors.push({
+      node: 'entry-point',
+      field: 'componentId',
+      message: 'Only one Entry Point is allowed per workflow',
+      severity: 'error',
+      suggestion: 'Remove additional Entry Point components',
+    });
+  }
+
+  for (const action of entryPointActions) {
     const runtimeInputs = action.params?.runtimeInputs;
 
     if (!Array.isArray(runtimeInputs)) {
       errors.push({
         node: action.ref,
         field: 'runtimeInputs',
-        message: 'Manual trigger requires runtimeInputs configuration',
+        message: 'Entry Point requires runtimeInputs configuration',
         severity: 'error',
         suggestion: 'Configure runtime inputs to collect data when the workflow is triggered',
       });
@@ -376,7 +394,7 @@ function validateManualTriggerConfiguration(
       warnings.push({
         node: action.ref,
         field: 'runtimeInputs',
-        message: 'Manual trigger has no runtime inputs configured',
+        message: 'Entry Point has no runtime inputs configured',
         severity: 'warning',
         suggestion: 'Add runtime inputs if you need to collect data when the workflow is triggered',
       });

@@ -26,6 +26,7 @@ import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import type { NodeData } from '@/schemas/node'
 import { useToast } from '@/components/ui/use-toast'
+import type { WorkflowSchedule } from '@shipsec/shared'
 
 const nodeTypes = {
   workflow: WorkflowNode,
@@ -37,6 +38,18 @@ const edgeTypes = {
 }
 
 const MAX_DELETE_HISTORY = 10
+const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
+const ENTRY_COMPONENT_SLUG = 'entry-point'
+
+const isEntryPointComponentRef = (ref?: string | null) =>
+  ref === ENTRY_COMPONENT_ID || ref === ENTRY_COMPONENT_SLUG
+
+const isEntryPointNode = (node?: Node<NodeData> | null) => {
+  if (!node) return false
+  const nodeData = node?.data as NodeData | undefined
+  const componentRef = (nodeData?.componentId ?? nodeData?.componentSlug) as string | undefined
+  return isEntryPointComponentRef(componentRef)
+}
 
 interface DeleteHistoryEntry {
   nodes: Node<NodeData>[]
@@ -51,6 +64,14 @@ interface CanvasProps {
   setEdges: Dispatch<SetStateAction<Edge[]>>
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
+  workflowId?: string | null
+  workflowSchedules?: WorkflowSchedule[]
+  schedulesLoading?: boolean
+  scheduleError?: string | null
+  onScheduleCreate?: () => void
+  onScheduleEdit?: (schedule: WorkflowSchedule) => void
+  onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
+  onViewSchedules?: () => void
 }
 
 export function Canvas({
@@ -61,6 +82,14 @@ export function Canvas({
   setEdges,
   onNodesChange,
   onEdgesChange,
+  workflowId,
+  workflowSchedules,
+  schedulesLoading,
+  scheduleError,
+  onScheduleCreate,
+  onScheduleEdit,
+  onScheduleAction,
+  onViewSchedules,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
@@ -252,6 +281,19 @@ export function Canvas({
         return
       }
 
+      const isEntryComponent = isEntryPointComponentRef(component.id) || isEntryPointComponentRef(component.slug ?? component.id)
+      if (isEntryComponent) {
+        const existingEntry = nodes.some(isEntryPointNode)
+        if (existingEntry) {
+          toast({
+            title: 'Entry Point already exists',
+            description: 'Each workflow can only have one Entry Point.',
+            variant: 'destructive',
+          })
+          return
+        }
+      }
+
       const position = reactFlowInstance?.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -278,7 +320,7 @@ export function Canvas({
         })
       }
 
-      if ((component.slug ?? component.id) === 'manual-trigger') {
+      if ((component.slug ?? component.id) === 'entry-point') {
         initialParameters.runtimeInputs = [
           {
             id: 'input1',
@@ -322,7 +364,7 @@ export function Canvas({
       // Mark workflow as dirty
       markDirty()
     },
-    [reactFlowInstance, setNodes, getComponent, markDirty, mode]
+    [reactFlowInstance, setNodes, getComponent, markDirty, mode, nodes, toast]
   )
 
 
@@ -500,6 +542,16 @@ export function Canvas({
         event.preventDefault()
         const selectedNodes = nodes.filter((node) => node.selected)
         const selectedEdges = edges.filter((edge) => edge.selected)
+        const totalEntryNodes = nodes.filter(isEntryPointNode).length
+        const deletingEntryNodes = selectedNodes.filter(isEntryPointNode).length
+        if (deletingEntryNodes > 0 && deletingEntryNodes >= totalEntryNodes) {
+          toast({
+            title: 'Entry Point required',
+            description: 'Each workflow must keep one Entry Point node.',
+            variant: 'destructive',
+          })
+          return
+        }
         const nodeIds = new Set(selectedNodes.map((node) => node.id))
         const edgesFromNodes = edges.filter(
           (edge) => nodeIds.has(edge.source) || nodeIds.has(edge.target)
@@ -551,7 +603,7 @@ export function Canvas({
   return (
     <div className={className}>
       <div className="flex h-full">
-        <div className="flex-1 relative">
+        <div className="flex-1 relative bg-white">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -579,7 +631,7 @@ export function Canvas({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             attributionPosition="bottom-left"
-            nodesDraggable={mode === 'design'}
+            nodesDraggable
             nodesConnectable={mode === 'design'}
             elementsSelectable
           >
@@ -602,7 +654,7 @@ export function Canvas({
               </defs>
             </svg>
 
-            <Background color="#aaa" gap={16} />
+            <Background color="#aaa" gap={16} style={{ backgroundColor: '#ffffff' }} />
             <Controls position="bottom-left" />
             <MiniMap
               position="bottom-right"
@@ -631,6 +683,14 @@ export function Canvas({
             selectedNode={selectedNode}
             onClose={() => setSelectedNode(null)}
             onUpdateNode={handleUpdateNode}
+            workflowId={workflowId}
+            workflowSchedules={workflowSchedules}
+            schedulesLoading={schedulesLoading}
+            scheduleError={scheduleError}
+            onScheduleCreate={onScheduleCreate}
+            onScheduleEdit={onScheduleEdit}
+            onScheduleAction={onScheduleAction}
+            onViewSchedules={onViewSchedules}
           />
         )}
       </div>

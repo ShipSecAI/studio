@@ -158,13 +158,30 @@ export async function executeWorkflow(
         );
       }
 
-      if (definition.entrypoint.ref === action.ref && request.inputs) {
-        // For Manual Trigger, pass runtime inputs in __runtimeData key
-        if (action.componentId === 'core.trigger.manual') {
+      const isEntrypointRef = definition.entrypoint.ref === action.ref;
+      const isEntrypointComponent = action.componentId === 'core.workflow.entrypoint';
+      
+      if (isEntrypointRef && request.inputs) {
+        // Only apply inputs to the actual entrypoint component, not just any node matching the entrypoint ref
+        if (isEntrypointComponent) {
+          console.log(
+            `[WorkflowRunner] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`
+          );
           params.__runtimeData = request.inputs;
         } else {
-          // For other components, merge directly
-          Object.assign(params, request.inputs);
+          // Entrypoint ref points to a non-entrypoint component - this is a configuration error
+          // Log warning but don't apply inputs to wrong component
+          console.error(
+            `[WorkflowRunner] CRITICAL: Entrypoint ref '${definition.entrypoint.ref}' points to component '${action.componentId}' instead of 'core.workflow.entrypoint'. ` +
+            `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`
+          );
+        }
+      } else if (request.inputs && Object.keys(request.inputs).length > 0) {
+        // Log when inputs exist but are not being applied (for debugging)
+        if (isEntrypointRef && !isEntrypointComponent) {
+          console.warn(
+            `[WorkflowRunner] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`
+          );
         }
       }
 
@@ -229,6 +246,7 @@ export async function executeWorkflow(
           runId,
           nodeRef: action.ref,
           timestamp: new Date().toISOString(),
+          message: errorMsg,
           error: errorMsg,
           level: 'error',
           context: {

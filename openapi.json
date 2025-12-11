@@ -339,6 +339,38 @@
                           },
                           "duration": {
                             "type": "number"
+                          },
+                          "triggerType": {
+                            "type": "string",
+                            "enum": [
+                              "manual",
+                              "schedule",
+                              "api"
+                            ]
+                          },
+                          "triggerSource": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "triggerLabel": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "inputPreview": {
+                            "type": "object",
+                            "properties": {
+                              "runtimeInputs": {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              "nodeOverrides": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "additionalProperties": true
+                                }
+                              }
+                            }
                           }
                         }
                       }
@@ -426,6 +458,38 @@
                     },
                     "duration": {
                       "type": "number"
+                    },
+                    "triggerType": {
+                      "type": "string",
+                      "enum": [
+                        "manual",
+                        "schedule",
+                        "api"
+                      ]
+                    },
+                    "triggerSource": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "triggerLabel": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "inputPreview": {
+                      "type": "object",
+                      "properties": {
+                        "runtimeInputs": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "nodeOverrides": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -1702,6 +1766,30 @@
         },
         "tags": [
           "workflows"
+        ]
+      }
+    },
+    "/api/v1/internal/runs": {
+      "post": {
+        "operationId": "InternalRunsController_prepareRun",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareRunRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalRuns"
         ]
       }
     },
@@ -3196,6 +3284,210 @@
         ]
       }
     },
+    "/api/v1/schedules": {
+      "get": {
+        "operationId": "SchedulesController_list",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "paused",
+                "error"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      },
+      "post": {
+        "operationId": "SchedulesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{id}": {
+      "get": {
+        "operationId": "SchedulesController_getOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      },
+      "patch": {
+        "operationId": "SchedulesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      },
+      "delete": {
+        "operationId": "SchedulesController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{id}/pause": {
+      "post": {
+        "operationId": "SchedulesController_pause",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{id}/resume": {
+      "post": {
+        "operationId": "SchedulesController_resume",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/api/v1/schedules/{id}/trigger": {
+      "post": {
+        "operationId": "SchedulesController_trigger",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -4223,6 +4515,81 @@
           "records"
         ]
       },
+      "PrepareRunRequestDto": {
+        "type": "object",
+        "properties": {
+          "inputs": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "nodeOverrides": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "trigger": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "schedule",
+                  "api"
+                ]
+              },
+              "sourceId": {
+                "type": "string",
+                "nullable": true
+              },
+              "label": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "runId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "workflowId"
+        ]
+      },
       "ArtifactListResponseDto": {
         "type": "object",
         "properties": {
@@ -4805,6 +5172,182 @@
           "tokenType",
           "scopes"
         ]
+      },
+      "CreateScheduleRequestDto": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workflowVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "cronExpression": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "humanLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "overlapPolicy": {
+            "default": "skip",
+            "type": "string",
+            "enum": [
+              "skip",
+              "buffer",
+              "allow"
+            ]
+          },
+          "catchupWindowSeconds": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputPayload": {
+            "default": {
+              "runtimeInputs": {},
+              "nodeOverrides": {}
+            },
+            "type": "object",
+            "properties": {
+              "runtimeInputs": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "nodeOverrides": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "workflowId",
+          "name",
+          "cronExpression",
+          "timezone"
+        ]
+      },
+      "UpdateScheduleRequestDto": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workflowVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "cronExpression": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "humanLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "overlapPolicy": {
+            "default": "skip",
+            "type": "string",
+            "enum": [
+              "skip",
+              "buffer",
+              "allow"
+            ]
+          },
+          "catchupWindowSeconds": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputPayload": {
+            "default": {
+              "runtimeInputs": {},
+              "nodeOverrides": {}
+            },
+            "type": "object",
+            "properties": {
+              "runtimeInputs": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "nodeOverrides": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "error"
+            ]
+          }
+        }
       }
     }
   }

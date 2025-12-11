@@ -20,6 +20,9 @@ type CompleteOAuthPayload = components['schemas']['CompleteOAuthDto'];
 type RefreshConnectionPayload = components['schemas']['RefreshConnectionDto'];
 type DisconnectConnectionPayload = components['schemas']['DisconnectConnectionDto'];
 type ArtifactDestination = 'run' | 'library';
+type CreateSchedulePayload = components['schemas']['CreateScheduleRequestDto'];
+type UpdateSchedulePayload = components['schemas']['UpdateScheduleRequestDto'];
+type ScheduleStatus = 'active' | 'paused' | 'error';
 
 /**
  * ShipSec API Client
@@ -245,6 +248,62 @@ export class ShipSecApiClient {
       throw new Error(`Failed to download artifact: ${String(response.error)}`);
     }
     return (response?.data ?? response) as Blob;
+  }
+
+  // ===== Schedules =====
+
+  async listSchedules(options?: { workflowId?: string; status?: ScheduleStatus }) {
+    return this.client.GET('/api/v1/schedules', {
+      params: {
+        query: {
+          workflowId: options?.workflowId,
+          status: options?.status,
+        },
+      },
+    });
+  }
+
+  async getSchedule(id: string) {
+    return this.client.GET('/api/v1/schedules/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async createSchedule(schedule: CreateSchedulePayload) {
+    return this.client.POST('/api/v1/schedules', {
+      body: schedule,
+    });
+  }
+
+  async updateSchedule(id: string, schedule: UpdateSchedulePayload) {
+    return this.client.PATCH('/api/v1/schedules/{id}', {
+      params: { path: { id } },
+      body: schedule,
+    });
+  }
+
+  async deleteSchedule(id: string) {
+    return this.client.DELETE('/api/v1/schedules/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async pauseSchedule(id: string) {
+    return this.client.POST('/api/v1/schedules/{id}/pause', {
+      params: { path: { id } },
+    });
+  }
+
+  async resumeSchedule(id: string) {
+    return this.client.POST('/api/v1/schedules/{id}/resume', {
+      params: { path: { id } },
+    });
+  }
+
+  async triggerSchedule(id: string) {
+    return this.client.POST('/api/v1/schedules/{id}/trigger', {
+      params: { path: { id } },
+    });
   }
 
   async listArtifacts(options?: {

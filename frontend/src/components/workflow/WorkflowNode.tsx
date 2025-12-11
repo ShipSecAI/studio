@@ -273,9 +273,9 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   const requiredParams = componentParameters.filter(param => param.required)
   const requiredInputs = componentInputs.filter(input => input.required)
 
-  // DYNAMIC OUTPUTS: For Manual Trigger, generate outputs based on runtimeInputs parameter
+  // DYNAMIC OUTPUTS: For Entry Point, generate outputs based on runtimeInputs parameter
   let effectiveOutputs = component.outputs ?? []
-  if (component.id === 'core.trigger.manual' && nodeData.parameters?.runtimeInputs) {
+  if (component.id === 'core.workflow.entrypoint' && nodeData.parameters?.runtimeInputs) {
     try {
       const runtimeInputs = typeof nodeData.parameters.runtimeInputs === 'string'
         ? JSON.parse(nodeData.parameters.runtimeInputs)

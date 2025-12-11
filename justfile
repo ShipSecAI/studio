@@ -88,8 +88,14 @@ dev action="start":
             pm2 status
             docker compose -f docker/docker-compose.infra.yml ps
             ;;
+        clean)
+            echo "🧹 Cleaning development environment..."
+            pm2 delete shipsec-frontend shipsec-backend shipsec-worker shipsec-test-worker 2>/dev/null || true
+            docker compose -f docker/docker-compose.infra.yml down -v
+            echo "✅ Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
+            ;;
         *)
-            echo "Usage: just dev [start|stop|logs|status]"
+            echo "Usage: just dev [start|stop|logs|status|clean]"
             ;;
     esac
 
@@ -214,19 +220,27 @@ help:
     @echo "  just init       Set up dependencies and environment files"
     @echo ""
     @echo "Development (hot-reload):"
-    @echo "  just dev        Start development environment"
-    @echo "  just dev stop   Stop everything"
-    @echo "  just dev logs   View application logs"
+    @echo "  just dev          Start development environment"
+    @echo "  just dev stop     Stop everything"
+    @echo "  just dev logs     View application logs"
+    @echo "  just dev status   Check service status"
+    @echo "  just dev clean    Stop and remove all data"
     @echo ""
     @echo "Production (Docker):"
-    @echo "  just prod         Start with cached images"
-    @echo "  just prod build   Rebuild and start"
-    @echo "  just prod stop    Stop production"
-    @echo "  just prod logs    View production logs"
-    @echo "  just prod clean   Remove all data"
+    @echo "  just prod          Start with cached images"
+    @echo "  just prod build    Rebuild and start"
+    @echo "  just prod stop     Stop production"
+    @echo "  just prod logs     View production logs"
+    @echo "  just prod status   Check production status"
+    @echo "  just prod clean    Remove all data"
+    @echo ""
+    @echo "Infrastructure:"
+    @echo "  just infra up      Start infrastructure only"
+    @echo "  just infra down    Stop infrastructure"
+    @echo "  just infra logs    View infrastructure logs"
+    @echo "  just infra clean   Remove infrastructure data"
     @echo ""
     @echo "Utilities:"
-    @echo "  just status       Show status of all services"
-    @echo "  just infra up     Start only infrastructure"
-    @echo "  just db-reset     Reset database"
-    @echo "  just build        Build images only"
+    @echo "  just status        Show status of all services"
+    @echo "  just db-reset      Reset database"
+    @echo "  just build         Build images only"

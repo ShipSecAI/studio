@@ -1,0 +1,422 @@
+---
+title: "Component Development"
+description: "Build custom security components for ShipSec Studio"
+---
+
+This guide provides best practices and required patterns for developing ShipSec Studio components.
+
+---
+
+## Component Basics
+
+### Quick Start
+
+```typescript
+import { z } from 'zod';
+import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+
+const inputSchema = z.object({
+  target: z.string()
+});
+
+const outputSchema = z.object({
+  result: z.string()
+});
+
+const definition: ComponentDefinition<Input, Output> = {
+  id: 'shipsec.tool.scan',
+  label: 'Tool Scanner',
+  category: 'security',
+  runner: {
+    kind: 'docker',
+    image: 'tool:latest',
+    command: [/* build args */],
+    network: 'bridge'
+  },
+  inputSchema,
+  outputSchema,
+  async execute(input, context) {
+    // Implementation
+  }
+};
+
+componentRegistry.register(definition);
+```
+
+---
+
+## Docker Component Requirements
+
+<Warning>
+  All Docker-based components run with PTY (pseudo-terminal) enabled by default in workflows. Your component MUST be designed for PTY mode.
+</Warning>
+
+### Shell Wrapper Pattern (Required)
+
+All Docker-based components MUST use a shell wrapper for PTY compatibility:
+
+```typescript
+// ✅ CORRECT - Shell wrapper pattern
+const definition: ComponentDefinition<Input, Output> = {
+  id: 'shipsec.tool.scan',
+  runner: {
+    kind: 'docker',
+    image: 'tool:latest',
+    entrypoint: 'sh',                      // Shell wrapper
+    command: ['-c', 'tool "$@"', '--'],    // Wraps CLI execution
+    network: 'bridge',
+  },
+  async execute(input, context) {
+    const args = ['-json', '-output', '/data/results.json'];
+
+    const config: DockerRunnerConfig = {
+      ...this.runner,
+      command: [...(this.runner.command ?? []), ...args],
+    };
+
+    return runComponentWithRunner(config, input, context);
+  }
+};
+```
+
+```typescript
+// ❌ WRONG - Direct binary execution
+const definition: ComponentDefinition<Input, Output> = {
+  runner: {
+    kind: 'docker',
+    image: 'tool:latest',
+    entrypoint: 'tool',                    // No shell wrapper - will hang
+    command: ['-read-stdin', '-output'],
+  }
+};
+```
+
+### Why Shell Wrappers?
+
+| Benefit | Description |
+|---------|-------------|
+| TTY signal handling | Shell properly handles `SIGTERM`, `SIGHUP` |
+| Clean exit | Shell ensures process cleanup |
+| Buffering control | Shell manages stdout/stderr correctly |
+| No stdin issues | Shell doesn't wait for `stdin` input |
+
+### Pattern Decision Tree
+
+```
+Does your Docker image have a shell (/bin/sh)?
+├─ YES → Use Shell Wrapper Pattern
+│         entrypoint: 'sh', command: ['-c', 'tool "$@"', '--']
+│
+└─ NO (Distroless) → Does your tool have a -stream flag?
+   ├─ YES → Use Direct Binary + Stream
+   │         entrypoint: 'tool', command: ['-stream', ...]
+   │
+   └─ NO → Rely on SDK stdin handling
+             Note: May have buffering issues
+```
+
+---
+
+## File System Access
+
+<Warning>
+  All components that require file-based input/output MUST use the `IsolatedContainerVolume` utility for Docker-in-Docker compatibility and multi-tenant security.
+</Warning>
+
+### Standard File Access Pattern
+
+```typescript
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import type { DockerRunnerConfig } from '@shipsec/component-sdk';
+
+async execute(input: Input, context: ExecutionContext): Promise<Output> {
+  // 1. Get tenant ID
+  const tenantId = (context as any).tenantId ?? 'default-tenant';
+
+  // 2. Create volume
+  const volume = new IsolatedContainerVolume(tenantId, context.runId);
+
+  try {
+    // 3. Prepare files
+    const files: Record<string, string | Buffer> = {
+      'targets.txt': input.targets.join('\n')
+    };
+
+    // 4. Initialize volume
+    await volume.initialize(files);
+    context.logger.info(`Created volume: ${volume.getVolumeName()}`);
+
+    // 5. Build command args
+    const args = buildCommandArgs(input);
+
+    // 6. Configure runner
+    const runnerConfig: DockerRunnerConfig = {
+      kind: 'docker',
+      image: 'tool:latest',
+      command: args,
+      network: 'bridge',
+      volumes: [
+        volume.getVolumeConfig('/inputs', true)  // read-only
+      ]
+    };
+
+    // 7. Execute
+    const rawOutput = await runComponentWithRunner(
+      runnerConfig,
+      async () => ({} as Output),
+      input,
+      context
+    );
+
+    // 8. Parse and return
+    return parseOutput(rawOutput);
+
+  } finally {
+    // 9. ALWAYS cleanup
+    await volume.cleanup();
+    context.logger.info('Cleaned up volume');
+  }
+}
+```
+
+### Input + Output Files
+
+```typescript
+const volume = new IsolatedContainerVolume(tenantId, context.runId);
+
+try {
+  // Write inputs
+  await volume.initialize({ 'config.json': JSON.stringify(cfg) });
+
+  // Tool writes to same volume
+  const config = {
+    command: [
+      '--config', '/data/config.json',
+      '--output', '/data/results.json'
+    ],
+    volumes: [volume.getVolumeConfig('/data', false)] // read-write
+  };
+
+  await runComponentWithRunner(config, ...);
+
+  // Read outputs
+  const outputs = await volume.readFiles(['results.json', 'errors.log']);
+  return JSON.parse(outputs['results.json']);
+} finally {
+  await volume.cleanup();
+}
+```
+
+---
+
+## Output Buffering Solutions
+
+Even with PTY enabled, some CLI tools buffer their output. Use the shell wrapper pattern for PTY compatibility:
+
+```typescript
+runner: {
+  kind: 'docker',
+  image: 'projectdiscovery/nuclei:latest',
+  // Use shell wrapper for PTY compatibility
+  // Running CLI tools directly as entrypoint can cause them to hang with PTY
+  // The shell wrapper ensures proper TTY signal handling and clean exit
+  entrypoint: 'sh',
+  // Shell wrapper pattern: sh -c 'nuclei "$@"' -- [args...]
+  // This allows dynamic args to be appended and properly passed to the tool
+  command: ['-c', 'nuclei "$@"', '--'],
+}
+```
+
+## UI-Only Components
+
+Components that are purely for UI purposes (documentation, notes) should be marked:
+
+```typescript
+const definition: ComponentDefinition<Input, void> = {
+  id: 'core.ui.text',
+  label: 'Text Block',
+  category: 'input',
+  runner: { kind: 'inline' },
+  inputSchema,
+  outputSchema: z.void(),
+  metadata: {
+    uiOnly: true,  // Excluded from workflow execution
+  },
+  async execute() {
+    // No-op for UI-only components
+  }
+};
+```
+
+---
+
+## Security Requirements
+
+### Tenant Isolation
+
+Every execution gets a unique volume:
+```
+tenant-{tenantId}-run-{runId}-{timestamp}
+```
+
+### Automatic Cleanup
+
+```typescript
+try {
+  await volume.initialize(...);
+  // ... use volume ...
+} finally {
+  await volume.cleanup();  // MUST be in finally
+}
+```
+
+### Read-Only Mounts
+
+```typescript
+// Input files should be read-only
+volume.getVolumeConfig('/inputs', true)  // ✅ read-only
+
+// Only make writable if tool needs to write
+volume.getVolumeConfig('/outputs', false)  // ⚠️ read-write
+```
+
+---
+
+## Testing Checklist
+
+### Before Deployment
+
+- [ ] Used `entrypoint: 'sh'` with `command: ['-c', 'tool "$@"', '--']`
+- [ ] Tested with `docker run --rm -t` (PTY mode)
+- [ ] Container exits cleanly without hanging
+- [ ] No stdin-dependent operations
+- [ ] Tool arguments appended after `'--'` in command array
+- [ ] Workflow run completes successfully
+
+### Volume Testing
+
+```bash
+# Before execution
+docker volume ls --filter "label=studio.managed=true"
+
+# After execution (should be same or empty)
+docker volume ls --filter "label=studio.managed=true"
+```
+
+### PTY Testing
+
+```bash
+# Test with PTY mode (what workflows use)
+docker run --rm -t your-image:latest sh -c 'tool "$@"' -- -flag value
+
+# Verify it doesn't wait for stdin
+timeout 5 docker run --rm -t your-image:latest sh -c 'tool "$@"' -- --help
+```
+
+---
+
+## Complete Example
+
+```typescript
+import { z } from 'zod';
+import { 
+  componentRegistry, 
+  ComponentDefinition,
+  DockerRunnerConfig,
+  runComponentWithRunner 
+} from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+
+const inputSchema = z.object({
+  domains: z.array(z.string()).min(1),
+  threads: z.number().optional().default(10),
+});
+
+const outputSchema = z.object({
+  results: z.array(z.object({
+    domain: z.string(),
+    records: z.array(z.string()),
+  })),
+  rawOutput: z.string(),
+});
+
+type Input = z.infer<typeof inputSchema>;
+type Output = z.infer<typeof outputSchema>;
+
+const definition: ComponentDefinition<Input, Output> = {
+  id: 'shipsec.dnsx.scan',
+  label: 'DNSX Scanner',
+  category: 'security',
+  runner: {
+    kind: 'docker',
+    image: 'projectdiscovery/dnsx:latest',
+    entrypoint: 'sh',
+    command: ['-c', 'dnsx "$@"', '--'],
+    network: 'bridge',
+  },
+  inputSchema,
+  outputSchema,
+  
+  async execute(input, context) {
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+
+    try {
+      // Prepare input files
+      await volume.initialize({
+        'domains.txt': input.domains.join('\n')
+      });
+
+      // Build command args
+      const args = [
+        '-l', '/inputs/domains.txt',
+        '-json',
+        '-t', String(input.threads),
+        '-stream',  // Prevent output buffering
+      ];
+
+      // Configure runner
+      const runnerConfig: DockerRunnerConfig = {
+        ...this.runner,
+        command: [...(this.runner.command ?? []), ...args],
+        volumes: [volume.getVolumeConfig('/inputs', true)],
+      };
+
+      // Execute
+      const rawOutput = await runComponentWithRunner(
+        runnerConfig,
+        async (stdout) => {
+          const lines = stdout.split('\n').filter(Boolean);
+          const results = lines.map(line => {
+            const parsed = JSON.parse(line);
+            return {
+              domain: parsed.host,
+              records: parsed.a || [],
+            };
+          });
+          return { results, rawOutput: stdout };
+        },
+        input,
+        context
+      );
+
+      return rawOutput;
+
+    } finally {
+      await volume.cleanup();
+    }
+  }
+};
+
+componentRegistry.register(definition);
+export default definition;
+```
+
+---
+
+## Questions?
+
+- Component development: Check this guide
+- File access patterns: See [Isolated Volumes](/development/isolated-volumes)
+- Security questions: Email support@shipsec.ai
+- Bug reports: GitHub Issues

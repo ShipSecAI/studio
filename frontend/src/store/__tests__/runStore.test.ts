@@ -106,6 +106,10 @@ describe('runStore', () => {
       isLive: false,
       workflowVersionId: null,
       workflowVersion: null,
+      triggerType: 'manual',
+      triggerSource: null,
+      triggerLabel: 'Manual run',
+      inputPreview: { runtimeInputs: {}, nodeOverrides: {} },
     })
 
     store.upsertRun({
@@ -120,6 +124,10 @@ describe('runStore', () => {
       isLive: false,
       workflowVersionId: null,
       workflowVersion: null,
+      triggerType: 'manual',
+      triggerSource: null,
+      triggerLabel: 'Manual run',
+      inputPreview: { runtimeInputs: {}, nodeOverrides: {} },
     })
 
     const runs = useRunStore.getState().getRunsForWorkflow('wf-1')
@@ -131,5 +139,26 @@ describe('runStore', () => {
     })
 
     expect(useRunStore.getState().getRunsForWorkflow('wf-1')[0].status).toBe('FAILED')
+  })
+
+  it('normalizes trigger metadata and preview defaults', async () => {
+    listRunsMock.mockImplementation(async () => ({
+      runs: [
+        {
+          ...mockRun,
+          triggerType: undefined,
+          triggerLabel: undefined,
+          triggerSource: undefined,
+          inputPreview: undefined,
+        },
+      ],
+    }))
+
+    await useRunStore.getState().fetchRuns({ workflowId: 'wf-1', force: true })
+    const [run] = useRunStore.getState().getRunsForWorkflow('wf-1')
+    expect(run.triggerType).toBe('manual')
+    expect(run.triggerLabel).toBe('Manual run')
+    expect(run.triggerSource).toBeNull()
+    expect(run.inputPreview).toEqual({ runtimeInputs: {}, nodeOverrides: {} })
   })
 })

@@ -54,7 +54,7 @@ describeTopBar('TopBar', () => {
     expect(screen.queryByText('2/5 actions')).not.toBeInTheDocument()
   })
 
-  it('displays failure reason when execution fails', () => {
+  it('keeps failure context out of the builder top bar', () => {
     useExecutionStore.setState({
       status: 'failed',
       runStatus: {
@@ -75,10 +75,7 @@ describeTopBar('TopBar', () => {
       </MemoryRouter>
     )
 
-    // Check for the full failure message format: "Failed: ValidationError"
-    // Use getAllByText to handle React StrictMode double-rendering
-    const failureMessages = screen.getAllByText('Failed: ValidationError')
-    expect(failureMessages.length).toBeGreaterThan(0)
-    expect(failureMessages[0]).toBeInTheDocument()
+    // Failure details now live in the execution panel, not the builder top bar
+    expect(screen.queryByText('Failed: ValidationError')).not.toBeInTheDocument()
   })
 })

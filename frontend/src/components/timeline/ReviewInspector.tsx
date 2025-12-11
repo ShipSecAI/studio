@@ -20,7 +20,6 @@ const formatTime = (timestamp: string) => {
 export function ReviewInspector() {
   const {
     selectedRunId,
-    events,
     playbackMode,
     isPlaying,
   } = useExecutionTimelineStore()
@@ -28,14 +27,12 @@ export function ReviewInspector() {
   const workflowCacheKey = workflowId ?? '__global__'
   const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs)
   const runs = scopedRuns ?? []
-  const { logs } = useExecutionStore()
+  const displayLogs = useExecutionStore((state) => state.getDisplayLogs())
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
 
   const selectedRun = useMemo(() => (
     runs.find(run => run.id === selectedRunId)
   ), [runs, selectedRunId])
-
-  const displayLogs = events.length > 0 ? events : logs
 
   const statusBadge = selectedRun ? (
     <Badge

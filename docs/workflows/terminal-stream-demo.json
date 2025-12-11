@@ -1,0 +1,61 @@
+{
+  "name": "Terminal Stream Playground",
+  "description": "Entry point feeding the Terminal Stream Demo component so we can observe PTY streaming over SSE.",
+  "nodes": [
+    {
+      "id": "entry-point",
+      "type": "core.workflow.entrypoint",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "runtimeInputs": [
+            {
+              "id": "message",
+              "label": "Terminal Message",
+              "type": "text",
+              "required": false,
+              "defaultValue": "Hello from ShipSec Terminal!"
+            },
+            {
+              "id": "durationSeconds",
+              "label": "Duration (seconds)",
+              "type": "number",
+              "required": false,
+              "defaultValue": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "terminal-stream-demo",
+      "type": "shipsec.security.terminal-demo",
+      "position": { "x": 360, "y": 40 },
+      "data": {
+        "label": "Terminal Stream Demo",
+        "config": {
+          "message": "{{inputs.message}}",
+          "durationSeconds": "{{inputs.durationSeconds}}"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "entry-to-terminal-message",
+      "source": "entry-point",
+      "target": "terminal-stream-demo",
+      "sourceHandle": "message",
+      "targetHandle": "message"
+    },
+    {
+      "id": "entry-to-terminal-duration",
+      "source": "entry-point",
+      "target": "terminal-stream-demo",
+      "sourceHandle": "durationSeconds",
+      "targetHandle": "durationSeconds"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}
