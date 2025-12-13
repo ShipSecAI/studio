@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
 import '@shipsec/studio-worker/components'; // Register components
 import { WorkflowGraphSchema } from '../dto/workflow-graph.dto';
@@ -322,6 +322,15 @@ describe('WorkflowsService', () => {
     },
   };
 
+  const analyticsServiceMock = {
+    trackWorkflowStarted: vi.fn(),
+    trackWorkflowCompleted: vi.fn(),
+    trackComponentExecuted: vi.fn(),
+    trackApiCall: vi.fn(),
+    track: vi.fn(),
+    isEnabled: vi.fn().mockReturnValue(true),
+  };
+
   const buildTemporalStub = (overrides?: Partial<WorkflowRunStatus>) => {
     const temporalStub: Pick<
       TemporalService,
@@ -381,6 +390,7 @@ describe('WorkflowsService', () => {
       runRepositoryMock as any,
       traceRepositoryMock as any,
       temporalService,
+      analyticsServiceMock as any,
     );
   });
 
@@ -591,6 +601,7 @@ describe('WorkflowsService', () => {
       runRepositoryMock as any,
       traceRepositoryMock as any,
       failureTemporalService,
+      analyticsServiceMock as any,
     );
 
     const versionRecord = createWorkflowVersionRecord('workflow-id');

@@ -1,4 +1,4 @@
-import { X, ExternalLink, Loader2 } from 'lucide-react'
+import { X, ExternalLink, Loader2, Trash2 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -41,6 +41,7 @@ interface ConfigPanelProps {
   onScheduleCreate?: () => void
   onScheduleEdit?: (schedule: WorkflowSchedule) => void
   onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
+  onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void
   onViewSchedules?: () => void
 }
 
@@ -252,6 +253,7 @@ export function ConfigPanel({
   onScheduleCreate,
   onScheduleEdit,
   onScheduleAction,
+  onScheduleDelete,
   onViewSchedules,
 }: ConfigPanelProps) {
   const { getComponent, loading } = useComponentStore()
@@ -902,6 +904,21 @@ export function ConfigPanel({
                               >
                                 Edit
                               </Button>
+                              {onScheduleDelete && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => {
+                                    if (confirm(`Are you sure you want to delete "${schedule.name}"? This action cannot be undone.`)) {
+                                      onScheduleDelete(schedule)
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </div>
                           {schedule.description && (

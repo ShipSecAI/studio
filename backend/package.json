@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "generate:openapi": "bun scripts/generate-openapi.ts",
     "migration:push": "bun x drizzle-kit push",
-    "migration:smoke": "bun scripts/migration-smoke.ts"
+    "migration:smoke": "bun scripts/migration-smoke.ts",
+    "delete:runs": "bun scripts/delete-all-workflow-runs.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.0",
@@ -42,6 +43,7 @@
     "multer": "^2.0.2",
     "nestjs-zod": "^5.0.1",
     "pg": "^8.16.3",
+    "posthog-node": "^5.17.2",
     "reflect-metadata": "^0.2.2",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.1.12",

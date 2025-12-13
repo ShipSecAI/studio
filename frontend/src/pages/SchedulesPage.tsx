@@ -32,6 +32,7 @@ import {
   Search,
   Edit3,
   Plus,
+  Trash2,
 } from 'lucide-react'
 import { useScheduleStore } from '@/store/scheduleStore'
 import { useToast } from '@/components/ui/use-toast'
@@ -92,6 +93,7 @@ export function SchedulesPage() {
   const pauseSchedule = useScheduleStore((state) => state.pauseSchedule)
   const resumeSchedule = useScheduleStore((state) => state.resumeSchedule)
   const runSchedule = useScheduleStore((state) => state.runSchedule)
+  const deleteSchedule = useScheduleStore((state) => state.deleteSchedule)
   const upsertSchedule = useScheduleStore((state) => state.upsertSchedule)
 
   useEffect(() => {
@@ -270,6 +272,28 @@ export function SchedulesPage() {
 
   const handleEdit = (schedule: WorkflowSchedule) => {
     openEditDrawer(schedule)
+  }
+
+  const handleDelete = async (schedule: WorkflowSchedule) => {
+    if (!confirm(`Are you sure you want to delete "${schedule.name}"? This action cannot be undone.`)) {
+      return
+    }
+    markAction(schedule.id, 'run')
+    try {
+      await deleteSchedule(schedule.id)
+      toast({
+        title: 'Schedule deleted',
+        description: `"${schedule.name}" has been deleted.`,
+      })
+    } catch (err) {
+      toast({
+        title: 'Failed to delete schedule',
+        description: err instanceof Error ? err.message : 'Try again in a moment.',
+        variant: 'destructive',
+      })
+    } finally {
+      clearAction(schedule.id)
+    }
   }
 
   const isActionBusy = (id: string) => Boolean(actionState[id])
@@ -478,6 +502,22 @@ export function SchedulesPage() {
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   Edit schedule configuration
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label="Delete schedule"
+                                    onClick={() => handleDelete(schedule)}
+                                    disabled={isActionBusy(schedule.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  Delete schedule
                                 </TooltipContent>
                               </Tooltip>
                             </div>

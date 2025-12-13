@@ -51,7 +51,7 @@ interface ExecutionStoreActions {
   pollOnce: () => Promise<void>
   stopPolling: () => void
   reset: () => void
-  connectStream: (runId: string) => void
+  connectStream: (runId: string) => Promise<void>
   disconnectStream: () => void
   getNodeLogs: (nodeId: string) => ExecutionLog[]
   getNodeLogCounts: (nodeId: string) => { total: number; errors: number; warnings: number }
@@ -285,7 +285,10 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     const interval = setInterval(poll, 2000)
     set({ pollingInterval: interval, runId })
 
-    get().connectStream(runId)
+    // Connect stream - errors are handled inside connectStream
+    get().connectStream(runId).catch((error) => {
+      console.error('[ExecutionStore] Failed to connect stream in monitorRun:', error)
+    })
   },
 
   pollOnce: async () => {

@@ -150,6 +150,91 @@ prod action="start":
             ;;
     esac
 
+# === Production Images (GHCR-based) ===
+
+# Run production environment using prebuilt GHCR images
+prod-images action="start":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{action}}" in
+        start)
+            echo "🚀 Starting production environment with GHCR images..."
+
+            # Check if images exist locally, pull if needed
+            echo "🔍 Checking for local images..."
+            if ! docker images --format "{{{{.Repository}}}}:{{{{.Tag}}}}" | grep -q "ghcr.io/shipsecai/studio-frontend"; then
+                echo "📥 Pulling GHCR images..."
+                docker pull ghcr.io/shipsecai/studio-frontend:latest || echo "⚠️  Frontend image not found, will build locally"
+            else
+                echo "✅ Frontend image found locally"
+            fi
+            if ! docker images --format "{{{{.Repository}}}}:{{{{.Tag}}}}" | grep -q "ghcr.io/shipsecai/studio-backend"; then
+                docker pull ghcr.io/shipsecai/studio-backend:latest || echo "⚠️  Backend image not found, will build locally"
+            else
+                echo "✅ Backend image found locally"
+            fi
+            if ! docker images --format "{{{{.Repository}}}}:{{{{.Tag}}}}" | grep -q "ghcr.io/shipsecai/studio-worker"; then
+                docker pull ghcr.io/shipsecai/studio-worker:latest || echo "⚠️  Worker image not found, will build locally"
+            else
+                echo "✅ Worker image found locally"
+            fi
+
+            # Start with GHCR images, fallback to local build
+            DOCKER_BUILDKIT=1 docker compose -f docker/docker-compose.full.yml up -d
+            echo ""
+            echo "✅ Production environment ready"
+            echo "   Frontend:    http://localhost:8090"
+            echo "   Backend:     http://localhost:3211"
+            echo "   Temporal UI: http://localhost:8081"
+            ;;
+        stop)
+            docker compose -f docker/docker-compose.full.yml down
+            echo "✅ Production stopped"
+            ;;
+        build-test)
+            echo "🔨 Building test images with PostHog analytics..."
+            if [ -z "${POSTHOG_API_KEY:-}" ] || [ -z "${POSTHOG_HOST:-}" ]; then
+                echo "❌ POSTHOG_API_KEY and POSTHOG_HOST must be set in your environment for this command"
+                exit 1
+            fi
+
+            # Build with PostHog keys (debug version - non-minified)
+            DOCKER_BUILDKIT=1 docker build \
+                --target frontend-debug \
+                --build-arg VITE_PUBLIC_POSTHOG_KEY=$POSTHOG_API_KEY \
+                --build-arg VITE_PUBLIC_POSTHOG_HOST=$POSTHOG_HOST \
+                -t ghcr.io/shipsecai/studio-frontend:latest \
+                .
+
+            DOCKER_BUILDKIT=1 docker build \
+                --target backend \
+                -t ghcr.io/shipsecai/studio-backend:latest \
+                .
+
+            DOCKER_BUILDKIT=1 docker build \
+                --target worker \
+                -t ghcr.io/shipsecai/studio-worker:latest \
+                .
+
+            echo "✅ Test images built with PostHog analytics"
+            echo "   Run: just prod-images start"
+            ;;
+        logs)
+            docker compose -f docker/docker-compose.full.yml logs -f
+            ;;
+        status)
+            docker compose -f docker/docker-compose.full.yml ps
+            ;;
+        clean)
+            docker compose -f docker/docker-compose.full.yml down -v
+            docker system prune -f
+            echo "✅ Production cleaned"
+            ;;
+        *)
+            echo "Usage: just prod-images [start|stop|build-test|logs|status|clean]"
+            ;;
+    esac
+
 # === Infrastructure Only ===
 
 # Manage infrastructure containers separately

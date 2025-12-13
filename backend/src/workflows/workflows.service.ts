@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
 
 import { compileWorkflowGraph } from '../dsl/compiler';
 import { WorkflowDefinition } from '../dsl/types';
@@ -22,6 +23,7 @@ import { WorkflowRoleRepository } from './repository/workflow-role.repository';
 import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
 import { TraceRepository } from '../trace/trace.repository';
+import { AnalyticsService } from '../analytics/analytics.service';
 import {
   ExecutionStatus,
   FailureSummary,
@@ -124,6 +126,7 @@ export class WorkflowsService {
     private readonly runRepository: WorkflowRunRepository,
     private readonly traceRepository: TraceRepository,
     private readonly temporalService: TemporalService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   private resolveOrganizationId(auth?: AuthContext | null): string | null {
@@ -422,7 +425,25 @@ export class WorkflowsService {
       });
       currentStatus = this.normalizeStatus(status.status);
     } catch (error) {
-      this.logger.warn(`Failed to get status for run ${run.runId}: ${error}`);
+      // If Temporal can't find the workflow (NOT_FOUND), check if events have stopped
+      // If events stopped more than 5 minutes ago, assume the workflow completed
+      const isNotFound = this.isNotFoundError(error);
+      if (isNotFound && eventTimeRange.lastTimestamp) {
+        const lastEventTime = new Date(eventTimeRange.lastTimestamp);
+        const minutesSinceLastEvent = (Date.now() - lastEventTime.getTime()) / (1000 * 60);
+        if (minutesSinceLastEvent > 5) {
+          // Events stopped more than 5 minutes ago and Temporal can't find it
+          // Assume the workflow completed successfully
+          currentStatus = 'COMPLETED';
+          this.logger.log(
+            `Run ${run.runId} not found in Temporal but last event was ${minutesSinceLastEvent.toFixed(1)} minutes ago, assuming COMPLETED`,
+          );
+        } else {
+          this.logger.warn(`Failed to get status for run ${run.runId}: ${error}`);
+        }
+      } else {
+        this.logger.warn(`Failed to get status for run ${run.runId}: ${error}`);
+      }
     }
 
     const triggerType = (run.triggerType as ExecutionTriggerType) ?? 'manual';
@@ -704,6 +725,19 @@ export class WorkflowsService {
       inputPreview,
     });
 
+    this.analyticsService.trackWorkflowStarted({
+        workflowId: workflow.id,
+        workflowVersionId: version.id,
+        workflowVersion: version.version,
+        runId,
+        organizationId,
+        nodeCount: compiledDefinition.actions.length,
+        inputCount: Object.keys(request.inputs ?? {}).length,
+        triggerType: triggerMetadata.type,
+        triggerSource: triggerMetadata.sourceId ?? undefined,
+        triggerLabel: triggerMetadata.label ?? undefined
+    });
+
     return {
       runId,
       workflowId: workflow.id,
@@ -828,7 +862,26 @@ export class WorkflowsService {
       );
     }
 
-    return this.mapTemporalStatus(runId, temporalStatus, run, completedActions);
+    const statusPayload = this.mapTemporalStatus(runId, temporalStatus, run, completedActions);
+
+    // Track workflow completion/failure when status changes to terminal state
+    if (['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'].includes(statusPayload.status)) {
+      const startTime = run.createdAt;
+      const endTime = statusPayload.completedAt ? new Date(statusPayload.completedAt) : new Date();
+      const durationMs = endTime.getTime() - startTime.getTime();
+
+      this.analyticsService.trackWorkflowCompleted({
+        workflowId: run.workflowId,
+        runId,
+        organizationId,
+        durationMs,
+        nodeCount: run.totalActions ?? 0,
+        success: statusPayload.status === 'COMPLETED',
+        failureReason: statusPayload.failure?.reason,
+      });
+    }
+
+    return statusPayload;
   }
 
   async getRunResult(runId: string, temporalRunId?: string, auth?: AuthContext | null) {
@@ -1227,6 +1280,15 @@ export class WorkflowsService {
         this.logger.warn(`Unknown Temporal status '${status}', defaulting to RUNNING`);
         return 'RUNNING';
     }
+  }
+
+  private isNotFoundError(error: unknown): error is ServiceError {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const serviceError = error as ServiceError;
+    return serviceError.code === grpcStatus.NOT_FOUND;
   }
 
   private buildFailure(status: ExecutionStatus, failure?: unknown): FailureSummary | undefined {

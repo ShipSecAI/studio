@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Pencil } from 'lucide-react'
@@ -139,7 +139,7 @@ function TerminalButton({
 /**
  * Enhanced WorkflowNode - Visual representation with timeline states
  */
-export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) => {
+export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const { getComponent, loading } = useComponentStore()
   const { getNodes, getEdges, setNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
@@ -172,12 +172,25 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
       return
     }
 
-    setIsTerminalLoading(true)
-    prefetchTerminal(id, 'pty', selectedRunId ?? undefined)
-      .catch((error) => {
+    let cancelled = false
+    const loadTerminal = async () => {
+      setIsTerminalLoading(true)
+      try {
+        await prefetchTerminal(id, 'pty', selectedRunId ?? undefined)
+      } catch (error) {
         console.error('Failed to prefetch terminal output', error)
-      })
-      .finally(() => setIsTerminalLoading(false))
+      } finally {
+        if (!cancelled) {
+          setIsTerminalLoading(false)
+        }
+      }
+    }
+
+    void loadTerminal()
+
+    return () => {
+      cancelled = true
+    }
   }, [id, isTerminalOpen, prefetchTerminal, selectedRunId])
 
   // Cast to access extended frontend fields (componentId, componentSlug, status, etc.)
@@ -235,7 +248,9 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
   const hasEvents = isTimelineActive && visualState.eventCount > 0
 
-  const isTextBlock = component.id === 'core.ui.text'
+  const isTextBlock = component?.id === 'core.ui.text'
+
+  // Always call useEffect hooks in the same order (Rules of Hooks)
   useEffect(() => {
     if (!isTextBlock) return
     const uiSize = (nodeData as any)?.ui?.size as { width?: number; height?: number } | undefined
@@ -253,6 +268,7 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
       return clamped
     })
   }, [isTextBlock, nodeData])
+
   useEffect(() => {
     if (isTextBlock) {
       updateNodeInternals(id)
@@ -940,4 +956,4 @@ export const WorkflowNode = memo(({ data, selected, id }: NodeProps<NodeData>) =
       </div>
     </div>
   )
-})
+}

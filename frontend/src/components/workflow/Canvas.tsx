@@ -71,6 +71,7 @@ interface CanvasProps {
   onScheduleCreate?: () => void
   onScheduleEdit?: (schedule: WorkflowSchedule) => void
   onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
+  onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void
   onViewSchedules?: () => void
 }
 
@@ -89,6 +90,7 @@ export function Canvas({
   onScheduleCreate,
   onScheduleEdit,
   onScheduleAction,
+  onScheduleDelete,
   onViewSchedules,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
@@ -690,6 +692,7 @@ export function Canvas({
             onScheduleCreate={onScheduleCreate}
             onScheduleEdit={onScheduleEdit}
             onScheduleAction={onScheduleAction}
+            onScheduleDelete={onScheduleDelete}
             onViewSchedules={onViewSchedules}
           />
         )}

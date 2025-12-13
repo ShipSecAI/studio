@@ -123,6 +123,7 @@ services:
       - --overprovisioned
       - --node-id=0
       - --check=false
+      - --advertise-kafka-addr=redpanda:9092
     ports:
       - "9092:9092"
       - "9644:9644"
@@ -166,6 +167,7 @@ services:
     restart: unless-stopped
 
   backend:
+    image: ghcr.io/shipsecai/studio-backend:latest
     build:
       context: ..
       dockerfile: Dockerfile
@@ -196,6 +198,10 @@ services:
       - AUTH_PROVIDER=local
       - CLERK_PUBLISHABLE_KEY=
       - CLERK_SECRET_KEY=
+      # PostHog analytics (baked into Docker images)
+      - POSTHOG_API_KEY=${POSTHOG_API_KEY:-}
+      - POSTHOG_HOST=${POSTHOG_HOST:-}
+      - DISABLE_ANALYTICS=${DISABLE_ANALYTICS:-}
     ports:
       - "3211:3211"
     depends_on:
@@ -210,6 +216,7 @@ services:
     restart: unless-stopped
     
   frontend:
+    image: ghcr.io/shipsecai/studio-frontend:latest
     build:
       context: ..
       dockerfile: Dockerfile
@@ -221,6 +228,8 @@ services:
         VITE_DEFAULT_ORG_ID: ${VITE_DEFAULT_ORG_ID:-local-dev}
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
         VITE_GIT_SHA: ${GIT_SHA:-unknown}
+        VITE_PUBLIC_POSTHOG_KEY: ${VITE_PUBLIC_POSTHOG_KEY:-}
+        VITE_PUBLIC_POSTHOG_HOST: ${VITE_PUBLIC_POSTHOG_HOST:-}
     container_name: shipsec-frontend
     environment:
       - VITE_API_URL=http://localhost:3211
@@ -232,6 +241,7 @@ services:
       # If unset, the app disables analytics at runtime.
       - VITE_PUBLIC_POSTHOG_KEY=${VITE_PUBLIC_POSTHOG_KEY:-}
       - VITE_PUBLIC_POSTHOG_HOST=${VITE_PUBLIC_POSTHOG_HOST:-}
+      - VITE_DISABLE_ANALYTICS=${VITE_DISABLE_ANALYTICS:-}
     ports:
       - "8090:8080"
     depends_on:
@@ -244,6 +254,7 @@ services:
       retries: 5
 
   worker:
+    image: ghcr.io/shipsecai/studio-worker:latest
     build:
       context: ..
       dockerfile: Dockerfile
@@ -279,6 +290,8 @@ services:
       dind:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:

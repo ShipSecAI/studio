@@ -25,6 +25,7 @@ interface ScheduleStoreActions {
   pauseSchedule: (id: string) => Promise<WorkflowSchedule>
   resumeSchedule: (id: string) => Promise<WorkflowSchedule>
   runSchedule: (id: string) => Promise<void>
+  deleteSchedule: (id: string) => Promise<void>
   upsertSchedule: (schedule: WorkflowSchedule) => void
   removeSchedule: (id: string) => void
   setError: (message: string | null) => void
@@ -117,6 +118,13 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
 
   runSchedule: async (id: string) => {
     await api.schedules.runNow(id)
+  },
+
+  deleteSchedule: async (id: string) => {
+    await api.schedules.delete(id)
+    set((state) => ({
+      schedules: state.schedules.filter((schedule) => schedule.id !== id),
+    }))
   },
 
   upsertSchedule: (schedule) => {

@@ -317,6 +317,15 @@ describe('WorkflowsController', () => {
       },
     };
 
+    const analyticsServiceMock = {
+      trackWorkflowStarted: vi.fn(),
+      trackWorkflowCompleted: vi.fn(),
+      trackComponentExecuted: vi.fn(),
+      trackApiCall: vi.fn(),
+      track: vi.fn(),
+      isEnabled: vi.fn().mockReturnValue(true),
+    };
+
     const temporalStub: Pick<
       TemporalService,
       'startWorkflow' | 'describeWorkflow' | 'getWorkflowResult' | 'cancelWorkflow' | 'getDefaultTaskQueue'
@@ -359,6 +368,7 @@ describe('WorkflowsController', () => {
       runRepositoryStub as any,
       traceRepositoryStub as any,
       temporalStub as TemporalService,
+      analyticsServiceMock as any,
     );
     const traceService = new TraceService({
       listByRunId: async () => [],

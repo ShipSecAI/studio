@@ -727,8 +727,22 @@ export class WorkflowsController {
       if (!active) {
         return;
       }
-      res.write(`event: ${event}\n`);
-      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      try {
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+        // Flush headers if available (helps with immediate delivery)
+        if (typeof (res as any).flush === 'function') {
+          (res as any).flush();
+        }
+      } catch (error) {
+        // Connection closed or error writing
+        console.warn(`Failed to send SSE event ${event}:`, error);
+        if (!active) {
+          return;
+        }
+        active = false;
+        void cleanup();
+      }
     };
 
     const cleanup = async () => {
@@ -838,6 +852,7 @@ export class WorkflowsController {
 
     // Try to set up real-time LISTEN/NOTIFY subscription
     let unsubscribe: (() => Promise<void>) | undefined;
+    let useRealtime = false;
 
     try {
       const traceRepo = (this.traceService as any).repository;
@@ -888,13 +903,15 @@ export class WorkflowsController {
           }
         });
 
+        useRealtime = true;
+        console.log(`[Stream] Setting up realtime mode for run ${runId}`);
         send('ready', { mode: 'realtime', runId });
       } else {
         throw new Error('Repository does not support LISTEN/NOTIFY');
       }
     } catch (error) {
       // Fallback to polling mode if LISTEN/NOTIFY fails
-      console.warn('Failed to set up LISTEN/NOTIFY, falling back to polling:', error);
+      console.warn(`[Stream] Failed to set up LISTEN/NOTIFY for run ${runId}, falling back to polling:`, error);
       send('ready', { mode: 'polling', runId, interval: 1000 });
       intervalId = setInterval(() => {
         void pump();
@@ -902,11 +919,16 @@ export class WorkflowsController {
     }
 
     await pump();
+    console.log(`[Stream] Initial pump completed for run ${runId}, mode: ${useRealtime ? 'realtime' : 'polling'}`);
 
     // Always run a lightweight poll loop so terminal chunks are flushed even when TRACE notifications are realtime.
-    intervalId = setInterval(() => {
-      void pump();
-    }, 1000);
+    // Only create this interval if we don't already have one (polling mode already has one)
+    if (!intervalId) {
+      intervalId = setInterval(() => {
+        void pump();
+      }, 1000);
+      console.log(`[Stream] Started backup polling interval for run ${runId}`);
+    }
 
     heartbeatId = setInterval(() => {
       if (!active) {

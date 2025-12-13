@@ -17,9 +17,11 @@ import { WorkflowsModule } from './workflows/workflows.module';
 import { TestingSupportModule } from './testing/testing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { SchedulesModule } from './schedules/schedules.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 const coreModules = [
   AgentsModule,
+  AnalyticsModule,
   AuthModule,
   WorkflowsModule,
   TraceModule,

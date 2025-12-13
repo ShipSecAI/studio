@@ -112,6 +112,7 @@ services:
       - --overprovisioned
       - --node-id=0
       - --check=false
+      - --advertise-kafka-addr=redpanda:9092
     ports:
       - "9092:9092"
       - "9644:9644"

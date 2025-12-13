@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { PanelLeftClose, PanelLeftOpen, Plus, ChevronRight, Loader2, Pencil, Play, Pause, Zap, ExternalLink } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Plus, ChevronRight, Loader2, Pencil, Play, Pause, Zap, ExternalLink, Trash2 } from 'lucide-react'
 import {
   ReactFlowProvider,
   useNodesState,
@@ -317,6 +317,29 @@ function WorkflowBuilderContent() {
       } catch (error) {
         toast({
           title: 'Schedule action failed',
+          description: error instanceof Error ? error.message : 'Please try again.',
+          variant: 'destructive',
+        })
+      }
+    },
+    [refreshWorkflowSchedules, toast],
+  )
+
+  const handleScheduleDelete = useCallback(
+    async (schedule: WorkflowSchedule) => {
+      if (!confirm(`Are you sure you want to delete "${schedule.name}"? This action cannot be undone.`)) {
+        return
+      }
+      try {
+        await api.schedules.delete(schedule.id)
+        toast({
+          title: 'Schedule deleted',
+          description: `"${schedule.name}" has been deleted.`,
+        })
+        void refreshWorkflowSchedules()
+      } catch (error) {
+        toast({
+          title: 'Failed to delete schedule',
           description: error instanceof Error ? error.message : 'Please try again.',
           variant: 'destructive',
         })
@@ -1756,6 +1779,7 @@ function WorkflowBuilderContent() {
               onScheduleCreate={() => openScheduleDrawer('create')}
               onScheduleEdit={(schedule) => openScheduleDrawer('edit', schedule)}
               onScheduleAction={handleScheduleAction}
+              onScheduleDelete={handleScheduleDelete}
               onViewSchedules={navigateToSchedules}
             />
           </div>
@@ -1770,6 +1794,7 @@ function WorkflowBuilderContent() {
                 onManage={navigateToSchedules}
                 onEdit={(schedule) => openScheduleDrawer('edit', schedule)}
                 onAction={handleScheduleAction}
+                onDelete={handleScheduleDelete}
               />
             </aside>
           )}
@@ -1924,6 +1949,7 @@ interface WorkflowSchedulesSidebarProps {
   onManage: () => void
   onEdit: (schedule: WorkflowSchedule) => void
   onAction: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
+  onDelete: (schedule: WorkflowSchedule) => Promise<void> | void
 }
 
 function WorkflowSchedulesSidebar({
@@ -1935,6 +1961,7 @@ function WorkflowSchedulesSidebar({
   onManage,
   onEdit,
   onAction,
+  onDelete,
 }: WorkflowSchedulesSidebarProps) {
   const [actionState, setActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
 
@@ -2073,6 +2100,18 @@ function WorkflowSchedulesSidebar({
                       aria-label="Edit schedule"
                     >
                       <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => onDelete(schedule)}
+                      disabled={Boolean(pendingAction)}
+                      title="Delete schedule"
+                      aria-label="Delete schedule"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

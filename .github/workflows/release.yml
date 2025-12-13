@@ -144,6 +144,8 @@ jobs:
           tags: ${{ steps.tags.outputs.frontend_tags }}
           build-args: |
             VITE_GIT_SHA=${{ steps.git_sha.outputs.sha }}
+            VITE_PUBLIC_POSTHOG_KEY=${{ secrets.POSTHOG_API_KEY }}
+            VITE_PUBLIC_POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -256,4 +258,3 @@ jobs:
           echo "   ✅ Version check service updated"
           echo ""
           echo "🎉 Users will now receive update notifications for version ${{ steps.version.outputs.version_clean }}"
-

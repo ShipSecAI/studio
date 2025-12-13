@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, vi } from 'bun:test';
 
 import '@shipsec/studio-worker/components';
 
@@ -262,6 +262,15 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       },
     };
 
+    const analyticsServiceMock = {
+      trackWorkflowStarted: vi.fn(),
+      trackWorkflowCompleted: vi.fn(),
+      trackComponentExecuted: vi.fn(),
+      trackApiCall: vi.fn(),
+      track: vi.fn(),
+      isEnabled: vi.fn().mockReturnValue(true),
+    };
+
     const service = new WorkflowsService(
       repositoryMock as WorkflowRepository,
       workflowRoleRepositoryMock as any,
@@ -269,6 +278,7 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       runRepositoryMock as any,
       traceRepositoryMock as any,
       {} as any,
+      analyticsServiceMock as any,
     );
 
     const definition = await service.commit(workflowId, authContext);
