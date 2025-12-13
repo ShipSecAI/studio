@@ -28,6 +28,7 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import type { NodeData } from '@/schemas/node'
 import { useToast } from '@/components/ui/use-toast'
 import type { WorkflowSchedule } from '@shipsec/shared'
+import { cn } from '@/lib/utils'
 
 const nodeTypes = {
   workflow: WorkflowNode,
@@ -74,6 +75,7 @@ interface CanvasProps {
   onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
   onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void
   onViewSchedules?: () => void
+  onNodeSelectionChange?: (node: Node<NodeData> | null) => void
 }
 
 export function Canvas({
@@ -93,6 +95,7 @@ export function Canvas({
   onScheduleAction,
   onScheduleDelete,
   onViewSchedules,
+  onNodeSelectionChange,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
@@ -413,16 +416,24 @@ export function Canvas({
     const node = nodes.find((n) => n.id === nodeId)
     if (!node || !reactFlowInstance) return
 
-    // Select the node
+    // Select the node in React Flow (for visual highlight)
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        selected: n.id === nodeId,
+      }))
+    )
+
+    // Select the node for config panel
     setSelectedNode(node as Node<NodeData>)
 
     // Scroll to the node with less zoom (more padding = less zoom)
     reactFlowInstance.fitView({
-      padding: 0.6,
+      padding: 2,
       duration: 300,
       nodes: [{ id: nodeId }],
     })
-  }, [nodes, reactFlowInstance])
+  }, [nodes, reactFlowInstance, setNodes])
 
   // Handle node data update from config panel
   const handleUpdateNode = useCallback((nodeId: string, data: Partial<NodeData>) => {
@@ -450,6 +461,11 @@ export function Canvas({
       }
     }
   }, [nodes, selectedNode])
+
+  // Notify parent when node selection changes
+  useEffect(() => {
+    onNodeSelectionChange?.(selectedNode)
+  }, [selectedNode, onNodeSelectionChange])
 
   // Update edges with data flow highlighting and packet data
   useEffect(() => {
@@ -709,22 +725,35 @@ export function Canvas({
         </div>
 
         {/* Config Panel */}
-        {mode === 'design' && selectedNode && (
-          <ConfigPanel
-            selectedNode={selectedNode}
-            onClose={() => setSelectedNode(null)}
-            onUpdateNode={handleUpdateNode}
-            workflowId={workflowId}
-            workflowSchedules={workflowSchedules}
-            schedulesLoading={schedulesLoading}
-            scheduleError={scheduleError}
-            onScheduleCreate={onScheduleCreate}
-            onScheduleEdit={onScheduleEdit}
-            onScheduleAction={onScheduleAction}
-            onScheduleDelete={onScheduleDelete}
-            onViewSchedules={onViewSchedules}
-            onWidthChange={setConfigPanelWidth}
-          />
+        {mode === 'design' && (
+          <div
+            className={cn(
+              'relative overflow-hidden transition-all duration-150 ease-out',
+              selectedNode ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            )}
+            style={{
+              width: selectedNode ? configPanelWidth : 0,
+              transition: 'width 150ms ease-out, opacity 150ms ease-out',
+            }}
+          >
+            {selectedNode && (
+              <ConfigPanel
+                selectedNode={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                onUpdateNode={handleUpdateNode}
+                workflowId={workflowId}
+                workflowSchedules={workflowSchedules}
+                schedulesLoading={schedulesLoading}
+                scheduleError={scheduleError}
+                onScheduleCreate={onScheduleCreate}
+                onScheduleEdit={onScheduleEdit}
+                onScheduleAction={onScheduleAction}
+                onScheduleDelete={onScheduleDelete}
+                onViewSchedules={onViewSchedules}
+                onWidthChange={setConfigPanelWidth}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>

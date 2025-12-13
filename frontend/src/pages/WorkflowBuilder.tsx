@@ -218,6 +218,7 @@ function WorkflowBuilderContent() {
   const [scheduleEditorMode, setScheduleEditorMode] = useState<'create' | 'edit'>('create')
   const [editingSchedule, setEditingSchedule] = useState<WorkflowSchedule | null>(null)
   const [schedulePanelExpanded, setSchedulePanelExpanded] = useState(false)
+  const [hasSelectedNode, setHasSelectedNode] = useState(false)
   const scheduleWorkflowOptions = useMemo<WorkflowOption[]>(() => {
     if (!workflowId) return []
     return [
@@ -1753,7 +1754,12 @@ function WorkflowBuilderContent() {
         <main className="flex-1 relative flex">
           <div className="flex-1 h-full relative">
             {mode === 'design' && workflowId && !schedulePanelExpanded && (
-              <div className="absolute right-2 top-2 z-40 flex justify-end w-full">
+              <div
+                className={cn(
+                  'absolute right-2 top-2 z-40 flex justify-end w-full transition-opacity duration-100 ease-out',
+                  hasSelectedNode ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                )}
+              >
                 <WorkflowSchedulesSummaryBar
                   schedules={workflowSchedules}
                   isLoading={workflowSchedulesLoading}
@@ -1781,21 +1787,32 @@ function WorkflowBuilderContent() {
               onScheduleAction={handleScheduleAction}
               onScheduleDelete={handleScheduleDelete}
               onViewSchedules={navigateToSchedules}
+              onNodeSelectionChange={(node) => setHasSelectedNode(!!node)}
             />
           </div>
-          {mode === 'design' && workflowId && schedulePanelExpanded && (
-            <aside className="w-[432px] border-l bg-background">
-              <WorkflowSchedulesSidebar
-                schedules={workflowSchedules}
-                isLoading={workflowSchedulesLoading}
-                error={workflowSchedulesError}
-                onClose={() => setSchedulePanelExpanded(false)}
-                onCreate={() => openScheduleDrawer('create')}
-                onManage={navigateToSchedules}
-                onEdit={(schedule) => openScheduleDrawer('edit', schedule)}
-                onAction={handleScheduleAction}
-                onDelete={handleScheduleDelete}
-              />
+          {mode === 'design' && workflowId && (
+            <aside
+              className={cn(
+                'overflow-hidden border-l bg-background transition-all duration-150 ease-out',
+                schedulePanelExpanded ? 'opacity-100 w-[432px]' : 'opacity-0 w-0 pointer-events-none'
+              )}
+              style={{
+                transition: 'width 150ms ease-out, opacity 150ms ease-out',
+              }}
+            >
+              {schedulePanelExpanded && (
+                <WorkflowSchedulesSidebar
+                  schedules={workflowSchedules}
+                  isLoading={workflowSchedulesLoading}
+                  error={workflowSchedulesError}
+                  onClose={() => setSchedulePanelExpanded(false)}
+                  onCreate={() => openScheduleDrawer('create')}
+                  onManage={navigateToSchedules}
+                  onEdit={(schedule) => openScheduleDrawer('edit', schedule)}
+                  onAction={handleScheduleAction}
+                  onDelete={handleScheduleDelete}
+                />
+              )}
             </aside>
           )}
           {isInspectorVisible && (
