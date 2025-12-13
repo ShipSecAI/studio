@@ -16,6 +16,7 @@ import 'reactflow/dist/style.css'
 
 import { WorkflowNode } from './WorkflowNode'
 import { ConfigPanel } from './ConfigPanel'
+import { ValidationDock } from './ValidationDock'
 import { DataFlowEdge } from '../timeline/DataFlowEdge'
 import { validateConnection } from '@/utils/connectionValidation'
 import { useComponentStore } from '@/store/componentStore'
@@ -407,6 +408,22 @@ export function Canvas({
     setSelectedNode(null)
   }, [])
 
+  // Handle validation dock node click - select and scroll to node
+  const handleValidationNodeClick = useCallback((nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (!node || !reactFlowInstance) return
+
+    // Select the node
+    setSelectedNode(node as Node<NodeData>)
+
+    // Scroll to the node with less zoom (more padding = less zoom)
+    reactFlowInstance.fitView({
+      padding: 0.6,
+      duration: 300,
+      nodes: [{ id: nodeId }],
+    })
+  }, [nodes, reactFlowInstance])
+
   // Handle node data update from config panel
   const handleUpdateNode = useCallback((nodeId: string, data: Partial<NodeData>) => {
     setNodes((nds) =>
@@ -602,10 +619,21 @@ export function Canvas({
     return () => document.removeEventListener('keydown', handleKeyPress)
   }, [nodes, edges, setNodes, setEdges, markDirty, mode])
 
+  const [configPanelWidth, setConfigPanelWidth] = useState(432) // Default panel width
+
   return (
     <div className={className}>
       <div className="flex h-full">
         <div className="flex-1 relative bg-background">
+          {/* Validation Dock - positioned relative to canvas */}
+          <ValidationDock
+            nodes={nodes}
+            edges={edges}
+            mode={mode}
+            onNodeClick={handleValidationNodeClick}
+            configPanelOpen={!!selectedNode}
+            configPanelWidth={configPanelWidth}
+          />
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -695,6 +723,7 @@ export function Canvas({
             onScheduleAction={onScheduleAction}
             onScheduleDelete={onScheduleDelete}
             onViewSchedules={onViewSchedules}
+            onWidthChange={setConfigPanelWidth}
           />
         )}
       </div>

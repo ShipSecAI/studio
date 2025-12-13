@@ -444,33 +444,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     </div>
   )
 
-  // Determine border color based on validation state (only in design mode)
-  const getValidationBorderColor = () => {
-    // In execution mode, use status-based colors (handled separately)
-    if (mode === 'execution' && selectedRunId) {
-      return ''
-    }
-    
-    // If node has execution status, use status-based border
-    if (nodeData.status && nodeData.status !== 'idle') {
-      return ''
-    }
-    
-    // In design mode, show validation colors
-    if (hasUnfilledRequired) {
-      return 'border-red-500 border-2'
-    }
-    
-    // Check if node has required fields and all are filled
-    const hasRequiredFields = requiredParams.length > 0 || requiredInputs.length > 0
-    if (hasRequiredFields && !hasUnfilledRequired) {
-      return 'border-green-500 border-2'
-    }
-    
-    // Default visible border for nodes without required fields
-    const typeBorderColor = getTypeBorderColor(component.type)
-    return `${typeBorderColor} border-2`
-  }
 
   const clampWidth = (width: number) =>
     Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, width))
@@ -533,14 +506,15 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           : isTimelineActive && visualState.status === 'running'
             ? 'bg-blue-50/80 dark:bg-blue-900/30'
             : 'bg-background',
-        selected && 'ring-2 ring-blue-500 ring-offset-2',
+        // Selected state: blue gradient shadow highlight (pure glow, no border)
+        selected && 'shadow-[0_0_15px_rgba(59,130,246,0.4),0_0_30px_rgba(59,130,246,0.3)]',
+        selected && 'hover:shadow-[0_0_25px_rgba(59,130,246,0.6),0_0_45px_rgba(59,130,246,0.4)]',
         
-        // Validation styling (only when not in execution mode)
-        !isTimelineActive && hasUnfilledRequired && !nodeData.status && 'shadow-red-100',
-        getValidationBorderColor(),
+        // Validation styling removed - now shown in ValidationDock
 
         // Interactive states - use CSS hover to avoid re-renders
-        'hover:shadow-xl hover:scale-[1.02]',
+        !selected && 'hover:shadow-xl',
+        'hover:scale-[1.02]',
         selectedRunId && 'cursor-pointer'
       )}
       ref={nodeRef}
