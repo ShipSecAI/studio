@@ -93,3 +93,155 @@ textarea {
   z-index: 100;
   pointer-events: auto !important;
 }
+
+/* Config panel scrollbar styling */
+.config-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.config-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.config-panel::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+.config-panel::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Smooth scrolling for config panel content */
+.config-panel > div {
+  scroll-behavior: smooth;
+}
+
+/* Semantic color utilities for light/dark mode compatibility */
+.text-success {
+  color: hsl(var(--color-success));
+}
+
+.text-warning {
+  color: hsl(var(--color-warning));
+}
+
+.text-error {
+  color: hsl(var(--color-error));
+}
+
+/* Status colors that adapt to theme */
+.status-success {
+  color: #16a34a; /* green-600 */
+}
+.dark .status-success {
+  color: #4ADE80; /* Accent Success */
+}
+
+.status-error {
+  color: #dc2626; /* red-600 */
+}
+.dark .status-error {
+  color: #EF4444; /* Accent Error */
+}
+
+.status-info {
+  color: #2563eb; /* blue-600 */
+}
+.dark .status-info {
+  color: #3C82F6; /* Accent Blue */
+}
+
+.status-warning {
+  color: #d97706; /* amber-600 */
+}
+.dark .status-warning {
+  color: #FACC15; /* Accent Warning */
+}
+
+/* Background variants for status */
+.bg-status-success {
+  background-color: #f0fdf4; /* green-50 */
+}
+.dark .bg-status-success {
+  background-color: rgb(20 83 45 / 0.3); /* green-950/30 */
+}
+
+.bg-status-error {
+  background-color: #fef2f2; /* red-50 */
+}
+.dark .bg-status-error {
+  background-color: rgb(69 10 10 / 0.3); /* red-950/30 */
+}
+
+.bg-status-info {
+  background-color: #eff6ff; /* blue-50 */
+}
+.dark .bg-status-info {
+  background-color: rgb(23 37 84 / 0.3); /* blue-950/30 */
+}
+
+/* Enhanced table row hover effects */
+table tbody tr {
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+table tbody tr:hover {
+  background-color: hsl(var(--accent) / 0.5);
+}
+
+.dark table tbody tr:hover {
+  background-color: hsl(var(--accent) / 0.3);
+  box-shadow: inset 3px 0 0 0 hsl(var(--primary));
+}
+
+/* Resize handle styles */
+.resize-handle-horizontal {
+  cursor: col-resize;
+  transition: background-color 0.15s ease;
+}
+
+.resize-handle-horizontal:hover {
+  background-color: hsl(var(--primary) / 0.2);
+}
+
+.resize-handle-horizontal:active {
+  background-color: hsl(var(--primary) / 0.4);
+}
+
+.resize-handle-vertical {
+  cursor: row-resize;
+  transition: background-color 0.15s ease;
+}
+
+.resize-handle-vertical:hover {
+  background-color: hsl(var(--primary) / 0.2);
+}
+
+.resize-handle-vertical:active {
+  background-color: hsl(var(--primary) / 0.4);
+}
+
+/* Timeline resize indicator */
+.timeline-resize-handle {
+  position: relative;
+}
+
+.timeline-resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: hsl(var(--border));
+  opacity: 0.6;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.timeline-resize-handle:hover::after {
+  opacity: 1;
+  background: hsl(var(--primary) / 0.5);
+}
