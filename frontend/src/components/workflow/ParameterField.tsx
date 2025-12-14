@@ -1018,7 +1018,7 @@ export function ParameterFieldWrapper({
   // Special case: Runtime Inputs Editor for Entry Point
   if (parameter.id === 'runtimeInputs') {
     return (
-      <div className="p-3 rounded-lg border bg-background space-y-2">
+      <div className="space-y-2">
         {parameter.description && (
           <p className="text-xs text-muted-foreground mb-2">
             {parameter.description}
@@ -1038,7 +1038,7 @@ export function ParameterFieldWrapper({
 
   // Standard parameter field rendering
   return (
-    <div className="p-3 rounded-lg border bg-background space-y-2">
+    <div className="space-y-2">
       <div className="flex items-center justify-between mb-1">
         <label className="text-sm font-medium" htmlFor={parameter.id}>
           {parameter.label}

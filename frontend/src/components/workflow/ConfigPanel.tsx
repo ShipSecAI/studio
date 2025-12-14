@@ -4,6 +4,7 @@ import { X, ExternalLink, Loader2, Trash2, ChevronDown, ChevronRight, Circle, Ch
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MarkdownView } from '@/components/ui/markdown'
 import {
   Select,
   SelectContent,
@@ -87,7 +88,7 @@ interface ConfigPanelProps {
 
 const MIN_PANEL_WIDTH = 280
 const MAX_PANEL_WIDTH = 600
-const DEFAULT_PANEL_WIDTH = 360
+const DEFAULT_PANEL_WIDTH = 432
 
 const buildSampleValueForRuntimeInput = (type?: string, id?: string) => {
   switch (type) {
@@ -524,11 +525,55 @@ export function ConfigPanel({
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-2">
+          {/* Documentation */}
+          {(component.documentation || component.documentationUrl) && (
+            <CollapsibleSection title="Documentation" defaultOpen={false}>
+              <div className="space-y-0 mt-2">
+                {component.documentationUrl && (
+                  <div className={cn(
+                    "py-3",
+                    component.documentation && "border-b border-border pb-3"
+                  )}>
+                    <a
+                      href={component.documentationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-xs hover:text-primary transition-colors group"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary shrink-0" />
+                      <span className="text-muted-foreground group-hover:text-foreground">
+                        View external documentation
+                      </span>
+                    </a>
+                  </div>
+                )}
+                {component.documentation && (
+                  <div className="py-3">
+                    <MarkdownView
+                      content={component.documentation}
+                      dataTestId="component-documentation"
+                      className={cn(
+                        'prose prose-sm dark:prose-invert max-w-none',
+                        'text-foreground prose-headings:text-foreground',
+                        'prose-p:text-muted-foreground prose-p:text-xs prose-p:leading-relaxed',
+                        'prose-a:text-primary prose-a:no-underline hover:prose-a:underline',
+                        'prose-code:text-xs prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded',
+                        'prose-pre:bg-muted prose-pre:text-xs',
+                        'prose-ul:text-xs prose-ol:text-xs',
+                        'prose-li:text-muted-foreground'
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Inputs Section */}
           {componentInputs.length > 0 && (
             <CollapsibleSection title="Inputs" count={componentInputs.length} defaultOpen={true}>
-              <div className="space-y-3 mt-3">
-                {componentInputs.map((input) => {
+              <div className="space-y-0 mt-2">
+                {componentInputs.map((input, index) => {
                   const connection = nodeData.inputs?.[input.id]
                   const hasConnection = Boolean(connection)
                   const manualValue = manualParameters[input.id]
@@ -571,7 +616,10 @@ export function ConfigPanel({
                   return (
                     <div
                       key={input.id}
-                      className="p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                      className={cn(
+                        "py-3",
+                        index > 0 && "border-t border-border"
+                      )}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-1.5">
@@ -732,12 +780,15 @@ export function ConfigPanel({
 
           {/* Outputs Section */}
           {componentOutputs.length > 0 && (
-            <CollapsibleSection title="Outputs" count={componentOutputs.length} defaultOpen={false}>
-              <div className="space-y-2 mt-2">
-                {componentOutputs.map((output) => (
+            <CollapsibleSection title="Outputs" count={componentOutputs.length} defaultOpen={true}>
+              <div className="space-y-0 mt-2">
+                {componentOutputs.map((output, index) => (
                   <div
                     key={output.id}
-                    className="p-3 rounded-lg border bg-card"
+                    className={cn(
+                      "py-3",
+                      index > 0 && "border-t border-border"
+                    )}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium">{output.label}</span>
@@ -758,8 +809,12 @@ export function ConfigPanel({
 
           {/* Parameters Section */}
           {componentParameters.length > 0 && (
-            <CollapsibleSection title="Parameters" count={componentParameters.length} defaultOpen={true}>
-              <div className="space-y-2 mt-2">
+            <CollapsibleSection 
+              title="Parameters" 
+              count={componentParameters.length} 
+              defaultOpen={componentInputs.length === 0 && componentOutputs.length === 0}
+            >
+              <div className="space-y-0 mt-2">
                 {/* Sort parameters: select types first, then others */}
                 {componentParameters
                   .slice()
@@ -771,17 +826,23 @@ export function ConfigPanel({
                     if (!aIsSelect && bIsSelect) return 1
                     return 0
                   })
-                  .map((param) => (
-                    <ParameterFieldWrapper
+                  .map((param, index) => (
+                    <div
                       key={param.id}
-                      parameter={param}
-                      value={nodeData.parameters?.[param.id]}
-                      onChange={(value) => handleParameterChange(param.id, value)}
-                      connectedInput={nodeData.inputs?.[param.id]}
-                      componentId={component.id}
-                      parameters={nodeData.parameters}
-                      onUpdateParameter={handleParameterChange}
-                    />
+                      className={cn(
+                        index > 0 && "border-t border-border pt-3"
+                      )}
+                    >
+                      <ParameterFieldWrapper
+                        parameter={param}
+                        value={nodeData.parameters?.[param.id]}
+                        onChange={(value) => handleParameterChange(param.id, value)}
+                        connectedInput={nodeData.inputs?.[param.id]}
+                        componentId={component.id}
+                        parameters={nodeData.parameters}
+                        onUpdateParameter={handleParameterChange}
+                      />
+                    </div>
                   ))}
               </div>
             </CollapsibleSection>
@@ -973,7 +1034,7 @@ export function ConfigPanel({
           {/* Examples */}
           {exampleItems.length > 0 && (
             <CollapsibleSection title="Examples" count={exampleItems.length} defaultOpen={false}>
-              <div className="space-y-2 mt-2">
+              <div className="space-y-0 mt-2">
                 {exampleItems.map((exampleText, index) => {
                   const commandMatch = exampleText.match(/`([^`]+)`/)
                   const command = commandMatch?.[1]?.trim()
@@ -987,7 +1048,10 @@ export function ConfigPanel({
                   return (
                     <div
                       key={`${exampleText}-${index}`}
-                      className="p-2.5 rounded-lg border bg-card"
+                      className={cn(
+                        "py-3",
+                        index > 0 && "border-t border-border"
+                      )}
                     >
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] font-medium text-muted-foreground mt-0.5">
@@ -995,7 +1059,7 @@ export function ConfigPanel({
                         </span>
                         <div className="flex-1 space-y-1.5">
                           {command && (
-                            <code className="block w-full overflow-x-auto rounded bg-background px-2 py-1 text-[11px] font-mono">
+                            <code className="block w-full overflow-x-auto rounded bg-muted px-2 py-1 text-[11px] font-mono">
                               {command}
                             </code>
                           )}
@@ -1009,34 +1073,6 @@ export function ConfigPanel({
                     </div>
                   )
                 })}
-              </div>
-            </CollapsibleSection>
-          )}
-
-          {/* Documentation */}
-          {(component.documentation || component.documentationUrl) && (
-            <CollapsibleSection title="Documentation" defaultOpen={false}>
-              <div className="space-y-2 mt-2">
-                {component.documentationUrl && (
-                  <a
-                    href={component.documentationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-2.5 rounded-lg border bg-card text-xs hover:bg-muted/50 transition-colors group"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary shrink-0" />
-                    <span className="text-muted-foreground group-hover:text-foreground truncate">
-                      View docs
-                    </span>
-                  </a>
-                )}
-                {component.documentation && (
-                  <div className="p-2.5 rounded-lg border bg-card">
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                      {component.documentation}
-                    </p>
-                  </div>
-                )}
               </div>
             </CollapsibleSection>
           )}

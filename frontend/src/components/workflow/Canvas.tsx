@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   ReactFlow,
   Background,
@@ -16,6 +16,7 @@ import 'reactflow/dist/style.css'
 
 import { WorkflowNode } from './WorkflowNode'
 import { ConfigPanel } from './ConfigPanel'
+import { ValidationDock } from './ValidationDock'
 import { DataFlowEdge } from '../timeline/DataFlowEdge'
 import { validateConnection } from '@/utils/connectionValidation'
 import { useComponentStore } from '@/store/componentStore'
@@ -27,15 +28,7 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import type { NodeData } from '@/schemas/node'
 import { useToast } from '@/components/ui/use-toast'
 import type { WorkflowSchedule } from '@shipsec/shared'
-
-const nodeTypes = {
-  workflow: WorkflowNode,
-}
-
-const edgeTypes = {
-  dataFlow: DataFlowEdge,
-  default: DataFlowEdge, // Default to our enhanced edge
-}
+import { cn } from '@/lib/utils'
 
 const MAX_DELETE_HISTORY = 10
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
@@ -73,6 +66,7 @@ interface CanvasProps {
   onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
   onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void
   onViewSchedules?: () => void
+  onNodeSelectionChange?: (node: Node<NodeData> | null) => void
 }
 
 export function Canvas({
@@ -92,6 +86,7 @@ export function Canvas({
   onScheduleAction,
   onScheduleDelete,
   onViewSchedules,
+  onNodeSelectionChange,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
@@ -100,10 +95,31 @@ export function Canvas({
   const { markDirty } = useWorkflowStore()
   const { dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
   const mode = useWorkflowUiStore((state) => state.mode)
+  const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
   const { toast } = useToast()
   const applyEdgesChange = onEdgesChange
   const deleteHistoryRef = useRef<DeleteHistoryEntry[]>([])
   const hasUserInteractedRef = useRef(false)
+  const prevModeRef = useRef<typeof mode>(mode)
+  const prevNodesLengthRef = useRef(nodes.length)
+  const prevEdgesLengthRef = useRef(edges.length)
+  const [configPanelWidth, setConfigPanelWidth] = useState(432) // Default panel width
+  const [canvasOpacity, setCanvasOpacity] = useState(1) // For fade transition
+
+  const nodeTypes = useMemo(
+    () => ({
+      workflow: WorkflowNode,
+    }),
+    []
+  )
+
+  const edgeTypes = useMemo(
+    () => ({
+      dataFlow: DataFlowEdge,
+      default: DataFlowEdge, // Default to our enhanced edge
+    }),
+    []
+  )
 
   useEffect(() => {
     if (mode === 'execution') {
@@ -111,6 +127,20 @@ export function Canvas({
     }
     if (mode === 'design') {
       useExecutionTimelineStore.setState({ selectedNodeId: null, selectedEventId: null })
+    }
+  }, [mode])
+
+  // Fade transition when mode changes
+  useEffect(() => {
+    const modeChanged = prevModeRef.current !== mode
+    if (modeChanged) {
+      // Fade out
+      setCanvasOpacity(0)
+      // Fade in after a brief moment (allows viewport to be set)
+      const timeoutId = setTimeout(() => {
+        setCanvasOpacity(1)
+      }, 50) // Very short delay to allow viewport calculation
+      return () => clearTimeout(timeoutId)
     }
   }, [mode])
 
@@ -248,16 +278,133 @@ export function Canvas({
     [setEdges, setNodes, nodes, edges, getComponent, markDirty, mode, toast]
   )
 
+  // Fit view on initial load, when nodes/edges are added/removed, or when switching modes
+  // When switching modes, calculate final viewport position upfront and animate synchronously with panels
   useEffect(() => {
-    if (!reactFlowInstance || nodes.length === 0 || hasUserInteractedRef.current) {
+    if (!reactFlowInstance || nodes.length === 0) {
       return
     }
-    try {
-      reactFlowInstance.fitView({ padding: 0.2, duration: 300, maxZoom: 0.85 })
-    } catch (error) {
-      console.warn('Failed to fit view:', error)
+    
+    const modeChanged = prevModeRef.current !== mode
+    const nodesCountChanged = prevNodesLengthRef.current !== nodes.length
+    const edgesCountChanged = prevEdgesLengthRef.current !== edges.length
+    
+    // Always run fitView when mode changes or when nodes/edges count changes
+    if (modeChanged || nodesCountChanged || edgesCountChanged) {
+      prevModeRef.current = mode
+      prevNodesLengthRef.current = nodes.length
+      prevEdgesLengthRef.current = edges.length
+      
+      const runFitView = () => {
+        if (!reactFlowInstance) return
+        
+        try {
+          if (modeChanged) {
+            // When mode changes, calculate final viewport position accounting for final panel states
+            // Use requestAnimationFrame to ensure CSS has applied final panel widths
+            requestAnimationFrame(() => {
+              if (!reactFlowInstance) return
+              
+              try {
+                // Calculate final panel widths based on mode
+                const finalInspectorWidth = mode === 'execution' ? inspectorWidth : 0
+                const finalConfigPanelWidth = mode === 'design' && selectedNode ? configPanelWidth : 0
+                
+                // Get node bounds
+                const nodesBounds = reactFlowInstance.getNodesBounds(nodes)
+                if (!nodesBounds) {
+                  // Fallback to regular fitView if bounds calculation fails (instant)
+                  reactFlowInstance.fitView({ 
+                    padding: 0.2, 
+                    duration: 0, // Instant - no animation
+                    maxZoom: 0.85,
+                    includeHiddenNodes: false,
+                  })
+                  return
+                }
+                
+                // Get current viewport
+                const viewport = reactFlowInstance.getViewport()
+                const currentZoom = viewport.zoom
+                
+                // Get the React Flow wrapper element to get actual container dimensions
+                // After requestAnimationFrame, CSS should have applied final panel widths
+                const flowWrapper = document.querySelector('.react-flow')?.parentElement
+                const containerRect = flowWrapper?.getBoundingClientRect()
+                
+                // Calculate available canvas width accounting for final panel states
+                const windowWidth = window.innerWidth
+                const availableWidth = containerRect?.width ?? (windowWidth - finalInspectorWidth - finalConfigPanelWidth)
+                const availableHeight = containerRect?.height ?? window.innerHeight
+                
+                // Calculate padding in flow coordinates (20% of available dimensions)
+                const paddingX = (availableWidth * 0.2) / currentZoom
+                const paddingY = (availableHeight * 0.2) / currentZoom
+                
+                // Calculate bounds with padding
+                const paddedBounds = {
+                  x: nodesBounds.x - paddingX,
+                  y: nodesBounds.y - paddingY,
+                  width: nodesBounds.width + (paddingX * 2),
+                  height: nodesBounds.height + (paddingY * 2),
+                }
+                
+                // Calculate zoom to fit bounds
+                const zoomX = availableWidth / paddedBounds.width
+                const zoomY = availableHeight / paddedBounds.height
+                const newZoom = Math.min(0.85, Math.min(zoomX, zoomY))
+                
+                // Calculate center position
+                const centerX = paddedBounds.x + paddedBounds.width / 2
+                const centerY = paddedBounds.y + paddedBounds.height / 2
+                
+                // Calculate viewport position to center nodes
+                const newX = (availableWidth / 2) / newZoom - centerX
+                const newY = (availableHeight / 2) / newZoom - centerY
+                
+                // Set viewport instantly (no animation) - nodes render in final position
+                reactFlowInstance.setViewport(
+                  { x: newX, y: newY, zoom: newZoom },
+                  { duration: 0 }
+                )
+              } catch (error) {
+                console.warn('Failed to calculate and set viewport:', error)
+                // Fallback to regular fitView (instant)
+                reactFlowInstance.fitView({ 
+                  padding: 0.2, 
+                  duration: 0, // Instant - no animation
+                  maxZoom: 0.85,
+                })
+              }
+            })
+          } else {
+            // For node/edge count changes, use regular fitView
+            reactFlowInstance.fitView({ 
+              padding: 0.2, 
+              duration: 300,
+              maxZoom: 0.85,
+              includeHiddenNodes: false,
+            })
+          }
+        } catch (error) {
+          console.warn('Failed to fit view:', error)
+          // Fallback to regular fitView (instant for mode changes, animated for node changes)
+          try {
+            reactFlowInstance.fitView({ 
+              padding: 0.2, 
+              duration: modeChanged ? 0 : 300, // Instant for mode changes, animated for node changes
+              maxZoom: 0.85,
+            })
+          } catch (fallbackError) {
+            console.warn('Fallback fitView also failed:', fallbackError)
+          }
+        }
+      }
+      
+      // Run immediately - requestAnimationFrame ensures CSS has applied final panel states
+      runFitView()
     }
-  }, [reactFlowInstance, nodes.length, edges.length])
+  }, [reactFlowInstance, nodes.length, edges.length, mode, inspectorWidth, configPanelWidth, selectedNode])
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     if (mode !== 'design') return
@@ -407,6 +554,30 @@ export function Canvas({
     setSelectedNode(null)
   }, [])
 
+  // Handle validation dock node click - select and scroll to node
+  const handleValidationNodeClick = useCallback((nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (!node || !reactFlowInstance) return
+
+    // Select the node in React Flow (for visual highlight)
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        selected: n.id === nodeId,
+      }))
+    )
+
+    // Select the node for config panel
+    setSelectedNode(node as Node<NodeData>)
+
+    // Scroll to the node with less zoom (more padding = less zoom)
+    reactFlowInstance.fitView({
+      padding: 2,
+      duration: 300,
+      nodes: [{ id: nodeId }],
+    })
+  }, [nodes, reactFlowInstance, setNodes])
+
   // Handle node data update from config panel
   const handleUpdateNode = useCallback((nodeId: string, data: Partial<NodeData>) => {
     setNodes((nds) =>
@@ -433,6 +604,11 @@ export function Canvas({
       }
     }
   }, [nodes, selectedNode])
+
+  // Notify parent when node selection changes
+  useEffect(() => {
+    onNodeSelectionChange?.(selectedNode)
+  }, [selectedNode, onNodeSelectionChange])
 
   // Update edges with data flow highlighting and packet data
   useEffect(() => {
@@ -602,10 +778,25 @@ export function Canvas({
     return () => document.removeEventListener('keydown', handleKeyPress)
   }, [nodes, edges, setNodes, setEdges, markDirty, mode])
 
+  // Panel width changes are handled by CSS transitions, no manual viewport translation needed
+
   return (
     <div className={className}>
       <div className="flex h-full">
-        <div className="flex-1 relative bg-background">
+        <div 
+          className="flex-1 relative bg-background"
+          style={{
+            opacity: canvasOpacity,
+            transition: 'opacity 200ms ease-in-out',
+          }}
+        >
+          {/* Validation Dock - positioned relative to canvas */}
+          <ValidationDock
+            nodes={nodes}
+            edges={edges}
+            mode={mode}
+            onNodeClick={handleValidationNodeClick}
+          />
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -632,7 +823,6 @@ export function Canvas({
             }}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
-            attributionPosition="bottom-left"
             nodesDraggable
             nodesConnectable={mode === 'design'}
             elementsSelectable
@@ -681,21 +871,35 @@ export function Canvas({
         </div>
 
         {/* Config Panel */}
-        {mode === 'design' && selectedNode && (
-          <ConfigPanel
-            selectedNode={selectedNode}
-            onClose={() => setSelectedNode(null)}
-            onUpdateNode={handleUpdateNode}
-            workflowId={workflowId}
-            workflowSchedules={workflowSchedules}
-            schedulesLoading={schedulesLoading}
-            scheduleError={scheduleError}
-            onScheduleCreate={onScheduleCreate}
-            onScheduleEdit={onScheduleEdit}
-            onScheduleAction={onScheduleAction}
-            onScheduleDelete={onScheduleDelete}
-            onViewSchedules={onViewSchedules}
-          />
+        {mode === 'design' && (
+          <div
+            className={cn(
+              'relative overflow-hidden transition-all duration-150 ease-out',
+              selectedNode ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            )}
+            style={{
+              width: selectedNode ? configPanelWidth : 0,
+              transition: 'width 150ms ease-out, opacity 150ms ease-out',
+            }}
+          >
+            {selectedNode && (
+              <ConfigPanel
+                selectedNode={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                onUpdateNode={handleUpdateNode}
+                workflowId={workflowId}
+                workflowSchedules={workflowSchedules}
+                schedulesLoading={schedulesLoading}
+                scheduleError={scheduleError}
+                onScheduleCreate={onScheduleCreate}
+                onScheduleEdit={onScheduleEdit}
+                onScheduleAction={onScheduleAction}
+                onScheduleDelete={onScheduleDelete}
+                onViewSchedules={onViewSchedules}
+                onWidthChange={setConfigPanelWidth}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>

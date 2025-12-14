@@ -288,14 +288,17 @@ table tbody tr:hover {
   fill: hsl(var(--border)) !important;
 }
 
-/* React Flow Attribution - Dark Theme */
+/* React Flow Attribution - Hidden (MIT license allows removal) */
+.react-flow__attribution {
+  display: none !important;
+}
+
 .dark .react-flow__attribution {
-  background-color: hsl(var(--card) / 0.9) !important;
-  color: hsl(var(--muted-foreground)) !important;
+  display: none !important;
 }
 
 .dark .react-flow__attribution a {
-  color: hsl(var(--muted-foreground)) !important;
+  display: none !important;
 }
 
 .dark .react-flow__panel {
@@ -330,9 +333,17 @@ table tbody tr:hover {
   background-color: hsl(var(--background));
 }
 
-/* React Flow Node Selection - Dark Theme */
+/* React Flow Node Selection - Remove border, keep only gradient shadow from WorkflowNode */
+.react-flow__node.selected {
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
 .dark .react-flow__node.selected {
-  box-shadow: 0 0 0 2px hsl(var(--primary));
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
 }
 
 /* Resize handle styles */
@@ -384,4 +395,85 @@ table tbody tr:hover {
 .timeline-resize-handle:hover::after {
   opacity: 1;
   background: hsl(var(--primary) / 0.5);
+}
+
+/* Workflow text node resize handles */
+.text-node-resize-handle.react-flow__resize-control.handle {
+  --text-node-handle-size: 28px;
+  --text-node-handle-radius: var(--radius, 0.5rem);
+  --text-node-handle-offset: calc((var(--text-node-handle-size) / 2) - 1px);
+  --text-node-handle-color-default: color-mix(in srgb, hsl(var(--border)) 70%, hsl(var(--foreground)) 30%);
+  --text-node-handle-color-active: hsl(var(--primary));
+  --text-node-handle-color: var(--text-node-handle-color-default);
+  --text-node-handle-opacity: 0.85;
+  --text-node-handle-scale: 1;
+  width: var(--text-node-handle-size);
+  height: var(--text-node-handle-size);
+  border: none;
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+
+.text-node-resize-handle.react-flow__resize-control.handle:hover,
+.text-node-resize-handle.react-flow__resize-control.handle:active {
+  --text-node-handle-color: var(--text-node-handle-color-active);
+  --text-node-handle-opacity: 1;
+  --text-node-handle-scale: 1.08;
+}
+
+.text-node-resize-handle.react-flow__resize-control.handle::after {
+  content: '';
+  position: absolute;
+  display: block;
+  width: calc(var(--text-node-handle-radius) * 2);
+  height: calc(var(--text-node-handle-radius) * 2);
+  border: 2px solid transparent;
+  opacity: var(--text-node-handle-opacity);
+  pointer-events: none;
+  transition: border-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  transform: scale(var(--text-node-handle-scale));
+}
+
+.text-node-resize-handle.react-flow__resize-control.handle.top.left::after {
+  top: var(--text-node-handle-offset);
+  left: var(--text-node-handle-offset);
+  border-top-left-radius: var(--text-node-handle-radius);
+  border-top-color: var(--text-node-handle-color);
+  border-left-color: var(--text-node-handle-color);
+}
+
+.text-node-resize-handle.react-flow__resize-control.handle.top.right::after {
+  top: var(--text-node-handle-offset);
+  right: var(--text-node-handle-offset);
+  border-top-right-radius: var(--text-node-handle-radius);
+  border-top-color: var(--text-node-handle-color);
+  border-right-color: var(--text-node-handle-color);
+}
+
+.text-node-resize-handle.react-flow__resize-control.handle.bottom.left::after {
+  bottom: var(--text-node-handle-offset);
+  left: var(--text-node-handle-offset);
+  border-bottom-left-radius: var(--text-node-handle-radius);
+  border-bottom-color: var(--text-node-handle-color);
+  border-left-color: var(--text-node-handle-color);
+}
+
+.text-node-resize-handle.react-flow__resize-control.handle.bottom.right::after {
+  bottom: var(--text-node-handle-offset);
+  right: var(--text-node-handle-offset);
+  border-bottom-right-radius: var(--text-node-handle-radius);
+  border-bottom-color: var(--text-node-handle-color);
+  border-right-color: var(--text-node-handle-color);
+}
+
+.text-node-resize-line.react-flow__resize-control.line {
+  border-color: transparent;
+  opacity: 0;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.text-node-resize-line.react-flow__resize-control.line:hover,
+.text-node-resize-line.react-flow__resize-control.line:active {
+  border-color: hsl(var(--primary));
+  opacity: 1;
 }

@@ -39,7 +39,7 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
       setLibraryOpen: (open) => set({ libraryOpen: open }),
       toggleLibrary: () => set((state) => ({ libraryOpen: !state.libraryOpen })),
       setInspectorWidth: (width) => set(() => ({
-        inspectorWidth: Math.max(280, Math.min(520, Math.round(width)))
+        inspectorWidth: Math.max(320, Math.min(520, Math.round(width)))
       })),
       bringTerminalToFront: (nodeId) => set({ focusedTerminalNodeId: nodeId }),
     }),

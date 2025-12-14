@@ -196,6 +196,37 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Cast to access extended frontend fields (componentId, componentSlug, status, etc.)
   const nodeData = data as any
 
+  // Get component metadata
+  const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug
+  const component = getComponent(componentRef)
+  const isTextBlock = component?.id === 'core.ui.text'
+
+  // Always call useEffect hooks in the same order (Rules of Hooks)
+  // These hooks must be called BEFORE any early returns to maintain consistent hook order
+  useEffect(() => {
+    if (!isTextBlock) return
+    const uiSize = (nodeData as any)?.ui?.size as { width?: number; height?: number } | undefined
+    if (!uiSize) return
+    setTextSize((current) => {
+      const nextWidth = uiSize.width ?? current.width
+      const nextHeight = uiSize.height ?? current.height
+      const clamped = {
+        width: Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, nextWidth)),
+        height: Math.max(MIN_TEXT_HEIGHT, Math.min(MAX_TEXT_HEIGHT, nextHeight)),
+      }
+      if (current.width === clamped.width && current.height === clamped.height) {
+        return current
+      }
+      return clamped
+    })
+  }, [isTextBlock, nodeData])
+
+  useEffect(() => {
+    if (isTextBlock) {
+      updateNodeInternals(id)
+    }
+  }, [id, isTextBlock, textSize.width, textSize.height, updateNodeInternals])
+
   // Get timeline visual state for this node
   const visualState: NodeVisualState = nodeStates[id] || {
     status: 'idle',
@@ -207,9 +238,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     dataFlow: { input: [], output: [] }
   }
 
-  // Get component metadata
-  const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug
-  const component = getComponent(componentRef)
   const supportsLiveLogs = component?.runner?.kind === 'docker'
 
   if (!component) {
@@ -247,33 +275,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Enhanced styling for timeline visualization
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
   const hasEvents = isTimelineActive && visualState.eventCount > 0
-
-  const isTextBlock = component?.id === 'core.ui.text'
-
-  // Always call useEffect hooks in the same order (Rules of Hooks)
-  useEffect(() => {
-    if (!isTextBlock) return
-    const uiSize = (nodeData as any)?.ui?.size as { width?: number; height?: number } | undefined
-    if (!uiSize) return
-    setTextSize((current) => {
-      const nextWidth = uiSize.width ?? current.width
-      const nextHeight = uiSize.height ?? current.height
-      const clamped = {
-        width: Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, nextWidth)),
-        height: Math.max(MIN_TEXT_HEIGHT, Math.min(MAX_TEXT_HEIGHT, nextHeight)),
-      }
-      if (current.width === clamped.width && current.height === clamped.height) {
-        return current
-      }
-      return clamped
-    })
-  }, [isTextBlock, nodeData])
-
-  useEffect(() => {
-    if (isTextBlock) {
-      updateNodeInternals(id)
-    }
-  }, [id, isTextBlock, textSize.width, textSize.height, updateNodeInternals])
   const textBlockContent = typeof nodeData.parameters?.content === 'string'
     ? nodeData.parameters.content
     : ''
@@ -443,33 +444,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     </div>
   )
 
-  // Determine border color based on validation state (only in design mode)
-  const getValidationBorderColor = () => {
-    // In execution mode, use status-based colors (handled separately)
-    if (mode === 'execution' && selectedRunId) {
-      return ''
-    }
-    
-    // If node has execution status, use status-based border
-    if (nodeData.status && nodeData.status !== 'idle') {
-      return ''
-    }
-    
-    // In design mode, show validation colors
-    if (hasUnfilledRequired) {
-      return 'border-red-500 border-2'
-    }
-    
-    // Check if node has required fields and all are filled
-    const hasRequiredFields = requiredParams.length > 0 || requiredInputs.length > 0
-    if (hasRequiredFields && !hasUnfilledRequired) {
-      return 'border-green-500 border-2'
-    }
-    
-    // Default visible border for nodes without required fields
-    const typeBorderColor = getTypeBorderColor(component.type)
-    return `${typeBorderColor} border-2`
-  }
 
   const clampWidth = (width: number) =>
     Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, width))
@@ -532,14 +506,15 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           : isTimelineActive && visualState.status === 'running'
             ? 'bg-blue-50/80 dark:bg-blue-900/30'
             : 'bg-background',
-        selected && 'ring-2 ring-blue-500 ring-offset-2',
+        // Selected state: blue gradient shadow highlight (pure glow, no border)
+        selected && 'shadow-[0_0_15px_rgba(59,130,246,0.4),0_0_30px_rgba(59,130,246,0.3)]',
+        selected && 'hover:shadow-[0_0_25px_rgba(59,130,246,0.6),0_0_45px_rgba(59,130,246,0.4)]',
         
-        // Validation styling (only when not in execution mode)
-        !isTimelineActive && hasUnfilledRequired && !nodeData.status && 'shadow-red-100',
-        getValidationBorderColor(),
+        // Validation styling removed - now shown in ValidationDock
 
         // Interactive states - use CSS hover to avoid re-renders
-        'hover:shadow-xl hover:scale-[1.02]',
+        !selected && 'hover:shadow-xl',
+        'hover:scale-[1.02]',
         selectedRunId && 'cursor-pointer'
       )}
       ref={nodeRef}
@@ -560,14 +535,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           minHeight={MIN_TEXT_HEIGHT}
           maxHeight={MAX_TEXT_HEIGHT}
           isVisible
-          handleStyle={{
-            width: 12,
-            height: 12,
-            borderRadius: 4,
-            border: '1px solid hsl(var(--border))',
-            background: 'hsl(var(--muted))',
-          }}
-          lineStyle={{ borderColor: 'hsl(var(--border))' }}
+          handleClassName="text-node-resize-handle"
+          lineClassName="text-node-resize-line"
           onResize={handleResize}
           onResizeEnd={handleResizeEnd}
         />
@@ -607,9 +576,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     className="p-1 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
                     title="Edit content"
                     aria-label="Edit content"
-                    onClick={() => {
-                      // Don't stop propagation - let React Flow handle the selection
-                      // This will select the node and open the config panel
+                    onClick={(e) => {
+                      // Stop propagation to prevent triggering parent div's onClick
+                      e.stopPropagation()
+                      // The node selection will be handled by React Flow's onNodeClick
                     }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
