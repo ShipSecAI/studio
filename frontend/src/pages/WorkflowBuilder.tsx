@@ -209,6 +209,9 @@ function WorkflowBuilderContent() {
   const [executionNodes, setExecutionNodes, onExecutionNodesChangeBase] = useNodesState<FrontendNodeData>([])
   const [executionEdges, setExecutionEdges, onExecutionEdgesChangeBase] = useEdgesState([])
   
+  // Execution dirty state: tracks if nodes have been rearranged in execution mode
+  const [executionDirty, setExecutionDirty] = useState(false)
+  
   // Preserved design state snapshot (for restoration when switching back from execution)
   const preservedDesignStateRef = useRef<{
     nodes: ReactFlowNode<FrontendNodeData>[]
@@ -221,8 +224,14 @@ function WorkflowBuilderContent() {
     edges: ReactFlowEdge[]
   } | null>(null)
 
-  // Clean design state (last saved state) to prevent execution state from inheriting dirty design changes
-  const cleanDesignStateRef = useRef<{
+  // Design saved snapshot (last saved state) - used to initialize execution state
+  const designSavedSnapshotRef = useRef<{
+    nodes: ReactFlowNode<FrontendNodeData>[]
+    edges: ReactFlowEdge[]
+  } | null>(null)
+
+  // Execution loaded snapshot (original state when run was loaded) - used to detect position changes
+  const executionLoadedSnapshotRef = useRef<{
     nodes: ReactFlowNode<FrontendNodeData>[]
     edges: ReactFlowEdge[]
   } | null>(null)
@@ -428,6 +437,9 @@ function WorkflowBuilderContent() {
     }
 
     onNodesChangeBase(filteredChanges)
+    
+    // Mark design as dirty when nodes change in design mode
+    // Execution dirty is tracked separately via useEffect comparing positions
     if (mode === 'design') {
       markDirty()
     }
@@ -560,8 +572,35 @@ function WorkflowBuilderContent() {
     }
   }, [hasGraphChanges, hasMetadataChanges, isDirty, markDirty, markClean])
 
-  // Handle mode switching: preserve design state when switching to execution, restore when switching back
-  // Use useLayoutEffect to sync positions before React Flow renders, preventing flicker
+  // Track execution dirty state: check if node positions differ from loaded snapshot
+  useEffect(() => {
+    if (mode !== 'execution' || !executionLoadedSnapshotRef.current) {
+      return
+    }
+
+    const currentNodes = executionNodesRef.current
+    const loadedNodes = executionLoadedSnapshotRef.current.nodes
+    
+    if (currentNodes.length !== loadedNodes.length) {
+      // Node count changed (shouldn't happen in execution mode, but handle it)
+      setExecutionDirty(true)
+      return
+    }
+
+    // Check if any node positions have changed
+    const positionsChanged = currentNodes.some((node) => {
+      const loadedNode = loadedNodes.find((n) => n.id === node.id)
+      if (!loadedNode) return true // Node added/removed
+      return (
+        node.position.x !== loadedNode.position.x ||
+        node.position.y !== loadedNode.position.y
+      )
+    })
+
+    setExecutionDirty(positionsChanged)
+  }, [executionNodes, mode])
+
+  // Handle mode switching: preserve and restore states cleanly
   const prevModeRef = useRef(mode)
   
   useLayoutEffect(() => {
@@ -579,85 +618,15 @@ function WorkflowBuilderContent() {
         edges: cloneEdges(designEdgesRef.current),
       }
       
-      // If we have preserved execution state, restore it (user had moved nodes around)
+      // If we have preserved execution state, restore it (user had rearranged nodes)
       if (preservedExecutionStateRef.current) {
         setExecutionNodes(cloneNodes(preservedExecutionStateRef.current.nodes))
         setExecutionEdges(cloneEdges(preservedExecutionStateRef.current.edges))
-        // Clear preserved state after restoration
         preservedExecutionStateRef.current = null
-      } else {
-        // Check if we need to load a historical version - if so, don't sync from design
-        // The useEffect will handle loading the correct version
-        const run = runs.find((candidate) => candidate.id === selectedRunId)
-        const versionId = run?.workflowVersionId ?? null
-        const needsHistoricalVersion = run && versionId && versionId !== metadata.currentVersionId
-        
-        // Only sync from clean design state if:
-        // 1. No run selected, OR
-        // 2. Run uses current version (no historical version needed), OR
-        // 3. We already have execution nodes (just sync positions, not full state)
-        if (!needsHistoricalVersion) {
-          // No preserved execution state: sync from clean design state for smooth transition
-          const cleanState = cleanDesignStateRef.current
-          if (cleanState) {
-            const cleanNodes = cleanState.nodes
-            const cleanEdges = cleanState.edges
-
-            // Sync positions from clean state to execution for smooth visual transition
-            if (executionNodesRef.current.length > 0) {
-              // Update execution nodes with clean positions while keeping execution data
-              setExecutionNodes((execNodes) => {
-                const cleanNodeMap = new Map(cleanNodes.map(n => [n.id, n]))
-                return execNodes.map((execNode) => {
-                  const cleanNode = cleanNodeMap.get(execNode.id)
-                  if (cleanNode) {
-                    // Preserve execution-specific data but sync position for smooth transition
-                    return {
-                      ...execNode,
-                      position: { ...cleanNode.position },
-                    }
-                  }
-                  return execNode
-                })
-              })
-            } else {
-              // First time switching to execution: initialize from clean state with exact positions
-              setExecutionNodes(cloneNodes(cleanNodes))
-              setExecutionEdges(cloneEdges(cleanEdges))
-            }
-          } else {
-            // Fallback to current design state if no clean state (shouldn't happen for saved workflows)
-            const currentDesignNodes = designNodesRef.current
-            const currentDesignEdges = designEdgesRef.current
-
-            // Sync positions from design to execution for smooth visual transition
-            if (executionNodesRef.current.length > 0) {
-              // Update execution nodes with design positions while keeping execution data
-              setExecutionNodes((execNodes) => {
-                const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
-                return execNodes.map((execNode) => {
-                  const designNode = designNodeMap.get(execNode.id)
-                  if (designNode) {
-                    // Preserve execution-specific data but sync position for smooth transition
-                    return {
-                      ...execNode,
-                      position: { ...designNode.position },
-                    }
-                  }
-                  return execNode
-                })
-              })
-            } else {
-              // First time switching to execution: initialize from design with exact positions
-              setExecutionNodes(cloneNodes(currentDesignNodes))
-              setExecutionEdges(cloneEdges(currentDesignEdges))
-            }
-          }
-        }
-        // If needsHistoricalVersion is true, do nothing - let the useEffect load the correct version
       }
+      // Otherwise, let the run loading useEffect handle loading the correct state
     } else if (mode === 'design') {
-      // Switching away from execution mode: preserve current execution state
+      // Switching to design mode: preserve current execution state
       preservedExecutionStateRef.current = {
         nodes: cloneNodes(executionNodesRef.current),
         edges: cloneEdges(executionEdgesRef.current),
@@ -665,30 +634,13 @@ function WorkflowBuilderContent() {
       
       // Restore preserved design state if it exists
       if (preservedDesignStateRef.current) {
-        // Sync positions from execution state to design state for smooth transition
-        const currentExecutionNodes = executionNodesRef.current
-        const execNodeMap = new Map(currentExecutionNodes.map(n => [n.id, n]))
-        
-        // Restore design nodes but preserve positions from execution if they exist
-        const restoredNodes = preservedDesignStateRef.current.nodes.map((designNode) => {
-          const execNode = execNodeMap.get(designNode.id)
-          if (execNode) {
-            // Keep design data but use execution position for smooth transition
-            return {
-              ...designNode,
-              position: { ...execNode.position },
-            }
-          }
-          return designNode
-        })
-        
-        setDesignNodes(restoredNodes)
+        setDesignNodes(cloneNodes(preservedDesignStateRef.current.nodes))
         setDesignEdges(cloneEdges(preservedDesignStateRef.current.edges))
-        // Clear the preserved state after restoration
         preservedDesignStateRef.current = null
       }
+      // Otherwise, design state should already be loaded from saved snapshot
     }
-  }, [mode, setDesignNodes, setDesignEdges, setExecutionNodes, setExecutionEdges, runs, selectedRunId, metadata.currentVersionId])
+  }, [mode, setDesignNodes, setDesignEdges, setExecutionNodes, setExecutionEdges])
   const workflowRuns = useMemo(() => runs, [runs])
   const mostRecentRunId = useMemo(
     () => (workflowRuns.length > 0 ? workflowRuns[0].id : null),
@@ -797,22 +749,38 @@ function WorkflowBuilderContent() {
     // If run ID changed, clear preserved execution state (user switched to a different run)
     if (selectedRunId !== prevRunIdRef.current && prevRunIdRef.current !== null) {
       preservedExecutionStateRef.current = null
+      setExecutionDirty(false)
     }
     prevRunIdRef.current = selectedRunId
 
-    // If no run found, or run uses current version, use clean design state as execution state
+    // If no run found, or run uses current version, use saved design state as execution state
     if (!run || !versionId || versionId === metadata.currentVersionId) {
-      // Always sync execution state from clean design state (last saved) when using current version
       // Clear preserved execution state since we're loading a fresh state
       preservedExecutionStateRef.current = null
-      if (cleanDesignStateRef.current) {
-        setExecutionNodes(cloneNodes(cleanDesignStateRef.current.nodes))
-        setExecutionEdges(cloneEdges(cleanDesignStateRef.current.edges))
+      setExecutionDirty(false)
+      
+      // Load from saved design snapshot (last saved state)
+      if (designSavedSnapshotRef.current) {
+        const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes)
+        const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges)
+        setExecutionNodes(savedNodes)
+        setExecutionEdges(savedEdges)
+        executionLoadedSnapshotRef.current = {
+          nodes: cloneNodes(savedNodes),
+          edges: cloneEdges(savedEdges),
+        }
       } else {
-        // Fallback to current design state if no clean state (shouldn't happen for saved workflows)
-        setExecutionNodes(cloneNodes(designNodesRef.current))
-        setExecutionEdges(cloneEdges(designEdgesRef.current))
+        // Fallback to current design state if no saved snapshot (shouldn't happen for saved workflows)
+        const designNodes = cloneNodes(designNodesRef.current)
+        const designEdges = cloneEdges(designEdgesRef.current)
+        setExecutionNodes(designNodes)
+        setExecutionEdges(designEdges)
+        executionLoadedSnapshotRef.current = {
+          nodes: cloneNodes(designNodes),
+          edges: cloneEdges(designEdges),
+        }
       }
+      
       if (historicalVersionId) {
         setHistoricalVersionId(null)
       }
@@ -825,8 +793,8 @@ function WorkflowBuilderContent() {
     }
     
     // Clear preserved execution state when loading a new run version
-    // This ensures we load fresh state from the new run, not preserved state from previous run
     preservedExecutionStateRef.current = null
+    setExecutionDirty(false)
 
     let cancelled = false
 
@@ -843,11 +811,13 @@ function WorkflowBuilderContent() {
         const versionNodes = deserializeNodes(version)
         const versionEdges = deserializeEdges(version)
 
-        // Load into execution state (not design state)
-        // Clear preserved execution state since we're loading a new run version
-        preservedExecutionStateRef.current = null
+        // Load into execution state and set loaded snapshot
         setExecutionNodes(versionNodes)
         setExecutionEdges(versionEdges)
+        executionLoadedSnapshotRef.current = {
+          nodes: cloneNodes(versionNodes),
+          edges: cloneEdges(versionEdges),
+        }
         setHistoricalVersionId(versionId)
       } catch (error) {
         if (cancelled) return
@@ -883,8 +853,19 @@ function WorkflowBuilderContent() {
       setPendingVersionId(null)
     }
   }, [runDialogOpen])
+  // Track previous workflow ID to prevent unnecessary reloads
+  const prevWorkflowIdRef = useRef<string | null | undefined>(undefined)
+  
   // Load workflow on mount (if not new)
+  // Only reload when workflow ID actually changes, not on mode changes
   useEffect(() => {
+    // Skip if workflow ID hasn't changed (prevents reloading on mode switches)
+    // Use undefined check to allow initial load
+    if (prevWorkflowIdRef.current !== undefined && id === prevWorkflowIdRef.current) {
+      return
+    }
+    prevWorkflowIdRef.current = id ?? null
+    
     const loadWorkflow = async () => {
       // Reset execution state if switching workflows to prevent leaks
       // This ensures we don't show status/logs from a previous workflow
@@ -904,6 +885,17 @@ function WorkflowBuilderContent() {
           setExecutionNodes([entryNode])
           setExecutionEdges([])
           setHistoricalVersionId(null)
+          
+          // Initialize saved snapshot for new workflow
+          designSavedSnapshotRef.current = {
+            nodes: cloneNodes([entryNode]),
+            edges: cloneEdges([]),
+          }
+          executionLoadedSnapshotRef.current = {
+            nodes: cloneNodes([entryNode]),
+            edges: cloneEdges([]),
+          }
+          
           const baseMetadata = useWorkflowStore.getState().metadata
           setLastSavedGraphSignature(computeGraphSignature([entryNode], []))
           setLastSavedMetadata({
@@ -943,8 +935,14 @@ function WorkflowBuilderContent() {
         setExecutionEdges(cloneEdges(workflowEdges))
         setHistoricalVersionId(null)
 
-        // Store clean state for execution mode isolation
-        cleanDesignStateRef.current = {
+        // Store saved snapshot (last saved state) for execution mode initialization
+        designSavedSnapshotRef.current = {
+          nodes: cloneNodes(workflowNodes),
+          edges: cloneEdges(workflowEdges),
+        }
+        
+        // Initialize execution loaded snapshot
+        executionLoadedSnapshotRef.current = {
           nodes: cloneNodes(workflowNodes),
           edges: cloneEdges(workflowEdges),
         }
@@ -1030,8 +1028,10 @@ function WorkflowBuilderContent() {
     isNewWorkflow,
     navigate,
     setMetadata,
-    setNodes,
-    setEdges,
+    setDesignNodes,
+    setDesignEdges,
+    setExecutionNodes,
+    setExecutionEdges,
     resetWorkflow,
     markClean,
     setLastSavedGraphSignature,
@@ -1688,8 +1688,8 @@ function WorkflowBuilderContent() {
         setHasGraphChanges(false)
         setHasMetadataChanges(false)
 
-        // Update clean state for execution mode isolation
-        cleanDesignStateRef.current = {
+        // Update saved snapshot (last saved state) for execution mode initialization
+        designSavedSnapshotRef.current = {
           nodes: cloneNodes(designNodesRef.current),
           edges: cloneEdges(designEdgesRef.current),
         }
@@ -1742,8 +1742,8 @@ function WorkflowBuilderContent() {
         setHasGraphChanges(false)
         setHasMetadataChanges(false)
 
-        // Update clean state for execution mode isolation
-        cleanDesignStateRef.current = {
+        // Update saved snapshot (last saved state) for execution mode initialization
+        designSavedSnapshotRef.current = {
           nodes: cloneNodes(designNodesRef.current),
           edges: cloneEdges(designEdgesRef.current),
         }
