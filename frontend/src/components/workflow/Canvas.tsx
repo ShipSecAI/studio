@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   ReactFlow,
   Background,
@@ -29,15 +29,6 @@ import type { NodeData } from '@/schemas/node'
 import { useToast } from '@/components/ui/use-toast'
 import type { WorkflowSchedule } from '@shipsec/shared'
 import { cn } from '@/lib/utils'
-
-const nodeTypes = {
-  workflow: WorkflowNode,
-}
-
-const edgeTypes = {
-  dataFlow: DataFlowEdge,
-  default: DataFlowEdge, // Default to our enhanced edge
-}
 
 const MAX_DELETE_HISTORY = 10
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
@@ -108,6 +99,21 @@ export function Canvas({
   const applyEdgesChange = onEdgesChange
   const deleteHistoryRef = useRef<DeleteHistoryEntry[]>([])
   const hasUserInteractedRef = useRef(false)
+
+  const nodeTypes = useMemo(
+    () => ({
+      workflow: WorkflowNode,
+    }),
+    []
+  )
+
+  const edgeTypes = useMemo(
+    () => ({
+      dataFlow: DataFlowEdge,
+      default: DataFlowEdge, // Default to our enhanced edge
+    }),
+    []
+  )
 
   useEffect(() => {
     if (mode === 'execution') {

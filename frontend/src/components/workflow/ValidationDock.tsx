@@ -86,49 +86,42 @@ export function ValidationDock({
         transform: 'translateX(-50%)',
       }}
     >
-      <div className="flex items-center gap-2 px-2.5 py-1.5 border-b">
-        {hasIssues ? (
-          <>
+      {hasIssues ? (
+        <>
+          <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-border/50">
             <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
             <span className="text-[11px] font-medium">
               {totalIssues} {totalIssues === 1 ? 'issue' : 'issues'}
             </span>
-          </>
-        ) : (
-          <>
-            <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
-            <span className="text-[11px] text-muted-foreground">
-              All validated
-            </span>
-          </>
-        )}
-      </div>
-
-      {hasIssues && (
-        <div className="max-h-[200px] overflow-y-auto border-t">
-          <div className="p-1.5 space-y-1">
+          </div>
+          <div className="divide-y divide-border/50">
             {validationIssues.map((issue, index) => (
               <button
                 key={`${issue.nodeId}-${index}`}
                 type="button"
                 onClick={() => onNodeClick(issue.nodeId)}
                 className={cn(
-                  'w-full text-left px-2 py-1 rounded text-[10px]',
+                  'w-full text-left px-2.5 py-1.5 flex items-center gap-1.5 text-[11px]',
                   'hover:bg-red-50/50 dark:hover:bg-red-950/30',
                   'transition-colors cursor-pointer',
                   'group'
                 )}
               >
-                <div className="flex items-center gap-1.5">
-                  <AlertCircle className="h-2.5 w-2.5 text-red-500 shrink-0" />
-                  <span className="font-medium text-foreground group-hover:text-red-600 dark:group-hover:text-red-400 truncate">
-                    {issue.nodeLabel}
-                  </span>
-                  <span className="text-muted-foreground truncate">· {issue.message}</span>
-                </div>
+                <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
+                <span className="font-medium text-foreground group-hover:text-red-600 dark:group-hover:text-red-400 truncate">
+                  {issue.nodeLabel}
+                </span>
+                <span className="text-muted-foreground truncate">· {issue.message}</span>
               </button>
             ))}
           </div>
+        </>
+      ) : (
+        <div className="flex items-center gap-2 px-2.5 py-1.5">
+          <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+          <span className="text-[11px] text-muted-foreground">
+            All validated
+          </span>
         </div>
       )}
     </div>

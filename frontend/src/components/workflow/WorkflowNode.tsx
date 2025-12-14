@@ -582,9 +582,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     className="p-1 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
                     title="Edit content"
                     aria-label="Edit content"
-                    onClick={() => {
-                      // Don't stop propagation - let React Flow handle the selection
-                      // This will select the node and open the config panel
+                    onClick={(e) => {
+                      // Stop propagation to prevent triggering parent div's onClick
+                      e.stopPropagation()
+                      // The node selection will be handled by React Flow's onNodeClick
                     }}
                   >
                     <Pencil className="h-3.5 w-3.5" />

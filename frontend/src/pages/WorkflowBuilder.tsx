@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Plus, ChevronRight, Loader2, Pencil, Play, Pause, Zap, ExternalLink, Trash2 } from 'lucide-react'
 import {
   ReactFlowProvider,
@@ -203,12 +203,42 @@ function WorkflowBuilderContent() {
     markDirty,
     resetWorkflow,
   } = useWorkflowStore()
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState<FrontendNodeData>([])
+  // Separate state for design and execution modes
+  const [designNodes, setDesignNodes, onDesignNodesChangeBase] = useNodesState<FrontendNodeData>([])
+  const [designEdges, setDesignEdges, onDesignEdgesChangeBase] = useEdgesState([])
+  const [executionNodes, setExecutionNodes, onExecutionNodesChangeBase] = useNodesState<FrontendNodeData>([])
+  const [executionEdges, setExecutionEdges, onExecutionEdgesChangeBase] = useEdgesState([])
+  
+  // Preserved design state snapshot (for restoration when switching back from execution)
+  const preservedDesignStateRef = useRef<{
+    nodes: ReactFlowNode<FrontendNodeData>[]
+    edges: ReactFlowEdge[]
+  } | null>(null)
+  
+  // Preserved execution state snapshot (for restoration when switching back to execution)
+  const preservedExecutionStateRef = useRef<{
+    nodes: ReactFlowNode<FrontendNodeData>[]
+    edges: ReactFlowEdge[]
+  } | null>(null)
+  
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
-  const [edges, setEdges, onEdgesChangeBase] = useEdgesState([])
   const { toast } = useToast()
   const mode = useWorkflowUiStore((state) => state.mode)
+  
+  // Mode-aware getters for nodes and edges - memoized to prevent unnecessary re-renders
+  const nodes = useMemo(() => {
+    return mode === 'design' ? designNodes : executionNodes
+  }, [mode, designNodes, executionNodes])
+  
+  const edges = useMemo(() => {
+    return mode === 'design' ? designEdges : executionEdges
+  }, [mode, designEdges, executionEdges])
+  
+  const setNodes = mode === 'design' ? setDesignNodes : setExecutionNodes
+  const setEdges = mode === 'design' ? setDesignEdges : setExecutionEdges
+  const onNodesChangeBase = mode === 'design' ? onDesignNodesChangeBase : onExecutionNodesChangeBase
+  const onEdgesChangeBase = mode === 'design' ? onDesignEdgesChangeBase : onExecutionEdgesChangeBase
   const workflowId = metadata.id
   const workflowName = metadata.name || 'Untitled workflow'
   const [workflowSchedules, setWorkflowSchedules] = useState<WorkflowSchedule[]>([])
@@ -354,10 +384,11 @@ function WorkflowBuilderContent() {
       return
     }
 
-    const totalEntryNodes = nodesRef.current.filter(isEntryPointNode).length
+    const currentNodes = mode === 'design' ? designNodesRef.current : executionNodesRef.current
+    const totalEntryNodes = currentNodes.filter(isEntryPointNode).length
     const removingLastEntry = changes.some((change) => {
       if (change.type !== 'remove') return false
-      const node = nodesRef.current.find((n) => n.id === change.id)
+      const node = currentNodes.find((n) => n.id === change.id)
       return isEntryPointNode(node) && totalEntryNodes <= 1
     })
 
@@ -373,7 +404,8 @@ function WorkflowBuilderContent() {
     const filteredChanges = changes.filter((change) => {
       if (change.type === 'add' && 'item' in change) {
         const node = (change as any).item as ReactFlowNode<FrontendNodeData>
-        if (isEntryPointNode(node) && nodesRef.current.some(isEntryPointNode)) {
+        const currentNodes = mode === 'design' ? designNodesRef.current : executionNodesRef.current
+        if (isEntryPointNode(node) && currentNodes.some(isEntryPointNode)) {
           toast({
             variant: 'destructive',
             title: 'Entry Point already exists',
@@ -453,20 +485,26 @@ function WorkflowBuilderContent() {
   const isLibraryVisible = libraryOpen && mode === 'design'
   const [showLibraryContent, setShowLibraryContent] = useState(isLibraryVisible)
   const [historicalVersionId, setHistoricalVersionId] = useState<string | null>(null)
-  const historicalGraphRef = useRef<{
-    nodes: ReactFlowNode<FrontendNodeData>[]
-    edges: ReactFlowEdge[]
-  } | null>(null)
-  const nodesRef = useRef(nodes)
-  const edgesRef = useRef(edges)
+  const designNodesRef = useRef(designNodes)
+  const designEdgesRef = useRef(designEdges)
+  const executionNodesRef = useRef(executionNodes)
+  const executionEdgesRef = useRef(executionEdges)
 
   useEffect(() => {
-    nodesRef.current = nodes
-  }, [nodes])
+    designNodesRef.current = designNodes
+  }, [designNodes])
 
   useEffect(() => {
-    edgesRef.current = edges
-  }, [edges])
+    designEdgesRef.current = designEdges
+  }, [designEdges])
+
+  useEffect(() => {
+    executionNodesRef.current = executionNodes
+  }, [executionNodes])
+
+  useEffect(() => {
+    executionEdgesRef.current = executionEdges
+  }, [executionEdges])
 
   const buildGraphSignature = useCallback(
     (
@@ -476,8 +514,9 @@ function WorkflowBuilderContent() {
     []
   )
 
+  // Track graph changes only for design state (dirty tracking)
   useEffect(() => {
-    const currentSignature = buildGraphSignature(nodes, edges)
+    const currentSignature = buildGraphSignature(designNodes, designEdges)
 
     if (lastSavedGraphSignature === null) {
       setLastSavedGraphSignature(currentSignature)
@@ -486,7 +525,7 @@ function WorkflowBuilderContent() {
     }
 
     setHasGraphChanges(currentSignature !== lastSavedGraphSignature)
-  }, [nodes, edges, buildGraphSignature, lastSavedGraphSignature])
+  }, [designNodes, designEdges, buildGraphSignature, lastSavedGraphSignature])
 
   useEffect(() => {
     const normalizedMetadata = {
@@ -514,6 +553,96 @@ function WorkflowBuilderContent() {
       markClean()
     }
   }, [hasGraphChanges, hasMetadataChanges, isDirty, markDirty, markClean])
+
+  // Handle mode switching: preserve design state when switching to execution, restore when switching back
+  // Use useLayoutEffect to sync positions before React Flow renders, preventing flicker
+  const prevModeRef = useRef(mode)
+  
+  useLayoutEffect(() => {
+    // Only run when mode actually changes
+    if (prevModeRef.current === mode) {
+      return
+    }
+    
+    prevModeRef.current = mode
+    
+    if (mode === 'execution') {
+      // Switching to execution mode: preserve current design state
+      preservedDesignStateRef.current = {
+        nodes: cloneNodes(designNodesRef.current),
+        edges: cloneEdges(designEdgesRef.current),
+      }
+      
+      // If we have preserved execution state, restore it (user had moved nodes around)
+      if (preservedExecutionStateRef.current) {
+        setExecutionNodes(cloneNodes(preservedExecutionStateRef.current.nodes))
+        setExecutionEdges(cloneEdges(preservedExecutionStateRef.current.edges))
+        // Clear preserved state after restoration
+        preservedExecutionStateRef.current = null
+      } else {
+        // No preserved execution state: sync from design state for smooth transition
+        const currentDesignNodes = designNodesRef.current
+        const currentDesignEdges = designEdgesRef.current
+        
+        // Sync positions from design to execution for smooth visual transition
+        if (executionNodesRef.current.length > 0) {
+          // Create a map of design node positions by ID
+          const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
+          
+          // Update execution nodes with design positions while keeping execution data
+          setExecutionNodes((execNodes) => {
+            const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
+            return execNodes.map((execNode) => {
+              const designNode = designNodeMap.get(execNode.id)
+              if (designNode) {
+                // Preserve execution-specific data but sync position for smooth transition
+                return {
+                  ...execNode,
+                  position: { ...designNode.position },
+                }
+              }
+              return execNode
+            })
+          })
+        } else {
+          // First time switching to execution: initialize from design with exact positions
+          setExecutionNodes(cloneNodes(currentDesignNodes))
+          setExecutionEdges(cloneEdges(currentDesignEdges))
+        }
+      }
+    } else if (mode === 'design') {
+      // Switching away from execution mode: preserve current execution state
+      preservedExecutionStateRef.current = {
+        nodes: cloneNodes(executionNodesRef.current),
+        edges: cloneEdges(executionEdgesRef.current),
+      }
+      
+      // Restore preserved design state if it exists
+      if (preservedDesignStateRef.current) {
+        // Sync positions from execution state to design state for smooth transition
+        const currentExecutionNodes = executionNodesRef.current
+        const execNodeMap = new Map(currentExecutionNodes.map(n => [n.id, n]))
+        
+        // Restore design nodes but preserve positions from execution if they exist
+        const restoredNodes = preservedDesignStateRef.current.nodes.map((designNode) => {
+          const execNode = execNodeMap.get(designNode.id)
+          if (execNode) {
+            // Keep design data but use execution position for smooth transition
+            return {
+              ...designNode,
+              position: { ...execNode.position },
+            }
+          }
+          return designNode
+        })
+        
+        setDesignNodes(restoredNodes)
+        setDesignEdges(cloneEdges(preservedDesignStateRef.current.edges))
+        // Clear the preserved state after restoration
+        preservedDesignStateRef.current = null
+      }
+    }
+  }, [mode, setDesignNodes, setDesignEdges, setExecutionNodes, setExecutionEdges])
   const workflowRuns = useMemo(() => runs, [runs])
   const mostRecentRunId = useMemo(
     () => (workflowRuns.length > 0 ? workflowRuns[0].id : null),
@@ -600,39 +729,51 @@ function WorkflowBuilderContent() {
     }
   }, [metadata.id, routeRunId, selectedRunId, refreshRuns, getRunById, upsertRun, selectRun, navigate, toast])
 
+  // Track previous run ID to detect run changes
+  const prevRunIdRef = useRef<string | null>(null)
+  
+  // Load workflow version for execution mode when a run is selected
   useEffect(() => {
-    if (!metadata.id) {
+    // Only load versions in execution mode
+    if (mode !== 'execution' || !metadata.id) {
       return
     }
 
     const run = workflowRuns.find((candidate) => candidate.id === selectedRunId)
     const versionId = run?.workflowVersionId ?? null
 
+    // If run ID changed, clear preserved execution state (user switched to a different run)
+    if (selectedRunId !== prevRunIdRef.current && prevRunIdRef.current !== null) {
+      preservedExecutionStateRef.current = null
+    }
+    prevRunIdRef.current = selectedRunId
+
+    // If no run selected, or run uses current version, use current design state as execution state
     if (!run || !versionId || versionId === metadata.currentVersionId) {
-      if (historicalVersionId && historicalGraphRef.current) {
-        setNodes(cloneNodes(historicalGraphRef.current.nodes))
-        setEdges(cloneEdges(historicalGraphRef.current.edges))
-        historicalGraphRef.current = null
+      // Always sync execution state from design state when using current version
+      // Clear preserved execution state since we're loading a fresh state
+      preservedExecutionStateRef.current = null
+      setExecutionNodes(cloneNodes(designNodesRef.current))
+      setExecutionEdges(cloneEdges(designEdgesRef.current))
+      if (historicalVersionId) {
+        setHistoricalVersionId(null)
       }
-      setHistoricalVersionId(null)
       return
     }
 
+    // If we already loaded this version, skip (preserved execution state will be restored by mode switch handler)
     if (versionId === historicalVersionId) {
       return
     }
+    
+    // Clear preserved execution state when loading a new run version
+    // This ensures we load fresh state from the new run, not preserved state from previous run
+    preservedExecutionStateRef.current = null
 
     let cancelled = false
 
-    const previewHistoricalVersion = async () => {
+    const loadExecutionVersion = async () => {
       try {
-        if (!historicalVersionId && !historicalGraphRef.current) {
-          historicalGraphRef.current = {
-            nodes: cloneNodes(nodesRef.current),
-            edges: cloneEdges(edgesRef.current),
-          }
-        }
-
         const workflowIdForRun = run.workflowId ?? metadata.id
         if (!workflowIdForRun) {
           return
@@ -644,8 +785,11 @@ function WorkflowBuilderContent() {
         const versionNodes = deserializeNodes(version)
         const versionEdges = deserializeEdges(version)
 
-        setNodes(versionNodes)
-        setEdges(versionEdges)
+        // Load into execution state (not design state)
+        // Clear preserved execution state since we're loading a new run version
+        preservedExecutionStateRef.current = null
+        setExecutionNodes(versionNodes)
+        setExecutionEdges(versionEdges)
         setHistoricalVersionId(versionId)
       } catch (error) {
         if (cancelled) return
@@ -658,19 +802,20 @@ function WorkflowBuilderContent() {
       }
     }
 
-    previewHistoricalVersion()
+    loadExecutionVersion()
 
     return () => {
       cancelled = true
     }
   }, [
+    mode,
     metadata.id,
     metadata.currentVersionId,
     workflowRuns,
     selectedRunId,
     historicalVersionId,
-    setNodes,
-    setEdges,
+    setExecutionNodes,
+    setExecutionEdges,
     toast,
   ])
 
@@ -692,12 +837,14 @@ function WorkflowBuilderContent() {
       }
 
       if (isNewWorkflow) {
-        if (nodesRef.current.length === 0) {
+        if (designNodesRef.current.length === 0) {
           resetWorkflow()
           const entryNode = createEntryPointNode()
-          setNodes([entryNode])
-          setEdges([])
-          historicalGraphRef.current = null
+          // Initialize both design and execution states with the same initial state
+          setDesignNodes([entryNode])
+          setDesignEdges([])
+          setExecutionNodes([entryNode])
+          setExecutionEdges([])
           setHistoricalVersionId(null)
           const baseMetadata = useWorkflowStore.getState().metadata
           setLastSavedGraphSignature(computeGraphSignature([entryNode], []))
@@ -727,16 +874,15 @@ function WorkflowBuilderContent() {
           currentVersion: workflow.currentVersion ?? null,
         })
 
-        // Deserialize and set nodes/edges
+        // Deserialize and set nodes/edges for both design and execution states
         const workflowEdges = deserializeEdges(workflow)
         const workflowNodes = deserializeNodes(workflow)
 
-        setNodes(workflowNodes)
-        setEdges(workflowEdges)
-        historicalGraphRef.current = {
-          nodes: cloneNodes(workflowNodes),
-          edges: cloneEdges(workflowEdges),
-        }
+        // Initialize both states with the loaded workflow
+        setDesignNodes(workflowNodes)
+        setDesignEdges(workflowEdges)
+        setExecutionNodes(cloneNodes(workflowNodes))
+        setExecutionEdges(cloneEdges(workflowEdges))
         setHistoricalVersionId(null)
 
         // Mark as clean (no unsaved changes)
@@ -1246,8 +1392,11 @@ function WorkflowBuilderContent() {
       const normalizedEdges = deserializeEdges(workflowGraph)
 
       resetWorkflow()
-      setNodes(normalizedNodes)
-      setEdges(normalizedEdges)
+      // Set both design and execution states when importing
+      setDesignNodes(normalizedNodes)
+      setDesignEdges(normalizedEdges)
+      setExecutionNodes(cloneNodes(normalizedNodes))
+      setExecutionEdges(cloneEdges(normalizedEdges))
       setMetadata({
         id: null,
         name: parsed.name,
@@ -1433,7 +1582,7 @@ function WorkflowBuilderContent() {
 
       if (!workflowId || isNewWorkflow) {
         // Block creating a brand-new workflow with no nodes (backend expects at least one)
-        if (nodes.length === 0) {
+        if (designNodes.length === 0) {
           if (showToast) {
             toast({
               variant: 'destructive',
@@ -1443,12 +1592,12 @@ function WorkflowBuilderContent() {
           }
           return
         }
-        // Create new workflow
+        // Create new workflow (always save from design state)
         const payload = serializeWorkflowForCreate(
           metadata.name,
           metadata.description || undefined,
-          nodes,
-          edges
+          designNodes,
+          designEdges
         )
 
         const savedWorkflow = await api.workflows.create(payload)
@@ -1464,8 +1613,8 @@ function WorkflowBuilderContent() {
         })
         markClean()
         const newSignature = buildGraphSignature(
-          nodesRef.current,
-          edgesRef.current,
+          designNodesRef.current,
+          designEdgesRef.current,
         )
         setLastSavedGraphSignature(newSignature)
         setLastSavedMetadata({
@@ -1481,8 +1630,8 @@ function WorkflowBuilderContent() {
         // Analytics: workflow created
         track(Events.WorkflowCreated, {
           workflow_id: savedWorkflow.id,
-          node_count: nodes.length,
-          edge_count: edges.length,
+          node_count: designNodes.length,
+          edge_count: designEdges.length,
         })
 
         if (showToast) {
@@ -1493,13 +1642,13 @@ function WorkflowBuilderContent() {
           })
         }
       } else {
-        // Update existing workflow
+        // Update existing workflow (always save from design state)
         const payload = serializeWorkflowForUpdate(
           workflowId,
           metadata.name,
           metadata.description || undefined,
-          nodes,
-          edges
+          designNodes,
+          designEdges
         )
 
         const updatedWorkflow = await api.workflows.update(workflowId, payload)
@@ -1512,8 +1661,8 @@ function WorkflowBuilderContent() {
         })
         markClean()
         const newSignature = buildGraphSignature(
-          nodesRef.current,
-          edgesRef.current,
+          designNodesRef.current,
+          designEdgesRef.current,
         )
         setLastSavedGraphSignature(newSignature)
         setLastSavedMetadata({
@@ -1669,7 +1818,9 @@ function WorkflowBuilderContent() {
     }
   }, [isLibraryVisible])
 
-  if (isLoading) {
+  // Only show full-screen loading during initial load, not during mode switches
+  // Check if we have nodes in either mode to avoid showing during mode switches
+  if (isLoading && designNodes.length === 0 && executionNodes.length === 0 && !isNewWorkflow) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -1711,8 +1862,8 @@ function WorkflowBuilderContent() {
             <span className="font-medium whitespace-nowrap">Show components</span>
           </Button>
         )}
-        {/* Loading overlay for initial load */}
-        {isLoading && nodes.length === 0 && !isNewWorkflow && (
+        {/* Loading overlay for initial load only - check if we have nodes in either mode to avoid showing during mode switches */}
+        {isLoading && designNodes.length === 0 && executionNodes.length === 0 && !isNewWorkflow && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
             <svg className="animate-spin h-8 w-8 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

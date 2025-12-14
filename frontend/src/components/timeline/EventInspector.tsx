@@ -458,17 +458,25 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <button
-                                type="button"
+                              <div
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setDiagnosticsDialogOpen(event.id)
                                 }}
-                                className="flex items-center justify-center rounded-md border border-border/60 bg-muted/20 p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                                className="flex items-center justify-center rounded-md border border-border/60 bg-muted/20 p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground cursor-pointer"
+                                role="button"
+                                tabIndex={0}
                                 aria-label="View diagnostics"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setDiagnosticsDialogOpen(event.id)
+                                  }
+                                }}
                               >
                                 <Wrench className="h-3.5 w-3.5" />
-                              </button>
+                              </div>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>Diagnostics</p>
