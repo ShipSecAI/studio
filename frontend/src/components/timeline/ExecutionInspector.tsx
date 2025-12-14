@@ -89,8 +89,8 @@ interface ExecutionInspectorProps {
 }
 
 const MIN_TIMELINE_HEIGHT = 10
-const MAX_TIMELINE_HEIGHT = 400
-const DEFAULT_TIMELINE_HEIGHT = 80
+const MAX_TIMELINE_HEIGHT = 320
+const DEFAULT_TIMELINE_HEIGHT = 320
 
 export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {}) {
   const {
