@@ -233,67 +233,71 @@ export function TopBar({
           <div className="flex items-center justify-end gap-3">
             <div className="flex flex-col items-end gap-1">
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {onImport && (
+                {mode === 'design' && (
                   <>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="application/json"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
+                    {onImport && (
+                      <>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="application/json"
+                          className="hidden"
+                          onChange={handleFileChange}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 gap-2"
+                          onClick={handleImportClick}
+                          disabled={!canEdit || isImporting}
+                          aria-label="Import workflow"
+                        >
+                          <Upload className="h-4 w-4" />
+                          <span className="text-xs font-medium">Import</span>
+                        </Button>
+                      </>
+                    )}
+                    {onExport && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-3 gap-2"
+                        onClick={handleExport}
+                        disabled={!canEdit}
+                        aria-label="Export workflow"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span className="text-xs font-medium">Export</span>
+                      </Button>
+                    )}
                     <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-3 gap-2"
-                      onClick={handleImportClick}
-                      disabled={!canEdit || isImporting}
-                      aria-label="Import workflow"
+                      onClick={handleSave}
+                      disabled={!canEdit || isSaving || saveState === 'clean'}
+                      variant="outline"
+                      className={saveButtonClasses}
+                      title={
+                        saveState === 'dirty'
+                          ? 'Changes pending sync'
+                          : saveState === 'saving'
+                            ? 'Syncing now…'
+                            : 'No pending edits'
+                      }
                     >
-                      <Upload className="h-4 w-4" />
-                      <span className="text-xs font-medium">Import</span>
+                      {saveIcon}
+                      <span>{saveLabel}</span>
+                      <span
+                        className={cn(
+                          'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-1',
+                          saveBadgeTone
+                        )}
+                      >
+                        {saveBadgeText}
+                      </span>
                     </Button>
                   </>
                 )}
-                {onExport && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-3 gap-2"
-                    onClick={handleExport}
-                    disabled={!canEdit}
-                    aria-label="Export workflow"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span className="text-xs font-medium">Export</span>
-                  </Button>
-                )}
-                <Button
-                  onClick={handleSave}
-                  disabled={!canEdit || isSaving || saveState === 'clean'}
-                  variant="outline"
-                  className={saveButtonClasses}
-                  title={
-                    saveState === 'dirty'
-                      ? 'Changes pending sync'
-                      : saveState === 'saving'
-                        ? 'Syncing now…'
-                        : 'No pending edits'
-                  }
-                >
-                  {saveIcon}
-                  <span>{saveLabel}</span>
-                  <span
-                    className={cn(
-                      'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-1',
-                      saveBadgeTone
-                    )}
-                  >
-                    {saveBadgeText}
-                  </span>
-                </Button>
 
                 <Button
                   onClick={handleRun}
