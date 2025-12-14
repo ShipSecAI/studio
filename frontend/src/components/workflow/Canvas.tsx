@@ -67,8 +67,6 @@ interface CanvasProps {
   onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void
   onViewSchedules?: () => void
   onNodeSelectionChange?: (node: Node<NodeData> | null) => void
-  componentsPanelWidth?: number // Width of components panel (slides in from left)
-  executionInspectorWidth?: number // Width of execution inspector (slides in from right)
 }
 
 export function Canvas({
@@ -89,12 +87,9 @@ export function Canvas({
   onScheduleDelete,
   onViewSchedules,
   onNodeSelectionChange,
-  componentsPanelWidth = 0,
-  executionInspectorWidth = 0,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
-  const lastPanelWidthsRef = useRef<{ components: number; inspector: number }>({ components: 0, inspector: 0 })
   const { getComponent } = useComponentStore()
   const { nodeStates } = useExecutionStore()
   const { markDirty } = useWorkflowStore()
@@ -648,50 +643,7 @@ export function Canvas({
 
   const [configPanelWidth, setConfigPanelWidth] = useState(432) // Default panel width
 
-  // Translate canvas content based on panel widths to maintain visual balance
-  useEffect(() => {
-    if (!reactFlowInstance) return
-
-    // Skip if panel widths haven't changed
-    if (
-      lastPanelWidthsRef.current.components === componentsPanelWidth &&
-      lastPanelWidthsRef.current.inspector === executionInspectorWidth
-    ) {
-      return
-    }
-
-    try {
-      const currentViewport = reactFlowInstance.getViewport()
-      
-      // Calculate previous and new translation offsets:
-      // - Components panel opens from left: shift content right (+)
-      // - Execution inspector opens from right: shift content left (-)
-      // Divide by 2 to shift by half the panel width for visual balance
-      const prevTranslationX = (lastPanelWidthsRef.current.components / 2) - (lastPanelWidthsRef.current.inspector / 2)
-      const newTranslationX = (componentsPanelWidth / 2) - (executionInspectorWidth / 2)
-      
-      // Calculate delta: how much to shift from current position
-      const deltaX = newTranslationX - prevTranslationX
-
-      // Apply delta to current viewport (preserves user pan/zoom)
-      reactFlowInstance.setViewport(
-        {
-          x: currentViewport.x + deltaX,
-          y: currentViewport.y,
-          zoom: currentViewport.zoom,
-        },
-        { duration: 200, easing: (t: number) => t * (2 - t) } // ease-in-out
-      )
-
-      // Update last panel widths
-      lastPanelWidthsRef.current = {
-        components: componentsPanelWidth,
-        inspector: executionInspectorWidth,
-      }
-    } catch (error) {
-      console.warn('Failed to translate viewport:', error)
-    }
-  }, [reactFlowInstance, componentsPanelWidth, executionInspectorWidth])
+  // Panel width changes are handled by CSS transitions, no manual viewport translation needed
 
   return (
     <div className={className}>
@@ -703,8 +655,6 @@ export function Canvas({
             edges={edges}
             mode={mode}
             onNodeClick={handleValidationNodeClick}
-            configPanelOpen={!!selectedNode}
-            configPanelWidth={configPanelWidth}
           />
           <ReactFlow
             nodes={nodes}

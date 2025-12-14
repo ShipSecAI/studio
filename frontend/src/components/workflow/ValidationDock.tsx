@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { AlertCircle, CheckCircle2, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
 import { getNodeValidationWarnings } from '@/utils/connectionValidation'
@@ -17,9 +17,6 @@ interface ValidationDockProps {
   edges: Edge[]
   mode: string
   onNodeClick: (nodeId: string) => void
-  onClose?: () => void
-  configPanelOpen?: boolean
-  configPanelWidth?: number
 }
 
 export function ValidationDock({
@@ -27,9 +24,6 @@ export function ValidationDock({
   edges,
   mode,
   onNodeClick,
-  onClose,
-  configPanelOpen = false,
-  configPanelWidth = 432,
 }: ValidationDockProps) {
   const { getComponent } = useComponentStore()
 

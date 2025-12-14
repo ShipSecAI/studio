@@ -214,9 +214,15 @@ function WorkflowBuilderContent() {
     nodes: ReactFlowNode<FrontendNodeData>[]
     edges: ReactFlowEdge[]
   } | null>(null)
-  
+
   // Preserved execution state snapshot (for restoration when switching back to execution)
   const preservedExecutionStateRef = useRef<{
+    nodes: ReactFlowNode<FrontendNodeData>[]
+    edges: ReactFlowEdge[]
+  } | null>(null)
+
+  // Clean design state (last saved state) to prevent execution state from inheriting dirty design changes
+  const cleanDesignStateRef = useRef<{
     nodes: ReactFlowNode<FrontendNodeData>[]
     edges: ReactFlowEdge[]
   } | null>(null)
@@ -586,39 +592,66 @@ function WorkflowBuilderContent() {
         const versionId = run?.workflowVersionId ?? null
         const needsHistoricalVersion = run && versionId && versionId !== metadata.currentVersionId
         
-        // Only sync from design if:
+        // Only sync from clean design state if:
         // 1. No run selected, OR
         // 2. Run uses current version (no historical version needed), OR
         // 3. We already have execution nodes (just sync positions, not full state)
         if (!needsHistoricalVersion) {
-          // No preserved execution state: sync from design state for smooth transition
-          const currentDesignNodes = designNodesRef.current
-          const currentDesignEdges = designEdgesRef.current
-          
-          // Sync positions from design to execution for smooth visual transition
-          if (executionNodesRef.current.length > 0) {
-            // Create a map of design node positions by ID
-            const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
-            
-            // Update execution nodes with design positions while keeping execution data
-            setExecutionNodes((execNodes) => {
-              const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
-              return execNodes.map((execNode) => {
-                const designNode = designNodeMap.get(execNode.id)
-                if (designNode) {
-                  // Preserve execution-specific data but sync position for smooth transition
-                  return {
-                    ...execNode,
-                    position: { ...designNode.position },
+          // No preserved execution state: sync from clean design state for smooth transition
+          const cleanState = cleanDesignStateRef.current
+          if (cleanState) {
+            const cleanNodes = cleanState.nodes
+            const cleanEdges = cleanState.edges
+
+            // Sync positions from clean state to execution for smooth visual transition
+            if (executionNodesRef.current.length > 0) {
+              // Update execution nodes with clean positions while keeping execution data
+              setExecutionNodes((execNodes) => {
+                const cleanNodeMap = new Map(cleanNodes.map(n => [n.id, n]))
+                return execNodes.map((execNode) => {
+                  const cleanNode = cleanNodeMap.get(execNode.id)
+                  if (cleanNode) {
+                    // Preserve execution-specific data but sync position for smooth transition
+                    return {
+                      ...execNode,
+                      position: { ...cleanNode.position },
+                    }
                   }
-                }
-                return execNode
+                  return execNode
+                })
               })
-            })
+            } else {
+              // First time switching to execution: initialize from clean state with exact positions
+              setExecutionNodes(cloneNodes(cleanNodes))
+              setExecutionEdges(cloneEdges(cleanEdges))
+            }
           } else {
-            // First time switching to execution: initialize from design with exact positions
-            setExecutionNodes(cloneNodes(currentDesignNodes))
-            setExecutionEdges(cloneEdges(currentDesignEdges))
+            // Fallback to current design state if no clean state (shouldn't happen for saved workflows)
+            const currentDesignNodes = designNodesRef.current
+            const currentDesignEdges = designEdgesRef.current
+
+            // Sync positions from design to execution for smooth visual transition
+            if (executionNodesRef.current.length > 0) {
+              // Update execution nodes with design positions while keeping execution data
+              setExecutionNodes((execNodes) => {
+                const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
+                return execNodes.map((execNode) => {
+                  const designNode = designNodeMap.get(execNode.id)
+                  if (designNode) {
+                    // Preserve execution-specific data but sync position for smooth transition
+                    return {
+                      ...execNode,
+                      position: { ...designNode.position },
+                    }
+                  }
+                  return execNode
+                })
+              })
+            } else {
+              // First time switching to execution: initialize from design with exact positions
+              setExecutionNodes(cloneNodes(currentDesignNodes))
+              setExecutionEdges(cloneEdges(currentDesignEdges))
+            }
           }
         }
         // If needsHistoricalVersion is true, do nothing - let the useEffect load the correct version
@@ -752,7 +785,13 @@ function WorkflowBuilderContent() {
       return
     }
 
-    const run = workflowRuns.find((candidate) => candidate.id === selectedRunId)
+    let run = workflowRuns.find((candidate) => candidate.id === selectedRunId)
+
+    // If no run selected, try to use most recent run
+    if (!run && mostRecentRunId) {
+      run = workflowRuns.find((candidate) => candidate.id === mostRecentRunId)
+    }
+
     const versionId = run?.workflowVersionId ?? null
 
     // If run ID changed, clear preserved execution state (user switched to a different run)
@@ -761,13 +800,19 @@ function WorkflowBuilderContent() {
     }
     prevRunIdRef.current = selectedRunId
 
-    // If no run selected, or run uses current version, use current design state as execution state
+    // If no run found, or run uses current version, use clean design state as execution state
     if (!run || !versionId || versionId === metadata.currentVersionId) {
-      // Always sync execution state from design state when using current version
+      // Always sync execution state from clean design state (last saved) when using current version
       // Clear preserved execution state since we're loading a fresh state
       preservedExecutionStateRef.current = null
-      setExecutionNodes(cloneNodes(designNodesRef.current))
-      setExecutionEdges(cloneEdges(designEdgesRef.current))
+      if (cleanDesignStateRef.current) {
+        setExecutionNodes(cloneNodes(cleanDesignStateRef.current.nodes))
+        setExecutionEdges(cloneEdges(cleanDesignStateRef.current.edges))
+      } else {
+        // Fallback to current design state if no clean state (shouldn't happen for saved workflows)
+        setExecutionNodes(cloneNodes(designNodesRef.current))
+        setExecutionEdges(cloneEdges(designEdgesRef.current))
+      }
       if (historicalVersionId) {
         setHistoricalVersionId(null)
       }
@@ -897,6 +942,12 @@ function WorkflowBuilderContent() {
         setExecutionNodes(cloneNodes(workflowNodes))
         setExecutionEdges(cloneEdges(workflowEdges))
         setHistoricalVersionId(null)
+
+        // Store clean state for execution mode isolation
+        cleanDesignStateRef.current = {
+          nodes: cloneNodes(workflowNodes),
+          edges: cloneEdges(workflowEdges),
+        }
 
         // Mark as clean (no unsaved changes)
         markClean()
@@ -1637,6 +1688,12 @@ function WorkflowBuilderContent() {
         setHasGraphChanges(false)
         setHasMetadataChanges(false)
 
+        // Update clean state for execution mode isolation
+        cleanDesignStateRef.current = {
+          nodes: cloneNodes(designNodesRef.current),
+          edges: cloneEdges(designEdgesRef.current),
+        }
+
         // Navigate to the new workflow URL
         navigate(`/workflows/${savedWorkflow.id}`, { replace: true })
 
@@ -1684,6 +1741,12 @@ function WorkflowBuilderContent() {
         })
         setHasGraphChanges(false)
         setHasMetadataChanges(false)
+
+        // Update clean state for execution mode isolation
+        cleanDesignStateRef.current = {
+          nodes: cloneNodes(designNodesRef.current),
+          edges: cloneEdges(designEdgesRef.current),
+        }
 
         // Analytics: workflow saved
         track(Events.WorkflowSaved, {
@@ -1862,16 +1925,12 @@ function WorkflowBuilderContent() {
             type="button"
             variant="secondary"
             onClick={toggleLibrary}
-            className="absolute z-50 top-[10px] left-[0px] h-10 px-4 py-2 flex items-center gap-2 rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            style={{
-              marginLeft: '10px',
-              transition: 'margin-left 0.3s ease-in-out'
-            }}
+            className="absolute z-[60] top-[10px] left-[10px] h-8 px-3 py-1.5 flex items-center gap-2 rounded-md border bg-background text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-expanded={false}
             aria-label="Show component library"
             title="Show components"
           >
-            <PanelLeftOpen className="h-5 w-5 flex-shrink-0" />
+            <PanelLeftOpen className="h-4 w-4 flex-shrink-0" />
             <span className="font-medium whitespace-nowrap">Show components</span>
           </Button>
         )}
@@ -1887,31 +1946,47 @@ function WorkflowBuilderContent() {
         )}
         <aside
           className={cn(
-            'relative h-full transition-[width] duration-200 ease-in-out bg-background',
-            isLibraryVisible ? 'border-r w-[320px]' : 'border-r-0 w-0'
+            'relative h-full border-r bg-background overflow-hidden z-10',
+            isLibraryVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
           )}
+          style={{
+            width: isLibraryVisible ? 320 : 0,
+            transition: 'width 200ms ease-in-out, opacity 200ms ease-in-out',
+          }}
         >
-          {/* Toggle button - anchored to the aside edge when visible */}
-          {isLibraryVisible && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={toggleLibrary}
-              className="absolute z-50 top-[10px] -right-5 h-10 w-10 flex items-center justify-center rounded-full border bg-background/95 backdrop-blur-sm text-xs font-medium shadow-lg transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              aria-expanded={true}
-              aria-label="Hide component library"
-              title="Hide components"
-            >
-              <PanelLeftClose className="h-5 w-5 flex-shrink-0" />
-            </Button>
-          )}
           <div
-            className={cn(
-              'absolute inset-0 transition-opacity duration-150',
-              showLibraryContent ? 'opacity-100' : 'opacity-0 pointer-events-none select-none'
-            )}
+            className="absolute inset-0"
+            style={{
+              width: 320,
+              transform: isLibraryVisible ? 'translateX(0)' : 'translateX(-320px)',
+              transition: 'transform 200ms ease-in-out',
+            }}
           >
-            <Sidebar />
+            {/* Toggle button - positioned inside the panel */}
+            {isLibraryVisible && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={toggleLibrary}
+                className="absolute z-50 top-[10px] right-2 h-8 w-8 flex items-center justify-center rounded-md text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-expanded={true}
+                aria-label="Hide component library"
+                title="Hide components"
+              >
+                <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
+              </Button>
+            )}
+            <div
+              className={cn(
+                'absolute inset-0',
+                showLibraryContent ? 'opacity-100' : 'opacity-0 pointer-events-none select-none'
+              )}
+              style={{
+                transition: 'opacity 200ms ease-in-out',
+              }}
+            >
+              <Sidebar />
+            </div>
           </div>
         </aside>
 
@@ -1957,8 +2032,6 @@ function WorkflowBuilderContent() {
               onScheduleDelete={handleScheduleDelete}
               onViewSchedules={navigateToSchedules}
               onNodeSelectionChange={(node) => setHasSelectedNode(!!node)}
-              componentsPanelWidth={isLibraryVisible ? 320 : 0}
-              executionInspectorWidth={isInspectorVisible ? inspectorWidth : 0}
             />
           </div>
           {mode === 'design' && workflowId && (
