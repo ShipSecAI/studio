@@ -823,7 +823,6 @@ export function Canvas({
             }}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
-            attributionPosition="bottom-left"
             nodesDraggable
             nodesConnectable={mode === 'design'}
             elementsSelectable

@@ -288,14 +288,17 @@ table tbody tr:hover {
   fill: hsl(var(--border)) !important;
 }
 
-/* React Flow Attribution - Dark Theme */
+/* React Flow Attribution - Hidden (MIT license allows removal) */
+.react-flow__attribution {
+  display: none !important;
+}
+
 .dark .react-flow__attribution {
-  background-color: hsl(var(--card) / 0.9) !important;
-  color: hsl(var(--muted-foreground)) !important;
+  display: none !important;
 }
 
 .dark .react-flow__attribution a {
-  color: hsl(var(--muted-foreground)) !important;
+  display: none !important;
 }
 
 .dark .react-flow__panel {
@@ -330,9 +333,17 @@ table tbody tr:hover {
   background-color: hsl(var(--background));
 }
 
-/* React Flow Node Selection - Dark Theme */
+/* React Flow Node Selection - Remove border, keep only gradient shadow from WorkflowNode */
+.react-flow__node.selected {
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
 .dark .react-flow__node.selected {
-  box-shadow: 0 0 0 2px hsl(var(--primary));
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
 }
 
 /* Resize handle styles */

@@ -210,7 +210,7 @@ function WorkflowBuilderContent() {
   const [executionEdges, setExecutionEdges, onExecutionEdgesChangeBase] = useEdgesState([])
   
   // Execution dirty state: tracks if nodes have been rearranged in execution mode
-  const [executionDirty, setExecutionDirty] = useState(false)
+  const [_executionDirty, setExecutionDirty] = useState(false)
   
   // Preserved design state snapshot (for restoration when switching back from execution)
   const preservedDesignStateRef = useRef<{
