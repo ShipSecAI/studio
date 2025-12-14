@@ -46,6 +46,7 @@ function buildIndexes(components: any[]) {
         color: '#666',
         description: '',
         emoji: '📦',
+        icon: 'Box',
       },
       description: component.description || '',
       documentation: component.documentation || null,

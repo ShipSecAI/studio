@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import * as LucideIcons from 'lucide-react'
 import { useComponentStore } from '@/store/componentStore'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Accordion,
   AccordionContent,
@@ -16,12 +17,15 @@ import { Skeleton } from '@/components/ui/skeleton'
 // Use backend-provided category configuration
 // The frontend will no longer categorize components - it will use backend data
 
+type ViewMode = 'list' | 'tiles'
+
 interface ComponentItemProps {
   component: ComponentMetadata
   disabled?: boolean
+  viewMode: ViewMode
 }
 
-function ComponentItem({ component, disabled }: ComponentItemProps) {
+function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
   const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
   const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>
   const description = component.description || 'No description available yet.'
@@ -36,6 +40,56 @@ function ComponentItem({ component, disabled }: ComponentItemProps) {
     event.dataTransfer.effectAllowed = 'move'
   }
 
+  if (viewMode === 'list') {
+    return (
+      <div
+        className={cn(
+          'group relative flex items-center gap-3 px-3 py-2 rounded-md cursor-move transition-all',
+          'hover:bg-muted/50 border border-border/30 hover:border-border/60',
+          disabled
+            ? 'cursor-not-allowed opacity-50'
+            : '',
+          component.deprecated && 'opacity-50'
+        )}
+        draggable={!component.deprecated && !disabled}
+        onDragStart={onDragStart}
+      >
+        {/* Icon */}
+        <div className="flex-shrink-0">
+          {component.logo ? (
+            <img 
+              src={component.logo} 
+              alt={component.name}
+              className="h-5 w-5 object-contain"
+              onError={(e) => {
+                // Fallback to icon if image fails to load
+                e.currentTarget.style.display = 'none'
+                e.currentTarget.nextElementSibling?.classList.remove('hidden')
+              }}
+            />
+          ) : null}
+          <IconComponent className={cn(
+            "h-5 w-5 text-muted-foreground flex-shrink-0",
+            component.logo && "hidden"
+          )} />
+        </div>
+
+        {/* Title and description */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <span className="block text-sm font-medium leading-tight truncate">
+            {component.name}
+          </span>
+          {description && (
+            <p className="text-xs text-muted-foreground truncate mt-0.5 leading-snug">
+              {description}
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Tile view
   return (
     <div
       className={cn(
@@ -111,9 +165,18 @@ interface SidebarProps {
 export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   const { getAllComponents, fetchComponents, loading, error } = useComponentStore()
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
   const frontendBranch = env.VITE_FRONTEND_BRANCH.trim()
   const backendBranch = env.VITE_BACKEND_BRANCH.trim()
   const hasBranchInfo = Boolean(frontendBranch || backendBranch)
+  
+  // Custom scrollbar state
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [scrollbarVisible, setScrollbarVisible] = useState(false)
+  const [scrollbarPosition, setScrollbarPosition] = useState(0)
+  const [scrollbarHeight, setScrollbarHeight] = useState(0)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isScrollingRef = useRef(false)
 
   // Fetch components on mount
   useEffect(() => {
@@ -124,9 +187,16 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
 
   const allComponents = getAllComponents()
 
+  // Filter out entry point component (always present, shouldn't be in the list)
+  const filteredComponents = useMemo(() => {
+    return allComponents.filter(
+      component => component.id !== 'core.workflow.entrypoint' && component.slug !== 'entry-point'
+    )
+  }, [allComponents])
+
   // Group components by backend-provided categories (memoized to prevent infinite loops)
   const componentsByCategory = useMemo(() => {
-    return allComponents.reduce((acc, component) => {
+    return filteredComponents.reduce((acc, component) => {
       const category = component.category
       if (!acc[category]) {
         acc[category] = []
@@ -134,57 +204,72 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
       acc[category].push(component)
       return acc
     }, {} as Record<string, ComponentMetadata[]>)
-  }, [allComponents])
+  }, [filteredComponents])
+
+  // Category display order
+  const categoryOrder = ['input', 'output', 'security', 'ai', 'transform', 'it_ops'] as const
 
   // Filter components based on search query
   const filteredComponentsByCategory = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return componentsByCategory
-    }
+    const filtered = searchQuery.trim() ? (() => {
+      const query = searchQuery.toLowerCase()
+      const result = {} as Record<string, ComponentMetadata[]>
 
-    const query = searchQuery.toLowerCase()
-    const filtered = {} as Record<string, ComponentMetadata[]>
+      Object.entries(componentsByCategory).forEach(([category, components]) => {
+        const firstComponent = components[0]
+        const categoryConfig = firstComponent?.categoryConfig
 
-    Object.entries(componentsByCategory).forEach(([category, components]) => {
-      const firstComponent = components[0]
-      const categoryConfig = firstComponent?.categoryConfig
+        // Check if category name matches the search query
+        const label = categoryConfig?.label?.toLowerCase()
+        const desc = categoryConfig?.description?.toLowerCase()
+        const categoryMatches =
+          (label && label.includes(query)) ||
+          (desc && desc.includes(query)) ||
+          category.toLowerCase().includes(query)
 
-      // Check if category name matches the search query
-      const label = categoryConfig?.label?.toLowerCase()
-      const desc = categoryConfig?.description?.toLowerCase()
-      const categoryMatches =
-        (label && label.includes(query)) ||
-        (desc && desc.includes(query)) ||
-        category.toLowerCase().includes(query)
+        // Filter components within this category
+        const matchingComponents = components.filter(component =>
+          component.name.toLowerCase().includes(query) ||
+          component.description?.toLowerCase().includes(query) ||
+          component.id.toLowerCase().includes(query)
+        )
 
-      // Filter components within this category
-      const matchingComponents = components.filter(component =>
-        component.name.toLowerCase().includes(query) ||
-        component.description?.toLowerCase().includes(query) ||
-        component.id.toLowerCase().includes(query)
-      )
+        // Include category if either category name matches or components within it match
+        if (categoryMatches || matchingComponents.length > 0) {
+          result[category] = matchingComponents
+        }
+      })
 
-      // Include category if either category name matches or components within it match
-      if (categoryMatches || matchingComponents.length > 0) {
-        filtered[category] = matchingComponents
-      }
+      return result
+    })() : componentsByCategory
+
+    // Sort categories by predefined order
+    const sortedEntries = Object.entries(filtered).sort(([a], [b]) => {
+      const indexA = categoryOrder.indexOf(a as typeof categoryOrder[number])
+      const indexB = categoryOrder.indexOf(b as typeof categoryOrder[number])
+      // If category not in order list, put it at the end
+      if (indexA === -1 && indexB === -1) return 0
+      if (indexA === -1) return 1
+      if (indexB === -1) return -1
+      return indexA - indexB
     })
 
-    return filtered
+    return Object.fromEntries(sortedEntries)
   }, [componentsByCategory, searchQuery])
 
   // Track open accordion items (controlled)
   const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([])
 
-  // Track whether we've initialized the accordion with the first category
+  // Track whether we've initialized the accordion
   const [hasInitialized, setHasInitialized] = useState(false)
 
-  // Initialize accordion to first category when components first load
+  // Initialize accordion: open all categories by default for better discoverability
   useEffect(() => {
     if (!hasInitialized && !searchQuery.trim()) {
       const categories = Object.keys(filteredComponentsByCategory)
       if (categories.length > 0) {
-        setOpenAccordionItems([categories[0]])
+        // Open all categories by default
+        setOpenAccordionItems(categories)
         setHasInitialized(true)
       }
     }
@@ -196,22 +281,107 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
       // When searching, open all categories that have matching components
       setOpenAccordionItems(Object.keys(filteredComponentsByCategory))
     } else if (hasInitialized) {
-      // When clearing search, open only the first category
+      // When clearing search, open all categories again
       const categories = Object.keys(filteredComponentsByCategory)
-      setOpenAccordionItems(categories.length > 0 ? [categories[0]] : [])
+      setOpenAccordionItems(categories.length > 0 ? categories : [])
     }
     // Only depend on searchQuery - not filteredComponentsByCategory to avoid loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
+  // Custom scrollbar logic
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const updateScrollbar = (showImmediately = false) => {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const maxScroll = scrollHeight - clientHeight
+      
+      if (maxScroll <= 0) {
+        setScrollbarVisible(false)
+        return
+      }
+
+      // Calculate scrollbar thumb position and height
+      const thumbHeight = Math.max((clientHeight / scrollHeight) * clientHeight, 30)
+      const thumbPosition = (scrollTop / maxScroll) * (clientHeight - thumbHeight)
+      
+      setScrollbarHeight(thumbHeight)
+      setScrollbarPosition(thumbPosition)
+      
+      // Only show scrollbar when actively scrolling or explicitly requested
+      if (showImmediately || isScrollingRef.current) {
+        setScrollbarVisible(true)
+      }
+
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+
+      // Hide scrollbar after scrolling stops
+      scrollTimeoutRef.current = setTimeout(() => {
+        isScrollingRef.current = false
+        setScrollbarVisible(false)
+      }, 800)
+    }
+
+    const handleScroll = () => {
+      isScrollingRef.current = true
+      updateScrollbar(true)
+    }
+
+    const handleResize = () => {
+      updateScrollbar(false)
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleResize)
+    
+    // Initial check - don't show scrollbar on mount
+    updateScrollbar(false)
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleResize)
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+    }
+  }, [filteredComponentsByCategory, loading])
+
   return (
     <div className="h-full w-full max-w-[320px] border-r bg-background flex flex-col">
       <div className="p-4 border-b space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold">Components</h2>
-          {/* <p className="text-xs text-muted-foreground mt-1">
-            Drag and drop to add to workflow
-          </p> */}
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold leading-none">Components</h2>
+          <div className="flex items-center gap-0.5 border border-border/50 rounded-md p-0.5 h-7">
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn(
+                'h-6 px-2',
+                viewMode === 'list' && 'bg-muted'
+              )}
+              onClick={() => setViewMode('list')}
+              title="List view"
+            >
+              <LucideIcons.List className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={viewMode === 'tiles' ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn(
+                'h-6 px-2',
+                viewMode === 'tiles' && 'bg-muted'
+              )}
+              onClick={() => setViewMode('tiles')}
+              title="Tile view"
+            >
+              <LucideIcons.Grid3x3 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
         <div className="relative">
@@ -235,29 +405,47 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
+      <div className="relative flex-1 overflow-hidden">
+        <div 
+          ref={scrollContainerRef}
+          className="h-full w-full overflow-y-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
         {loading ? (
           <div className="space-y-0">
             <div>
               <div className="py-3">
                 <Skeleton className="h-4 w-24 mb-2" />
-                <div className="grid grid-cols-2 gap-2">
-                  {Array.from({ length: 4 }).map((_, idx) => (
-                    <div key={idx} className="rounded-lg p-3 bg-background/50">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <Skeleton className="h-5 w-5 rounded" />
-                            <Skeleton className="h-3 w-16" />
-                          </div>
-                          <Skeleton className="h-3 w-6" />
+                {viewMode === 'list' ? (
+                  <div className="space-y-0.5">
+                    {Array.from({ length: 6 }).map((_, idx) => (
+                      <div key={idx} className="flex items-center gap-3 px-3 py-2">
+                        <Skeleton className="h-5 w-5 rounded flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <Skeleton className="h-4 w-32 mb-1" />
+                          <Skeleton className="h-3 w-48" />
                         </div>
-                        <Skeleton className="h-3 w-full" />
-                        <Skeleton className="h-3 w-3/4" />
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} className="rounded-lg p-3 bg-background/50">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-5 w-5 rounded" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                            <Skeleton className="h-3 w-6" />
+                          </div>
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-3/4" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -265,7 +453,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
           <div className="text-sm text-red-500 text-center py-8">
             Failed to load components: {error}
           </div>
-        ) : allComponents.length === 0 ? (
+        ) : filteredComponents.length === 0 ? (
           <div className="text-sm text-muted-foreground text-center py-8">
             No components available
           </div>
@@ -296,33 +484,61 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
                   <AccordionItem 
                     key={category} 
                     value={category} 
-                    className="border border-border/50 rounded-sm px-3 py-1 hover:bg-muted/50 transition-colors"
+                    className="border border-border/50 rounded-sm px-3 py-1 transition-colors"
                   >
                     <AccordionTrigger className={cn(
-                      'py-3 px-0 hover:no-underline [&[data-state=open]]:text-foreground',
-                      'group'
+                      'py-3 px-0 hover:no-underline hover:bg-muted/50 rounded-sm -mx-3 -my-1 px-3 [&[data-state=open]]:text-foreground',
+                      'group transition-colors'
                     )}>
                       <div className="flex flex-col items-start gap-0.5 w-full">
                         <div className="flex items-center justify-between w-full">
-                          <h3 className={cn(
-                            'text-sm font-semibold transition-colors',
-                            categoryConfig?.color || 'text-foreground'
-                          )}>
-                            {categoryConfig?.label ?? category}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            {categoryConfig?.icon && (
+                              (() => {
+                                const iconName = categoryConfig.icon in LucideIcons ? categoryConfig.icon : 'Box'
+                                const CategoryIcon = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>
+                                return (
+                                  <CategoryIcon className={cn(
+                                    'h-4 w-4 flex-shrink-0',
+                                    categoryConfig?.color || 'text-muted-foreground'
+                                  )} />
+                                )
+                              })()
+                            )}
+                            <h3 className={cn(
+                              'text-sm font-semibold transition-colors',
+                              categoryConfig?.color || 'text-foreground'
+                            )}>
+                              {categoryConfig?.label ?? category}
+                            </h3>
+                          </div>
                         </div>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="pt-2 pb-3 px-0">
-                      <div className="grid grid-cols-2 gap-2">
-                        {components.map((component) => (
-                          <ComponentItem
-                            key={component.id}
-                            component={component}
-                            disabled={!canManageWorkflows}
-                          />
-                        ))}
-                      </div>
+                    <AccordionContent className="pt-1 pb-2 px-0">
+                      {viewMode === 'list' ? (
+                        <div className="space-y-0.5">
+                          {components.map((component) => (
+                            <ComponentItem
+                              key={component.id}
+                              component={component}
+                              disabled={!canManageWorkflows}
+                              viewMode={viewMode}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {components.map((component) => (
+                            <ComponentItem
+                              key={component.id}
+                              component={component}
+                              disabled={!canManageWorkflows}
+                              viewMode={viewMode}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 )
@@ -345,12 +561,27 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
             <div className="pt-2 border-t mt-2">
               <p className="text-xs text-muted-foreground px-0.5">
                 {searchQuery.trim()
-                  ? `${Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0)} of ${allComponents.length} component${allComponents.length !== 1 ? 's' : ''} shown`
-                  : `${allComponents.length} component${allComponents.length !== 1 ? 's' : ''} available`
+                  ? `${Object.values(filteredComponentsByCategory).reduce((total, components) => total + components.length, 0)} of ${filteredComponents.length} component${filteredComponents.length !== 1 ? 's' : ''} shown`
+                  : `${filteredComponents.length} component${filteredComponents.length !== 1 ? 's' : ''} available`
                 }
               </p>
             </div>
           </div>
+        )}
+        </div>
+        
+        {/* Custom overlay scrollbar */}
+        {scrollbarHeight > 0 && (
+          <div
+            className={cn(
+              'absolute right-1 top-2 w-0.5 bg-muted-foreground/50 rounded-full transition-opacity duration-300 pointer-events-none z-10',
+              scrollbarVisible ? 'opacity-100' : 'opacity-0'
+            )}
+            style={{
+              height: `${scrollbarHeight}px`,
+              transform: `translateY(${scrollbarPosition}px)`,
+            }}
+          />
         )}
       </div>
     </div>

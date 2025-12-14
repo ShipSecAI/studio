@@ -39,10 +39,11 @@ const textBlockMetadata = {
   type: 'process' as const,
   category: 'transform' as const,
   categoryConfig: {
-    label: '🔄 Transform',
+    label: 'Transform',
     color: 'text-orange-600',
     description: 'Data processing, text manipulation, and formatting',
     emoji: '🔄',
+    icon: 'RefreshCw',
   },
   description: 'Add contextual notes or instructions to the workflow without affecting data flow.',
   documentation: null,

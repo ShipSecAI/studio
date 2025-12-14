@@ -300,7 +300,9 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
           <div className="px-3 py-2.5 border-b">
             <div className="rounded-lg border bg-card p-2.5">
               <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="font-medium text-sm truncate">{selectedRun.workflowName}</span>
+                <span className="font-medium text-sm truncate font-mono" title={selectedRun.id}>
+                  {selectedRun.id.split('-').slice(0, 3).join('-')}
+                </span>
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="ghost"
@@ -329,7 +331,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                 currentWorkflowVersion={currentWorkflowVersion}
                 showBadges={false}
               />
-              <div className="flex items-center justify-between gap-2 text-[10px]">
+              <div className="flex items-center justify-between gap-2 text-[10px] mt-1">
                 <div className="flex items-center gap-2">
                   {versionBadge}
                   {triggerDisplay && (

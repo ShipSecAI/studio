@@ -35,7 +35,6 @@ export function RunInfoDisplay({
   }
 
   const infoItems = [
-    `Run #${run.id.slice(-6)}`,
     formatStartTime(run.startTime),
     `${run.eventCount} events`,
     run.duration ? formatDuration(run.duration) : undefined,

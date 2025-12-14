@@ -122,11 +122,13 @@ export const ComponentCategoryConfigSchema = z.object({
   color: z.string(),
   description: z.string(),
   emoji: z.string(),
+  icon: z.string().optional(),
 }).partial().default({
   label: 'Uncategorized',
   color: 'text-muted-foreground',
   description: '',
   emoji: '🧩',
+  icon: 'Box',
 })
 
 export type ComponentCategoryConfig = z.infer<typeof ComponentCategoryConfigSchema>
@@ -146,6 +148,7 @@ export const ComponentMetadataSchema = z.object({
     color: 'text-muted-foreground',
     description: '',
     emoji: '🧩',
+    icon: 'Box',
   }),
   description: z.string().optional().default(''),
   documentation: z.string().optional().nullable(),

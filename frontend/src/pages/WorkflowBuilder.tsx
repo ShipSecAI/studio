@@ -1971,7 +1971,7 @@ function WorkflowBuilderContent() {
                 type="button"
                 variant="ghost"
                 onClick={toggleLibrary}
-                className="absolute z-50 top-[10px] right-2 h-8 w-8 flex items-center justify-center rounded-md text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="absolute z-50 top-4 right-4 h-7 w-7 flex items-center justify-center rounded-md text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-expanded={true}
                 aria-label="Hide component library"
                 title="Hide components"

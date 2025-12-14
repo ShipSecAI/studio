@@ -67,10 +67,11 @@ export class ComponentsController {
           categoryConfig: {
             type: 'object',
             properties: {
-              label: { type: 'string', example: '📥 Input' },
+              label: { type: 'string', example: 'Input' },
               color: { type: 'string', example: 'text-blue-600' },
               description: { type: 'string', example: 'Data sources, triggers, and credential access' },
               emoji: { type: 'string', example: '📥' },
+              icon: { type: 'string', example: 'Download' },
             },
           },
           description: { type: 'string', example: 'Load files from filesystem' },
@@ -252,6 +253,7 @@ export class ComponentsController {
             color: { type: 'string' },
             description: { type: 'string' },
             emoji: { type: 'string' },
+            icon: { type: 'string' },
           },
         },
         description: { type: 'string', nullable: true },

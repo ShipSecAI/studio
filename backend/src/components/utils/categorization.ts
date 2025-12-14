@@ -5,46 +5,53 @@ interface ComponentCategoryConfig {
   color: string;
   description: string;
   emoji: string;
+  icon: string;
 }
 
 const SUPPORTED_CATEGORIES: ReadonlyArray<ComponentCategory> = ['input', 'transform', 'ai', 'security', 'it_ops', 'output'];
 
 const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConfig> = {
   input: {
-    label: '📥 Input',
+    label: 'Input',
     color: 'text-blue-600',
     description: 'Data sources, triggers, and credential access',
     emoji: '📥',
+    icon: 'Download',
   },
   transform: {
-    label: '🔄 Transform',
+    label: 'Transform',
     color: 'text-orange-600',
     description: 'Data processing, text manipulation, and formatting',
     emoji: '🔄',
+    icon: 'RefreshCw',
   },
   ai: {
-    label: '🤖 AI Components',
+    label: 'AI Components',
     color: 'text-violet-600',
     description: 'AI-powered analysis and generation tools',
     emoji: '🤖',
+    icon: 'Brain',
   },
   security: {
-    label: '🔒 Security Tools',
+    label: 'Security Tools',
     color: 'text-red-600',
     description: 'Security scanning and assessment tools',
     emoji: '🔒',
+    icon: 'Shield',
   },
   it_ops: {
-    label: '🏢 IT Ops',
+    label: 'IT Ops',
     color: 'text-cyan-600',
     description: 'IT operations and user management workflows',
     emoji: '🏢',
+    icon: 'Building',
   },
   output: {
-    label: '📤 Output',
+    label: 'Output',
     color: 'text-green-600',
     description: 'Data export, notifications, and integrations',
     emoji: '📤',
+    icon: 'Upload',
   },
 };
 

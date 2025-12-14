@@ -12,10 +12,11 @@ const mockComponents: ComponentMetadata[] = [
     type: 'trigger',
     category: 'input',
     categoryConfig: {
-      label: '📥 Input',
+      label: 'Input',
       color: 'text-blue-600',
       description: 'Data sources, triggers, and credential access',
-      emoji: '📥'
+      emoji: '📥',
+      icon: 'Download'
     },
     description: '',
     documentation: null,
@@ -40,10 +41,11 @@ const mockComponents: ComponentMetadata[] = [
     type: 'scan',
     category: 'security',
     categoryConfig: {
-      label: '🔒 Security Tools',
+      label: 'Security Tools',
       color: 'text-red-600',
       description: 'Security scanning and assessment tools',
-      emoji: '🔒'
+      emoji: '🔒',
+      icon: 'Shield'
     },
     description: '',
     documentation: null,
@@ -68,10 +70,11 @@ const mockComponents: ComponentMetadata[] = [
     type: 'scan',
     category: 'security',
     categoryConfig: {
-      label: '🔒 Security Tools',
+      label: 'Security Tools',
       color: 'text-red-600',
       description: 'Security scanning and assessment tools',
-      emoji: '🔒'
+      emoji: '🔒',
+      icon: 'Shield'
     },
     description: '',
     documentation: null,
