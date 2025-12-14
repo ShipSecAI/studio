@@ -535,14 +535,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           minHeight={MIN_TEXT_HEIGHT}
           maxHeight={MAX_TEXT_HEIGHT}
           isVisible
-          handleStyle={{
-            width: 12,
-            height: 12,
-            borderRadius: 4,
-            border: '1px solid hsl(var(--border))',
-            background: 'hsl(var(--muted))',
-          }}
-          lineStyle={{ borderColor: 'hsl(var(--border))' }}
+          handleClassName="text-node-resize-handle"
+          lineClassName="text-node-resize-line"
           onResize={handleResize}
           onResizeEnd={handleResizeEnd}
         />
