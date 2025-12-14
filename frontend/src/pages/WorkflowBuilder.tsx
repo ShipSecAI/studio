@@ -500,6 +500,7 @@ function WorkflowBuilderContent() {
   const runs = scopedRuns ?? []
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const inspectorResizingRef = useRef(false)
+  const [isInspectorResizing, setIsInspectorResizing] = useState(false)
   const isLibraryVisible = libraryOpen && mode === 'design'
   const [showLibraryContent, setShowLibraryContent] = useState(isLibraryVisible)
   const [historicalVersionId, setHistoricalVersionId] = useState<string | null>(null)
@@ -1843,6 +1844,7 @@ function WorkflowBuilderContent() {
       return
     }
     inspectorResizingRef.current = true
+    setIsInspectorResizing(true)
     document.body.classList.add('select-none')
     event.preventDefault()
   }, [mode])
@@ -1862,6 +1864,7 @@ function WorkflowBuilderContent() {
     const stopResizing = () => {
       if (inspectorResizingRef.current) {
         inspectorResizingRef.current = false
+        setIsInspectorResizing(false)
         document.body.classList.remove('select-none')
       }
     }
@@ -1993,7 +1996,7 @@ function WorkflowBuilderContent() {
         <main 
           className="flex-1 relative flex"
           style={{
-            transition: 'all 200ms ease-in-out',
+            transition: isInspectorResizing ? 'none' : 'all 200ms ease-in-out',
           }}
         >
           <div className="flex-1 h-full relative">
@@ -2066,7 +2069,9 @@ function WorkflowBuilderContent() {
             )}
             style={{
               width: isInspectorVisible ? inspectorWidth : 0,
-              transition: 'width 200ms ease-in-out, opacity 200ms ease-in-out',
+              transition: isInspectorResizing 
+                ? 'opacity 200ms ease-in-out' 
+                : 'width 200ms ease-in-out, opacity 200ms ease-in-out',
             }}
           >
             <div
