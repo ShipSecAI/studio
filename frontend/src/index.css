@@ -189,3 +189,68 @@ table tbody tr:hover {
   background-color: hsl(var(--accent) / 0.3);
   box-shadow: inset 3px 0 0 0 hsl(var(--primary));
 }
+
+/* React Flow Controls - Dark Theme */
+.dark .react-flow__controls {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+}
+
+.dark .react-flow__controls-button {
+  background-color: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  fill: hsl(var(--foreground));
+  color: hsl(var(--foreground));
+}
+
+.dark .react-flow__controls-button:hover {
+  background-color: hsl(var(--accent));
+}
+
+.dark .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.dark .react-flow__controls-button svg {
+  fill: hsl(var(--foreground));
+}
+
+/* React Flow MiniMap - Dark Theme */
+.dark .react-flow__minimap {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+}
+
+.dark .react-flow__minimap-mask {
+  fill: hsl(var(--background));
+  opacity: 0.8;
+}
+
+/* React Flow Background - Dark Theme */
+.dark .react-flow__background {
+  background-color: hsl(var(--background));
+}
+
+.dark .react-flow__background pattern circle,
+.dark .react-flow__background pattern line {
+  stroke: hsl(var(--border));
+}
+
+/* Override the default grid dot color in dark mode */
+.dark .react-flow .react-flow__background svg circle {
+  fill: hsl(var(--border)) !important;
+}
+
+/* React Flow Attribution - Dark Theme */
+.dark .react-flow__attribution {
+  background-color: hsl(var(--card) / 0.8);
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .react-flow__attribution a {
+  color: hsl(var(--muted-foreground));
+}
