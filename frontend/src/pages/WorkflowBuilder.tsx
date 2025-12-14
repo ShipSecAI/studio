@@ -580,35 +580,48 @@ function WorkflowBuilderContent() {
         // Clear preserved state after restoration
         preservedExecutionStateRef.current = null
       } else {
-        // No preserved execution state: sync from design state for smooth transition
-        const currentDesignNodes = designNodesRef.current
-        const currentDesignEdges = designEdgesRef.current
+        // Check if we need to load a historical version - if so, don't sync from design
+        // The useEffect will handle loading the correct version
+        const run = runs.find((candidate) => candidate.id === selectedRunId)
+        const versionId = run?.workflowVersionId ?? null
+        const needsHistoricalVersion = run && versionId && versionId !== metadata.currentVersionId
         
-        // Sync positions from design to execution for smooth visual transition
-        if (executionNodesRef.current.length > 0) {
-          // Create a map of design node positions by ID
-          const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
+        // Only sync from design if:
+        // 1. No run selected, OR
+        // 2. Run uses current version (no historical version needed), OR
+        // 3. We already have execution nodes (just sync positions, not full state)
+        if (!needsHistoricalVersion) {
+          // No preserved execution state: sync from design state for smooth transition
+          const currentDesignNodes = designNodesRef.current
+          const currentDesignEdges = designEdgesRef.current
           
-          // Update execution nodes with design positions while keeping execution data
-          setExecutionNodes((execNodes) => {
+          // Sync positions from design to execution for smooth visual transition
+          if (executionNodesRef.current.length > 0) {
+            // Create a map of design node positions by ID
             const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
-            return execNodes.map((execNode) => {
-              const designNode = designNodeMap.get(execNode.id)
-              if (designNode) {
-                // Preserve execution-specific data but sync position for smooth transition
-                return {
-                  ...execNode,
-                  position: { ...designNode.position },
+            
+            // Update execution nodes with design positions while keeping execution data
+            setExecutionNodes((execNodes) => {
+              const designNodeMap = new Map(currentDesignNodes.map(n => [n.id, n]))
+              return execNodes.map((execNode) => {
+                const designNode = designNodeMap.get(execNode.id)
+                if (designNode) {
+                  // Preserve execution-specific data but sync position for smooth transition
+                  return {
+                    ...execNode,
+                    position: { ...designNode.position },
+                  }
                 }
-              }
-              return execNode
+                return execNode
+              })
             })
-          })
-        } else {
-          // First time switching to execution: initialize from design with exact positions
-          setExecutionNodes(cloneNodes(currentDesignNodes))
-          setExecutionEdges(cloneEdges(currentDesignEdges))
+          } else {
+            // First time switching to execution: initialize from design with exact positions
+            setExecutionNodes(cloneNodes(currentDesignNodes))
+            setExecutionEdges(cloneEdges(currentDesignEdges))
+          }
         }
+        // If needsHistoricalVersion is true, do nothing - let the useEffect load the correct version
       }
     } else if (mode === 'design') {
       // Switching away from execution mode: preserve current execution state
@@ -642,7 +655,7 @@ function WorkflowBuilderContent() {
         preservedDesignStateRef.current = null
       }
     }
-  }, [mode, setDesignNodes, setDesignEdges, setExecutionNodes, setExecutionEdges])
+  }, [mode, setDesignNodes, setDesignEdges, setExecutionNodes, setExecutionEdges, runs, selectedRunId, metadata.currentVersionId])
   const workflowRuns = useMemo(() => runs, [runs])
   const mostRecentRunId = useMemo(
     () => (workflowRuns.length > 0 ? workflowRuns[0].id : null),
@@ -1902,7 +1915,12 @@ function WorkflowBuilderContent() {
           </div>
         </aside>
 
-        <main className="flex-1 relative flex">
+        <main 
+          className="flex-1 relative flex"
+          style={{
+            transition: 'all 200ms ease-in-out',
+          }}
+        >
           <div className="flex-1 h-full relative">
             {mode === 'design' && workflowId && !schedulePanelExpanded && (
               <div
@@ -1939,6 +1957,8 @@ function WorkflowBuilderContent() {
               onScheduleDelete={handleScheduleDelete}
               onViewSchedules={navigateToSchedules}
               onNodeSelectionChange={(node) => setHasSelectedNode(!!node)}
+              componentsPanelWidth={isLibraryVisible ? 320 : 0}
+              executionInspectorWidth={isInspectorVisible ? inspectorWidth : 0}
             />
           </div>
           {mode === 'design' && workflowId && (
@@ -1966,20 +1986,31 @@ function WorkflowBuilderContent() {
               )}
             </aside>
           )}
-          {isInspectorVisible && (
-            <aside
-              className="relative h-full border-l bg-background"
-              style={{ width: inspectorWidth }}
+          <aside
+            className={cn(
+              'relative h-full border-l bg-background overflow-hidden',
+              isInspectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            )}
+            style={{
+              width: isInspectorVisible ? inspectorWidth : 0,
+              transition: 'width 200ms ease-in-out, opacity 200ms ease-in-out',
+            }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                width: inspectorWidth,
+              }}
             >
               <div
-                className="absolute top-0 left-0 h-full w-2 cursor-col-resize border-l border-transparent hover:border-primary/40"
+                className="absolute top-0 left-0 h-full w-2 cursor-col-resize border-l border-transparent hover:border-primary/40 z-10"
                 onMouseDown={handleInspectorResizeStart}
               />
               <div className="flex h-full min-h-0 pl-2 overflow-hidden">
                 <ExecutionInspector onRerunRun={handleRerunFromTimeline} />
               </div>
-            </aside>
-          )}
+            </div>
+          </aside>
         </main>
       </div>
 
