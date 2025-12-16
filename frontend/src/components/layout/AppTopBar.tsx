@@ -53,6 +53,20 @@ export function AppTopBar({
       }
     }
 
+    if (location.pathname === '/integrations') {
+      return {
+        title: 'Connections',
+        subtitle: 'Manage OAuth tokens for external providers'
+      }
+    }
+
+    if (location.pathname === '/artifacts') {
+      return {
+        title: 'Artifact Library',
+        subtitle: 'Browse artifacts saved across workflow runs'
+      }
+    }
+
     return {
       title: 'Security Workflow Builder',
       subtitle: 'Create and manage security automation workflows'

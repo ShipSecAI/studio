@@ -34,9 +34,12 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'shipsec-theme',
+      partialize: (state) => ({ theme: state.theme }), // Only persist theme, not isTransitioning
       onRehydrateStorage: () => (state) => {
         // Apply theme when store is rehydrated from localStorage
+        // Always reset isTransitioning to false on rehydrate to prevent stuck states
         if (state) {
+          state.isTransitioning = false
           applyTheme(state.theme)
         }
       },

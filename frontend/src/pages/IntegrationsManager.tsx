@@ -29,6 +29,7 @@ import type { components } from '@shipsec/backend-client'
 import { useIntegrationStore } from '@/store/integrationStore'
 import { getCurrentUserId } from '@/lib/currentUser'
 import { api } from '@/services/api'
+import { env } from '@/config/env'
 
 type IntegrationProvider = components['schemas']['IntegrationProviderResponse']
 type IntegrationConnection = components['schemas']['IntegrationConnectionResponse']
@@ -265,16 +266,12 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-semibold">Connections</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage OAuth tokens for external providers. Connections are encrypted and can be refreshed or revoked at any time.
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => navigate('/')}>Back to workflows</Button>
+    <div className="flex-1 bg-background">
+      <div className="container mx-auto py-8 px-4">
+        <div className="mb-8">
+          <p className="text-muted-foreground">
+            Manage OAuth tokens for external providers. Connections are encrypted and can be refreshed or revoked at any time.
+          </p>
         </div>
 
         <section className="mb-10">
@@ -408,15 +405,50 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                 <Badge variant="outline">Setup required</Badge>
               )
 
+              // Get colored logo URL using Logo.dev (recommended alternative to Clearbit Logo API)
+              // Reference: https://clearbit.com/blog/the-future-of-clearbits-free-tools
+              const getLogoUrl = (providerId: string) => {
+                // Map provider IDs to domain names for Logo.dev
+                const domainMap: Record<string, string> = {
+                  github: 'github.com',
+                  zoom: 'zoom.us',
+                  // Add more providers as needed: 'provider-id': 'domain.com'
+                }
+                
+                const domain = domainMap[providerId.toLowerCase()]
+                if (!domain) return null
+                
+                // Logo.dev provides colored brand logos via CDN (free alternative to Clearbit)
+                // Read public key from environment variable
+                return `https://img.logo.dev/${domain}?token=${env.VITE_LOGO_DEV_PUBLIC_KEY}`
+              }
+
+              const logoUrl = getLogoUrl(provider.id)
+
               return (
                 <div
                   key={provider.id}
-                  className="border rounded-lg p-5 bg-card flex flex-col gap-4"
+                  className="border rounded-lg p-5 bg-card flex flex-col gap-4 relative"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">{provider.name}</h3>
-                      <p className="text-sm text-muted-foreground">{provider.description}</p>
+                    <div className="flex items-start gap-3">
+                      {logoUrl && (
+                        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-white dark:bg-muted flex items-center justify-center p-1.5 mt-0.5 border border-border/50 shadow-sm">
+                          <img
+                            src={logoUrl}
+                            alt={`${provider.name} logo`}
+                            className="h-full w-full object-contain rounded-full"
+                            onError={(e) => {
+                              // Hide logo container if image fails to load
+                              e.currentTarget.parentElement!.style.display = 'none'
+                            }}
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-lg font-semibold">{provider.name}</h3>
+                        <p className="text-sm text-muted-foreground">{provider.description}</p>
+                      </div>
                     </div>
                     {configuredBadge}
                   </div>
@@ -494,17 +526,20 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                       <KeyRound className="h-4 w-4" />
                       Manage credentials
                     </Button>
-                    {provider.docsUrl && (
-                      <Button
-                        variant="ghost"
-                        className="gap-2"
-                        onClick={() => window.open(provider.docsUrl, '_blank', 'noopener noreferrer')}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Docs
-                      </Button>
-                    )}
                   </div>
+                  
+                  {/* Docs button - absolute bottom right */}
+                  {provider.docsUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute bottom-2 right-2 h-8 w-8 p-0"
+                      onClick={() => window.open(provider.docsUrl, '_blank', 'noopener noreferrer')}
+                      title="View documentation"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               )
             })}

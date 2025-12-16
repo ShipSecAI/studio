@@ -13,6 +13,38 @@ export const ThemeTransition = () => {
     const [transitionTarget, setTransitionTarget] = useState<Theme | null>(null)
     const themeRef = useRef<Theme>(theme)
     const animationSetupRef = useRef(false)
+    const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    // Safety timeout: automatically clear stuck transition state after 2 seconds
+    useEffect(() => {
+        if (isTransitioning) {
+            // Clear any existing safety timeout
+            if (safetyTimeoutRef.current) {
+                clearTimeout(safetyTimeoutRef.current)
+            }
+            
+            // Set a safety timeout to force-clear stuck transitions
+            safetyTimeoutRef.current = setTimeout(() => {
+                console.warn('Theme transition stuck, forcing cleanup')
+                endTransition()
+                setStage('idle')
+                setTransitionTarget(null)
+                animationSetupRef.current = false
+            }, 2000) // 2 second safety timeout
+        } else {
+            // Clear safety timeout when transition ends normally
+            if (safetyTimeoutRef.current) {
+                clearTimeout(safetyTimeoutRef.current)
+                safetyTimeoutRef.current = null
+            }
+        }
+
+        return () => {
+            if (safetyTimeoutRef.current) {
+                clearTimeout(safetyTimeoutRef.current)
+            }
+        }
+    }, [isTransitioning, endTransition])
 
     useEffect(() => {
         themeRef.current = theme
@@ -23,6 +55,22 @@ export const ThemeTransition = () => {
             setStage('idle') // Reset stage when transition ends
         }
     }, [theme, isTransitioning])
+
+    // Clear any stuck state on mount
+    useEffect(() => {
+        // If we mount with a stuck transition state, clear it after a brief check
+        const checkStuck = setTimeout(() => {
+            // If still transitioning after mount and stage is idle, it's likely stuck
+            if (isTransitioning && stage === 'idle') {
+                console.warn('Detected stuck transition state on mount, clearing')
+                endTransition()
+                setStage('idle')
+                setTransitionTarget(null)
+                animationSetupRef.current = false
+            }
+        }, 100)
+        return () => clearTimeout(checkStuck)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Use useLayoutEffect for synchronous setup before paint - ensures overlay appears instantly
     useLayoutEffect(() => {
@@ -87,6 +135,13 @@ export const ThemeTransition = () => {
             clearTimeout(t1)
             clearTimeout(t2)
             clearTimeout(t3)
+            // If component unmounts during transition, force cleanup
+            if (isTransitioning) {
+                endTransition()
+                setStage('idle')
+                setTransitionTarget(null)
+                animationSetupRef.current = false
+            }
         }
     }, [isTransitioning, toggleTheme, endTransition])
 

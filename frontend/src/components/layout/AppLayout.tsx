@@ -180,8 +180,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             </Link>
           </SidebarHeader>
 
-          <SidebarContent>
-            <div className="space-y-1 px-2 mt-4">
+          <SidebarContent className="py-0">
+            <div className="space-y-1 px-2 mt-2">
               {navigationItems.map((item) => {
                 const Icon = item.icon
                 const active = isActive(item.href)
@@ -221,8 +221,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           </SidebarContent>
 
-          <SidebarFooter className="border-t">
-            <div className="flex flex-col gap-2 p-2">
+          <SidebarFooter className="border-t p-0">
+            <div className="flex flex-col gap-1.5 p-1">
               {/* Auth components - UserButton includes organization switching */}
               {showUserButton && (
                 <div className={`flex items-center gap-2 ${sidebarOpen ? 'justify-between' : 'justify-center'}`}>
@@ -262,14 +262,26 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </button>
                 </div>
               )}
-
-              {/* Version info */}
-              <div className={`text-xs text-muted-foreground pt-2 border-t px-2 text-center transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'
-                }`}>
-                version: {displayVersion}
-              </div>
             </div>
           </SidebarFooter>
+
+          {/* Version info - its own dedicated section at absolute bottom with animation */}
+          <div className="px-2 py-1.5 border-t">
+            <div className="h-4 flex items-center justify-center">
+              <span
+                className={`text-xs text-muted-foreground transition-all duration-300 whitespace-nowrap overflow-hidden block text-center ${sidebarOpen
+                  ? 'opacity-100 max-w-full'
+                  : 'opacity-0 max-w-0'
+                  }`}
+                style={{
+                  transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                  transitionProperty: 'opacity, max-width'
+                }}
+              >
+                version: {displayVersion}
+              </span>
+            </div>
+          </div>
         </Sidebar>
 
         {/* Main content area */}

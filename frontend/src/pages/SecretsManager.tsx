@@ -340,7 +340,6 @@ export function SecretsManager() {
         )}
 
         <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-2">Secret Manager</h2>
           <p className="text-muted-foreground">
             Store API keys, credentials, and tokens for use in workflows and security components.
           </p>

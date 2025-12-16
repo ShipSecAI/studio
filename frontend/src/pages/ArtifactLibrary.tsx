@@ -61,15 +61,15 @@ export function ArtifactLibrary() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b bg-background px-6 py-4">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">Artifact Library</h1>
-            <p className="text-sm text-muted-foreground">
-              Browse artifacts saved across workflow runs and reuse them in new automations.
-            </p>
-          </div>
+    <div className="flex-1 bg-background">
+      <div className="container mx-auto py-8 px-4">
+        <div className="mb-8">
+          <p className="text-muted-foreground">
+            Browse artifacts saved across workflow runs and reuse them in new automations.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div className="flex items-center gap-2">
             <form onSubmit={handleSearch} className="flex items-center gap-2">
               <div className="relative">
@@ -98,10 +98,9 @@ export function ArtifactLibrary() {
             </Button>
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-auto">
-        {libraryLoading ? (
+        <div className="overflow-auto">
+          {libraryLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Loading artifacts…
           </div>
@@ -157,6 +156,7 @@ export function ArtifactLibrary() {
             </tbody>
           </table>
         )}
+        </div>
       </div>
     </div>
   )
