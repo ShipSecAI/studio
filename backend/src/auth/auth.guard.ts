@@ -29,6 +29,7 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
+    // Try internal auth first (highest priority)
     const internalAuth = this.tryInternalAuth(request);
     if (internalAuth) {
       request.auth = internalAuth;
@@ -38,6 +39,17 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
+    // Try API key auth before user auth (API keys use Bearer sk_* format)
+    const apiKeyAuth = await this.tryApiKeyAuth(request);
+    if (apiKeyAuth) {
+      request.auth = apiKeyAuth;
+      this.logger.log(
+        `[AUTH] API key accepted for ${request.method} ${request.path} (org=${apiKeyAuth.organizationId ?? 'none'})`,
+      );
+      return true;
+    }
+
+    // Fall back to user authentication (Clerk/Local)
     this.logger.log(
       `[AUTH] Guard activating for ${request.method} ${request.path} - Provider: ${this.authService.providerName}`,
     );
