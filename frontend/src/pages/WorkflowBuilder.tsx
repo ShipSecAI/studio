@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { PanelLeftClose, PanelLeftOpen, Plus, ChevronRight, Loader2, Pencil, Play, Pause, Zap, ExternalLink, Trash2 } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Plus, Loader2, Pencil, Play, Pause, Zap, ExternalLink, Trash2, X } from 'lucide-react'
 import {
   ReactFlowProvider,
   useNodesState,
@@ -208,10 +208,10 @@ function WorkflowBuilderContent() {
   const [designEdges, setDesignEdges, onDesignEdgesChangeBase] = useEdgesState([])
   const [executionNodes, setExecutionNodes, onExecutionNodesChangeBase] = useNodesState<FrontendNodeData>([])
   const [executionEdges, setExecutionEdges, onExecutionEdgesChangeBase] = useEdgesState([])
-  
+
   // Execution dirty state: tracks if nodes have been rearranged in execution mode
   const [_executionDirty, setExecutionDirty] = useState(false)
-  
+
   // Preserved design state snapshot (for restoration when switching back from execution)
   const preservedDesignStateRef = useRef<{
     nodes: ReactFlowNode<FrontendNodeData>[]
@@ -235,21 +235,21 @@ function WorkflowBuilderContent() {
     nodes: ReactFlowNode<FrontendNodeData>[]
     edges: ReactFlowEdge[]
   } | null>(null)
-  
+
   const roles = useAuthStore((state) => state.roles)
   const canManageWorkflows = hasAdminRole(roles)
   const { toast } = useToast()
   const mode = useWorkflowUiStore((state) => state.mode)
-  
+
   // Mode-aware getters for nodes and edges - memoized to prevent unnecessary re-renders
   const nodes = useMemo(() => {
     return mode === 'design' ? designNodes : executionNodes
   }, [mode, designNodes, executionNodes])
-  
+
   const edges = useMemo(() => {
     return mode === 'design' ? designEdges : executionEdges
   }, [mode, designEdges, executionEdges])
-  
+
   const setNodes = mode === 'design' ? setDesignNodes : setExecutionNodes
   const setEdges = mode === 'design' ? setDesignEdges : setExecutionEdges
   const onNodesChangeBase = mode === 'design' ? onDesignNodesChangeBase : onExecutionNodesChangeBase
@@ -437,7 +437,7 @@ function WorkflowBuilderContent() {
     }
 
     onNodesChangeBase(filteredChanges)
-    
+
     // Mark design as dirty when nodes change in design mode
     // Execution dirty is tracked separately via useEffect comparing positions
     if (mode === 'design') {
@@ -581,7 +581,7 @@ function WorkflowBuilderContent() {
 
     const currentNodes = executionNodesRef.current
     const loadedNodes = executionLoadedSnapshotRef.current.nodes
-    
+
     if (currentNodes.length !== loadedNodes.length) {
       // Node count changed (shouldn't happen in execution mode, but handle it)
       setExecutionDirty(true)
@@ -603,22 +603,22 @@ function WorkflowBuilderContent() {
 
   // Handle mode switching: preserve and restore states cleanly
   const prevModeRef = useRef(mode)
-  
+
   useLayoutEffect(() => {
     // Only run when mode actually changes
     if (prevModeRef.current === mode) {
       return
     }
-    
+
     prevModeRef.current = mode
-    
+
     if (mode === 'execution') {
       // Switching to execution mode: preserve current design state
       preservedDesignStateRef.current = {
         nodes: cloneNodes(designNodesRef.current),
         edges: cloneEdges(designEdgesRef.current),
       }
-      
+
       // If we have preserved execution state, restore it (user had rearranged nodes)
       if (preservedExecutionStateRef.current) {
         setExecutionNodes(cloneNodes(preservedExecutionStateRef.current.nodes))
@@ -632,7 +632,7 @@ function WorkflowBuilderContent() {
         nodes: cloneNodes(executionNodesRef.current),
         edges: cloneEdges(executionEdgesRef.current),
       }
-      
+
       // Restore preserved design state if it exists
       if (preservedDesignStateRef.current) {
         setDesignNodes(cloneNodes(preservedDesignStateRef.current.nodes))
@@ -730,7 +730,7 @@ function WorkflowBuilderContent() {
 
   // Track previous run ID to detect run changes
   const prevRunIdRef = useRef<string | null>(null)
-  
+
   // Load workflow version for execution mode when a run is selected
   useEffect(() => {
     // Only load versions in execution mode
@@ -759,7 +759,7 @@ function WorkflowBuilderContent() {
       // Clear preserved execution state since we're loading a fresh state
       preservedExecutionStateRef.current = null
       setExecutionDirty(false)
-      
+
       // Load from saved design snapshot (last saved state)
       if (designSavedSnapshotRef.current) {
         const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes)
@@ -781,7 +781,7 @@ function WorkflowBuilderContent() {
           edges: cloneEdges(designEdges),
         }
       }
-      
+
       if (historicalVersionId) {
         setHistoricalVersionId(null)
       }
@@ -792,7 +792,7 @@ function WorkflowBuilderContent() {
     if (versionId === historicalVersionId) {
       return
     }
-    
+
     // Clear preserved execution state when loading a new run version
     preservedExecutionStateRef.current = null
     setExecutionDirty(false)
@@ -856,7 +856,7 @@ function WorkflowBuilderContent() {
   }, [runDialogOpen])
   // Track previous workflow ID to prevent unnecessary reloads
   const prevWorkflowIdRef = useRef<string | null | undefined>(undefined)
-  
+
   // Load workflow on mount (if not new)
   // Only reload when workflow ID actually changes, not on mode changes
   useEffect(() => {
@@ -866,7 +866,7 @@ function WorkflowBuilderContent() {
       return
     }
     prevWorkflowIdRef.current = id ?? null
-    
+
     const loadWorkflow = async () => {
       // Reset execution state if switching workflows to prevent leaks
       // This ensures we don't show status/logs from a previous workflow
@@ -886,7 +886,7 @@ function WorkflowBuilderContent() {
           setExecutionNodes([entryNode])
           setExecutionEdges([])
           setHistoricalVersionId(null)
-          
+
           // Initialize saved snapshot for new workflow
           designSavedSnapshotRef.current = {
             nodes: cloneNodes([entryNode]),
@@ -896,7 +896,7 @@ function WorkflowBuilderContent() {
             nodes: cloneNodes([entryNode]),
             edges: cloneEdges([]),
           }
-          
+
           const baseMetadata = useWorkflowStore.getState().metadata
           setLastSavedGraphSignature(computeGraphSignature([entryNode], []))
           setLastSavedMetadata({
@@ -941,7 +941,7 @@ function WorkflowBuilderContent() {
           nodes: cloneNodes(workflowNodes),
           edges: cloneEdges(workflowEdges),
         }
-        
+
         // Initialize execution loaded snapshot
         executionLoadedSnapshotRef.current = {
           nodes: cloneNodes(workflowNodes),
@@ -1993,7 +1993,7 @@ function WorkflowBuilderContent() {
           </div>
         </aside>
 
-        <main 
+        <main
           className="flex-1 relative flex"
           style={{
             transition: isInspectorResizing ? 'none' : 'all 200ms ease-in-out',
@@ -2034,7 +2034,22 @@ function WorkflowBuilderContent() {
               onScheduleAction={handleScheduleAction}
               onScheduleDelete={handleScheduleDelete}
               onViewSchedules={navigateToSchedules}
-              onNodeSelectionChange={(node) => setHasSelectedNode(!!node)}
+              onOpenScheduleSidebar={() => {
+                // Close config panel when opening schedule sidebar
+                setSchedulePanelExpanded(true)
+              }}
+              onCloseScheduleSidebar={() => setSchedulePanelExpanded(false)}
+              onClearNodeSelection={() => {
+                // Clear selected node to close config panel when schedule sidebar opens
+                // This callback will be called from Canvas when schedule sidebar opens
+              }}
+              onNodeSelectionChange={(node) => {
+                setHasSelectedNode(!!node)
+                // Close schedule sidebar when node is selected (config panel opens)
+                if (node) {
+                  setSchedulePanelExpanded(false)
+                }
+              }}
             />
           </div>
           {mode === 'design' && workflowId && (
@@ -2069,8 +2084,8 @@ function WorkflowBuilderContent() {
             )}
             style={{
               width: isInspectorVisible ? inspectorWidth : 0,
-              transition: isInspectorResizing 
-                ? 'opacity 200ms ease-in-out' 
+              transition: isInspectorResizing
+                ? 'opacity 200ms ease-in-out'
                 : 'width 200ms ease-in-out, opacity 200ms ease-in-out',
             }}
           >
@@ -2260,18 +2275,21 @@ function WorkflowSchedulesSidebar({
 
   return (
     <div className="flex h-full flex-col border-l bg-background">
-      <div className="border-b px-4 py-3 space-y-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-foreground">Schedules</p>
-            <Badge variant="outline" className="text-[11px] font-medium">
-              {schedules.length}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Create, pause, and run workflow cadences.
-          </p>
+      {/* Header - matching ConfigPanel design */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <h3 className="font-medium text-sm">Schedules</h3>
+          <Badge variant="outline" className="text-[11px] font-medium">
+            {schedules.length}
+          </Badge>
         </div>
+        <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Action buttons */}
+      <div className="px-4 py-3 border-b bg-muted/20">
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={onCreate}>
             <Plus className="mr-1 h-4 w-4" />
@@ -2279,17 +2297,6 @@ function WorkflowSchedulesSidebar({
           </Button>
           <Button size="sm" variant="outline" onClick={onManage}>
             View page
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="gap-1"
-            aria-label="Collapse schedules"
-            onClick={onClose}
-          >
-            <ChevronRight className="h-4 w-4" />
-            Hide
           </Button>
         </div>
       </div>

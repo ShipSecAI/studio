@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { WorkflowList } from '@/pages/WorkflowList'
 import { WorkflowBuilder } from '@/pages/WorkflowBuilder'
 import { SecretsManager } from '@/pages/SecretsManager'
+import { ApiKeysManager } from '@/pages/ApiKeysManager'
 import { IntegrationsManager } from '@/pages/IntegrationsManager'
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary'
 import { IntegrationCallback } from '@/pages/IntegrationCallback'
@@ -50,6 +51,7 @@ function App() {
                     }
                   />
                   <Route path="/secrets" element={<SecretsManager />} />
+                  <Route path="/api-keys" element={<ApiKeysManager />} />
                   <Route path="/integrations" element={<IntegrationsManager />} />
                   <Route path="/schedules" element={<SchedulesPage />} />
                   <Route path="/artifacts" element={<ArtifactLibrary />} />

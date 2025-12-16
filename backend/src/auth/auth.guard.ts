@@ -1,8 +1,9 @@
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { AuthService } from './auth.service';
+import { ApiKeysService } from '../api-keys/api-keys.service';
 import type { AuthContext } from './types';
 import { DEFAULT_ROLES } from './types';
 import { DEFAULT_ORGANIZATION_ID } from './constants';
@@ -15,7 +16,11 @@ export interface RequestWithAuthContext extends Request {
 export class AuthGuard implements CanActivate {
   private readonly logger = new Logger(AuthGuard.name);
 
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    @Inject(forwardRef(() => ApiKeysService))
+    private readonly apiKeysService: ApiKeysService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
@@ -24,6 +29,7 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
+    // Try internal auth first (highest priority)
     const internalAuth = this.tryInternalAuth(request);
     if (internalAuth) {
       request.auth = internalAuth;
@@ -33,6 +39,17 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
+    // Try API key auth before user auth (API keys use Bearer sk_* format)
+    const apiKeyAuth = await this.tryApiKeyAuth(request);
+    if (apiKeyAuth) {
+      request.auth = apiKeyAuth;
+      this.logger.log(
+        `[AUTH] API key accepted for ${request.method} ${request.path} (org=${apiKeyAuth.organizationId ?? 'none'})`,
+      );
+      return true;
+    }
+
+    // Fall back to user authentication (Clerk/Local)
     this.logger.log(
       `[AUTH] Guard activating for ${request.method} ${request.path} - Provider: ${this.authService.providerName}`,
     );
@@ -75,6 +92,29 @@ export class AuthGuard implements CanActivate {
       roles: DEFAULT_ROLES,
       isAuthenticated: true,
       provider: 'internal',
+    };
+  }
+
+
+  private async tryApiKeyAuth(request: Request): Promise<AuthContext | null> {
+    const authHeader = request.header('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer sk_')) {
+      return null;
+    }
+
+    const token = authHeader.replace(/^Bearer\s+/, '');
+    const apiKey = await this.apiKeysService.validateKey(token);
+
+    if (!apiKey) {
+      return null;
+    }
+
+    return {
+      userId: apiKey.id,
+      organizationId: apiKey.organizationId,
+      roles: ['MEMBER'], // API keys have MEMBER role by default
+      isAuthenticated: true,
+      provider: 'api-key',
     };
   }
 }

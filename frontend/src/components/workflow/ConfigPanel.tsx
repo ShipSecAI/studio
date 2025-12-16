@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
 import { ParameterFieldWrapper } from './ParameterField'
+import { WebhookDetails } from './WebhookDetails'
 import { SecretSelect } from '@/components/inputs/SecretSelect'
 import type { Node } from 'reactflow'
 import type { NodeData } from '@/schemas/node'
@@ -27,6 +28,7 @@ import {
 } from '@/utils/portUtils'
 import { API_BASE_URL } from '@/services/api'
 import { useWorkflowStore } from '@/store/workflowStore'
+import { useApiKeyStore } from '@/store/apiKeyStore'
 import type { WorkflowSchedule } from '@shipsec/shared'
 
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
@@ -40,7 +42,7 @@ interface CollapsibleSectionProps {
 
 function CollapsibleSection({ title, count, defaultOpen = true, children }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
-  
+
   return (
     <div className="rounded-lg border overflow-hidden">
       <button
@@ -289,7 +291,20 @@ export function ConfigPanel({
   const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id)
   const workflowId = workflowIdProp ?? fallbackWorkflowId
   const navigate = useNavigate()
-  
+
+  // Get API key for curl command
+
+  const lastCreatedKey = useApiKeyStore((state) => state.lastCreatedKey)
+  const fetchApiKeys = useApiKeyStore((state) => state.fetchApiKeys)
+
+  // Fetch API keys on mount if not already loaded
+  useEffect(() => {
+    fetchApiKeys().catch(console.error)
+  }, [fetchApiKeys])
+
+  // Use lastCreatedKey (full key) if available, otherwise null (will show placeholder)
+  const activeApiKey = lastCreatedKey || null
+
   const [panelWidth, setPanelWidth] = useState(initialWidth)
   const isResizing = useRef(false)
   const resizeRef = useRef<HTMLDivElement>(null)
@@ -472,9 +487,15 @@ export function ConfigPanel({
   const workflowInvokeUrl = workflowId
     ? `${API_BASE_URL}/workflows/${workflowId}/run`
     : `${API_BASE_URL}/workflows/{workflowId}/run`
-  const entryPointPayloadString = JSON.stringify(entryPointPayload, null, 2)
-  const safeEntryPayload = JSON.stringify(entryPointPayload).replace(/'/g, "\\'")
-  const entryPointCurlSnippet = `curl -X POST '${workflowInvokeUrl}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${safeEntryPayload}'`
+
+  const safePayloadSingleLine = JSON.stringify(entryPointPayload).replace(/'/g, "\\'")
+
+  // Build curl command with actual API key if available
+  const apiKeyForCommand = activeApiKey || '<YOUR_API_KEY>'
+  const curlCommand = `curl -X POST '${workflowInvokeUrl}' \\
+  -H 'Authorization: Bearer ${apiKeyForCommand}' \\
+  -H 'Content-Type: application/json' \\
+  -d '${safePayloadSingleLine}'`
 
   return (
     <div className="config-panel border-l bg-background flex flex-col h-full overflow-hidden relative" style={{ width: panelWidth }}>
@@ -497,8 +518,8 @@ export function ConfigPanel({
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg border bg-background flex-shrink-0">
             {component.logo ? (
-              <img 
-                src={component.logo} 
+              <img
+                src={component.logo}
                 alt={component.name}
                 className="h-6 w-6 object-contain"
                 onError={(e) => {
@@ -809,9 +830,9 @@ export function ConfigPanel({
 
           {/* Parameters Section */}
           {componentParameters.length > 0 && (
-            <CollapsibleSection 
-              title="Parameters" 
-              count={componentParameters.length} 
+            <CollapsibleSection
+              title="Parameters"
+              count={componentParameters.length}
               defaultOpen={componentInputs.length === 0 && componentOutputs.length === 0}
             >
               <div className="space-y-0 mt-2">
@@ -852,37 +873,46 @@ export function ConfigPanel({
             <div className="space-y-4">
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div>
-                  <h5 className="text-sm font-semibold text-foreground">
-                    Invoke via API
-                  </h5>
-                  <p className="text-xs text-muted-foreground">
-                    POST runtime inputs to this endpoint to start the workflow programmatically.
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h5 className="text-sm font-semibold text-foreground">
+                        Webhook Trigger
+                      </h5>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                        title="Manage API Keys"
+                        onClick={() => navigate('/api-keys')}
+                      >
+                        <LucideIcons.Key className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <WebhookDetails
+                      url={workflowInvokeUrl}
+                      payload={entryPointPayload}
+                      apiKey={activeApiKey}
+                      triggerLabel="View Code"
+                      className="h-7 text-xs px-2.5 bg-background shadow-xs hover:bg-background/80"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    POST to this endpoint to trigger the workflow.
+                    Required header: <code className="text-[10px] bg-muted px-1 rounded border">Authorization: Bearer &lt;API_KEY&gt;</code>
                   </p>
                 </div>
                 <div>
                   <div className="text-[11px] uppercase text-muted-foreground mb-1">
-                    Endpoint
+                    cURL
                   </div>
-                  <code className="block w-full overflow-x-auto rounded border bg-background px-2 py-1 text-xs font-mono text-foreground break-all">
-                    {workflowInvokeUrl}
-                  </code>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
-                    Payload
+                  <div className="relative group">
+                    <pre className="rounded-lg border bg-background px-3 py-2.5 text-xs font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-words">
+                      {curlCommand}
+                    </pre>
                   </div>
-                  <pre className="rounded-lg border bg-background px-2 py-2 text-xs font-mono text-foreground overflow-x-auto">
-                    {entryPointPayloadString}
-                  </pre>
+
                 </div>
-                <div>
-                  <div className="text-[11px] uppercase text-muted-foreground mb-1">
-                    curl
-                  </div>
-                  <pre className="rounded-lg border bg-background px-2 py-2 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre-wrap">
-                    {entryPointCurlSnippet}
-                  </pre>
-                </div>
+
               </div>
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -972,7 +1002,7 @@ export function ConfigPanel({
                                 }
                               >
                                 {pendingAction === 'pause' ||
-                                pendingAction === 'resume' ? (
+                                  pendingAction === 'resume' ? (
                                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                                 ) : null}
                                 {actionLabel}
@@ -1040,9 +1070,9 @@ export function ConfigPanel({
                   const command = commandMatch?.[1]?.trim()
                   const description = commandMatch
                     ? exampleText
-                        .replace(commandMatch[0], '')
-                        .replace(/^[\s\u2013\u2014-]+/, '')
-                        .trim()
+                      .replace(commandMatch[0], '')
+                      .replace(/^[\s\u2013\u2014-]+/, '')
+                      .trim()
                     : exampleText.trim()
 
                   return (

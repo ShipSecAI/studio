@@ -1,6 +1,7 @@
 export * from './workflows';
 export * from './workflow-versions';
 export * from './files.schema';
+export * from './api-keys';
 export * from './artifacts.schema';
 export * from './traces';
 export * from './workflow-runs';

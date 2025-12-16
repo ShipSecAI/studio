@@ -30,9 +30,14 @@ const coreModules = [
   SecretsModule,
   IntegrationsModule,
   SchedulesModule,
+  ApiKeysModule,
+  WebhooksModule,
 ];
 const testingModules =
   process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
+
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [

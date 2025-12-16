@@ -16,6 +16,11 @@ import type { NodeStatus } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { inputSupportsManualValue, runtimeInputTypeToPortDataType } from '@/utils/portUtils'
+import { WebhookDetails } from './WebhookDetails'
+import { useApiKeyStore } from '@/store/apiKeyStore'
+import { API_BASE_URL } from '@/services/api'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useEntryPointActions } from './Canvas'
 
 const STATUS_ICONS = {
   running: Loader2,
@@ -153,6 +158,15 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const [isTerminalLoading, setIsTerminalLoading] = useState(false)
   const nodeRef = useRef<HTMLDivElement | null>(null)
 
+  // Entry Point specific state
+  const navigate = useNavigate()
+  const [showWebhookDialog, setShowWebhookDialog] = useState(false)
+
+  // Get API key for webhook details if this is an entry point
+  const { lastCreatedKey } = useApiKeyStore()
+  // Use last created key if available (from just-created flow), otherwise null (will show placeholder)
+  const activeApiKey = lastCreatedKey
+
   const MIN_TEXT_WIDTH = 280
   const MAX_TEXT_WIDTH = 1800
   const MIN_TEXT_HEIGHT = 220
@@ -200,6 +214,43 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug
   const component = getComponent(componentRef)
   const isTextBlock = component?.id === 'core.ui.text'
+  const isEntryPoint = component?.id === 'core.workflow.entrypoint'
+
+  // Entry Point Helper Data
+  // Get workflowId from store first, then from node data (passed from Canvas), then from route params
+  // @ts-ignore - FIXME: Check actual store structure, temporarily bypassing to fix build
+  const workflowIdFromStore = useWorkflowStore(state => state.workflow?.id)
+  // Try to get workflowId from the node data if available (passed from Canvas)
+  const workflowIdFromNode = (nodeData as any)?.workflowId as string | undefined
+  // Try to get from URL params as last resort
+  const params = useParams<{ id?: string }>()
+  const workflowIdFromRoute = params?.id && params.id !== 'new' ? params.id : undefined
+  const workflowId = workflowIdFromStore || workflowIdFromNode || workflowIdFromRoute
+  const workflowInvokeUrl = workflowId
+    ? `${API_BASE_URL}/workflows/${workflowId}/run`
+    : `${API_BASE_URL}/workflows/{workflowId}/run`
+
+  // Get schedule sidebar callback from Canvas context
+  const { onOpenScheduleSidebar } = useEntryPointActions()
+
+
+  const entryPointPayload = (() => {
+    if (!isEntryPoint || !nodeData.parameters?.runtimeInputs) return {}
+    try {
+      const inputs = typeof nodeData.parameters.runtimeInputs === 'string'
+        ? JSON.parse(nodeData.parameters.runtimeInputs)
+        : nodeData.parameters.runtimeInputs
+
+      if (!Array.isArray(inputs)) return {}
+
+      return inputs.reduce((acc: any, input: any) => {
+        acc[input.id] = input.type === 'number' ? 0 : input.type === 'boolean' ? false : 'value'
+        return acc
+      }, {})
+    } catch {
+      return {}
+    }
+  })()
 
   // Always call useEffect hooks in the same order (Rules of Hooks)
   // These hooks must be called BEFORE any early returns to maintain consistent hook order
@@ -505,19 +556,44 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
       className={cn(
         'shadow-lg rounded-lg border-2 transition-[box-shadow,background-color,border-color,transform] relative',
         isTextBlock ? 'min-w-[240px] max-w-none flex flex-col' : 'min-w-[240px] max-w-[280px]',
-        // Enhanced border styling for timeline
-        isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
-        isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
-        isTimelineActive && effectiveStatus === 'error' && 'border-red-400 bg-red-50/20 dark:bg-red-950/20',
-        isTimelineActive && effectiveStatus === 'success' && 'border-green-400 bg-green-50/20 dark:bg-green-950/20',
+        // ENTRY POINT STYLING - Apply green background when entry point is idle
+        // Check: is entry point AND (not timeline active OR timeline status is idle) AND (no status OR status is idle)
+        isEntryPoint &&
+        (!isTimelineActive || visualState.status === 'idle') &&
+        (!nodeData.status || nodeData.status === 'idle') && [
+          'bg-green-50/80',
+          'dark:bg-green-950/30',
+          'border-green-200',
+          'dark:border-green-800',
+        ],
 
-        // Existing styling
-        nodeData.status ? nodeStyle.border : getTypeBorderColor(component.type),
-        nodeData.status && nodeData.status !== 'idle'
-          ? nodeStyle.bg
-          : isTimelineActive && visualState.status === 'running'
-            ? 'bg-blue-50/80 dark:bg-blue-900/30'
-            : 'bg-background',
+        // Timeline active states for entry point (when it has active execution status)
+        isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
+        isEntryPoint && isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
+        isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400 bg-red-50/20 dark:bg-red-950/20',
+        isEntryPoint && isTimelineActive && effectiveStatus === 'success' && 'border-green-400 bg-green-50/20 dark:bg-green-950/20',
+
+        // Enhanced border styling for timeline (non-entry-point nodes only)
+        !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
+        !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
+        !isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400 bg-red-50/20 dark:bg-red-950/20',
+        !isEntryPoint && isTimelineActive && effectiveStatus === 'success' && 'border-green-400 bg-green-50/20 dark:bg-green-950/20',
+
+        // Timeline active states (non-entry-point nodes only)
+        !isEntryPoint && isTimelineActive && visualState.status === 'running' && 'bg-blue-50/80 dark:bg-blue-900/30',
+
+        // Node status states (non-entry-point nodes only)
+        !isEntryPoint && nodeData.status && nodeData.status !== 'idle' && [
+          nodeStyle.bg,
+          nodeStyle.border,
+        ],
+
+        // Default state (non-entry-point nodes only, when idle)
+        !isEntryPoint && (!nodeData.status || nodeData.status === 'idle') && !isTimelineActive && [
+          'bg-background',
+          getTypeBorderColor(component.type),
+        ],
+
         // Selected state: blue gradient shadow highlight (pure glow, no border)
         selected && 'shadow-[0_0_15px_rgba(59,130,246,0.4),0_0_30px_rgba(59,130,246,0.3)]',
         selected && 'hover:shadow-[0_0_25px_rgba(59,130,246,0.6),0_0_45px_rgba(59,130,246,0.4)]',
@@ -537,7 +613,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
             width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
             minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
           }
-          : undefined
+          : isEntryPoint
+            ? { width: 240, minHeight: 120 } // Compact size for entry point
+            : undefined
       }
     >
       {isTextBlock && mode === 'design' && (
@@ -582,6 +660,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
               </div>
               <div className="flex items-center gap-1">
+
                 {/* Edit button for text blocks - explicitly select node for editing */}
                 {isTextBlock && mode === 'design' && (
                   <button
@@ -598,6 +677,20 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 )}
+
+                {/* Embedded Webhook Dialog (Controlled) */}
+                {isEntryPoint && (
+                  <div style={{ display: 'none' }}>
+                    <WebhookDetails
+                      url={workflowInvokeUrl}
+                      payload={entryPointPayload}
+                      apiKey={activeApiKey}
+                      open={showWebhookDialog}
+                      onOpenChange={setShowWebhookDialog}
+                    />
+                  </div>
+                )}
+
                 {hasUnfilledRequired && !nodeData.status && (
                   <span className="text-red-500 text-xs" title="Required fields missing">!</span>
                 )}
@@ -734,8 +827,65 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
             </div>
           )
         )}
-        {/* Input Ports */}
-        {componentInputs.length > 0 && (
+        {/* Input Ports - Compact Pill Actions for Entry Point */}
+        {isEntryPoint ? (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowWebhookDialog(true)
+              }}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300"
+            >
+              <LucideIcons.Webhook className="h-3 w-3 flex-shrink-0" />
+              <span>Webhook</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                // Open schedule sidebar instead of navigating
+                if (onOpenScheduleSidebar) {
+                  onOpenScheduleSidebar()
+                } else {
+                  // Fallback to navigation if callback not available
+                  navigate(`/schedules?workflowId=${workflowId}`)
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300"
+            >
+              <LucideIcons.CalendarClock className="h-3 w-3 flex-shrink-0" />
+              <span>Schedules</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                // In design mode, programmatically trigger node selection by clicking the node element
+                // This will open the config panel where inputs are managed
+                if (mode === 'design' && nodeRef.current) {
+                  // Create a synthetic click event that will bubble up to React Flow
+                  const clickEvent = new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                  })
+                  // Use setTimeout to ensure this happens after the current event handler
+                  setTimeout(() => {
+                    nodeRef.current?.dispatchEvent(clickEvent)
+                  }, 10)
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300"
+            >
+              <LucideIcons.Settings className="h-3 w-3 flex-shrink-0" />
+              <span>Inputs</span>
+            </button>
+          </div>
+        ) : componentInputs.length > 0 && (
           <div className="space-y-1.5">
             {componentInputs.map((input) => {
               // Check if this input has a connection

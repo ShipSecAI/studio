@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, createContext, useContext, type Dispatch, type SetStateAction } from 'react'
 import {
   ReactFlow,
   Background,
@@ -29,6 +29,15 @@ import type { NodeData } from '@/schemas/node'
 import { useToast } from '@/components/ui/use-toast'
 import type { WorkflowSchedule } from '@shipsec/shared'
 import { cn } from '@/lib/utils'
+
+// Context for entry point actions
+interface EntryPointActionsContextValue {
+  onOpenScheduleSidebar?: () => void
+  onScheduleCreate?: () => void
+}
+
+const EntryPointActionsContext = createContext<EntryPointActionsContextValue>({})
+export const useEntryPointActions = () => useContext(EntryPointActionsContext)
 
 const MAX_DELETE_HISTORY = 10
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
@@ -66,6 +75,9 @@ interface CanvasProps {
   onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
   onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void
   onViewSchedules?: () => void
+  onOpenScheduleSidebar?: () => void
+  onCloseScheduleSidebar?: () => void
+  onClearNodeSelection?: () => void
   onNodeSelectionChange?: (node: Node<NodeData> | null) => void
 }
 
@@ -86,6 +98,9 @@ export function Canvas({
   onScheduleAction,
   onScheduleDelete,
   onViewSchedules,
+  onOpenScheduleSidebar,
+  onCloseScheduleSidebar,
+  onClearNodeSelection,
   onNodeSelectionChange,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
@@ -496,7 +511,9 @@ export function Canvas({
           parameters: initialParameters,
           inputs: {},
           status: 'idle',
-        },
+          // Pass workflowId to node data for entry point webhook URL
+          workflowId: workflowId ?? undefined,
+        } as any,
       }
 
       setNodes((nds) => nds.concat(newNode))
@@ -529,8 +546,12 @@ export function Canvas({
       return
     }
 
+    // Close schedule sidebar when opening config panel
+    if (onCloseScheduleSidebar) {
+      onCloseScheduleSidebar()
+    }
     setSelectedNode(node as Node<NodeData>)
-  }, [mode, selectNode, selectEvent])
+  }, [mode, selectNode, selectEvent, onCloseScheduleSidebar])
 
   // Handle node double-click for text-block editing
   const onNodeDoubleClick: NodeMouseHandler = useCallback((event, node) => {
@@ -780,9 +801,27 @@ export function Canvas({
 
   // Panel width changes are handled by CSS transitions, no manual viewport translation needed
 
+  const entryPointActionsValue = useMemo(
+    () => ({
+      onOpenScheduleSidebar: () => {
+        // Clear selected node to close config panel when opening schedule sidebar
+        if (onClearNodeSelection) {
+          onClearNodeSelection()
+        }
+        setSelectedNode(null)
+        if (onOpenScheduleSidebar) {
+          onOpenScheduleSidebar()
+        }
+      },
+      onScheduleCreate,
+    }),
+    [onOpenScheduleSidebar, onScheduleCreate, onClearNodeSelection]
+  )
+
   return (
-    <div className={className}>
-      <div className="flex h-full">
+    <EntryPointActionsContext.Provider value={entryPointActionsValue}>
+      <div className={className}>
+        <div className="flex h-full">
         <div 
           className="flex-1 relative bg-background"
           style={{
@@ -902,6 +941,7 @@ export function Canvas({
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </EntryPointActionsContext.Provider>
   )
 }

@@ -23,6 +23,8 @@ type ArtifactDestination = 'run' | 'library';
 type CreateSchedulePayload = components['schemas']['CreateScheduleRequestDto'];
 type UpdateSchedulePayload = components['schemas']['UpdateScheduleRequestDto'];
 type ScheduleStatus = 'active' | 'paused' | 'error';
+type CreateApiKeyPayload = components['schemas']['CreateApiKeyDto'];
+type UpdateApiKeyPayload = components['schemas']['UpdateApiKeyDto'];
 
 /**
  * ShipSec API Client
@@ -431,6 +433,51 @@ export class ShipSecApiClient {
 
   async deleteSecret(id: string) {
     return this.client.DELETE('/api/v1/secrets/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  // ===== API Keys =====
+
+  async listApiKeys(options?: { limit?: number; offset?: number; isActive?: boolean }) {
+    return this.client.GET('/api/v1/api-keys', {
+      params: {
+        query: {
+          limit: options?.limit?.toString(), // API expects string for some reason? No, schema says regex string or transformed number. Let's pass as is if typed correctly or string. DTO schema accepts string.
+          offset: options?.offset?.toString(),
+          isActive: options?.isActive === undefined ? undefined : (options.isActive ? 'true' : 'false'),
+        },
+      },
+    });
+  }
+
+  async getApiKey(id: string) {
+    return this.client.GET('/api/v1/api-keys/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async createApiKey(apiKey: CreateApiKeyPayload) {
+    return this.client.POST('/api/v1/api-keys', {
+      body: apiKey,
+    });
+  }
+
+  async updateApiKey(id: string, apiKey: UpdateApiKeyPayload) {
+    return this.client.PATCH('/api/v1/api-keys/{id}', {
+      params: { path: { id } },
+      body: apiKey,
+    });
+  }
+
+  async revokeApiKey(id: string) {
+    return this.client.POST('/api/v1/api-keys/{id}/revoke', {
+      params: { path: { id } },
+    });
+  }
+
+  async deleteApiKey(id: string) {
+    return this.client.DELETE('/api/v1/api-keys/{id}', {
       params: { path: { id } },
     });
   }

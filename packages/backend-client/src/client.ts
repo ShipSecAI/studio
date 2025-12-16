@@ -516,6 +516,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ApiKeysController_list"];
+        put?: never;
+        post: operations["ApiKeysController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-keys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ApiKeysController_get"];
+        put?: never;
+        post?: never;
+        delete: operations["ApiKeysController_delete"];
+        options?: never;
+        head?: never;
+        patch: operations["ApiKeysController_update"];
+        trace?: never;
+    };
+    "/api/v1/api-keys/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ApiKeysController_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/components": {
         parameters: {
             query?: never;
@@ -814,6 +862,102 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["SchedulesController_trigger"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WebhooksController_listWorkflows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/workflows/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WebhooksController_getWorkflow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/workflows/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["WebhooksController_runWorkflow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/runs/{runId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WebhooksController_getRunStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/runs/{runId}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WebhooksController_getRunResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/runs/{runId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["WebhooksController_cancelRun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1200,6 +1344,103 @@ export interface components {
                 createdAt: string;
             }[];
         };
+        ApiKeyResponseDto: {
+            id: string;
+            name: string;
+            description: string | null;
+            keyPrefix: string;
+            keyHint: string;
+            permissions: {
+                workflows: {
+                    run: boolean;
+                    list: boolean;
+                    read: boolean;
+                };
+                runs: {
+                    read: boolean;
+                    cancel: boolean;
+                };
+            };
+            isActive: boolean;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            lastUsedAt: string | null;
+            usageCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateApiKeyDto: {
+            name: string;
+            description?: string;
+            permissions: {
+                workflows: {
+                    run: boolean;
+                    list: boolean;
+                    read: boolean;
+                };
+                runs: {
+                    read: boolean;
+                    cancel: boolean;
+                };
+            };
+            /** Format: date-time */
+            expiresAt?: string;
+            rateLimit?: number;
+            organizationId?: string;
+        };
+        CreateApiKeyResponseDto: {
+            id: string;
+            name: string;
+            description: string | null;
+            keyPrefix: string;
+            keyHint: string;
+            permissions: {
+                workflows: {
+                    run: boolean;
+                    list: boolean;
+                    read: boolean;
+                };
+                runs: {
+                    read: boolean;
+                    cancel: boolean;
+                };
+            };
+            isActive: boolean;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            lastUsedAt: string | null;
+            usageCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description The plaintext API key (only returned on creation) */
+            plainKey: string;
+        };
+        UpdateApiKeyDto: {
+            name?: string;
+            description?: string;
+            permissions?: {
+                workflows: {
+                    run: boolean;
+                    list: boolean;
+                    read: boolean;
+                };
+                runs: {
+                    read: boolean;
+                    cancel: boolean;
+                };
+            };
+            isActive?: boolean;
+            rateLimit?: number | null;
+        };
+        DeleteApiKeyResponseDto: {
+            success: boolean;
+        };
         SecretVersionResponse: {
             id: string;
             version: number;
@@ -1413,6 +1654,13 @@ export interface components {
             };
             /** @enum {string} */
             status?: "active" | "paused" | "error";
+        };
+        WebhookRunWorkflowDto: {
+            inputs?: {
+                [key: string]: unknown;
+            };
+            versionId?: string;
+            version?: number;
         };
     };
     responses: never;
@@ -2151,7 +2399,7 @@ export interface operations {
                 temporalRunId?: string;
                 cursor?: string;
                 terminalCursor?: string;
-                logCursor?: number;
+                logCursor?: string;
             };
             header?: never;
             path: {
@@ -2508,6 +2756,140 @@ export interface operations {
             };
         };
     };
+    ApiKeysController_list: {
+        parameters: {
+            query?: {
+                limit?: string;
+                offset?: string;
+                isActive?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponseDto"][];
+                };
+            };
+        };
+    };
+    ApiKeysController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApiKeyDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateApiKeyResponseDto"];
+                };
+            };
+        };
+    };
+    ApiKeysController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponseDto"];
+                };
+            };
+        };
+    };
+    ApiKeysController_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteApiKeyResponseDto"];
+                };
+            };
+        };
+    };
+    ApiKeysController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateApiKeyDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponseDto"];
+                };
+            };
+        };
+    };
+    ApiKeysController_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponseDto"];
+                };
+            };
+        };
+    };
     ComponentsController_listComponents: {
         parameters: {
             query?: never;
@@ -2537,7 +2919,7 @@ export interface operations {
                         /** @example input */
                         category?: string;
                         categoryConfig?: {
-                            /** @example 📥 Input */
+                            /** @example Input */
                             label?: string;
                             /** @example text-blue-600 */
                             color?: string;
@@ -2545,6 +2927,8 @@ export interface operations {
                             description?: string;
                             /** @example 📥 */
                             emoji?: string;
+                            /** @example Download */
+                            icon?: string;
                         };
                         /** @example Load files from filesystem */
                         description?: string;
@@ -2661,6 +3045,7 @@ export interface operations {
                             color?: string;
                             description?: string;
                             emoji?: string;
+                            icon?: string;
                         };
                         description?: string | null;
                         documentation?: string | null;
@@ -3249,6 +3634,122 @@ export interface operations {
             header?: never;
             path: {
                 id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhooksController_listWorkflows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhooksController_getWorkflow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhooksController_runWorkflow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookRunWorkflowDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhooksController_getRunStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhooksController_getRunResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhooksController_cancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
             };
             cookie?: never;
         };

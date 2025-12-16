@@ -28,6 +28,10 @@ type UpsertProviderConfigRequest = components['schemas']['UpsertProviderConfigDt
 type WorkflowVersionResponse = components['schemas']['WorkflowVersionResponseDto']
 type CreateScheduleRequestDto = components['schemas']['CreateScheduleRequestDto']
 type UpdateScheduleRequestDto = components['schemas']['UpdateScheduleRequestDto']
+type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto']
+type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto']
+type CreateApiKeyDto = components['schemas']['CreateApiKeyDto']
+type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto']
 
 type TerminalChunkResponse = {
   runId: string
@@ -432,6 +436,47 @@ export const api = {
     runNow: async (id: string): Promise<void> => {
       const response = await apiClient.triggerSchedule(id)
       if (response.error) throw new Error('Failed to trigger schedule')
+    },
+  },
+
+  apiKeys: {
+    list: async (): Promise<ApiKeyResponseDto[]> => {
+      const response = await apiClient.listApiKeys()
+      if (response.error) throw new Error('Failed to fetch API keys')
+      return response.data || []
+    },
+
+    get: async (id: string): Promise<ApiKeyResponseDto> => {
+      const response = await apiClient.getApiKey(id)
+      if (response.error) throw new Error('Failed to fetch API key')
+      if (!response.data) throw new Error('API key not found')
+      return response.data
+    },
+
+    create: async (input: CreateApiKeyDto): Promise<CreateApiKeyResponseDto> => {
+      const response = await apiClient.createApiKey(input)
+      if (response.error) throw new Error('Failed to create API key')
+      if (!response.data) throw new Error('API key creation failed')
+      return response.data
+    },
+
+    update: async (id: string, input: UpdateApiKeyDto): Promise<ApiKeyResponseDto> => {
+      const response = await apiClient.updateApiKey(id, input)
+      if (response.error) throw new Error('Failed to update API key')
+      if (!response.data) throw new Error('API key update failed')
+      return response.data
+    },
+
+    revoke: async (id: string): Promise<ApiKeyResponseDto> => {
+      const response = await apiClient.revokeApiKey(id)
+      if (response.error) throw new Error('Failed to revoke API key')
+      if (!response.data) throw new Error('API key revocation failed')
+      return response.data
+    },
+
+    delete: async (id: string): Promise<void> => {
+      const response = await apiClient.deleteApiKey(id)
+      if (response.error) throw new Error('Failed to delete API key')
     },
   },
 
