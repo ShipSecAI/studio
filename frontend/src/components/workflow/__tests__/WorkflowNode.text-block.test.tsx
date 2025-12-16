@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect } from 'bun:test'
 import { render, screen, cleanup } from '@testing-library/react'
 import { ReactFlowProvider } from 'reactflow'
+import { MemoryRouter } from 'react-router-dom'
 import { WorkflowNode } from '../WorkflowNode'
 import { useComponentStore } from '@/store/componentStore'
 
@@ -104,19 +105,21 @@ describe('WorkflowNode – text block rendering', () => {
     }
 
     render(
-      <ReactFlowProvider>
-        <WorkflowNode
-          id="node-1"
-          data={nodeData as any}
-          selected={false}
-          type="workflow"
-          xPos={0}
-          yPos={0}
-          zIndex={0}
-          isConnectable={true}
-          dragging={false}
-        />
-      </ReactFlowProvider>
+      <MemoryRouter>
+        <ReactFlowProvider>
+          <WorkflowNode
+            id="node-1"
+            data={nodeData as any}
+            selected={false}
+            type="workflow"
+            xPos={0}
+            yPos={0}
+            zIndex={0}
+            isConnectable={true}
+            dragging={false}
+          />
+        </ReactFlowProvider>
+      </MemoryRouter>
     )
 
     expect(screen.getByText('Text')).toBeInTheDocument()
@@ -140,19 +143,21 @@ describe('WorkflowNode – text block rendering', () => {
     }
 
     render(
-      <ReactFlowProvider>
-        <WorkflowNode
-          id="node-2"
-          data={nodeData as any}
-          selected={false}
-          type="workflow"
-          xPos={0}
-          yPos={0}
-          zIndex={0}
-          isConnectable={true}
-          dragging={false}
-        />
-      </ReactFlowProvider>
+      <MemoryRouter>
+        <ReactFlowProvider>
+          <WorkflowNode
+            id="node-2"
+            data={nodeData as any}
+            selected={false}
+            type="workflow"
+            xPos={0}
+            yPos={0}
+            zIndex={0}
+            isConnectable={true}
+            dragging={false}
+          />
+        </ReactFlowProvider>
+      </MemoryRouter>
     )
 
     expect(screen.getByText('Text')).toBeInTheDocument()

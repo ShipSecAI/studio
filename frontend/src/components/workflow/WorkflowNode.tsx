@@ -229,9 +229,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const workflowInvokeUrl = workflowId
     ? `${API_BASE_URL}/workflows/${workflowId}/run`
     : `${API_BASE_URL}/workflows/{workflowId}/run`
-  
+
   // Get schedule sidebar callback from Canvas context
-  const { onOpenScheduleSidebar, onScheduleCreate } = useEntryPointActions()
+  const { onOpenScheduleSidebar } = useEntryPointActions()
 
 
   const entryPointPayload = (() => {
@@ -558,21 +558,21 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         isTextBlock ? 'min-w-[240px] max-w-none flex flex-col' : 'min-w-[240px] max-w-[280px]',
         // ENTRY POINT STYLING - Apply green background when entry point is idle
         // Check: is entry point AND (not timeline active OR timeline status is idle) AND (no status OR status is idle)
-        isEntryPoint && 
-        (!isTimelineActive || visualState.status === 'idle') && 
+        isEntryPoint &&
+        (!isTimelineActive || visualState.status === 'idle') &&
         (!nodeData.status || nodeData.status === 'idle') && [
           'bg-green-50/80',
           'dark:bg-green-950/30',
           'border-green-200',
           'dark:border-green-800',
         ],
-        
+
         // Timeline active states for entry point (when it has active execution status)
         isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
         isEntryPoint && isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
         isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400 bg-red-50/20 dark:bg-red-950/20',
         isEntryPoint && isTimelineActive && effectiveStatus === 'success' && 'border-green-400 bg-green-50/20 dark:bg-green-950/20',
-        
+
         // Enhanced border styling for timeline (non-entry-point nodes only)
         !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
         !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
@@ -581,13 +581,13 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
         // Timeline active states (non-entry-point nodes only)
         !isEntryPoint && isTimelineActive && visualState.status === 'running' && 'bg-blue-50/80 dark:bg-blue-900/30',
-        
+
         // Node status states (non-entry-point nodes only)
         !isEntryPoint && nodeData.status && nodeData.status !== 'idle' && [
           nodeStyle.bg,
           nodeStyle.border,
         ],
-        
+
         // Default state (non-entry-point nodes only, when idle)
         !isEntryPoint && (!nodeData.status || nodeData.status === 'idle') && !isTimelineActive && [
           'bg-background',

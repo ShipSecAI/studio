@@ -328,18 +328,37 @@ const definition: ComponentDefinition<Input, Output> = {
 
       let runnerOutput = '';
 
-      if (typeof rawRunnerResult === 'string') {
-        runnerOutput = rawRunnerResult;
-      } else if (rawRunnerResult && typeof rawRunnerResult === 'object') {
+      // First, check if it's already a valid Output (from docker runner normalization)
+      if (rawRunnerResult && typeof rawRunnerResult === 'object') {
         const parsedOutput = outputSchema.safeParse(rawRunnerResult);
         if (parsedOutput.success) {
           return parsedOutput.data;
         }
 
-        runnerOutput =
-          'rawOutput' in rawRunnerResult
-            ? String((rawRunnerResult as Record<string, unknown>).rawOutput ?? '')
-            : JSON.stringify(rawRunnerResult);
+        // Check if it's a runner output format (with exitCode)
+        const parsedRunnerResult = httpxRunnerOutputSchema.safeParse(rawRunnerResult);
+        if (parsedRunnerResult.success) {
+          const exitCode = parsedRunnerResult.data.exitCode ?? 0;
+          const stderr = parsedRunnerResult.data.stderr ?? '';
+
+          // Check exit code and throw if non-zero
+          if (exitCode !== 0) {
+            const errorMessage = stderr
+              ? `httpx exited with code ${exitCode}: ${stderr}`
+              : `httpx exited with code ${exitCode}`;
+            throw new Error(errorMessage);
+          }
+
+          runnerOutput = parsedRunnerResult.data.raw ?? '';
+        } else {
+          // Extract raw output from object
+          runnerOutput =
+            'rawOutput' in rawRunnerResult
+              ? String((rawRunnerResult as Record<string, unknown>).rawOutput ?? '')
+              : JSON.stringify(rawRunnerResult);
+        }
+      } else if (typeof rawRunnerResult === 'string') {
+        runnerOutput = rawRunnerResult;
       }
 
       const findings = parseHttpxOutput(runnerOutput);
