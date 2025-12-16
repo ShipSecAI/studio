@@ -70,6 +70,20 @@ export class ApiKeyResponseDto extends createZodDto(ApiKeyResponseSchema) {
   }
 }
 
+// Response schema for create endpoint - includes plainKey (one-time only)
+export const CreateApiKeyResponseSchema = ApiKeyResponseSchema.extend({
+  plainKey: z.string().describe('The plaintext API key (only returned on creation)'),
+});
+
+export class CreateApiKeyResponseDto extends createZodDto(CreateApiKeyResponseSchema) {}
+
+// Response schema for delete endpoint
+export const DeleteApiKeyResponseSchema = z.object({
+  success: z.boolean(),
+});
+
+export class DeleteApiKeyResponseDto extends createZodDto(DeleteApiKeyResponseSchema) {}
+
 export const ListApiKeysQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).default('50').transform(Number),
   offset: z.string().regex(/^\d+$/).default('0').transform(Number),

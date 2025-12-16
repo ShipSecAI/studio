@@ -3,6 +3,7 @@ import { api } from '@/services/api';
 import type { components } from '@shipsec/backend-client';
 
 type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto'];
+type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
 
@@ -16,7 +17,7 @@ interface ApiKeyStoreState {
 
 interface ApiKeyStoreActions {
   fetchApiKeys: (force?: boolean) => Promise<void>;
-  createApiKey: (input: CreateApiKeyDto) => Promise<ApiKeyResponseDto & { plainKey?: string }>;
+  createApiKey: (input: CreateApiKeyDto) => Promise<CreateApiKeyResponseDto>;
   updateApiKey: (id: string, input: UpdateApiKeyDto) => Promise<ApiKeyResponseDto>;
   revokeApiKey: (id: string) => Promise<ApiKeyResponseDto>;
   deleteApiKey: (id: string) => Promise<void>;
@@ -62,14 +63,8 @@ export const useApiKeyStore = create<ApiKeyStore>((set, get) => ({
     try {
       const created = await api.apiKeys.create(input);
       // The backend returns the plain key only in the creation response one time.
-      // We assume the response might contain it, although the DTO usually strictly matches schema.
-      // If our backend implementation returns it, we need to capture it.
-      // Looking at backend implementation: it returns standard ApiKeyResponseDto BUT standard DTO doesn't have plainKey.
-      // Backend controller logic: 
-      // return { ...ApiKeyResponseDto.create(apiKey), apiKey: plainKey };
-      // So the response object actually has an extra property 'apiKey' at runtime.
-      
-      const plainKey = (created as any).plainKey;
+      // CreateApiKeyResponseDto includes plainKey field.
+      const plainKey = created.plainKey;
 
       set((state) => ({
         apiKeys: [created, ...state.apiKeys],

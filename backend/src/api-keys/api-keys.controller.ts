@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
@@ -20,6 +20,8 @@ import {
   ApiKeyResponseSchema,
   CreateApiKeyDto,
   CreateApiKeySchema,
+  CreateApiKeyResponseDto,
+  DeleteApiKeyResponseDto,
   ListApiKeysQueryDto,
   ListApiKeysQuerySchema,
   UpdateApiKeyDto,
@@ -47,6 +49,7 @@ export class ApiKeysController {
 
   @Post()
   @Roles('ADMIN')
+  @ApiCreatedResponse({ type: CreateApiKeyResponseDto })
   async create(
     @CurrentAuth() auth: AuthContext,
     @Body(new ZodValidationPipe(CreateApiKeySchema)) dto: CreateApiKeyDto,
@@ -60,6 +63,7 @@ export class ApiKeysController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: ApiKeyResponseDto })
   async get(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     const apiKey = await this.apiKeysService.get(auth, id);
     return ApiKeyResponseDto.create(apiKey);
@@ -67,6 +71,7 @@ export class ApiKeysController {
 
   @Patch(':id')
   @Roles('ADMIN')
+  @ApiOkResponse({ type: ApiKeyResponseDto })
   async update(
     @CurrentAuth() auth: AuthContext,
     @Param('id') id: string,
@@ -78,6 +83,7 @@ export class ApiKeysController {
 
   @Post(':id/revoke')
   @Roles('ADMIN')
+  @ApiOkResponse({ type: ApiKeyResponseDto })
   async revoke(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     const apiKey = await this.apiKeysService.update(auth, id, { isActive: false });
     return ApiKeyResponseDto.create(apiKey);
@@ -85,6 +91,7 @@ export class ApiKeysController {
 
   @Delete(':id')
   @Roles('ADMIN')
+  @ApiOkResponse({ type: DeleteApiKeyResponseDto })
   async delete(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     await this.apiKeysService.delete(auth, id);
     return { success: true };

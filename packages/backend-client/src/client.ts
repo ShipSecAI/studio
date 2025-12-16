@@ -1391,6 +1391,36 @@ export interface components {
             rateLimit?: number;
             organizationId?: string;
         };
+        CreateApiKeyResponseDto: {
+            id: string;
+            name: string;
+            description: string | null;
+            keyPrefix: string;
+            keyHint: string;
+            permissions: {
+                workflows: {
+                    run: boolean;
+                    list: boolean;
+                    read: boolean;
+                };
+                runs: {
+                    read: boolean;
+                    cancel: boolean;
+                };
+            };
+            isActive: boolean;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            lastUsedAt: string | null;
+            usageCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description The plaintext API key (only returned on creation) */
+            plainKey: string;
+        };
         UpdateApiKeyDto: {
             name?: string;
             description?: string;
@@ -1407,6 +1437,9 @@ export interface components {
             };
             isActive?: boolean;
             rateLimit?: number | null;
+        };
+        DeleteApiKeyResponseDto: {
+            success: boolean;
         };
         SecretVersionResponse: {
             id: string;
@@ -2763,7 +2796,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CreateApiKeyResponseDto"];
+                };
             };
         };
     };
@@ -2782,7 +2817,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponseDto"];
+                };
             };
         };
     };
@@ -2801,7 +2838,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeleteApiKeyResponseDto"];
+                };
             };
         };
     };
@@ -2824,7 +2863,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponseDto"];
+                };
             };
         };
     };
@@ -2839,11 +2880,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponseDto"];
+                };
             };
         };
     };

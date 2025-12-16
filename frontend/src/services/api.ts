@@ -29,6 +29,7 @@ type WorkflowVersionResponse = components['schemas']['WorkflowVersionResponseDto
 type CreateScheduleRequestDto = components['schemas']['CreateScheduleRequestDto']
 type UpdateScheduleRequestDto = components['schemas']['UpdateScheduleRequestDto']
 type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto']
+type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto']
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto']
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto']
 
@@ -452,7 +453,7 @@ export const api = {
       return response.data
     },
 
-    create: async (input: CreateApiKeyDto): Promise<ApiKeyResponseDto> => {
+    create: async (input: CreateApiKeyDto): Promise<CreateApiKeyResponseDto> => {
       const response = await apiClient.createApiKey(input)
       if (response.error) throw new Error('Failed to create API key')
       if (!response.data) throw new Error('API key creation failed')
