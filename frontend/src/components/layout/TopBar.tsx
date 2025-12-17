@@ -12,6 +12,7 @@ import {
   Download,
   CheckCircle2,
   Loader2,
+  Pencil,
 } from 'lucide-react'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
@@ -40,7 +41,10 @@ export function TopBar({
   const [isSaving, setIsSaving] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [tempWorkflowName, setTempWorkflowName] = useState('')
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [showPencil, setShowPencil] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
 
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
   const { mode, setMode } = useWorkflowUiStore()
@@ -51,10 +55,31 @@ export function TopBar({
     if (!trimmed) {
       setWorkflowName(DEFAULT_WORKFLOW_NAME)
       setTempWorkflowName(DEFAULT_WORKFLOW_NAME)
+      setIsEditingTitle(false)
       return
     }
     if (trimmed !== metadata.name) {
       setWorkflowName(trimmed)
+    }
+    setIsEditingTitle(false)
+  }
+
+  const handleStartEditing = () => {
+    if (!canEdit) return
+    setIsEditingTitle(true)
+    // Focus the input after a brief delay to ensure it's rendered
+    setTimeout(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+    }, 0)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleChangeWorkflowName()
+    } else if (e.key === 'Escape') {
+      setTempWorkflowName(metadata.name || DEFAULT_WORKFLOW_NAME)
+      setIsEditingTitle(false)
     }
   }
 
@@ -216,18 +241,50 @@ export function TopBar({
 
       <div className="flex-1 min-w-0 w-full">
         <div className="grid w-full gap-3 sm:gap-4 items-center sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <div className="flex items-center justify-start">
-            <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 shadow-sm min-w-[220px] max-w-[360px] w-full">
-              <Input
-                value={tempWorkflowName}
-                onChange={(e) => setTempWorkflowName(e.target.value)}
-                onBlur={handleChangeWorkflowName}
-                readOnly={!canEdit}
-                aria-readonly={!canEdit}
-                className="font-semibold bg-transparent border-none shadow-none h-7 px-0 py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0"
-                placeholder="Workflow name"
-              />
+          <div className="flex items-center justify-start gap-2">
+            <div
+              className={cn(
+                'flex items-center gap-2 min-w-[220px] max-w-[360px]',
+                isEditingTitle
+                  ? 'rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 shadow-sm'
+                  : 'group relative'
+              )}
+              onMouseEnter={() => canEdit && !isEditingTitle && setShowPencil(true)}
+              onMouseLeave={() => setShowPencil(false)}
+            >
+              {isEditingTitle ? (
+                <Input
+                  ref={titleInputRef}
+                  value={tempWorkflowName}
+                  onChange={(e) => setTempWorkflowName(e.target.value)}
+                  onBlur={handleChangeWorkflowName}
+                  onKeyDown={handleKeyDown}
+                  className="font-semibold bg-transparent border-none shadow-none h-7 px-0 py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0"
+                  placeholder="Workflow name"
+                />
+              ) : (
+                <>
+                  <h1 className="font-semibold text-base text-foreground pr-6">
+                    {metadata.name || DEFAULT_WORKFLOW_NAME}
+                  </h1>
+                  {canEdit && showPencil && (
+                    <button
+                      type="button"
+                      onClick={handleStartEditing}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted/80 transition-colors"
+                      aria-label="Edit workflow name"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
+                </>
+              )}
             </div>
+            {metadata.currentVersion !== null && metadata.currentVersion !== undefined && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border/60">
+                v{metadata.currentVersion}
+              </span>
+            )}
           </div>
           <div className="flex justify-center">{modeToggle}</div>
           <div className="flex items-center justify-end gap-3">

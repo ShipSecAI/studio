@@ -4044,6 +4044,16 @@
                 },
                 "targetHandle": {
                   "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "smoothstep",
+                    "step",
+                    "straight",
+                    "bezier"
+                  ]
                 }
               },
               "required": [
@@ -4183,6 +4193,16 @@
                     },
                     "targetHandle": {
                       "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "smoothstep",
+                        "step",
+                        "straight",
+                        "bezier"
+                      ]
                     }
                   },
                   "required": [
@@ -4353,6 +4373,16 @@
                 },
                 "targetHandle": {
                   "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "smoothstep",
+                    "step",
+                    "straight",
+                    "bezier"
+                  ]
                 }
               },
               "required": [
@@ -4509,6 +4539,16 @@
                     },
                     "targetHandle": {
                       "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "smoothstep",
+                        "step",
+                        "straight",
+                        "bezier"
+                      ]
                     }
                   },
                   "required": [

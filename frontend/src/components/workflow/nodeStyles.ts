@@ -48,17 +48,3 @@ export function getNodeStyle(state: NodeStatus): NodeStateStyle {
 
   return styles[state]
 }
-
-/**
- * Get border color based on component type
- */
-export function getTypeBorderColor(type: string): string {
-  const colors: Record<string, string> = {
-    input: 'border-blue-500',
-    scan: 'border-purple-500',
-    process: 'border-green-500',
-    output: 'border-orange-500',
-  }
-
-  return colors[type] || 'border-gray-400'
-}

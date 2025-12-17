@@ -728,8 +728,9 @@ function WorkflowBuilderContent() {
     }
   }, [metadata.id, routeRunId, selectedRunId, refreshRuns, getRunById, upsertRun, selectRun, navigate, toast])
 
-  // Track previous run ID to detect run changes
+  // Track previous run ID and version ID to detect actual changes (not just array reference changes)
   const prevRunIdRef = useRef<string | null>(null)
+  const prevVersionIdRef = useRef<string | null>(null)
 
   // Load workflow version for execution mode when a run is selected
   useEffect(() => {
@@ -746,13 +747,27 @@ function WorkflowBuilderContent() {
     }
 
     const versionId = run?.workflowVersionId ?? null
+    const currentRunId = run?.id ?? null
+
+    // Only reload nodes if the run ID or version ID actually changed
+    // This prevents unnecessary reloads when workflowRuns array reference changes due to polling
+    const runIdChanged = currentRunId !== prevRunIdRef.current
+    const versionIdChanged = versionId !== prevVersionIdRef.current
 
     // If run ID changed, clear preserved execution state (user switched to a different run)
-    if (selectedRunId !== prevRunIdRef.current && prevRunIdRef.current !== null) {
+    if (runIdChanged && prevRunIdRef.current !== null) {
       preservedExecutionStateRef.current = null
       setExecutionDirty(false)
     }
-    prevRunIdRef.current = selectedRunId
+
+    // If neither run ID nor version ID changed, skip reloading (prevents resetting viewport during polling)
+    if (!runIdChanged && !versionIdChanged && prevRunIdRef.current !== null) {
+      return
+    }
+
+    // Update refs to track current state
+    prevRunIdRef.current = currentRunId
+    prevVersionIdRef.current = versionId
 
     // If no run found, or run uses current version, use saved design state as execution state
     if (!run || !versionId || versionId === metadata.currentVersionId) {
@@ -764,7 +779,9 @@ function WorkflowBuilderContent() {
       if (designSavedSnapshotRef.current) {
         const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes)
         const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges)
-        setExecutionNodes(savedNodes)
+        // Preserve terminal nodes when updating execution nodes
+        const terminalNodes = executionNodes.filter((n) => n.type === 'terminal')
+        setExecutionNodes([...savedNodes, ...terminalNodes])
         setExecutionEdges(savedEdges)
         executionLoadedSnapshotRef.current = {
           nodes: cloneNodes(savedNodes),
@@ -774,7 +791,9 @@ function WorkflowBuilderContent() {
         // Fallback to current design state if no saved snapshot (shouldn't happen for saved workflows)
         const designNodes = cloneNodes(designNodesRef.current)
         const designEdges = cloneEdges(designEdgesRef.current)
-        setExecutionNodes(designNodes)
+        // Preserve terminal nodes when updating execution nodes
+        const terminalNodes = executionNodes.filter((n) => n.type === 'terminal')
+        setExecutionNodes([...designNodes, ...terminalNodes])
         setExecutionEdges(designEdges)
         executionLoadedSnapshotRef.current = {
           nodes: cloneNodes(designNodes),
@@ -813,7 +832,9 @@ function WorkflowBuilderContent() {
         const versionEdges = deserializeEdges(version)
 
         // Load into execution state and set loaded snapshot
-        setExecutionNodes(versionNodes)
+        // Preserve terminal nodes when updating execution nodes
+        const terminalNodes = executionNodes.filter((n) => n.type === 'terminal')
+        setExecutionNodes([...versionNodes, ...terminalNodes])
         setExecutionEdges(versionEdges)
         executionLoadedSnapshotRef.current = {
           nodes: cloneNodes(versionNodes),
@@ -840,9 +861,11 @@ function WorkflowBuilderContent() {
     mode,
     metadata.id,
     metadata.currentVersionId,
-    workflowRuns,
+    workflowRuns, // Keep workflowRuns to detect when run data is available, but we check for actual changes inside
     selectedRunId,
+    mostRecentRunId, // Track mostRecentRunId to detect when it changes
     historicalVersionId,
+    executionNodes, // Need executionNodes to preserve terminal nodes
     setExecutionNodes,
     setExecutionEdges,
     toast,

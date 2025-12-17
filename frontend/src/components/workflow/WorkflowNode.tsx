@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Handle, NodeResizer, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from 'reactflow'
+import { Handle, NodeResizer, Position, type NodeProps, type Node, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Pencil } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -9,12 +8,17 @@ import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
 import { useWorkflowStore } from '@/store/workflowStore'
-import { getNodeStyle, getTypeBorderColor } from './nodeStyles'
-import { NodeTerminalPanel } from '../terminal/NodeTerminalPanel'
+import { getNodeStyle } from './nodeStyles'
 import type { NodeData } from '@/schemas/node'
 import type { NodeStatus } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
+import { useThemeStore } from '@/store/themeStore'
+import { 
+  type ComponentCategory, 
+  getCategorySeparatorColor,
+  getCategoryHeaderBackgroundColor
+} from '@/utils/categoryColors'
 import { inputSupportsManualValue, runtimeInputTypeToPortDataType } from '@/utils/portUtils'
 import { WebhookDetails } from './WebhookDetails'
 import { useApiKeyStore } from '@/store/apiKeyStore'
@@ -59,43 +63,212 @@ function TerminalButton({
   mode,
   playbackMode,
   isLiveFollowing,
-  focusedTerminalNodeId,
   bringTerminalToFront,
 }: TerminalButtonProps) {
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const [portalPosition, setPortalPosition] = useState({ top: 0, left: 0 })
+  const { getNodes, setNodes } = useReactFlow()
+  const terminalNodeId = `terminal-${id}`
+  const parentPositionRef = useRef<{ x: number; y: number; width: number } | null>(null)
+  const terminalCreatedAtRef = useRef<number | null>(null)
 
-  // Update portal position when terminal opens or button moves
+  // Terminal dimensions (from NodeTerminalPanel: w-[520px], h-[360px] content + header ~40px + borders)
+  const TERMINAL_WIDTH = 520
+  const TERMINAL_HEIGHT = 402 // 360px content + ~40px header + 2px borders
+  const TERMINAL_GAP = 35 // Gap between terminal bottom and parent top (30-40px as requested)
+
+  // Get parent node width from node data (simpler, more reliable)
+  const getParentNodeWidth = (parentNode: Node): number => {
+    // Check if node has explicit width in data
+    const uiSize = (parentNode.data as any)?.ui?.size as { width?: number } | undefined
+    if (uiSize?.width) {
+      return uiSize.width
+    }
+    
+    // Check if node has width property directly (ReactFlow sometimes adds this)
+    if ((parentNode as any).width) {
+      return (parentNode as any).width
+    }
+    
+    // Default width based on node type
+    const isEntryPoint = (parentNode.data as any)?.componentSlug === 'entry-point'
+    return isEntryPoint ? 205 : 320
+  }
+
+  // Calculate terminal position: render above parent, align right edges
+  const calculateTerminalPosition = (parentNode: Node): { x: number; y: number } => {
+    const parentWidth = getParentNodeWidth(parentNode)
+    
+    // Simple approach: position terminal above parent with gap, align right edges
+    return {
+      // Align right edges: terminal's right edge = parent's right edge
+      // terminal.x + TERMINAL_WIDTH = parent.x + parentWidth
+      x: parentNode.position.x + parentWidth - TERMINAL_WIDTH,
+      // Position terminal above parent with gap
+      // terminal.y + TERMINAL_HEIGHT + GAP = parent.y
+      // So: terminal.y = parent.y - TERMINAL_HEIGHT - GAP
+      y: parentNode.position.y - TERMINAL_HEIGHT - TERMINAL_GAP,
+    }
+  }
+
+  // Create or remove terminal node when isTerminalOpen changes
   useEffect(() => {
-    if (!isTerminalOpen || !buttonRef.current) return
-
-    const updatePosition = () => {
-      const rect = buttonRef.current?.getBoundingClientRect()
-      if (rect) {
-        // Position above the button, centered
-        setPortalPosition({
-          top: rect.top - 16, // 16px gap above button
-          left: rect.left + rect.width / 2,
-        })
+    if (!isTerminalOpen) {
+      // Only remove terminal when explicitly closed
+      const nodes = getNodes()
+      const terminalNode = nodes.find(n => n.id === terminalNodeId)
+      if (terminalNode) {
+        setNodes((nds) => nds.filter((n) => n.id !== terminalNodeId))
       }
+      parentPositionRef.current = null
+      return
     }
 
-    updatePosition()
+    // Use double requestAnimationFrame to ensure nodes are fully rendered and measured
+    // This prevents the initial positioning artifact where the node appears too low
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const nodes = getNodes()
+        const terminalNode = nodes.find(n => n.id === terminalNodeId)
+        const parentNode = nodes.find(n => n.id === id)
 
-    // Update position on scroll/resize
-    window.addEventListener('scroll', updatePosition, true)
-    window.addEventListener('resize', updatePosition)
+        // Only proceed if parent node exists - don't remove terminal if parent temporarily missing
+        if (!parentNode) {
+          // Parent node not found - don't remove terminal, just skip update
+          // This prevents terminal from closing when nodes are being updated/filtered
+          return
+        }
 
-    return () => {
-      window.removeEventListener('scroll', updatePosition, true)
-      window.removeEventListener('resize', updatePosition)
+        const parentWidth = getParentNodeWidth(parentNode)
+        const expectedPosition = calculateTerminalPosition(parentNode)
+
+        // Create terminal node if it doesn't exist
+        if (!terminalNode) {
+          const newTerminalNode: Node = {
+            id: terminalNodeId,
+            type: 'terminal',
+            position: expectedPosition,
+            data: {
+              parentNodeId: id,
+              runId: selectedRunId,
+              timelineSync: mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
+              onClose: () => setIsTerminalOpen(false),
+            },
+            draggable: true,
+            selectable: true,
+          }
+          setNodes((nds) => [...nds, newTerminalNode])
+          parentPositionRef.current = { 
+            x: parentNode.position.x, 
+            y: parentNode.position.y,
+            width: parentWidth,
+          }
+          terminalCreatedAtRef.current = Date.now()
+        } else {
+          // Update terminal node data if needed (runId, timelineSync might have changed)
+          const needsDataUpdate = 
+            terminalNode.data.runId !== selectedRunId ||
+            terminalNode.data.timelineSync !== (mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing))
+
+          // Update terminal node position to follow parent node if parent moved or resized
+          const lastPosition = parentPositionRef.current
+          const needsPositionUpdate = 
+            !lastPosition ||
+            Math.abs(lastPosition.x - parentNode.position.x) > 1 ||
+            Math.abs(lastPosition.y - parentNode.position.y) > 1 ||
+            Math.abs(lastPosition.width - parentWidth) > 1 ||
+            Math.abs(terminalNode.position.x - expectedPosition.x) > 1 ||
+            Math.abs(terminalNode.position.y - expectedPosition.y) > 1
+
+          if (needsDataUpdate || needsPositionUpdate) {
+            setNodes((nds) =>
+              nds.map((n) =>
+                n.id === terminalNodeId
+                  ? {
+                      ...n,
+                      position: needsPositionUpdate ? expectedPosition : n.position,
+                      data: needsDataUpdate ? {
+                        ...n.data,
+                        runId: selectedRunId,
+                        timelineSync: mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
+                      } : n.data,
+                    }
+                  : n
+              )
+            )
+            if (needsPositionUpdate) {
+              parentPositionRef.current = { 
+                x: parentNode.position.x, 
+                y: parentNode.position.y,
+                width: parentWidth,
+              }
+            }
+          }
+        }
+      })
+    })
+    // getNodes and setNodes from useReactFlow are stable, but we'll exclude them to prevent infinite loops
+    // setIsTerminalOpen is also stable (from useState), but excluding to be safe
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTerminalOpen, id, selectedRunId, mode, playbackMode, isLiveFollowing, terminalNodeId])
+
+  // Periodically check if parent node moved or resized (for smooth following)
+  useEffect(() => {
+    if (!isTerminalOpen) {
+      terminalCreatedAtRef.current = null
+      return
     }
-  }, [isTerminalOpen])
+
+    const intervalId = setInterval(() => {
+      // Skip position updates for the first 300ms after creation to avoid visual artifacts
+      // The double requestAnimationFrame should handle initial positioning correctly
+      if (terminalCreatedAtRef.current && Date.now() - terminalCreatedAtRef.current < 300) {
+        return
+      }
+
+      const nodes = getNodes()
+      const parentNode = nodes.find(n => n.id === id)
+      const terminalNode = nodes.find(n => n.id === terminalNodeId)
+
+      if (parentNode && terminalNode) {
+        const parentWidth = getParentNodeWidth(parentNode)
+        const expectedPosition = calculateTerminalPosition(parentNode)
+
+        const lastPosition = parentPositionRef.current
+        if (
+          !lastPosition ||
+          Math.abs(lastPosition.x - parentNode.position.x) > 1 ||
+          Math.abs(lastPosition.y - parentNode.position.y) > 1 ||
+          Math.abs(lastPosition.width - parentWidth) > 1 ||
+          Math.abs(terminalNode.position.x - expectedPosition.x) > 1 ||
+          Math.abs(terminalNode.position.y - expectedPosition.y) > 1
+        ) {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === terminalNodeId
+                ? {
+                    ...n,
+                    position: expectedPosition,
+                  }
+                : n
+            )
+          )
+          parentPositionRef.current = { 
+            x: parentNode.position.x, 
+            y: parentNode.position.y,
+            width: parentWidth,
+          }
+        }
+      }
+    }, 100) // Check every 100ms
+
+    return () => clearInterval(intervalId)
+    // getNodes and setNodes from useReactFlow are stable, but we'll exclude them to be safe
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTerminalOpen, id, terminalNodeId])
+
 
   return (
     <div className="relative flex justify-center">
       <button
-        ref={buttonRef}
         type="button"
         onClick={() => {
           setIsTerminalOpen((prev) => !prev)
@@ -116,27 +289,6 @@ function TerminalButton({
           <span className="w-2 h-2 rounded-full bg-green-400" />
         ) : null}
       </button>
-      {isTerminalOpen &&
-        createPortal(
-          <div
-            className="fixed -translate-x-1/2"
-            style={{
-              top: portalPosition.top,
-              left: portalPosition.left,
-              transform: 'translate(-50%, -100%)',
-              zIndex: focusedTerminalNodeId === id ? 1070 : 1060,
-            }}
-          >
-            <NodeTerminalPanel
-              nodeId={id}
-              runId={selectedRunId}
-              onClose={() => setIsTerminalOpen(false)}
-              timelineSync={mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing)}
-              onFocus={() => bringTerminalToFront(id)}
-            />
-          </div>,
-          document.body
-        )}
     </div>
   )
 }
@@ -215,6 +367,14 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const component = getComponent(componentRef)
   const isTextBlock = component?.id === 'core.ui.text'
   const isEntryPoint = component?.id === 'core.workflow.entrypoint'
+  
+  // Detect dark mode using theme store (reacts to theme changes)
+  const theme = useThemeStore((state) => state.theme)
+  const isDarkMode = theme === 'dark'
+  
+  // Get component category (default to 'input' for entry points)
+  const componentCategory: ComponentCategory = (component?.category as ComponentCategory) || 
+    (isEntryPoint ? 'input' : 'input')
 
   // Entry Point Helper Data
   // Get workflowId from store first, then from node data (passed from Canvas), then from route params
@@ -277,6 +437,62 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
       updateNodeInternals(id)
     }
   }, [id, isTextBlock, updateNodeInternals])
+
+  // Resize handling hooks - must be called before any early returns
+  const isResizing = useRef(false)
+
+  const clampWidth = (width: number) =>
+    Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, width))
+
+  const clampHeight = (height: number) =>
+    Math.max(MIN_TEXT_HEIGHT, Math.min(MAX_TEXT_HEIGHT, height))
+
+  const persistSize = (width: number, height: number) => {
+    const clampedWidth = clampWidth(width)
+    const clampedHeight = clampHeight(height)
+    setTextSize({ width: clampedWidth, height: clampedHeight })
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id
+          ? {
+              ...node,
+              data: {
+                ...(node.data as any),
+                ui: {
+                  ...(node.data as any).ui,
+                  size: {
+                    width: clampedWidth,
+                    height: clampedHeight,
+                  },
+                },
+              },
+            }
+          : node
+      )
+    )
+    updateNodeInternals(id)
+    markDirty()
+  }
+
+  const handleResizeStart = () => {
+    isResizing.current = true
+  }
+
+  const handleResize = (_evt: unknown, params: { width: number; height: number }) => {
+    const clampedWidth = clampWidth(params.width)
+    const clampedHeight = clampHeight(params.height)
+
+    // Direct DOM update for performance to avoid re-renders during drag
+    if (nodeRef.current) {
+      nodeRef.current.style.width = `${clampedWidth}px`
+      nodeRef.current.style.minHeight = `${clampedHeight}px`
+    }
+  }
+
+  const handleResizeEnd = (_evt: unknown, params: { width: number; height: number }) => {
+    isResizing.current = false
+    persistSize(params.width, params.height)
+  }
 
   // Get timeline visual state for this node
   const visualState: NodeVisualState = nodeStates[id] || {
@@ -495,83 +711,35 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     </div>
   )
 
-
-  const clampWidth = (width: number) =>
-    Math.max(MIN_TEXT_WIDTH, Math.min(MAX_TEXT_WIDTH, width))
-
-  const clampHeight = (height: number) =>
-    Math.max(MIN_TEXT_HEIGHT, Math.min(MAX_TEXT_HEIGHT, height))
-
-  const persistSize = (width: number, height: number) => {
-    const clampedWidth = clampWidth(width)
-    const clampedHeight = clampHeight(height)
-    setTextSize({ width: clampedWidth, height: clampedHeight })
-    setNodes((nodes) =>
-      nodes.map((node) =>
-        node.id === id
-          ? {
-            ...node,
-            data: {
-              ...(node.data as any),
-              ui: {
-                ...(node.data as any).ui,
-                size: {
-                  width: clampedWidth,
-                  height: clampedHeight,
-                },
-              },
-            },
-          }
-          : node
-      )
-    )
-    updateNodeInternals(id)
-    markDirty()
-  }
-
-  const isResizing = useRef(false)
-
-  const handleResizeStart = () => {
-    isResizing.current = true
-  }
-
-  const handleResize = (_evt: unknown, params: { width: number; height: number }) => {
-    const clampedWidth = clampWidth(params.width)
-    const clampedHeight = clampHeight(params.height)
-
-    // Direct DOM update for performance to avoid re-renders during drag
-    if (nodeRef.current) {
-      nodeRef.current.style.width = `${clampedWidth}px`
-      nodeRef.current.style.minHeight = `${clampedHeight}px`
+  // Get category-based separator color (only for the header separator)
+  const getSeparatorColor = (): string | undefined => {
+    // Only apply category colors when node is idle
+    if ((!isTimelineActive || visualState.status === 'idle') &&
+        (!nodeData.status || nodeData.status === 'idle')) {
+      return getCategorySeparatorColor(componentCategory, isDarkMode)
     }
+    return undefined
   }
 
-  const handleResizeEnd = (_evt: unknown, params: { width: number; height: number }) => {
-    isResizing.current = false
-    persistSize(params.width, params.height)
+  // Get category-based header background color (only for the header section)
+  const getHeaderBackgroundColor = (): string | undefined => {
+    // Always apply category colors in both design and execution modes
+    return getCategoryHeaderBackgroundColor(componentCategory, isDarkMode)
   }
+
+  const separatorColor = getSeparatorColor()
+  const headerBackgroundColor = getHeaderBackgroundColor()
 
   return (
     <div
       className={cn(
-        'shadow-lg rounded-lg border-2 transition-[box-shadow,background-color,border-color,transform] relative',
+        'shadow-lg border-2 transition-[box-shadow,background-color,border-color,transform] relative',
+        // Entry point nodes have more rounded corners (even more rounded)
+        isEntryPoint ? 'rounded-[1.5rem]' : 'rounded-lg',
         isTextBlock ? 'min-w-[240px] max-w-none flex flex-col' : 'min-w-[240px] max-w-[280px]',
-        // ENTRY POINT STYLING - Apply green background when entry point is idle
-        // Check: is entry point AND (not timeline active OR timeline status is idle) AND (no status OR status is idle)
-        isEntryPoint &&
-        (!isTimelineActive || visualState.status === 'idle') &&
-        (!nodeData.status || nodeData.status === 'idle') && [
-          'bg-green-50/80',
-          'dark:bg-green-950/30',
-          'border-green-200',
-          'dark:border-green-800',
-        ],
 
         // Timeline active states for entry point (when it has active execution status)
-        isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
         isEntryPoint && isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
-        isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400 bg-red-50/20 dark:bg-red-950/20',
-        isEntryPoint && isTimelineActive && effectiveStatus === 'success' && 'border-green-400 bg-green-50/20 dark:bg-green-950/20',
 
         // Enhanced border styling for timeline (non-entry-point nodes only)
         !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
@@ -588,10 +756,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           nodeStyle.border,
         ],
 
-        // Default state (non-entry-point nodes only, when idle)
-        !isEntryPoint && (!nodeData.status || nodeData.status === 'idle') && !isTimelineActive && [
+        // Default state (all nodes when idle) - white/grey background
+        (!nodeData.status || nodeData.status === 'idle') && !isTimelineActive && [
           'bg-background',
-          getTypeBorderColor(component.type),
+          'border-border',
         ],
 
         // Selected state: blue gradient shadow highlight (pure glow, no border)
@@ -607,16 +775,17 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
       )}
       ref={nodeRef}
       onClick={() => selectedRunId && selectNode(id)}
-      style={
-        isTextBlock
+      style={{
+        // Text block and entry point sizing
+        ...(isTextBlock
           ? {
-            width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
-            minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
-          }
+              width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
+              minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
+            }
           : isEntryPoint
-            ? { width: 240, minHeight: 120 } // Compact size for entry point
-            : undefined
-      }
+            ? { width: 160, minHeight: 160 } 
+            : {}),
+      }}
     >
       {isTextBlock && mode === 'design' && (
         <NodeResizer
@@ -633,7 +802,17 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         />
       )}
       {/* Header */}
-      <div className="px-3 py-2 border-b border-border/50 relative">
+      <div 
+        className={cn(
+          'px-3 py-2 border-b relative', // Removed overflow-hidden to allow badge to exceed boundary
+          // Match parent's rounded corners at the top
+          isEntryPoint ? 'rounded-t-[1.5rem]' : 'rounded-t-lg'
+        )}
+        style={{
+          borderColor: separatorColor || 'hsl(var(--border) / 0.5)',
+          backgroundColor: headerBackgroundColor || undefined,
+        }}
+      >
         {/* Event count badge */}
         {hasEvents && <EventBadge count={visualState.eventCount} />}
 
@@ -827,63 +1006,92 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
             </div>
           )
         )}
-        {/* Input Ports - Compact Pill Actions for Entry Point */}
+        {/* Entry Point - Split Layout: Left (Actions) 60% / Right (Outputs) 40% */}
         {isEntryPoint ? (
-          <div className="flex flex-wrap items-center gap-1.5 mt-1">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowWebhookDialog(true)
-              }}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300"
-            >
-              <LucideIcons.Webhook className="h-3 w-3 flex-shrink-0" />
-              <span>Webhook</span>
-            </button>
+          <div className="flex gap-3 mt-1">
+            {/* Left side: Action buttons stacked vertically as pills */}
+            <div className="flex-[0.6] flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowWebhookDialog(true)
+                }}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300 w-fit"
+              >
+                <LucideIcons.Webhook className="h-3 w-3 flex-shrink-0" />
+                <span>Webhook</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                // Open schedule sidebar instead of navigating
-                if (onOpenScheduleSidebar) {
-                  onOpenScheduleSidebar()
-                } else {
-                  // Fallback to navigation if callback not available
-                  navigate(`/schedules?workflowId=${workflowId}`)
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300"
-            >
-              <LucideIcons.CalendarClock className="h-3 w-3 flex-shrink-0" />
-              <span>Schedules</span>
-            </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // Open schedule sidebar instead of navigating
+                  if (onOpenScheduleSidebar) {
+                    onOpenScheduleSidebar()
+                  } else {
+                    // Fallback to navigation if callback not available
+                    navigate(`/schedules?workflowId=${workflowId}`)
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300 w-fit"
+              >
+                <LucideIcons.CalendarClock className="h-3 w-3 flex-shrink-0" />
+                <span>Schedules</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                // In design mode, programmatically trigger node selection by clicking the node element
-                // This will open the config panel where inputs are managed
-                if (mode === 'design' && nodeRef.current) {
-                  // Create a synthetic click event that will bubble up to React Flow
-                  const clickEvent = new MouseEvent('click', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window,
-                  })
-                  // Use setTimeout to ensure this happens after the current event handler
-                  setTimeout(() => {
-                    nodeRef.current?.dispatchEvent(clickEvent)
-                  }, 10)
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300"
-            >
-              <LucideIcons.Settings className="h-3 w-3 flex-shrink-0" />
-              <span>Inputs</span>
-            </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // In design mode, programmatically trigger node selection by clicking the node element
+                  // This will open the config panel where inputs are managed
+                  if (mode === 'design' && nodeRef.current) {
+                    // Create a synthetic click event that will bubble up to React Flow
+                    const clickEvent = new MouseEvent('click', {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                    })
+                    // Use setTimeout to ensure this happens after the current event handler
+                    setTimeout(() => {
+                      nodeRef.current?.dispatchEvent(clickEvent)
+                    }, 10)
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300 w-fit"
+              >
+                <LucideIcons.Settings className="h-3 w-3 flex-shrink-0" />
+                <span>Inputs</span>
+              </button>
+            </div>
+
+            {/* Right side: Output ports */}
+            <div className="flex-[0.4] flex flex-col justify-start">
+              {effectiveOutputs.length > 0 ? (
+                <div className="space-y-1.5">
+                  {effectiveOutputs.map((output) => (
+                    <div key={output.id} className="relative flex items-center justify-end gap-2 text-xs">
+                      <div className="flex-1 text-right">
+                        <div className="text-muted-foreground font-medium">{output.label}</div>
+                      </div>
+                      <Handle
+                        type="source"
+                        position={Position.Right}
+                        id={output.id}
+                        className="!w-[10px] !h-[10px] !border-2 !border-green-500 !bg-green-500 !rounded-full"
+                        style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground/60 text-center py-2">
+                  No outputs
+                </div>
+              )}
+            </div>
           </div>
         ) : componentInputs.length > 0 && (
           <div className="space-y-1.5">
@@ -965,8 +1173,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           </div>
         )}
 
-        {/* Output Ports */}
-        {effectiveOutputs.length > 0 && (
+        {/* Output Ports (not shown for entry points - they're in the split layout) */}
+        {!isEntryPoint && effectiveOutputs.length > 0 && (
           <div className="space-y-1.5">
             {effectiveOutputs.map((output) => (
               <div key={output.id} className="relative flex items-center justify-end gap-2 text-xs">

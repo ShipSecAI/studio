@@ -13,6 +13,11 @@ import type { ComponentMetadata } from '@/schemas/component'
 import { cn } from '@/lib/utils'
 import { env } from '@/config/env'
 import { Skeleton } from '@/components/ui/skeleton'
+import { 
+  type ComponentCategory,
+  getCategorySeparatorColor
+} from '@/utils/categoryColors'
+import { useThemeStore } from '@/store/themeStore'
 
 // Use backend-provided category configuration
 // The frontend will no longer categorize components - it will use backend data
@@ -166,9 +171,16 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   const { getAllComponents, fetchComponents, loading, error } = useComponentStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const theme = useThemeStore((state) => state.theme)
+  const isDarkMode = theme === 'dark'
   const frontendBranch = env.VITE_FRONTEND_BRANCH.trim()
   const backendBranch = env.VITE_BACKEND_BRANCH.trim()
   const hasBranchInfo = Boolean(frontendBranch || backendBranch)
+  
+  // Get category accent color (for left border) - uses separator colors for brightness
+  const getCategoryAccentColor = (category: string): string | undefined => {
+    return getCategorySeparatorColor(category as ComponentCategory, isDarkMode)
+  }
   
   // Custom scrollbar state
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -289,7 +301,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  // Custom scrollbar logic
+  // Custom scrollbar logic - setup event listeners (only once)
   useEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
@@ -349,7 +361,43 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
         clearTimeout(scrollTimeoutRef.current)
       }
     }
-  }, [filteredComponentsByCategory, loading])
+    // Only setup event listeners once - don't depend on content changes
+  }, [])
+
+  // Update scrollbar when content changes (without re-setting up listeners)
+  // Calculate a stable value for component count to use as dependency
+  const componentCount = useMemo(() => {
+    return Object.values(filteredComponentsByCategory).reduce(
+      (total, components) => total + components.length,
+      0
+    )
+  }, [filteredComponentsByCategory])
+  
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    // Use requestAnimationFrame to ensure DOM has updated after content changes
+    requestAnimationFrame(() => {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const maxScroll = scrollHeight - clientHeight
+      
+      if (maxScroll <= 0) {
+        setScrollbarVisible(false)
+        setScrollbarHeight(0)
+        setScrollbarPosition(0)
+        return
+      }
+
+      // Calculate scrollbar thumb position and height
+      const thumbHeight = Math.max((clientHeight / scrollHeight) * clientHeight, 30)
+      const thumbPosition = (scrollTop / maxScroll) * (clientHeight - thumbHeight)
+      
+      setScrollbarHeight(thumbHeight)
+      setScrollbarPosition(thumbPosition)
+      // Don't show scrollbar automatically when content changes - only on scroll
+    })
+  }, [componentCount, loading]) // Use stable componentCount instead of filteredComponentsByCategory object
 
   return (
     <div className="h-full w-full max-w-[320px] border-r bg-background flex flex-col">
@@ -480,16 +528,24 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
 
                 const categoryConfig = components[0]?.categoryConfig
 
+                const categoryAccentColor = getCategoryAccentColor(category)
+                
                 return (
                   <AccordionItem 
                     key={category} 
                     value={category} 
                     className="border border-border/50 rounded-sm px-3 py-1 transition-colors"
                   >
-                    <AccordionTrigger className={cn(
-                      'py-3 px-0 hover:no-underline hover:bg-muted/50 rounded-sm -mx-3 -my-1 px-3 [&[data-state=open]]:text-foreground',
-                      'group transition-colors'
-                    )}>
+                    <AccordionTrigger 
+                      className={cn(
+                        'py-3 hover:no-underline hover:bg-muted/50 rounded-sm -mx-3 -my-1 px-3 [&[data-state=open]]:text-foreground',
+                        'group transition-colors relative'
+                      )}
+                      style={{
+                        borderLeftWidth: categoryAccentColor ? '3px' : undefined,
+                        borderLeftColor: categoryAccentColor || undefined,
+                      }}
+                    >
                       <div className="flex flex-col items-start gap-0.5 w-full">
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-2">

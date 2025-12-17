@@ -1,4 +1,5 @@
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
+import { MarkerType } from 'reactflow'
 import type { NodeData } from '@/schemas/node'
 import type { components } from '@shipsec/backend-client'
 
@@ -50,7 +51,8 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
  */
 export function serializeEdges(reactFlowEdges: ReactFlowEdge[]): BackendEdge[] {
   return reactFlowEdges.map((edge) => {
-    // Backend only needs these fields, ReactFlow-specific fields are ignored
+    // Preserve edge type to maintain curved arrow appearance
+    // ReactFlow's 'default' type uses bezier curves (curved arrows)
     // ReactFlow can return null, but backend expects undefined or string
     return {
       id: edge.id,
@@ -58,6 +60,7 @@ export function serializeEdges(reactFlowEdges: ReactFlowEdge[]): BackendEdge[] {
       target: edge.target,
       sourceHandle: edge.sourceHandle ?? undefined,
       targetHandle: edge.targetHandle ?? undefined,
+      type: (edge.type || 'default') as 'default' | 'smoothstep' | 'step' | 'straight' | 'bezier' | undefined,
     }
   })
 }
@@ -161,17 +164,25 @@ export function deserializeNodes(workflow: { graph: { nodes: BackendNode[], edge
 
 /**
  * Deserialize workflow edges from API to React Flow format
- * Backend edges don't have type/animated/label, so we add defaults for ReactFlow
+ * Preserves edge type to maintain curved arrow appearance
  */
 export function deserializeEdges(workflow: { graph: { edges: BackendEdge[] } }): ReactFlowEdge[] {
   const edges = workflow.graph.edges
-  return edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    sourceHandle: edge.sourceHandle,
-    targetHandle: edge.targetHandle,
-    type: 'smoothstep' as const, // Default for ReactFlow, backend doesn't store this
-    animated: false, // Default for ReactFlow, backend doesn't store this
-  }))
+  return edges.map((edge) => {
+    // Use saved type if available, otherwise default to 'default' for bezier curves (curved arrows)
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+      type: (edge.type || 'default') as 'default' | 'smoothstep' | 'step' | 'straight' | 'bezier',
+      animated: false, // Default for ReactFlow, backend doesn't store this
+      markerEnd: {
+        type: MarkerType.Arrow,
+        width: 30,
+        height: 30,
+      },
+    }
+  })
 }

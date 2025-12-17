@@ -6,6 +6,7 @@ import { Copy, Download, Loader2, PlugZap, Radio, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTimelineTerminalStream } from '@/hooks/useTimelineTerminalStream'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
+import { useThemeStore } from '@/store/themeStore'
 
 interface NodeTerminalPanelProps {
   nodeId: string
@@ -57,6 +58,8 @@ export function NodeTerminalPanel({
   const [isTerminalReady, setIsTerminalReady] = useState(false)
 
   const currentTime = useExecutionTimelineStore((state) => state.currentTime)
+  const theme = useThemeStore((state) => state.theme)
+  const isDarkMode = theme === 'dark'
 
   const { chunks, isHydrating, isStreaming, error, mode, exportText, isTimelineSync, isFetchingTimeline, hasData } = useTimelineTerminalStream({
     runId,
@@ -91,53 +94,89 @@ export function NodeTerminalPanel({
     if (!containerRef.current) {
       return
     }
-    const term = new Terminal({
-      convertEol: false,
-      fontSize: 12,
-      disableStdin: true,
-      cursorBlink: false,
-      allowProposedApi: true,
-      allowTransparency: false,
-      macOptionIsMeta: false,
-      macOptionClickForcesSelection: false,
-      rightClickSelectsWord: false,
-      windowsMode: false,
-      theme: {
-        background: '#0f172a',
-      },
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-    })
-
-    term.options.macOptionIsMeta = false
-    term.options.macOptionClickForcesSelection = false
-    term.options.rightClickSelectsWord = false
-
-    const fitAddon = new FitAddon()
-    term.loadAddon(fitAddon)
-
-    term.open(containerRef.current)
     
-    terminalRef.current = term
-    fitAddonRef.current = fitAddon
-    terminalReadyRef.current = false
-    setIsTerminalReady(false)
-
-    // Wait for terminal to be fully initialized before fitting
-    // Use requestAnimationFrame to ensure DOM and terminal render service are ready
-    requestAnimationFrame(() => {
+    // Ensure container has dimensions before opening terminal
+    // This prevents xterm.js from trying to access undefined dimensions
+    const ensureContainerReady = (callback: () => void) => {
+      const container = containerRef.current
+      if (!container) return
+      
+      // Check if container has dimensions
+      const rect = container.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        callback()
+        return
+      }
+      
+      // If no dimensions yet, wait for next frame and try again
       requestAnimationFrame(() => {
-        if (fitAddonRef.current && containerRef.current && terminalRef.current === term) {
-          try {
-            fitAddonRef.current.fit()
-            terminalReadyRef.current = true
-            setIsTerminalReady(true)
-          } catch (error) {
-            console.warn('[NodeTerminalPanel] Failed to fit terminal on mount', error)
-            // Mark as ready anyway to allow rendering
-            terminalReadyRef.current = true
-            setIsTerminalReady(true)
+        ensureContainerReady(callback)
+      })
+    }
+    
+    ensureContainerReady(() => {
+      const container = containerRef.current
+      if (!container) return
+      
+      const term = new Terminal({
+        convertEol: false,
+        fontSize: 12,
+        disableStdin: true,
+        cursorBlink: false,
+        allowProposedApi: true,
+        allowTransparency: false,
+        macOptionIsMeta: false,
+        macOptionClickForcesSelection: false,
+        rightClickSelectsWord: false,
+        windowsMode: false,
+        theme: {
+          // Use dark terminal colors for both light and dark themes (easier to read)
+          background: '#1e1e1e', // Dark gray/black for both themes
+          foreground: '#d4d4d4', // Light gray text for both themes
+          cursor: '#aeafad', // Visible cursor color for both themes
+          cursorAccent: '#1e1e1e', // Cursor accent for both themes
+        },
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      })
+
+      term.options.macOptionIsMeta = false
+      term.options.macOptionClickForcesSelection = false
+      term.options.rightClickSelectsWord = false
+
+      const fitAddon = new FitAddon()
+      term.loadAddon(fitAddon)
+
+      try {
+        term.open(container)
+      } catch (error) {
+        console.warn('[NodeTerminalPanel] Failed to open terminal:', error)
+        // If opening fails, dispose and return early
+        term.dispose()
+        return
+      }
+      
+      terminalRef.current = term
+      fitAddonRef.current = fitAddon
+      terminalReadyRef.current = false
+      setIsTerminalReady(false)
+
+      // Wait for terminal to be fully initialized before fitting
+      // Use requestAnimationFrame to ensure DOM and terminal render service are ready
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (fitAddonRef.current && containerRef.current && terminalRef.current === term) {
+            try {
+              fitAddonRef.current.fit()
+              terminalReadyRef.current = true
+              setIsTerminalReady(true)
+            } catch (error) {
+              console.warn('[NodeTerminalPanel] Failed to fit terminal on mount', error)
+              // Mark as ready anyway to allow rendering
+              terminalReadyRef.current = true
+              setIsTerminalReady(true)
+            }
           }
-        }
+        })
       })
     })
 
@@ -156,11 +195,72 @@ export function NodeTerminalPanel({
       window.removeEventListener('resize', handleResize)
       terminalReadyRef.current = false
       setIsTerminalReady(false)
-      term.dispose()
+      if (terminalRef.current) {
+        terminalRef.current.dispose()
+      }
       terminalRef.current = null
       fitAddonRef.current = null
     }
   }, [terminalKey])
+
+  // Update terminal theme when dark mode changes (without recreating terminal)
+  useEffect(() => {
+    if (!terminalRef.current || !containerRef.current) return
+
+    terminalRef.current.options.theme = {
+      // Use dark terminal colors for both light and dark themes (easier to read)
+      background: '#1e1e1e', // Dark gray/black for both themes
+      foreground: '#d4d4d4', // Light gray text for both themes
+      cursor: '#aeafad', // Visible cursor color for both themes
+      cursorAccent: '#1e1e1e', // Cursor accent for both themes
+    }
+    
+    // Update selection color via CSS (xterm.js doesn't support selection in theme)
+    // Use standard terminal selection colors
+    const styleId = 'xterm-selection-style'
+    let styleElement = document.getElementById(styleId) as HTMLStyleElement
+    if (!styleElement) {
+      styleElement = document.createElement('style')
+      styleElement.id = styleId
+      document.head.appendChild(styleElement)
+    }
+    
+    // Use dark mode selection color for both themes
+    const selectionBg = '#264f78' // Standard terminal blue selection (works well on dark background)
+    
+    styleElement.textContent = `
+      .xterm .xterm-selection {
+        background-color: ${selectionBg} !important;
+      }
+      .xterm .xterm-selection .xterm-selection-decoration {
+        background-color: ${selectionBg} !important;
+      }
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-top {
+        border-top-color: ${selectionBg} !important;
+      }
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-bottom {
+        border-bottom-color: ${selectionBg} !important;
+      }
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-left {
+        border-left-color: ${selectionBg} !important;
+      }
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-right {
+        border-right-color: ${selectionBg} !important;
+      }
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-top-left,
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-top-right,
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-bottom-left,
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-bottom-right {
+        background-color: ${selectionBg} !important;
+      }
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-top-left::before,
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-top-right::before,
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-bottom-left::before,
+      .xterm .xterm-selection .xterm-selection-decoration .xterm-selection-decoration-bottom-right::before {
+        background-color: ${selectionBg} !important;
+      }
+    `
+  }, [isDarkMode])
 
   // SIMPLE RENDERING LOGIC:
   // - Forward: render new chunks incrementally
@@ -227,19 +327,19 @@ export function NodeTerminalPanel({
   }, [chunks, timelineSync, currentTime, terminalKey, isTerminalReady])
 
   const streamBadge = isTimelineSync ? (
-    <span className="flex items-center gap-1 text-xs text-purple-400">
+    <span className="flex items-center gap-1 text-xs text-purple-500 dark:text-purple-400">
       <PlugZap className="h-3 w-3" /> Timeline Sync
     </span>
   ) : isStreaming ? (
-    <span className="flex items-center gap-1 text-xs text-green-400">
+    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
       <Radio className="h-3 w-3 animate-pulse" /> Live
     </span>
   ) : mode === 'replay' ? (
-    <span className="flex items-center gap-1 text-xs text-blue-400">
+    <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
       <PlugZap className="h-3 w-3" /> Replay
     </span>
   ) : (
-    <span className="flex items-center gap-1 text-xs text-slate-400">
+    <span className="flex items-center gap-1 text-xs text-muted-foreground">
       <PlugZap className="h-3 w-3" /> Idle
     </span>
   )
@@ -291,19 +391,18 @@ export function NodeTerminalPanel({
       ref={panelRef}
       // nodrag, nowheel, nopan: Prevent ReactFlow from intercepting mouse events in terminal
       // This fixes sticky selection issues caused by ReactFlow capturing mouse events
-      className="nodrag nowheel nopan select-text w-[520px] rounded-lg shadow-2xl border border-slate-200 overflow-hidden"
-      style={{ backgroundColor: '#ffffff' }}
+      className="nodrag nowheel nopan select-text w-[520px] rounded-lg border-2 border-border bg-card overflow-hidden shadow-lg"
     >
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200" style={{ backgroundColor: '#ffffff' }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card">
         <div>
-        <div className="text-xs uppercase tracking-wide text-slate-700">Live Logs • {nodeId}</div>
+        <div className="text-xs uppercase tracking-wide text-foreground">Live Logs • {nodeId}</div>
           {streamBadge}
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
-            className="text-xs text-slate-700"
+            className="text-xs text-foreground"
             onClick={copyToClipboard}
             disabled={!chunks.length}
           >
@@ -313,31 +412,31 @@ export function NodeTerminalPanel({
           <Button
             variant="ghost"
             size="sm"
-            className="text-xs text-slate-700"
+            className="text-xs text-foreground"
             onClick={() => exportText()}
             disabled={!chunks.length}
           >
             <Download className="h-3 w-3 mr-1" />
             Export
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
       {(isHydrating || isFetchingTimeline) && (
-        <div className="border-b border-slate-800 px-3 py-1 flex items-center gap-2 text-[11px] text-slate-400">
+        <div className="border-b border-border px-3 py-1 flex items-center gap-2 text-[11px] text-muted-foreground bg-card">
           <Loader2 className="h-3 w-3 animate-spin" />
           <span>{isFetchingTimeline ? 'Loading terminal output...' : 'Loading terminal output...'}</span>
         </div>
       )}
-      <div className="relative bg-slate-950">
+      <div className="relative" style={{ backgroundColor: '#1e1e1e' }}>
         <div ref={containerRef} className="h-[360px] w-full" />
         {!hasData && !session?.chunks?.length && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-sm text-white space-y-2 text-center p-4">
+            <div className="text-sm text-foreground space-y-2 text-center p-4">
               <div>{isHydrating || isFetchingTimeline ? 'Loading output…' : 'Waiting for terminal output…'}</div>
-              <div className="font-mono text-[10px] opacity-50">
+              <div className="font-mono text-[10px] text-muted-foreground">
                 {nodeId} • pty
               </div>
             </div>
@@ -345,7 +444,7 @@ export function NodeTerminalPanel({
         )}
       </div>
       {error && (
-        <div className="px-3 py-2 text-xs text-red-400 border-t border-slate-800 bg-slate-950/60">
+        <div className="px-3 py-2 text-xs text-destructive border-t border-border bg-destructive/10">
           {error}
         </div>
       )}

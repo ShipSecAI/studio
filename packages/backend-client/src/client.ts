@@ -1041,6 +1041,8 @@ export interface components {
                 target: string;
                 sourceHandle?: string;
                 targetHandle?: string;
+                /** @enum {string} */
+                type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
             }[];
             /**
              * @default {
@@ -1084,6 +1086,8 @@ export interface components {
                     target: string;
                     sourceHandle?: string;
                     targetHandle?: string;
+                    /** @enum {string} */
+                    type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
                 }[];
                 /**
                  * @default {
@@ -1132,6 +1136,8 @@ export interface components {
                 target: string;
                 sourceHandle?: string;
                 targetHandle?: string;
+                /** @enum {string} */
+                type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
             }[];
             /**
              * @default {
@@ -1179,6 +1185,8 @@ export interface components {
                     target: string;
                     sourceHandle?: string;
                     targetHandle?: string;
+                    /** @enum {string} */
+                    type?: "default" | "smoothstep" | "step" | "straight" | "bezier";
                 }[];
                 /**
                  * @default {

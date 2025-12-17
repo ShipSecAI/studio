@@ -5,6 +5,7 @@ import {
   Controls,
   MiniMap,
   addEdge,
+  MarkerType,
   type Node,
   type Edge,
   type OnConnect,
@@ -15,6 +16,7 @@ import {
 import 'reactflow/dist/style.css'
 
 import { WorkflowNode } from './WorkflowNode'
+import { TerminalNode } from './TerminalNode'
 import { ConfigPanel } from './ConfigPanel'
 import { ValidationDock } from './ValidationDock'
 import { DataFlowEdge } from '../timeline/DataFlowEdge'
@@ -110,7 +112,6 @@ export function Canvas({
   const { markDirty } = useWorkflowStore()
   const { dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
   const mode = useWorkflowUiStore((state) => state.mode)
-  const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
   const { toast } = useToast()
   const applyEdgesChange = onEdgesChange
   const deleteHistoryRef = useRef<DeleteHistoryEntry[]>([])
@@ -124,6 +125,7 @@ export function Canvas({
   const nodeTypes = useMemo(
     () => ({
       workflow: WorkflowNode,
+      terminal: TerminalNode,
     }),
     []
   )
@@ -256,6 +258,11 @@ export function Canvas({
         ...params,
         type: 'default', // Use our enhanced DataFlowEdge
         animated: false,
+        markerEnd: {
+          type: MarkerType.Arrow,
+          width: 30,
+          height: 30,
+        },
         data: {
           packets: [], // Will be populated by timeline store
           isHighlighted: selectedNodeId === params.source || selectedNodeId === params.target,
@@ -294,132 +301,68 @@ export function Canvas({
   )
 
   // Fit view on initial load, when nodes/edges are added/removed, or when switching modes
-  // When switching modes, calculate final viewport position upfront and animate synchronously with panels
+  // When switching modes, fitView should center the diagram properly
   useEffect(() => {
     if (!reactFlowInstance || nodes.length === 0) {
       return
     }
     
     const modeChanged = prevModeRef.current !== mode
-    const nodesCountChanged = prevNodesLengthRef.current !== nodes.length
+    
+    // Count only workflow nodes (exclude terminal nodes) for change detection
+    const workflowNodes = nodes.filter((n) => n.type !== 'terminal')
+    const workflowNodesCount = workflowNodes.length
+    const prevWorkflowNodesCount = prevNodesLengthRef.current
+    
+    const nodesCountChanged = prevWorkflowNodesCount !== workflowNodesCount
     const edgesCountChanged = prevEdgesLengthRef.current !== edges.length
     
-    // Always run fitView when mode changes or when nodes/edges count changes
+    // Run fitView when mode changes or when workflow nodes/edges count changes
+    // Don't trigger fitView when terminal nodes are added/removed
     if (modeChanged || nodesCountChanged || edgesCountChanged) {
       prevModeRef.current = mode
-      prevNodesLengthRef.current = nodes.length
+      prevNodesLengthRef.current = workflowNodesCount
       prevEdgesLengthRef.current = edges.length
       
-      const runFitView = () => {
+      // When mode changes, wait a bit longer to ensure nodes are fully set and rendered
+      // This is especially important when switching to execution mode without a run loaded
+      // as execution nodes might be set asynchronously
+      const delay = modeChanged ? 100 : 0
+      
+      setTimeout(() => {
         if (!reactFlowInstance) return
         
-        try {
-          if (modeChanged) {
-            // When mode changes, calculate final viewport position accounting for final panel states
-            // Use requestAnimationFrame to ensure CSS has applied final panel widths
-            requestAnimationFrame(() => {
-              if (!reactFlowInstance) return
-              
-              try {
-                // Calculate final panel widths based on mode
-                const finalInspectorWidth = mode === 'execution' ? inspectorWidth : 0
-                const finalConfigPanelWidth = mode === 'design' && selectedNode ? configPanelWidth : 0
-                
-                // Get node bounds
-                const nodesBounds = reactFlowInstance.getNodesBounds(nodes)
-                if (!nodesBounds) {
-                  // Fallback to regular fitView if bounds calculation fails (instant)
-                  reactFlowInstance.fitView({ 
-                    padding: 0.2, 
-                    duration: 0, // Instant - no animation
-                    maxZoom: 0.85,
-                    includeHiddenNodes: false,
-                  })
-                  return
-                }
-                
-                // Get current viewport
-                const viewport = reactFlowInstance.getViewport()
-                const currentZoom = viewport.zoom
-                
-                // Get the React Flow wrapper element to get actual container dimensions
-                // After requestAnimationFrame, CSS should have applied final panel widths
-                const flowWrapper = document.querySelector('.react-flow')?.parentElement
-                const containerRect = flowWrapper?.getBoundingClientRect()
-                
-                // Calculate available canvas width accounting for final panel states
-                const windowWidth = window.innerWidth
-                const availableWidth = containerRect?.width ?? (windowWidth - finalInspectorWidth - finalConfigPanelWidth)
-                const availableHeight = containerRect?.height ?? window.innerHeight
-                
-                // Calculate padding in flow coordinates (20% of available dimensions)
-                const paddingX = (availableWidth * 0.2) / currentZoom
-                const paddingY = (availableHeight * 0.2) / currentZoom
-                
-                // Calculate bounds with padding
-                const paddedBounds = {
-                  x: nodesBounds.x - paddingX,
-                  y: nodesBounds.y - paddingY,
-                  width: nodesBounds.width + (paddingX * 2),
-                  height: nodesBounds.height + (paddingY * 2),
-                }
-                
-                // Calculate zoom to fit bounds
-                const zoomX = availableWidth / paddedBounds.width
-                const zoomY = availableHeight / paddedBounds.height
-                const newZoom = Math.min(0.85, Math.min(zoomX, zoomY))
-                
-                // Calculate center position
-                const centerX = paddedBounds.x + paddedBounds.width / 2
-                const centerY = paddedBounds.y + paddedBounds.height / 2
-                
-                // Calculate viewport position to center nodes
-                const newX = (availableWidth / 2) / newZoom - centerX
-                const newY = (availableHeight / 2) / newZoom - centerY
-                
-                // Set viewport instantly (no animation) - nodes render in final position
-                reactFlowInstance.setViewport(
-                  { x: newX, y: newY, zoom: newZoom },
-                  { duration: 0 }
-                )
-              } catch (error) {
-                console.warn('Failed to calculate and set viewport:', error)
-                // Fallback to regular fitView (instant)
-                reactFlowInstance.fitView({ 
-                  padding: 0.2, 
-                  duration: 0, // Instant - no animation
-                  maxZoom: 0.85,
-                })
-              }
-            })
-          } else {
-            // For node/edge count changes, use regular fitView
-            reactFlowInstance.fitView({ 
-              padding: 0.2, 
-              duration: 300,
-              maxZoom: 0.85,
-              includeHiddenNodes: false,
-            })
-          }
-        } catch (error) {
-          console.warn('Failed to fit view:', error)
-          // Fallback to regular fitView (instant for mode changes, animated for node changes)
-          try {
-            reactFlowInstance.fitView({ 
-              padding: 0.2, 
-              duration: modeChanged ? 0 : 300, // Instant for mode changes, animated for node changes
-              maxZoom: 0.85,
-            })
-          } catch (fallbackError) {
-            console.warn('Fallback fitView also failed:', fallbackError)
-          }
-        }
-      }
-      
-      // Run immediately - requestAnimationFrame ensures CSS has applied final panel states
-      runFitView()
+        // Double check nodes are still available (they might have been cleared)
+        if (workflowNodes.length === 0) return
+        
+        // Use double requestAnimationFrame to ensure nodes are fully rendered and positioned
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!reactFlowInstance) return
+            
+            // Re-check workflow nodes (terminal nodes might have been added/removed)
+            // Use the nodes prop directly since we're inside the effect
+            const currentWorkflowNodes = nodes.filter((n: Node<NodeData>) => n.type !== 'terminal')
+            if (currentWorkflowNodes.length === 0) return
+            
+            try {
+              // Use simple fitView - ReactFlow handles centering automatically
+              // Exclude terminal nodes from fitView - they should not affect the viewport
+              reactFlowInstance.fitView({ 
+                padding: 0.2, 
+                duration: modeChanged ? 0 : 300, // Instant for mode changes to avoid jarring animation
+                maxZoom: 0.85,
+                includeHiddenNodes: false,
+                nodes: currentWorkflowNodes, // Only fit workflow nodes, exclude terminals
+              })
+            } catch (error) {
+              console.warn('Failed to fit view:', error)
+            }
+          })
+        })
+      }, delay)
     }
-  }, [reactFlowInstance, nodes.length, edges.length, mode, inspectorWidth, configPanelWidth, selectedNode])
+  }, [reactFlowInstance, edges.length, mode, nodes.length]) // Use nodes.length instead of nodes to avoid triggering on position changes
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     if (mode !== 'design') return
@@ -546,12 +489,18 @@ export function Canvas({
       return
     }
 
+    // If clicking the same node that's already selected, close the config panel
+    if (selectedNode?.id === node.id) {
+      setSelectedNode(null)
+      return
+    }
+
     // Close schedule sidebar when opening config panel
     if (onCloseScheduleSidebar) {
       onCloseScheduleSidebar()
     }
     setSelectedNode(node as Node<NodeData>)
-  }, [mode, selectNode, selectEvent, onCloseScheduleSidebar])
+  }, [mode, selectNode, selectEvent, onCloseScheduleSidebar, selectedNode])
 
   // Handle node double-click for text-block editing
   const onNodeDoubleClick: NodeMouseHandler = useCallback((event, node) => {
@@ -823,7 +772,7 @@ export function Canvas({
       <div className={className}>
         <div className="flex h-full">
         <div 
-          className="flex-1 relative bg-background"
+          className="flex-1 relative bg-background overflow-hidden"
           style={{
             opacity: canvasOpacity,
             transition: 'opacity 200ms ease-in-out',
@@ -866,24 +815,6 @@ export function Canvas({
             nodesConnectable={mode === 'design'}
             elementsSelectable
           >
-            {/* SVG markers for edges */}
-            <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-              <defs>
-                <marker
-                  id="arrowhead"
-                  markerWidth="10"
-                  markerHeight="10"
-                  refX="9"
-                  refY="3"
-                  orient="auto"
-                >
-                  <polygon
-                    points="0 0, 10 3, 0 6"
-                    fill="#6b7280"
-                  />
-                </marker>
-              </defs>
-            </svg>
 
             <Background gap={16} className="!bg-background [&>pattern>circle]:!fill-muted-foreground/30" />
             <Controls position="bottom-left" className="!bg-card !border !border-border !rounded-md !shadow-lg [&>button]:!bg-card [&>button]:!border-border [&>button]:!fill-foreground [&>button:hover]:!bg-accent" />

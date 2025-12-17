@@ -59,7 +59,7 @@ const DataPacket = memo(({ packet, onHover }: {
 })
 
 // Enhanced edge with data flow visualization
-export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, targetX, targetY, data }: DataFlowEdgeProps) => {
+export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, targetX, targetY, data, markerEnd }: DataFlowEdgeProps) => {
   const [hoveredPacket, setHoveredPacket] = useState<DataPacket | null>(null)
   const [animatedPackets, setAnimatedPackets] = useState<AnimatedPacket[]>([])
   const animationRef = useRef<number | null>(null)
@@ -188,12 +188,7 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
       <BaseEdge
         id={id}
         path={edgePath}
-        style={{
-          stroke: data?.isHighlighted ? '#3b82f6' : '#cbd5f5',
-          strokeWidth: data?.isHighlighted ? 3 : 2,
-          transition: 'stroke 0.3s ease, stroke-width 0.3s ease',
-        }}
-        markerEnd="url(#arrowhead)"
+        markerEnd={markerEnd}
       />
     )
   }
@@ -204,16 +199,7 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
       <BaseEdge
         id={id}
         path={edgePath}
-        style={{
-          stroke: data?.isHighlighted
-            ? '#3b82f6'
-            : packets.length > 0
-              ? '#60a5fa'
-              : '#9ca3af',
-          strokeWidth: data?.isHighlighted ? 3 : 2,
-          transition: 'stroke 0.3s ease, stroke-width 0.3s ease',
-        }}
-        markerEnd="url(#arrowhead)"
+        markerEnd={markerEnd}
       />
 
       {/* Animated data packets */}
