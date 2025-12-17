@@ -8,7 +8,7 @@ interface TerminalNodeData {
   onClose: () => void
 }
 
-export function TerminalNode({ data, id }: NodeProps<TerminalNodeData>) {
+export function TerminalNode({ data }: NodeProps<TerminalNodeData>) {
   return (
     <div className="nodrag nowheel nopan">
       <NodeTerminalPanel

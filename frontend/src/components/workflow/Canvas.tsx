@@ -112,7 +112,6 @@ export function Canvas({
   const { markDirty } = useWorkflowStore()
   const { dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore()
   const mode = useWorkflowUiStore((state) => state.mode)
-  const inspectorWidth = useWorkflowUiStore((state) => state.inspectorWidth)
   const { toast } = useToast()
   const applyEdgesChange = onEdgesChange
   const deleteHistoryRef = useRef<DeleteHistoryEntry[]>([])
