@@ -27,8 +27,8 @@ export function getNodeStyle(state: NodeStatus): NodeStateStyle {
       iconClass: 'text-blue-600 dark:text-blue-400',
     },
     success: {
-      border: 'border-green-500',
-      bg: 'bg-green-50 dark:bg-green-950/30',
+      border: 'border-border',
+      bg: 'bg-background',
       icon: 'CheckCircle',
       iconClass: 'text-green-600 dark:text-green-400',
     },

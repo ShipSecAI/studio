@@ -27,8 +27,8 @@ import {
 } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Workflow, AlertCircle, Trash2, Loader2, Info } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { api } from '@/services/api'
+import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles'
 import {
   WorkflowMetadataSchema,
   type WorkflowMetadataNormalized,
@@ -455,18 +455,12 @@ function WorkflowRowItem({
   const statusBadge = latestRun ? (
     <Badge
       variant="outline"
-      className={cn(
-        'text-xs',
-        latestRun.status === 'RUNNING' && '!bg-blue-50 !text-blue-700 !border-blue-300 dark:!bg-blue-900/70 dark:!text-blue-200 dark:!border-blue-600',
-        latestRun.status === 'COMPLETED' && '!bg-emerald-50 !text-emerald-700 !border-emerald-300 dark:!bg-emerald-900/70 dark:!text-emerald-200 dark:!border-emerald-600',
-        latestRun.status === 'FAILED' && '!bg-red-50 !text-red-700 !border-red-300 dark:!bg-red-900/70 dark:!text-red-200 dark:!border-red-600',
-        !['RUNNING', 'COMPLETED', 'FAILED'].includes(latestRun.status) && '!bg-muted/50 !text-muted-foreground !border-border',
-      )}
+      className={getStatusBadgeClassFromStatus(latestRun.status, 'text-xs')}
     >
       {latestRun.status}
     </Badge>
   ) : (
-    <Badge variant="outline" className="text-xs !bg-muted/50 !text-muted-foreground !border-border">
+    <Badge variant="outline" className={getStatusBadgeClassFromStatus('NONE', 'text-xs')}>
       NOT TRIGGERED
     </Badge>
   )

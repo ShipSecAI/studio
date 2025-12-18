@@ -390,9 +390,9 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
                   isCurrentLiveSelected && "bg-accent/20",
                 )}
               >
-                <div className="w-full px-3 py-3 space-y-2 bg-blue-50/50 dark:bg-blue-950/20">
+                <div className="w-full px-3 py-3 space-y-2 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700">
                   <div className="flex items-start gap-3">
-                    <p className="font-semibold text-sm truncate flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-blue-700 dark:text-blue-300 truncate flex-1 min-w-0">
                       {currentLiveRun.workflowName}
                     </p>
                     <Play className={cn("h-4 w-4 text-blue-500 flex-shrink-0", isCurrentLiveSelected && "opacity-50")} />
@@ -441,7 +441,12 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
                 <div className="flex items-center gap-2 text-xs">
                   <Badge
                     variant={playbackMode === 'live' ? 'default' : 'secondary'}
-                    className="text-xs"
+                    className={cn(
+                      "text-xs",
+                      playbackMode === 'live' 
+                        ? "bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700"
+                        : "bg-gray-100 text-gray-700 border border-gray-300 dark:bg-gray-900/30 dark:text-gray-300 dark:border-gray-700"
+                    )}
                   >
                     {playbackMode === 'live' ? (
                       <>

@@ -182,6 +182,19 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     return getCategorySeparatorColor(category as ComponentCategory, isDarkMode)
   }
   
+  // Get category text color with good contrast in both light and dark modes
+  const getCategoryTextColor = (category: string): string => {
+    const categoryColors: Record<string, string> = {
+      input: 'text-blue-600 dark:text-blue-400',
+      transform: 'text-orange-600 dark:text-orange-400', 
+      ai: 'text-purple-600 dark:text-purple-400',
+      security: 'text-red-600 dark:text-red-400',
+      it_ops: 'text-cyan-600 dark:text-cyan-400',
+      output: 'text-green-600 dark:text-green-400',
+    }
+    return categoryColors[category] || 'text-foreground'
+  }
+  
   // Custom scrollbar state
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [scrollbarVisible, setScrollbarVisible] = useState(false)
@@ -556,14 +569,14 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
                                 return (
                                   <CategoryIcon className={cn(
                                     'h-4 w-4 flex-shrink-0',
-                                    categoryConfig?.color || 'text-muted-foreground'
+                                    getCategoryTextColor(category)
                                   )} />
                                 )
                               })()
                             )}
                             <h3 className={cn(
                               'text-sm font-semibold transition-colors',
-                              categoryConfig?.color || 'text-foreground'
+                              getCategoryTextColor(category)
                             )}>
                               {categoryConfig?.label ?? category}
                             </h3>

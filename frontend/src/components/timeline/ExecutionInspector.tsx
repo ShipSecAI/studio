@@ -329,23 +329,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
               <RunInfoDisplay 
                 run={selectedRun} 
                 currentWorkflowVersion={currentWorkflowVersion}
-                showBadges={false}
+                showBadges={true}
               />
-              <div className="flex items-center justify-between gap-2 text-[10px] mt-1">
-                <div className="flex items-center gap-2">
-                  {versionBadge}
-                  {triggerDisplay && (
-                    <Badge
-                      variant={triggerDisplay.variant}
-                      className="text-[10px] gap-1 max-w-[160px] truncate"
-                    >
-                      <span aria-hidden="true">{triggerDisplay.icon}</span>
-                      <span className="truncate">{triggerDisplay.label}</span>
-                    </Badge>
-                  )}
-                </div>
-                <div>{statusBadge}</div>
-              </div>
             </div>
           </div>
         )}

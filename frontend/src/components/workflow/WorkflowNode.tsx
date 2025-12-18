@@ -4,6 +4,7 @@ import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Ter
 import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MarkdownView } from '@/components/ui/markdown'
+import { Badge } from '@/components/ui/badge'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
@@ -14,8 +15,8 @@ import type { NodeStatus } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { useThemeStore } from '@/store/themeStore'
-import { 
-  type ComponentCategory, 
+import {
+  type ComponentCategory,
   getCategorySeparatorColor,
   getCategoryHeaderBackgroundColor
 } from '@/utils/categoryColors'
@@ -82,12 +83,12 @@ function TerminalButton({
     if (uiSize?.width) {
       return uiSize.width
     }
-    
+
     // Check if node has width property directly (ReactFlow sometimes adds this)
     if ((parentNode as any).width) {
       return (parentNode as any).width
     }
-    
+
     // Default width based on node type
     const isEntryPoint = (parentNode.data as any)?.componentSlug === 'entry-point'
     return isEntryPoint ? 205 : 320
@@ -96,7 +97,7 @@ function TerminalButton({
   // Calculate terminal position: render above parent, align right edges
   const calculateTerminalPosition = (parentNode: Node): { x: number; y: number } => {
     const parentWidth = getParentNodeWidth(parentNode)
-    
+
     // Simple approach: position terminal above parent with gap, align right edges
     return {
       // Align right edges: terminal's right edge = parent's right edge
@@ -156,21 +157,21 @@ function TerminalButton({
             selectable: true,
           }
           setNodes((nds) => [...nds, newTerminalNode])
-          parentPositionRef.current = { 
-            x: parentNode.position.x, 
+          parentPositionRef.current = {
+            x: parentNode.position.x,
             y: parentNode.position.y,
             width: parentWidth,
           }
           terminalCreatedAtRef.current = Date.now()
         } else {
           // Update terminal node data if needed (runId, timelineSync might have changed)
-          const needsDataUpdate = 
+          const needsDataUpdate =
             terminalNode.data.runId !== selectedRunId ||
             terminalNode.data.timelineSync !== (mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing))
 
           // Update terminal node position to follow parent node if parent moved or resized
           const lastPosition = parentPositionRef.current
-          const needsPositionUpdate = 
+          const needsPositionUpdate =
             !lastPosition ||
             Math.abs(lastPosition.x - parentNode.position.x) > 1 ||
             Math.abs(lastPosition.y - parentNode.position.y) > 1 ||
@@ -183,20 +184,20 @@ function TerminalButton({
               nds.map((n) =>
                 n.id === terminalNodeId
                   ? {
-                      ...n,
-                      position: needsPositionUpdate ? expectedPosition : n.position,
-                      data: needsDataUpdate ? {
-                        ...n.data,
-                        runId: selectedRunId,
-                        timelineSync: mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
-                      } : n.data,
-                    }
+                    ...n,
+                    position: needsPositionUpdate ? expectedPosition : n.position,
+                    data: needsDataUpdate ? {
+                      ...n.data,
+                      runId: selectedRunId,
+                      timelineSync: mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
+                    } : n.data,
+                  }
                   : n
               )
             )
             if (needsPositionUpdate) {
-              parentPositionRef.current = { 
-                x: parentNode.position.x, 
+              parentPositionRef.current = {
+                x: parentNode.position.x,
                 y: parentNode.position.y,
                 width: parentWidth,
               }
@@ -245,14 +246,14 @@ function TerminalButton({
             nds.map((n) =>
               n.id === terminalNodeId
                 ? {
-                    ...n,
-                    position: expectedPosition,
-                  }
+                  ...n,
+                  position: expectedPosition,
+                }
                 : n
             )
           )
-          parentPositionRef.current = { 
-            x: parentNode.position.x, 
+          parentPositionRef.current = {
+            x: parentNode.position.x,
             y: parentNode.position.y,
             width: parentWidth,
           }
@@ -367,13 +368,13 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const component = getComponent(componentRef)
   const isTextBlock = component?.id === 'core.ui.text'
   const isEntryPoint = component?.id === 'core.workflow.entrypoint'
-  
+
   // Detect dark mode using theme store (reacts to theme changes)
   const theme = useThemeStore((state) => state.theme)
   const isDarkMode = theme === 'dark'
-  
+
   // Get component category (default to 'input' for entry points)
-  const componentCategory: ComponentCategory = (component?.category as ComponentCategory) || 
+  const componentCategory: ComponentCategory = (component?.category as ComponentCategory) ||
     (isEntryPoint ? 'input' : 'input')
 
   // Entry Point Helper Data
@@ -455,18 +456,18 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
       nodes.map((node) =>
         node.id === id
           ? {
-              ...node,
-              data: {
-                ...(node.data as any),
-                ui: {
-                  ...(node.data as any).ui,
-                  size: {
-                    width: clampedWidth,
-                    height: clampedHeight,
-                  },
+            ...node,
+            data: {
+              ...(node.data as any),
+              ui: {
+                ...(node.data as any).ui,
+                size: {
+                  width: clampedWidth,
+                  height: clampedHeight,
                 },
               },
-            }
+            },
+          }
           : node
       )
     )
@@ -715,7 +716,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const getSeparatorColor = (): string | undefined => {
     // Only apply category colors when node is idle
     if ((!isTimelineActive || visualState.status === 'idle') &&
-        (!nodeData.status || nodeData.status === 'idle')) {
+      (!nodeData.status || nodeData.status === 'idle')) {
       return getCategorySeparatorColor(componentCategory, isDarkMode)
     }
     return undefined
@@ -744,11 +745,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         // Enhanced border styling for timeline (non-entry-point nodes only)
         !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
         !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && !isPlaying && 'border-dashed',
-        !isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400 bg-red-50/20 dark:bg-red-950/20',
-        !isEntryPoint && isTimelineActive && effectiveStatus === 'success' && 'border-green-400 bg-green-50/20 dark:bg-green-950/20',
-
-        // Timeline active states (non-entry-point nodes only)
-        !isEntryPoint && isTimelineActive && visualState.status === 'running' && 'bg-blue-50/80 dark:bg-blue-900/30',
+        !isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400',
 
         // Node status states (non-entry-point nodes only)
         !isEntryPoint && nodeData.status && nodeData.status !== 'idle' && [
@@ -779,11 +776,11 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         // Text block and entry point sizing
         ...(isTextBlock
           ? {
-              width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
-              minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
-            }
+            width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
+            minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
+          }
           : isEntryPoint
-            ? { width: 160, minHeight: 160 } 
+            ? { width: 160, minHeight: 160 }
             : {}),
       }}
     >
@@ -802,9 +799,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         />
       )}
       {/* Header */}
-      <div 
+      <div
         className={cn(
-          'px-3 py-2 border-b relative', // Removed overflow-hidden to allow badge to exceed boundary
+          'px-3 py-2 border-b relative',
           // Match parent's rounded corners at the top
           isEntryPoint ? 'rounded-t-[1.5rem]' : 'rounded-t-lg'
         )}
@@ -813,9 +810,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           backgroundColor: headerBackgroundColor || undefined,
         }}
       >
-        {/* Event count badge */}
-        {hasEvents && <EventBadge count={visualState.eventCount} />}
-
         <div className="flex items-start gap-2">
           {component.logo ? (
             <img
@@ -839,7 +833,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
               </div>
               <div className="flex items-center gap-1">
-
                 {/* Edit button for text blocks - explicitly select node for editing */}
                 {isTextBlock && mode === 'design' && (
                   <button
@@ -873,7 +866,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 {hasUnfilledRequired && !nodeData.status && (
                   <span className="text-red-500 text-xs" title="Required fields missing">!</span>
                 )}
-                {StatusIcon && (!isTimelineActive || effectiveStatus !== 'running' || isPlaying) && (
+                {StatusIcon && (!isTimelineActive || effectiveStatus !== 'running' || isPlaying) && effectiveStatus !== 'success' && (
                   <StatusIcon
                     className={cn(
                       'h-4 w-4 flex-shrink-0',
@@ -901,66 +894,63 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 )}
               </div>
             </div>
-
-            {/* Timeline status info */}
-            {isTimelineActive && (
-              <div className="flex items-center gap-2 mt-1">
-                {visualState.status === 'running' && (
-                  <div className="flex items-center gap-1 text-xs text-blue-600">
-                    {playbackMode === 'live' ? (
-                      <>
-                        <Activity className="h-3 w-3 animate-pulse" />
-                        Live
-                      </>
-                    ) : isPlaying ? (
-                      <>
-                        <Activity className="h-3 w-3" />
-                        Running
-                      </>
-                    ) : (
-                      <>
-                        <Pause className="h-3 w-3" />
-                        Paused
-                      </>
-                    )}
-                  </div>
-                )}
-                {visualState.status === 'success' && (
-                  <div className="flex items-center gap-1 text-xs text-green-600">
-                    <CheckCircle className="h-3 w-3" />
-                    Completed
-                  </div>
-                )}
-                {visualState.status === 'error' && (
-                  <div className="flex items-center gap-1 text-xs text-red-600">
-                    <AlertCircle className="h-3 w-3" />
-                    Failed
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
+
+      {/* Status and Events Section - Below header */}
+      {isTimelineActive && (
+        <div className="px-3 py-2 border-b border-border/50 bg-muted/30 space-y-2">
+          {/* Status badges */}
+          {visualState.status === 'running' && (
+            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700">
+              {playbackMode === 'live' ? (
+                <>
+                  <Activity className="h-3 w-3 mr-1 animate-pulse" />
+                  Live
+                </>
+              ) : isPlaying ? (
+                <>
+                  <Activity className="h-3 w-3 mr-1" />
+                  Running
+                </>
+              ) : (
+                <>
+                  <Pause className="h-3 w-3 mr-1" />
+                  Paused
+                </>
+              )}
+            </Badge>
+          )}
+          {visualState.status === 'success' && (
+            <Badge variant="secondary" className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Completed
+            </Badge>
+          )}
+          {visualState.status === 'error' && (
+            <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+              <AlertCircle className="h-3 w-3 mr-1" />
+              Failed
+            </Badge>
+          )}
+          
+          {/* Progress bar and events */}
+          <ProgressBar
+            progress={Number.isFinite(visualState.progress) ? visualState.progress : 0}
+            events={visualState.eventCount}
+            totalEvents={visualState.totalEvents}
+            isRunning={visualState.status === 'running'}
+            status={visualState.status}
+          />
+        </div>
+      )}
 
       {/* Body - Input/Output Ports */}
       <div className={cn(
         "px-3 py-3 pb-4 space-y-2",
         isTextBlock && "flex flex-col flex-1"
       )}>
-        {isTimelineActive && (
-          <>
-            <ProgressBar
-              progress={Number.isFinite(visualState.progress) ? visualState.progress : 0}
-              events={visualState.eventCount}
-              totalEvents={visualState.totalEvents}
-              isRunning={visualState.status === 'running'}
-              status={visualState.status}
-            />
-            <div className="border-t border-border/50 my-1" />
-          </>
-        )}
-
         {isTextBlock && (
           trimmedTextBlockContent.length > 0 ? (
             <MarkdownView
@@ -1017,7 +1007,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                   e.stopPropagation()
                   setShowWebhookDialog(true)
                 }}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300 w-fit"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-border bg-muted/60 hover:bg-muted transition-colors text-[10px] font-medium text-muted-foreground hover:text-foreground w-fit"
               >
                 <LucideIcons.Webhook className="h-3 w-3 flex-shrink-0" />
                 <span>Webhook</span>
@@ -1035,7 +1025,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     navigate(`/schedules?workflowId=${workflowId}`)
                   }
                 }}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300 w-fit"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-border bg-muted/60 hover:bg-muted transition-colors text-[10px] font-medium text-muted-foreground hover:text-foreground w-fit"
               >
                 <LucideIcons.CalendarClock className="h-3 w-3 flex-shrink-0" />
                 <span>Schedules</span>
@@ -1060,7 +1050,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     }, 10)
                   }
                 }}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-green-300 dark:border-green-700/60 bg-green-100/80 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60 transition-colors text-[10px] font-medium text-green-800 dark:text-green-300 w-fit"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-border bg-muted/60 hover:bg-muted transition-colors text-[10px] font-medium text-muted-foreground hover:text-foreground w-fit"
               >
                 <LucideIcons.Settings className="h-3 w-3 flex-shrink-0" />
                 <span>Inputs</span>
@@ -1152,17 +1142,17 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     )}
                     {manualValueProvided && manualDisplay && (
                       <span
-                        className="text-blue-600 text-[10px] italic"
+                        className="text-muted-foreground text-[10px] italic"
                         title={manualDisplay}
                       >
                         Manual: {previewText}
                       </span>
                     )}
                     {manualValueProvided && !manualDisplay && (
-                      <span className="text-blue-600 text-[10px] italic">Manual value</span>
+                      <span className="text-muted-foreground text-[10px] italic">Manual value</span>
                     )}
                     {!manualValueProvided && sourceInfo && (
-                      <span className="text-green-600 text-[10px] italic" title={`Connected to: ${sourceInfo}`}>
+                      <span className="text-muted-foreground text-[10px] italic" title={`Connected to: ${sourceInfo}`}>
                         {sourceInfo}
                       </span>
                     )}
@@ -1269,29 +1259,33 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
             {/* Legacy status messages */}
             {!isTimelineActive && nodeData.status === 'success' && nodeData.executionTime && (
-              <div className="text-xs text-green-600">
-                ✓ Completed in {nodeData.executionTime}ms
-              </div>
+              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
+                {nodeData.executionTime}ms
+              </Badge>
             )}
 
             {!isTimelineActive && nodeData.status === 'error' && nodeData.error && (
-              <div className="text-xs text-red-600 truncate" title={nodeData.error}>
+              <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 truncate max-w-full" title={nodeData.error}>
                 ✗ {nodeData.error}
-              </div>
+              </Badge>
             )}
           </div>
         )}
 
         {/* Legacy status messages (when not in timeline mode) */}
         {!isTimelineActive && nodeData.status === 'success' && nodeData.executionTime && (
-          <div className="text-xs text-green-600 pt-2 border-t border-green-200">
-            ✓ Completed in {nodeData.executionTime}ms
+          <div className="pt-2 border-t border-border">
+            <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              ✓ {nodeData.executionTime}ms
+            </Badge>
           </div>
         )}
 
         {!isTimelineActive && nodeData.status === 'error' && nodeData.error && (
-          <div className="text-xs text-red-600 pt-2 border-t border-red-200 truncate" title={nodeData.error}>
-            ✗ {nodeData.error}
+          <div className="pt-2 border-t border-red-200">
+            <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 truncate max-w-full" title={nodeData.error}>
+              ✗ {nodeData.error}
+            </Badge>
           </div>
         )}
       </div>

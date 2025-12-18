@@ -226,7 +226,7 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
 
   const handleEventToggle = (event: TimelineEvent, hasExpandableContent: boolean) => {
     if (!hasExpandableContent) return
-    
+
     if (event.nodeId) {
       selectNode(event.nodeId)
     }
@@ -270,7 +270,7 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
     const startTime = new Date(start).getTime()
     const endTime = end ? new Date(end).getTime() : Date.now()
     const duration = Math.max(0, endTime - startTime)
-    
+
     if (duration < 1000) {
       return `${duration}ms`
     } else if (duration < 60000) {
@@ -381,13 +381,18 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                     className={cn(
                       'transition-colors relative',
                       preset.li,
+                      // Left edge highlight based on event type (for stacked-rail layout)
                       layoutVariant === 'stacked-rail' && event.type === 'FAILED' && 'border-l-rose-400/80',
                       layoutVariant === 'stacked-rail' && event.type === 'COMPLETED' && 'border-l-emerald-400/80',
                       layoutVariant === 'stacked-rail' && event.type === 'PROGRESS' && 'border-l-sky-400/80',
                       layoutVariant === 'stacked-rail' && event.type === 'STARTED' && 'border-l-violet-300/80',
+                      // Left edge highlight for current/selected events (for all layouts)
+                      layoutVariant !== 'stacked-rail' && (isCurrentReplayEvent || isSelected) && 'border-l-4',
+                      layoutVariant !== 'stacked-rail' && isCurrentReplayEvent && 'border-l-blue-500',
+                      layoutVariant !== 'stacked-rail' && isSelected && !isCurrentReplayEvent && 'border-l-primary',
+                      layoutVariant !== 'stacked-rail' && isRecentLiveEvent && 'border-l-4 border-l-red-500',
+                      // Background highlighting
                       isSelected ? 'bg-muted/60' : 'hover:bg-muted/50',
-                      isCurrentReplayEvent && 'bg-blue-50/80 dark:bg-blue-950/40',
-                      isRecentLiveEvent && 'animate-pulse bg-slate-50 dark:bg-slate-900/40'
                     )}
                   >
                     <div
@@ -660,13 +665,13 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                         </div>
                       </DialogContent>
                     </Dialog>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
       </div>
-    </div>
 
       <MessageModal
         open={fullMessageModal.open}
