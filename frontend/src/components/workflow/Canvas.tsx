@@ -31,7 +31,7 @@ import type { NodeData } from '@/schemas/node'
 import { useToast } from '@/components/ui/use-toast'
 import type { WorkflowSchedule } from '@shipsec/shared'
 import { cn } from '@/lib/utils'
-import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder2/contexts/WorkflowSchedulesContext'
+import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/WorkflowSchedulesContext'
 
 // Context for entry point actions
 interface EntryPointActionsContextValue {

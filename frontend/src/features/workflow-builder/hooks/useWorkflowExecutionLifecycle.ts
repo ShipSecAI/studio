@@ -8,7 +8,7 @@ import { cloneNodes, cloneEdges, type GraphSnapshot } from './useWorkflowGraphCo
 import { useRunStore } from '@/store/runStore'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useExecutionStore } from '@/store/executionStore'
-import { normalizeRunSummary, isRunLive } from '@/features/workflow-builder2/utils/executionRuns'
+import { normalizeRunSummary, isRunLive } from '@/features/workflow-builder/utils/executionRuns'
 
 type ToastFn = (params: {
   title: string

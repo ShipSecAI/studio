@@ -6,7 +6,7 @@ import {
   serializeEdges,
 } from '@/utils/workflowSerializer'
 import { WorkflowImportSchema, DEFAULT_WORKFLOW_VIEWPORT } from '@/schemas/workflow'
-import { cloneNodes, cloneEdges } from '@/features/workflow-builder2/hooks/useWorkflowGraphControllers'
+import { cloneNodes, cloneEdges } from '@/features/workflow-builder/hooks/useWorkflowGraphControllers'
 import type { FrontendNodeData } from '@/schemas/node'
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
 type WorkflowMetadataShape = {

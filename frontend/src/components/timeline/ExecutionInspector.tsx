@@ -3,7 +3,6 @@ import { RunSelector } from '@/components/timeline/RunSelector'
 import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
 import { EventInspector } from '@/components/timeline/EventInspector'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { MessageModal } from '@/components/ui/MessageModal'
 import { StopCircle, Link2, RefreshCw } from 'lucide-react'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
@@ -227,47 +226,6 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
     })
   }
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'TERMINATED') return 'STOPPED'
-    return status.toUpperCase()
-  }
-
-  const statusBadge = selectedRun ? (
-    <Badge
-      variant={
-        selectedRun.status === 'RUNNING'
-          ? 'default'
-          : selectedRun.status === 'FAILED'
-            ? 'outline'
-            : selectedRun.status === 'COMPLETED'
-              ? 'outline'
-              : 'secondary'
-      }
-      className={cn(
-        'text-[11px] font-semibold',
-        selectedRun.status === 'COMPLETED' && 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        selectedRun.status === 'FAILED' && 'bg-red-50 text-red-700 border-red-300',
-      )}
-    >
-      {getStatusLabel(selectedRun.status)}
-    </Badge>
-  ) : null
-  const runVersion = typeof selectedRun?.workflowVersion === 'number' ? selectedRun.workflowVersion : null
-  const versionMismatch =
-    runVersion !== null &&
-    typeof currentWorkflowVersion === 'number' &&
-    runVersion !== currentWorkflowVersion
-  const versionBadge = runVersion !== null ? (
-    <Badge
-      variant={versionMismatch ? 'outline' : 'secondary'}
-      className={cn(
-        'text-[10px] uppercase tracking-wide',
-        versionMismatch && 'border-amber-300 bg-amber-50 text-amber-700'
-      )}
-    >
-      v{runVersion}
-    </Badge>
-  ) : null
 
   return (
     <>

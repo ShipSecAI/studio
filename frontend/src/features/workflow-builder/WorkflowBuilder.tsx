@@ -16,19 +16,19 @@ import {
   cloneEdges,
   ENTRY_COMPONENT_ID,
   ENTRY_COMPONENT_SLUG,
-} from '@/features/workflow-builder2/hooks/useWorkflowGraphControllers'
-import { WorkflowDesignerPane } from '@/features/workflow-builder2/components/WorkflowDesignerPane'
-import { WorkflowExecutionPane } from '@/features/workflow-builder2/components/WorkflowExecutionPane'
-import { useWorkflowImportExport } from '@/features/workflow-builder2/hooks/useWorkflowImportExport'
-import { useDesignWorkflowPersistence } from '@/features/workflow-builder2/hooks/useDesignWorkflowPersistence'
-import { useWorkflowRunner } from '@/features/workflow-builder2/hooks/useWorkflowRunner'
+} from '@/features/workflow-builder/hooks/useWorkflowGraphControllers'
+import { WorkflowDesignerPane } from '@/features/workflow-builder/components/WorkflowDesignerPane'
+import { WorkflowExecutionPane } from '@/features/workflow-builder/components/WorkflowExecutionPane'
+import { useWorkflowImportExport } from '@/features/workflow-builder/hooks/useWorkflowImportExport'
+import { useDesignWorkflowPersistence } from '@/features/workflow-builder/hooks/useDesignWorkflowPersistence'
+import { useWorkflowRunner } from '@/features/workflow-builder/hooks/useWorkflowRunner'
 import { useToast } from '@/components/ui/use-toast'
 import { useExecutionStore } from '@/store/executionStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useComponentStore } from '@/store/componentStore'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
-import { useWorkflowExecutionLifecycle } from '@/features/workflow-builder2/hooks/useWorkflowExecutionLifecycle'
+import { useWorkflowExecutionLifecycle } from '@/features/workflow-builder/hooks/useWorkflowExecutionLifecycle'
 import { api, API_BASE_URL } from '@/services/api'
 import {
   deserializeNodes,

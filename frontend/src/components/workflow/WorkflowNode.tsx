@@ -542,7 +542,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Enhanced styling for timeline visualization
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
-  const hasEvents = isTimelineActive && visualState.eventCount > 0
   const textBlockContent = typeof nodeData.parameters?.content === 'string'
     ? nodeData.parameters.content
     : ''
@@ -706,11 +705,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   }
 
   // Event count badge
-  const EventBadge = ({ count }: { count: number }) => (
-    <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-medium shadow-lg">
-      {count > 99 ? '99+' : count}
-    </div>
-  )
 
   // Get category-based separator color (only for the header separator)
   const getSeparatorColor = (): string | undefined => {
