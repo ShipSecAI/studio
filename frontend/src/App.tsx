@@ -43,6 +43,14 @@ function App() {
                     }
                   />
                   <Route
+                    path="/workflows/:id/runs"
+                    element={
+                      <ProtectedRoute>
+                        <WorkflowBuilder />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/workflows/:id/runs/:runId"
                     element={
                       <ProtectedRoute>

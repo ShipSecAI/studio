@@ -46,9 +46,16 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
     {
       name: 'workflow-ui-preferences',
       partialize: (state) => ({
-        mode: state.mode,
+        // Note: 'mode' is intentionally NOT persisted - workflows should always open in design mode
         libraryOpen: state.libraryOpen,
         inspectorWidth: state.inspectorWidth,
+      }),
+      // Merge function to ensure mode is never restored from localStorage
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...(persistedState as Partial<WorkflowUiState>),
+        // Always use default mode, never restore from localStorage
+        mode: 'design' as WorkflowMode,
       }),
     }
   )

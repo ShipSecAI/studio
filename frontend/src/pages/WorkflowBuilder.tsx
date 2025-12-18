@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Plus, Loader2, Pencil, Play, Pause, Zap, ExternalLink, Trash2, X } from 'lucide-react'
 import {
@@ -193,7 +193,10 @@ const scheduleStatusVariant: Record<
 function WorkflowBuilderContent() {
   const { id, runId: routeRunId } = useParams<{ id: string; runId?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const isNewWorkflow = id === 'new'
+  // Detect if we're on a /runs URL (execution mode without specific run)
+  const isRunsRoute = location.pathname.includes('/runs') && !routeRunId
   const {
     metadata,
     isDirty,
@@ -619,27 +622,34 @@ function WorkflowBuilderContent() {
         edges: cloneEdges(designEdgesRef.current),
       }
 
-      // If we have preserved execution state, restore it (user had rearranged nodes)
-      if (preservedExecutionStateRef.current) {
-        setExecutionNodes(cloneNodes(preservedExecutionStateRef.current.nodes))
-        setExecutionEdges(cloneEdges(preservedExecutionStateRef.current.edges))
-        preservedExecutionStateRef.current = null
-      }
-      // Otherwise, let the run loading useEffect handle loading the correct state
+      // Reset run tracking refs to force the run loading effect to reload
+      // This ensures we always load the correct version for the selected run
+      // Don't restore preservedExecutionStateRef here - it may be stale (from different run/version)
+      prevRunIdRef.current = null
+      prevVersionIdRef.current = null
+      setHistoricalVersionId(null)
+      preservedExecutionStateRef.current = null
+      // The run loading useEffect will handle loading the correct state
     } else if (mode === 'design') {
-      // Switching to design mode: preserve current execution state
+      // Switching to design mode: preserve current execution state for potential restoration
+      // Note: This is only used if user switches back to execution without changing the run
       preservedExecutionStateRef.current = {
         nodes: cloneNodes(executionNodesRef.current),
         edges: cloneEdges(executionEdgesRef.current),
       }
 
-      // Restore preserved design state if it exists
-      if (preservedDesignStateRef.current) {
+      // Restore design state from preserved state or saved snapshot
+      // Check if preservedDesignStateRef has actual nodes (not empty from early mode switch)
+      if (preservedDesignStateRef.current && preservedDesignStateRef.current.nodes.length > 0) {
         setDesignNodes(cloneNodes(preservedDesignStateRef.current.nodes))
         setDesignEdges(cloneEdges(preservedDesignStateRef.current.edges))
         preservedDesignStateRef.current = null
+      } else if (designSavedSnapshotRef.current && designSavedSnapshotRef.current.nodes.length > 0) {
+        // Fall back to saved snapshot (the loaded workflow state)
+        setDesignNodes(cloneNodes(designSavedSnapshotRef.current.nodes))
+        setDesignEdges(cloneEdges(designSavedSnapshotRef.current.edges))
       }
-      // Otherwise, design state should already be loaded from saved snapshot
+      // If both are empty, design state should already be populated by workflow loading
     }
   }, [mode, setDesignNodes, setDesignEdges, setExecutionNodes, setExecutionEdges])
   const workflowRuns = useMemo(() => runs, [runs])
@@ -647,12 +657,44 @@ function WorkflowBuilderContent() {
     () => (workflowRuns.length > 0 ? workflowRuns[0].id : null),
     [workflowRuns],
   )
-  // Ensure "New workflow" always opens in design mode
+  // Set initial mode based on URL
   useEffect(() => {
     if (isNewWorkflow) {
+      // New workflows always open in design mode
       setMode('design')
+    } else if (isRunsRoute || routeRunId) {
+      // If on /runs or /runs/:runId URL, set mode to execution
+      setMode('execution')
     }
-  }, [isNewWorkflow, setMode])
+  }, [isNewWorkflow, isRunsRoute, routeRunId, setMode])
+
+  // Sync URL with mode and selected run
+  useEffect(() => {
+    // Don't update URL for new workflows
+    if (!metadata.id || isNewWorkflow) {
+      return
+    }
+
+    const currentPath = window.location.pathname
+    let targetPath: string
+
+    if (mode === 'design') {
+      // Design mode: /workflows/{id}
+      targetPath = `/workflows/${metadata.id}`
+    } else {
+      // Execution mode: /workflows/{id}/runs/{runId} or /workflows/{id}/runs
+      if (selectedRunId) {
+        targetPath = `/workflows/${metadata.id}/runs/${selectedRunId}`
+      } else {
+        targetPath = `/workflows/${metadata.id}/runs`
+      }
+    }
+
+    // Only update if the path is different (avoid unnecessary navigation)
+    if (currentPath !== targetPath) {
+      navigate(targetPath, { replace: true })
+    }
+  }, [mode, metadata.id, selectedRunId, isNewWorkflow, navigate])
 
   useEffect(() => {
     if (!metadata.id) {
@@ -713,6 +755,8 @@ function WorkflowBuilderContent() {
 
       try {
         await selectRun(routeRunId, isRunLive(targetRun) ? 'live' : 'replay')
+        // Set mode to execution when landing on a run URL
+        setMode('execution')
         if (isRunLive(targetRun)) {
           useExecutionStore.getState().monitorRun(routeRunId, targetRun.workflowId)
         }
@@ -739,38 +783,11 @@ function WorkflowBuilderContent() {
       return
     }
 
-    let run = workflowRuns.find((candidate) => candidate.id === selectedRunId)
+    // Priority: selectedRunId > mostRecentRunId
+    const targetRunId = selectedRunId ?? mostRecentRunId
 
-    // If no run selected, try to use most recent run
-    if (!run && mostRecentRunId) {
-      run = workflowRuns.find((candidate) => candidate.id === mostRecentRunId)
-    }
-
-    const versionId = run?.workflowVersionId ?? null
-    const currentRunId = run?.id ?? null
-
-    // Only reload nodes if the run ID or version ID actually changed
-    // This prevents unnecessary reloads when workflowRuns array reference changes due to polling
-    const runIdChanged = currentRunId !== prevRunIdRef.current
-    const versionIdChanged = versionId !== prevVersionIdRef.current
-
-    // If run ID changed, clear preserved execution state (user switched to a different run)
-    if (runIdChanged && prevRunIdRef.current !== null) {
-      preservedExecutionStateRef.current = null
-      setExecutionDirty(false)
-    }
-
-    // If neither run ID nor version ID changed, skip reloading (prevents resetting viewport during polling)
-    if (!runIdChanged && !versionIdChanged && prevRunIdRef.current !== null) {
-      return
-    }
-
-    // Update refs to track current state
-    prevRunIdRef.current = currentRunId
-    prevVersionIdRef.current = versionId
-
-    // If no run found, or run uses current version, use saved design state as execution state
-    if (!run || !versionId || versionId === metadata.currentVersionId) {
+    // If no run ID at all, use current design state
+    if (!targetRunId) {
       // Clear preserved execution state since we're loading a fresh state
       preservedExecutionStateRef.current = null
       setExecutionDirty(false)
@@ -779,8 +796,7 @@ function WorkflowBuilderContent() {
       if (designSavedSnapshotRef.current) {
         const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes)
         const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges)
-        // Preserve terminal nodes when updating execution nodes
-        const terminalNodes = executionNodes.filter((n) => n.type === 'terminal')
+        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal')
         setExecutionNodes([...savedNodes, ...terminalNodes])
         setExecutionEdges(savedEdges)
         executionLoadedSnapshotRef.current = {
@@ -788,62 +804,167 @@ function WorkflowBuilderContent() {
           edges: cloneEdges(savedEdges),
         }
       } else {
-        // Fallback to current design state if no saved snapshot (shouldn't happen for saved workflows)
-        const designNodes = cloneNodes(designNodesRef.current)
-        const designEdges = cloneEdges(designEdgesRef.current)
-        // Preserve terminal nodes when updating execution nodes
-        const terminalNodes = executionNodes.filter((n) => n.type === 'terminal')
-        setExecutionNodes([...designNodes, ...terminalNodes])
-        setExecutionEdges(designEdges)
+        const designNodesCopy = cloneNodes(designNodesRef.current)
+        const designEdgesCopy = cloneEdges(designEdgesRef.current)
+        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal')
+        setExecutionNodes([...designNodesCopy, ...terminalNodes])
+        setExecutionEdges(designEdgesCopy)
         executionLoadedSnapshotRef.current = {
-          nodes: cloneNodes(designNodes),
-          edges: cloneEdges(designEdges),
+          nodes: cloneNodes(designNodesCopy),
+          edges: cloneEdges(designEdgesCopy),
         }
       }
 
       if (historicalVersionId) {
         setHistoricalVersionId(null)
       }
+      prevRunIdRef.current = null
+      prevVersionIdRef.current = null
       return
     }
 
-    // If we already loaded this version, skip (preserved execution state will be restored by mode switch handler)
-    if (versionId === historicalVersionId) {
+    // Try to find run in store first (uses getRunById which searches all caches)
+    let run = getRunById(targetRunId)
+
+    // Also check workflowRuns array as fallback
+    if (!run) {
+      run = workflowRuns.find((candidate) => candidate.id === targetRunId)
+    }
+
+    const versionId = run?.workflowVersionId ?? null
+    const currentRunId = run?.id ?? null
+
+    // Check if we need to reload based on run ID or version ID change
+    const runIdChanged = currentRunId !== prevRunIdRef.current
+    const versionIdChanged = versionId !== prevVersionIdRef.current
+
+    console.log('[VersionLoad] Check - runId:', currentRunId, 'versionId:', versionId, 'prevRunId:', prevRunIdRef.current, 'prevVersionId:', prevVersionIdRef.current, 'runIdChanged:', runIdChanged, 'versionIdChanged:', versionIdChanged)
+
+    // If neither changed and we've loaded before, skip
+    if (!runIdChanged && !versionIdChanged && prevRunIdRef.current !== null) {
+      console.log('[VersionLoad] Skipping - no changes detected')
       return
     }
 
-    // Clear preserved execution state when loading a new run version
-    preservedExecutionStateRef.current = null
-    setExecutionDirty(false)
+    // Update refs to track current state
+    prevRunIdRef.current = currentRunId
+    prevVersionIdRef.current = versionId
+
+    // If run ID changed, clear preserved execution state
+    if (runIdChanged) {
+      preservedExecutionStateRef.current = null
+      setExecutionDirty(false)
+    }
 
     let cancelled = false
 
-    const loadExecutionVersion = async () => {
+    const loadVersionForRun = async () => {
+      // If run not found in store, fetch it from API
+      let runToUse = run
+      if (!runToUse && targetRunId) {
+        console.log('[VersionLoad] Run not in store, fetching from API...')
+        try {
+          const runDetails = await api.executions.getRun(targetRunId)
+          if (cancelled) return
+          runToUse = normalizeRunSummary(runDetails)
+          console.log('[VersionLoad] Fetched run from API:', runToUse.id, 'versionId:', runToUse.workflowVersionId)
+          upsertRun(runToUse)
+        } catch (error) {
+          if (cancelled) return
+          console.error('[VersionLoad] Failed to fetch run details:', error)
+          // Fall back to design state if we can't fetch the run
+          if (designSavedSnapshotRef.current) {
+            const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes)
+            const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges)
+            const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal')
+            setExecutionNodes([...savedNodes, ...terminalNodes])
+            setExecutionEdges(savedEdges)
+            executionLoadedSnapshotRef.current = {
+              nodes: cloneNodes(savedNodes),
+              edges: cloneEdges(savedEdges),
+            }
+          }
+          return
+        }
+      }
+
+      if (cancelled || !runToUse) return
+
+      const actualVersionId = runToUse.workflowVersionId
+
+      console.log('[VersionLoad] Using run:', runToUse.id, 'actualVersionId:', actualVersionId, 'currentVersionId:', metadata.currentVersionId, 'historicalVersionId:', historicalVersionId)
+
+      // If run uses current version or no version ID, use design state
+      if (!actualVersionId || actualVersionId === metadata.currentVersionId) {
+        console.log('[VersionLoad] Using design state - versionId matches current or is null')
+        preservedExecutionStateRef.current = null
+        setExecutionDirty(false)
+
+        if (designSavedSnapshotRef.current) {
+          const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes)
+          const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges)
+          const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal')
+          setExecutionNodes([...savedNodes, ...terminalNodes])
+          setExecutionEdges(savedEdges)
+          executionLoadedSnapshotRef.current = {
+            nodes: cloneNodes(savedNodes),
+            edges: cloneEdges(savedEdges),
+          }
+        } else {
+          const designNodesCopy = cloneNodes(designNodesRef.current)
+          const designEdgesCopy = cloneEdges(designEdgesRef.current)
+          const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal')
+          setExecutionNodes([...designNodesCopy, ...terminalNodes])
+          setExecutionEdges(designEdgesCopy)
+          executionLoadedSnapshotRef.current = {
+            nodes: cloneNodes(designNodesCopy),
+            edges: cloneEdges(designEdgesCopy),
+          }
+        }
+
+        if (historicalVersionId) {
+          setHistoricalVersionId(null)
+        }
+        return
+      }
+
+      // If we already loaded this version, skip
+      if (actualVersionId === historicalVersionId) {
+        console.log('[VersionLoad] Skipping - already loaded this version:', historicalVersionId)
+        return
+      }
+
+      console.log('[VersionLoad] Loading historical version from API:', actualVersionId)
+      // Clear preserved execution state when loading a new run version
+      preservedExecutionStateRef.current = null
+      setExecutionDirty(false)
+
+      // Load historical version from API
       try {
-        const workflowIdForRun = run.workflowId ?? metadata.id
+        const workflowIdForRun = runToUse.workflowId ?? metadata.id
         if (!workflowIdForRun) {
           return
         }
 
-        const version = await api.workflows.getVersion(workflowIdForRun, versionId)
+        const version = await api.workflows.getVersion(workflowIdForRun, actualVersionId)
         if (cancelled) return
 
         const versionNodes = deserializeNodes(version)
         const versionEdges = deserializeEdges(version)
 
-        // Load into execution state and set loaded snapshot
-        // Preserve terminal nodes when updating execution nodes
-        const terminalNodes = executionNodes.filter((n) => n.type === 'terminal')
+        console.log('[VersionLoad] Loaded version nodes:', versionNodes.map(n => n.id))
+        const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal')
         setExecutionNodes([...versionNodes, ...terminalNodes])
         setExecutionEdges(versionEdges)
         executionLoadedSnapshotRef.current = {
           nodes: cloneNodes(versionNodes),
           edges: cloneEdges(versionEdges),
         }
-        setHistoricalVersionId(versionId)
+        setHistoricalVersionId(actualVersionId)
+        console.log('[VersionLoad] Successfully loaded historical version')
       } catch (error) {
         if (cancelled) return
-        console.error('Failed to load workflow version:', error)
+        console.error('[VersionLoad] Failed to load workflow version:', error)
         toast({
           variant: 'destructive',
           title: 'Failed to load workflow version',
@@ -852,7 +973,7 @@ function WorkflowBuilderContent() {
       }
     }
 
-    loadExecutionVersion()
+    loadVersionForRun()
 
     return () => {
       cancelled = true
@@ -861,13 +982,15 @@ function WorkflowBuilderContent() {
     mode,
     metadata.id,
     metadata.currentVersionId,
-    workflowRuns, // Keep workflowRuns to detect when run data is available, but we check for actual changes inside
+    workflowRuns, // Keep workflowRuns to detect when run data is available
     selectedRunId,
-    mostRecentRunId, // Track mostRecentRunId to detect when it changes
+    mostRecentRunId,
     historicalVersionId,
-    executionNodes, // Need executionNodes to preserve terminal nodes
+    // Note: Using executionNodesRef.current instead of executionNodes to prevent re-renders
     setExecutionNodes,
     setExecutionEdges,
+    getRunById,
+    upsertRun,
     toast,
   ])
 
