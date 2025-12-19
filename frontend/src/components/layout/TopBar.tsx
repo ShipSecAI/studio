@@ -165,11 +165,11 @@ export function TopBar({
   }, [metadata.name])
 
   const modeToggle = (
-    <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm">
+    <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm flex-shrink-0">
       <Button
         variant={mode === 'design' ? 'default' : 'ghost'}
         size="sm"
-        className="h-9 px-3 gap-2 rounded-none"
+        className="h-9 w-[110px] px-3 gap-2 rounded-none justify-center"
         onClick={() => {
           if (!canEdit || !workflowId) return
           // Navigate to design URL - this triggers mode update via useLayoutEffect
@@ -178,7 +178,7 @@ export function TopBar({
         disabled={!canEdit}
         aria-pressed={mode === 'design'}
       >
-        <PencilLine className="h-4 w-4" />
+        <PencilLine className="h-4 w-4 flex-shrink-0" />
         <span className="flex flex-col leading-tight text-left">
           <span className="text-xs font-semibold hidden md:inline">Design</span>
           <span
@@ -194,7 +194,7 @@ export function TopBar({
       <Button
         variant={mode === 'execution' ? 'default' : 'ghost'}
         size="sm"
-        className="h-9 px-3 gap-2 rounded-none border-l border-border/50"
+        className="h-9 w-[130px] px-3 gap-2 rounded-none border-l border-border/50 justify-center"
         onClick={() => {
           if (!workflowId) return
           // Navigate to execution URL - this triggers mode update via useLayoutEffect
@@ -206,7 +206,7 @@ export function TopBar({
         }}
         aria-pressed={mode === 'execution'}
       >
-        <MonitorPlay className="h-4 w-4" />
+        <MonitorPlay className="h-4 w-4 flex-shrink-0" />
         <span className="flex flex-col leading-tight text-left">
           <span className="text-xs font-semibold hidden md:inline">Execution</span>
           <span

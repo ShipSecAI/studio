@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useComponentStore } from '@/store/componentStore'
 import { getNodeValidationWarnings } from '@/utils/connectionValidation'
@@ -19,6 +19,8 @@ interface ValidationDockProps {
   onNodeClick: (nodeId: string) => void
 }
 
+const COLLAPSE_THRESHOLD = 3 // Collapse when more than 3 issues
+
 export function ValidationDock({
   nodes,
   edges,
@@ -26,6 +28,7 @@ export function ValidationDock({
   onNodeClick,
 }: ValidationDockProps) {
   const { getComponent } = useComponentStore()
+  const [isExpanded, setIsExpanded] = useState(false)
 
   // Only show validation in design mode
   const isDesignMode = mode === 'design'
@@ -60,6 +63,7 @@ export function ValidationDock({
 
   const totalIssues = validationIssues.length
   const hasIssues = totalIssues > 0
+  const shouldCollapse = totalIssues > COLLAPSE_THRESHOLD
 
   // Don't show dock if not in design mode
   if (!isDesignMode) {
@@ -82,13 +86,38 @@ export function ValidationDock({
     >
       {hasIssues ? (
         <>
-          <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-border/50">
-            <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
-            <span className="text-[11px] font-medium">
-              {totalIssues} {totalIssues === 1 ? 'issue' : 'issues'}
-            </span>
-          </div>
-          <div className="divide-y divide-border/50">
+          <button
+            type="button"
+            onClick={() => shouldCollapse && setIsExpanded(!isExpanded)}
+            className={cn(
+              'w-full flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-border/50',
+              shouldCollapse && 'cursor-pointer hover:bg-muted/50 transition-colors'
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
+              <span className="text-[11px] font-medium">
+                {totalIssues} {totalIssues === 1 ? 'issue' : 'issues'}
+              </span>
+            </div>
+            {shouldCollapse && (
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <span className="text-[10px]">{isExpanded ? 'Collapse' : 'Expand'}</span>
+                {isExpanded ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronUp className="h-3 w-3" />
+                )}
+              </div>
+            )}
+          </button>
+          <div
+            className={cn(
+              'divide-y divide-border/50 overflow-hidden transition-all duration-200',
+              shouldCollapse && !isExpanded && 'max-h-0',
+              (!shouldCollapse || isExpanded) && 'max-h-[300px] overflow-y-auto'
+            )}
+          >
             {validationIssues.map((issue, index) => (
               <button
                 key={`${issue.nodeId}-${index}`}

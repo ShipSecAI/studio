@@ -151,9 +151,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarContext.Provider value={sidebarContextValue}>
       <ThemeTransition />
       <div className="flex h-screen bg-background">
-        {/* Sidebar */}
+        {/* Sidebar - z-[100] ensures it's above all other elements including workflow buttons */}
         <Sidebar
-          className={`fixed md:relative z-40 h-full transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0 md:w-16'
+          className={`fixed md:relative z-[100] h-full transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0 md:w-16'
             }`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
