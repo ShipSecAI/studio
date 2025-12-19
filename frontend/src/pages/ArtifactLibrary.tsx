@@ -62,27 +62,27 @@ export function ArtifactLibrary() {
 
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto py-8 px-4">
-        <div className="mb-8">
-          <p className="text-muted-foreground">
+      <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
+        <div className="mb-4 md:mb-8">
+          <p className="text-sm md:text-base text-muted-foreground">
             Browse artifacts saved across workflow runs and reuse them in new automations.
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4 md:mb-6">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <form onSubmit={handleSearch} className="flex items-center gap-2">
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search artifacts..."
-                  className="pl-8"
+                  className="pl-8 w-full sm:w-auto"
                   autoComplete="off"
                 />
               </div>
-              <Button type="submit" variant="secondary" disabled={libraryLoading}>
+              <Button type="submit" variant="secondary" disabled={libraryLoading} className="flex-shrink-0">
                 Search
               </Button>
             </form>
@@ -94,12 +94,12 @@ export function ArtifactLibrary() {
               disabled={libraryLoading}
             >
               <RefreshCw className="h-4 w-4" />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
         </div>
 
-        <div className="overflow-auto">
+        <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
           {libraryLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Loading artifacts…
@@ -119,15 +119,15 @@ export function ArtifactLibrary() {
             </p>
           </div>
         ) : (
-          <table className="w-full border-separate border-spacing-0 text-sm">
+          <table className="w-full border-separate border-spacing-0 text-sm min-w-[600px]">
             <thead className="sticky top-0 bg-background shadow-sm">
               <tr className="text-left text-xs uppercase text-muted-foreground">
-                <th className="px-6 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Run</th>
-                <th className="px-4 py-3 font-medium">Component</th>
-                <th className="px-4 py-3 font-medium">Size</th>
-                <th className="px-4 py-3 font-medium">Created</th>
-                <th className="px-4 py-3 font-medium sr-only">Actions</th>
+                <th className="px-3 md:px-6 py-3 font-medium min-w-[150px]">Name</th>
+                <th className="px-3 md:px-4 py-3 font-medium min-w-[100px] hidden sm:table-cell">Run</th>
+                <th className="px-3 md:px-4 py-3 font-medium min-w-[100px] hidden md:table-cell">Component</th>
+                <th className="px-3 md:px-4 py-3 font-medium min-w-[60px]">Size</th>
+                <th className="px-3 md:px-4 py-3 font-medium min-w-[100px] hidden lg:table-cell">Created</th>
+                <th className="px-3 md:px-4 py-3 font-medium min-w-[120px] text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -183,11 +183,11 @@ function ArtifactLibraryRow({
 
   return (
     <tr className="border-b last:border-none">
-      <td className="px-6 py-4 align-top">
-        <div className="font-medium">{artifact.name}</div>
-        <div className="text-xs text-muted-foreground font-mono">{artifact.id}</div>
+      <td className="px-3 md:px-6 py-3 md:py-4 align-top">
+        <div className="font-medium truncate max-w-[150px] md:max-w-none">{artifact.name}</div>
+        <div className="text-[10px] md:text-xs text-muted-foreground font-mono truncate max-w-[150px] md:max-w-none">{artifact.id}</div>
         {remoteUploads.length > 0 && (
-          <div className="mt-2 space-y-1">
+          <div className="mt-2 space-y-1 hidden md:block">
             {remoteUploads.map((remote) => (
               <div
                 key={`${artifact.id}-${remote.uri}`}
@@ -196,7 +196,7 @@ function ArtifactLibraryRow({
                 <Badge variant="outline" className="text-[10px] uppercase">
                   {remote.type}
                 </Badge>
-                <code className="max-w-[240px] truncate font-mono text-[11px]">
+                <code className="max-w-[180px] lg:max-w-[240px] truncate font-mono text-[11px]">
                   {remote.uri}
                 </code>
                 <Button
@@ -207,7 +207,7 @@ function ArtifactLibraryRow({
                   onClick={() => onCopyRemoteUri(remote.uri)}
                 >
                   <Copy className="h-3 w-3" />
-                  {copiedRemoteUri === remote.uri ? 'Copied' : 'Copy URI'}
+                  <span className="hidden lg:inline">{copiedRemoteUri === remote.uri ? 'Copied' : 'Copy URI'}</span>
                 </Button>
                 {remote.url ? (
                   <a
@@ -217,7 +217,7 @@ function ArtifactLibraryRow({
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                   >
                     <ExternalLink className="h-3 w-3" />
-                    Open
+                    <span className="hidden lg:inline">Open</span>
                   </a>
                 ) : null}
               </div>
@@ -225,32 +225,32 @@ function ArtifactLibraryRow({
           </div>
         )}
       </td>
-      <td className="px-4 py-4 align-top text-sm text-muted-foreground font-mono">
-        {artifact.runId}
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground font-mono hidden sm:table-cell">
+        <span className="truncate max-w-[80px] md:max-w-none block">{artifact.runId}</span>
       </td>
-      <td className="px-4 py-4 align-top text-sm text-muted-foreground">
-        {artifact.componentRef}
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground hidden md:table-cell">
+        <span className="truncate max-w-[100px] block">{artifact.componentRef}</span>
       </td>
-      <td className="px-4 py-4 align-top text-sm">{formatBytes(artifact.size)}</td>
-      <td className="px-4 py-4 align-top text-sm text-muted-foreground">
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm">{formatBytes(artifact.size)}</td>
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground hidden lg:table-cell">
         {formatTimestamp(artifact.createdAt)}
       </td>
-      <td className="px-4 py-4 align-top text-right">
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="ghost" size="sm" className="gap-2" onClick={onCopy}>
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-right">
+        <div className="flex flex-wrap justify-end gap-1 md:gap-2">
+          <Button type="button" variant="ghost" size="sm" className="gap-1 md:gap-2 h-8 px-2 md:px-3" onClick={onCopy}>
             <Copy className="h-4 w-4" />
-            {copied ? 'Copied' : 'Copy ID'}
+            <span className="hidden md:inline">{copied ? 'Copied' : 'Copy ID'}</span>
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="gap-2"
+            className="gap-1 md:gap-2 h-8 px-2 md:px-3"
             onClick={onDownload}
             disabled={isDownloading}
           >
             <Download className="h-4 w-4" />
-            {isDownloading ? 'Downloading…' : 'Download'}
+            <span className="hidden md:inline">{isDownloading ? 'Downloading…' : 'Download'}</span>
           </Button>
         </div>
       </td>

@@ -309,7 +309,7 @@ export function SchedulesPage() {
   return (
     <TooltipProvider>
       <div className="flex-1 bg-background">
-        <div className="container mx-auto px-4 py-8 space-y-6">
+        <div className="container mx-auto px-3 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="flex-1 space-y-2">
               <label className="text-xs uppercase text-muted-foreground flex items-center gap-2">
@@ -330,7 +330,7 @@ export function SchedulesPage() {
                 disabled={isLoading}
               >
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Button
                 variant="default"
@@ -338,7 +338,7 @@ export function SchedulesPage() {
                 onClick={openCreateDrawer}
               >
                 <Plus className="h-4 w-4" />
-                New schedule
+                <span className="hidden sm:inline">New schedule</span>
               </Button>
             </div>
           </div>
@@ -391,16 +391,17 @@ export function SchedulesPage() {
           </div>
 
           <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Workflow</TableHead>
-                  <TableHead>Cadence</TableHead>
-                  <TableHead>Next run</TableHead>
-                  <TableHead>Last run</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="min-w-[120px]">Name</TableHead>
+                  <TableHead className="min-w-[120px] hidden md:table-cell">Workflow</TableHead>
+                  <TableHead className="min-w-[100px] hidden lg:table-cell">Cadence</TableHead>
+                  <TableHead className="min-w-[100px] hidden sm:table-cell">Next run</TableHead>
+                  <TableHead className="min-w-[100px] hidden lg:table-cell">Last run</TableHead>
+                  <TableHead className="min-w-[80px]">Status</TableHead>
+                  <TableHead className="text-right min-w-[150px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -431,61 +432,61 @@ export function SchedulesPage() {
                         <TableRow key={schedule.id}>
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
-                              <span>{schedule.name}</span>
+                              <span className="truncate max-w-[120px] md:max-w-none">{schedule.name}</span>
                               {schedule.description && (
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-xs text-muted-foreground truncate max-w-[120px] md:max-w-none">
                                   {schedule.description}
                                 </span>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden md:table-cell">
                             <div className="flex flex-col">
-                              <span className="font-medium">{workflowName}</span>
-                              <span className="text-xs text-muted-foreground">
+                              <span className="font-medium truncate max-w-[120px]">{workflowName}</span>
+                              <span className="text-xs text-muted-foreground truncate max-w-[120px]">
                                 {schedule.workflowId}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden lg:table-cell">
                             <div className="flex flex-col">
-                              <span>{cadenceLabel}</span>
+                              <span className="text-sm">{cadenceLabel}</span>
                               <span className="text-xs text-muted-foreground">
                                 {schedule.timezone}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell>{formatDateTime(schedule.nextRunAt)}</TableCell>
-                          <TableCell>{formatDateTime(schedule.lastRunAt)}</TableCell>
+                          <TableCell className="text-sm hidden sm:table-cell">{formatDateTime(schedule.nextRunAt)}</TableCell>
+                          <TableCell className="text-sm hidden lg:table-cell">{formatDateTime(schedule.lastRunAt)}</TableCell>
                           <TableCell>{renderStatusBadge(schedule.status)}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1 md:gap-2">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="gap-1"
+                                className="gap-1 h-8 px-2 md:px-3"
                                 onClick={() => handleRunNow(schedule)}
                                 disabled={isActionBusy(schedule.id)}
                               >
                                 <PlayCircle className="h-4 w-4" />
-                                Run now
+                                <span className="hidden md:inline">Run</span>
                               </Button>
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                className="gap-1"
+                                className="gap-1 h-8 px-2 md:px-3"
                                 onClick={() => handlePauseResume(schedule)}
                                 disabled={isActionBusy(schedule.id)}
                               >
                                 {isPaused ? (
                                   <>
                                     <PlayCircle className="h-4 w-4" />
-                                    Resume
+                                    <span className="hidden md:inline">Resume</span>
                                   </>
                                 ) : (
                                   <>
                                     <PauseCircle className="h-4 w-4" />
-                                    Pause
+                                    <span className="hidden md:inline">Pause</span>
                                   </>
                                 )}
                               </Button>
@@ -496,6 +497,7 @@ export function SchedulesPage() {
                                     size="icon"
                                     aria-label="Edit schedule"
                                     onClick={() => handleEdit(schedule)}
+                                    className="h-8 w-8"
                                   >
                                     <Edit3 className="h-4 w-4" />
                                   </Button>
@@ -512,6 +514,7 @@ export function SchedulesPage() {
                                     aria-label="Delete schedule"
                                     onClick={() => handleDelete(schedule)}
                                     disabled={isActionBusy(schedule.id)}
+                                    className="h-8 w-8"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
@@ -540,6 +543,7 @@ export function SchedulesPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </div>
         </div>
       </div>

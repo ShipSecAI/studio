@@ -331,30 +331,30 @@ export function SecretsManager() {
 
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto py-8 px-4">
+      <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
         {isReadOnly && (
-          <div className="mb-6 rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <div className="mb-4 md:mb-6 rounded-md border border-border/60 bg-muted/30 px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm text-muted-foreground">
             You have read-only access. Viewing secrets metadata is allowed, but only administrators
             can create, rotate, or delete secrets.
           </div>
         )}
 
-        <div className="mb-8">
-          <p className="text-muted-foreground">
+        <div className="mb-4 md:mb-8">
+          <p className="text-sm md:text-base text-muted-foreground">
             Store API keys, credentials, and tokens for use in workflows and security components.
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[2fr,3fr]">
-          <div className="border rounded-lg bg-card p-6 space-y-4">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-[2fr,3fr]">
+          <div className="border rounded-lg bg-card p-4 md:p-6 space-y-4">
             <div>
-              <h2 className="text-xl font-semibold mb-1">Add a new secret</h2>
-              <p className="text-sm text-muted-foreground">
+              <h2 className="text-lg md:text-xl font-semibold mb-1">Add a new secret</h2>
+              <p className="text-xs md:text-sm text-muted-foreground">
                 Secret values are encrypted at rest. The plaintext you provide here is only used during creation.
               </p>
             </div>
 
-            <form className="space-y-4" onSubmit={handleSubmit}>
+            <form className="space-y-3 md:space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <label htmlFor="secret-name" className="text-sm font-medium">
                   Secret name
@@ -425,11 +425,11 @@ export function SecretsManager() {
             </form>
           </div>
 
-          <div className="border rounded-lg bg-card p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="border rounded-lg bg-card p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="text-xl font-semibold">Stored secrets</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 className="text-lg md:text-xl font-semibold">Stored secrets</h2>
+                <p className="text-xs md:text-sm text-muted-foreground">
                   Only metadata is shown. Use the Secret Fetch component or parameter selectors to reference a secret.
                 </p>
               </div>
@@ -443,13 +443,14 @@ export function SecretsManager() {
                   )
                 }}
                 disabled={loading}
+                className="self-start sm:self-auto flex-shrink-0"
               >
                 {loading ? 'Refreshing…' : 'Refresh'}
               </Button>
             </div>
 
-            {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
-            {listSuccess && <div className="mb-4 text-sm text-green-600 dark:text-green-400">{listSuccess}</div>}
+            {error && <div className="mb-4 text-xs md:text-sm text-destructive">{error}</div>}
+            {listSuccess && <div className="mb-4 text-xs md:text-sm text-green-600 dark:text-green-400">{listSuccess}</div>}
 
             {loading && secrets.length === 0 ? (
               <div className="text-sm text-muted-foreground">Loading secrets…</div>
@@ -458,32 +459,32 @@ export function SecretsManager() {
                 No secrets yet. Use the form to create your first secret.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-left text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">Name</th>
-                      <th className="py-2 pr-4 font-medium">Tags</th>
-                      <th className="py-2 pr-4 font-medium">Active Version</th>
-                      <th className="py-2 pr-4 font-medium">Updated</th>
-                      <th className="py-2 font-medium text-right">Actions</th>
+                      <th className="py-2 pr-4 font-medium min-w-[120px]">Name</th>
+                      <th className="py-2 pr-4 font-medium min-w-[100px] hidden sm:table-cell">Tags</th>
+                      <th className="py-2 pr-4 font-medium min-w-[120px] hidden md:table-cell">Active Version</th>
+                      <th className="py-2 pr-4 font-medium min-w-[100px] hidden lg:table-cell">Updated</th>
+                      <th className="py-2 font-medium text-right min-w-[100px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {secrets.map((secret) => (
                       <tr key={secret.id} className="border-t last:border-b">
                         <td className="py-3 pr-4 align-top">
-                          <div className="font-medium">{secret.name}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="font-medium truncate max-w-[150px] md:max-w-none">{secret.name}</div>
+                          <div className="text-[10px] md:text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">
                             ID: <span className="font-mono">{secret.id}</span>
                           </div>
                           {secret.description && (
-                            <div className="text-xs text-muted-foreground mt-1">
+                            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
                               {secret.description}
                             </div>
                           )}
                         </td>
-                        <td className="py-3 pr-4 align-top">
+                        <td className="py-3 pr-4 align-top hidden sm:table-cell">
                           <div className="flex flex-wrap gap-1">
                             {secret.tags?.length ? (
                               secret.tags.map((tag) => (
@@ -496,7 +497,7 @@ export function SecretsManager() {
                             )}
                           </div>
                         </td>
-                        <td className="py-3 pr-4 align-top">
+                        <td className="py-3 pr-4 align-top hidden md:table-cell">
                           {secret.activeVersion ? (
                             <div>
                               <div className="font-mono text-xs">v{secret.activeVersion.version}</div>
@@ -508,19 +509,20 @@ export function SecretsManager() {
                             <span className="text-xs text-muted-foreground">No active version</span>
                           )}
                         </td>
-                        <td className="py-3 pr-4 align-top">
+                        <td className="py-3 pr-4 align-top hidden lg:table-cell">
                           <div className="text-xs text-muted-foreground">
                             {formatDate(secret.updatedAt)}
                           </div>
                         </td>
                         <td className="py-3 align-top">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-1 md:gap-2">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => openEditDialog(secret)}
                               disabled={isReadOnly}
                               aria-disabled={isReadOnly}
+                              className="text-xs px-2 md:px-3"
                             >
                               Edit
                             </Button>
@@ -530,6 +532,7 @@ export function SecretsManager() {
                               onClick={() => openDeleteDialog(secret)}
                               disabled={isReadOnly}
                               aria-disabled={isReadOnly}
+                              className="text-xs px-2 md:px-3"
                             >
                               Delete
                             </Button>

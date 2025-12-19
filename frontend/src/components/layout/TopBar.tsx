@@ -169,7 +169,7 @@ export function TopBar({
       <Button
         variant={mode === 'design' ? 'default' : 'ghost'}
         size="sm"
-        className="h-9 w-[110px] px-3 gap-2 rounded-none justify-center"
+        className="h-8 md:h-9 px-2 md:px-3 gap-1.5 md:gap-2 rounded-none"
         onClick={() => {
           if (!canEdit || !workflowId) return
           // Navigate to design URL - this triggers mode update via useLayoutEffect
@@ -180,7 +180,7 @@ export function TopBar({
       >
         <PencilLine className="h-4 w-4 flex-shrink-0" />
         <span className="flex flex-col leading-tight text-left">
-          <span className="text-xs font-semibold hidden md:inline">Design</span>
+          <span className="text-xs font-semibold hidden sm:inline">Design</span>
           <span
             className={cn(
               'text-[10px] hidden xl:inline',
@@ -194,7 +194,7 @@ export function TopBar({
       <Button
         variant={mode === 'execution' ? 'default' : 'ghost'}
         size="sm"
-        className="h-9 w-[130px] px-3 gap-2 rounded-none border-l border-border/50 justify-center"
+        className="h-8 md:h-9 px-2 md:px-3 gap-1.5 md:gap-2 rounded-none border-l border-border/50"
         onClick={() => {
           if (!workflowId) return
           // Navigate to execution URL - this triggers mode update via useLayoutEffect
@@ -208,14 +208,14 @@ export function TopBar({
       >
         <MonitorPlay className="h-4 w-4 flex-shrink-0" />
         <span className="flex flex-col leading-tight text-left">
-          <span className="text-xs font-semibold hidden md:inline">Execution</span>
+          <span className="text-xs font-semibold hidden sm:inline">Runs</span>
           <span
             className={cn(
               'text-[10px] hidden xl:inline',
               mode === 'execution' ? 'text-primary-foreground/80' : 'text-muted-foreground'
             )}
           >
-            Inspect executions
+            Inspect runs
           </span>
         </span>
       </Button>
@@ -248,28 +248,36 @@ export function TopBar({
         : <Save className="h-4 w-4" />
 
   return (
-    <div className="min-h-[60px] border-b bg-background flex flex-nowrap items-center px-4 gap-2 sm:gap-3 py-0">
+    <div className="min-h-[56px] md:min-h-[60px] border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
       <Button
         variant="ghost"
         size="icon"
         onClick={() => navigate('/')}
         aria-label="Back to workflows"
+        className="h-9 w-9 flex-shrink-0"
       >
         <ArrowLeft className="h-5 w-5" />
       </Button>
 
-      <div className="flex-1 min-w-0">
-        <div className="grid w-full gap-2 sm:gap-4 items-center grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <div className="flex items-center justify-start gap-2">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex w-full gap-2 md:gap-4 items-center">
+          {/* Workflow name - always visible, truncated on mobile, tappable to edit */}
+          <div className="flex items-center justify-start gap-2 min-w-0 flex-shrink">
             <div
               className={cn(
-                'flex items-center gap-2 min-w-0 max-w-[360px]',
+                'flex items-center gap-2 min-w-0 max-w-[120px] sm:max-w-[180px] md:max-w-[280px] lg:max-w-[360px]',
                 isEditingTitle
-                  ? 'rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 shadow-sm'
-                  : 'group relative'
+                  ? 'rounded-lg border border-border/60 bg-muted/40 px-2 md:px-3 py-1 md:py-1.5 shadow-sm'
+                  : 'group relative cursor-pointer'
               )}
               onMouseEnter={() => canEdit && !isEditingTitle && setShowPencil(true)}
               onMouseLeave={() => setShowPencil(false)}
+              onClick={() => {
+                // Allow tap to edit on mobile
+                if (canEdit && !isEditingTitle) {
+                  handleStartEditing()
+                }
+              }}
             >
               {isEditingTitle ? (
                 <Input
@@ -278,146 +286,144 @@ export function TopBar({
                   onChange={(e) => setTempWorkflowName(e.target.value)}
                   onBlur={handleChangeWorkflowName}
                   onKeyDown={handleKeyDown}
-                  className="font-semibold bg-transparent border-none shadow-none h-7 px-0 py-0 text-base focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="font-semibold bg-transparent border-none shadow-none h-7 px-0 py-0 text-xs sm:text-sm md:text-base focus-visible:ring-0 focus-visible:ring-offset-0 w-full min-w-[80px]"
                   placeholder="Workflow name"
+                  onClick={(e) => e.stopPropagation()}
                 />
               ) : (
                 <>
-                  <h1 className="font-semibold text-base text-foreground pr-6">
+                  <h1 className="font-semibold text-xs sm:text-sm md:text-base text-foreground pr-0 sm:pr-6 truncate">
                     {metadata.name || DEFAULT_WORKFLOW_NAME}
                   </h1>
-                  {canEdit && showPencil && (
-                    <button
-                      type="button"
-                      onClick={handleStartEditing}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted/80 transition-colors"
-                      aria-label="Edit workflow name"
-                    >
-                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
+                  {canEdit && (
+                    <Pencil className={cn(
+                      'h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground flex-shrink-0 transition-opacity',
+                      showPencil ? 'opacity-100' : 'opacity-50 sm:opacity-0'
+                    )} />
                   )}
                 </>
               )}
             </div>
             {metadata.currentVersion !== null && metadata.currentVersion !== undefined && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border/60">
+              <span className="hidden lg:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border/60 flex-shrink-0">
                 v{metadata.currentVersion}
               </span>
             )}
           </div>
+          {/* Mode toggle - centered with flex-1 spacers */}
+          <div className="flex-1" />
           <div className="flex justify-center shrink-0">{modeToggle}</div>
-          <div className="flex items-center justify-end gap-1.5 sm:gap-3 shrink-0">
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center justify-end gap-1.5 sm:gap-2">
-                {mode === 'design' && (
-                  <>
-                    {(onImport || onExport) && (
-                      <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
-                        {onImport && (
-                          <>
-                            <input
-                              ref={fileInputRef}
-                              type="file"
-                              accept="application/json"
-                              className="hidden"
-                              onChange={handleFileChange}
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 xl:px-3 gap-2"
-                              onClick={handleImportClick}
-                              disabled={!canEdit || isImporting}
-                              aria-label="Import workflow"
-                            >
-                              <Upload className="h-4 w-4" />
-                              <span className="text-xs font-medium hidden lg:inline">Import</span>
-                            </Button>
-                          </>
-                        )}
-                        {onExport && (
+          <div className="flex-1" />
+          <div className="flex items-center justify-end gap-1 md:gap-2 shrink-0">
+            <div className="flex items-center gap-1 md:gap-2">
+              {mode === 'design' && (
+                <>
+                  {(onImport || onExport) && (
+                    <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
+                      {onImport && (
+                        <>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="application/json"
+                            className="hidden"
+                            onChange={handleFileChange}
+                          />
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             className="h-8 px-2 xl:px-3 gap-2"
-                            onClick={handleExport}
-                            disabled={!canEdit}
-                            aria-label="Export workflow"
+                            onClick={handleImportClick}
+                            disabled={!canEdit || isImporting}
+                            aria-label="Import workflow"
                           >
-                            <Download className="h-4 w-4" />
-                            <span className="text-xs font-medium hidden lg:inline">Export</span>
+                            <Upload className="h-4 w-4" />
+                            <span className="text-xs font-medium hidden lg:inline">Import</span>
                           </Button>
-                        )}
-                      </div>
-                    )}
+                        </>
+                      )}
+                      {onExport && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 xl:px-3 gap-2"
+                          onClick={handleExport}
+                          disabled={!canEdit}
+                          aria-label="Export workflow"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span className="text-xs font-medium hidden lg:inline">Export</span>
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
-                    {(onImport || onExport) && (
-                      <div className="flex md:hidden">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {onImport && (
-                              <DropdownMenuItem onClick={handleImportClick} disabled={!canEdit || isImporting}>
-                                <Upload className="mr-2 h-4 w-4" />
-                                <span>Import</span>
-                              </DropdownMenuItem>
-                            )}
-                            {onExport && (
-                              <DropdownMenuItem onClick={handleExport}>
-                                <Download className="mr-2 h-4 w-4" />
-                                <span>Export</span>
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    )}
+                  {(onImport || onExport) && (
+                    <div className="flex md:hidden">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {onImport && (
+                            <DropdownMenuItem onClick={handleImportClick} disabled={!canEdit || isImporting}>
+                              <Upload className="mr-2 h-4 w-4" />
+                              <span>Import</span>
+                            </DropdownMenuItem>
+                          )}
+                          {onExport && (
+                            <DropdownMenuItem onClick={handleExport}>
+                              <Download className="mr-2 h-4 w-4" />
+                              <span>Export</span>
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
 
-                    <Button
-                      onClick={handleSave}
-                      disabled={!canEdit || isSaving || saveState === 'clean'}
-                      variant="outline"
-                      className={saveButtonClasses}
-                      size="sm"
-                      title={
-                        saveState === 'dirty'
-                          ? 'Changes pending sync'
-                          : saveState === 'saving'
-                            ? 'Syncing now…'
-                            : 'No pending edits'
-                      }
+                  <Button
+                    onClick={handleSave}
+                    disabled={!canEdit || isSaving || saveState === 'clean'}
+                    variant="outline"
+                    className={saveButtonClasses}
+                    size="sm"
+                    title={
+                      saveState === 'dirty'
+                        ? 'Changes pending sync'
+                        : saveState === 'saving'
+                          ? 'Syncing now…'
+                          : 'No pending edits'
+                    }
+                  >
+                    {saveIcon}
+                    <span className="hidden xl:inline">{saveLabel}</span>
+                    <span
+                      className={cn(
+                        'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-0 xl:ml-1',
+                        saveBadgeTone,
+                        'hidden sm:inline-block'
+                      )}
                     >
-                      {saveIcon}
-                      <span className="hidden xl:inline">{saveLabel}</span>
-                      <span
-                        className={cn(
-                          'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-0 xl:ml-1',
-                          saveBadgeTone,
-                          'hidden sm:inline-block'
-                        )}
-                      >
-                        {saveBadgeText}
-                      </span>
-                    </Button>
-                  </>
-                )}
+                      {saveBadgeText}
+                    </span>
+                  </Button>
+                </>
+              )}
 
-                <Button
-                  onClick={handleRun}
-                  disabled={!canEdit}
-                  size="sm"
-                  className="gap-2 min-w-0"
-                >
-                  <Play className="h-4 w-4" />
-                  <span className="hidden sm:inline">Run</span>
-                </Button>
-              </div>
+              <Button
+                onClick={handleRun}
+                disabled={!canEdit}
+                size="sm"
+                className="gap-1.5 md:gap-2 min-w-0"
+              >
+                <Play className="h-4 w-4" />
+                <span className="hidden sm:inline">Run</span>
+              </Button>
             </div>
           </div>
         </div>

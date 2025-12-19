@@ -92,6 +92,24 @@ const MIN_PANEL_WIDTH = 280
 const MAX_PANEL_WIDTH = 600
 const DEFAULT_PANEL_WIDTH = 432
 
+// Custom hook to detect mobile viewport
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
+  )
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < breakpoint)
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [breakpoint])
+
+  return isMobile
+}
+
 const buildSampleValueForRuntimeInput = (type?: string, id?: string) => {
   switch (type) {
     case 'number':
@@ -287,6 +305,7 @@ export function ConfigPanel({
   onScheduleDelete,
   onViewSchedules,
 }: ConfigPanelProps) {
+  const isMobile = useIsMobile()
   const { getComponent, loading } = useComponentStore()
   const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id)
   const workflowId = workflowIdProp ?? fallbackWorkflowId
@@ -308,13 +327,18 @@ export function ConfigPanel({
   const [panelWidth, setPanelWidth] = useState(initialWidth)
   const isResizing = useRef(false)
   const resizeRef = useRef<HTMLDivElement>(null)
+  
+  // Actual width to use - full width on mobile
+  const effectiveWidth = isMobile ? '100%' : panelWidth
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Disable resizing on mobile
+    if (isMobile) return
     e.preventDefault()
     isResizing.current = true
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
-  }, [])
+  }, [isMobile])
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -371,16 +395,19 @@ export function ConfigPanel({
   if (!component) {
     if (loading) {
       return (
-        <div className="config-panel border-l bg-background flex flex-col h-full relative" style={{ width: panelWidth }}>
-          <div
-            ref={resizeRef}
-            onMouseDown={handleMouseDown}
-            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
-          />
-          <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="config-panel border-l bg-background flex flex-col h-full relative" style={{ width: effectiveWidth }}>
+          {/* Resize handle - hidden on mobile */}
+          {!isMobile && (
+            <div
+              ref={resizeRef}
+              onMouseDown={handleMouseDown}
+              className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
+            />
+          )}
+          <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
             <h3 className="font-medium text-sm">Configuration</h3>
-            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={onClose}>
-              <X className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted" onClick={onClose}>
+              <X className="h-5 w-5 md:h-4 md:w-4" />
             </Button>
           </div>
           <div className="flex-1 flex items-center justify-center p-6">
@@ -392,16 +419,19 @@ export function ConfigPanel({
       )
     }
     return (
-      <div className="config-panel border-l bg-background flex flex-col h-full relative" style={{ width: panelWidth }}>
-        <div
-          ref={resizeRef}
-          onMouseDown={handleMouseDown}
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
-        />
-        <div className="flex items-center justify-between px-4 py-3 border-b">
+      <div className="config-panel border-l bg-background flex flex-col h-full relative" style={{ width: effectiveWidth }}>
+        {/* Resize handle - hidden on mobile */}
+        {!isMobile && (
+          <div
+            ref={resizeRef}
+            onMouseDown={handleMouseDown}
+            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
+          />
+        )}
+        <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
           <h3 className="font-medium text-sm">Configuration</h3>
-          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted" onClick={onClose}>
+            <X className="h-5 w-5 md:h-4 md:w-4" />
           </Button>
         </div>
         <div className="flex-1 p-4">
@@ -498,18 +528,20 @@ export function ConfigPanel({
   -d '${safePayloadSingleLine}'`
 
   return (
-    <div className="config-panel border-l bg-background flex flex-col h-full overflow-hidden relative" style={{ width: panelWidth }}>
-      {/* Resize Handle */}
-      <div
-        ref={resizeRef}
-        onMouseDown={handleMouseDown}
-        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
-      />
+    <div className="config-panel border-l bg-background flex flex-col h-full overflow-hidden relative" style={{ width: effectiveWidth }}>
+      {/* Resize Handle - hidden on mobile */}
+      {!isMobile && (
+        <div
+          ref={resizeRef}
+          onMouseDown={handleMouseDown}
+          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
+        />
+      )}
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+      <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
         <h3 className="font-medium text-sm">Configuration</h3>
-        <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={onClose}>
-          <X className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted" onClick={onClose}>
+          <X className="h-5 w-5 md:h-4 md:w-4" />
         </Button>
       </div>
 

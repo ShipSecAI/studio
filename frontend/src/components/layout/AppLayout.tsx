@@ -3,14 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield } from 'lucide-react'
-import React, { useState, useEffect } from 'react'
+import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, X } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { UserButton } from '@/components/auth/UserButton'
 import { useAuth, useAuthProvider } from '@/auth/auth-context'
 import { env } from '@/config/env'
 import { useThemeStore } from '@/store/themeStore'
+import { cn } from '@/lib/utils'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -18,6 +19,7 @@ interface AppLayoutProps {
 
 interface SidebarContextValue {
   isOpen: boolean
+  isMobile: boolean
   toggle: () => void
 }
 
@@ -31,10 +33,29 @@ export function useSidebar() {
   return context
 }
 
+// Custom hook to detect mobile viewport
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
+  )
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < breakpoint)
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [breakpoint])
+
+  return isMobile
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const isMobile = useIsMobile()
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
   const [, setIsHovered] = useState(false)
-  const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(true)
+  const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(!isMobile)
   const location = useLocation()
   const navigate = useNavigate()
   const roles = useAuthStore((state) => state.roles)
@@ -52,14 +73,28 @@ export function AppLayout({ children }: AppLayoutProps) {
     : 'dev'
 
   // Auto-collapse sidebar when opening workflow builder, expand for other routes
+  // On mobile, always start collapsed
   useEffect(() => {
-    const isWorkflowRoute = location.pathname.startsWith('/workflows') && location.pathname !== '/'
-    setSidebarOpen(!isWorkflowRoute)
-    setWasExplicitlyOpened(!isWorkflowRoute)
-  }, [location.pathname])
+    if (isMobile) {
+      setSidebarOpen(false)
+      setWasExplicitlyOpened(false)
+    } else {
+      const isWorkflowRoute = location.pathname.startsWith('/workflows') && location.pathname !== '/'
+      setSidebarOpen(!isWorkflowRoute)
+      setWasExplicitlyOpened(!isWorkflowRoute)
+    }
+  }, [location.pathname, isMobile])
 
-  // Handle hover to expand sidebar when collapsed
+  // Close sidebar on mobile when navigating
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarOpen(false)
+    }
+  }, [location.pathname, isMobile])
+
+  // Handle hover to expand sidebar when collapsed (desktop only)
   const handleMouseEnter = () => {
+    if (isMobile) return
     setIsHovered(true)
     if (!sidebarOpen) {
       setSidebarOpen(true)
@@ -67,6 +102,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   const handleMouseLeave = () => {
+    if (isMobile) return
     setIsHovered(false)
     // Only collapse if it was expanded due to hover (not explicitly opened)
     if (!wasExplicitlyOpened && sidebarOpen) {
@@ -74,14 +110,23 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }
 
-  const handleToggle = () => {
+  const handleToggle = useCallback(() => {
     const newState = !sidebarOpen
     setSidebarOpen(newState)
     setWasExplicitlyOpened(newState)
-  }
+  }, [sidebarOpen])
+
+  // Close sidebar when clicking backdrop on mobile
+  const handleBackdropClick = useCallback(() => {
+    if (isMobile && sidebarOpen) {
+      setSidebarOpen(false)
+      setWasExplicitlyOpened(false)
+    }
+  }, [isMobile, sidebarOpen])
 
   const sidebarContextValue: SidebarContextValue = {
     isOpen: sidebarOpen,
+    isMobile,
     toggle: handleToggle
   }
 
@@ -150,46 +195,94 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarContext.Provider value={sidebarContextValue}>
       <ThemeTransition />
-      <div className="flex h-screen bg-background">
-        {/* Sidebar - z-[100] ensures it's above all other elements including workflow buttons */}
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Mobile backdrop overlay */}
+        {isMobile && sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+            onClick={handleBackdropClick}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Sidebar */}
         <Sidebar
-          className={`fixed md:relative z-[100] h-full transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0 md:w-16'
-            }`}
+          className={cn(
+            'h-full transition-all duration-300 z-40',
+            // Mobile: Fixed position, slide in/out
+            isMobile ? 'fixed left-0 top-0' : 'relative',
+            // Width based on state and device
+            sidebarOpen ? 'w-72' : isMobile ? 'w-0 -translate-x-full' : 'w-16',
+            // Ensure sidebar is above backdrop on mobile
+            isMobile && sidebarOpen && 'translate-x-0'
+          )}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <SidebarHeader className="flex items-center justify-between p-4 border-b">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex-shrink-0">
+          {/* Mobile Header with Close button */}
+          {isMobile && sidebarOpen && (
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-background">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close sidebar"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+              <Link to="/" className="flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
                 <img
                   src="/favicon.ico"
                   alt="ShipSec Studio"
-                  className="w-6 h-6"
+                  className="w-7 h-7"
                   onError={(e) => {
-                    // Fallback to text if image fails to load
                     e.currentTarget.style.display = 'none'
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
                   }}
                 />
-                <span className="hidden text-sm font-bold">SS</span>
-              </div>
-              <span
-                className={`font-bold text-xl transition-all duration-300 whitespace-nowrap overflow-hidden ${sidebarOpen
-                  ? 'opacity-100 max-w-48'
-                  : 'opacity-0 max-w-0'
-                  }`}
-                style={{
-                  transitionDelay: sidebarOpen ? '150ms' : '0ms',
-                  transitionProperty: 'opacity, max-width'
-                }}
-              >
-                ShipSec Studio
-              </span>
-            </Link>
-          </SidebarHeader>
+                <span className="font-bold text-lg">ShipSec</span>
+              </Link>
+              <div className="w-9" /> {/* Spacer for centering */}
+            </div>
+          )}
+
+          {/* Desktop Header */}
+          {!isMobile && (
+            <SidebarHeader className="flex items-center justify-between p-4 border-b">
+              <Link to="/" className="flex items-center gap-2">
+                <div className="flex-shrink-0">
+                  <img
+                    src="/favicon.ico"
+                    alt="ShipSec Studio"
+                    className="w-6 h-6"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                    }}
+                  />
+                  <span className="hidden text-sm font-bold">SS</span>
+                </div>
+                <span
+                  className={cn(
+                    'font-bold text-xl transition-all duration-300 whitespace-nowrap overflow-hidden',
+                    sidebarOpen ? 'opacity-100 max-w-48' : 'opacity-0 max-w-0'
+                  )}
+                  style={{
+                    transitionDelay: sidebarOpen ? '150ms' : '0ms',
+                    transitionProperty: 'opacity, max-width'
+                  }}
+                >
+                  ShipSec Studio
+                </span>
+              </Link>
+            </SidebarHeader>
+          )}
 
           <SidebarContent className="py-0">
-            <div className="space-y-1 px-2 mt-2">
+            <div className={cn(
+              'px-2 mt-2',
+              isMobile ? 'space-y-0.5' : 'space-y-1'
+            )}>
               {navigationItems.map((item) => {
                 const Icon = item.icon
                 const active = isActive(item.href)
@@ -198,7 +291,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                     key={item.href}
                     to={item.href}
                     onClick={() => {
-                      // Keep sidebar open when navigating to non-workflow routes
+                      // Close sidebar on mobile after navigation
+                      if (isMobile) {
+                        setSidebarOpen(false)
+                        return
+                      }
+                      // Keep sidebar open when navigating to non-workflow routes (desktop)
                       if (!item.href.startsWith('/workflows')) {
                         setSidebarOpen(true)
                         setWasExplicitlyOpened(true)
@@ -207,14 +305,29 @@ export function AppLayout({ children }: AppLayoutProps) {
                   >
                     <SidebarItem
                       isActive={active}
-                      className="flex items-center gap-3 justify-center md:justify-start"
+                      className={cn(
+                        'flex items-center gap-3',
+                        sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                        isMobile && 'py-3.5 rounded-xl'
+                      )}
                     >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      <div className={cn(
+                        'flex items-center justify-center rounded-full',
+                        isMobile ? 'w-10 h-10 bg-muted/60' : '',
+                        active && isMobile && 'bg-primary/10'
+                      )}>
+                        <Icon className={cn(
+                          'flex-shrink-0',
+                          isMobile ? 'h-5 w-5' : 'h-5 w-5',
+                          active && isMobile && 'text-primary'
+                        )} />
+                      </div>
                       <span
-                        className={`transition-all duration-300 whitespace-nowrap overflow-hidden ${sidebarOpen
-                          ? 'opacity-100 max-w-32'
-                          : 'opacity-0 max-w-0'
-                          }`}
+                        className={cn(
+                          'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                          isMobile && 'text-base font-medium'
+                        )}
                         style={{
                           transitionDelay: sidebarOpen ? '200ms' : '0ms',
                           transitionProperty: 'opacity, max-width'
@@ -222,6 +335,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                       >
                         {item.name}
                       </span>
+                      {isMobile && sidebarOpen && (
+                        <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      )}
                     </SidebarItem>
                   </Link>
                 )
@@ -277,10 +395,10 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="px-2 py-1.5 border-t">
             <div className="h-4 flex items-center justify-center">
               <span
-                className={`text-xs text-muted-foreground transition-all duration-300 whitespace-nowrap overflow-hidden block text-center ${sidebarOpen
-                  ? 'opacity-100 max-w-full'
-                  : 'opacity-0 max-w-0'
-                  }`}
+                className={cn(
+                  'text-xs text-muted-foreground transition-all duration-300 whitespace-nowrap overflow-hidden block text-center',
+                  sidebarOpen ? 'opacity-100 max-w-full' : 'opacity-0 max-w-0'
+                )}
                 style={{
                   transitionDelay: sidebarOpen ? '200ms' : '0ms',
                   transitionProperty: 'opacity, max-width'
@@ -293,13 +411,18 @@ export function AppLayout({ children }: AppLayoutProps) {
         </Sidebar>
 
         {/* Main content area */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className={cn(
+          'flex-1 flex flex-col overflow-hidden min-w-0',
+          // On mobile, main content takes full width since sidebar is overlay
+          isMobile ? 'w-full' : ''
+        )}>
           {/* Only show AppTopBar for non-workflow-builder pages */}
           {!location.pathname.startsWith('/workflows') && (
             <AppTopBar
               sidebarOpen={sidebarOpen}
               onSidebarToggle={handleToggle}
               actions={getPageActions()}
+              isMobile={isMobile}
             />
           )}
           <div className="flex-1 overflow-auto">

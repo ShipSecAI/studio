@@ -196,16 +196,16 @@ export function WorkflowList() {
 
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto py-8 px-4">
+      <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
         {isReadOnly && (
-          <div className="mb-6 rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <div className="mb-4 md:mb-6 rounded-md border border-border/60 bg-muted/30 px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm text-muted-foreground">
             You are viewing workflows with read-only access. Administrators can create and edit workflows.
           </div>
         )}
 
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-2">Your Workflows</h2>
-          <p className="text-muted-foreground">
+        <div className="mb-4 md:mb-8">
+          <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">Your Workflows</h2>
+          <p className="text-sm md:text-base text-muted-foreground">
             Create and manage security automation workflows with powerful visual tools
           </p>
         </div>
@@ -223,17 +223,18 @@ export function WorkflowList() {
         </div> */}
 
         {isLoading ? (
-          <div className="border rounded-lg bg-card">
+          <div className="border rounded-lg bg-card overflow-hidden">
             {retryCount > 0 && (
-              <div className="px-6 py-4 border-b bg-muted/50 text-center">
-                <div className="flex items-center justify-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span className="text-base font-semibold text-foreground">
-                    Waiting for backend to start... (attempt {retryCount}/{MAX_RETRY_ATTEMPTS})
+              <div className="px-3 md:px-6 py-3 md:py-4 border-b bg-muted/50 text-center">
+                <div className="flex items-center justify-center gap-2 md:gap-3">
+                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin text-primary" />
+                  <span className="text-sm md:text-base font-semibold text-foreground">
+                    Waiting for backend... ({retryCount}/{MAX_RETRY_ATTEMPTS})
                   </span>
                 </div>
               </div>
             )}
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -300,6 +301,7 @@ export function WorkflowList() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
         ) : error ? (
           <div className="text-center py-12 border rounded-lg bg-card border-destructive">
@@ -311,72 +313,74 @@ export function WorkflowList() {
             </Button>
           </div>
         ) : workflows.length === 0 ? (
-          <div className="text-center py-12 border rounded-lg bg-card">
-            <Workflow className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No workflows yet</h3>
-            <p className="text-muted-foreground mb-4">
+          <div className="text-center py-8 md:py-12 border rounded-lg bg-card">
+            <Workflow className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 text-muted-foreground" />
+            <h3 className="text-base md:text-lg font-semibold mb-2">No workflows yet</h3>
+            <p className="text-sm md:text-base text-muted-foreground mb-4 px-4">
               Create your first workflow to get started
             </p>
-            <Button onClick={handleCreateWorkflow} disabled={isReadOnly}>
+            <Button onClick={handleCreateWorkflow} disabled={isReadOnly} size="default">
               Create Workflow
             </Button>
           </div>
         ) : (
-          <div className="border rounded-lg bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Nodes</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="flex items-center gap-1 cursor-help">
-                            Last Run
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Times shown in your local timezone</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  <TableHead>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="flex items-center gap-1 cursor-help">
-                            Last Updated
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Times shown in your local timezone</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {workflows.map((workflow) => (
-                  <WorkflowRowItem
-                    key={workflow.id}
-                    workflow={workflow}
-                    canManageWorkflows={canManageWorkflows}
-                    isDeleting={isDeleting}
-                    isLoading={isLoading}
-                    formatDate={formatDate}
-                    onRowClick={() => navigate(`/workflows/${workflow.id}`)}
-                    onDeleteClick={handleDeleteClick}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+          <div className="border rounded-lg bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[150px]">Name</TableHead>
+                    <TableHead className="min-w-[80px]">Nodes</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="min-w-[140px] hidden sm:table-cell">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center gap-1 cursor-help">
+                              Last Run
+                              <Info className="h-3 w-3 text-muted-foreground" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Times shown in your local timezone</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
+                    <TableHead className="min-w-[140px] hidden md:table-cell">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center gap-1 cursor-help">
+                              Last Updated
+                              <Info className="h-3 w-3 text-muted-foreground" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Times shown in your local timezone</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
+                    {canManageWorkflows && <TableHead className="text-right min-w-[60px]">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {workflows.map((workflow) => (
+                    <WorkflowRowItem
+                      key={workflow.id}
+                      workflow={workflow}
+                      canManageWorkflows={canManageWorkflows}
+                      isDeleting={isDeleting}
+                      isLoading={isLoading}
+                      formatDate={formatDate}
+                      onRowClick={() => navigate(`/workflows/${workflow.id}`)}
+                      onDeleteClick={handleDeleteClick}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
       </div>
@@ -471,17 +475,21 @@ function WorkflowRowItem({
       onClick={onRowClick}
       className="cursor-pointer transition-colors duration-150 hover:bg-accent/50 dark:hover:bg-accent/30"
     >
-      <TableCell className="font-medium">{workflow.name}</TableCell>
+      <TableCell className="font-medium">
+        <div className="max-w-[200px] truncate" title={workflow.name}>
+          {workflow.name}
+        </div>
+      </TableCell>
       <TableCell>
-        <Badge variant="secondary">{nodeCount} nodes</Badge>
+        <Badge variant="secondary" className="text-xs">{nodeCount}</Badge>
       </TableCell>
       <TableCell>
         {statusBadge}
       </TableCell>
-      <TableCell className="text-muted-foreground">
+      <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
         {workflow.lastRun ? formatDate(workflow.lastRun) : 'N/A'}
       </TableCell>
-      <TableCell className="text-muted-foreground">
+      <TableCell className="text-muted-foreground text-sm hidden md:table-cell">
         {formatDate(workflow.updatedAt)}
       </TableCell>
       {canManageWorkflows && (

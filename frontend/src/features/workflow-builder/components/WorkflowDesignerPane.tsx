@@ -112,7 +112,7 @@ export function WorkflowDesignerPane({
     >
       <div className="flex-1 h-full relative">
         {summaryNode && !hasSelectedNode && !schedulePanelExpanded && (
-          <div className="absolute right-2 top-2 z-40 flex justify-end w-full transition-opacity duration-100 ease-out">
+          <div className="absolute right-3 top-3 z-40 transition-opacity duration-100 ease-out">
             {summaryNode}
           </div>
         )}

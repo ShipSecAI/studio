@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +23,25 @@ interface WorkflowBuilderShellProps {
 }
 
 const LIBRARY_PANEL_WIDTH = 320
+const LIBRARY_PANEL_WIDTH_MOBILE = 280
+
+// Custom hook to detect mobile viewport
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
+  )
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < breakpoint)
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [breakpoint])
+
+  return isMobile
+}
 
 export function WorkflowBuilderShell({
   mode,
@@ -42,10 +61,14 @@ export function WorkflowBuilderShell({
   scheduleDrawer,
   runDialog,
 }: WorkflowBuilderShellProps) {
+  const isMobile = useIsMobile()
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const inspectorResizingRef = useRef(false)
   const [isInspectorResizing, setIsInspectorResizing] = useState(false)
   const [showLibraryContent, setShowLibraryContent] = useState(isLibraryVisible)
+
+  // Responsive panel width
+  const libraryPanelWidth = isMobile ? LIBRARY_PANEL_WIDTH_MOBILE : LIBRARY_PANEL_WIDTH
 
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -64,7 +87,8 @@ export function WorkflowBuilderShell({
 
   const handleInspectorResizeStart = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (mode !== 'execution') {
+      // Disable resizing on mobile - use full width instead
+      if (mode !== 'execution' || isMobile) {
         return
       }
       inspectorResizingRef.current = true
@@ -72,7 +96,7 @@ export function WorkflowBuilderShell({
       document.body.classList.add('select-none')
       event.preventDefault()
     },
-    [mode],
+    [mode, isMobile],
   )
 
   useEffect(() => {
@@ -107,21 +131,35 @@ export function WorkflowBuilderShell({
   const showLibraryToggleButton = mode === 'design' && !isLibraryVisible
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {topBar}
       <div ref={layoutRef} className="flex flex-1 overflow-hidden relative">
+        {/* Mobile backdrop for library panel */}
+        {isMobile && isLibraryVisible && (
+          <div
+            className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm md:hidden"
+            onClick={onToggleLibrary}
+            aria-hidden="true"
+          />
+        )}
+
         {showLibraryToggleButton && (
           <Button
             type="button"
             variant="secondary"
             onClick={onToggleLibrary}
-            className="absolute z-50 top-[10px] left-[10px] h-8 px-3 py-1.5 flex items-center gap-2 rounded-md border bg-background text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className={cn(
+              'absolute z-[60] top-[10px] left-[10px] h-8 px-2 md:px-3 py-1.5',
+              'flex items-center gap-1.5 md:gap-2 rounded-md border bg-background',
+              'text-xs font-medium transition-all duration-200 hover:bg-muted',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
+            )}
             aria-expanded={false}
             aria-label="Show component library"
             title="Show components"
           >
             <PanelLeftOpen className="h-4 w-4 flex-shrink-0" />
-            <span className="font-medium whitespace-nowrap">Show components</span>
+            <span className="font-medium whitespace-nowrap hidden sm:inline">Show components</span>
           </Button>
         )}
         {showLoadingOverlay && (
@@ -139,21 +177,25 @@ export function WorkflowBuilderShell({
             <p className="mt-3 text-sm text-muted-foreground">Loading workflow…</p>
           </div>
         )}
+
+        {/* Library Panel - Full screen overlay on mobile, side panel on desktop */}
         <aside
           className={cn(
-            'relative h-full border-r bg-background overflow-hidden z-10',
+            'h-full border-r bg-background overflow-hidden z-30',
+            // Mobile: fixed overlay
+            isMobile ? 'fixed left-0 top-0' : 'relative',
             isLibraryVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
           )}
           style={{
-            width: isLibraryVisible ? LIBRARY_PANEL_WIDTH : 0,
+            width: isLibraryVisible ? libraryPanelWidth : 0,
             transition: 'width 200ms ease-in-out, opacity 200ms ease-in-out',
           }}
         >
           <div
             className="absolute inset-0"
             style={{
-              width: LIBRARY_PANEL_WIDTH,
-              transform: isLibraryVisible ? 'translateX(0)' : `translateX(-${LIBRARY_PANEL_WIDTH}px)`,
+              width: libraryPanelWidth,
+              transform: isLibraryVisible ? 'translateX(0)' : `translateX(-${libraryPanelWidth}px)`,
               transition: 'transform 200ms ease-in-out',
             }}
           >
@@ -162,12 +204,21 @@ export function WorkflowBuilderShell({
                 type="button"
                 variant="ghost"
                 onClick={onToggleLibrary}
-                className="absolute z-50 top-4 right-4 h-7 w-7 flex items-center justify-center rounded-md text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className={cn(
+                  'absolute z-50 top-3 md:top-4 right-3 md:right-4',
+                  'h-8 w-8 md:h-7 md:w-7 flex items-center justify-center rounded-md',
+                  'text-xs font-medium transition-all duration-200 hover:bg-muted',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
+                )}
                 aria-expanded={true}
                 aria-label="Hide component library"
                 title="Hide components"
               >
-                <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
+                {isMobile ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
+                )}
               </Button>
             )}
             <div
@@ -185,17 +236,21 @@ export function WorkflowBuilderShell({
         </aside>
 
         <main
-          className="flex-1 relative flex"
+          className="flex-1 relative flex min-w-0"
           style={{
             transition: isInspectorResizing ? 'none' : 'all 200ms ease-in-out',
           }}
         >
-          <div className="flex-1 h-full relative">{canvasContent}</div>
-          {showScheduleSidebarContainer && (
+          <div className="flex-1 h-full relative min-w-0">{canvasContent}</div>
+
+          {/* Schedule Sidebar - Hide on mobile, show as drawer instead */}
+          {showScheduleSidebarContainer && !isMobile && (
             <aside
               className={cn(
                 'overflow-hidden border-l bg-background transition-all duration-150 ease-out',
-                isScheduleSidebarVisible ? 'opacity-100 w-[432px]' : 'opacity-0 w-0 pointer-events-none',
+                isScheduleSidebarVisible
+                  ? 'opacity-100 w-[380px] lg:w-[432px]'
+                  : 'opacity-0 w-0 pointer-events-none',
               )}
               style={{
                 transition: 'width 150ms ease-out, opacity 150ms ease-out',
@@ -204,13 +259,26 @@ export function WorkflowBuilderShell({
               {isScheduleSidebarVisible && scheduleSidebarContent}
             </aside>
           )}
+
+          {/* Inspector Panel - Full width overlay on mobile */}
+          {isMobile && isInspectorVisible && (
+            <div
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              onClick={() => {/* Close inspector on backdrop click - handled by parent */ }}
+              aria-hidden="true"
+            />
+          )}
           <aside
             className={cn(
-              'relative h-full border-l bg-background overflow-hidden',
+              'h-full border-l bg-background overflow-hidden',
+              // Mobile: fixed full-width overlay
+              isMobile ? 'fixed right-0 top-0 z-50' : 'relative',
               isInspectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
             )}
             style={{
-              width: isInspectorVisible ? inspectorWidth : 0,
+              width: isInspectorVisible
+                ? (isMobile ? '100%' : inspectorWidth)
+                : 0,
               transition: isInspectorResizing
                 ? 'opacity 200ms ease-in-out'
                 : 'width 200ms ease-in-out, opacity 200ms ease-in-out',
@@ -219,14 +287,22 @@ export function WorkflowBuilderShell({
             <div
               className="absolute inset-0"
               style={{
-                width: inspectorWidth,
+                width: isMobile ? '100%' : inspectorWidth,
               }}
             >
-              <div
-                className="absolute top-0 left-0 h-full w-2 cursor-col-resize border-l border-transparent hover:border-primary/40 z-10"
-                onMouseDown={handleInspectorResizeStart}
-              />
-              <div className="flex h-full min-h-0 pl-2 overflow-hidden">{inspectorContent}</div>
+              {/* Resize handle - hidden on mobile */}
+              {!isMobile && (
+                <div
+                  className="absolute top-0 left-0 h-full w-2 cursor-col-resize border-l border-transparent hover:border-primary/40 z-10"
+                  onMouseDown={handleInspectorResizeStart}
+                />
+              )}
+              <div className={cn(
+                'flex h-full min-h-0 overflow-hidden',
+                isMobile ? 'pl-0' : 'pl-2'
+              )}>
+                {inspectorContent}
+              </div>
             </div>
           </aside>
         </main>

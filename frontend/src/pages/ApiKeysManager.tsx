@@ -165,42 +165,43 @@ export function ApiKeysManager() {
 
     return (
         <div className="flex-1 bg-background">
-            <div className="container mx-auto py-8 px-4">
-                <div className="flex items-center justify-between mb-8">
+            <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-8">
                     <div>
-                        <h1 className="text-2xl font-semibold tracking-tight">API Keys</h1>
-                        <p className="text-muted-foreground mt-1">
+                        <h1 className="text-xl md:text-2xl font-semibold tracking-tight">API Keys</h1>
+                        <p className="text-sm md:text-base text-muted-foreground mt-1">
                             Manage API keys for programmatic access to ShipSec.
                         </p>
                     </div>
-                    <Button onClick={() => setIsCreateOpen(true)} disabled={isReadOnly}>
+                    <Button onClick={() => setIsCreateOpen(true)} disabled={isReadOnly} className="self-start sm:self-auto">
                         Create new key
                     </Button>
                 </div>
 
                 {error && (
-                    <div className="mb-6 rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+                    <div className="mb-4 md:mb-6 rounded-md bg-destructive/10 p-3 md:p-4 text-xs md:text-sm text-destructive">
                         {error}
                     </div>
                 )}
 
                 {successMessage && (
-                    <div className="mb-6 rounded-md bg-green-500/10 p-4 text-sm text-green-600 dark:text-green-400">
+                    <div className="mb-4 md:mb-6 rounded-md bg-green-500/10 p-3 md:p-4 text-xs md:text-sm text-green-600 dark:text-green-400">
                         {successMessage}
                     </div>
                 )}
 
-                <div className="border rounded-md bg-card">
+                <div className="border rounded-md bg-card overflow-hidden">
+                    <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Key Hint</TableHead>
-                                <TableHead>Permissions</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Created</TableHead>
-                                <TableHead>Last Used</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                                <TableHead className="min-w-[120px]">Name</TableHead>
+                                <TableHead className="min-w-[80px]">Key Hint</TableHead>
+                                <TableHead className="min-w-[120px] hidden md:table-cell">Permissions</TableHead>
+                                <TableHead className="min-w-[80px]">Status</TableHead>
+                                <TableHead className="min-w-[100px] hidden sm:table-cell">Created</TableHead>
+                                <TableHead className="min-w-[100px] hidden lg:table-cell">Last Used</TableHead>
+                                <TableHead className="text-right min-w-[80px]">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -220,15 +221,15 @@ export function ApiKeysManager() {
                                 apiKeys.map((key) => (
                                     <TableRow key={key.id}>
                                         <TableCell className="font-medium">
-                                            <div>{key.name}</div>
+                                            <div className="truncate max-w-[150px] md:max-w-none">{key.name}</div>
                                             {key.description && (
-                                                <div className="text-xs text-muted-foreground">{key.description}</div>
+                                                <div className="text-xs text-muted-foreground truncate max-w-[150px] md:max-w-none">{key.description}</div>
                                             )}
                                         </TableCell>
                                         <TableCell className="font-mono text-xs">
                                             {truncateKey(key.keyHint)}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="hidden md:table-cell">
                                             <div className="flex flex-wrap gap-1">
                                                 {Object.entries(key.permissions).map(([resource, actions]) =>
                                                     Object.entries(actions as Record<string, boolean>)
@@ -243,48 +244,53 @@ export function ApiKeysManager() {
                                         </TableCell>
                                         <TableCell>
                                             {key.isActive ? (
-                                                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                                                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 text-xs">
                                                     Active
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="outline" className="bg-muted text-muted-foreground">
+                                                <Badge variant="outline" className="bg-muted text-muted-foreground text-xs">
                                                     Revoked
                                                 </Badge>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-muted-foreground text-xs">
+                                        <TableCell className="text-muted-foreground text-xs hidden sm:table-cell">
                                             {formatDate(key.createdAt)}
                                         </TableCell>
-                                        <TableCell className="text-muted-foreground text-xs">
+                                        <TableCell className="text-muted-foreground text-xs hidden lg:table-cell">
                                             {key.lastUsedAt ? formatDate(key.lastUsedAt) : 'Never'}
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            {key.isActive && (
+                                            <div className="flex items-center justify-end gap-1">
+                                                {key.isActive && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        title="Revoke Key"
+                                                        onClick={() => setConfirmAction({ type: 'revoke', target: key })}
+                                                        disabled={isReadOnly}
+                                                        className="h-8 w-8"
+                                                    >
+                                                        <ShieldOff className="h-4 w-4" />
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    title="Revoke Key"
-                                                    onClick={() => setConfirmAction({ type: 'revoke', target: key })}
+                                                    title="Delete Key"
+                                                    onClick={() => setConfirmAction({ type: 'delete', target: key })}
                                                     disabled={isReadOnly}
+                                                    className="h-8 w-8"
                                                 >
-                                                    <ShieldOff className="h-4 w-4" />
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
                                                 </Button>
-                                            )}
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                title="Delete Key"
-                                                onClick={() => setConfirmAction({ type: 'delete', target: key })}
-                                                disabled={isReadOnly}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))
                             )}
                         </TableBody>
                     </Table>
+                    </div>
                 </div>
             </div>
 

@@ -51,47 +51,54 @@ export function WorkflowSchedulesSummaryBar({
   const countError = schedules.filter((s) => s.status === 'error').length
 
   return (
-    <div className="pointer-events-auto flex items-center gap-3 rounded-xl border bg-background/95 px-4 py-2 ring-1 ring-border/60">
-      <div className="space-y-0.5">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Schedules
+    <div className="pointer-events-auto flex items-center gap-2 md:gap-3 rounded-xl border bg-background/95 px-2 md:px-4 py-1.5 md:py-2 ring-1 ring-border/60 shadow-lg">
+      <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+          <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
         </div>
-        <div className="text-[11px] text-muted-foreground">
-          {isLoading ? (
-            <span className="inline-flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Loading…
-            </span>
-          ) : error ? (
-            <span className="text-destructive">{error}</span>
-          ) : schedules.length === 0 ? (
-            <span>No schedules configured</span>
-          ) : (
-            <>
-              {countActive > 0 && <span>{countActive} active</span>}
-              {countPaused > 0 && <span className="ml-2">{countPaused} paused</span>}
-              {countError > 0 && (
-                <span className="ml-2 text-destructive">{countError} error</span>
-              )}
-            </>
-          )}
+        <div className="space-y-0 hidden sm:block">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Schedules
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {isLoading ? (
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Loading…
+              </span>
+            ) : error ? (
+              <span className="text-destructive">{error}</span>
+            ) : schedules.length === 0 ? (
+              <span>No schedules</span>
+            ) : (
+              <>
+                {countActive > 0 && <span>{countActive} active</span>}
+                {countPaused > 0 && <span className="ml-2">{countPaused} paused</span>}
+                {countError > 0 && (
+                  <span className="ml-2 text-destructive">{countError} error</span>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Button type="button" size="sm" className="h-8 px-3 text-xs" onClick={onCreate}>
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          New
+      <div className="flex items-center gap-1 md:gap-2">
+        <Button type="button" size="sm" className="h-7 md:h-8 px-2 md:px-3 text-xs" onClick={onCreate}>
+          <Plus className="h-3.5 w-3.5 md:mr-1" />
+          <span className="hidden md:inline">New</span>
         </Button>
         <Button
           type="button"
           size="sm"
           variant="secondary"
-          className="h-8 px-3 text-xs"
+          className="h-7 md:h-8 px-2 md:px-3 text-xs"
           onClick={onExpand}
         >
           Manage
         </Button>
-        <div className="relative group">
+        <div className="relative group hidden md:block">
           <Button
             type="button"
             size="icon"
