@@ -15,7 +15,7 @@ Components are the building blocks of ShipSec Studio workflows. Each component p
     Subdomain discovery, port scanning, DNS resolution, secret detection
   </Card>
   <Card title="AI" icon="brain" href="/components/ai">
-    OpenAI, Gemini, and OpenRouter chat completions
+    Provider configurations and autonomous agents
   </Card>
 </CardGroup>
 
@@ -60,13 +60,14 @@ Manual Trigger → Subfinder → DNSx → httpx → Notify
 ### Secret Detection
 
 ```
-Manual Trigger → TruffleHog → OpenAI Chat → Notify
+Manual Trigger → TruffleHog → OpenAI Provider → AI Generate Text → Notify
 ```
 
 1. **Manual Trigger** – User provides repository URL
 2. **TruffleHog** – Scans for leaked credentials
-3. **OpenAI Chat** – Analyzes and prioritizes findings
-4. **Notify** – Alerts team via Slack, Discord, or email
+3. **OpenAI Provider** – Set up model and API key
+4. **AI Generate Text** – Analyzes and prioritizes findings
+5. **Notify** – Alerts team via Slack, Discord, or email
 
 ## Execution Context
 

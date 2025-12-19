@@ -6,7 +6,7 @@ import {
 } from '@shipsec/component-sdk';
 import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
 
-const DEFAULT_MODEL = 'gpt-5-mini';
+const DEFAULT_MODEL = 'gpt-5.2';
 const DEFAULT_BASE_URL = process.env.OPENAI_BASE_URL ?? '';
 
 const inputSchema = z.object({
@@ -82,11 +82,11 @@ const definition: ComponentDefinition<Input, Output> = {
         default: DEFAULT_MODEL,
         description: 'OpenAI compatible chat model to emit.',
         options: [
-          { label: 'GPT-5 Mini', value: 'gpt-5-mini' },
-          { label: 'GPT-5 Pro', value: 'gpt-5-pro' },
+          { label: 'GPT-5.2', value: 'gpt-5.2' },
+          { label: 'GPT-5.2 Pro', value: 'gpt-5.2-pro' },
+          { label: 'GPT-5.1', value: 'gpt-5.1' },
           { label: 'GPT-5', value: 'gpt-5' },
-          { label: 'GPT-4o', value: 'gpt-4o' },
-          { label: 'GPT-4.1 Mini', value: 'gpt-4.1-mini' },
+          { label: 'GPT-5 Mini', value: 'gpt-5-mini' },
         ],
       },
       {
