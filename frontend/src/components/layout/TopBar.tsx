@@ -169,7 +169,7 @@ export function TopBar({
       <Button
         variant={mode === 'design' ? 'default' : 'ghost'}
         size="sm"
-        className="h-9 w-[100px] px-3 gap-2 rounded-none justify-center"
+        className="h-9 w-[110px] px-3 gap-2 rounded-none justify-center"
         onClick={() => {
           if (!canEdit || !workflowId) return
           // Navigate to design URL - this triggers mode update via useLayoutEffect
@@ -194,7 +194,7 @@ export function TopBar({
       <Button
         variant={mode === 'execution' ? 'default' : 'ghost'}
         size="sm"
-        className="h-9 w-[120px] px-3 gap-2 rounded-none border-l border-border/50 justify-center"
+        className="h-9 w-[130px] px-3 gap-2 rounded-none border-l border-border/50 justify-center"
         onClick={() => {
           if (!workflowId) return
           // Navigate to execution URL - this triggers mode update via useLayoutEffect
