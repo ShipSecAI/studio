@@ -120,30 +120,9 @@ Join the ShipSec community to get help, share ideas, and stay updated:
 
 ## Contributing
 
-We welcome contributions! Please follow these steps:
+We're excited that you're interested in ShipSec Studio! Whether you're fixing bugs, adding features, improving docs, or sharing ideas — every contribution helps make security automation more accessible.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests and quality checks:
-   ```bash
-   bun run test
-   bun run lint
-   bun run typecheck
-   ```
-5. Commit your changes using [Conventional Commits](https://conventionalcommits.org/)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-### Development Guidelines
-
-- Follow Conventional Commit subjects (`feat:`, `fix:`, `docs:`) and reference issues/milestones in PRs
-- Keep workflow IDs in the `shipsec-run-*` shape
-- Reuse shared schemas instead of creating bespoke types
-- For new components, add tests and update documentation
-- Document manual validation (Temporal run IDs, Loki queries) in PR descriptions
-
-Bring your own creativity. ShipSec Studio is built to be extended.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
