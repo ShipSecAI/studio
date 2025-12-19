@@ -420,13 +420,20 @@ function validateEntryPointConfiguration(
  */
 function isValidSecretId(secretId: string): boolean {
   // Secret IDs should be reasonable-length identifiers, not raw secret values
-  // Reject common patterns that suggest raw API keys or secrets
+  
+  // 1. Explicitly allow UUIDs (common format for internal IDs)
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(secretId)) {
+    return true;
+  }
+
+  // 2. Reject common patterns that suggest raw API keys or secrets
   const suspiciousPatterns = [
     /^AIza[A-Za-z0-9_-]{35}$/, // Google API keys
     /^sk-[A-Za-z0-9]{48}$/, // Stripe keys
-    /^[A-Za-z0-9]{32,}$/, // Generic long alphanumeric strings
     /^ghp_[A-Za-z0-9]{36}$/, // GitHub PATs
     /^xoxb-[0-9]+-[0-9]+-[A-Za-z0-9]{24}$/, // Slack bot tokens
+    /^[A-Za-z0-9]{32,}$/, // Generic long alphanumeric strings (no dashes/underscores)
   ];
 
   // If it matches suspicious patterns, it's probably a raw secret
@@ -434,8 +441,9 @@ function isValidSecretId(secretId: string): boolean {
     return false;
   }
 
-  // Valid secret IDs should be reasonable length and not look like raw secrets
-  return secretId.length >= 3 && secretId.length <= 100 && !/[A-Za-z0-9_-]{30,}/.test(secretId);
+  // Valid secret names should be reasonable length.
+  // We allow names with dashes/underscores even if long, as they are likely identifiers.
+  return secretId.length >= 1 && secretId.length <= 100;
 }
 
 function resolveActionPortSnapshot(
