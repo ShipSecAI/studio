@@ -125,6 +125,17 @@ prod action="start":
             ;;
         build)
             echo "🔨 Building and starting production..."
+
+            # Auto-detect git version: prioritize tag, then SHA, then "dev"
+            GIT_TAG=$(git describe --exact-match --tags 2>/dev/null || echo "")
+            if [ -n "$GIT_TAG" ]; then
+                export GIT_SHA="$GIT_TAG"
+                echo "📌 Building with tag: $GIT_SHA"
+            else
+                export GIT_SHA=$(git rev-parse --short=7 HEAD 2>/dev/null || echo "dev")
+                echo "📌 Building with commit: $GIT_SHA"
+            fi
+
             docker compose -f docker/docker-compose.full.yml up -d --build
             echo "✅ Production built and started"
             echo "   Frontend: http://localhost:8090"

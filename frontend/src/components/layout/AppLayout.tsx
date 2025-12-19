@@ -46,7 +46,10 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA
-  const displayVersion = gitSha && gitSha !== '' ? gitSha.slice(0, 6) : 'dev'
+  // If it's a tag (starts with v), show full tag. Otherwise show first 7 chars of SHA
+  const displayVersion = gitSha && gitSha !== '' && gitSha !== 'unknown'
+    ? (gitSha.startsWith('v') ? gitSha : gitSha.slice(0, 7))
+    : 'dev'
 
   // Auto-collapse sidebar when opening workflow builder, expand for other routes
   useEffect(() => {
