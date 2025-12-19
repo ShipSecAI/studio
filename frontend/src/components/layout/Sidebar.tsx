@@ -25,6 +25,26 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore'
 
 type ViewMode = 'list' | 'tiles'
 
+// Global state for mobile component placement (shared between Sidebar and Canvas)
+export const mobilePlacementState = {
+  componentId: null as string | null,
+  componentName: null as string | null,
+  isActive: false, // True when a component is selected and waiting to be placed
+  onSidebarClose: null as (() => void) | null, // Callback to close sidebar
+}
+
+// Function to set the sidebar close callback
+export const setMobilePlacementSidebarClose = (callback: () => void) => {
+  mobilePlacementState.onSidebarClose = callback
+}
+
+// Function to clear the placement state
+export const clearMobilePlacement = () => {
+  mobilePlacementState.componentId = null
+  mobilePlacementState.componentName = null
+  mobilePlacementState.isActive = false
+}
+
 interface ComponentItemProps {
   component: ComponentMetadata
   disabled?: boolean
@@ -35,6 +55,7 @@ function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
   const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
   const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as React.ComponentType<{ className?: string }>
   const description = component.description || 'No description available yet.'
+  const [isSelected, setIsSelected] = useState(false)
 
   const onDragStart = (event: React.DragEvent) => {
     if (disabled) {
@@ -46,19 +67,48 @@ function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
     event.dataTransfer.effectAllowed = 'move'
   }
 
+  // Handle tap on mobile - select component and close sidebar
+  const handleTap = () => {
+    if (disabled || component.deprecated) return
+    
+    // Set the component for placement
+    mobilePlacementState.componentId = component.id
+    mobilePlacementState.componentName = component.name
+    mobilePlacementState.isActive = true
+    setIsSelected(true)
+    
+    // Close sidebar after a short delay to show selection feedback
+    setTimeout(() => {
+      if (mobilePlacementState.onSidebarClose) {
+        mobilePlacementState.onSidebarClose()
+      }
+      setIsSelected(false)
+    }, 150)
+  }
+
+  // Clear selection if this component is no longer the active one
+  useEffect(() => {
+    if (mobilePlacementState.componentId !== component.id) {
+      setIsSelected(false)
+    }
+  }, [component.id])
+
   if (viewMode === 'list') {
     return (
       <div
         className={cn(
-          'group relative flex items-center gap-3 px-3 py-2 rounded-md cursor-move transition-all',
+          'group relative flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-all',
           'hover:bg-muted/50 border border-border/30 hover:border-border/60',
+          'md:cursor-move', // Desktop: show move cursor
           disabled
             ? 'cursor-not-allowed opacity-50'
             : '',
-          component.deprecated && 'opacity-50'
+          component.deprecated && 'opacity-50',
+          isSelected && 'bg-primary/20 border-primary scale-95'
         )}
         draggable={!component.deprecated && !disabled}
         onDragStart={onDragStart}
+        onClick={handleTap}
       >
         {/* Icon */}
         <div className="flex-shrink-0">
@@ -99,16 +149,19 @@ function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
   return (
     <div
       className={cn(
-        'group relative flex flex-col p-3 border border-border/50 rounded-lg cursor-move transition-all',
+        'group relative flex flex-col p-3 border border-border/50 rounded-lg cursor-pointer transition-all',
         'bg-background/50 hover:bg-background hover:border-border',
         'text-foreground aspect-[4/3]',
+        'md:cursor-move', // Desktop: show move cursor
         disabled
           ? 'cursor-not-allowed opacity-50'
           : 'hover:shadow-sm hover:scale-[1.02]',
-        component.deprecated && 'opacity-50'
+        component.deprecated && 'opacity-50',
+        isSelected && 'bg-primary/20 border-primary scale-95'
       )}
       draggable={!component.deprecated && !disabled}
       onDragStart={onDragStart}
+      onClick={handleTap}
     >
       {/* Default: Centered icon and name */}
       <div className="flex flex-col items-center justify-center gap-2 flex-1 group-hover:hidden transition-all">

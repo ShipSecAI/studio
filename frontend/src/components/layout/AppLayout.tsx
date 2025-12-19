@@ -12,6 +12,7 @@ import { useAuth, useAuthProvider } from '@/auth/auth-context'
 import { env } from '@/config/env'
 import { useThemeStore } from '@/store/themeStore'
 import { cn } from '@/lib/utils'
+import { setMobilePlacementSidebarClose } from '@/components/layout/Sidebar'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -32,6 +33,7 @@ export function useSidebar() {
   }
   return context
 }
+
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
@@ -91,6 +93,19 @@ export function AppLayout({ children }: AppLayoutProps) {
       setSidebarOpen(false)
     }
   }, [location.pathname, isMobile])
+
+  // Set up sidebar close callback for mobile component placement
+  useEffect(() => {
+    if (isMobile) {
+      setMobilePlacementSidebarClose(() => {
+        setSidebarOpen(false)
+        setWasExplicitlyOpened(false)
+      })
+    }
+    return () => {
+      setMobilePlacementSidebarClose(() => {})
+    }
+  }, [isMobile])
 
   // Handle hover to expand sidebar when collapsed (desktop only)
   const handleMouseEnter = () => {

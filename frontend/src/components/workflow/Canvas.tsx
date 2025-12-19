@@ -32,6 +32,7 @@ import { useToast } from '@/components/ui/use-toast'
 import type { WorkflowSchedule } from '@shipsec/shared'
 import { cn } from '@/lib/utils'
 import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/WorkflowSchedulesContext'
+import { mobilePlacementState, clearMobilePlacement } from '@/components/layout/Sidebar'
 
 // Context for entry point actions
 interface EntryPointActionsContextValue {
@@ -108,6 +109,7 @@ export function Canvas({
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
+  const canvasContainerRef = useRef<HTMLDivElement>(null)
   const { getComponent } = useComponentStore()
   const { nodeStates } = useExecutionStore()
   const { markDirty } = useWorkflowStore()
@@ -382,17 +384,10 @@ export function Canvas({
     event.dataTransfer.dropEffect = 'move'
   }, [mode])
 
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault()
-
+  // Helper function to create node from component ID and screen position
+  const createNodeFromComponent = useCallback(
+    (componentId: string, clientX: number, clientY: number) => {
       if (mode !== 'design') return
-
-      const componentId = event.dataTransfer.getData('application/reactflow')
-
-      if (typeof componentId === 'undefined' || !componentId) {
-        return
-      }
 
       const component = getComponent(componentId)
       if (!component) {
@@ -414,8 +409,8 @@ export function Canvas({
       }
 
       const position = reactFlowInstance?.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
+        x: clientX,
+        y: clientY,
       })
 
       if (!position) return
@@ -485,8 +480,57 @@ export function Canvas({
       // Mark workflow as dirty
       markDirty()
     },
-    [reactFlowInstance, setNodes, getComponent, markDirty, mode, nodes, toast]
+    [reactFlowInstance, setNodes, getComponent, markDirty, mode, nodes, toast, workflowId]
   )
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault()
+
+      if (mode !== 'design') return
+
+      const componentId = event.dataTransfer.getData('application/reactflow')
+
+      if (typeof componentId === 'undefined' || !componentId) {
+        return
+      }
+
+      createNodeFromComponent(componentId, event.clientX, event.clientY)
+    },
+    [createNodeFromComponent, mode]
+  )
+
+  // Handle mobile tap-to-place: when user taps on canvas after selecting a component
+  const handleCanvasTap = useCallback((event: React.MouseEvent | React.TouchEvent) => {
+    if (mode !== 'design') return
+    
+    // Check if there's a component selected for placement (mobile flow)
+    if (mobilePlacementState.isActive && mobilePlacementState.componentId) {
+      let clientX: number
+      let clientY: number
+      
+      if ('touches' in event) {
+        // Touch event
+        const touch = event.changedTouches?.[0] || event.touches?.[0]
+        if (!touch) return
+        clientX = touch.clientX
+        clientY = touch.clientY
+      } else {
+        // Mouse event
+        clientX = event.clientX
+        clientY = event.clientY
+      }
+      
+      // Create node at tap position
+      createNodeFromComponent(mobilePlacementState.componentId, clientX, clientY)
+      
+      // Clear placement state
+      clearMobilePlacement()
+      
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [createNodeFromComponent, mode])
 
 
   // Handle node click for config panel
@@ -783,12 +827,34 @@ export function Canvas({
       <div className={className}>
         <div className="flex h-full">
         <div 
+          ref={canvasContainerRef}
           className="flex-1 relative bg-background overflow-hidden"
           style={{
             opacity: canvasOpacity,
             transition: 'opacity 200ms ease-in-out',
           }}
+          onClick={handleCanvasTap}
+          onTouchEnd={handleCanvasTap}
         >
+          {/* Mobile placement indicator - shows when a component is selected */}
+          {mobilePlacementState.isActive && mobilePlacementState.componentName && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
+              <span className="text-sm font-medium">
+                Tap to place: {mobilePlacementState.componentName}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  clearMobilePlacement()
+                }}
+                className="ml-2 hover:bg-primary-foreground/20 rounded-full p-1"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
           {/* Validation Dock - positioned relative to canvas */}
           <ValidationDock
             nodes={nodes}
