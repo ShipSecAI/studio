@@ -115,7 +115,7 @@ export function WorkflowBuilderShell({
             type="button"
             variant="secondary"
             onClick={onToggleLibrary}
-            className="absolute z-[60] top-[10px] left-[10px] h-8 px-3 py-1.5 flex items-center gap-2 rounded-md border bg-background text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="absolute z-50 top-[10px] left-[10px] h-8 px-3 py-1.5 flex items-center gap-2 rounded-md border bg-background text-xs font-medium transition-all duration-200 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-expanded={false}
             aria-label="Show component library"
             title="Show components"
