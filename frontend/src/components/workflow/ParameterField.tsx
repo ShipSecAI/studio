@@ -154,7 +154,7 @@ export function ParameterField({
     }
     if (
       typeof currentValue === 'string' &&
-      secrets.some((secret) => secret.id === currentValue)
+      secrets.some((secret) => secret.id === currentValue || secret.name === currentValue)
     ) {
       return 'select'
     }
@@ -183,11 +183,11 @@ export function ParameterField({
     if (
       secretMode === 'select' &&
       (typeof currentValue !== 'string' ||
-        !secrets.some((secret) => secret.id === currentValue))
+        !secrets.some((secret) => secret.id === currentValue || secret.name === currentValue))
     ) {
       const firstSecret = secrets[0]
       if (firstSecret) {
-        onChange(firstSecret.id)
+        onChange(firstSecret.name)
       }
     }
   }, [parameter.type, secretMode, secrets, currentValue, onChange, isReceivingInput])
@@ -518,12 +518,14 @@ export function ParameterField({
 
     case 'secret': {
       const hasSecrets = secrets.length > 0
-      const selectedSecretId =
-        typeof currentValue === 'string' && secrets.some((secret) => secret.id === currentValue)
-          ? currentValue
-          : ''
+      const activeSecret = secrets.find(
+        (s) => s.id === currentValue || s.name === currentValue
+      )
+
+      const selectedSecretKey = activeSecret?.name ?? ''
+
       const manualValue =
-        typeof currentValue === 'string' && !secrets.some((secret) => secret.id === currentValue)
+        typeof currentValue === 'string' && !activeSecret
           ? currentValue
           : ''
       const disableForGithubConnection =
@@ -547,14 +549,14 @@ export function ParameterField({
             return
           }
           const existing =
-            secrets.find((secret) => secret.id === selectedSecretId) ?? secrets[0]
+            secrets.find((s) => s.id === currentValue || s.name === currentValue) ?? secrets[0]
           setSecretMode('select')
-          updateSecretValue(existing?.id ?? undefined)
+          updateSecretValue(existing?.name ?? undefined)
           return
         }
 
         setSecretMode('manual')
-        if (selectedSecretId) {
+        if (selectedSecretKey) {
           updateSecretValue(undefined)
         }
       }
@@ -626,7 +628,7 @@ export function ParameterField({
 
           {secretMode === 'select' && hasSecrets && (
             <select
-              value={selectedSecretId}
+              value={selectedSecretKey}
               onChange={(e) => {
                 const nextValue = e.target.value
                 updateSecretValue(nextValue === '' ? undefined : nextValue)
@@ -636,7 +638,7 @@ export function ParameterField({
             >
               <option value="">Select a secret…</option>
               {secrets.map((secret) => (
-                <option key={secret.id} value={secret.id}>
+                <option key={secret.id} value={secret.name}>
                   {secret.name}
                 </option>
               ))}
@@ -661,9 +663,9 @@ export function ParameterField({
             />
           )}
 
-          {secretMode === 'select' && selectedSecretId && (
+          {secretMode === 'select' && activeSecret && (
             <p className="text-xs text-muted-foreground">
-              ID: <span className="font-mono">{selectedSecretId}</span>
+              Reference: <span className="font-mono">{activeSecret.name}</span> (ID: {activeSecret.id.substring(0, 8)}...)
             </p>
           )}
 

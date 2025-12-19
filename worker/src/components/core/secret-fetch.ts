@@ -10,7 +10,7 @@ const inputSchema = z.object({
   secretId: z
     .string()
     .min(1, 'Secret identifier is required')
-    .describe('Secret name or UUID from the ShipSec secret store'),
+    .describe('Name or UUID of the secret in the ShipSec store'),
   version: z
     .number()
     .int()
@@ -91,10 +91,10 @@ const definition: ComponentDefinition<Input, Output> = {
     parameters: [
       {
         id: 'secretId',
-        label: 'Secret ID',
+        label: 'Secret Name',
         type: 'secret',
         required: true,
-        description: 'Secret name or UUID from the platform store.',
+        description: 'Name or UUID of the secret from the platform store.',
       },
       {
         id: 'version',
