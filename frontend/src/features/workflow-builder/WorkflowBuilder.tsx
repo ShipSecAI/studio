@@ -141,6 +141,8 @@ function WorkflowBuilderContent() {
   const setInspectorWidth = useWorkflowUiStore((state) => state.setInspectorWidth)
   const setMode = useWorkflowUiStore((state) => state.setMode)
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
+  const showDemoComponents = useWorkflowUiStore((state) => state.showDemoComponents)
+  const toggleDemoComponents = useWorkflowUiStore((state) => state.toggleDemoComponents)
 
   // Mode-aware getters for nodes and edges - memoized to prevent unnecessary re-renders
   const nodes = useMemo(() => {
@@ -707,29 +709,38 @@ function WorkflowBuilderContent() {
       }
 
       const key = event.key?.toLowerCase()
+
+      // Save shortcut: Ctrl/Cmd + S
       const isSaveCombo = (event.metaKey || event.ctrlKey) && key === 's'
-
-      if (!isSaveCombo || mode !== 'design') {
+      if (isSaveCombo && mode === 'design') {
+        event.preventDefault()
+        event.stopPropagation()
+        if (!isSavingShortcutRef.current) {
+          isSavingShortcutRef.current = true
+          void handleSave().finally(() => {
+            isSavingShortcutRef.current = false
+          })
+        }
         return
       }
 
-      // Allow the shortcut even while typing, but avoid hijacking other embedded apps that might prevent default
-      event.preventDefault()
-      event.stopPropagation()
-
-      if (isSavingShortcutRef.current) {
-        return
+      // Demo components toggle shortcut: Ctrl/Cmd + Shift + D
+      const isDemoToggleCombo = (event.metaKey || event.ctrlKey) && event.shiftKey && key === 'd'
+      if (isDemoToggleCombo) {
+        event.preventDefault()
+        event.stopPropagation()
+        toggleDemoComponents()
+        const isNowVisible = !showDemoComponents // because it was just toggled
+        toast({
+          title: isNowVisible ? 'Demo components enabled' : 'Demo components disabled',
+          duration: 2000,
+        })
       }
-
-      isSavingShortcutRef.current = true
-      void handleSave().finally(() => {
-        isSavingShortcutRef.current = false
-      })
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSave, mode])
+  }, [handleSave, mode, toggleDemoComponents, showDemoComponents, toast])
 
 
   // Show inspector if there's an active run OR if mode is execution

@@ -18,6 +18,7 @@ import {
   getCategorySeparatorColor
 } from '@/utils/categoryColors'
 import { useThemeStore } from '@/store/themeStore'
+import { useWorkflowUiStore } from '@/store/workflowUiStore'
 
 // Use backend-provided category configuration
 // The frontend will no longer categorize components - it will use backend data
@@ -210,7 +211,26 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     })
   }, [fetchComponents])
 
+  const showDemoComponents = useWorkflowUiStore((state) => state.showDemoComponents)
   const allComponents = getAllComponents()
+
+  // Helper to identify demo components
+  const isDemoComponent = (component: ComponentMetadata) => {
+    const name = component.name.toLowerCase()
+    const slug = component.slug.toLowerCase()
+    const category = component.category.toLowerCase()
+
+    return (
+      category === 'demo' ||
+      name.includes('demo') ||
+      slug.includes('demo') ||
+      name.includes('(test)') ||
+      name === 'live event' ||
+      name === 'parallel sleep' ||
+      slug === 'live-event' ||
+      slug === 'parallel-sleep'
+    )
+  }
 
   // Filter out entry point component (always present, shouldn't be in the list)
   const filteredComponents = useMemo(() => {
@@ -222,10 +242,14 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
         if (!env.VITE_ENABLE_IT_OPS && component.category === 'it_ops') {
           return false
         }
+        // Hide demo components unless toggled on via special keypress
+        if (!showDemoComponents && isDemoComponent(component)) {
+          return false
+        }
         return true
       }
     )
-  }, [allComponents])
+  }, [allComponents, showDemoComponents])
 
   // Group components by backend-provided categories (memoized to prevent infinite loops)
   const componentsByCategory = useMemo(() => {

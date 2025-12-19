@@ -10,6 +10,7 @@ interface WorkflowUiState {
   inspectorWidth: number
   /** Currently focused terminal panel's node ID (for z-index stacking) */
   focusedTerminalNodeId: string | null
+  showDemoComponents: boolean
 }
 
 interface WorkflowUiActions {
@@ -20,6 +21,7 @@ interface WorkflowUiActions {
   setInspectorWidth: (width: number) => void
   /** Bring a terminal panel to the front by setting it as focused */
   bringTerminalToFront: (nodeId: string) => void
+  toggleDemoComponents: () => void
 }
 
 export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
@@ -42,6 +44,8 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
         inspectorWidth: Math.max(320, Math.min(520, Math.round(width)))
       })),
       bringTerminalToFront: (nodeId) => set({ focusedTerminalNodeId: nodeId }),
+      showDemoComponents: false,
+      toggleDemoComponents: () => set((state) => ({ showDemoComponents: !state.showDemoComponents })),
     }),
     {
       name: 'workflow-ui-preferences',
