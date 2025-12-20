@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, X } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield } from 'lucide-react'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
@@ -103,7 +103,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       })
     }
     return () => {
-      setMobilePlacementSidebarClose(() => {})
+      setMobilePlacementSidebarClose(() => { })
     }
   }, [isMobile])
 
@@ -194,12 +194,13 @@ export function AppLayout({ children }: AppLayoutProps) {
             if (!canManageWorkflows) return
             navigate('/workflows/new')
           }}
-          className="gap-2"
+          size={isMobile ? "sm" : "default"}
+          className={cn("gap-2", isMobile && "h-8 px-3 text-xs")}
           disabled={!canManageWorkflows}
           aria-disabled={!canManageWorkflows}
         >
-          <Plus className="h-4 w-4" />
-          New Workflow
+          <Plus className={cn("w-4 h-4", isMobile && "w-3.5 h-3.5")} />
+          <span>New <span className="hidden md:inline">Workflow</span></span>
         </Button>
       )
     }
@@ -234,69 +235,39 @@ export function AppLayout({ children }: AppLayoutProps) {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          {/* Mobile Header with Close button */}
-          {isMobile && sidebarOpen && (
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-background">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setSidebarOpen(false)}
-                aria-label="Close sidebar"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-              <Link to="/" className="flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
+          {/* Sidebar Header - same style for mobile and desktop */}
+          <SidebarHeader className="flex items-center justify-between p-4 border-b">
+            <Link to="/" className="flex items-center gap-2" onClick={() => isMobile && setSidebarOpen(false)}>
+              <div className="flex-shrink-0">
                 <img
                   src="/favicon.ico"
                   alt="ShipSec Studio"
-                  className="w-7 h-7"
+                  className="w-6 h-6"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none'
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
                   }}
                 />
-                <span className="font-bold text-lg">ShipSec</span>
-              </Link>
-              <div className="w-9" /> {/* Spacer for centering */}
-            </div>
-          )}
-
-          {/* Desktop Header */}
-          {!isMobile && (
-            <SidebarHeader className="flex items-center justify-between p-4 border-b">
-              <Link to="/" className="flex items-center gap-2">
-                <div className="flex-shrink-0">
-                  <img
-                    src="/favicon.ico"
-                    alt="ShipSec Studio"
-                    className="w-6 h-6"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                    }}
-                  />
-                  <span className="hidden text-sm font-bold">SS</span>
-                </div>
-                <span
-                  className={cn(
-                    'font-bold text-xl transition-all duration-300 whitespace-nowrap overflow-hidden',
-                    sidebarOpen ? 'opacity-100 max-w-48' : 'opacity-0 max-w-0'
-                  )}
-                  style={{
-                    transitionDelay: sidebarOpen ? '150ms' : '0ms',
-                    transitionProperty: 'opacity, max-width'
-                  }}
-                >
-                  ShipSec Studio
-                </span>
-              </Link>
-            </SidebarHeader>
-          )}
+                <span className="hidden text-sm font-bold">SS</span>
+              </div>
+              <span
+                className={cn(
+                  'font-bold text-xl transition-all duration-300 whitespace-nowrap overflow-hidden',
+                  sidebarOpen ? 'opacity-100 max-w-48' : 'opacity-0 max-w-0'
+                )}
+                style={{
+                  transitionDelay: sidebarOpen ? '150ms' : '0ms',
+                  transitionProperty: 'opacity, max-width'
+                }}
+              >
+                ShipSec Studio
+              </span>
+            </Link>
+          </SidebarHeader>
 
           <SidebarContent className="py-0">
             <div className={cn(
-              'px-2 mt-2',
-              isMobile ? 'space-y-0.5' : 'space-y-1'
+              'px-2 mt-2 space-y-1'
             )}>
               {navigationItems.map((item) => {
                 const Icon = item.icon
@@ -322,26 +293,14 @@ export function AppLayout({ children }: AppLayoutProps) {
                       isActive={active}
                       className={cn(
                         'flex items-center gap-3',
-                        sidebarOpen ? 'justify-start px-4' : 'justify-center',
-                        isMobile && 'py-3.5 rounded-xl'
+                        sidebarOpen ? 'justify-start px-4' : 'justify-center'
                       )}
                     >
-                      <div className={cn(
-                        'flex items-center justify-center rounded-full',
-                        isMobile ? 'w-10 h-10 bg-muted/60' : '',
-                        active && isMobile && 'bg-primary/10'
-                      )}>
-                        <Icon className={cn(
-                          'flex-shrink-0',
-                          isMobile ? 'h-5 w-5' : 'h-5 w-5',
-                          active && isMobile && 'text-primary'
-                        )} />
-                      </div>
+                      <Icon className="h-5 w-5 flex-shrink-0" />
                       <span
                         className={cn(
                           'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
-                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                          isMobile && 'text-base font-medium'
+                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0'
                         )}
                         style={{
                           transitionDelay: sidebarOpen ? '200ms' : '0ms',
@@ -350,11 +309,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                       >
                         {item.name}
                       </span>
-                      {isMobile && sidebarOpen && (
-                        <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      )}
                     </SidebarItem>
                   </Link>
                 )
