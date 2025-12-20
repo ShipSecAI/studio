@@ -851,6 +851,22 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
               </div>
               <div className="flex items-center gap-1">
+                {/* Delete button (Design Mode only, not Entry Point) */}
+                {mode === 'design' && !isEntryPoint && (
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-red-100 text-muted-foreground hover:text-red-500 transition-colors mr-1"
+                    title="Delete node"
+                    aria-label="Delete node"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteElements({ nodes: [{ id }] })
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
                 {/* Edit button for text blocks - explicitly select node for editing */}
                 {isTextBlock && mode === 'design' && (
                   <button

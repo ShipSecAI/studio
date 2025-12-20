@@ -44,6 +44,7 @@ interface WorkflowDesignerPaneProps {
   onEdgesChange: (changes: any[]) => void
   showSummary?: boolean
   onNavigateToSchedules: () => void
+  onCaptureSnapshot?: (nodes?: ReactFlowNode<FrontendNodeData>[], edges?: ReactFlowEdge[]) => void
 }
 
 export function WorkflowDesignerPane({
@@ -57,6 +58,7 @@ export function WorkflowDesignerPane({
   onEdgesChange,
   showSummary = true,
   onNavigateToSchedules,
+  onCaptureSnapshot,
 }: WorkflowDesignerPaneProps) {
   const [hasSelectedNode, setHasSelectedNode] = useState(false)
   const { toast } = useToast()
@@ -156,6 +158,7 @@ export function WorkflowDesignerPane({
             workflowId={workflowId}
             onClearNodeSelection={handleClearNodeSelection}
             onNodeSelectionChange={handleNodeSelectionChange}
+            onSnapshot={onCaptureSnapshot}
           />
         </div>
 

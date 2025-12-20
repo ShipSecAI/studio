@@ -62,7 +62,6 @@ interface EntryPointActionsContextValue {
 const EntryPointActionsContext = createContext<EntryPointActionsContextValue>({})
 export const useEntryPointActions = () => useContext(EntryPointActionsContext)
 
-const MAX_DELETE_HISTORY = 10
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
 const ENTRY_COMPONENT_SLUG = 'entry-point'
 
@@ -76,10 +75,7 @@ const isEntryPointNode = (node?: Node<NodeData> | null) => {
   return isEntryPointComponentRef(componentRef)
 }
 
-interface DeleteHistoryEntry {
-  nodes: Node<NodeData>[]
-  edges: Edge[]
-}
+
 
 interface CanvasProps {
   className?: string
@@ -102,6 +98,7 @@ interface CanvasProps {
   onCloseScheduleSidebar?: () => void
   onClearNodeSelection?: () => void
   onNodeSelectionChange?: (node: Node<NodeData> | null) => void
+  onSnapshot?: (nodes?: Node<NodeData>[], edges?: Edge[]) => void
 }
 
 export function Canvas({
@@ -125,6 +122,7 @@ export function Canvas({
   onCloseScheduleSidebar,
   onClearNodeSelection,
   onNodeSelectionChange,
+  onSnapshot,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null)
@@ -155,8 +153,9 @@ export function Canvas({
   const resolvedOnOpenScheduleSidebar = onOpenScheduleSidebar ?? scheduleContext?.onOpenScheduleSidebar
   const resolvedOnCloseScheduleSidebar = onCloseScheduleSidebar ?? scheduleContext?.onCloseScheduleSidebar
   const applyEdgesChange = onEdgesChange
-  const deleteHistoryRef = useRef<DeleteHistoryEntry[]>([])
+
   const hasUserInteractedRef = useRef(false)
+  const snapshotDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevModeRef = useRef<typeof mode>(mode)
   const prevNodesLengthRef = useRef(nodes.length)
   const prevEdgesLengthRef = useRef(edges.length)
@@ -309,36 +308,44 @@ export function Canvas({
           isHighlighted: selectedNodeId === params.source || selectedNodeId === params.target,
         },
       }
-      setEdges((eds) => addEdge(newEdge, eds))
+
+      // Calculate new edges
+      const newEdges = addEdge(newEdge, edges)
+      setEdges(newEdges)
+
+      // Calculate new nodes (if input mapping update is needed)
+      let nextNodes = nodes
 
       // Update target node's input mapping
       if (params.target && params.targetHandle && params.source && params.sourceHandle) {
         const targetHandle = params.targetHandle
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === params.target
-              ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  inputs: {
-                    ...(node.data.inputs as Record<string, unknown>),
-                    [targetHandle]: {
-                      source: params.source,
-                      output: params.sourceHandle,
-                    },
-                  } as Record<string, unknown>,
-                },
-              }
-              : node
-          )
+        nextNodes = nodes.map((node) =>
+          node.id === params.target
+            ? {
+              ...node,
+              data: {
+                ...node.data,
+                inputs: {
+                  ...(node.data.inputs as Record<string, unknown>),
+                  [targetHandle]: {
+                    source: params.source,
+                    output: params.sourceHandle,
+                  },
+                } as Record<string, unknown>,
+              },
+            }
+            : node
         )
+        setNodes(nextNodes)
       }
+
+      // Capture snapshot for history
+      onSnapshot?.(nextNodes, newEdges)
 
       // Mark workflow as dirty
       markDirty()
     },
-    [setEdges, setNodes, nodes, edges, getComponent, markDirty, mode, toast]
+    [setEdges, setNodes, nodes, edges, getComponent, markDirty, mode, toast, selectedNodeId, onSnapshot]
   )
 
   // Fit view on initial load, when nodes/edges are added/removed, or when switching modes
@@ -493,7 +500,10 @@ export function Canvas({
         } as any,
       }
 
-      setNodes((nds) => nds.concat(newNode))
+      // Update nodes and capture snapshot
+      const nextNodes = nodes.concat(newNode)
+      setNodes(nextNodes)
+      onSnapshot?.(nextNodes, edges)
 
       // Analytics: node added
       try {
@@ -507,7 +517,7 @@ export function Canvas({
       // Mark workflow as dirty
       markDirty()
     },
-    [reactFlowInstance, setNodes, getComponent, markDirty, mode, nodes, toast, workflowId]
+    [reactFlowInstance, setNodes, getComponent, markDirty, mode, nodes, edges, toast, workflowId, onSnapshot]
   )
 
   const onDrop = useCallback(
@@ -633,17 +643,27 @@ export function Canvas({
 
   // Handle node data update from config panel
   const handleUpdateNode = useCallback((nodeId: string, data: Partial<NodeData>) => {
-    setNodes((nds) =>
-      nds.map((node) =>
-        node.id === nodeId
-          ? { ...node, data: { ...node.data, ...data } }
-          : node
-      )
+    const newNodes = nodes.map((node) =>
+      node.id === nodeId
+        ? { ...node, data: { ...node.data, ...data } }
+        : node
     )
 
-    // Mark workflow as dirty
+    setNodes(newNodes)
+
+    // Debounce history snapshot to avoid creating history entries for every keystroke
+    if (snapshotDebounceRef.current) {
+      clearTimeout(snapshotDebounceRef.current)
+    }
+
+    snapshotDebounceRef.current = setTimeout(() => {
+      onSnapshot?.(newNodes, edges)
+      snapshotDebounceRef.current = null
+    }, 500)
+
+    // Mark workflow as dirty immediately so Save button enables
     markDirty()
-  }, [setNodes, markDirty])
+  }, [nodes, edges, setNodes, markDirty, onSnapshot])
 
   // Sync selectedNode with the latest node data from nodes array
   useEffect(() => {
@@ -709,52 +729,7 @@ export function Canvas({
         return
       }
 
-      const isUndoShortcut =
-        (event.key === 'z' || event.key === 'Z') &&
-        (event.metaKey || event.ctrlKey) &&
-        !event.shiftKey
 
-      if (isUndoShortcut) {
-        event.preventDefault()
-        const lastDeletion = deleteHistoryRef.current.pop()
-        if (!lastDeletion) {
-          return
-        }
-
-        if (lastDeletion.nodes.length > 0) {
-          setNodes((nds) => {
-            const existingIds = new Set(nds.map((node) => node.id))
-            const nodesToRestore = lastDeletion.nodes
-              .filter((node) => !existingIds.has(node.id))
-              .map((node) => ({ ...node, selected: false }))
-
-            if (nodesToRestore.length === 0) {
-              return nds
-            }
-
-            return nds.concat(nodesToRestore)
-          })
-        }
-
-        if (lastDeletion.edges.length > 0) {
-          setEdges((eds) => {
-            const existingIds = new Set(eds.map((edge) => edge.id))
-            const edgesToRestore = lastDeletion.edges
-              .filter((edge) => !existingIds.has(edge.id))
-              .map((edge) => ({ ...edge, selected: false }))
-
-            if (edgesToRestore.length === 0) {
-              return eds
-            }
-
-            return eds.concat(edgesToRestore)
-          })
-        }
-
-        setSelectedNode(null)
-        markDirty()
-        return
-      }
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
         const target = event.target
@@ -797,17 +772,7 @@ export function Canvas({
           dedupedEdges.set(edge.id, { ...edge, selected: false })
         })
 
-        const historyEntryNodes = selectedNodes.map((node) => ({ ...node, selected: false }))
-        const historyEntryEdges = Array.from(dedupedEdges.values())
 
-        if (historyEntryNodes.length > 0 || historyEntryEdges.length > 0) {
-          const history = deleteHistoryRef.current.slice(-(MAX_DELETE_HISTORY - 1))
-          history.push({
-            nodes: historyEntryNodes,
-            edges: historyEntryEdges,
-          })
-          deleteHistoryRef.current = history
-        }
 
         if (selectedNodes.length > 0) {
           setNodes((nds) => nds.filter((node) => !nodeIds.has(node.id)))

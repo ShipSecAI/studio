@@ -14,6 +14,8 @@ import {
   Loader2,
   Pencil,
   MoreHorizontal,
+  Undo2,
+  Redo2,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -34,6 +36,10 @@ interface TopBarProps {
   onImport?: (file: File) => Promise<void> | void
   onExport?: () => void
   canManageWorkflows?: boolean
+  onUndo?: () => void
+  onRedo?: () => void
+  canUndo?: boolean
+  canRedo?: boolean
 }
 
 const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow'
@@ -46,6 +52,10 @@ export function TopBar({
   onImport,
   onExport,
   canManageWorkflows = true,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: TopBarProps) {
   const navigate = useNavigate()
   const [isSaving, setIsSaving] = useState(false)
@@ -318,6 +328,28 @@ export function TopBar({
             <div className="flex items-center gap-1 md:gap-2">
               {mode === 'design' && (
                 <>
+                  <div className="flex items-center gap-0.5 border-r border-border/50 pr-2 mr-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={onUndo}
+                      disabled={!canEdit || !canUndo}
+                      title="Undo (⌘Z)"
+                    >
+                      <Undo2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={onRedo}
+                      disabled={!canEdit || !canRedo}
+                      title="Redo (⌘⇧Z)"
+                    >
+                      <Redo2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                   {(onImport || onExport) && (
                     <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
                       {onImport && (
