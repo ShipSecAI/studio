@@ -284,7 +284,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Mobile backdrop overlay */}
         {isMobile && sidebarOpen && (
           <div
-            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm transition-opacity duration-300"
             onClick={handleBackdropClick}
             aria-hidden="true"
           />
@@ -293,7 +293,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Sidebar */}
         <Sidebar
           className={cn(
-            'h-full transition-all duration-300 z-40',
+            'h-full transition-all duration-300 z-[110]',
             // Mobile: Fixed position, slide in/out
             isMobile ? 'fixed left-0 top-0' : 'relative',
             // Width based on state and device

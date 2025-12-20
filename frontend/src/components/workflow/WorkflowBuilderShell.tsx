@@ -238,7 +238,7 @@ export function WorkflowBuilderShell({
         {/* Mobile backdrop for library panel */}
         {isMobile && isLibraryVisible && (
           <div
-            className="fixed inset-0 z-[25] bg-black/50 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm md:hidden"
             onClick={onToggleLibrary}
             aria-hidden="true"
           />
@@ -250,7 +250,7 @@ export function WorkflowBuilderShell({
             variant="secondary"
             onClick={onToggleLibrary}
             className={cn(
-              'absolute z-[60] top-[10px] left-[10px] h-8 px-2 md:px-3 py-1.5',
+              'absolute z-[35] top-[10px] left-[10px] h-8 px-2 md:px-3 py-1.5',
               'flex items-center gap-1.5 md:gap-2 rounded-md border bg-background',
               'text-xs font-medium transition-all duration-200 hover:bg-muted',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
@@ -264,7 +264,7 @@ export function WorkflowBuilderShell({
           </Button>
         )}
         {showLoadingOverlay && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
+          <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
             <svg
               className="animate-spin h-8 w-8 text-muted-foreground"
               xmlns="http://www.w3.org/2000/svg"
@@ -282,7 +282,7 @@ export function WorkflowBuilderShell({
         {/* Library Panel - Full screen overlay on mobile, side panel on desktop */}
         <aside
           className={cn(
-            'h-full border-r bg-background overflow-hidden z-30',
+            'h-full border-r bg-background overflow-hidden z-[60]',
             // Mobile: fixed overlay
             isMobile ? 'fixed left-0 top-0' : 'relative',
             isLibraryVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
@@ -366,7 +366,7 @@ export function WorkflowBuilderShell({
             // Mobile: Draggable bottom sheet
             <aside
               className={cn(
-                'fixed inset-x-0 bottom-0 z-50 bg-background border-t rounded-t-2xl shadow-2xl',
+                'fixed inset-x-0 bottom-0 z-[60] bg-background border-t rounded-t-2xl shadow-2xl',
                 'transition-opacity duration-200',
                 isInspectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none translate-y-full',
               )}

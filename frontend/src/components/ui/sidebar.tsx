@@ -40,7 +40,7 @@ const SidebarFooter = React.forwardRef<
   <div 
     ref={ref} 
     className={cn(
-      'border-t p-2 md:p-4 mt-auto',
+      'border-t p-2 mt-auto',
       className
     )} 
     {...props} 

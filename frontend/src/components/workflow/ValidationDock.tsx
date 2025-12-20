@@ -105,7 +105,7 @@ export function ValidationDock({
           type="button"
           onClick={() => setIsMobileSheetOpen(true)}
           className={cn(
-            'absolute bottom-3 left-3 z-20',
+            'absolute bottom-3 left-3 z-[30]',
             'flex items-center gap-1.5 px-2.5 py-2 rounded-full shadow-lg',
             'bg-background/95 backdrop-blur-sm border',
             'transition-all duration-200 active:scale-95',
@@ -127,7 +127,7 @@ export function ValidationDock({
         {/* Bottom sheet backdrop */}
         {isMobileSheetOpen && (
           <div
-            className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm"
             onClick={() => setIsMobileSheetOpen(false)}
             aria-hidden="true"
           />
@@ -136,7 +136,7 @@ export function ValidationDock({
         {/* Bottom sheet */}
         <div
           className={cn(
-            'fixed left-0 right-0 bottom-0 z-[70]',
+            'fixed left-0 right-0 bottom-0 z-[60]',
             'bg-background border-t rounded-t-2xl shadow-2xl',
             'transition-transform duration-300 ease-out',
             'max-h-[60vh] flex flex-col',

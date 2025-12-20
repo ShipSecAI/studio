@@ -97,7 +97,7 @@ export function AppTopBar({
   return (
     <div className={cn(
       'h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
-      'flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-30'
+      'flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40'
     )}>
       {/* Sidebar toggle - works on both mobile and desktop */}
       {showSidebarToggle && onSidebarToggle && (
