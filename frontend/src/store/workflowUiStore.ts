@@ -35,7 +35,8 @@ export const useWorkflowUiStore = create<WorkflowUiState & WorkflowUiActions>()(
       setMode: (mode) => set((state) => ({
         mode,
         inspectorTab: mode === 'execution' ? state.inspectorTab ?? 'events' : 'events',
-        libraryOpen: mode === 'design'
+        // Don't auto-open library on mode switch - keep current state or close if going to execution
+        libraryOpen: mode === 'execution' ? false : state.libraryOpen
       })),
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setLibraryOpen: (open) => set({ libraryOpen: open }),

@@ -259,7 +259,7 @@ export function TopBar({
         <ArrowLeft className="h-5 w-5" />
       </Button>
 
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0">
         <div className="flex w-full gap-2 md:gap-4 items-center relative">
           {/* Workflow name - always visible, truncated on mobile, tappable to edit */}
           <div className="flex items-center justify-start gap-2 min-w-0 flex-shrink">

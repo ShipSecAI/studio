@@ -1,4 +1,4 @@
-  import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { RunSelector } from '@/components/timeline/RunSelector'
 import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
 import { EventInspector } from '@/components/timeline/EventInspector'
@@ -119,7 +119,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   const rawLogs = getDisplayLogs()
 
   // Vertical resize handlers for timeline section
-  const handleTimelineResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleTimelineResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
     isResizingTimeline.current = true
     document.body.style.cursor = 'row-resize'
@@ -127,26 +127,39 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
   }, [])
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMove = (clientY: number) => {
       if (!isResizingTimeline.current || !timelineRef.current) return
       const rect = timelineRef.current.getBoundingClientRect()
-      const newHeight = e.clientY - rect.top
+      const newHeight = clientY - rect.top
       const clampedHeight = Math.min(MAX_TIMELINE_HEIGHT, Math.max(MIN_TIMELINE_HEIGHT, newHeight))
       setTimelineHeight(clampedHeight)
     }
 
-    const handleMouseUp = () => {
+    const handleMouseMove = (e: MouseEvent) => {
+      handleMove(e.clientY)
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0]
+      if (touch) handleMove(touch.clientY)
+    }
+
+    const handleEnd = () => {
       isResizingTimeline.current = false
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
 
     document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('mouseup', handleEnd)
+    document.addEventListener('touchmove', handleTouchMove)
+    document.addEventListener('touchend', handleEnd)
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('mouseup', handleEnd)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleEnd)
     }
   }, [])
   const filteredLogs = useMemo(() => {
@@ -284,8 +297,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                   )}
                 </div>
               </div>
-              <RunInfoDisplay 
-                run={selectedRun} 
+              <RunInfoDisplay
+                run={selectedRun}
                 currentWorkflowVersion={currentWorkflowVersion}
                 showBadges={true}
               />
@@ -299,7 +312,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
         )}
 
         {/* Timeline - Vertically Resizable */}
-        <div 
+        <div
           ref={timelineRef}
           className="flex-shrink-0 relative"
           style={{ height: timelineHeight }}
@@ -316,7 +329,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
           {/* Vertical Resize Handle - More visible */}
           <div
             onMouseDown={handleTimelineResizeStart}
-            className="absolute bottom-0 left-0 right-0 h-2 cursor-row-resize group z-10 flex items-center justify-center"
+            onTouchStart={handleTimelineResizeStart}
+            className="absolute bottom-0 left-0 right-0 h-3 cursor-row-resize group z-10 flex items-center justify-center touch-none"
           >
             <div className="w-12 h-1 rounded-full bg-border group-hover:bg-primary/50 group-active:bg-primary transition-colors" />
           </div>
@@ -376,7 +390,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
 
         <div className="flex-1 min-h-0 overflow-hidden">
           {inspectorTab === 'events' && (
-            <div className="flex flex-col h-full min-h-0 overflow-auto">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden">
               <EventInspector className="h-full" />
             </div>
           )}

@@ -67,8 +67,32 @@ export function WorkflowBuilderShell({
   const [isInspectorResizing, setIsInspectorResizing] = useState(false)
   const [showLibraryContent, setShowLibraryContent] = useState(isLibraryVisible)
 
+  // Mobile bottom sheet state
+  const [mobileSheetHeight, setMobileSheetHeight] = useState(80) // percentage of available height
+  const isDraggingSheetRef = useRef(false)
+  const dragStartYRef = useRef(0)
+  const dragStartHeightRef = useRef(50)
+  const [showMobileHint, setShowMobileHint] = useState(true)
+
   // Responsive panel width
   const libraryPanelWidth = isMobile ? LIBRARY_PANEL_WIDTH_MOBILE : LIBRARY_PANEL_WIDTH
+
+  // Reset hint when inspector becomes visible on mobile
+  useEffect(() => {
+    if (isMobile && isInspectorVisible) {
+      setShowMobileHint(true)
+    }
+  }, [isMobile, isInspectorVisible])
+
+  // Auto-hide mobile hint after 2 seconds
+  useEffect(() => {
+    if (isMobile && isInspectorVisible && showMobileHint) {
+      const timer = setTimeout(() => {
+        setShowMobileHint(false)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [isMobile, isInspectorVisible, showMobileHint])
 
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -127,6 +151,83 @@ export function WorkflowBuilderShell({
       window.removeEventListener('mouseup', stopResizing)
     }
   }, [mode, setInspectorWidth])
+
+  // Mobile bottom sheet drag handlers
+  const handleSheetDragStart = useCallback((clientY: number) => {
+    isDraggingSheetRef.current = true
+    dragStartYRef.current = clientY
+    dragStartHeightRef.current = mobileSheetHeight
+    document.body.classList.add('select-none')
+  }, [mobileSheetHeight])
+
+  const handleSheetDragMove = useCallback((clientY: number) => {
+    if (!isDraggingSheetRef.current) return
+
+    const availableHeight = window.innerHeight - 56 // subtract topbar height
+    const deltaY = dragStartYRef.current - clientY
+    const deltaPercent = (deltaY / availableHeight) * 100
+    const newHeight = Math.min(85, Math.max(5, dragStartHeightRef.current + deltaPercent))
+    setMobileSheetHeight(newHeight)
+  }, [])
+
+  const handleSheetDragEnd = useCallback(() => {
+    if (!isDraggingSheetRef.current) return
+    isDraggingSheetRef.current = false
+    document.body.classList.remove('select-none')
+
+    // Snap to nearest position (5% collapsed, 50% half, or 80% expanded)
+    const snapPoints = [5, 50, 80]
+    const closest = snapPoints.reduce((prev, curr) =>
+      Math.abs(curr - mobileSheetHeight) < Math.abs(prev - mobileSheetHeight) ? curr : prev
+    )
+    setMobileSheetHeight(closest)
+  }, [mobileSheetHeight])
+
+  // Touch event handlers for mobile sheet
+  const handleSheetTouchStart = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation()
+    const touch = e.touches[0]
+    if (touch) handleSheetDragStart(touch.clientY)
+  }, [handleSheetDragStart])
+
+  const handleSheetTouchMove = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation()
+    const touch = e.touches[0]
+    if (touch) handleSheetDragMove(touch.clientY)
+  }, [handleSheetDragMove])
+
+  const handleSheetTouchEnd = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation()
+    handleSheetDragEnd()
+  }, [handleSheetDragEnd])
+
+  // Mouse event handlers for mobile sheet (for testing on desktop)
+  const handleSheetMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    handleSheetDragStart(e.clientY)
+  }, [handleSheetDragStart])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDraggingSheetRef.current) {
+        handleSheetDragMove(e.clientY)
+      }
+    }
+    const handleMouseUp = () => {
+      if (isDraggingSheetRef.current) {
+        handleSheetDragEnd()
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [handleSheetDragMove, handleSheetDragEnd])
 
   const showLibraryToggleButton = mode === 'design' && !isLibraryVisible
 
@@ -260,51 +361,86 @@ export function WorkflowBuilderShell({
             </aside>
           )}
 
-          {/* Inspector Panel - Full width overlay on mobile */}
-          {isMobile && isInspectorVisible && (
-            <div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-              onClick={() => {/* Close inspector on backdrop click - handled by parent */ }}
-              aria-hidden="true"
-            />
-          )}
-          <aside
-            className={cn(
-              'h-full border-l bg-background overflow-hidden',
-              // Mobile: fixed full-width overlay
-              isMobile ? 'fixed right-0 top-0 z-50' : 'relative',
-              isInspectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
-            )}
-            style={{
-              width: isInspectorVisible
-                ? (isMobile ? '100%' : inspectorWidth)
-                : 0,
-              transition: isInspectorResizing
-                ? 'opacity 200ms ease-in-out'
-                : 'width 200ms ease-in-out, opacity 200ms ease-in-out',
-            }}
-          >
-            <div
-              className="absolute inset-0"
+          {/* Inspector Panel - Bottom sheet on mobile, side panel on desktop */}
+          {isMobile ? (
+            // Mobile: Draggable bottom sheet
+            <aside
+              className={cn(
+                'fixed inset-x-0 bottom-0 z-50 bg-background border-t rounded-t-2xl shadow-2xl',
+                'transition-opacity duration-200',
+                isInspectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none translate-y-full',
+              )}
               style={{
-                width: isMobile ? '100%' : inspectorWidth,
+                height: isInspectorVisible ? `${mobileSheetHeight}%` : 0,
+                maxHeight: 'calc(100vh - 56px)', // Don't go above topbar
+                transition: isDraggingSheetRef.current
+                  ? 'none'
+                  : 'height 200ms ease-out, opacity 200ms ease-out, transform 200ms ease-out',
               }}
             >
-              {/* Resize handle - hidden on mobile */}
-              {!isMobile && (
+              {/* Drag handle with animated hint */}
+              <div
+                className="flex justify-center py-3 cursor-grab active:cursor-grabbing touch-none select-none"
+                onTouchStart={handleSheetTouchStart}
+                onTouchMove={handleSheetTouchMove}
+                onTouchEnd={handleSheetTouchEnd}
+                onMouseDown={handleSheetMouseDown}
+              >
+                <div
+                  className={cn(
+                    'flex items-center justify-center rounded-full transition-all duration-500 ease-out overflow-hidden',
+                    showMobileHint
+                      ? 'bg-muted/80 border px-3 py-1.5 gap-1.5'
+                      : 'bg-muted-foreground/40 w-12 h-1.5'
+                  )}
+                >
+                  {showMobileHint ? (
+                    <>
+                      <svg className="w-3 h-3 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">Slide down to inspect nodes</span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex h-[calc(100%-36px)] min-h-0 overflow-hidden">
+                {inspectorContent}
+              </div>
+            </aside>
+          ) : (
+            // Desktop: Side panel (unchanged)
+            <aside
+              className={cn(
+                'border-l bg-background overflow-hidden relative h-full',
+                isInspectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
+              )}
+              style={{
+                width: isInspectorVisible ? inspectorWidth : 0,
+                transition: isInspectorResizing
+                  ? 'opacity 200ms ease-in-out'
+                  : 'width 200ms ease-in-out, opacity 200ms ease-in-out',
+              }}
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  width: inspectorWidth,
+                }}
+              >
+                {/* Resize handle */}
                 <div
                   className="absolute top-0 left-0 h-full w-2 cursor-col-resize border-l border-transparent hover:border-primary/40 z-10"
                   onMouseDown={handleInspectorResizeStart}
                 />
-              )}
-              <div className={cn(
-                'flex h-full min-h-0 overflow-hidden',
-                isMobile ? 'pl-0' : 'pl-2'
-              )}>
-                {inspectorContent}
+                <div className="flex h-full min-h-0 overflow-hidden pl-2">
+                  {inspectorContent}
+                </div>
               </div>
-            </div>
-          </aside>
+            </aside>
+          )}
         </main>
       </div>
       {scheduleDrawer}
