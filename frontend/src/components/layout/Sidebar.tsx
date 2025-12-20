@@ -70,18 +70,17 @@ function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
   // Handle tap on mobile - select component and close sidebar
   const handleTap = () => {
     if (disabled || component.deprecated) return
-    
+
     // Set the component for placement
     mobilePlacementState.componentId = component.id
     mobilePlacementState.componentName = component.name
     mobilePlacementState.isActive = true
     setIsSelected(true)
-    
+
     // Close sidebar after a short delay to show selection feedback
     setTimeout(() => {
-      if (mobilePlacementState.onSidebarClose) {
-        mobilePlacementState.onSidebarClose()
-      }
+      // Close the library panel directly via store
+      useWorkflowUiStore.getState().setLibraryOpen(false)
       setIsSelected(false)
     }, 150)
   }
@@ -549,6 +548,14 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Mobile helper text - only visible on small screens */}
+      <div className="md:hidden px-4 py-2 border-b bg-muted/30">
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <LucideIcons.Hand className="h-3 w-3" />
+          Tap a component to add it to canvas
+        </p>
       </div>
 
       <div className="relative flex-1 overflow-hidden">

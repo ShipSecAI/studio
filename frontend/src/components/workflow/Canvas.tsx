@@ -838,21 +838,45 @@ export function Canvas({
           >
             {/* Mobile placement indicator - shows when a component is selected */}
             {mobilePlacementState.isActive && mobilePlacementState.componentName && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
-                <span className="text-sm font-medium">
-                  Tap to place: {mobilePlacementState.componentName}
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    clearMobilePlacement()
+              <div className="absolute top-[52px] left-[10px] z-50">
+                {/* Rotating border wrapper */}
+                <div
+                  className="relative rounded-full p-[2px]"
+                  style={{
+                    background: 'conic-gradient(from var(--angle), hsl(var(--primary)) 0deg, transparent 60deg, transparent 300deg, hsl(var(--primary)) 360deg)',
+                    animation: 'rotate-border 2s linear infinite',
                   }}
-                  className="ml-2 hover:bg-primary-foreground/20 rounded-full p-1"
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                  {/* Inner pill */}
+                  <div className="bg-background px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                    <span className="text-xs font-medium text-foreground whitespace-nowrap">
+                      Tap to place: <span className="text-primary font-semibold">{mobilePlacementState.componentName}</span>
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        clearMobilePlacement()
+                      }}
+                      className="hover:bg-muted rounded-full p-0.5 transition-colors"
+                    >
+                      <svg className="h-3.5 w-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {/* Keyframe animation with CSS property */}
+                <style>{`
+                  @property --angle {
+                    syntax: '<angle>';
+                    initial-value: 0deg;
+                    inherits: false;
+                  }
+                  @keyframes rotate-border {
+                    from { --angle: 0deg; }
+                    to { --angle: 360deg; }
+                  }
+                `}</style>
               </div>
             )}
             {/* Validation Dock - positioned relative to canvas */}
