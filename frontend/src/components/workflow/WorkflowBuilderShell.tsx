@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { PanelLeftClose, PanelLeftOpen, X, Undo2, Redo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface WorkflowBuilderShellProps {
   mode: 'design' | 'execution'
@@ -31,23 +32,7 @@ interface WorkflowBuilderShellProps {
 const LIBRARY_PANEL_WIDTH = 320
 const LIBRARY_PANEL_WIDTH_MOBILE = 280
 
-// Custom hook to detect mobile viewport
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  )
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint)
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [breakpoint])
-
-  return isMobile
-}
 
 export function WorkflowBuilderShell({
   mode,

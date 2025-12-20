@@ -51,7 +51,7 @@ export function WorkflowSchedulesSummaryBar({
   const countError = schedules.filter((s) => s.status === 'error').length
 
   return (
-    <div className="pointer-events-auto flex items-center gap-2 md:gap-3 rounded-xl border bg-background/95 px-2 md:px-4 py-1.5 md:py-2 ring-1 ring-border/60">
+    <div className="pointer-events-auto flex items-center gap-2 md:gap-3 rounded-xl border bg-background/95 px-2 md:px-4 py-1.5 md:py-2 ring-1 ring-border/60 shadow-sm">
       <div className="flex items-center gap-2 md:gap-3">
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
           <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">

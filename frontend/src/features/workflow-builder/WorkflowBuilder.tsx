@@ -44,6 +44,7 @@ import type { FrontendNodeData } from '@/schemas/node'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
 import { track, Events } from '@/features/analytics/events'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const ENTRY_DEFAULT_RUNTIME_INPUTS = [
   {
@@ -149,9 +150,11 @@ function WorkflowBuilderContent() {
     toggleDemoComponents,
     configPanelOpen,
     schedulesPanelOpen,
+    setLibraryOpen,
   } = useWorkflowUiStore()
 
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
+  const isMobile = useIsMobile()
 
   // Undo/redo history management
   const {
@@ -458,6 +461,13 @@ function WorkflowBuilderContent() {
       // If both are empty, design state should already be populated by workflow loading
     }
   }, [mode, setDesignNodes, setDesignEdges, setExecutionNodes, setExecutionEdges])
+
+  // Auto-open component library when switching to design mode on desktop
+  useEffect(() => {
+    if (mode === 'design' && !isMobile) {
+      setLibraryOpen(true)
+    }
+  }, [mode, isMobile, setLibraryOpen])
   // Track previous workflow ID to detect workflow switches
   const prevIdForResetRef = useRef<string | undefined>(undefined)
 
