@@ -1009,6 +1009,35 @@ interface ParameterFieldWrapperProps {
 }
 
 /**
+ * Checks if a parameter should be visible based on its visibleWhen conditions.
+ * Returns true if all conditions are met or if no conditions exist.
+ */
+function shouldShowParameter(
+  parameter: Parameter,
+  allParameters: Record<string, unknown> | undefined
+): boolean {
+  // If no visibleWhen conditions, always show
+  if (!parameter.visibleWhen) {
+    return true
+  }
+
+  // If we have conditions but no parameter values to check against, hide by default
+  if (!allParameters) {
+    return false
+  }
+
+  // Check all conditions in visibleWhen object
+  for (const [key, expectedValue] of Object.entries(parameter.visibleWhen)) {
+    const actualValue = allParameters[key]
+    if (actualValue !== expectedValue) {
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
  * ParameterFieldWrapper - Wraps parameter field with label and description
  */
 export function ParameterFieldWrapper({
@@ -1020,6 +1049,11 @@ export function ParameterFieldWrapper({
   parameters,
   onUpdateParameter,
 }: ParameterFieldWrapperProps) {
+  // Check visibility conditions
+  if (!shouldShowParameter(parameter, parameters)) {
+    return null
+  }
+
   // Special case: Runtime Inputs Editor for Entry Point
   if (parameter.id === 'runtimeInputs') {
     return (
@@ -1041,11 +1075,14 @@ export function ParameterFieldWrapper({
     )
   }
 
+  // Check if this is a nested/conditional parameter (has visibleWhen)
+  const isNestedParameter = Boolean(parameter.visibleWhen)
+
   // Standard parameter field rendering
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${isNestedParameter ? 'ml-4 pl-3 border-l-2 border-muted-foreground/20 bg-muted/30 rounded-r-md py-2.5 mt-1' : ''}`}>
       <div className="flex items-center justify-between mb-1">
-        <label className="text-sm font-medium" htmlFor={parameter.id}>
+        <label className={`${isNestedParameter ? 'text-xs' : 'text-sm'} font-medium`} htmlFor={parameter.id}>
           {parameter.label}
         </label>
         {parameter.required && (

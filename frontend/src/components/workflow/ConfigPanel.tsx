@@ -868,22 +868,19 @@ export function ConfigPanel({
               defaultOpen={true}
             >
               <div className="space-y-0 mt-2">
-                {/* Sort parameters: select types first, then others */}
-                {componentParameters
-                  .slice()
-                  .sort((a, b) => {
-                    // Select parameters go first
-                    const aIsSelect = a.type === 'select'
-                    const bIsSelect = b.type === 'select'
-                    if (aIsSelect && !bIsSelect) return -1
-                    if (!aIsSelect && bIsSelect) return 1
-                    return 0
-                  })
-                  .map((param, index) => (
+                {/* Render parameters in component definition order to preserve hierarchy */}
+                {componentParameters.map((param, index) => {
+                  // Only show border between top-level parameters (not nested ones)
+                  const isTopLevel = !param.visibleWhen
+                  const prevParam = index > 0 ? componentParameters[index - 1] : null
+                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false
+                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel
+
+                  return (
                     <div
                       key={param.id}
                       className={cn(
-                        index > 0 && "border-t border-border pt-3"
+                        showBorder && "border-t border-border pt-3"
                       )}
                     >
                       <ParameterFieldWrapper
@@ -896,7 +893,8 @@ export function ConfigPanel({
                         onUpdateParameter={handleParameterChange}
                       />
                     </div>
-                  ))}
+                  )
+                })}
               </div>
             </CollapsibleSection>
           )}

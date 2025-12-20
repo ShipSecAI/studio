@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from 'bun:test';
 import '../../index';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sdk';
-import type { ToolLoopAgentClass, StepCountIsFn, ToolFn, CreateOpenAIFn, CreateGoogleGenerativeAIFn } from '../ai-agent';
+import type { ToolLoopAgentClass, StepCountIsFn, ToolFn, CreateOpenAIFn, CreateGoogleGenerativeAIFn, GenerateObjectFn, GenerateTextFn } from '../ai-agent';
 
 const makeAgentResult = (overrides: Record<string, any> = {}) => ({
   text: 'Agent final answer',
@@ -461,6 +461,264 @@ describe('core.ai.agent component', () => {
       workflowRunId: 'test-run',
       nodeRef: 'core.ai.agent',
       agentRunId: expect.any(String),
+    });
+  });
+
+  describe('Structured Output', () => {
+    const generateObjectMock = vi.fn();
+    const generateTextMock = vi.fn();
+
+    beforeEach(() => {
+      generateObjectMock.mockReset();
+      generateTextMock.mockReset();
+    });
+
+    test('generates structured output from JSON example', async () => {
+      const component = componentRegistry.get('core.ai.agent');
+      expect(component).toBeDefined();
+
+      generateObjectMock.mockResolvedValue({
+        object: { name: 'Test User', age: 30 },
+        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+      });
+
+      const params = {
+        userInput: 'Generate user data',
+        conversationState: undefined,
+        chatModel: {
+          provider: 'openai',
+          modelId: 'gpt-4o-mini',
+        },
+        modelApiKey: 'sk-openai-from-secret',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 256,
+        memorySize: 8,
+        stepLimit: 4,
+        structuredOutputEnabled: true,
+        schemaType: 'json-example',
+        jsonExample: '{"name": "example", "age": 0}',
+        autoFixFormat: false,
+      };
+
+      const result = (await runComponentWithRunner(
+        component!.runner,
+        (p: any, ctx: any) =>
+          (component!.execute as any)(p, ctx, {
+            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
+            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
+            tool: ((definition: any) => definition) as unknown as ToolFn,
+            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
+            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
+            generateObject: generateObjectMock as unknown as GenerateObjectFn,
+            generateText: generateTextMock as unknown as GenerateTextFn,
+          }),
+        params,
+        workflowContext,
+      )) as any;
+
+      expect(generateObjectMock).toHaveBeenCalledTimes(1);
+      expect(result.structuredOutput).toEqual({ name: 'Test User', age: 30 });
+      expect(result.responseText).toBe(JSON.stringify({ name: 'Test User', age: 30 }, null, 2));
+      // ToolLoopAgent should NOT be called when structured output is enabled
+      expect(toolLoopAgentConstructorMock).not.toHaveBeenCalled();
+    });
+
+    test('generates structured output from JSON Schema', async () => {
+      const component = componentRegistry.get('core.ai.agent');
+      expect(component).toBeDefined();
+
+      generateObjectMock.mockResolvedValue({
+        object: { title: 'Hello World', count: 42 },
+        usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40 },
+      });
+
+      const params = {
+        userInput: 'Generate article data',
+        conversationState: undefined,
+        chatModel: {
+          provider: 'gemini',
+          modelId: 'gemini-2.5-flash',
+        },
+        modelApiKey: 'gm-gemini-from-secret',
+        systemPrompt: '',
+        temperature: 0.5,
+        maxTokens: 512,
+        memorySize: 8,
+        stepLimit: 4,
+        structuredOutputEnabled: true,
+        schemaType: 'json-schema',
+        jsonSchema: JSON.stringify({
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            count: { type: 'integer' },
+          },
+          required: ['title', 'count'],
+        }),
+        autoFixFormat: false,
+      };
+
+      const result = (await runComponentWithRunner(
+        component!.runner,
+        (p: any, ctx: any) =>
+          (component!.execute as any)(p, ctx, {
+            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
+            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
+            tool: ((definition: any) => definition) as unknown as ToolFn,
+            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
+            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
+            generateObject: generateObjectMock as unknown as GenerateObjectFn,
+            generateText: generateTextMock as unknown as GenerateTextFn,
+          }),
+        params,
+        workflowContext,
+      )) as any;
+
+      expect(generateObjectMock).toHaveBeenCalledTimes(1);
+      expect(result.structuredOutput).toEqual({ title: 'Hello World', count: 42 });
+    });
+
+    test('uses auto-fix when generateObject fails', async () => {
+      const component = componentRegistry.get('core.ai.agent');
+      expect(component).toBeDefined();
+
+      generateObjectMock.mockRejectedValue(new Error('Schema validation failed'));
+      generateTextMock.mockResolvedValue({
+        text: '```json\n{"name": "Fixed User", "age": 25}\n```',
+        usage: { promptTokens: 20, completionTokens: 30, totalTokens: 50 },
+      });
+
+      const params = {
+        userInput: 'Generate user data',
+        conversationState: undefined,
+        chatModel: {
+          provider: 'openai',
+          modelId: 'gpt-4o-mini',
+        },
+        modelApiKey: 'sk-openai-from-secret',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 256,
+        memorySize: 8,
+        stepLimit: 4,
+        structuredOutputEnabled: true,
+        schemaType: 'json-example',
+        jsonExample: '{"name": "example", "age": 0}',
+        autoFixFormat: true,
+      };
+
+      const result = (await runComponentWithRunner(
+        component!.runner,
+        (p: any, ctx: any) =>
+          (component!.execute as any)(p, ctx, {
+            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
+            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
+            tool: ((definition: any) => definition) as unknown as ToolFn,
+            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
+            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
+            generateObject: generateObjectMock as unknown as GenerateObjectFn,
+            generateText: generateTextMock as unknown as GenerateTextFn,
+          }),
+        params,
+        workflowContext,
+      )) as any;
+
+      expect(generateObjectMock).toHaveBeenCalledTimes(1);
+      expect(generateTextMock).toHaveBeenCalledTimes(1);
+      expect(result.structuredOutput).toEqual({ name: 'Fixed User', age: 25 });
+    });
+
+    test('returns null structuredOutput when not enabled', async () => {
+      const component = componentRegistry.get('core.ai.agent');
+      expect(component).toBeDefined();
+
+      nextAgentResult = makeAgentResult();
+
+      const params = {
+        userInput: 'Regular text query',
+        conversationState: undefined,
+        chatModel: {
+          provider: 'openai',
+          modelId: 'gpt-4o-mini',
+        },
+        modelApiKey: 'sk-openai-from-secret',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 256,
+        memorySize: 8,
+        stepLimit: 4,
+        structuredOutputEnabled: false,
+      };
+
+      const result = (await runComponentWithRunner(
+        component!.runner,
+        (p: any, ctx: any) =>
+          (component!.execute as any)(p, ctx, {
+            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
+            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
+            tool: ((definition: any) => definition) as unknown as ToolFn,
+            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
+            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
+            generateObject: generateObjectMock as unknown as GenerateObjectFn,
+            generateText: generateTextMock as unknown as GenerateTextFn,
+          }),
+        params,
+        workflowContext,
+      )) as any;
+
+      expect(generateObjectMock).not.toHaveBeenCalled();
+      expect(toolLoopAgentConstructorMock).toHaveBeenCalled();
+      expect(result.structuredOutput).toBeNull();
+      expect(result.responseText).toBe('Agent final answer');
+    });
+
+    test('throws error when auto-fix fails to parse', async () => {
+      const component = componentRegistry.get('core.ai.agent');
+      expect(component).toBeDefined();
+
+      generateObjectMock.mockRejectedValue(new Error('Schema validation failed'));
+      generateTextMock.mockResolvedValue({
+        text: 'This is not valid JSON at all',
+        usage: { promptTokens: 20, completionTokens: 30, totalTokens: 50 },
+      });
+
+      const params = {
+        userInput: 'Generate user data',
+        conversationState: undefined,
+        chatModel: {
+          provider: 'openai',
+          modelId: 'gpt-4o-mini',
+        },
+        modelApiKey: 'sk-openai-from-secret',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 256,
+        memorySize: 8,
+        stepLimit: 4,
+        structuredOutputEnabled: true,
+        schemaType: 'json-example',
+        jsonExample: '{"name": "example", "age": 0}',
+        autoFixFormat: true,
+      };
+
+      await expect(
+        runComponentWithRunner(
+          component!.runner,
+          (p: any, ctx: any) =>
+            (component!.execute as any)(p, ctx, {
+              ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
+              stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
+              tool: ((definition: any) => definition) as unknown as ToolFn,
+              createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
+              createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
+              generateObject: generateObjectMock as unknown as GenerateObjectFn,
+              generateText: generateTextMock as unknown as GenerateTextFn,
+            }),
+          params,
+          workflowContext,
+        ),
+      ).rejects.toThrow('auto-fix could not parse');
     });
   });
 });
