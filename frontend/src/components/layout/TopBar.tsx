@@ -328,7 +328,7 @@ export function TopBar({
             <div className="flex items-center gap-1 md:gap-2">
               {mode === 'design' && (
                 <>
-                  <div className="flex items-center gap-0.5 border-r border-border/50 pr-2 mr-1">
+                  <div className="hidden md:flex items-center gap-0.5 border-r border-border/50 pr-2 mr-1">
                     <Button
                       variant="ghost"
                       size="icon"

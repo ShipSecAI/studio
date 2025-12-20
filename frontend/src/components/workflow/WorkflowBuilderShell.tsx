@@ -1,5 +1,5 @@
-  import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { PanelLeftClose, PanelLeftOpen, X, Undo2, Redo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +22,10 @@ interface WorkflowBuilderShellProps {
   runDialog?: ReactNode
   isConfigPanelVisible?: boolean
   configPanelContent?: ReactNode
+  onUndo?: () => void
+  onRedo?: () => void
+  canUndo?: boolean
+  canRedo?: boolean
 }
 
 const LIBRARY_PANEL_WIDTH = 320
@@ -64,6 +68,10 @@ export function WorkflowBuilderShell({
   runDialog,
   isConfigPanelVisible,
   configPanelContent,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: WorkflowBuilderShellProps) {
   const isMobile = useIsMobile()
   const layoutRef = useRef<HTMLDivElement | null>(null)
@@ -251,23 +259,51 @@ export function WorkflowBuilderShell({
         )}
 
         {showLibraryToggleButton && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onToggleLibrary}
-            className={cn(
-              'absolute z-[35] top-[10px] left-[10px] h-8 px-2 md:px-3 py-1.5',
-              'flex items-center gap-1.5 md:gap-2 rounded-md border bg-background',
-              'text-xs font-medium transition-all duration-200 hover:bg-muted',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
+          <div className="absolute z-[35] top-[10px] left-[10px] flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onToggleLibrary}
+              className={cn(
+                'h-8 px-2 md:px-3 py-1.5',
+                'flex items-center gap-1.5 md:gap-2 rounded-md border bg-background',
+                'text-xs font-medium transition-all duration-200 hover:bg-muted',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm'
+              )}
+              aria-expanded={false}
+              aria-label="Show component library"
+              title="Show components"
+            >
+              <PanelLeftOpen className="h-4 w-4 flex-shrink-0" />
+              <span className="font-medium whitespace-nowrap hidden sm:inline">Show components</span>
+            </Button>
+
+            {isMobile && mode === 'design' && (
+              <div className="flex items-center gap-1 bg-background border rounded-md px-1 h-8 shadow-sm">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={onUndo}
+                  disabled={!canUndo}
+                  aria-label="Undo"
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                </Button>
+                <div className="h-3.5 w-px bg-border mx-0.5" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={onRedo}
+                  disabled={!canRedo}
+                  aria-label="Redo"
+                >
+                  <Redo2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             )}
-            aria-expanded={false}
-            aria-label="Show component library"
-            title="Show components"
-          >
-            <PanelLeftOpen className="h-4 w-4 flex-shrink-0" />
-            <span className="font-medium whitespace-nowrap hidden sm:inline">Show components</span>
-          </Button>
+          </div>
         )}
         {showLoadingOverlay && (
           <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
@@ -415,12 +451,12 @@ export function WorkflowBuilderShell({
               </div>
 
               {/* Content */}
-                <div className="flex h-[calc(100%-36px)] min-h-0 overflow-hidden w-full relative">
-                  {isConfigPanelVisible ? configPanelContent : 
-                   isScheduleSidebarVisible ? scheduleSidebarContent : 
-                   inspectorContent}
-                  <div id="mobile-bottom-sheet-portal" className="absolute inset-0 empty:hidden" />
-                </div>
+              <div className="flex h-[calc(100%-36px)] min-h-0 overflow-hidden w-full relative">
+                {isConfigPanelVisible ? configPanelContent :
+                  isScheduleSidebarVisible ? scheduleSidebarContent :
+                    inspectorContent}
+                <div id="mobile-bottom-sheet-portal" className="absolute inset-0 empty:hidden" />
+              </div>
             </aside>
           ) : (
             // Desktop: Side panel (unchanged)

@@ -940,6 +940,10 @@ function WorkflowBuilderContent() {
       runDialog={runDialogNode}
       isConfigPanelVisible={configPanelOpen}
       configPanelContent={null} // Will be portalled
+      onUndo={undo}
+      onRedo={redo}
+      canUndo={canUndo}
+      canRedo={canRedo}
     />
   )
 }
