@@ -1149,7 +1149,8 @@ export function ParameterFieldWrapper({
         </div>
       )}
 
-      {parameter.description && (
+      {/* Description before the input field - for non-boolean parameters */}
+      {!isBooleanParameter && parameter.description && (
         <p className="text-xs text-muted-foreground mb-2">
           {parameter.description}
         </p>
@@ -1164,6 +1165,13 @@ export function ParameterFieldWrapper({
         parameters={parameters}
         onUpdateParameter={onUpdateParameter}
       />
+
+      {/* Description after field (toggle control) - for boolean parameters */}
+      {isBooleanParameter && parameter.description && (
+        <p className="text-xs text-muted-foreground">
+          {parameter.description}
+        </p>
+      )}
 
       {parameter.helpText && (
         <p className="text-xs text-muted-foreground italic mt-2">
