@@ -252,6 +252,23 @@ export const api = {
       if (response.error) throw new Error('Failed to fetch component')
       return response.data
     },
+
+    resolvePorts: async (id: string, params: Record<string, unknown>) => {
+      const headers = await getAuthHeaders()
+      const response = await fetch(`${API_BASE_URL}/api/v1/components/${id}/resolve-ports`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to resolve ports')
+      }
+      return await response.json()
+    },
   },
 
   secrets: {

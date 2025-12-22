@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Post, Body } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 // Ensure all worker components are registered before accessing the registry
@@ -357,5 +357,40 @@ export class ComponentsController {
     }
 
     return serializeComponent(component);
+  }
+  @Post(':id/resolve-ports')
+  @ApiOkResponse({
+    description: 'Resolve dynamic ports based on parameters',
+  })
+  resolvePorts(@Param('id') id: string, @Body() body: Record<string, unknown>) {
+    const component = componentRegistry.get(id);
+
+    if (!component) {
+      throw new NotFoundException(`Component ${id} not found`);
+    }
+
+    if (!component.resolvePorts) {
+      // If no dynamic resolver, return static definition
+      return {
+        inputs: component.metadata?.inputs ?? [],
+        outputs: component.metadata?.outputs ?? [],
+      };
+    }
+
+    // Call the resolver
+    try {
+      const resolved = component.resolvePorts(body);
+      return {
+        inputs: resolved.inputs ?? component.metadata?.inputs ?? [],
+        outputs: resolved.outputs ?? component.metadata?.outputs ?? [],
+      };
+    } catch (error: any) {
+        // Fallback to static on error
+        console.error(`Error resolving ports for ${id}:`, error);
+         return {
+            inputs: component.metadata?.inputs ?? [],
+            outputs: component.metadata?.outputs ?? [],
+          };
+    }
   }
 }

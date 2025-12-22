@@ -26,7 +26,7 @@ import {
   inputSupportsManualValue,
   isListOfTextPortDataType,
 } from '@/utils/portUtils'
-import { API_BASE_URL } from '@/services/api'
+import { API_BASE_URL, api } from '@/services/api'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useApiKeyStore } from '@/store/apiKeyStore'
 import type { WorkflowSchedule } from '@shipsec/shared'
@@ -446,14 +446,52 @@ export function ConfigPanel({
   const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
   const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{ className?: string }>
 
-  const componentInputs = component.inputs ?? []
+  const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
+
+  // Dynamic Ports Resolution
+  const [dynamicInputs, setDynamicInputs] = useState<any[] | null>(null)
+
+  // Debounce ref
+  const assertPortResolution = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    // If component doesn't have resolvePorts capability, skip
+    // We assume all might have it for now, or check metadata if available
+
+    // reset if component changes
+    if (!component) return
+
+    // Debounce the API call
+    if (assertPortResolution.current) {
+      clearTimeout(assertPortResolution.current)
+    }
+
+    assertPortResolution.current = setTimeout(async () => {
+      try {
+        // Only call if we have parameters
+        const result = await api.components.resolvePorts(component.id, manualParameters)
+        if (result && result.inputs) {
+          setDynamicInputs(result.inputs)
+        }
+      } catch (e) {
+        console.error('Failed to resolve dynamic ports', e)
+      }
+    }, 500) // 500ms debounce
+
+    return () => {
+      if (assertPortResolution.current) {
+        clearTimeout(assertPortResolution.current)
+      }
+    }
+  }, [component?.id, JSON.stringify(manualParameters)]) // Deep compare parameters
+
+  const componentInputs = dynamicInputs ?? component.inputs ?? []
   const componentOutputs = component.outputs ?? []
   const componentParameters = component.parameters ?? []
   const exampleItems = [
     component.example,
     ...(component.examples ?? []),
   ].filter((value): value is string => Boolean(value && value.trim().length > 0))
-  const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
   const [scheduleActionState, setScheduleActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
   const handleNavigateSchedules = useCallback(() => {
     if (!workflowId) {
