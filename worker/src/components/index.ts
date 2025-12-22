@@ -48,6 +48,7 @@ import './security/shuffledns-massdns';
 import './security/atlassian-offboarding';
 import './security/trufflehog';
 import './security/terminal-demo';
+import './security/virustotal';
 
 // GitHub components
 import './github/connection-provider';
