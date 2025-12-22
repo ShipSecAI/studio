@@ -581,9 +581,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const requiredParams = componentParameters.filter(param => param.required)
   const requiredInputs = componentInputs.filter(input => input.required)
 
-  // DYNAMIC OUTPUTS: For Entry Point, generate outputs based on runtimeInputs parameter
-  let effectiveOutputs = component.outputs ?? []
-  if (component.id === 'core.workflow.entrypoint' && nodeData.parameters?.runtimeInputs) {
+  // DYNAMIC OUTPUTS: Use dynamicOutputs from node data (set by ConfigPanel via resolvePorts API)
+  // Fall back to Entry Point special case, then static component.outputs
+  let effectiveOutputs: any[] = nodeData.dynamicOutputs ?? (Array.isArray(component.outputs) ? component.outputs : [])
+
+  // Legacy: For Entry Point without dynamicOutputs, generate outputs based on runtimeInputs parameter
+  if (!nodeData.dynamicOutputs && component.id === 'core.workflow.entrypoint' && nodeData.parameters?.runtimeInputs) {
     try {
       const runtimeInputs = typeof nodeData.parameters.runtimeInputs === 'string'
         ? JSON.parse(nodeData.parameters.runtimeInputs)

@@ -11,6 +11,7 @@ initializeDestinationAdapters();
 import './core/entry-point';
 import './core/file-loader';
 import './core/http-request';
+import './core/logic-script';
 import './core/text-splitter';
 import './core/text-joiner';
 import './core/console-log';

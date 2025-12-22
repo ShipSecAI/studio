@@ -5,6 +5,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
 import { RuntimeInputsEditor } from './RuntimeInputsEditor'
+import { SimpleVariableListEditor } from './SimpleVariableListEditor'
+import { ScriptCodeEditor } from './ScriptCodeEditor'
 import type { Parameter } from '@/schemas/component'
 import type { InputMapping } from '@/schemas/node'
 import { useSecretStore } from '@/store/secretStore'
@@ -1038,6 +1040,50 @@ export function ParameterFieldWrapper({
           </p>
         )}
       </div>
+    )
+  }
+
+  // Special case: Logic Script Variables
+  if (componentId === 'core.logic.script' && (parameter.id === 'variables' || parameter.id === 'returns')) {
+    const isInput = parameter.id === 'variables'
+    const title = isInput ? 'Input Variables' : 'Return Variables'
+
+    return (
+      <div className="space-y-2">
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground mb-2">
+            {parameter.description}
+          </p>
+        )}
+
+        <SimpleVariableListEditor
+          value={value || []}
+          onChange={onChange}
+          title={title}
+          type={isInput ? 'input' : 'output'}
+        />
+
+        {parameter.helpText && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            💡 {parameter.helpText}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // Special case: Logic Script Code Editor
+  if (componentId === 'core.logic.script' && parameter.id === 'code') {
+    const inputVariables = Array.isArray(parameters?.variables) ? parameters.variables as { name: string; type: string }[] : []
+    const outputVariables = Array.isArray(parameters?.returns) ? parameters.returns as { name: string; type: string }[] : []
+
+    return (
+      <ScriptCodeEditor
+        code={value || ''}
+        onCodeChange={onChange}
+        inputVariables={inputVariables}
+        outputVariables={outputVariables}
+      />
     )
   }
 

@@ -450,6 +450,7 @@ export function ConfigPanel({
 
   // Dynamic Ports Resolution
   const [dynamicInputs, setDynamicInputs] = useState<any[] | null>(null)
+  const [dynamicOutputs, setDynamicOutputs] = useState<any[] | null>(null)
 
   // Debounce ref
   const assertPortResolution = useRef<NodeJS.Timeout | null>(null)
@@ -470,14 +471,20 @@ export function ConfigPanel({
       try {
         // Only call if we have parameters
         const result = await api.components.resolvePorts(component.id, manualParameters)
-        if (result && result.inputs) {
-          setDynamicInputs(result.inputs)
-
-          // Persist to node data so Canvas updates
-          // Use FrontendNodeData type for access
-          const currentDynamic = selectedNode?.data?.dynamicInputs
-          if (JSON.stringify(currentDynamic) !== JSON.stringify(result.inputs)) {
-            onUpdateNode?.(selectedNode!.id, { dynamicInputs: result.inputs })
+        if (result) {
+          if (result.inputs) {
+            setDynamicInputs(result.inputs)
+            const currentDynamic = selectedNode?.data?.dynamicInputs
+            if (JSON.stringify(currentDynamic) !== JSON.stringify(result.inputs)) {
+              onUpdateNode?.(selectedNode!.id, { dynamicInputs: result.inputs })
+            }
+          }
+          if (result.outputs) {
+            setDynamicOutputs(result.outputs)
+            const currentDynamicOutputs = selectedNode?.data?.dynamicOutputs
+            if (JSON.stringify(currentDynamicOutputs) !== JSON.stringify(result.outputs)) {
+              onUpdateNode?.(selectedNode!.id, { dynamicOutputs: result.outputs })
+            }
           }
         }
       } catch (e) {
@@ -493,7 +500,7 @@ export function ConfigPanel({
   }, [component?.id, JSON.stringify(manualParameters)]) // Deep compare parameters
 
   const componentInputs = dynamicInputs ?? component.inputs ?? []
-  const componentOutputs = component.outputs ?? []
+  const componentOutputs = dynamicOutputs ?? component.outputs ?? []
   const componentParameters = component.parameters ?? []
   const exampleItems = [
     component.example,

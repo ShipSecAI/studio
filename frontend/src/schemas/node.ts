@@ -10,6 +10,7 @@ export interface FrontendNodeData extends NodeData {
   parameters?: Record<string, any>
   inputs?: Record<string, InputMapping>
   dynamicInputs?: InputPort[]
+  dynamicOutputs?: InputPort[]
   status?: NodeStatus
   executionTime?: number
   error?: string
@@ -88,6 +89,8 @@ export interface FrontendNodeData extends NodeData {
   componentVersion?: string
   parameters?: Record<string, any>
   inputs?: Record<string, InputMapping>
+  dynamicInputs?: InputPort[]
+  dynamicOutputs?: InputPort[]
   status?: NodeStatus
   executionTime?: number
   error?: string
