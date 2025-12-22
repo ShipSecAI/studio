@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
 import { RuntimeInputsEditor } from './RuntimeInputsEditor'
@@ -395,18 +396,18 @@ export function ParameterField({
 
     case 'boolean':
       return (
-        <div className="flex items-center gap-2">
-          <Checkbox
+        <div className="flex items-center justify-between">
+          <label
+            htmlFor={parameter.id}
+            className="text-sm font-medium cursor-pointer select-none"
+          >
+            {parameter.label}
+          </label>
+          <Switch
             id={parameter.id}
             checked={currentValue || false}
             onCheckedChange={(checked) => onChange(checked)}
           />
-          <label
-            htmlFor={parameter.id}
-            className="text-sm text-muted-foreground cursor-pointer select-none"
-          >
-            {currentValue ? 'Enabled' : 'Disabled'}
-          </label>
         </div>
       )
 
@@ -691,13 +692,17 @@ export function ParameterField({
         if (!jsonTextareaRef.current) return
 
         let textValue = ''
+        let needsNormalization = false
+
         if (value === undefined || value === null || value === '') {
           textValue = ''
         } else if (typeof value === 'string') {
           textValue = value
         } else {
+          // If Value is an object - normalize to string
           try {
             textValue = JSON.stringify(value, null, 2)
+            needsNormalization = true
           } catch (error) {
             console.error('Failed to serialize JSON parameter value', error)
             return
@@ -710,7 +715,12 @@ export function ParameterField({
           setJsonError(null)
           isExternalJsonUpdateRef.current = false
         }
-      }, [value])
+
+        // Normalize object values to string
+        if (needsNormalization) {
+          onChange(textValue)
+        }
+      }, [value, onChange])
 
       // Sync to parent only on blur for native undo behavior
       const handleJsonBlur = useCallback(() => {
@@ -724,9 +734,9 @@ export function ParameterField({
         }
 
         try {
-          const parsed = JSON.parse(nextValue)
+          JSON.parse(nextValue) // Validate JSON syntax
           setJsonError(null)
-          onChange(parsed)
+          onChange(nextValue) // Pass string, not parsed object
         } catch (error) {
           setJsonError('Invalid JSON')
           // Keep showing error, don't update parent
@@ -1006,6 +1016,52 @@ interface ParameterFieldWrapperProps {
   componentId?: string
   parameters?: Record<string, unknown> | undefined
   onUpdateParameter?: (paramId: string, value: any) => void
+  allComponentParameters?: Parameter[]
+}
+
+/**
+ * Checks if a parameter should be visible based on its visibleWhen conditions.
+ * Returns true if all conditions are met or if no conditions exist.
+ */
+function shouldShowParameter(
+  parameter: Parameter,
+  allParameters: Record<string, unknown> | undefined
+): boolean {
+  // If no visibleWhen conditions, always show
+  if (!parameter.visibleWhen) {
+    return true
+  }
+
+  // If we have conditions but no parameter values to check against, hide by default
+  if (!allParameters) {
+    return false
+  }
+
+  // Check all conditions in visibleWhen object
+  for (const [key, expectedValue] of Object.entries(parameter.visibleWhen)) {
+    const actualValue = allParameters[key]
+    if (actualValue !== expectedValue) {
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
+ * Checks if a boolean parameter acts as a header toggle (controls visibility of other params).
+ * Returns true if other parameters have visibleWhen conditions referencing this parameter.
+ */
+function isHeaderToggleParameter(
+  parameter: Parameter,
+  allComponentParameters: Parameter[] | undefined
+): boolean {
+  if (parameter.type !== 'boolean' || !allComponentParameters) return false
+
+  // Check if any other parameter has visibleWhen referencing this param
+  return allComponentParameters.some(
+    (p) => p.visibleWhen && parameter.id in p.visibleWhen
+  )
 }
 
 /**
@@ -1019,7 +1075,13 @@ export function ParameterFieldWrapper({
   componentId,
   parameters,
   onUpdateParameter,
+  allComponentParameters,
 }: ParameterFieldWrapperProps) {
+  // Check visibility conditions
+  if (!shouldShowParameter(parameter, parameters)) {
+    return null
+  }
+
   // Special case: Runtime Inputs Editor for Entry Point
   if (parameter.id === 'runtimeInputs') {
     return (
@@ -1041,19 +1103,54 @@ export function ParameterFieldWrapper({
     )
   }
 
-  // Standard parameter field rendering
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-sm font-medium" htmlFor={parameter.id}>
-          {parameter.label}
-        </label>
-        {parameter.required && (
-          <span className="text-xs text-red-500">*required</span>
+  // Check if this is a nested/conditional parameter (has visibleWhen)
+  const isNestedParameter = Boolean(parameter.visibleWhen)
+
+  // Check if this is a header toggle (boolean that controls other params' visibility)
+  const isHeaderToggle = isHeaderToggleParameter(parameter, allComponentParameters)
+
+  // Header toggle rendering
+  if (isHeaderToggle) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium" htmlFor={parameter.id}>
+            {parameter.label}
+          </label>
+          <Switch
+            id={parameter.id}
+            checked={value || false}
+            onCheckedChange={(checked) => onChange(checked)}
+          />
+        </div>
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground">
+            {parameter.description}
+          </p>
         )}
       </div>
+    )
+  }
 
-      {parameter.description && (
+  // Standard parameter field rendering
+  const isBooleanParameter = parameter.type === 'boolean'
+
+  return (
+    <div className={`space-y-2 ${isNestedParameter ? 'ml-2 px-3 py-2.5 mt-1 bg-muted/80 rounded-lg' : ''}`}>
+      {/* Label and required indicator - skip for boolean (label is inside) */}
+      {!isBooleanParameter && (
+        <div className="flex items-center justify-between mb-1">
+          <label className={`${isNestedParameter ? 'text-xs' : 'text-sm'} font-medium`} htmlFor={parameter.id}>
+            {parameter.label}
+          </label>
+          {parameter.required && (
+            <span className="text-xs text-red-500">*required</span>
+          )}
+        </div>
+      )}
+
+      {/* Description before the input field - for non-boolean parameters */}
+      {!isBooleanParameter && parameter.description && (
         <p className="text-xs text-muted-foreground mb-2">
           {parameter.description}
         </p>
@@ -1068,6 +1165,13 @@ export function ParameterFieldWrapper({
         parameters={parameters}
         onUpdateParameter={onUpdateParameter}
       />
+
+      {/* Description after field (toggle control) - for boolean parameters */}
+      {isBooleanParameter && parameter.description && (
+        <p className="text-xs text-muted-foreground">
+          {parameter.description}
+        </p>
+      )}
 
       {parameter.helpText && (
         <p className="text-xs text-muted-foreground italic mt-2">

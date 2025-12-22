@@ -99,6 +99,8 @@ export const ParameterSchema = z.object({
   placeholder: z.string().optional(),
   description: z.string().optional(),
   helpText: z.string().optional(),
+  /** Conditional visibility: parameter is shown only when all conditions are met */
+  visibleWhen: z.record(z.string(), z.any()).optional(),
 })
 
 export type Parameter = z.infer<typeof ParameterSchema>

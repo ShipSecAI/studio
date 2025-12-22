@@ -1208,8 +1208,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         {/* Parameters Display (Required + Select types) */}
         {(() => {
           // Show required parameters and important select parameters (like mode)
+          // Exclude nested parameters (those with visibleWhen) like schemaType
           const selectParams = componentParameters.filter(
-            param => param.type === 'select' && !param.required
+            param => param.type === 'select' && !param.required && !param.visibleWhen
           )
           const paramsToShow = [...requiredParams, ...selectParams]
 

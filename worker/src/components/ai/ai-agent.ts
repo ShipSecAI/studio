@@ -4,6 +4,9 @@ import {
   ToolLoopAgent as ToolLoopAgentImpl,
   stepCountIs as stepCountIsImpl,
   tool as toolImpl,
+  generateObject as generateObjectImpl,
+  generateText as generateTextImpl,
+  jsonSchema as createJsonSchema,
   type Tool,
 } from 'ai';
 import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
@@ -29,6 +32,8 @@ export type StepCountIsFn = typeof stepCountIsImpl;
 export type ToolFn = typeof toolImpl;
 export type CreateOpenAIFn = typeof createOpenAIImpl;
 export type CreateGoogleGenerativeAIFn = typeof createGoogleGenerativeAIImpl;
+export type GenerateObjectFn = typeof generateObjectImpl;
+export type GenerateTextFn = typeof generateTextImpl;
 
 type ModelProvider = 'openai' | 'gemini' | 'openrouter';
 
@@ -154,6 +159,26 @@ const inputSchema = z.object({
     .max(12)
     .default(DEFAULT_STEP_LIMIT)
     .describe('Maximum sequential reasoning/tool steps before the agent stops.'),
+  structuredOutputEnabled: z
+    .boolean()
+    .default(false)
+    .describe('Enable structured JSON output that adheres to a defined schema.'),
+  schemaType: z
+    .enum(['json-example', 'json-schema'])
+    .default('json-example')
+    .describe('How to define the output schema: from a JSON example or a full JSON Schema.'),
+  jsonExample: z
+    .string()
+    .optional()
+    .describe('Example JSON object to generate schema from. All properties become required.'),
+  jsonSchema: z
+    .string()
+    .optional()
+    .describe('Full JSON Schema definition for structured output validation.'),
+  autoFixFormat: z
+    .boolean()
+    .default(false)
+    .describe('Attempt to fix malformed JSON responses from the model.'),
 });
 
 type Input = z.infer<typeof inputSchema>;
@@ -167,6 +192,7 @@ type ReasoningStep = z.infer<typeof reasoningStepSchema>;
 
 type Output = {
   responseText: string;
+  structuredOutput: unknown;
   conversationState: ConversationState;
   toolInvocations: ToolInvocationEntry[];
   reasoningTrace: ReasoningStep[];
@@ -177,6 +203,7 @@ type Output = {
 
 const outputSchema = z.object({
   responseText: z.string(),
+  structuredOutput: z.unknown().nullable(),
   conversationState: conversationStateSchema,
   toolInvocations: z.array(toolInvocationSchema),
   reasoningTrace: z.array(reasoningStepSchema),
@@ -639,6 +666,119 @@ function mapStepToReasoning(step: any, index: number, sessionId: string): Reason
   };
 }
 
+/**
+ * Converts a JSON example object to a JSON Schema.
+ * All properties are treated as required (matching n8n behavior).
+ */
+function jsonExampleToJsonSchema(example: unknown): object {
+  if (example === null) {
+    return { type: 'null' };
+  }
+
+  if (Array.isArray(example)) {
+    const items = example.length > 0
+      ? jsonExampleToJsonSchema(example[0])
+      : {};
+    return { type: 'array', items };
+  }
+
+  if (typeof example === 'object') {
+    const properties: Record<string, object> = {};
+    const required: string[] = [];
+
+    for (const [key, value] of Object.entries(example as Record<string, unknown>)) {
+      properties[key] = jsonExampleToJsonSchema(value);
+      required.push(key);
+    }
+
+    return {
+      type: 'object',
+      properties,
+      required,
+      additionalProperties: false,
+    };
+  }
+
+  if (typeof example === 'string') return { type: 'string' };
+  if (typeof example === 'number') {
+    return Number.isInteger(example) ? { type: 'integer' } : { type: 'number' };
+  }
+  if (typeof example === 'boolean') return { type: 'boolean' };
+
+  return {};
+}
+
+/**
+ * Resolves the structured output schema from user input.
+ * Returns null if structured output is disabled or no valid schema provided.
+ */
+function resolveStructuredOutputSchema(params: {
+  structuredOutputEnabled?: boolean;
+  schemaType?: 'json-example' | 'json-schema';
+  jsonExample?: string;
+  jsonSchema?: string;
+}): object | null {
+  if (!params.structuredOutputEnabled) {
+    return null;
+  }
+
+  if (params.schemaType === 'json-example' && params.jsonExample) {
+    try {
+      const example = JSON.parse(params.jsonExample);
+      return jsonExampleToJsonSchema(example);
+    } catch {
+      throw new Error('Invalid JSON example: unable to parse JSON.');
+    }
+  }
+
+  if (params.schemaType === 'json-schema' && params.jsonSchema) {
+    try {
+      return JSON.parse(params.jsonSchema);
+    } catch {
+      throw new Error('Invalid JSON Schema: unable to parse JSON.');
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Attempts to fix malformed JSON by extracting valid JSON from text.
+ * Handles common issues like markdown code blocks, extra text before/after JSON.
+ */
+function attemptJsonFix(text: string): unknown | null {
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Continue to fixes
+  }
+
+  let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
+
+  const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+  const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+  const jsonCandidate = objectMatch?.[0] ?? arrayMatch?.[0];
+
+  if (jsonCandidate) {
+    try {
+      return JSON.parse(jsonCandidate);
+    } catch {
+      // Continue
+    }
+  }
+
+  cleaned = cleaned
+    .trim()
+    .replace(/^(Here'?s?|The|Output:?|Result:?|Response:?)\s*/i, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+}
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.ai.agent',
   label: 'AI SDK Agent',
@@ -706,6 +846,12 @@ Loop the Conversation State output back into the next agent invocation to keep m
         label: 'Agent Response',
         dataType: port.text(),
         description: 'Final assistant message produced by the agent.',
+      },
+      {
+        id: 'structuredOutput',
+        label: 'Structured Output',
+        dataType: port.json(),
+        description: 'Parsed JSON object when structured output is enabled. Null otherwise.',
       },
       {
         id: 'conversationState',
@@ -782,10 +928,59 @@ Loop the Conversation State output back into the next agent invocation to keep m
         max: 12,
         description: 'Maximum reasoning/tool steps before the agent stops automatically.',
       },
+      {
+        id: 'structuredOutputEnabled',
+        label: 'Structured Output',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Enable to enforce a specific JSON output structure from the AI model.',
+      },
+      {
+        id: 'schemaType',
+        label: 'Schema Type',
+        type: 'select',
+        required: false,
+        default: 'json-example',
+        options: [
+          { label: 'Generate From JSON Example', value: 'json-example' },
+          { label: 'Define Using JSON Schema', value: 'json-schema' },
+        ],
+        description: 'Choose how to define the output structure.',
+        visibleWhen: { structuredOutputEnabled: true },
+      },
+      {
+        id: 'jsonExample',
+        label: 'JSON Example',
+        type: 'json',
+        required: false,
+        description: 'Provide an example JSON object. Property types and names will be used to generate the schema. All fields are treated as required.',
+        helpText: 'Example: { "name": "John", "age": 30, "skills": ["security", "architecture"] }',
+        visibleWhen: { structuredOutputEnabled: true, schemaType: 'json-example' },
+      },
+      {
+        id: 'jsonSchema',
+        label: 'JSON Schema',
+        type: 'json',
+        required: false,
+        description: 'Provide a full JSON Schema definition. Refer to json-schema.org for syntax.',
+        helpText: 'Example: { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }',
+        visibleWhen: { structuredOutputEnabled: true, schemaType: 'json-schema' },
+      },
+      {
+        id: 'autoFixFormat',
+        label: 'Auto-Fix Format',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Attempt to fix malformed JSON responses from the model.',
+        helpText: 'When enabled, tries to extract valid JSON from responses that contain extra text or formatting issues.',
+        visibleWhen: { structuredOutputEnabled: true },
+      },
     ],
   },
   async execute(
-    params, 
+    params,
     context,
     // Optional dependencies for testing - in production these will use the default implementations
     dependencies?: {
@@ -794,6 +989,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
       tool?: ToolFn;
       createOpenAI?: CreateOpenAIFn;
       createGoogleGenerativeAI?: CreateGoogleGenerativeAIFn;
+      generateObject?: GenerateObjectFn;
+      generateText?: GenerateTextFn;
     }
   ) {
     const {
@@ -806,6 +1003,11 @@ Loop the Conversation State output back into the next agent invocation to keep m
       maxTokens,
       memorySize,
       stepLimit,
+      structuredOutputEnabled,
+      schemaType,
+      jsonExample,
+      jsonSchema,
+      autoFixFormat,
     } = params;
 
     const debugLog = (...args: unknown[]) => context.logger.debug(`[AIAgent Debug] ${args.join(' ')}`);
@@ -966,53 +1168,138 @@ Loop the Conversation State output back into the next agent invocation to keep m
       stepLimit,
     });
 
-    const ToolLoopAgent = dependencies?.ToolLoopAgent ?? ToolLoopAgentImpl;
-    const stepCountIs = dependencies?.stepCountIs ?? stepCountIsImpl;
-    let streamedStepCount = 0;
-    const agent = new ToolLoopAgent({
-      id: `${sessionId}-agent`,
-      model,
-      instructions: resolvedSystemPrompt || undefined,
-      ...(toolsConfig ? { tools: toolsConfig } : {}),
-      temperature,
-      maxOutputTokens: maxTokens,
-      stopWhen: stepCountIs(stepLimit),
-      onStepFinish: (stepResult: unknown) => {
-        const mappedStep = mapStepToReasoning(stepResult, streamedStepCount, sessionId);
-        streamedStepCount += 1;
-        agentStream.emitReasoningStep(mappedStep);
-      },
-    });
-    debugLog('ToolLoopAgent instantiated', {
-      id: `${sessionId}-agent`,
-      temperature,
-      maxTokens,
-      stepLimit,
-      toolKeys: toolsConfig ? Object.keys(toolsConfig) : [],
+    // Resolve structured output schema if enabled
+    const structuredSchema = resolveStructuredOutputSchema({
+      structuredOutputEnabled,
+      schemaType,
+      jsonExample,
+      jsonSchema,
     });
 
-    context.logger.info(
-      `[AIAgent] Using ${effectiveProvider} model "${effectiveModel}" with ${availableToolsCount} connected tool(s).`,
-    );
-    context.emitProgress({
-      level: 'info',
-      message: 'AI agent reasoning in progress...',
-      data: {
-        agentRunId,
-        agentStatus: 'running',
-      },
-    });
-    debugLog('Invoking ToolLoopAgent.generate with payload', {
-      messages: messagesForModel,
-    });
+    let responseText: string;
+    let structuredOutput: unknown = null;
+    let generationResult: any;
 
-    const generationResult = await agent.generate({
-      messages: messagesForModel as any,
-    });
-    debugLog('Generation result', generationResult);
+    if (structuredSchema) {
+      // Use generateObject for structured output mode
+      context.logger.info('[AIAgent] Using structured output mode with JSON Schema.');
+      context.emitProgress({
+        level: 'info',
+        message: 'AI agent generating structured output...',
+        data: {
+          agentRunId,
+          agentStatus: 'running',
+        },
+      });
 
-    const responseText =
-      typeof generationResult.text === 'string' ? generationResult.text : String(generationResult.text ?? '');
+      const generateObject = dependencies?.generateObject ?? generateObjectImpl;
+      const generateText = dependencies?.generateText ?? generateTextImpl;
+
+      try {
+        const objectResult = await generateObject({
+          model,
+          schema: createJsonSchema(structuredSchema),
+          system: resolvedSystemPrompt || undefined,
+          messages: messagesForModel as any,
+          temperature,
+          maxOutputTokens: maxTokens,
+        });
+
+        structuredOutput = objectResult.object;
+        responseText = JSON.stringify(structuredOutput, null, 2);
+        generationResult = {
+          text: responseText,
+          steps: [],
+          toolResults: [],
+          finishReason: 'stop',
+          usage: objectResult.usage,
+        };
+        debugLog('Structured output generated successfully', structuredOutput);
+      } catch (error) {
+        // If generateObject fails and auto-fix is enabled, try text generation + fix
+        if (autoFixFormat) {
+          context.logger.warn('[AIAgent] Structured output failed, attempting auto-fix via text generation.');
+
+          const textResult = await generateText({
+            model,
+            system: resolvedSystemPrompt || undefined,
+            messages: [
+              ...messagesForModel,
+              { role: 'user' as const, content: `Respond with valid JSON matching this schema: ${JSON.stringify(structuredSchema)}` }
+            ] as any,
+            temperature,
+            maxOutputTokens: maxTokens,
+          });
+
+          const fixedOutput = attemptJsonFix(textResult.text);
+          if (fixedOutput !== null) {
+            structuredOutput = fixedOutput;
+            responseText = JSON.stringify(fixedOutput, null, 2);
+            generationResult = {
+              text: responseText,
+              steps: [],
+              toolResults: [],
+              finishReason: 'stop',
+              usage: textResult.usage,
+            };
+            debugLog('Auto-fix succeeded', fixedOutput);
+          } else {
+            throw new Error(`Structured output failed and auto-fix could not parse response: ${textResult.text.slice(0, 200)}`);
+          }
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      // Use ToolLoopAgent for standard text generation with tools
+      const ToolLoopAgent = dependencies?.ToolLoopAgent ?? ToolLoopAgentImpl;
+      const stepCountIs = dependencies?.stepCountIs ?? stepCountIsImpl;
+      let streamedStepCount = 0;
+      const agent = new ToolLoopAgent({
+        id: `${sessionId}-agent`,
+        model,
+        instructions: resolvedSystemPrompt || undefined,
+        ...(toolsConfig ? { tools: toolsConfig } : {}),
+        temperature,
+        maxOutputTokens: maxTokens,
+        stopWhen: stepCountIs(stepLimit),
+        onStepFinish: (stepResult: unknown) => {
+          const mappedStep = mapStepToReasoning(stepResult, streamedStepCount, sessionId);
+          streamedStepCount += 1;
+          agentStream.emitReasoningStep(mappedStep);
+        },
+      });
+      debugLog('ToolLoopAgent instantiated', {
+        id: `${sessionId}-agent`,
+        temperature,
+        maxTokens,
+        stepLimit,
+        toolKeys: toolsConfig ? Object.keys(toolsConfig) : [],
+      });
+
+      context.logger.info(
+        `[AIAgent] Using ${effectiveProvider} model "${effectiveModel}" with ${availableToolsCount} connected tool(s).`,
+      );
+      context.emitProgress({
+        level: 'info',
+        message: 'AI agent reasoning in progress...',
+        data: {
+          agentRunId,
+          agentStatus: 'running',
+        },
+      });
+      debugLog('Invoking ToolLoopAgent.generate with payload', {
+        messages: messagesForModel,
+      });
+
+      generationResult = await agent.generate({
+        messages: messagesForModel as any,
+      });
+      debugLog('Generation result', generationResult);
+
+      responseText =
+        typeof generationResult.text === 'string' ? generationResult.text : String(generationResult.text ?? '');
+    }
     debugLog('Response text', responseText);
 
     const currentTimestamp = new Date().toISOString();
@@ -1096,6 +1383,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
     return {
       responseText,
+      structuredOutput,
       conversationState: nextState,
       toolInvocations: toolLogEntries,
       reasoningTrace,

@@ -103,10 +103,16 @@ An autonomous agent that uses reasoning steps and tool-calling to solve complex 
 | `temperature` | Number | Reasoning creativity (default 0.7) |
 | `stepLimit` | Number | Max "Think -> Act -> Observe" loops (1-12) |
 | `memorySize` | Number | Number of previous turns to retain in context |
+| `structuredOutputEnabled` | Toggle | Enable to enforce a specific JSON output structure |
+| `schemaType` | Select | How to define the schema: `json-example` or `json-schema` |
+| `jsonExample` | JSON | Example JSON object for schema inference (all properties become required) |
+| `jsonSchema` | JSON | Full JSON Schema definition for precise validation |
+| `autoFixFormat` | Toggle | Attempt to extract valid JSON from malformed responses |
 
 | Output | Type | Description |
 |--------|------|-------------|
 | `responseText`| Text | Final answer after reasoning is complete |
+| `structuredOutput` | JSON | Parsed structured output (when enabled) |
 | `conversationState` | JSON | Updated state to pass to the next agent node |
 | `reasoningTrace` | JSON | Detailed step-by-step logs of the agent's thoughts |
 | `agentRunId` | Text | Unique session ID for tracking and streaming |
@@ -168,6 +174,19 @@ Analyze incoming security alerts to filter out false positives.
 An agent that searches through logs and performs lookups to investigate a specific IP address.
 **Task:** "Investigate the IP {{ip}} using the available Splunk and VirusTotal tools."
 
+### Structured Output for Data Extraction
+**Flow:** `Provider` → `AI Agent` (with Structured Output enabled)
+
+Extract structured data from unstructured security reports. Enable **Structured Output** and provide a JSON example:
+```json
+{
+  "severity": "high",
+  "affected_systems": ["web-server-01"],
+  "remediation_steps": ["Patch CVE-2024-1234", "Restart service"]
+}
+```
+The agent will always return validated JSON matching this schema, ready for downstream processing.
+
 ---
 
 ## Best Practices
@@ -177,7 +196,7 @@ An agent that searches through logs and performs lookups to investigate a specif
 </Note>
 
 ### Prompt Engineering
-1.  **Format Outputs**: If you need JSON for a downstream node, ask for it explicitly in the prompt: "Return only valid JSON with fields 'risk' and 'reason'."
+1.  **Use Structured Output**: When you need consistent JSON for downstream nodes, enable **Structured Output** instead of relying on prompt instructions. This guarantees schema compliance and eliminates parsing errors.
 2.  **Use System Prompts**: Set high-level rules (e.g., "You are a senior security researcher") in the System Prompt parameter instead of the User Input.
 3.  **Variable Injection**: Use `{{variableName}}` syntax to inject data from upstream nodes into your prompts.
 
