@@ -327,6 +327,11 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const [isTerminalLoading, setIsTerminalLoading] = useState(false)
   const nodeRef = useRef<HTMLDivElement | null>(null)
 
+  // Inline label editing state
+  const [isEditingLabel, setIsEditingLabel] = useState(false)
+  const [editingLabelValue, setEditingLabelValue] = useState('')
+  const labelInputRef = useRef<HTMLInputElement | null>(null)
+
   // Entry Point specific state
   const navigate = useNavigate()
   const [showWebhookDialog, setShowWebhookDialog] = useState(false)
@@ -573,6 +578,45 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Display label (custom or component name)
   const displayLabel = data.label || component.name
+  // Check if user has set a custom label (different from component name)
+  const hasCustomLabel = data.label && data.label !== component.name
+
+  // Label editing handlers
+  const handleStartEditing = () => {
+    if (isEntryPoint || mode !== 'design') return
+    setEditingLabelValue(data.label || component.name)
+    setIsEditingLabel(true)
+    // Focus the input after render
+    setTimeout(() => labelInputRef.current?.focus(), 0)
+  }
+
+  const handleSaveLabel = () => {
+    const trimmedValue = editingLabelValue.trim()
+    if (trimmedValue && trimmedValue !== data.label) {
+      setNodes((nodes) =>
+        nodes.map((n) =>
+          n.id === id
+            ? { ...n, data: { ...n.data, label: trimmedValue } }
+            : n
+        )
+      )
+      markDirty()
+    }
+    setIsEditingLabel(false)
+  }
+
+  const handleCancelEditing = () => {
+    setIsEditingLabel(false)
+  }
+
+  const handleLabelKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSaveLabel()
+    } else if (e.key === 'Escape') {
+      handleCancelEditing()
+    }
+  }
 
   // Check if there are unfilled required parameters or inputs
   const componentParameters = component.parameters ?? []
@@ -851,7 +895,34 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                {isEditingLabel ? (
+                  <input
+                    ref={labelInputRef}
+                    type="text"
+                    value={editingLabelValue}
+                    onChange={(e) => setEditingLabelValue(e.target.value)}
+                    onBlur={handleSaveLabel}
+                    onKeyDown={handleLabelKeyDown}
+                    className="text-sm font-semibold bg-transparent border-b border-primary outline-none w-full py-0"
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className={cn(
+                      "group/label",
+                      !isEntryPoint && mode === 'design' && "cursor-text"
+                    )}
+                    onDoubleClick={handleStartEditing}
+                    title={!isEntryPoint && mode === 'design' ? "Double-click to rename" : undefined}
+                  >
+                    <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                    {hasCustomLabel && (
+                      <span className="text-[10px] text-muted-foreground opacity-70 truncate block">
+                        {component.name}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 {/* Delete button (Design Mode only, not Entry Point) */}

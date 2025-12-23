@@ -1,6 +1,6 @@
 import * as LucideIcons from 'lucide-react'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { X, ExternalLink, Loader2, Trash2, ChevronDown, ChevronRight, Circle, CheckCircle2, AlertCircle } from 'lucide-react'
+import { X, ExternalLink, Loader2, Trash2, ChevronDown, ChevronRight, Circle, CheckCircle2, AlertCircle, Pencil, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -452,6 +452,18 @@ export function ConfigPanel({
   const [dynamicInputs, setDynamicInputs] = useState<any[] | null>(null)
   const [dynamicOutputs, setDynamicOutputs] = useState<any[] | null>(null)
 
+  // Node name editing state
+  const [isEditingNodeName, setIsEditingNodeName] = useState(false)
+  const [editingNodeName, setEditingNodeName] = useState('')
+
+  const handleSaveNodeName = useCallback(() => {
+    const trimmedName = editingNodeName.trim()
+    if (trimmedName && trimmedName !== nodeData.label) {
+      onUpdateNode?.(selectedNode.id, { label: trimmedName })
+    }
+    setIsEditingNodeName(false)
+  }, [editingNodeName, nodeData.label, onUpdateNode, selectedNode.id])
+
   // Debounce ref
   const assertPortResolution = useRef<NodeJS.Timeout | null>(null)
 
@@ -597,7 +609,7 @@ export function ConfigPanel({
         </Button>
       </div>
 
-      {/* Component Info */}
+      {/* Component Info with inline Node Name editing */}
       <div className="px-4 py-3 border-b bg-muted/20">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg border bg-background flex-shrink-0">
@@ -619,7 +631,62 @@ export function ConfigPanel({
             )} />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-medium text-sm">{component.name}</h4>
+            {/* Node Name - editable for non-entry-point nodes */}
+            {!isEntryPointComponent && isEditingNodeName ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  type="text"
+                  value={editingNodeName}
+                  onChange={(e) => setEditingNodeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSaveNodeName()
+                    } else if (e.key === 'Escape') {
+                      setIsEditingNodeName(false)
+                    }
+                  }}
+                  onBlur={handleSaveNodeName}
+                  placeholder={component.name}
+                  className="h-6 text-sm font-medium py-0 px-1"
+                  autoFocus
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 flex-shrink-0"
+                  onClick={handleSaveNodeName}
+                >
+                  <Check className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 group">
+                <h4 className="font-medium text-sm truncate">
+                  {nodeData.label || component.name}
+                </h4>
+                {!isEntryPointComponent && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => {
+                      setEditingNodeName(nodeData.label || component.name)
+                      setIsEditingNodeName(true)
+                    }}
+                    title="Rename node"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            )}
+            {/* Show component name as subscript if custom name is set */}
+            {nodeData.label && nodeData.label !== component.name && (
+              <span className="text-[10px] text-muted-foreground opacity-70">
+                {component.name}
+              </span>
+            )}
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
               {component.description}
             </p>
