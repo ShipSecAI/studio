@@ -197,7 +197,7 @@ export function ScriptCodeEditor({
             target: monaco.languages.typescript.ScriptTarget.ESNext,
             module: monaco.languages.typescript.ModuleKind.ESNext,
             allowNonTsExtensions: true,
-            lib: ['esnext'],
+            lib: ['esnext', 'dom'],
             strict: true,
             noImplicitAny: false,
         })
@@ -206,7 +206,7 @@ export function ScriptCodeEditor({
             target: monaco.languages.typescript.ScriptTarget.ESNext,
             module: monaco.languages.typescript.ModuleKind.ESNext,
             allowNonTsExtensions: true,
-            lib: ['esnext'],
+            lib: ['esnext', 'dom'],
         })
     }, [])
 
