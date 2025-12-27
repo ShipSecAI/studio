@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command } from 'lucide-react'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
@@ -13,6 +13,7 @@ import { env } from '@/config/env'
 import { useThemeStore } from '@/store/themeStore'
 import { cn } from '@/lib/utils'
 import { setMobilePlacementSidebarClose } from '@/components/layout/Sidebar'
+import { useCommandPaletteStore } from '@/store/commandPaletteStore'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -66,6 +67,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const authProvider = useAuthProvider()
   const showUserButton = isAuthenticated || authProvider.name === 'clerk'
   const { theme, startTransition } = useThemeStore()
+  const openCommandPalette = useCommandPaletteStore((state) => state.open)
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA
@@ -382,6 +384,39 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </Link>
                 )
               })}
+            </div>
+
+            {/* Command Palette Button */}
+            <div className="px-2 mt-4 pt-4 border-t border-border/40">
+              <button
+                onClick={openCommandPalette}
+                className={cn(
+                  'w-full flex items-center gap-3 py-2.5 rounded-lg transition-colors',
+                  'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground',
+                  sidebarOpen ? 'justify-between px-4' : 'justify-center'
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Search className="h-4 w-4 flex-shrink-0" />
+                  <span
+                    className={cn(
+                      'transition-all duration-300 whitespace-nowrap overflow-hidden text-sm',
+                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0'
+                    )}
+                    style={{
+                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                      transitionProperty: 'opacity, max-width'
+                    }}
+                  >
+                    Search...
+                  </span>
+                </div>
+                {sidebarOpen && (
+                  <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-border/60 bg-background/80 px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                    <Command className="h-2.5 w-2.5" />K
+                  </kbd>
+                )}
+              </button>
             </div>
           </SidebarContent>
 
