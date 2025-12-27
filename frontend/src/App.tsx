@@ -15,10 +15,21 @@ import { useAuthStoreIntegration } from '@/auth/store-integration'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { AnalyticsRouterListener } from '@/features/analytics/AnalyticsRouterListener'
 import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge'
+import { CommandPalette, useCommandPaletteKeyboard } from '@/features/command-palette'
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration()
   return <>{children}</>
+}
+
+function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
+  useCommandPaletteKeyboard()
+  return (
+    <>
+      {children}
+      <CommandPalette />
+    </>
+  )
 }
 
 function App() {
@@ -27,50 +38,52 @@ function App() {
       <AuthIntegration>
         <ToastProvider>
           <BrowserRouter>
-            {/* Analytics wiring */}
-            <AnalyticsRouterListener />
-            <PostHogClerkBridge />
-            <AppLayout>
-              <ProtectedRoute>
-                <Routes>
-                  <Route path="/" element={<WorkflowList />} />
-                  <Route
-                    path="/workflows/:id"
-                    element={
-                      <ProtectedRoute>
-                        <WorkflowBuilder />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/workflows/:id/runs"
-                    element={
-                      <ProtectedRoute>
-                        <WorkflowBuilder />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/workflows/:id/runs/:runId"
-                    element={
-                      <ProtectedRoute>
-                        <WorkflowBuilder />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="/secrets" element={<SecretsManager />} />
-                  <Route path="/api-keys" element={<ApiKeysManager />} />
-                  <Route path="/integrations" element={<IntegrationsManager />} />
-                  <Route path="/schedules" element={<SchedulesPage />} />
-                  <Route path="/artifacts" element={<ArtifactLibrary />} />
-                  <Route
-                    path="/integrations/callback/:provider"
-                    element={<IntegrationCallback />}
-                  />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </ProtectedRoute>
-            </AppLayout>
+            <CommandPaletteProvider>
+              {/* Analytics wiring */}
+              <AnalyticsRouterListener />
+              <PostHogClerkBridge />
+              <AppLayout>
+                <ProtectedRoute>
+                  <Routes>
+                    <Route path="/" element={<WorkflowList />} />
+                    <Route
+                      path="/workflows/:id"
+                      element={
+                        <ProtectedRoute>
+                          <WorkflowBuilder />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/workflows/:id/runs"
+                      element={
+                        <ProtectedRoute>
+                          <WorkflowBuilder />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/workflows/:id/runs/:runId"
+                      element={
+                        <ProtectedRoute>
+                          <WorkflowBuilder />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="/secrets" element={<SecretsManager />} />
+                    <Route path="/api-keys" element={<ApiKeysManager />} />
+                    <Route path="/integrations" element={<IntegrationsManager />} />
+                    <Route path="/schedules" element={<SchedulesPage />} />
+                    <Route path="/artifacts" element={<ArtifactLibrary />} />
+                    <Route
+                      path="/integrations/callback/:provider"
+                      element={<IntegrationCallback />}
+                    />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </ProtectedRoute>
+              </AppLayout>
+            </CommandPaletteProvider>
           </BrowserRouter>
         </ToastProvider>
       </AuthIntegration>
