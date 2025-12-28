@@ -88,6 +88,7 @@ export interface RunComponentActivityInput {
 
 export interface RunComponentActivityOutput {
   output: unknown;
+  activeOutputPorts?: string[];
 }
 
 export interface WorkflowRunRequest {

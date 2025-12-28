@@ -102,6 +102,8 @@ export class TraceService {
         return 'FAILED';
       case 'AWAITING_INPUT':
         return 'AWAITING_INPUT';
+      case 'NODE_SKIPPED':
+        return 'SKIPPED';
       case 'NODE_PROGRESS':
       default:
         return 'PROGRESS';

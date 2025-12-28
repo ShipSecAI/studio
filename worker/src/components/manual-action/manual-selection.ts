@@ -172,11 +172,31 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     }
     
     // Output port for the selection itself
-    const outputs = [
+    const outputs: any[] = [
         { id: 'selection', label: 'Selection', dataType: params.multiple ? port.list(port.text()) : port.text() },
         { id: 'approved', label: 'Approved', dataType: port.boolean() },
         { id: 'respondedBy', label: 'Responded By', dataType: port.text() },
     ];
+
+    // Add dynamic ports for each option
+    if (params.options && Array.isArray(params.options)) {
+        for (const opt of params.options) {
+            const val = typeof opt === 'string' ? opt : opt.value;
+            const label = typeof opt === 'string' ? opt : (opt.label || opt.value);
+            if (val) {
+                // Use a prefix to avoid collisions with standard ports
+                // We use the value as the ID suffix. 
+                // Note: Values must be safe for port IDs (alphanumeric, -, _)
+                // We might want to sanitize it.
+                outputs.push({
+                    id: `option:${val}`, 
+                    label: `Option: ${label}`,
+                    dataType: port.boolean(),
+                    description: `Active when '${label}' is selected`,
+                });
+            }
+        }
+    }
     
     return { inputs, outputs };
   },

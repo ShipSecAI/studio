@@ -3,7 +3,8 @@ export type TraceEventType =
   | 'NODE_COMPLETED'
   | 'NODE_FAILED'
   | 'NODE_PROGRESS'
-  | 'AWAITING_INPUT';
+  | 'AWAITING_INPUT'
+  | 'NODE_SKIPPED';
 
 export interface TraceEventBase {
   runId: string;
@@ -41,9 +42,14 @@ export interface AwaitingInputEvent extends TraceEventBase {
   };
 }
 
+export interface NodeSkippedEvent extends TraceEventBase {
+  type: 'NODE_SKIPPED';
+}
+
 export type TraceEvent =
   | NodeStartedEvent
   | NodeCompletedEvent
   | NodeFailedEvent
   | NodeProgressEvent
-  | AwaitingInputEvent;
+  | AwaitingInputEvent
+  | NodeSkippedEvent;

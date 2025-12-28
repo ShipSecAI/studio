@@ -363,6 +363,9 @@ const calculateNodeStates = (
       case 'FAILED':
         status = 'error'
         break
+      case 'SKIPPED':
+        status = 'skipped'
+        break
     }
 
     // Calculate progress based on events observed vs total events

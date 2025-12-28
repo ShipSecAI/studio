@@ -96,7 +96,13 @@ const definition: ComponentDefinition<Input, Output, Params> = {
         id: 'approved',
         label: 'Approved',
         dataType: port.boolean(),
-        description: 'True if approved, false if rejected',
+        description: 'Active path when request is approved',
+      },
+      {
+        id: 'rejected',
+        label: 'Rejected',
+        dataType: port.boolean(),
+        description: 'Active path when request is rejected',
       },
       {
           id: 'respondedBy',

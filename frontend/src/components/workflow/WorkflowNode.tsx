@@ -35,6 +35,7 @@ const STATUS_ICONS = {
   error: XCircle,
   waiting: Clock,
   awaiting_input: ShieldAlert,
+  skipped: LucideIcons.Ban,
   idle: null,
 } as const
 

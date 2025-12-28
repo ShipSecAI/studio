@@ -50,6 +50,12 @@ export function getNodeStyle(state: NodeStatus): NodeStateStyle {
       icon: 'ShieldAlert',
       iconClass: 'text-blue-600 dark:text-blue-400',
     },
+    skipped: {
+      border: 'border-slate-300 dark:border-slate-700 border-dashed',
+      bg: 'bg-slate-50 dark:bg-slate-900/40 opacity-70',
+      icon: 'Ban',
+      iconClass: 'text-slate-500 dark:text-slate-400',
+    },
   }
 
   return styles[state]
