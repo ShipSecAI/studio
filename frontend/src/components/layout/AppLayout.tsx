@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command, ShieldCheck } from 'lucide-react'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
@@ -226,6 +226,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Schedules',
       href: '/schedules',
       icon: CalendarClock,
+    },
+    {
+      name: 'Approvals',
+      href: '/approvals',
+      icon: ShieldCheck,
     },
     {
       name: 'Secrets',

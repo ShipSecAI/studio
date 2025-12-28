@@ -1,6 +1,14 @@
-import { ApplicationFailure, proxyActivities, startChild, uuid4 } from '@temporalio/workflow';
+import {
+  ApplicationFailure,
+  condition,
+  proxyActivities,
+  setHandler,
+  startChild,
+  uuid4,
+} from '@temporalio/workflow';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionParams } from '../input-resolver';
+import { resolveApprovalSignal, type ApprovalResolution } from '../signals';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
@@ -15,10 +23,25 @@ const {
   runComponentActivity,
   setRunMetadataActivity,
   finalizeRunActivity,
+  createApprovalRequestActivity,
 } = proxyActivities<{
   runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
   setRunMetadataActivity(input: { runId: string; workflowId: string; organizationId?: string | null }): Promise<void>;
   finalizeRunActivity(input: { runId: string }): Promise<void>;
+  createApprovalRequestActivity(input: {
+    runId: string;
+    workflowId: string;
+    nodeRef: string;
+    title: string;
+    description?: string;
+    context?: Record<string, unknown>;
+    timeoutMs?: number;
+    organizationId?: string | null;
+  }): Promise<{
+    approvalId: string;
+    approveToken: string;
+    rejectToken: string;
+  }>;
 }>({
   startToCloseTimeout: '10 minutes',
 });
@@ -31,6 +54,18 @@ const { prepareRunPayloadActivity } = proxyActivities<{
   startToCloseTimeout: '2 minutes',
 });
 
+/**
+ * Check if an output indicates a pending approval gate
+ */
+function isApprovalPending(output: unknown): output is { pending: true; title: string; description?: string; timeoutAt?: string } {
+  return (
+    typeof output === 'object' &&
+    output !== null &&
+    'pending' in output &&
+    (output as { pending?: unknown }).pending === true
+  );
+}
+
 export async function shipsecWorkflowRun(
   input: RunWorkflowActivityInput,
 ): Promise<RunWorkflowActivityOutput> {
@@ -38,6 +73,20 @@ export async function shipsecWorkflowRun(
   const actionsByRef = new Map<string, WorkflowAction>(
     input.definition.actions.map((action) => [action.ref, action]),
   );
+
+  // Track pending approvals and their resolutions
+  const pendingApprovals = new Map<string, { nodeRef: string; resolve: (res: ApprovalResolution) => void }>();
+  const approvalResolutions = new Map<string, ApprovalResolution>();
+
+  // Set up signal handler for approval resolutions
+  setHandler(resolveApprovalSignal, (resolution: ApprovalResolution) => {
+    console.log(`[Workflow] Received approval signal for ${resolution.nodeRef}: approved=${resolution.approved}`);
+    approvalResolutions.set(resolution.nodeRef, resolution);
+    const pending = pendingApprovals.get(resolution.nodeRef);
+    if (pending) {
+      pending.resolve(resolution);
+    }
+  });
 
   console.log(`[Workflow] Starting shipsec workflow run: ${input.runId}`);
 
@@ -111,7 +160,80 @@ export async function shipsecWorkflowRun(
         };
 
         const output = await runComponentActivity(activityInput);
-        results.set(action.ref, output.output);
+
+        // Check if this is an approval gate component that's waiting for approval
+        if (action.componentId === 'core.workflow.approval-gate' && isApprovalPending(output.output)) {
+          console.log(`[Workflow] Approval gate detected at ${action.ref}, waiting for human approval...`);
+
+          // Create the actual approval request in the database
+          const approvalData = output.output as { pending: true; title: string; description?: string; timeoutAt?: string };
+          const approvalResult = await createApprovalRequestActivity({
+            runId: input.runId,
+            workflowId: input.workflowId,
+            nodeRef: action.ref,
+            title: approvalData.title,
+            description: approvalData.description,
+            context: mergedParams.data ? { data: mergedParams.data } : undefined,
+            timeoutMs: approvalData.timeoutAt ? new Date(approvalData.timeoutAt).getTime() - Date.now() : undefined,
+            organizationId: input.organizationId ?? null,
+          });
+
+          console.log(`[Workflow] Created approval request ${approvalResult.approvalId} for ${action.ref}`);
+
+          // Check if we already have a resolution (signal arrived before we started waiting)
+          let resolution = approvalResolutions.get(action.ref);
+
+          if (!resolution) {
+            // Wait for the approval signal
+            console.log(`[Workflow] Waiting for approval signal for ${action.ref}...`);
+            
+            // Calculate timeout duration
+            const timeoutMs = approvalData.timeoutAt 
+              ? Math.max(0, new Date(approvalData.timeoutAt).getTime() - Date.now())
+              : undefined;
+
+            // Wait for signal or timeout
+            let signalReceived: boolean;
+            if (timeoutMs !== undefined) {
+              signalReceived = await condition(
+                () => approvalResolutions.has(action.ref),
+                timeoutMs
+              );
+            } else {
+              // No timeout - wait indefinitely
+              await condition(() => approvalResolutions.has(action.ref));
+              signalReceived = true;
+            }
+
+            if (!signalReceived) {
+              // Timeout occurred
+              console.log(`[Workflow] Approval timeout for ${action.ref}`);
+              throw new Error(`Approval request timed out for node ${action.ref}`);
+            }
+
+            resolution = approvalResolutions.get(action.ref)!;
+          }
+
+          console.log(`[Workflow] Approval resolved for ${action.ref}: approved=${resolution.approved}`);
+
+          // Store the final result
+          results.set(action.ref, {
+            approved: resolution.approved,
+            respondedBy: resolution.respondedBy,
+            responseNote: resolution.responseNote,
+            respondedAt: resolution.respondedAt,
+            approvalId: approvalResult.approvalId,
+          });
+
+          // If rejected, we might want to treat this as a failure
+          if (!resolution.approved) {
+            console.log(`[Workflow] Approval rejected for ${action.ref}`);
+            // We'll let downstream nodes handle the rejection based on the output
+          }
+        } else {
+          // Normal component - just store the result
+          results.set(action.ref, output.output);
+        }
       },
     });
 

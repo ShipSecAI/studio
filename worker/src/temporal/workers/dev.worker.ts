@@ -18,6 +18,11 @@ import {
   initializeComponentActivityServices,
 } from '../activities/run-component.activity';
 import { prepareRunPayloadActivity } from '../activities/run-dispatcher.activity';
+import {
+  createApprovalRequestActivity,
+  cancelApprovalRequestActivity,
+  initializeApprovalActivity,
+} from '../activities/approval.activity';
 import { ArtifactAdapter, FileStorageAdapter, SecretsAdapter, RedisTerminalStreamAdapter, KafkaLogAdapter, KafkaTraceAdapter, KafkaAgentTracePublisher } from '../../adapters';
 import * as schema from '../../adapters/schema';
 
@@ -149,6 +154,13 @@ async function main() {
     agentTracePublisher,
   });
 
+  // Initialize approval activity with database and backend URL
+  const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3211';
+  initializeApprovalActivity({
+    database: db,
+    baseUrl: backendUrl,
+  });
+
   console.log(`✅ Service adapters initialized`);
 
   console.log(`🏗️ Creating Temporal worker...`);
@@ -186,6 +198,8 @@ async function main() {
       setRunMetadataActivity,
       finalizeRunActivity,
       prepareRunPayloadActivity,
+      createApprovalRequestActivity,
+      cancelApprovalRequestActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],
