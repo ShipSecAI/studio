@@ -140,9 +140,9 @@ export interface TraceEventData {
 
 export interface TraceEvent {
   type: 'NODE_STARTED' | 'NODE_COMPLETED' | 'NODE_FAILED' | 'NODE_PROGRESS' | 'AWAITING_INPUT' | 'NODE_SKIPPED';
-  runId?: string;
-  nodeRef?: string;
-  timestamp?: string;
+  runId: string;
+  nodeRef: string;
+  timestamp: string;
   level?: TraceEventLevel;
   message?: string;
   error?: string;

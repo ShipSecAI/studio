@@ -5,6 +5,7 @@ import type {
   IFileStorageService,
   ISecretsService,
   ITraceService,
+  TraceEvent,
   ExecutionContextMetadata,
   TraceEventLevel,
   TraceEventData,
@@ -254,7 +255,24 @@ export interface ExecutionContext {
   storage?: IFileStorageService;
   secrets?: ISecretsService;
   artifacts?: IArtifactService;
-  trace?: ITraceService;
+  trace?: IScopedTraceService;
+}
+
+export type TraceEventInput = Omit<
+  TraceEvent,
+  'runId' | 'nodeRef' | 'timestamp' | 'context'
+> & {
+  runId?: string;
+  nodeRef?: string;
+  timestamp?: string;
+  context?: ExecutionContextMetadata;
+};
+
+export interface IScopedTraceService {
+  /**
+   * Record a trace event. runId, nodeRef, and context are automatically injected.
+   */
+  record(event: TraceEventInput): void;
 }
 
 export interface ComponentDefinition<I = unknown, O = unknown, P = Record<string, unknown>> {

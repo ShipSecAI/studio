@@ -22,12 +22,15 @@ import type {
   LogEventInput,
   TerminalChunkInput,
   AgentTracePublisher,
+  IScopedTraceService,
+  TraceEventInput,
 } from './types';
 import type {
   IFileStorageService,
   ISecretsService,
   IArtifactService,
   ITraceService,
+  TraceEvent,
 } from './interfaces';
 
 export interface CreateContextOptions {
@@ -226,15 +229,16 @@ function createMetadata(
 function createScopedTrace(
   trace: ITraceService,
   metadata: ExecutionContextMetadata,
-): ITraceService {
+): IScopedTraceService {
   return {
-    record(event) {
-      const enriched = {
+    record(event: TraceEventInput) {
+      const enriched: TraceEvent = {
+        timestamp: new Date().toISOString(),
         ...event,
         runId: metadata.runId,
         nodeRef: metadata.componentRef,
         context: metadata,
-      };
+      } as TraceEvent;
 
       trace.record(enriched);
     },
