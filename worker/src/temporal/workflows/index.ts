@@ -8,7 +8,7 @@ import {
 } from '@temporalio/workflow';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionParams } from '../input-resolver';
-import { resolveApprovalSignal, type ApprovalResolution } from '../signals';
+import { resolveHumanInputSignal, type HumanInputResolution } from '../signals';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
@@ -76,15 +76,15 @@ export async function shipsecWorkflowRun(
     input.definition.actions.map((action) => [action.ref, action]),
   );
 
-  // Track pending approvals and their resolutions
-  const pendingApprovals = new Map<string, { nodeRef: string; resolve: (res: ApprovalResolution) => void }>();
-  const approvalResolutions = new Map<string, ApprovalResolution>();
+  // Track pending human inputs and their resolutions
+  const pendingHumanInputs = new Map<string, { nodeRef: string; resolve: (res: HumanInputResolution) => void }>();
+  const humanInputResolutions = new Map<string, HumanInputResolution>();
 
-  // Set up signal handler for approval resolutions
-  setHandler(resolveApprovalSignal, (resolution: ApprovalResolution) => {
-    console.log(`[Workflow] Received approval signal for ${resolution.nodeRef}: approved=${resolution.approved}`);
-    approvalResolutions.set(resolution.nodeRef, resolution);
-    const pending = pendingApprovals.get(resolution.nodeRef);
+  // Set up signal handler for human input resolutions
+  setHandler(resolveHumanInputSignal, (resolution: HumanInputResolution) => {
+    console.log(`[Workflow] Received human input signal for ${resolution.nodeRef}: approved=${resolution.approved}`);
+    humanInputResolutions.set(resolution.nodeRef, resolution);
+    const pending = pendingHumanInputs.get(resolution.nodeRef);
     if (pending) {
       pending.resolve(resolution);
     }
@@ -181,14 +181,14 @@ export async function shipsecWorkflowRun(
             organizationId: input.organizationId ?? null,
           });
 
-          console.log(`[Workflow] Created approval request ${approvalResult.requestId} for ${action.ref}`);
+          console.log(`[Workflow] Created human input request ${approvalResult.requestId} for ${action.ref}`);
 
           // Check if we already have a resolution (signal arrived before we started waiting)
-          let resolution = approvalResolutions.get(action.ref);
+          let resolution = humanInputResolutions.get(action.ref);
 
           if (!resolution) {
-            // Wait for the approval signal
-            console.log(`[Workflow] Waiting for approval signal for ${action.ref}...`);
+            // Wait for the human input signal
+            console.log(`[Workflow] Waiting for human input signal for ${action.ref}...`);
             
             // Calculate timeout duration
             const timeoutMs = approvalData.timeoutAt 
@@ -199,25 +199,25 @@ export async function shipsecWorkflowRun(
             let signalReceived: boolean;
             if (timeoutMs !== undefined) {
               signalReceived = await condition(
-                () => approvalResolutions.has(action.ref),
+                () => humanInputResolutions.has(action.ref),
                 timeoutMs
               );
             } else {
               // No timeout - wait indefinitely
-              await condition(() => approvalResolutions.has(action.ref));
+              await condition(() => humanInputResolutions.has(action.ref));
               signalReceived = true;
             }
 
             if (!signalReceived) {
               // Timeout occurred
-              console.log(`[Workflow] Approval timeout for ${action.ref}`);
-              throw new Error(`Approval request timed out for node ${action.ref}`);
+              console.log(`[Workflow] Human input timeout for ${action.ref}`);
+              throw new Error(`Human input request timed out for node ${action.ref}`);
             }
 
-            resolution = approvalResolutions.get(action.ref)!;
+            resolution = humanInputResolutions.get(action.ref)!;
           }
 
-          console.log(`[Workflow] Approval resolved for ${action.ref}: approved=${resolution.approved}`);
+          console.log(`[Workflow] Human input resolved for ${action.ref}: approved=${resolution.approved}`);
 
           // Store the final result
           results.set(action.ref, {
@@ -225,12 +225,13 @@ export async function shipsecWorkflowRun(
             respondedBy: resolution.respondedBy,
             responseNote: resolution.responseNote,
             respondedAt: resolution.respondedAt,
-            approvalId: approvalResult.requestId,
+            requestId: approvalResult.requestId,
+            responseData: resolution.responseData,
           });
 
           // If rejected, we might want to treat this as a failure
           if (!resolution.approved) {
-            console.log(`[Workflow] Approval rejected for ${action.ref}`);
+            console.log(`[Workflow] Human input rejected for ${action.ref}`);
             // We'll let downstream nodes handle the rejection based on the output
           }
         } else {
