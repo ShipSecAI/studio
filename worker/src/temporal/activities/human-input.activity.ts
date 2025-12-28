@@ -146,3 +146,25 @@ export async function cancelHumanInputRequestActivity(
 
   console.log(`[HumanInputActivity] Cancelled human input request ${requestId}`);
 }
+
+/**
+ * Activity to expire a pending human input request (due to timeout)
+ */
+export async function expireHumanInputRequestActivity(
+  requestId: string
+): Promise<void> {
+  if (!db) {
+    console.warn('[HumanInputActivity] Database not initialized, skipping expiration');
+    return;
+  }
+
+  await db
+    .update(schema.humanInputRequestsTable)
+    .set({
+      status: 'expired',
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.humanInputRequestsTable.id, requestId));
+
+  console.log(`[HumanInputActivity] Expired human input request ${requestId}`);
+}

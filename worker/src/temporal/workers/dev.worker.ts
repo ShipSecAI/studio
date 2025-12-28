@@ -21,6 +21,7 @@ import {
   createHumanInputRequestActivity,
   cancelHumanInputRequestActivity,
   initializeHumanInputActivity,
+  expireHumanInputRequestActivity,
 } from '../activities/human-input.activity';
 import { prepareRunPayloadActivity } from '../activities/run-dispatcher.activity';
 import {
@@ -217,6 +218,7 @@ async function main() {
       prepareRunPayloadActivity,
       createHumanInputRequestActivity,
       cancelHumanInputRequestActivity,
+      expireHumanInputRequestActivity,
       recordTraceEventActivity,
     },
     bundlerOptions: {

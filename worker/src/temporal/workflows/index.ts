@@ -24,6 +24,7 @@ const {
   setRunMetadataActivity,
   finalizeRunActivity,
   createHumanInputRequestActivity,
+  expireHumanInputRequestActivity,
 } = proxyActivities<{
   runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
   setRunMetadataActivity(input: { runId: string; workflowId: string; organizationId?: string | null }): Promise<void>;
@@ -44,6 +45,7 @@ const {
     resolveToken: string;
     resolveUrl: string;
   }>;
+  expireHumanInputRequestActivity(requestId: string): Promise<void>;
 }>({
   startToCloseTimeout: '10 minutes',
 });
@@ -219,6 +221,7 @@ export async function shipsecWorkflowRun(
             if (!signalReceived) {
               // Timeout occurred
               console.log(`[Workflow] Human input timeout for ${action.ref}`);
+              await expireHumanInputRequestActivity(approvalResult.requestId);
               throw new Error(`Human input request timed out for node ${action.ref}`);
             }
 
