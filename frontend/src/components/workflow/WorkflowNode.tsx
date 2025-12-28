@@ -1034,6 +1034,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               Failed
             </Badge>
           )}
+          {visualState.status === 'skipped' && (
+            <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-600">
+              <LucideIcons.Ban className="h-3 w-3 mr-1" />
+              Skipped
+            </Badge>
+          )}
 
           {/* Progress bar and events */}
           <ProgressBar
