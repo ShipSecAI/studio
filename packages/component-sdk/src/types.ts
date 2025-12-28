@@ -199,6 +199,7 @@ export type ComponentCategory =
   | 'security'
   | 'it_ops'
   | 'notification'
+  | 'interaction'
   | 'output';
 
 export type ComponentUiType =

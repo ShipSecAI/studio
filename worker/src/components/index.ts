@@ -26,6 +26,8 @@ import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
 import './core/approval-gate';
+import './core/human-input-choice';
+import './core/human-input-form';
 import './ai/openai-provider';
 import './ai/gemini-provider';
 import './ai/openrouter-provider';

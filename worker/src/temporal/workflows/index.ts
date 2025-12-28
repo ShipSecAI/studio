@@ -169,21 +169,23 @@ export async function shipsecWorkflowRun(
 
         const output = await runComponentActivity(activityInput);
 
-        // Check if this is an approval gate component that's waiting for approval
-        if (action.componentId === 'core.workflow.approval-gate' && isApprovalPending(output.output)) {
-          console.log(`[Workflow] Approval gate detected at ${action.ref}, waiting for human approval...`);
+        // Check if this is a pending human input request (approval gate, form, choice, etc.)
+        if (isApprovalPending(output.output)) {
+          console.log(`[Workflow] Pending human input detected at ${action.ref} (type=${(output.output as any).inputType ?? 'approval'})`);
 
-          // Create the actual approval request in the database
-          const approvalData = output.output as { pending: true; title: string; description?: string; timeoutAt?: string };
+          const pendingData = output.output as any;
+          
+          // Create the human input request in the database
           const approvalResult = await createHumanInputRequestActivity({
             runId: input.runId,
             workflowId: input.workflowId,
             nodeRef: action.ref,
-            inputType: 'approval',
-            title: approvalData.title,
-            description: approvalData.description,
+            inputType: pendingData.inputType ?? 'approval',
+            title: pendingData.title,
+            description: pendingData.description,
             context: mergedParams.data ? { data: mergedParams.data } : undefined,
-            timeoutMs: approvalData.timeoutAt ? new Date(approvalData.timeoutAt).getTime() - Date.now() : undefined,
+            inputSchema: pendingData.inputSchema ?? (pendingData.options ? { options: pendingData.options, multiple: pendingData.multiple } : undefined) ?? (pendingData.schema ? { schema: pendingData.schema } : undefined),
+            timeoutMs: pendingData.timeoutAt ? new Date(pendingData.timeoutAt).getTime() - Date.now() : undefined,
             organizationId: input.organizationId ?? null,
           });
 
@@ -197,8 +199,8 @@ export async function shipsecWorkflowRun(
             console.log(`[Workflow] Waiting for human input signal for ${action.ref}...`);
             
             // Calculate timeout duration
-            const timeoutMs = approvalData.timeoutAt 
-              ? Math.max(0, new Date(approvalData.timeoutAt).getTime() - Date.now())
+            const timeoutMs = pendingData.timeoutAt 
+              ? Math.max(0, new Date(pendingData.timeoutAt).getTime() - Date.now())
               : undefined;
 
             // Wait for signal or timeout
