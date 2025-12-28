@@ -20,20 +20,23 @@ const inputSchema = z.object({
 type Input = z.infer<typeof inputSchema>;
 
 const outputSchema = z.object({
-  pending: z.literal(true),
-  requestId: z.string(),
-  inputType: z.literal('selection'),
-  title: z.string(),
-  description: z.string().nullable(),
-  options: z.array(z.union([z.string(), z.object({ label: z.string(), value: z.string() })])),
-  multiple: z.boolean(),
-  timeoutAt: z.string().nullable(),
+  selection: z.any().describe('The selected option(s)'),
+  approved: z.boolean().describe('Whether the request was approved'),
+  respondedBy: z.string().describe('Who responded to the request'),
+  responseNote: z.string().optional().describe('Note provided by the responder'),
+  respondedAt: z.string().describe('When the request was resolved'),
+  requestId: z.string().describe('The ID of the human input request'),
 });
 
 type Output = z.infer<typeof outputSchema>;
 
 type Params = {
+  title?: string;
+  description?: string;
   variables?: { name: string; type: string }[];
+  options?: { label: string; value: string }[] | string[];
+  multiple?: boolean;
+  timeout?: string;
 };
 
 /**
@@ -76,7 +79,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
   docs: 'Pauses workflow execution until a user selects an option. Supports Markdown and dynamic context variables.',
   metadata: {
     slug: 'manual-selection',
-    version: '1.2.0',
+    version: '1.3.0',
     type: 'process',
     category: 'manual_action',
     description: 'Ask the user to select from a list of options. Supports dynamic context templates.',
@@ -90,11 +93,23 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     inputs: [],
     outputs: [
       {
-        id: 'result',
-        label: 'Input Request',
-        dataType: port.contract(HUMAN_INPUT_PENDING_CONTRACT),
-        description: 'The pending request details',
+        id: 'selection',
+        label: 'Selection',
+        dataType: port.any(),
+        description: 'The selected value(s)',
       },
+      {
+        id: 'approved',
+        label: 'Approved',
+        dataType: port.boolean(),
+        description: 'True if approved, false if rejected',
+      },
+      {
+        id: 'respondedBy',
+        label: 'Responded By',
+        dataType: port.text(),
+        description: 'The user who resolved this request',
+      }
     ],
     parameters: [
       {
@@ -117,17 +132,17 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       {
           id: 'variables',
           label: 'Context Variables',
-          type: 'json',
+          type: 'variable-list',
           default: [],
-          description: 'Define variables to use as {{name}} in your description.',
+          description: 'Define variables to use as {{name}} in your description and options.',
       },
       {
         id: 'options',
-        label: 'Options',
-        type: 'json',
+        label: 'Option Designer',
+        type: 'selection-options',
         required: true,
-        placeholder: '["Option A", "Option B"]',
-        description: 'List of options (strings or {label, value} objects)',
+        default: [],
+        description: 'Design the list of options interactively.',
       },
       {
         id: 'multiple',
@@ -147,7 +162,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       },
     ],
   },
-  resolvePorts(params) {
+  resolvePorts(params: any) {
     const inputs: any[] = [];
     if (params.variables && Array.isArray(params.variables)) {
         for (const v of params.variables) {
@@ -155,32 +170,43 @@ const definition: ComponentDefinition<Input, Output, Params> = {
             inputs.push(mapTypeToPort(v.type || 'json', v.name, v.name));
         }
     }
-    return { inputs };
+    
+    // Output port for the selection itself
+    const outputs = [
+        { id: 'selection', label: 'Selection', dataType: params.multiple ? port.list(port.text()) : port.text() },
+        { id: 'approved', label: 'Approved', dataType: port.boolean() },
+        { id: 'respondedBy', label: 'Responded By', dataType: port.text() },
+    ];
+    
+    return { inputs, outputs };
   },
   async execute(params, context) {
     const titleTemplate = params.title || 'Input Required';
     const descriptionTemplate = params.description || '';
     const timeoutStr = params.timeout;
-    const optionsRaw = params.options;
+    const optionsRaw = params.options || [];
     const multiple = params.multiple === true;
 
     // Interpolate
     const title = interpolate(titleTemplate, params);
     const description = interpolate(descriptionTemplate, params);
 
-    // Parse options
-    let options: Array<string | { label: string; value: string }> = [];
+    // Parse and interpolate options
+    let options: Array<{ label: string; value: string }> = [];
     if (Array.isArray(optionsRaw)) {
-        options = optionsRaw;
-    } else if (typeof optionsRaw === 'string') {
-        try {
-            options = JSON.parse(optionsRaw);
-        } catch (e) {
-            options = optionsRaw.split(',').map(s => s.trim());
-        }
+        options = optionsRaw.map(opt => {
+            if (typeof opt === 'string') {
+                const val = interpolate(opt, params);
+                return { label: val, value: val };
+            }
+            return {
+                label: interpolate(opt.label || opt.value, params),
+                value: opt.value,
+            };
+        });
     }
 
-    if (!Array.isArray(options) || options.length === 0) {
+    if (options.length === 0) {
         throw new Error('Manual Selection component requires at least one option.');
     }
 
@@ -200,14 +226,13 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     return {
       pending: true as const,
       requestId,
-      inputType: 'selection',
+      inputType: 'selection' as const,
       title,
       description,
-      options,
-      multiple,
+      inputSchema: { options, multiple },
       timeoutAt,
       contextData: params,
-    };
+    } as any;
   },
 };
 
@@ -225,3 +250,5 @@ function parseTimeout(timeout: string): number | null {
 }
 
 componentRegistry.register(definition);
+
+export { definition };

@@ -142,14 +142,14 @@ const definition: ComponentDefinition<Input, Output> = {
       {
         id: 'variables',
         label: 'Input Variables',
-        type: 'json',
+        type: 'variable-list',
         default: [],
         description: 'Define input variables that will be available in your script.',
       },
       {
         id: 'returns',
         label: 'Output Variables',
-        type: 'json',
+        type: 'variable-list',
         default: [],
         description: 'Define output variables your script should return.',
       },

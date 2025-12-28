@@ -92,7 +92,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       {
         id: 'variables',
         label: 'Template Variables',
-        type: 'json',
+        type: 'variable-list',
         default: [],
         description: 'Define variables to use as {{name}} in your message.',
       }

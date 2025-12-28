@@ -19,20 +19,24 @@ const inputSchema = z.object({
 
 type Input = z.infer<typeof inputSchema>;
 
-const outputSchema = z.object({
-  pending: z.literal(true),
-  requestId: z.string(),
-  inputType: z.literal('form'),
-  title: z.string(),
-  description: z.string().nullable(),
-  schema: z.record(z.string(), z.unknown()),
-  timeoutAt: z.string().nullable(),
-});
+const outputSchema = z.record(z.string(), z.any());
 
 type Output = z.infer<typeof outputSchema>;
 
 type Params = {
+  title?: string;
+  description?: string;
   variables?: { name: string; type: string }[];
+  schema?: {
+      id: string;
+      label: string;
+      type: string;
+      required: boolean;
+      placeholder?: string;
+      description?: string;
+      options?: string;
+  }[];
+  timeout?: string;
 };
 
 /**
@@ -47,11 +51,13 @@ function interpolate(template: string, vars: Record<string, any>): string {
 
 const mapTypeToPort = (type: string, id: string, label: string) => {
   switch (type) {
-    case 'string': return { id, label, dataType: port.text(), required: false };
+    case 'string':
+    case 'textarea': return { id, label, dataType: port.text(), required: false };
     case 'number': return { id, label, dataType: port.number(), required: false };
     case 'boolean': return { id, label, dataType: port.boolean(), required: false };
     case 'secret': return { id, label, dataType: port.secret(), required: false };
     case 'list': return { id, label, dataType: port.list(port.text()), required: false };
+    case 'enum': return { id, label, dataType: port.text(), required: false };
     default: return { id, label, dataType: port.any(), required: false };
   }
 };
@@ -75,7 +81,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
   docs: 'Pauses workflow execution until a user fills out a form. Supports Markdown and dynamic context variables.',
   metadata: {
     slug: 'manual-form',
-    version: '1.2.0',
+    version: '1.3.0',
     type: 'process',
     category: 'manual_action',
     description: 'Collect structured data via a manual form. Supports dynamic context templates.',
@@ -87,14 +93,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     isLatest: true,
     deprecated: false,
     inputs: [],
-    outputs: [
-      {
-        id: 'result',
-        label: 'Form Request',
-        dataType: port.contract(HUMAN_FORM_PENDING_CONTRACT),
-        description: 'The pending form request details',
-      },
-    ],
+    outputs: [], // Dynamic outputs in resolvePorts
     parameters: [
       {
         id: 'title',
@@ -116,17 +115,17 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       {
           id: 'variables',
           label: 'Context Variables',
-          type: 'json',
+          type: 'variable-list',
           default: [],
-          description: 'Define variables to use as {{name}} in your description.',
+          description: 'Define variables to use as {{name}} in your description and form fields.',
       },
       {
         id: 'schema',
-        label: 'Form Schema',
-        type: 'json',
+        label: 'Form Designer',
+        type: 'form-fields',
         required: true,
-        placeholder: '{"type": "object", "properties": {"reason": {"type": "string"}}}',
-        description: 'JSON Schema defining the form fields',
+        default: [],
+        description: 'Design the form fields interactively.',
       },
       {
         id: 'timeout',
@@ -138,7 +137,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       },
     ],
   },
-  resolvePorts(params) {
+  resolvePorts(params: any) {
     const inputs: any[] = [];
     if (params.variables && Array.isArray(params.variables)) {
         for (const v of params.variables) {
@@ -146,31 +145,75 @@ const definition: ComponentDefinition<Input, Output, Params> = {
             inputs.push(mapTypeToPort(v.type || 'json', v.name, v.name));
         }
     }
-    return { inputs };
+
+    const outputs: any[] = [
+        { id: 'approved', label: 'Approved', dataType: port.boolean() },
+        { id: 'respondedBy', label: 'Responded By', dataType: port.text() },
+    ];
+
+    // parse schema to get output ports
+    if (Array.isArray(params.schema)) {
+        for (const field of params.schema) {
+            if (!field.id) continue;
+            outputs.push(mapTypeToPort(field.type || 'string', field.id, field.label || field.id));
+        }
+    }
+
+    return { inputs, outputs };
   },
   async execute(params, context) {
     const titleTemplate = params.title || 'Form Input Required';
     const descriptionTemplate = params.description || '';
     const timeoutStr = params.timeout;
-    const schemaRaw = params.schema;
+    const fields = params.schema || [];
 
     // Interpolate
     const title = interpolate(titleTemplate, params);
     const description = interpolate(descriptionTemplate, params);
 
-    // Parse schema
-    let schema: Record<string, unknown> = {};
-    if (typeof schemaRaw === 'string') {
-        try {
-            schema = JSON.parse(schemaRaw);
-        } catch (e) {
-            throw new Error('Invalid JSON Schema string provided.');
+    // Build JSON Schema from fields, with interpolation in labels/placeholders
+    const properties: Record<string, any> = {};
+    const required: string[] = [];
+
+    for (const field of fields) {
+        if (!field.id) continue;
+        
+        const fieldLabel = interpolate(field.label || field.id, params);
+        const fieldPlaceholder = interpolate(field.placeholder || '', params);
+        const fieldDesc = interpolate(field.description || '', params);
+
+        let type = field.type || 'string';
+        let jsonProp: any = {
+            title: fieldLabel,
+            description: fieldPlaceholder || fieldDesc,
+        };
+
+        if (type === 'textarea') {
+            jsonProp.type = 'string';
+            jsonProp.format = 'textarea';
+        } else if (type === 'enum') {
+            jsonProp.type = 'string';
+            const options = (field.options || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+            jsonProp.enum = options;
+        } else if (type === 'number') {
+            jsonProp.type = 'number';
+        } else if (type === 'boolean') {
+            jsonProp.type = 'boolean';
+        } else {
+            jsonProp.type = 'string';
         }
-    } else if (typeof schemaRaw === 'object' && schemaRaw !== null) {
-        schema = schemaRaw as Record<string, unknown>;
-    } else {
-        throw new Error('Form Schema must be a valid JSON object or string.');
+
+        properties[field.id] = jsonProp;
+        if (field.required) {
+            required.push(field.id);
+        }
     }
+
+    const schema = {
+        type: 'object',
+        properties,
+        required,
+    };
 
     // Measure timeout
     let timeoutAt: string | null = null;
@@ -188,13 +231,13 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     return {
       pending: true as const,
       requestId,
-      inputType: 'form',
+      inputType: 'form' as const,
       title,
       description,
-      schema,
+      inputSchema: schema,
       timeoutAt,
       contextData: params,
-    };
+    } as any;
   },
 };
 

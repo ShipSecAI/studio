@@ -4,13 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
-import {
     DndContext,
     closestCenter,
     KeyboardSensor,
@@ -28,26 +21,24 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-export interface SimpleVariable {
-    name: string
-    type: string
+export interface SelectionOption {
+    label: string
+    value: string
 }
 
-interface InternalVariable extends SimpleVariable {
-    _id: string
+interface InternalOption extends SelectionOption {
+    _uid: string
 }
 
-interface SimpleVariableListEditorProps {
-    value: SimpleVariable[]
-    onChange: (value: SimpleVariable[]) => void
-    title: string
-    type: 'input' | 'output'
+interface SelectionOptionsEditorProps {
+    value: SelectionOption[] | string[]
+    onChange: (value: SelectionOption[]) => void
 }
 
 interface SortableRowProps {
-    item: InternalVariable
-    onUpdate: (id: string, field: keyof SimpleVariable, value: string) => void
-    onRemove: (id: string) => void
+    item: InternalOption
+    onUpdate: (uid: string, field: keyof SelectionOption, value: string) => void
+    onRemove: (uid: string) => void
 }
 
 function SortableRow({ item, onUpdate, onRemove }: SortableRowProps) {
@@ -58,7 +49,7 @@ function SortableRow({ item, onUpdate, onRemove }: SortableRowProps) {
         transform,
         transition,
         isDragging,
-    } = useSortable({ id: item._id })
+    } = useSortable({ id: item._uid })
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -81,35 +72,27 @@ function SortableRow({ item, onUpdate, onRemove }: SortableRowProps) {
                 <GripVertical className="h-4 w-4" />
             </div>
 
-            <Input
-                value={item.name}
-                onChange={(e) => onUpdate(item._id, 'name', e.target.value)}
-                placeholder="name"
-                className="h-7 text-xs font-mono flex-1 min-w-0"
-            />
-
-            <Select
-                value={item.type}
-                onValueChange={(val) => onUpdate(item._id, 'type', val)}
-            >
-                <SelectTrigger className="h-7 text-xs w-24 shrink-0">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="string">String</SelectItem>
-                    <SelectItem value="number">Number</SelectItem>
-                    <SelectItem value="boolean">Boolean</SelectItem>
-                    <SelectItem value="json">JSON</SelectItem>
-                    <SelectItem value="list">List</SelectItem>
-                </SelectContent>
-            </Select>
+            <div className="flex-1 grid grid-cols-2 gap-2">
+                <Input
+                    value={item.label}
+                    onChange={(e) => onUpdate(item._uid, 'label', e.target.value)}
+                    placeholder="Label (e.g. Red)"
+                    className="h-7 text-xs"
+                />
+                <Input
+                    value={item.value}
+                    onChange={(e) => onUpdate(item._uid, 'value', e.target.value)}
+                    placeholder="Value (e.g. red)"
+                    className="h-7 text-xs font-mono"
+                />
+            </div>
 
             <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 shrink-0"
-                onClick={() => onRemove(item._id)}
+                onClick={() => onRemove(item._uid)}
             >
                 <Trash2 className="h-3 w-3 text-red-500" />
             </Button>
@@ -118,11 +101,11 @@ function SortableRow({ item, onUpdate, onRemove }: SortableRowProps) {
 }
 
 let idCounter = 0
-function generateId(): string {
-    return `var_${Date.now()}_${++idCounter}`
+function generateUid(): string {
+    return `opt_${Date.now()}_${++idCounter}`
 }
 
-function toInternal(value: any): InternalVariable[] {
+function toInternal(value: any): InternalOption[] {
     let list: any[] = []
     if (Array.isArray(value)) {
         list = value
@@ -133,18 +116,25 @@ function toInternal(value: any): InternalVariable[] {
                 list = parsed
             }
         } catch (e) {
-            console.warn('Failed to parse legacy variables', e)
+            // Might be comma separated string if it failed parsing
+            list = value.split(',').map(s => s.trim()).filter(Boolean)
         }
     }
-    return list.map((v) => ({ ...v, _id: generateId() }))
+
+    return list.map((v) => {
+        if (typeof v === 'string') {
+            return { label: v, value: v, _uid: generateUid() }
+        }
+        return { ...v, _uid: generateUid() }
+    })
 }
 
-function toExternal(items: InternalVariable[]): SimpleVariable[] {
-    return items.map(({ name, type }) => ({ name, type }))
+function toExternal(items: InternalOption[]): SelectionOption[] {
+    return items.map(({ label, value }) => ({ label, value }))
 }
 
-export function SimpleVariableListEditor({ value, onChange, title, type }: SimpleVariableListEditorProps) {
-    const [items, setItems] = useState<InternalVariable[]>(() => toInternal(value || []))
+export function SelectionOptionsEditor({ value, onChange }: SelectionOptionsEditorProps) {
+    const [items, setItems] = useState<InternalOption[]>(() => toInternal(value))
     const isLocalChange = useRef(false)
 
     useEffect(() => {
@@ -152,7 +142,7 @@ export function SimpleVariableListEditor({ value, onChange, title, type }: Simpl
             isLocalChange.current = false
             return
         }
-        setItems(toInternal(value || []))
+        setItems(toInternal(value))
     }, [JSON.stringify(value)])
 
     const sensors = useSensors(
@@ -160,64 +150,62 @@ export function SimpleVariableListEditor({ value, onChange, title, type }: Simpl
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     )
 
-    const propagateChange = useCallback((newItems: InternalVariable[]) => {
+    const propagateChange = useCallback((newItems: InternalOption[]) => {
         isLocalChange.current = true
         setItems(newItems)
         onChange(toExternal(newItems))
     }, [onChange])
 
     const handleAdd = useCallback(() => {
-        const newItem: InternalVariable = {
-            _id: generateId(),
-            name: `var${items.length + 1}`,
-            type: 'json',
+        const newItem: InternalOption = {
+            _uid: generateUid(),
+            label: `Option ${items.length + 1}`,
+            value: `option_${items.length + 1}`,
         }
         propagateChange([...items, newItem])
     }, [items, propagateChange])
 
-    const handleRemove = useCallback((id: string) => {
-        propagateChange(items.filter((item) => item._id !== id))
+    const handleRemove = useCallback((uid: string) => {
+        propagateChange(items.filter((item) => item._uid !== uid))
     }, [items, propagateChange])
 
-    const handleUpdate = useCallback((id: string, field: keyof SimpleVariable, value: string) => {
+    const handleUpdate = useCallback((uid: string, field: keyof SelectionOption, value: string) => {
         propagateChange(
-            items.map((item) => (item._id === id ? { ...item, [field]: value } : item))
+            items.map((item) => (item._uid === uid ? { ...item, [field]: value } : item))
         )
     }, [items, propagateChange])
 
     const handleDragEnd = useCallback((event: DragEndEvent) => {
         const { active, over } = event
         if (!over || active.id === over.id) return
-        const oldIndex = items.findIndex((item) => item._id === active.id)
-        const newIndex = items.findIndex((item) => item._id === over.id)
+        const oldIndex = items.findIndex((item) => item._uid === active.id)
+        const newIndex = items.findIndex((item) => item._uid === over.id)
         if (oldIndex !== -1 && newIndex !== -1) {
             propagateChange(arrayMove(items, oldIndex, newIndex))
         }
     }, [items, propagateChange])
 
-    const itemIds = items.map((item) => item._id)
+    const itemIds = items.map((item) => item._uid)
 
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium text-muted-foreground">{title}</Label>
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Selection Options</Label>
                 <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={handleAdd}
-                    className="h-6 text-xs gap-1 px-2"
+                    className="h-6 text-xs gap-1 px-2 hover:text-primary transition-colors"
                 >
                     <Plus className="h-3 w-3" />
-                    Add
+                    Add Option
                 </Button>
             </div>
 
             {items.length === 0 ? (
-                <div className="p-3 border border-dashed rounded-md text-center">
-                    <p className="text-xs text-muted-foreground">
-                        {type === 'input' ? 'No input variables' : 'No output variables'}
-                    </p>
+                <div className="p-4 border border-dashed rounded-md text-center bg-muted/10">
+                    <p className="text-[11px] text-muted-foreground">Add at least one option</p>
                 </div>
             ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -225,7 +213,7 @@ export function SimpleVariableListEditor({ value, onChange, title, type }: Simpl
                         <div className="space-y-1">
                             {items.map((item) => (
                                 <SortableRow
-                                    key={item._id}
+                                    key={item._uid}
                                     item={item}
                                     onUpdate={handleUpdate}
                                     onRemove={handleRemove}

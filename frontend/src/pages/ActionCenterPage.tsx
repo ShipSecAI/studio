@@ -47,6 +47,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { MarkdownView } from '@/components/ui/markdown'
+import { cn } from '@/lib/utils'
 
 
 
@@ -59,6 +60,7 @@ interface HumanInputRequest {
     inputType: string
     title: string
     description: string | null
+    inputSchema: any | null
     context: Record<string, unknown> | null
     resolveToken: string
     timeoutAt: string | null
@@ -139,6 +141,19 @@ export function ActionCenterPage() {
     const [resolveAction, setResolveAction] = useState<'approve' | 'reject' | 'view'>('approve')
     const [selectedApproval, setSelectedApproval] = useState<HumanInputRequest | null>(null)
     const [responseNote, setResponseNote] = useState('')
+    const [formValues, setFormValues] = useState<Record<string, any>>({})
+    const [selectedOptions, setSelectedOptions] = useState<string[]>([])
+
+    const parsedInputSchema = useMemo(() => {
+        if (!selectedApproval?.inputSchema) return null
+        if (typeof selectedApproval.inputSchema === 'object') return selectedApproval.inputSchema
+        try {
+            return JSON.parse(selectedApproval.inputSchema)
+        } catch (e) {
+            console.error('Failed to parse inputSchema:', e)
+            return null
+        }
+    }, [selectedApproval?.inputSchema])
 
     const fetchApprovals = async () => {
         setIsLoading(true)
@@ -189,6 +204,8 @@ export function ActionCenterPage() {
         setSelectedApproval(approval)
         setResolveAction(action)
         setResponseNote('')
+        setFormValues({})
+        setSelectedOptions([])
         setResolveDialogOpen(true)
     }
 
@@ -199,12 +216,22 @@ export function ActionCenterPage() {
         setResolveDialogOpen(false)
 
         try {
+            const data: any = {
+                status: resolveAction === 'approve' ? 'approved' : 'rejected',
+                comment: responseNote || undefined
+            }
+
+            if (selectedApproval.inputType === 'selection') {
+                data.selection = parsedInputSchema?.multiple ? selectedOptions : selectedOptions[0]
+                data.approved = resolveAction === 'approve'
+            } else if (selectedApproval.inputType === 'form') {
+                Object.assign(data, formValues)
+                data.approved = resolveAction === 'approve'
+            }
+
             await api.humanInputs.resolve(selectedApproval.id, {
                 status: 'resolved',
-                responseData: {
-                    status: resolveAction === 'approve' ? 'approved' : 'rejected',
-                    comment: responseNote || undefined
-                },
+                responseData: data,
                 comment: responseNote || undefined
             })
 
@@ -481,95 +508,231 @@ export function ActionCenterPage() {
                     <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
                         {selectedApproval?.description && (
                             <div className="space-y-2">
-                                <Label className="text-muted-foreground">Description</Label>
+                                <Label className="text-muted-foreground text-xs uppercase letter-spacing-wide">Description</Label>
                                 <div className="border rounded-md p-4 bg-muted/30">
                                     <MarkdownView content={selectedApproval.description} className="prose prose-sm dark:prose-invert max-w-none" />
                                 </div>
                             </div>
                         )}
 
+                        {/* Input UI for Pending Tasks */}
+                        {selectedApproval?.status === 'pending' && (
+                            <div className="space-y-6 pt-2 border-t mt-4">
+                                {selectedApproval.inputType === 'selection' && (
+                                    <div className="space-y-3">
+                                        <Label className="text-sm font-semibold">Please select an option</Label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {(parsedInputSchema?.options || []).map((option: any) => {
+                                                const value = typeof option === 'string' ? option : option.value
+                                                const label = typeof option === 'string' ? option : option.label
+                                                const isSelected = selectedOptions.includes(value)
+
+                                                return (
+                                                    <Button
+                                                        key={value}
+                                                        variant={isSelected ? 'default' : 'outline'}
+                                                        className={cn(
+                                                            "justify-start h-auto py-3 px-4 text-left transition-all",
+                                                            isSelected && "ring-2 ring-primary ring-offset-2"
+                                                        )}
+                                                        onClick={() => {
+                                                            if (parsedInputSchema?.multiple) {
+                                                                setSelectedOptions(prev =>
+                                                                    prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+                                                                )
+                                                            } else {
+                                                                setSelectedOptions([value])
+                                                            }
+                                                        }}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={cn(
+                                                                "w-4 h-4 rounded-full border flex items-center justify-center",
+                                                                isSelected ? "bg-primary-foreground border-primary-foreground" : "border-muted-foreground"
+                                                            )}>
+                                                                {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                                            </div>
+                                                            <span className="font-medium">{label}</span>
+                                                        </div>
+                                                    </Button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedApproval.inputType === 'form' && parsedInputSchema?.properties && (
+                                    <div className="space-y-4">
+                                        <Label className="text-sm font-semibold">Complete the form</Label>
+                                        <div className="grid grid-cols-1 gap-4 bg-muted/20 p-4 rounded-lg border">
+                                            {Object.entries(parsedInputSchema.properties).map(([key, prop]: [string, any]) => (
+                                                <div key={key} className="space-y-1.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor={`form-${key}`} className="text-sm font-medium">
+                                                            {prop.title || key}
+                                                            {parsedInputSchema.required?.includes(key) && (
+                                                                <span className="text-destructive ml-1">*</span>
+                                                            )}
+                                                        </Label>
+                                                    </div>
+                                                    {prop.type === 'string' && prop.enum ? (
+                                                        <Select
+                                                            value={formValues[key] || ''}
+                                                            onValueChange={(v) => setFormValues(prev => ({ ...prev, [key]: v }))}
+                                                        >
+                                                            <SelectTrigger id={`form-${key}`}>
+                                                                <SelectValue placeholder={`Select ${key}...`} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {prop.enum.map((v: string) => (
+                                                                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    ) : prop.type === 'string' ? (
+                                                        <Input
+                                                            id={`form-${key}`}
+                                                            value={formValues[key] || ''}
+                                                            onChange={(e) => setFormValues(prev => ({ ...prev, [key]: e.target.value }))}
+                                                            placeholder={prop.description || ""}
+                                                        />
+                                                    ) : prop.type === 'number' ? (
+                                                        <Input
+                                                            id={`form-${key}`}
+                                                            type="number"
+                                                            value={formValues[key] || ''}
+                                                            onChange={(e) => setFormValues(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                                                        />
+                                                    ) : prop.type === 'boolean' ? (
+                                                        <div className="flex items-center gap-2 mt-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                id={`form-${key}`}
+                                                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                                checked={formValues[key] || false}
+                                                                onChange={(e) => setFormValues(prev => ({ ...prev, [key]: e.target.checked }))}
+                                                            />
+                                                            <Label htmlFor={`form-${key}`} className="text-sm">{prop.description || key}</Label>
+                                                        </div>
+                                                    ) : (
+                                                        <Textarea
+                                                            id={`form-${key}`}
+                                                            value={formValues[key] || ''}
+                                                            onChange={(e) => setFormValues(prev => ({ ...prev, [key]: e.target.value }))}
+                                                            placeholder="JSON or text block"
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Results showing old resolutions */}
                         {selectedApproval?.status === 'resolved' && (
-                            <Card className="border-primary/20 bg-primary/5">
-                                <CardHeader className="py-3 px-4">
+                            <Card className="border-primary/20 bg-primary/5 shadow-sm">
+                                <CardHeader className="py-3 px-4 border-b border-primary/10">
                                     <div className="flex items-center justify-between">
-                                        <CardDescription className="text-primary font-medium">Response Details</CardDescription>
-                                        <Badge variant="outline" className="bg-background">
+                                        <CardDescription className="text-primary font-bold flex items-center gap-2">
+                                            <CheckCircle className="h-4 w-4" />
+                                            Resolution Details
+                                        </CardDescription>
+                                        <Badge variant="outline" className="bg-background text-[10px] font-normal">
                                             Resolved {selectedApproval.respondedAt && formatDateTime(selectedApproval.respondedAt)}
                                         </Badge>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="py-3 px-4 space-y-3">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <Label className="text-[10px] uppercase text-muted-foreground">Status</Label>
+                                <CardContent className="py-4 px-4 space-y-4">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] uppercase text-muted-foreground tracking-widest font-bold">Outcome</Label>
                                             <div className="flex items-center gap-1.5 mt-0.5">
                                                 {renderStatusBadge(selectedApproval)}
                                             </div>
                                         </div>
-                                        <div>
-                                            <Label className="text-[10px] uppercase text-muted-foreground">Responded By</Label>
-                                            <div className="text-sm font-medium mt-0.5">{selectedApproval.respondedBy || 'System'}</div>
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] uppercase text-muted-foreground tracking-widest font-bold">Actor</Label>
+                                            <div className="text-sm font-medium mt-0.5">{selectedApproval.respondedBy || 'System Agent'}</div>
                                         </div>
                                     </div>
 
                                     {selectedApproval.responseData && Object.keys(selectedApproval.responseData).length > 0 && (
-                                        <div className="space-y-1.5">
-                                            <Label className="text-[10px] uppercase text-muted-foreground">Submitted Data</Label>
-                                            <pre className="text-xs bg-background/50 p-2.5 rounded border border-primary/10 overflow-auto">
-                                                {JSON.stringify(selectedApproval.responseData, null, 2)}
-                                            </pre>
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] uppercase text-muted-foreground tracking-widest font-bold">Captured Data</Label>
+                                            <div className="bg-background/80 rounded border border-primary/10 overflow-hidden">
+                                                <div className="max-h-60 overflow-y-auto scrollbar-thin">
+                                                    <pre className="text-xs p-3 leading-relaxed">
+                                                        {JSON.stringify(selectedApproval.responseData, null, 2)}
+                                                    </pre>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </CardContent>
                             </Card>
                         )}
 
-                        {selectedApproval?.context && Object.keys(selectedApproval.context).length > 0 && (
-                            <div className="space-y-2">
-                                <Label className="text-muted-foreground">Input Context</Label>
-                                <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32 border">
-                                    {JSON.stringify(selectedApproval.context, null, 2)}
-                                </pre>
-                            </div>
-                        )}
+                        <div className="space-y-4 border-t pt-4 mt-2">
+                            {selectedApproval?.context && Object.keys(selectedApproval.context).length > 0 && (
+                                <div className="space-y-2">
+                                    <Label className="text-muted-foreground text-xs uppercase letter-spacing-wide">Activity Context</Label>
+                                    <div className="bg-muted/50 rounded-md border text-[11px] p-2 leading-tight">
+                                        <pre className="overflow-auto max-h-32 scrollbar-none">
+                                            {JSON.stringify(selectedApproval.context, null, 2)}
+                                        </pre>
+                                    </div>
+                                </div>
+                            )}
 
-                        {selectedApproval?.status === 'pending' && (
-                            <div className="space-y-2">
-                                <Label htmlFor="response-note">Add a note (optional)</Label>
-                                <Textarea
-                                    id="response-note"
-                                    placeholder="Explain your decision..."
-                                    value={responseNote}
-                                    onChange={(e) => setResponseNote(e.target.value)}
-                                />
-                            </div>
-                        )}
+                            {selectedApproval?.status === 'pending' && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="response-note" className="text-sm font-medium">Resolution Note (optional)</Label>
+                                    <Textarea
+                                        id="response-note"
+                                        placeholder="Add context for this decision..."
+                                        className="resize-none min-h-[80px]"
+                                        value={responseNote}
+                                        onChange={(e) => setResponseNote(e.target.value)}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="bg-muted/10 -mx-6 -mb-6 px-6 py-4 border-t">
                         <Button variant="outline" onClick={() => setResolveDialogOpen(false)}>
-                            {selectedApproval?.status === 'pending' ? 'Cancel' : 'Close'}
+                            {selectedApproval?.status === 'pending' ? 'Discard' : 'Close Details'}
                         </Button>
                         {selectedApproval?.status === 'pending' && (
                             <Button
                                 variant={resolveAction === 'approve' ? 'default' : 'destructive'}
+                                className="min-w-[120px]"
                                 onClick={handleResolve}
+                                disabled={
+                                    (() => {
+                                        if (selectedApproval.inputType === 'selection') return selectedOptions.length === 0;
+                                        if (selectedApproval.inputType === 'form') return parsedInputSchema?.required?.some((k: string) => !formValues[k]);
+                                        return false;
+                                    })()
+                                }
                             >
                                 {resolveAction === 'approve' ? (
                                     <>
                                         <CheckCircle className="h-4 w-4 mr-2" />
-                                        Approve
+                                        Submit Approval
                                     </>
                                 ) : (
                                     <>
                                         <XCircle className="h-4 w-4 mr-2" />
-                                        Reject
+                                        Submit Rejection
                                     </>
                                 )}
                             </Button>
                         )}
                     </DialogFooter>
                 </DialogContent>
-            </Dialog>
-        </TooltipProvider>
+            </Dialog >
+        </TooltipProvider >
     )
 }

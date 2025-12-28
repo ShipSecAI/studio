@@ -22,7 +22,10 @@ const inputSchema = z.object({
 type Input = z.infer<typeof inputSchema>;
 
 type Params = {
+  title?: string;
+  description?: string;
   variables?: { name: string; type: string }[];
+  timeout?: string;
 };
 
 /**
@@ -47,14 +50,11 @@ const mapTypeToPort = (type: string, id: string, label: string) => {
   };
 
 const outputSchema = z.object({
-  pending: z.literal(true),
-  approvalId: z.string(),
-  inputType: z.literal('approval'),
-  title: z.string(),
-  description: z.string().nullable(),
-  approveToken: z.string(),
-  rejectToken: z.string(),
-  timeoutAt: z.string().nullable(),
+  approved: z.boolean().describe('Whether the request was approved'),
+  respondedBy: z.string().describe('Who responded to the request'),
+  responseNote: z.string().optional().describe('Note provided by the responder'),
+  respondedAt: z.string().describe('When the request was resolved'),
+  requestId: z.string().describe('The ID of the human input request'),
 });
 
 type Output = z.infer<typeof outputSchema>;
@@ -93,11 +93,23 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     inputs: [],
     outputs: [
       {
-        id: 'result',
-        label: 'Approval Result',
-        dataType: port.contract(APPROVAL_PENDING_CONTRACT),
-        description: 'The approval request details',
+        id: 'approved',
+        label: 'Approved',
+        dataType: port.boolean(),
+        description: 'True if approved, false if rejected',
       },
+      {
+          id: 'respondedBy',
+          label: 'Responded By',
+          dataType: port.text(),
+          description: 'The user who resolved this request',
+      },
+      {
+          id: 'responseNote',
+          label: 'Response Note',
+          dataType: port.text(),
+          description: 'The comment left by the responder',
+      }
     ],
     parameters: [
       {
@@ -120,7 +132,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       {
           id: 'variables',
           label: 'Context Variables',
-          type: 'json',
+          type: 'variable-list',
           default: [],
           description: 'Define variables to use as {{name}} in your description.',
       },
@@ -134,7 +146,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       },
     ],
   },
-  resolvePorts(params) {
+  resolvePorts(params: any) {
     const inputs: any[] = [];
     if (params.variables && Array.isArray(params.variables)) {
         for (const v of params.variables) {
@@ -162,25 +174,19 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       }
     }
 
-    // Generate secure tokens
-    const approveToken = generateSecureToken();
-    const rejectToken = generateSecureToken();
-
-    const approvalId = `approval-${context.runId}-${context.componentRef}`;
+    const requestId = `req-${context.runId}-${context.componentRef}`;
 
     context.logger.info(`[Manual Approval] Created request: ${title}`);
 
     return {
       pending: true as const,
-      approvalId,
+      requestId,
       inputType: 'approval' as const,
       title,
       description,
-      approveToken,
-      rejectToken,
       timeoutAt,
       contextData: params,
-    };
+    } as any;
   },
 };
 
@@ -195,10 +201,6 @@ function parseTimeout(timeout: string): number | null {
     case 'd': return value * 24 * 60 * 60 * 1000;
     default: return null;
   }
-}
-
-function generateSecureToken(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
 }
 
 componentRegistry.register(definition);

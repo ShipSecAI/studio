@@ -227,14 +227,14 @@ export async function shipsecWorkflowRun(
 
           console.log(`[Workflow] Human input resolved for ${action.ref}: approved=${resolution.approved}`);
 
-          // Store the final result
+          // Store the final result (merging in responseData for dynamic ports)
           results.set(action.ref, {
             approved: resolution.approved,
             respondedBy: resolution.respondedBy,
             responseNote: resolution.responseNote,
             respondedAt: resolution.respondedAt,
             requestId: approvalResult.requestId,
-            responseData: resolution.responseData,
+            ...(typeof resolution.responseData === 'object' ? resolution.responseData : {}),
           });
 
           // Explicitly mark the node as completed via trace (since we suppressed it earlier)

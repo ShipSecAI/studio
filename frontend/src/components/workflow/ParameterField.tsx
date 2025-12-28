@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom'
 import { RuntimeInputsEditor } from './RuntimeInputsEditor'
 import { SimpleVariableListEditor } from './SimpleVariableListEditor'
 import { ScriptCodeEditor } from './ScriptCodeEditor'
+import { FormFieldsEditor } from './FormFieldsEditor'
+import { SelectionOptionsEditor } from './SelectionOptionsEditor'
 import type { Parameter } from '@/schemas/component'
 import type { InputMapping } from '@/schemas/node'
 import { useSecretStore } from '@/store/secretStore'
@@ -1043,16 +1045,10 @@ export function ParameterFieldWrapper({
     )
   }
 
-  // Special case: Logic Script Variables & Slack Notification Variables
-  const isLogicScript = componentId === 'core.logic.script'
-  const isSlackNotification = componentId === 'core.notification.slack'
-
-  if (
-    (isLogicScript && (parameter.id === 'variables' || parameter.id === 'returns')) ||
-    (isSlackNotification && parameter.id === 'variables')
-  ) {
+  // Special case: Variable list editor (Logic Script, Slack, Manual Actions, etc.)
+  if (parameter.type === 'variable-list') {
     const isInput = parameter.id === 'variables'
-    const title = isInput ? 'Input Variables' : 'Return Variables'
+    const title = parameter.label || (isInput ? 'Input Variables' : 'Return Variables')
 
     return (
       <div className="space-y-2">
@@ -1067,6 +1063,54 @@ export function ParameterFieldWrapper({
           onChange={onChange}
           title={title}
           type={isInput ? 'input' : 'output'}
+        />
+
+        {parameter.helpText && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            💡 {parameter.helpText}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // Special case: Form Fields Designer
+  if (parameter.type === 'form-fields') {
+    return (
+      <div className="space-y-2">
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground mb-2">
+            {parameter.description}
+          </p>
+        )}
+
+        <FormFieldsEditor
+          value={value || []}
+          onChange={onChange}
+        />
+
+        {parameter.helpText && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            💡 {parameter.helpText}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // Special case: Selection Options Editor
+  if (parameter.type === 'selection-options') {
+    return (
+      <div className="space-y-2">
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground mb-2">
+            {parameter.description}
+          </p>
+        )}
+
+        <SelectionOptionsEditor
+          value={value || []}
+          onChange={onChange}
         />
 
         {parameter.helpText && (
