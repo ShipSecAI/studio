@@ -245,8 +245,10 @@ export async function shipsecWorkflowRun(
           console.log(`[Workflow] Human input resolved for ${action.ref}: approved=${resolution.approved}`);
 
           // Store the final result (merging in responseData for dynamic ports)
+          // Include both 'approved' and 'rejected' fields so downstream nodes can consume either port's data
           results.set(action.ref, {
             approved: resolution.approved,
+            rejected: !resolution.approved,
             respondedBy: resolution.respondedBy,
             responseNote: resolution.responseNote,
             respondedAt: resolution.respondedAt,
