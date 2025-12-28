@@ -1273,6 +1273,20 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     </div>
                   ))}
                 </div>
+              ) : isEntryPoint ? (
+                <div className="relative flex items-center justify-end gap-2 text-xs">
+                  <div className="flex-1 text-right italic font-medium opacity-60">
+                    Triggered
+                  </div>
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    // No ID provided - matches 'undefined' in React Flow, 
+                    // which is what edges created without sourceHandle expect.
+                    className="!w-[10px] !h-[10px] !border-2 !border-blue-500 !bg-blue-500 !rounded-full"
+                    style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+                  />
+                </div>
               ) : (
                 <div className="text-xs text-muted-foreground/60 text-center py-2">
                   No outputs
@@ -1410,8 +1424,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 : null)
             : null
 
-          const isNodeFinished = visualState.status === 'success' || visualState.status === 'error'
-          const isNodeSkipped = visualState.status === 'skipped'
+          const isNodeFinished = isTimelineActive && (visualState.status === 'success' || visualState.status === 'error')
+          const isNodeSkipped = isTimelineActive && visualState.status === 'skipped'
           const hasBranchDecision = isNodeFinished || isNodeSkipped
 
           return (
