@@ -105,10 +105,14 @@ export function HumanInputResolutionView({
         setSubmitting(true)
 
         try {
+            const isApprovalType = request.inputType === 'approval' || request.inputType === 'review'
             const data: any = {
-                status: resolveAction === 'approve' ? 'approved' : 'rejected',
                 comment: responseNote || undefined,
-                approved: resolveAction === 'approve'
+            }
+
+            if (isApprovalType) {
+                data.status = resolveAction === 'approve' ? 'approved' : 'rejected'
+                data.approved = resolveAction === 'approve'
             }
 
             if (request.inputType === 'selection') {
@@ -215,7 +219,7 @@ export function HumanInputResolutionView({
                         </div>
                     )}
 
-                    {(request.inputType === 'selection' || request.inputType === 'form') && (
+                    {request.inputType === 'review' && (
                         <div className="flex justify-center mb-2">
                             <div className="flex p-1 bg-muted rounded-lg w-full max-w-[300px]">
                                 <Button
@@ -438,13 +442,19 @@ export function HumanInputResolutionView({
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         ) : request.inputType === 'acknowledge' ? (
                             <CheckCircle className="h-4 w-4 mr-2" />
-                        ) : resolveAction === 'approve' ? (
-                            <CheckCircle className="h-4 w-4 mr-2" />
+                        ) : (request.inputType === 'approval' || request.inputType === 'review') ? (
+                            resolveAction === 'approve' ? (
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                            ) : (
+                                <XCircle className="h-4 w-4 mr-2" />
+                            )
                         ) : (
-                            <XCircle className="h-4 w-4 mr-2" />
+                            <CheckCircle className="h-4 w-4 mr-2" />
                         )}
                         {request.inputType === 'acknowledge' ? 'Acknowledge' :
-                            resolveAction === 'approve' ? 'Submit Approval' : 'Submit Rejection'}
+                            (request.inputType === 'approval' || request.inputType === 'review') ?
+                                (resolveAction === 'approve' ? 'Submit Approval' : 'Submit Rejection') :
+                                'Submit Response'}
                     </Button>
                 )}
             </div>

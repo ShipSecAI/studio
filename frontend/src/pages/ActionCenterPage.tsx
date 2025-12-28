@@ -331,26 +331,40 @@ export function ActionCenterPage() {
                                                         <div className="flex items-center justify-end gap-2">
                                                             {isPending ? (
                                                                 <>
-                                                                    <Button
-                                                                        variant="default"
-                                                                        size="sm"
-                                                                        className="gap-1 h-8"
-                                                                        onClick={() => openResolveDialog(approval, 'approve')}
-                                                                        disabled={isActionBusy(approval.id)}
-                                                                    >
-                                                                        <CheckCircle className="h-4 w-4" />
-                                                                        Approve
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="destructive"
-                                                                        size="sm"
-                                                                        className="gap-1 h-8"
-                                                                        onClick={() => openResolveDialog(approval, 'reject')}
-                                                                        disabled={isActionBusy(approval.id)}
-                                                                    >
-                                                                        <XCircle className="h-4 w-4" />
-                                                                        Reject
-                                                                    </Button>
+                                                                    {(approval.inputType === 'approval' || approval.inputType === 'review') ? (
+                                                                        <>
+                                                                            <Button
+                                                                                variant="default"
+                                                                                size="sm"
+                                                                                className="gap-1 h-8"
+                                                                                onClick={() => openResolveDialog(approval, 'approve')}
+                                                                                disabled={isActionBusy(approval.id)}
+                                                                            >
+                                                                                <CheckCircle className="h-4 w-4" />
+                                                                                Approve
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="destructive"
+                                                                                size="sm"
+                                                                                className="gap-1 h-8"
+                                                                                onClick={() => openResolveDialog(approval, 'reject')}
+                                                                                disabled={isActionBusy(approval.id)}
+                                                                            >
+                                                                                <XCircle className="h-4 w-4" />
+                                                                                Reject
+                                                                            </Button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <Button
+                                                                            variant="default"
+                                                                            size="sm"
+                                                                            className="gap-1 h-8"
+                                                                            onClick={() => openResolveDialog(approval, 'view')}
+                                                                            disabled={isActionBusy(approval.id)}
+                                                                        >
+                                                                            {approval.inputType === 'acknowledge' ? 'Acknowledge' : 'Respond'}
+                                                                        </Button>
+                                                                    )}
                                                                 </>
                                                             ) : (
                                                                 <Button
