@@ -25,9 +25,10 @@ import './core/credentials-aws';
 import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
-import './core/approval-gate';
-import './core/human-input-choice';
-import './core/human-input-form';
+// Manual Action components
+import './manual-action/approval-gate';
+import './manual-action/human-input-choice';
+import './manual-action/human-input-form';
 import './ai/openai-provider';
 import './ai/gemini-provider';
 import './ai/openrouter-provider';

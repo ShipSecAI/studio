@@ -7,9 +7,9 @@ import {
 } from '@shipsec/component-sdk';
 
 /**
- * Human Input Form Component
+ * Human Input Choice Component
  *
- * Pauses workflow to ask the user to fill out a form.
+ * Pauses workflow to ask the user to select from a list of options.
  */
 
 const inputSchema = z.object({
@@ -21,42 +21,40 @@ type Input = z.infer<typeof inputSchema>;
 const outputSchema = z.object({
   pending: z.literal(true),
   requestId: z.string(),
-  inputType: z.literal('form'),
+  inputType: z.literal('selection'),
   title: z.string(),
   description: z.string().nullable(),
-  schema: z.record(z.string(), z.unknown()),
+  options: z.array(z.union([z.string(), z.object({ label: z.string(), value: z.string() })])),
+  multiple: z.boolean(),
   timeoutAt: z.string().nullable(),
 });
 
 type Output = z.infer<typeof outputSchema>;
 
-// Reuse contract name if possible, or define specific one. 
-// Since structure differs (schema vs options), maybe separate contract or union?
-// For now, I'll use a new contract string to avoid collision if strict validation exists.
-const HUMAN_FORM_PENDING_CONTRACT = 'core.human-form.pending.v1';
+const HUMAN_INPUT_PENDING_CONTRACT = 'core.human-input.pending.v1';
 
 registerContract({
-  name: HUMAN_FORM_PENDING_CONTRACT,
+  name: HUMAN_INPUT_PENDING_CONTRACT,
   schema: outputSchema,
-  summary: 'Human form pending response',
-  description: 'Indicates that a workflow is waiting for human form input.',
+  summary: 'Human input pending response',
+  description: 'Indicates that a workflow is waiting for human input.',
 });
 
 const definition: ComponentDefinition<Input, Output> = {
-  id: 'core.interaction.human-form',
-  label: 'Form Input',
-  category: 'interaction',
+  id: 'core.interaction.human-choice',
+  label: 'Multiple Choice Input',
+  category: 'manual_action',
   runner: { kind: 'inline' },
   inputSchema,
   outputSchema,
-  docs: 'Pauses workflow execution until a user fills out a form.',
+  docs: 'Pauses workflow execution until a user selects an option from a list.',
   metadata: {
-    slug: 'human-form',
+    slug: 'human-choice',
     version: '1.0.0',
     type: 'process',
-    category: 'interaction',
-    description: 'Collect structured data from a user via a form.',
-    icon: 'FormInput', 
+    category: 'manual_action',
+    description: 'Ask the user to select from a list of options.',
+    icon: 'ListChecks',
     author: {
       name: 'ShipSecAI',
       type: 'shipsecai',
@@ -75,9 +73,9 @@ const definition: ComponentDefinition<Input, Output> = {
     outputs: [
       {
         id: 'result',
-        label: 'Form Request',
-        dataType: port.contract(HUMAN_FORM_PENDING_CONTRACT),
-        description: 'The pending form request details',
+        label: 'Input Request',
+        dataType: port.contract(HUMAN_INPUT_PENDING_CONTRACT),
+        description: 'The pending request details',
       },
     ],
     parameters: [
@@ -86,24 +84,32 @@ const definition: ComponentDefinition<Input, Output> = {
         label: 'Title',
         type: 'text',
         required: true,
-        placeholder: 'Information Required',
-        description: 'Title for the form',
+        placeholder: 'Select an option',
+        description: 'Title for the request',
       },
       {
         id: 'description',
         label: 'Description',
         type: 'textarea',
         required: false,
-        placeholder: 'Please provide the details below...',
+        placeholder: 'Please choose one...',
         description: 'Instructions for the user',
       },
       {
-        id: 'schema',
-        label: 'Form Schema',
-        type: 'json',
+        id: 'options',
+        label: 'Options',
+        type: 'json', // Assuming JSON editor for options list
         required: true,
-        placeholder: '{"type": "object", "properties": {"reason": {"type": "string"}}}',
-        description: 'JSON Schema defining the form fields',
+        placeholder: '["Option A", "Option B"]',
+        description: 'List of options (strings or {label, value} objects)',
+      },
+      {
+        id: 'multiple',
+        label: 'Allow Multiple',
+        type: 'boolean',
+        required: false,
+        description: 'Allow selecting multiple options',
+        default: false,
       },
       {
         id: 'timeout',
@@ -116,26 +122,30 @@ const definition: ComponentDefinition<Input, Output> = {
     ],
   },
   async execute(params, context) {
-    const title = (context as any).parameters?.title || 'Form Input Required';
+    const title = (context as any).parameters?.title || 'Input Required';
     const description = (context as any).parameters?.description || null;
     const timeoutStr = (context as any).parameters?.timeout;
-    const schemaRaw = (context as any).parameters?.schema;
+    const optionsRaw = (context as any).parameters?.options;
+    const multiple = (context as any).parameters?.multiple === true;
 
-    // Parse schema
-    let schema: Record<string, unknown> = {};
-    if (typeof schemaRaw === 'string') {
+    // Parse options
+    let options: Array<string | { label: string; value: string }> = [];
+    if (Array.isArray(optionsRaw)) {
+        options = optionsRaw;
+    } else if (typeof optionsRaw === 'string') {
         try {
-            schema = JSON.parse(schemaRaw);
+            options = JSON.parse(optionsRaw);
         } catch (e) {
-            throw new Error('Invalid JSON Schema string provided.');
+            // Fallback: comma separated?
+            options = optionsRaw.split(',').map(s => s.trim());
         }
-    } else if (typeof schemaRaw === 'object' && schemaRaw !== null) {
-        schema = schemaRaw as Record<string, unknown>;
-    } else {
-        throw new Error('Form Schema must be a valid JSON object or string.');
     }
 
-    // Measure timeout
+    if (!Array.isArray(options) || options.length === 0) {
+        throw new Error('Human Choice component requires at least one option.');
+    }
+
+    // Calculate timeout
     let timeoutAt: string | null = null;
     if (timeoutStr) {
       const timeout = parseTimeout(timeoutStr);
@@ -146,15 +156,16 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const requestId = `req-${context.runId}-${context.componentRef}`;
     
-    context.logger.info(`[Human Form] Created request: ${title}`);
+    context.logger.info(`[Human Choice] Created request: ${title}`);
 
     return {
       pending: true as const,
       requestId,
-      inputType: 'form',
+      inputType: 'selection',
       title,
       description,
-      schema,
+      options,
+      multiple,
       timeoutAt,
     };
   },

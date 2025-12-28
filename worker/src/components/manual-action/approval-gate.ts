@@ -63,7 +63,7 @@ registerContract({
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.workflow.approval-gate',
   label: 'Approval Gate',
-  category: 'transform',
+  category: 'manual_action',
   runner: { kind: 'inline' },
   inputSchema,
   outputSchema,
@@ -72,7 +72,7 @@ const definition: ComponentDefinition<Input, Output> = {
     slug: 'approval-gate',
     version: '1.0.0',
     type: 'process',
-    category: 'transform',
+    category: 'manual_action',
     description: 'Pause and wait for human approval before continuing. Use for critical decisions requiring oversight.',
     icon: 'ShieldCheck',
     author: {
