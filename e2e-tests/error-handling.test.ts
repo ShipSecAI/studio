@@ -132,7 +132,8 @@ describe('Error Handling E2E Tests', () => {
     expect(errorEvents.length).toBe(4); // Fails on attempts 1-4
 
     // Verify error progression is tracked
-    errorEvents.forEach((ev, idx) => {
+    errorEvents.forEach((ev: any, idx: number) => {
+      console.log(`  Error attempt ${idx + 1}: ${ev.error.message}`);
       expect(ev.error.details.currentAttempt).toBe(idx + 1);
       expect(ev.error.details.targetAttempt).toBe(5);
     });
@@ -157,7 +158,7 @@ describe('Error Handling E2E Tests', () => {
     expect(errorEvents.length).toBe(2); // Fails on attempts 1 and 2, succeeds on 3
 
     // Verify error progression is tracked
-    errorEvents.forEach((ev, idx) => {
+    errorEvents.forEach((ev: any, idx: number) => {
       expect(ev.error.details.currentAttempt).toBe(idx + 1);
       expect(ev.error.details.targetAttempt).toBe(3);
     });
@@ -220,5 +221,63 @@ describe('Error Handling E2E Tests', () => {
     expect(error.error.type).toBe('TimeoutError');
     expect(error.error.message).toContain('took too long');
     expect(error.error.details.alwaysFail).toBe(false);
+  });
+
+  testIf('Custom Retry Policy - fails immediately after maxAttempts: 2', { timeout: 180000 }, async () => {
+    console.log('\n  Test: Custom Retry Policy');
+
+    // Manually create workflow with the specific component ID 'test.error.retry-limited'
+    // which has maxAttempts: 2 hardcoded in its definition
+    const wf = {
+      name: 'Test: Custom Retry Policy',
+      nodes: [
+        {
+          id: 'start',
+          type: 'core.workflow.entrypoint',
+          position: { x: 0, y: 0 },
+          data: { label: 'Start', config: { runtimeInputs: [] } },
+        },
+        {
+          id: 'error-gen',
+          type: 'test.error.retry-limited', // Uses the variant with strict retry policy
+          position: { x: 200, y: 0 },
+          data: {
+            label: 'Retry Limited',
+            config: {
+              mode: 'fail',
+              errorType: 'ServiceError',
+              errorMessage: 'Should fail early',
+              failUntilAttempt: 4, // Would succeed on 4th attempt if retries were unlimited
+            },
+          },
+        },
+      ],
+      edges: [{ id: 'e1', source: 'start', target: 'error-gen' }],
+    };
+
+    const res = await fetch(`${API_BASE}/workflows`, { method: 'POST', headers: HEADERS, body: JSON.stringify(wf) });
+    if (!res.ok) throw new Error(`Workflow creation failed: ${res.status}`);
+    const { id } = await res.json();
+    console.log(`  Workflow ID: ${id}`);
+
+    const runRes = await fetch(`${API_BASE}/workflows/${id}/run`, { method: 'POST', headers: HEADERS, body: JSON.stringify({ inputs: {} }) });
+    if (!runRes.ok) throw new Error(`Workflow run failed: ${runRes.status}`);
+    const { runId } = await runRes.json();
+    console.log(`  Run ID: ${runId}`);
+
+    const result = await pollRunStatus(runId);
+    console.log(`  Status: ${result.status}`);
+    expect(result.status).toBe('FAILED');
+
+    const errorEvents = await fetchErrorEvents(runId);
+    console.log(`  Error attempts: ${errorEvents.length}`);
+    
+    // Should fail exactly 2 times (Attempt 1, Attempt 2) then give up.
+    // If it used default policy (3), it would be 3.
+    expect(errorEvents.length).toBe(2);
+    
+    // Verify last error indicates attempts exhausted
+    const lastError = errorEvents[errorEvents.length - 1];
+    expect(lastError.error.details.currentAttempt).toBe(2);
   });
 });

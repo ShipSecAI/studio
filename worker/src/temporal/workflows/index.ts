@@ -6,6 +6,7 @@ import {
   startChild,
   uuid4,
 } from '@temporalio/workflow';
+import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionParams } from '../input-resolver';
 import { resolveHumanInputSignal, type HumanInputResolution } from '../signals';
@@ -74,6 +75,18 @@ function isApprovalPending(output: unknown): output is { pending: true; title: s
     'pending' in output &&
     (output as { pending?: unknown }).pending === true
   );
+}
+
+function mapRetryPolicy(policy?: ComponentRetryPolicy) {
+  if (!policy) return undefined;
+
+  return {
+    maximumAttempts: policy.maxAttempts,
+    initialInterval: policy.initialIntervalSeconds ? policy.initialIntervalSeconds * 1000 : undefined,
+    maximumInterval: policy.maximumIntervalSeconds ? policy.maximumIntervalSeconds * 1000 : undefined,
+    backoffCoefficient: policy.backoffCoefficient,
+    nonRetryableErrorTypes: policy.nonRetryableErrorTypes,
+  };
 }
 
 export async function shipsecWorkflowRun(
@@ -186,7 +199,16 @@ export async function shipsecWorkflowRun(
           },
         };
 
-        const output = await runComponentActivity(activityInput);
+        const retryOptions = mapRetryPolicy(action.retryPolicy);
+
+        const { runComponentActivity: runComponentWithRetry } = proxyActivities<{
+          runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
+        }>({
+          startToCloseTimeout: '10 minutes',
+          retry: retryOptions,
+        });
+
+        const output = await runComponentWithRetry(activityInput);
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
         if (isApprovalPending(output.output)) {

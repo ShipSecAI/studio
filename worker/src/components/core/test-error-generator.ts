@@ -159,3 +159,24 @@ const definition: ComponentDefinition<Input, Output> = {
 };
 
 componentRegistry.register(definition);
+
+const retryLimitedDefinition: ComponentDefinition<Input, Output> = {
+  ...definition,
+  id: 'test.error.retry-limited',
+  label: 'Error Generator (Limited Retry)',
+  metadata: {
+    ...definition.metadata,
+    version: '1.0.0',
+    type: 'process',
+    category: 'transform',
+    slug: 'test-error-retry-limited',
+    description: 'Same as error generator but with a strict retry policy (max 2 attempts).',
+  },
+  retryPolicy: {
+    maxAttempts: 2,
+    initialIntervalSeconds: 1,
+    backoffCoefficient: 1,
+  },
+};
+
+componentRegistry.register(retryLimitedDefinition);
