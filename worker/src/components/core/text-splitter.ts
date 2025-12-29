@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, port, ValidationError } from '@shipsec/component-sdk';
 
 // Support both direct text and file objects from entry point
 const manualTriggerFileSchema = z.object({
@@ -120,9 +120,11 @@ const definition: ComponentDefinition<Input, Output> = {
       context.logger.info(`[TextSplitter] Processing file-loader input: ${params.text.name} (${textContent.length} characters)`);
     } else {
       // Case 3: File object from entry point (only metadata, no content)
-      throw new Error(`File object from entry point has no content. File ID: ${params.text.id}, Name: ${params.text.fileName}.
+      throw new ValidationError(`File object from entry point has no content. File ID: ${params.text.id}, Name: ${params.text.fileName}.
 Please use a File Loader component to extract file content before passing to Text Splitter.
-Expected workflow: Entry Point → File Loader → Text Splitter`);
+Expected workflow: Entry Point → File Loader → Text Splitter`, {
+        fieldErrors: { text: ['File content is required - use File Loader first'] },
+      });
     }
 
     // Split the text

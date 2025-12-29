@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, ConfigurationError, port } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   fileName: z
@@ -139,8 +139,9 @@ const definition: ComponentDefinition<Input, Output> = {
     }
 
     if (!context.artifacts) {
-      throw new Error(
+      throw new ConfigurationError(
         'Artifact service is not available in this execution environment. Ensure the worker is configured with artifact storage.',
+        { configKey: 'artifacts' },
       );
     }
 

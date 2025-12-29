@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, port, ValidationError } from '@shipsec/component-sdk';
 
 // Runtime input definition schema
 const runtimeInputDefinitionSchema = z.preprocess((value) => {
@@ -120,7 +120,9 @@ const definition: ComponentDefinition<Input, Output> = {
       const value = __runtimeData?.[inputDef.id];
       
       if (inputDef.required && (value === undefined || value === null)) {
-        throw new Error(`Required runtime input '${inputDef.label}' (${inputDef.id}) was not provided`);
+        throw new ValidationError(`Required runtime input '${inputDef.label}' (${inputDef.id}) was not provided`, {
+          fieldErrors: { [inputDef.id]: ['This field is required'] },
+        });
       }
       outputs[inputDef.id] = value;
       context.logger.info(`[EntryPoint] Output '${inputDef.id}' = ${typeof value === 'object' ? JSON.stringify(value) : value}`);
