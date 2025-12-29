@@ -11,15 +11,83 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 
-// Only run E2E tests when RUN_E2E is set
-const runE2E = process.env.RUN_E2E === 'true';
-const testIf = runE2E ? test : () => {};
-
 const API_BASE = 'http://localhost:3211/api/v1';
 const HEADERS = {
   'Content-Type': 'application/json',
   'x-internal-token': 'local-internal-token',
 };
+
+// Only run E2E tests when RUN_E2E is set
+const runE2E = process.env.RUN_E2E === 'true';
+
+// Check if services are available synchronously (before tests are defined)
+// This allows us to use test.skip conditionally at definition time
+// Similar to how docker tests check for docker availability
+const servicesAvailableSync = (() => {
+  if (!runE2E) {
+    return false;
+  }
+  try {
+    // Use curl to check health endpoint synchronously with required headers
+    // Include the x-internal-token header that the health endpoint requires
+    const result = Bun.spawnSync([
+      'curl', '-sf', '--max-time', '1',
+      '-H', `x-internal-token: ${HEADERS['x-internal-token']}`,
+      `${API_BASE}/health`
+    ], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+})();
+
+// Check if services are available (non-throwing, async - used in beforeAll)
+async function checkServicesAvailable(): Promise<boolean> {
+  if (!runE2E) {
+    return false;
+  }
+  try {
+    const healthRes = await fetch(`${API_BASE}/health`, { 
+      headers: HEADERS,
+      signal: AbortSignal.timeout(2000), // 2 second timeout
+    });
+    return healthRes.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Use describe.skip if RUN_E2E is not set OR if services aren't available
+// This ensures tests are officially skipped, not just passing
+const e2eDescribe = (runE2E && servicesAvailableSync) ? describe : describe.skip;
+
+// Create a wrapper function that handles test.skip properly with timeout option
+// test.skip doesn't accept options, so we need to handle it differently
+function e2eTest(
+  name: string,
+  optionsOrFn: { timeout?: number } | (() => void | Promise<void>),
+  fn?: () => void | Promise<void>
+): void {
+  if (runE2E && servicesAvailableSync) {
+    // Services available - use test with options
+    if (typeof optionsOrFn === 'function') {
+      test(name, optionsOrFn);
+    } else if (fn) {
+      // Use type assertion to help TypeScript understand the overload
+      (test as any)(name, optionsOrFn, fn);
+    } else {
+      // This shouldn't happen, but handle it
+      test(name, optionsOrFn as any);
+    }
+  } else {
+    // Services not available - skip test (test.skip doesn't accept options)
+    const actualFn = typeof optionsOrFn === 'function' ? optionsOrFn : fn!;
+    test.skip(name, actualFn);
+  }
+}
 
 // Helper function to poll workflow run status
 async function pollRunStatus(runId: string, timeoutMs = 180000): Promise<{status: string}> {
@@ -90,15 +158,30 @@ async function createAndRunWorkflow(name: string, config: any) {
   return { workflowId: id, runId };
 }
 
+// Track if services are available (set in beforeAll)
+let servicesAvailable = false;
+
 // Setup and teardown
 beforeAll(async () => {
+  if (!runE2E) {
+    console.log('\n🧪 E2E Test Suite: Error Handling');
+    console.log('  ⏭️  Skipping E2E tests (RUN_E2E not set)');
+    console.log('  💡 Set RUN_E2E=true to enable E2E tests');
+    return;
+  }
+
   console.log('\n🧪 E2E Test Suite: Error Handling');
   console.log('  Prerequisites: Backend API + Worker must be running');
   console.log('  Verifying services...');
 
-  const healthRes = await fetch(`${API_BASE}/health`, { headers: HEADERS });
-  if (!healthRes.ok) {
-    throw new Error('Backend API is not running. Start services with: pm2 start pm2.config.cjs');
+  servicesAvailable = await checkServicesAvailable();
+  if (!servicesAvailable) {
+    console.log('  ⚠️  Backend API is not available. Tests will be skipped.');
+    console.log('  💡 To run E2E tests:');
+    console.log('     1. Set RUN_E2E=true');
+    console.log('     2. Start services: pm2 start pm2.config.cjs');
+    console.log('     3. Verify: curl http://localhost:3211/api/v1/health');
+    return;
   }
 
   console.log('  ✅ Backend API is running');
@@ -110,8 +193,12 @@ afterAll(async () => {
   console.log('🧹 Cleanup: Run "bun e2e-tests/cleanup.ts" to remove test workflows');
 });
 
-describe('Error Handling E2E Tests', () => {
-  testIf('Permanent Service Error - fails with max retries', { timeout: 180000 }, async () => {
+e2eDescribe('Error Handling E2E Tests', () => {
+  // Tests are already skipped at definition time if services aren't available
+  // (via e2eTest which is test.skip when servicesAvailableSync is false)
+  // We can use e2eTest directly since skipping is handled at definition time
+  
+  e2eTest('Permanent Service Error - fails with max retries', { timeout: 180000 }, async () => {
     console.log('\n  Test: Permanent Service Error');
 
     const { runId } = await createAndRunWorkflow('Permanent Service Error', {
@@ -139,7 +226,7 @@ describe('Error Handling E2E Tests', () => {
     });
   });
 
-  testIf('Retryable Success - succeeds after 3 attempts', { timeout: 180000 }, async () => {
+  e2eTest('Retryable Success - succeeds after 3 attempts', { timeout: 180000 }, async () => {
     console.log('\n  Test: Retryable Success');
 
     const { runId } = await createAndRunWorkflow('Retryable Success', {
@@ -164,7 +251,7 @@ describe('Error Handling E2E Tests', () => {
     });
   });
 
-  testIf('Validation Error - fails immediately without retries', { timeout: 180000 }, async () => {
+  e2eTest('Validation Error - fails immediately without retries', { timeout: 180000 }, async () => {
     console.log('\n  Test: Validation Error Details');
 
     const { runId } = await createAndRunWorkflow('Validation Error Details', {
@@ -196,7 +283,7 @@ describe('Error Handling E2E Tests', () => {
     expect(error.error.details.fieldErrors.region.some((err: string) => err.includes('Unsupported region'))).toBe(true);
   });
 
-  testIf('Timeout Error - succeeds after retries with timeout details', { timeout: 240000 }, async () => {
+  e2eTest('Timeout Error - succeeds after retries with timeout details', { timeout: 240000 }, async () => {
     console.log('\n  Test: Timeout Error');
 
     const { runId } = await createAndRunWorkflow('Timeout Error', {
@@ -223,7 +310,7 @@ describe('Error Handling E2E Tests', () => {
     expect(error.error.details.alwaysFail).toBe(false);
   });
 
-  testIf('Custom Retry Policy - fails immediately after maxAttempts: 2', { timeout: 180000 }, async () => {
+  e2eTest('Custom Retry Policy - fails immediately after maxAttempts: 2', { timeout: 180000 }, async () => {
     console.log('\n  Test: Custom Retry Policy');
 
     // Manually create workflow with the specific component ID 'test.error.retry-limited'
