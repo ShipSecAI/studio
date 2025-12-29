@@ -4,6 +4,8 @@ import {
   ComponentDefinition,
   port,
   registerContract,
+  ConfigurationError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
@@ -44,11 +46,25 @@ registerContract({
     'Normalized file representation returned by File Loader with metadata and base64-encoded content.',
 });
 
+// Retry policy for file operations - quick retries for transient I/O issues
+const fileLoaderRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 3,
+  initialIntervalSeconds: 1,
+  maximumIntervalSeconds: 10,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'NotFoundError',
+    'ConfigurationError',
+    'ValidationError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.file.loader',
   label: 'File Loader',
   category: 'input',
   runner: { kind: 'inline' },
+  retryPolicy: fileLoaderRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Loads file content from storage. Requires a fileId from previously uploaded file.',
@@ -101,8 +117,9 @@ const definition: ComponentDefinition<Input, Output> = {
     const storage = context.storage;
     
     if (!storage) {
-      throw new Error(
+      throw new ConfigurationError(
         'Storage service not available in execution context. Worker must provide IFileStorageService adapter.',
+        { configKey: 'storage' }
       );
     }
 
