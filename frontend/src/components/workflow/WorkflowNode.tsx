@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Handle, NodeResizer, Position, type NodeProps, type Node, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { ExecutionErrorView } from './ExecutionErrorView'
-import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Trash2 } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Trash2, ChevronDown } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MarkdownView } from '@/components/ui/markdown'
@@ -418,6 +418,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const navigate = useNavigate()
   const [showWebhookDialog, setShowWebhookDialog] = useState(false)
 
+  // Error expansion state
+  const [showErrorDetails, setShowErrorDetails] = useState(false)
+
   // Get API key for webhook details if this is an entry point
   const { lastCreatedKey } = useApiKeyStore()
   const isMobile = useIsMobile()
@@ -616,6 +619,13 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     lastEvent: null,
     dataFlow: { input: [], output: [] }
   }
+
+  // Auto-collapse error details when node status changes
+  useEffect(() => {
+    if (visualState.status !== 'error') {
+      setShowErrorDetails(false)
+    }
+  }, [visualState.status])
 
   const supportsLiveLogs = component?.runner?.kind === 'docker'
 
@@ -1107,9 +1117,23 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
             </Badge>
           )}
           {visualState.status === 'error' && (
-            <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-              <AlertCircle className="h-3 w-3 mr-1" />
-              Failed
+            <Badge
+              variant="secondary"
+              className={cn(
+                "text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 cursor-pointer select-none transition-all hover:ring-2 hover:ring-red-400/50 items-center gap-1",
+                showErrorDetails && "ring-2 ring-red-400/50"
+              )}
+              onClick={() => setShowErrorDetails(!showErrorDetails)}
+              title="Click to toggle error details"
+            >
+              <AlertCircle className="h-3 w-3" />
+              <span>{visualState.lastEvent?.error?.type || 'Failed'}</span>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 transition-transform duration-200",
+                  showErrorDetails && "rotate-180"
+                )}
+              />
             </Badge>
           )}
           {visualState.status === 'skipped' && (
@@ -1119,8 +1143,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
             </Badge>
           )}
 
-          {/* Detailed error representation */}
-          {visualState.status === 'error' && visualState.lastEvent?.error && (
+          {/* Detailed error representation - shown only when expanded */}
+          {visualState.status === 'error' && showErrorDetails && visualState.lastEvent?.error && (
             <ExecutionErrorView
               error={visualState.lastEvent.error}
               className="mt-2"

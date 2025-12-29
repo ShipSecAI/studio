@@ -1,0 +1,44 @@
+# Justfile for E2E Tests
+# Uses Bun's built-in test runner for proper test framework
+# Requires: just command-line tool (https://github.com/casey/just)
+
+# Default recipe: run all tests
+default: test
+
+# Run all E2E tests in sequence
+@test:
+    bun test --config tsconfig.e2e.json e2e-tests/
+
+# Run error handling E2E test
+run-error-handling:
+    @bun test --config tsconfig.e2e.json e2e-tests/error-handling.test.ts
+
+# Clean up test artifacts (workflows, runs)
+@cleanup:
+    @bun e2e-tests/cleanup.ts
+
+# List available tests
+@list:
+    echo "Available E2E tests:"
+    echo "  • error-handling - Validates error handling refactor (retry policy, error details)"
+    echo ""
+    echo "Commands:"
+    echo "  just test              - Run all tests"
+    echo "  just run-error-handling  - Run error handling test"
+    echo "  just cleanup            - Clean up test artifacts"
+    echo "  just list               - List available tests"
+
+# Run tests with cleanup (CI/CD friendly)
+test-and-cleanup: cleanup test cleanup
+
+# Helper: Check if services are running
+@check-services:
+    echo "🔍 Checking if services are running..."
+    @curl -sf http://localhost:3211/api/v1/health > /dev/null && echo "✅ Backend API is running" || echo "❌ Backend API is NOT running - start with: pm2 start pm2.config.cjs"
+
+# Helper: Show logs for debugging
+logs:
+    echo "📋 Showing recent logs (press Ctrl+C to exit)..."
+    @timeout 5s pm2 logs backend --nostream --lines 50 || true
+    echo "---"
+    @timeout 5s pm2 logs worker --nostream --lines 50 || true
