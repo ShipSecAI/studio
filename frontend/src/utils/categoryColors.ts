@@ -1,7 +1,7 @@
 import { useThemeStore } from '@/store/themeStore'
 
 // Component category type
-export type ComponentCategory = 'input' | 'transform' | 'ai' | 'security' | 'it_ops' | 'output'
+export type ComponentCategory = 'input' | 'transform' | 'ai' | 'security' | 'it_ops' | 'notification' | 'manual_action' | 'output'
 
 /**
  * Category-based separator colors (2 shades lighter than normal)
@@ -27,6 +27,14 @@ export const CATEGORY_SEPARATOR_COLORS: Record<ComponentCategory, { light: strin
   it_ops: {
     light: 'rgb(103 232 249)', // cyan-300 (2 shades lighter than cyan-500)
     dark: 'rgb(103 232 249)', // cyan-300 (2 shades lighter than cyan-400)
+  },
+  notification: {
+    light: 'rgb(249 168 212)', // pink-300
+    dark: 'rgb(249 168 212)', // pink-300
+  },
+  manual_action: {
+    light: 'rgb(252 211 77)', // amber-300 (2 shades lighter than amber-500)
+    dark: 'rgb(252 211 77)', // amber-300 (2 shades lighter than amber-400)
   },
   output: {
     light: 'rgb(134 239 172)', // green-300 (2 shades lighter than green-500)
@@ -58,6 +66,14 @@ export const CATEGORY_HEADER_BG_COLORS: Record<ComponentCategory, { light: strin
   it_ops: {
     light: 'rgb(250 254 255)', // custom cyan-25
     dark: 'rgb(22 78 99 / 0.15)', // cyan-950/15
+  },
+  notification: {
+    light: 'rgb(255 250 253)', // pink-25
+    dark: 'rgb(80 7 36 / 0.15)', // pink-950/15
+  },
+  manual_action: {
+    light: 'rgb(255 254 250)', // custom amber-25
+    dark: 'rgb(120 53 15 / 0.15)', // amber-950/15
   },
   output: {
     light: 'rgb(250 255 250)', // custom green-25

@@ -10,7 +10,9 @@ initializeDestinationAdapters();
 // Core components
 import './core/entry-point';
 import './core/file-loader';
-import './core/webhook';
+import './core/http-request';
+import './core/logic-script';
+import './notification/slack';
 import './core/text-splitter';
 import './core/text-joiner';
 import './core/console-log';
@@ -23,6 +25,10 @@ import './core/credentials-aws';
 import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
+// Manual Action components
+import './manual-action/manual-approval';
+import './manual-action/manual-selection';
+import './manual-action/manual-form';
 import './ai/openai-provider';
 import './ai/gemini-provider';
 import './ai/openrouter-provider';
@@ -46,6 +52,7 @@ import './security/shuffledns-massdns';
 import './security/atlassian-offboarding';
 import './security/trufflehog';
 import './security/terminal-demo';
+import './security/virustotal';
 
 // GitHub components
 import './github/connection-provider';

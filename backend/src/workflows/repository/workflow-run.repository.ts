@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../../database/database.module';
 import {
   workflowRunsTable,
+  humanInputRequests as humanInputRequestsTable,
   type WorkflowRunInsert,
   type WorkflowRunRecord,
 } from '../../database/schema';
@@ -120,6 +121,19 @@ export class WorkflowRunRepository {
     return await filteredQuery
       .orderBy(desc(workflowRunsTable.createdAt))
       .limit(options.limit ?? 50);
+  }
+
+  async hasPendingInputs(runId: string): Promise<boolean> {
+    const [result] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(humanInputRequestsTable)
+      .where(
+        and(
+          eq(humanInputRequestsTable.runId, runId),
+          eq(humanInputRequestsTable.status, 'pending')
+        )
+      );
+    return Number(result.count) > 0;
   }
 
   private buildRunFilter(runId: string, organizationId?: string | null) {

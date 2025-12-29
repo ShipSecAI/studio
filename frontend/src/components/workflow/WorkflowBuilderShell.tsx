@@ -3,6 +3,7 @@ import { PanelLeftClose, PanelLeftOpen, X, Undo2, Redo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { HumanInputDialog } from './HumanInputDialog'
 
 interface WorkflowBuilderShellProps {
   mode: 'design' | 'execution'
@@ -478,6 +479,7 @@ export function WorkflowBuilderShell({
       </div>
       {scheduleDrawer}
       {runDialog}
+      <HumanInputDialog />
     </div>
   )
 }

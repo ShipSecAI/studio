@@ -183,6 +183,21 @@ export class TemporalService implements OnModuleDestroy {
     await handle.terminate('User requested stop');
   }
 
+  /**
+   * Send a signal to a running workflow
+   */
+  async signalWorkflow(input: {
+    workflowId: string;
+    signalName: string;
+    args: any;
+  }): Promise<void> {
+    const handle = await this.getWorkflowHandle({ workflowId: input.workflowId });
+    this.logger.log(
+      `Sending signal ${input.signalName} to workflow ${input.workflowId} with args: ${JSON.stringify(input.args)}`,
+    );
+    await handle.signal(input.signalName, input.args);
+  }
+
   private async getWorkflowHandle(ref: WorkflowRunReference): Promise<WorkflowHandle<any>> {
     const client = await this.getClient();
     return client.getHandle(ref.workflowId, ref.runId);

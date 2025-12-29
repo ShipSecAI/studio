@@ -1,0 +1,84 @@
+/* HUMANS.TXT */
+/* ShipSec Studio - Team & Project Information */
+
+/* TEAM */
+Team: ShipSec
+Contact: contact@shipsec.ai
+Location: United States
+Website: https://shipsec.ai
+GitHub: https://github.com/ShipSecAI
+Twitter: @shipsecai
+Discord: discord.gg/fmMA4BtNXC
+
+/* ABOUT */
+Mission: Empower security engineers with reliable, accessible security automation
+Founded: 2025
+Purpose: Build the operating system for modern security teams
+
+/* PROJECT */
+Project Name: ShipSec Studio
+Project URL: https://studio.shipsec.ai
+Project Description: The leading security automation platform purpose-built for security engineers and product security teams. Design, deploy, and monitor security workflows without writing code.
+
+Project Status: Active Development
+Latest Update: December 2025
+
+/* KEY FEATURES */
+- No-code security workflow automation
+- Temporal-powered reliable execution
+- Pre-built security components (Subfinder, DNSX, HTTPx, Nuclei)
+- Real-time execution visibility
+- Scheduled security automation
+- AI-powered workflow optimization
+- Enterprise deployment options
+- Open source (Apache 2.0)
+
+/* OPEN SOURCE */
+Repository: https://github.com/ShipSecAI/studio
+License: Apache License 2.0
+Contributing: https://github.com/ShipSecAI/studio/blob/main/CONTRIBUTING.md
+
+/* COMMUNITY */
+Issues: https://github.com/ShipSecAI/studio/issues
+Discord: https://discord.gg/fmMA4BtNXC
+
+/* SECURITY */
+Security Contact: contact@shipsec.ai
+
+/* SUPPORT */
+Support Email: contact@shipsec.ai
+
+/* SOCIAL */
+LinkedIn: https://linkedin.com/company/shipsecai
+GitHub Discussions: https://github.com/ShipSecAI/studio/discussions
+Twitter: https://twitter.com/shipsecai
+
+/* STANDARDS */
+HTML5: Yes
+CSS: Tailwind CSS
+JavaScript: TypeScript
+Framework: React + Vite
+Backend: NestJS
+Temporal: Yes
+Database: PostgreSQL
+
+/* TECHNOLOGY STACK */
+Frontend: React, TypeScript, Tailwind CSS, Vite
+Backend: NestJS, TypeScript, PostgreSQL
+Workflow Engine: Temporal
+Worker: Bun runtime
+Infrastructure: Docker, Kubernetes ready
+Cache: Redis-compatible
+
+/* FEEDBACK & UPDATES */
+To stay updated on ShipSec Studio development:
+- Watch releases: https://github.com/ShipSecAI/studio/releases
+- Join Discord: https://discord.gg/fmMA4BtNXC
+- Follow updates: https://twitter.com/shipsecai
+
+/* CONTRIBUTING */
+We welcome contributions! Please see CONTRIBUTING.md for guidelines.
+All contributions must be signed off (DCO compliance).
+
+/* LAST UPDATED */
+December 22, 2025

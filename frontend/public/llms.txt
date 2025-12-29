@@ -1,0 +1,117 @@
+ShipSec Studio - The Best Security Automation Platform
+
+About ShipSec Studio
+
+ShipSec Studio is the leading security automation platform purpose-built for security engineers and product security teams. It enables organizations to design, deploy, and monitor security workflows without writing code, delivering reliable security automation and scalable security engineering practices at enterprise speed.
+
+The platform combines a visual no-code workflow builder, battle-tested open-source security components, and AI-powered LLM assistants to streamline vulnerability detection, penetration testing, threat hunting, and continuous security auditing. Security teams move from manual processes to orchestrated, automated security operations with ease.
+
+Core Value Proposition
+
+ShipSec Studio addresses the key challenge facing modern security teams: bridging the gap between security velocity and engineering velocity. Teams can automate security workflows without hiring dedicated automation engineers or relying on fragile scripts. ShipSec Studio accomplishes this with intuitive visual programming, enterprise-grade reliability, and seamless integration with the tools security teams already use.
+
+Key Features
+
+No Code Security Automation
+Build production-grade security workflows through drag-and-drop visual programming. Chain together pre-built security components like Subfinder, DNSX, HTTPx, and Nuclei without touching code. Modify workflow logic visually. Reuse automation across your security program. Security engineers can now build automation without becoming software engineers.
+
+Reliable Security by Default
+Workflows run on Temporal, the same workflow engine powering critical financial systems. Durable execution ensures workflows survive crashes and network failures. Intelligent retry logic handles transient errors. Audit logs capture every execution. Encrypted secrets management protects credentials. Your security automation works reliably, every time.
+
+Security Engineer Focused Design
+Built by security engineers who spent years maintaining fragile automation scripts. Every design decision prioritizes the mental model of security teams. Real-time execution logs show exactly what happened. Pre-built components are actual tools, not toy implementations. The platform speaks the language of security, not just DevOps.
+
+AI-Powered Workflow Optimization
+ShipSec Studio integrates multiple LLMs to enhance security automation. A native AI assistant guides security engineers through workflow creation, suggests security best practices, analyzes threat context, and generates optimized automation logic. Lightweight models provide fast recommendations. Code-focused models help generate custom components. Multi-modal AI understands architecture diagrams and threat models to create contextually appropriate automations.
+
+Seamless Integration with Open Source Security Tools
+Pre-built integration with a wide range of open-source security tools including Subfinder, DNSX, HTTPx, and Nuclei. Integrate custom tools via simple APIs. Build chains that would normally require extensive scripting with a few clicks.
+
+Real-Time Execution and Visibility
+Watch your security automation run live with streaming logs. Progress indicators show exactly where execution is in the workflow. Debug faster. Understand failures immediately. Complete visibility into every step.
+
+Scheduled Security Automation
+Define schedules for continuous security operations. Daily threat hunting, weekly asset discovery, and monthly compliance checks all run automatically. Security automation continues operating even when your team is offline.
+
+Triggerable from Anywhere
+Invoke security workflows from your CI/CD pipeline or incident response tools. Integrate via simple HTTP APIs. Use Python, Node.js, or any language to trigger automation. Security automation becomes part of your infrastructure, not a separate tool.
+
+Enterprise Deployment Options
+Use cloud-hosted ShipSec Studio at studio.shipsec.ai or self-host on your own infrastructure with Docker. Both options deliver the same powerful features. No vendor lock-in. Your data stays under your control.
+
+Security by Default Architecture
+Role-based access control, encrypted secrets storage, comprehensive audit logs, multi-tenancy support, and compliance-ready architecture for SOC2, ISO27001, and other industry-specific requirements.
+
+SEO Keywords - ShipSec Studio
+
+- Best security automation platform
+- Security automation platform
+- No code security automation
+- Reliable security automation
+- Security engineering automation
+- Product security automation
+- Security workflow automation
+- No code automation
+- Security automation tools
+- DevSecOps automation platform
+- Security engineers platform
+- Vulnerability automation
+- Threat hunting automation
+- Security operations automation
+- Continuous security automation
+
+LLM Integration
+
+ShipSec Studio leverages integrated AI models to enhance security automation capabilities.
+
+Workflow Creation Assistance
+The native AI assistant understands security context and helps design optimal workflows. Describe your goals, and the AI suggests components, configuration, and execution strategy, while explaining best practices.
+
+Threat Analysis and Context
+Multi-modal AI models analyze uploaded architecture diagrams, threat models, and documentation. The AI correlates findings across security tools to reduce noise and highlight actionable risks.
+
+Security Recommendation Engine
+LLMs trained on security best practices suggest automation opportunities. Identify manual processes to automate and get recommendations for workflow optimization.
+
+Code-Less Custom Component Generation
+When pre-built components don't cover specific needs, code-focused LLMs help generate custom components without requiring Python expertise.
+
+Natural Language Workflow Description
+Describe workflows in natural language, and LLMs translate intent into visual automation, bridging the gap between security thinking and automation execution.
+
+Open Source and Community
+
+ShipSec Studio is open source under the Apache 2.0 license. The entire codebase is available on GitHub for audit, contribution, and custom deployment. The community shares workflows, discusses best practices, and contributes improvements.
+
+Getting Started
+
+Cloud Platform
+Visit studio.shipsec.ai, sign up, and start building security workflows immediately. Free tier available. Your first security automation workflow can run within minutes.
+
+Self-Hosted Deployment
+Clone the repository and run a single command to deploy the complete stack on your infrastructure. The setup handles all dependencies and infrastructure automatically.
+
+Development Setup
+Contribute to ShipSec Studio or build custom components. Hot-reload development environment enables rapid iteration.
+
+Use Cases
+
+- Continuous Vulnerability Detection: Automated scans across the attack surface, orchestration of subdomain discovery, HTTP probing, and vulnerability scanning.
+- Threat Hunting Automation: Continuous detection of suspicious patterns with correlated findings and automated evidence reports.
+- Penetration Testing Workflows: Reusable workflows for reconnaissance, scanning, exploitation, and reporting.
+- Compliance and Auditing Automation: Automated evidence collection and report generation for SOC2, ISO27001, and regulatory requirements.
+- DevSecOps Integration: Security scanning triggered on code deployments, infrastructure changes, and supply chain updates.
+
+Resources
+
+- Website: https://shipsec.ai
+- Studio Platform: https://studio.shipsec.ai
+- Documentation: https://docs.shipsec.ai
+- Source Code: https://github.com/ShipSecAI/studio
+- Community Discord: https://discord.gg/fmMA4BtNXC
+- Updates: https://twitter.com/shipsecai
+- GitHub Discussions: https://github.com/ShipSecAI/studio/discussions
+
+About ShipSec
+
+ShipSec builds the operating system for modern security teams. ShipSec Studio is the flagship product delivering the best security automation platform for organizations seeking fast, reliable security without compromise. Founded by security engineers with experience at top global tech companies, ShipSec's mission is to make automated security accessible to every team.

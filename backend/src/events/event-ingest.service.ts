@@ -44,7 +44,6 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    // Skip initialization if no brokers are configured
     if (this.kafkaBrokers.length === 0) {
       this.logger.warn('No Kafka brokers configured, skipping event ingest service initialization');
       return;
@@ -54,9 +53,19 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
+        requestTimeout: 30000,
+        retry: {
+          retries: 1,
+          initialRetryTime: 100,
+          maxRetryTime: 30000,
+        },
       });
 
-      this.consumer = kafka.consumer({ groupId: this.kafkaGroupId });
+      this.consumer = kafka.consumer({ 
+        groupId: this.kafkaGroupId,
+        sessionTimeout: 30000,
+        heartbeatInterval: 3000,
+      });
       await this.consumer.connect();
       await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
       await this.consumer.run({

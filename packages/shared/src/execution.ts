@@ -7,7 +7,8 @@ export const EXECUTION_STATUS = [
   'FAILED',
   'CANCELLED',
   'TERMINATED',
-  'TIMED_OUT'
+  'TIMED_OUT',
+  'AWAITING_INPUT'
 ] as const;
 
 export type ExecutionStatus = (typeof EXECUTION_STATUS)[number];
@@ -79,7 +80,7 @@ export const WorkflowRunStatusSchema = z.object({
 
 export type WorkflowRunStatusPayload = z.infer<typeof WorkflowRunStatusSchema>;
 
-export const TRACE_EVENT_TYPES = ['STARTED', 'PROGRESS', 'COMPLETED', 'FAILED'] as const;
+export const TRACE_EVENT_TYPES = ['STARTED', 'PROGRESS', 'COMPLETED', 'FAILED', 'AWAITING_INPUT', 'SKIPPED'] as const;
 export type TraceEventType = (typeof TRACE_EVENT_TYPES)[number];
 export const TraceEventTypeSchema = z.enum(TRACE_EVENT_TYPES);
 
@@ -116,6 +117,18 @@ export const TraceEventMetadataSchema = z.object({
 
 export type TraceEventMetadata = z.infer<typeof TraceEventMetadataSchema>;
 
+export const TraceEventDataSchema = z.object({
+  activatedPorts: z.array(z.string()).optional(),
+  approved: z.boolean().optional(),
+  requestId: z.string().optional(),
+  inputType: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  timeoutAt: z.string().optional(),
+}).passthrough();
+
+export type TraceEventData = z.infer<typeof TraceEventDataSchema>;
+
 export const TraceEventSchema = z.object({
   id: z.string(),
   runId: z.string(),
@@ -126,7 +139,7 @@ export const TraceEventSchema = z.object({
   message: z.string().optional(),
   error: TraceErrorSchema.optional(),
   outputSummary: z.record(z.string(), z.unknown()).optional(),
-  data: z.record(z.string(), z.unknown()).optional(),
+  data: TraceEventDataSchema.optional(),
   metadata: TraceEventMetadataSchema.optional(),
 });
 

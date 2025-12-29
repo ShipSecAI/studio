@@ -286,6 +286,9 @@ describe('WorkflowsService', () => {
       }
       return [storedRunMeta];
     },
+    async hasPendingInputs() {
+      return false;
+    },
   };
 
   const traceRepositoryMock = {

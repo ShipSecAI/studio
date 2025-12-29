@@ -243,6 +243,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
       ai: 'text-purple-600 dark:text-purple-400',
       security: 'text-red-600 dark:text-red-400',
       it_ops: 'text-cyan-600 dark:text-cyan-400',
+      notification: 'text-pink-600 dark:text-pink-400',
       output: 'text-green-600 dark:text-green-400',
     }
     return categoryColors[category] || 'text-foreground'
@@ -316,7 +317,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   }, [filteredComponents])
 
   // Category display order
-  const categoryOrder = ['input', 'output', 'security', 'ai', 'transform', 'it_ops'] as const
+  const categoryOrder = ['input', 'output', 'notification', 'security', 'ai', 'transform', 'it_ops'] as const
 
   // Filter components based on search query
   const filteredComponentsByCategory = useMemo(() => {

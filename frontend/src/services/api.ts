@@ -252,6 +252,23 @@ export const api = {
       if (response.error) throw new Error('Failed to fetch component')
       return response.data
     },
+
+    resolvePorts: async (id: string, params: Record<string, unknown>) => {
+      const headers = await getAuthHeaders()
+      const response = await fetch(`${API_BASE_URL}/api/v1/components/${id}/resolve-ports`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to resolve ports')
+      }
+      return await response.json()
+    },
   },
 
   secrets: {
@@ -732,6 +749,37 @@ export const api = {
       return await response.blob()
     },
   },
+
+    humanInputs: {
+    list: async (filters: { status?: 'pending' | 'resolved' | 'expired' | 'cancelled'; type?: 'approval' | 'form' | 'selection' | 'review' | 'acknowledge' }) => {
+      const response = await apiClient.listHumanInputs({
+        status: filters.status,
+        inputType: filters.type,
+      })
+      if (response.error) throw new Error('Failed to fetch human inputs')
+      return response.data || []
+    },
+
+    get: async (id: string) => {
+      const response = await apiClient.getHumanInput(id)
+      if (response.error) throw new Error('Failed to fetch human input')
+      if (!response.data) throw new Error('Human input not found')
+      return response.data
+    },
+
+    resolve: async (id: string, payload: { status: 'resolved' | 'rejected'; responseData?: any; comment?: string }) => {
+      const response = await apiClient.resolveHumanInput(id, {
+        responseData: {
+          ...payload.responseData,
+          resolution: payload.status, // Add explicit resolution field
+          comment: payload.comment,
+        },
+      })
+      if (response.error) throw new Error('Failed to resolve human input')
+      return response.data
+    },
+  },
+
 }
 
 export async function getApiAuthHeaders(): Promise<Record<string, string>> {

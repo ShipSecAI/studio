@@ -2945,6 +2945,29 @@
         ]
       }
     },
+    "/api/v1/components/{id}/resolve-ports": {
+      "post": {
+        "operationId": "ComponentsController_resolvePorts",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolve dynamic ports based on parameters"
+          }
+        },
+        "tags": [
+          "components"
+        ]
+      }
+    },
     "/api/v1/secrets": {
       "get": {
         "operationId": "SecretsController_listSecrets",
@@ -3846,6 +3869,189 @@
         ]
       }
     },
+    "/api/v1/human-inputs": {
+      "get": {
+        "operationId": "HumanInputsController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "resolved",
+                "expired",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "name": "inputType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "approval",
+                "form",
+                "selection",
+                "review",
+                "acknowledge"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HumanInputResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "List human input requests",
+        "tags": [
+          "Human Inputs"
+        ]
+      }
+    },
+    "/api/v1/human-inputs/{id}": {
+      "get": {
+        "operationId": "HumanInputsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanInputResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get a human input request details",
+        "tags": [
+          "Human Inputs"
+        ]
+      }
+    },
+    "/api/v1/human-inputs/{id}/resolve": {
+      "post": {
+        "operationId": "HumanInputsController_resolve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveHumanInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanInputResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Resolve a human input request",
+        "tags": [
+          "Human Inputs"
+        ]
+      }
+    },
+    "/api/v1/human-inputs/resolve/{token}": {
+      "post": {
+        "operationId": "HumanInputsController_resolveByToken",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveByTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicResolveResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resolve input via public token",
+        "tags": [
+          "Human Inputs"
+        ]
+      }
+    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -4010,6 +4216,26 @@
                         "type": "string"
                       },
                       "additionalProperties": {}
+                    },
+                    "dynamicInputs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "dynamicOutputs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
                     }
                   },
                   "required": [
@@ -4159,6 +4385,26 @@
                             "type": "string"
                           },
                           "additionalProperties": {}
+                        },
+                        "dynamicInputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "dynamicOutputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
                         }
                       },
                       "required": [
@@ -4339,6 +4585,26 @@
                         "type": "string"
                       },
                       "additionalProperties": {}
+                    },
+                    "dynamicInputs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "dynamicOutputs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
                     }
                   },
                   "required": [
@@ -4505,6 +4771,26 @@
                             "type": "string"
                           },
                           "additionalProperties": {}
+                        },
+                        "dynamicInputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "dynamicOutputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
                         }
                       },
                       "required": [
@@ -6132,6 +6418,204 @@
             "maximum": 9007199254740991
           }
         }
+      },
+      "HumanInputResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "nodeRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "resolved",
+              "expired",
+              "cancelled"
+            ]
+          },
+          "inputType": {
+            "type": "string",
+            "enum": [
+              "approval",
+              "form",
+              "selection",
+              "review",
+              "acknowledge"
+            ]
+          },
+          "inputSchema": {
+            "nullable": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "context": {
+            "nullable": true
+          },
+          "resolveToken": {
+            "type": "string"
+          },
+          "timeoutAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "responseData": {
+            "nullable": true
+          },
+          "respondedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "respondedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "workflowId",
+          "nodeRef",
+          "status",
+          "inputType",
+          "inputSchema",
+          "title",
+          "description",
+          "context",
+          "resolveToken",
+          "timeoutAt",
+          "responseData",
+          "respondedAt",
+          "respondedBy",
+          "organizationId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ResolveHumanInputDto": {
+        "type": "object",
+        "properties": {
+          "responseData": {
+            "description": "The response data from the human",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "respondedBy": {
+            "description": "User ID or identifier of who resolved the input",
+            "type": "string"
+          }
+        }
+      },
+      "ResolveByTokenDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "default": "resolve",
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject",
+              "resolve"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        }
+      },
+      "PublicResolveResultDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "title": {
+                "type": "string"
+              },
+              "inputType": {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "form",
+                  "selection",
+                  "review",
+                  "acknowledge"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "resolved",
+                  "expired",
+                  "cancelled"
+                ]
+              },
+              "respondedAt": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "inputType",
+              "status",
+              "respondedAt"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "input"
+        ]
       }
     }
   }

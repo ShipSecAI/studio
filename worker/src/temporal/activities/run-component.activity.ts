@@ -102,56 +102,6 @@ export async function runComponentActivity(
   const failure = nodeMetadata.failure;
   const correlationId = `${input.runId}:${action.ref}:${activityInfo.activityId}`;
 
-  const trace = globalTrace;
-  trace?.record({
-    type: 'NODE_STARTED',
-    runId: input.runId,
-    nodeRef: action.ref,
-    timestamp: new Date().toISOString(),
-    level: 'info',
-    context: {
-      runId: input.runId,
-      componentRef: action.ref,
-      activityId: activityInfo.activityId,
-      attempt: activityInfo.attempt,
-      correlationId,
-      streamId,
-      joinStrategy,
-      triggeredBy,
-      failure,
-    },
-  });
-
-  for (const warning of warnings) {
-    trace?.record({
-      type: 'NODE_PROGRESS',
-      runId: input.runId,
-      nodeRef: action.ref,
-      timestamp: new Date().toISOString(),
-      message: `Input '${warning.target}' mapped from ${warning.sourceRef}.${warning.sourceHandle} was undefined`,
-      level: 'warn',
-      data: warning,
-      context: {
-        runId: input.runId,
-        componentRef: action.ref,
-        activityId: activityInfo.activityId,
-        attempt: activityInfo.attempt,
-        correlationId,
-        streamId,
-        joinStrategy,
-        triggeredBy,
-        failure,
-      },
-    });
-  }
-
-  if (warnings.length > 0) {
-    const missing = warnings.map((warning) => `'${warning.target}'`).join(', ');
-    throw new Error(`Missing required inputs for ${action.ref}: ${missing}`);
-  }
-
-  const parsedParams = component.inputSchema.parse(params);
-
   const scopedArtifacts = globalArtifacts
     ? globalArtifacts({
         runId: input.runId,
@@ -211,6 +161,29 @@ export async function runComponentActivity(
     agentTracePublisher: globalAgentTracePublisher,
   });
 
+  context.trace?.record({
+    type: 'NODE_STARTED',
+    timestamp: new Date().toISOString(),
+    level: 'info',
+  });
+
+  for (const warning of warnings) {
+    context.trace?.record({
+      type: 'NODE_PROGRESS',
+      timestamp: new Date().toISOString(),
+      message: `Input '${warning.target}' mapped from ${warning.sourceRef}.${warning.sourceHandle} was undefined`,
+      level: 'warn',
+      data: warning,
+    });
+  }
+
+  if (warnings.length > 0) {
+    const missing = warnings.map((warning) => `'${warning.target}'`).join(', ');
+    throw new Error(`Missing required inputs for ${action.ref}: ${missing}`);
+  }
+
+  const parsedParams = component.inputSchema.parse(params);
+
   try {
     // Execute the component logic directly so that any
     // normalisation/parsing inside `execute` runs.
@@ -218,48 +191,33 @@ export async function runComponentActivity(
     // the component via `runComponentWithRunner`.
     const output = await component.execute(parsedParams, context);
 
-    trace?.record({
-      type: 'NODE_COMPLETED',
-      runId: input.runId,
-      nodeRef: action.ref,
-      timestamp: new Date().toISOString(),
-      outputSummary: output,
-      level: 'info',
-      context: {
-        runId: input.runId,
-        componentRef: action.ref,
-        activityId: activityInfo.activityId,
-        attempt: activityInfo.attempt,
-        correlationId,
-        streamId,
-        joinStrategy,
-        triggeredBy,
-        failure,
-      },
-    });
+    // Check if component requested suspension (e.g. approval gate)
+    const isSuspended = output && typeof output === 'object' && 'pending' in output && (output as any).pending === true;
 
-    return { output };
+    // Extract activeOutputPorts if component returned them (for conditional execution)
+    const activeOutputPorts = output && typeof output === 'object' && 'activeOutputPorts' in output
+      ? (output as any).activeOutputPorts as string[]
+      : undefined;
+
+    if (!isSuspended) {
+      context.trace?.record({
+        type: 'NODE_COMPLETED',
+        timestamp: new Date().toISOString(),
+        outputSummary: output as any,
+        data: activeOutputPorts ? { activatedPorts: activeOutputPorts } : undefined,
+        level: 'info',
+      });
+    }
+
+    return { output, activeOutputPorts };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    trace?.record({
+    context.trace?.record({
       type: 'NODE_FAILED',
-      runId: input.runId,
-      nodeRef: action.ref,
       timestamp: new Date().toISOString(),
       message: errorMsg,
       error: errorMsg,
       level: 'error',
-      context: {
-        runId: input.runId,
-        componentRef: action.ref,
-        activityId: activityInfo.activityId,
-        attempt: activityInfo.attempt,
-        correlationId,
-        streamId,
-        joinStrategy,
-        triggeredBy,
-        failure,
-      },
     });
 
     const errorType =

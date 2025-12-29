@@ -5,8 +5,10 @@ import type {
   IFileStorageService,
   ISecretsService,
   ITraceService,
+  TraceEvent,
   ExecutionContextMetadata,
   TraceEventLevel,
+  TraceEventData,
 } from './interfaces';
 
 export type { ExecutionContextMetadata } from './interfaces';
@@ -67,7 +69,7 @@ export interface Logger {
 export interface ProgressEventInput {
   message: string;
   level?: TraceEventLevel;
-  data?: unknown;
+  data?: TraceEventData;
 }
 
 export interface LogEventInput {
@@ -93,6 +95,7 @@ export interface AgentTraceEvent {
   sequence: number;
   timestamp: string;
   part: AgentTracePart;
+  [key: string]: unknown;
 }
 
 export interface AgentTracePublisher {
@@ -150,6 +153,10 @@ export interface ComponentPortMetadata {
   required?: boolean;
   description?: string;
   valuePriority?: 'manual-first' | 'connection-first';
+  /** True if this port controls conditional execution (branching) */
+  isBranching?: boolean;
+  /** Custom color for branching ports: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate' */
+  branchColor?: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate';
 }
 
 export type ComponentParameterType =
@@ -161,7 +168,10 @@ export type ComponentParameterType =
   | 'multi-select'
   | 'json'
   | 'secret'
-  | 'artifact';
+  | 'artifact'
+  | 'variable-list'
+  | 'form-fields'
+  | 'selection-options';
 
 export interface ComponentParameterOption {
   label: string;
@@ -200,6 +210,8 @@ export type ComponentCategory =
   | 'ai'
   | 'security'
   | 'it_ops'
+  | 'notification'
+  | 'manual_action'
   | 'output';
 
 export type ComponentUiType =
@@ -245,10 +257,27 @@ export interface ExecutionContext {
   storage?: IFileStorageService;
   secrets?: ISecretsService;
   artifacts?: IArtifactService;
-  trace?: ITraceService;
+  trace?: IScopedTraceService;
 }
 
-export interface ComponentDefinition<I = unknown, O = unknown> {
+export type TraceEventInput = Omit<
+  TraceEvent,
+  'runId' | 'nodeRef' | 'timestamp' | 'context'
+> & {
+  runId?: string;
+  nodeRef?: string;
+  timestamp?: string;
+  context?: ExecutionContextMetadata;
+};
+
+export interface IScopedTraceService {
+  /**
+   * Record a trace event. runId, nodeRef, and context are automatically injected.
+   */
+  record(event: TraceEventInput): void;
+}
+
+export interface ComponentDefinition<I = unknown, O = unknown, P = Record<string, unknown>> {
   id: string;
   label: string;
   category: ComponentCategory;
@@ -260,7 +289,7 @@ export interface ComponentDefinition<I = unknown, O = unknown> {
   requiresSecrets?: boolean;
   execute: (params: I, context: ExecutionContext) => Promise<O>;
   resolvePorts?: (
-    params: Record<string, unknown>,
+    params: P,
   ) => {
     inputs?: ComponentPortMetadata[];
     outputs?: ComponentPortMetadata[];

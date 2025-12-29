@@ -16,6 +16,7 @@ export const STATUS_COLOR_MAP: Record<string, StatusColor> = {
   CANCELLED: 'gray',
   TERMINATED: 'gray',
   TIMED_OUT: 'amber',
+  AWAITING_INPUT: 'purple',
 }
 
 /**

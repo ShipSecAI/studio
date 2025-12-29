@@ -139,6 +139,11 @@ export function deserializeNodes(workflow: { graph: { nodes: BackendNode[], edge
     // Extract UI metadata from config if present
     const configWithPossibleUi = node.data.config || {}
     const { __ui, ...cleanConfig } = configWithPossibleUi as { __ui?: any; [key: string]: any }
+    
+    // Extract dynamic ports from backend node data (if present)
+    const backendNodeData = node.data as any
+    const dynamicInputs = backendNodeData.dynamicInputs
+    const dynamicOutputs = backendNodeData.dynamicOutputs
 
     return {
       id: node.id,
@@ -155,6 +160,9 @@ export function deserializeNodes(workflow: { graph: { nodes: BackendNode[], edge
         parameters: cleanConfig, // Map config to parameters for frontend (without __ui)
         status: 'idle', // Reset execution state
         inputs: inputMappingsByNode.get(node.id) ?? {},
+        // Dynamic ports resolved by backend
+        ...(dynamicInputs ? { dynamicInputs } : {}),
+        ...(dynamicOutputs ? { dynamicOutputs } : {}),
         // Restore UI metadata (like size for text blocks)
         ...__ui ? { ui: __ui } : {},
       },

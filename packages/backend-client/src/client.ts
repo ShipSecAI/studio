@@ -596,6 +596,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/components/{id}/resolve-ports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ComponentsController_resolvePorts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/secrets": {
         parameters: {
             query?: never;
@@ -964,6 +980,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/human-inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List human input requests */
+        get: operations["HumanInputsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/human-inputs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a human input request details */
+        get: operations["HumanInputsController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/human-inputs/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a human input request */
+        post: operations["HumanInputsController_resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/human-inputs/resolve/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve input via public token */
+        post: operations["HumanInputsController_resolveByToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -1033,6 +1117,12 @@ export interface components {
                     config: {
                         [key: string]: unknown;
                     };
+                    dynamicInputs?: {
+                        [key: string]: unknown;
+                    }[];
+                    dynamicOutputs?: {
+                        [key: string]: unknown;
+                    }[];
                 };
             }[];
             edges: {
@@ -1078,6 +1168,12 @@ export interface components {
                         config: {
                             [key: string]: unknown;
                         };
+                        dynamicInputs?: {
+                            [key: string]: unknown;
+                        }[];
+                        dynamicOutputs?: {
+                            [key: string]: unknown;
+                        }[];
                     };
                 }[];
                 edges: {
@@ -1128,6 +1224,12 @@ export interface components {
                     config: {
                         [key: string]: unknown;
                     };
+                    dynamicInputs?: {
+                        [key: string]: unknown;
+                    }[];
+                    dynamicOutputs?: {
+                        [key: string]: unknown;
+                    }[];
                 };
             }[];
             edges: {
@@ -1177,6 +1279,12 @@ export interface components {
                         config: {
                             [key: string]: unknown;
                         };
+                        dynamicInputs?: {
+                            [key: string]: unknown;
+                        }[];
+                        dynamicOutputs?: {
+                            [key: string]: unknown;
+                        }[];
                     };
                 }[];
                 edges: {
@@ -1669,6 +1777,62 @@ export interface components {
             };
             versionId?: string;
             version?: number;
+        };
+        HumanInputResponseDto: {
+            /** Format: uuid */
+            id: string;
+            runId: string;
+            /** Format: uuid */
+            workflowId: string;
+            nodeRef: string;
+            /** @enum {string} */
+            status: "pending" | "resolved" | "expired" | "cancelled";
+            /** @enum {string} */
+            inputType: "approval" | "form" | "selection" | "review" | "acknowledge";
+            inputSchema: unknown;
+            title: string;
+            description: string | null;
+            context: unknown;
+            resolveToken: string;
+            timeoutAt: string | null;
+            responseData: unknown;
+            respondedAt: string | null;
+            respondedBy: string | null;
+            organizationId: string | null;
+            createdAt: string;
+            updatedAt: string;
+        };
+        ResolveHumanInputDto: {
+            /** @description The response data from the human */
+            responseData?: {
+                [key: string]: unknown;
+            };
+            /** @description User ID or identifier of who resolved the input */
+            respondedBy?: string;
+        };
+        ResolveByTokenDto: {
+            /**
+             * @default resolve
+             * @enum {string}
+             */
+            action: "approve" | "reject" | "resolve";
+            data?: {
+                [key: string]: unknown;
+            };
+        };
+        PublicResolveResultDto: {
+            success: boolean;
+            message: string;
+            input: {
+                /** Format: uuid */
+                id: string;
+                title: string;
+                /** @enum {string} */
+                inputType: "approval" | "form" | "selection" | "review" | "acknowledge";
+                /** @enum {string} */
+                status: "pending" | "resolved" | "expired" | "cancelled";
+                respondedAt: string | null;
+            };
         };
     };
     responses: never;
@@ -3113,6 +3277,26 @@ export interface operations {
             };
         };
     };
+    ComponentsController_resolvePorts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolve dynamic ports based on parameters */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     SecretsController_listSecrets: {
         parameters: {
             query?: never;
@@ -3768,6 +3952,99 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    HumanInputsController_list: {
+        parameters: {
+            query?: {
+                status?: "pending" | "resolved" | "expired" | "cancelled";
+                inputType?: "approval" | "form" | "selection" | "review" | "acknowledge";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanInputResponseDto"][];
+                };
+            };
+        };
+    };
+    HumanInputsController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanInputResponseDto"];
+                };
+            };
+        };
+    };
+    HumanInputsController_resolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveHumanInputDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanInputResponseDto"];
+                };
+            };
+        };
+    };
+    HumanInputsController_resolveByToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveByTokenDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicResolveResultDto"];
+                };
             };
         };
     };

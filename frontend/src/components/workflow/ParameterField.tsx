@@ -6,6 +6,10 @@ import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
 import { RuntimeInputsEditor } from './RuntimeInputsEditor'
+import { SimpleVariableListEditor } from './SimpleVariableListEditor'
+import { ScriptCodeEditor } from './ScriptCodeEditor'
+import { FormFieldsEditor } from './FormFieldsEditor'
+import { SelectionOptionsEditor } from './SelectionOptionsEditor'
 import type { Parameter } from '@/schemas/component'
 import type { InputMapping } from '@/schemas/node'
 import { useSecretStore } from '@/store/secretStore'
@@ -1100,6 +1104,98 @@ export function ParameterFieldWrapper({
           </p>
         )}
       </div>
+    )
+  }
+
+  // Special case: Variable list editor (Logic Script, Slack, Manual Actions, etc.)
+  if (parameter.type === 'variable-list') {
+    const isInput = parameter.id === 'variables'
+    const title = parameter.label || (isInput ? 'Input Variables' : 'Return Variables')
+
+    return (
+      <div className="space-y-2">
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground mb-2">
+            {parameter.description}
+          </p>
+        )}
+
+        <SimpleVariableListEditor
+          value={value || []}
+          onChange={onChange}
+          title={title}
+          type={isInput ? 'input' : 'output'}
+        />
+
+        {parameter.helpText && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            💡 {parameter.helpText}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // Special case: Form Fields Designer
+  if (parameter.type === 'form-fields') {
+    return (
+      <div className="space-y-2">
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground mb-2">
+            {parameter.description}
+          </p>
+        )}
+
+        <FormFieldsEditor
+          value={value || []}
+          onChange={onChange}
+        />
+
+        {parameter.helpText && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            💡 {parameter.helpText}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // Special case: Selection Options Editor
+  if (parameter.type === 'selection-options') {
+    return (
+      <div className="space-y-2">
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground mb-2">
+            {parameter.description}
+          </p>
+        )}
+
+        <SelectionOptionsEditor
+          value={value || []}
+          onChange={onChange}
+        />
+
+        {parameter.helpText && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            💡 {parameter.helpText}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // Special case: Logic Script Code Editor
+  if (componentId === 'core.logic.script' && parameter.id === 'code') {
+    const inputVariables = Array.isArray(parameters?.variables) ? parameters.variables as { name: string; type: string }[] : []
+    const outputVariables = Array.isArray(parameters?.returns) ? parameters.returns as { name: string; type: string }[] : []
+
+    return (
+      <ScriptCodeEditor
+        code={value || ''}
+        onCodeChange={onChange}
+        inputVariables={inputVariables}
+        outputVariables={outputVariables}
+      />
     )
   }
 

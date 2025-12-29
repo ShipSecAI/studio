@@ -37,13 +37,14 @@ describe('compileWorkflowGraph', () => {
         },
         {
           id: 'webhook',
-          type: 'core.webhook.post',
+          type: 'core.http.request',
           position: { x: 0, y: 200 },
           data: {
             label: 'Webhook',
             config: {
               url: 'https://example.com/webhook',
-              payload: { from: 'loader' },
+              method: 'POST',
+              body: JSON.stringify({ from: 'loader' }),
             },
           },
         },

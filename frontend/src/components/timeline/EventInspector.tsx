@@ -13,6 +13,8 @@ const EVENT_ICONS: Partial<Record<TimelineEvent['type'], typeof FileText>> = {
   COMPLETED: CheckCircle,
   FAILED: AlertCircle,
   PROGRESS: Activity,
+  AWAITING_INPUT: AlertCircle,
+  SKIPPED: X, // Using X for skipped, or could use ArrowRight or similar
 }
 
 const EVENT_ICON_TONE: Record<TimelineEvent['type'], string> = {
@@ -20,6 +22,8 @@ const EVENT_ICON_TONE: Record<TimelineEvent['type'], string> = {
   PROGRESS: 'text-sky-600 border-sky-200 bg-sky-50 dark:text-sky-200 dark:border-sky-500/40 dark:bg-sky-500/10',
   COMPLETED: 'text-emerald-600 border-emerald-200 bg-emerald-50 dark:text-emerald-200 dark:border-emerald-500/40 dark:bg-emerald-500/10',
   FAILED: 'text-rose-600 border-rose-200 bg-rose-50 dark:text-rose-200 dark:border-rose-500/40 dark:bg-rose-500/10',
+  AWAITING_INPUT: 'text-amber-600 border-amber-200 bg-amber-50 dark:text-amber-200 dark:border-amber-500/40 dark:bg-amber-500/10',
+  SKIPPED: 'text-slate-500 border-slate-200 bg-slate-50 dark:text-slate-400 dark:border-slate-500/40 dark:bg-slate-500/10',
 }
 
 const LEVEL_BADGE: Record<string, 'secondary' | 'warning' | 'destructive' | 'outline'> = {
@@ -306,7 +310,7 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                   )}
                 </>
               )}
-              {playbackMode === 'replay' && autoScrollRef.current && (
+              {playbackMode === 'replay' && isPlaying && autoScrollRef.current && (
                 <>
                   <div className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
                   <span className="font-medium text-blue-600">FOLLOWING</span>

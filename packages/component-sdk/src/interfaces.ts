@@ -127,15 +127,26 @@ export interface ExecutionContextMetadata {
   failure?: ExecutionFailureMetadata;
 }
 
+export interface TraceEventData {
+  activatedPorts?: string[];
+  approved?: boolean;
+  requestId?: string;
+  inputType?: string;
+  title?: string;
+  description?: string;
+  timeoutAt?: string;
+  [key: string]: unknown;
+}
+
 export interface TraceEvent {
-  type: 'NODE_STARTED' | 'NODE_COMPLETED' | 'NODE_FAILED' | 'NODE_PROGRESS';
+  type: 'NODE_STARTED' | 'NODE_COMPLETED' | 'NODE_FAILED' | 'NODE_PROGRESS' | 'AWAITING_INPUT' | 'NODE_SKIPPED';
   runId: string;
   nodeRef: string;
   timestamp: string;
-  level: TraceEventLevel;
+  level?: TraceEventLevel;
   message?: string;
   error?: string;
   outputSummary?: unknown;
-  data?: unknown;
+  data?: TraceEventData;
   context?: ExecutionContextMetadata;
 }

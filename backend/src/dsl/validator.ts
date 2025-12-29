@@ -253,6 +253,31 @@ function validateInputMappings(
         });
       }
     }
+
+    // Check raw edges for multiple inputs to the same port
+    const edgesToThisNode = graph.edges.filter(e => e.target === action.ref);
+    const portsSeen = new Map<string, number>();
+    for (const edge of edgesToThisNode) {
+      const targetHandle = edge.targetHandle ?? edge.sourceHandle;
+      if (!targetHandle) continue;
+      
+      portsSeen.set(targetHandle, (portsSeen.get(targetHandle) ?? 0) + 1);
+    }
+
+    for (const [portId, count] of portsSeen.entries()) {
+      if (count > 1) {
+        const inputMetadata = actionPorts.get(action.ref)?.inputs.find(i => i.id === portId);
+        const portLabel = inputMetadata?.label || portId;
+        
+        errors.push({
+          node: action.ref,
+          field: 'inputMappings',
+          message: `Multiple edges detected for input port '${portLabel}'. Only one edge allowed per input.`,
+          severity: 'error',
+          suggestion: `Combine the sources into a single object using a transformer node or create a separate variable for each source.`,
+        });
+      }
+    }
   }
 }
 
@@ -294,8 +319,34 @@ function validateEdgeCompatibility(
 
     const sourceHandle = edge.sourceHandle;
     const targetHandle = edge.targetHandle;
-
-    if (!sourceHandle || !targetHandle) {
+    
+    // Check for malformed data edges: if one handle is present but not the other
+    const hasSourceHandle = !!sourceHandle;
+    const hasTargetHandle = !!targetHandle;
+    
+    if (hasSourceHandle && !hasTargetHandle) {
+      errors.push({
+        node: targetAction.ref,
+        field: 'inputMappings',
+        message: `Edge has sourceHandle "${sourceHandle}" but missing targetHandle. Data edges must specify both source and target handles.`,
+        severity: 'error',
+        suggestion: 'Add targetHandle to specify which input port on the target node should receive the data',
+      });
+      continue;
+    }
+    
+    if (!hasSourceHandle && hasTargetHandle) {
+      errors.push({
+        node: targetAction.ref,
+        field: 'inputMappings',
+        message: `Edge has targetHandle "${targetHandle}" but missing sourceHandle. Data edges must specify both source and target handles.`,
+        severity: 'error',
+        suggestion: 'Add sourceHandle to specify which output port on the source node provides the data',
+      });
+      continue;
+    }
+    
+    if (!hasSourceHandle && !hasTargetHandle) {
       // Control edge used for ordering only; skip type validation
       continue;
     }

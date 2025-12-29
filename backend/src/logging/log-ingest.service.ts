@@ -46,11 +46,16 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
+    if (this.kafkaBrokers.length === 0) {
+      this.logger.warn('No Kafka brokers configured, skipping log ingest service initialization');
+      return;
+    }
+
     try {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
-        requestTimeout: 30000, // 30 seconds
+        requestTimeout: 30000,
         retry: {
           retries: 1,
           initialRetryTime: 100,
@@ -59,8 +64,8 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
       });
       this.consumer = kafka.consumer({ 
         groupId: this.kafkaGroupId,
-        sessionTimeout: 30000, // 30 seconds
-        heartbeatInterval: 3000, // 3 seconds
+        sessionTimeout: 30000,
+        heartbeatInterval: 3000,
       });
       await this.consumer.connect();
       await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });

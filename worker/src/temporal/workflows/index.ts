@@ -1,6 +1,14 @@
-import { ApplicationFailure, proxyActivities, startChild, uuid4 } from '@temporalio/workflow';
+import {
+  ApplicationFailure,
+  condition,
+  proxyActivities,
+  setHandler,
+  startChild,
+  uuid4,
+} from '@temporalio/workflow';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionParams } from '../input-resolver';
+import { resolveHumanInputSignal, type HumanInputResolution } from '../signals';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
@@ -15,10 +23,29 @@ const {
   runComponentActivity,
   setRunMetadataActivity,
   finalizeRunActivity,
+  createHumanInputRequestActivity,
+  expireHumanInputRequestActivity,
 } = proxyActivities<{
   runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
   setRunMetadataActivity(input: { runId: string; workflowId: string; organizationId?: string | null }): Promise<void>;
   finalizeRunActivity(input: { runId: string }): Promise<void>;
+  createHumanInputRequestActivity(input: {
+    runId: string;
+    workflowId: string;
+    nodeRef: string;
+    inputType: 'approval' | 'form' | 'selection' | 'review' | 'acknowledge';
+    inputSchema?: Record<string, unknown>;
+    title: string;
+    description?: string;
+    context?: Record<string, unknown>;
+    timeoutMs?: number;
+    organizationId?: string | null;
+  }): Promise<{
+    requestId: string;
+    resolveToken: string;
+    resolveUrl: string;
+  }>;
+  expireHumanInputRequestActivity(requestId: string): Promise<void>;
 }>({
   startToCloseTimeout: '10 minutes',
 });
@@ -31,6 +58,24 @@ const { prepareRunPayloadActivity } = proxyActivities<{
   startToCloseTimeout: '2 minutes',
 });
 
+const { recordTraceEventActivity } = proxyActivities<{
+  recordTraceEventActivity(event: any): Promise<void>;
+}>({
+  startToCloseTimeout: '1 minute',
+});
+
+/**
+ * Check if an output indicates a pending approval gate
+ */
+function isApprovalPending(output: unknown): output is { pending: true; title: string; description?: string; timeoutAt?: string } {
+  return (
+    typeof output === 'object' &&
+    output !== null &&
+    'pending' in output &&
+    (output as { pending?: unknown }).pending === true
+  );
+}
+
 export async function shipsecWorkflowRun(
   input: RunWorkflowActivityInput,
 ): Promise<RunWorkflowActivityOutput> {
@@ -38,6 +83,20 @@ export async function shipsecWorkflowRun(
   const actionsByRef = new Map<string, WorkflowAction>(
     input.definition.actions.map((action) => [action.ref, action]),
   );
+
+  // Track pending human inputs and their resolutions
+  const pendingHumanInputs = new Map<string, { nodeRef: string; resolve: (res: HumanInputResolution) => void }>();
+  const humanInputResolutions = new Map<string, HumanInputResolution>();
+
+  // Set up signal handler for human input resolutions
+  setHandler(resolveHumanInputSignal, (resolution: HumanInputResolution) => {
+    console.log(`[Workflow] Received human input signal for ${resolution.nodeRef}: approved=${resolution.approved}`);
+    humanInputResolutions.set(resolution.nodeRef, resolution);
+    const pending = pendingHumanInputs.get(resolution.nodeRef);
+    if (pending) {
+      pending.resolve(resolution);
+    }
+  });
 
   console.log(`[Workflow] Starting shipsec workflow run: ${input.runId}`);
 
@@ -49,6 +108,19 @@ export async function shipsecWorkflowRun(
 
   try {
     await runWorkflowWithScheduler(input.definition, {
+      onNodeSkipped: async (actionRef) => {
+        console.log(`[Workflow] Node skipped: ${actionRef}`);
+        await recordTraceEventActivity({
+          type: 'NODE_SKIPPED',
+          runId: input.runId,
+          nodeRef: actionRef,
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          context: {
+            activityId: 'workflow-orchestration',
+          },
+        });
+      },
       run: async (actionRef, schedulerContext) => {
         const action = actionsByRef.get(actionRef);
         if (!action) {
@@ -111,7 +183,140 @@ export async function shipsecWorkflowRun(
         };
 
         const output = await runComponentActivity(activityInput);
-        results.set(action.ref, output.output);
+
+        // Check if this is a pending human input request (approval gate, form, choice, etc.)
+        if (isApprovalPending(output.output)) {
+          console.log(`[Workflow] Pending human input detected at ${action.ref} (type=${(output.output as any).inputType ?? 'approval'})`);
+
+          const pendingData = output.output as any;
+          
+          // Create the human input request in the database
+          const approvalResult = await createHumanInputRequestActivity({
+            runId: input.runId,
+            workflowId: input.workflowId,
+            nodeRef: action.ref,
+            inputType: pendingData.inputType ?? 'approval',
+            title: pendingData.title,
+            description: pendingData.description,
+            context: pendingData.contextData ?? (mergedParams.data ? { data: mergedParams.data } : undefined),
+            inputSchema: pendingData.inputSchema ?? (pendingData.options ? { options: pendingData.options, multiple: pendingData.multiple } : undefined) ?? (pendingData.schema ? { schema: pendingData.schema } : undefined),
+            timeoutMs: pendingData.timeoutAt ? new Date(pendingData.timeoutAt).getTime() - Date.now() : undefined,
+            organizationId: input.organizationId ?? null,
+          });
+
+          console.log(`[Workflow] Created human input request ${approvalResult.requestId} for ${action.ref}`);
+
+          // Check if we already have a resolution (signal arrived before we started waiting)
+          let resolution = humanInputResolutions.get(action.ref);
+
+          if (!resolution) {
+            // Wait for the human input signal
+            console.log(`[Workflow] Waiting for human input signal for ${action.ref}...`);
+            
+            // Calculate timeout duration
+            const timeoutMs = pendingData.timeoutAt 
+              ? Math.max(0, new Date(pendingData.timeoutAt).getTime() - Date.now())
+              : undefined;
+
+            // Wait for signal or timeout
+            let signalReceived: boolean;
+            if (timeoutMs !== undefined) {
+              signalReceived = await condition(
+                () => humanInputResolutions.has(action.ref),
+                timeoutMs
+              );
+            } else {
+              // No timeout - wait indefinitely
+              await condition(() => humanInputResolutions.has(action.ref));
+              signalReceived = true;
+            }
+
+            if (!signalReceived) {
+              // Timeout occurred
+              console.log(`[Workflow] Human input timeout for ${action.ref}`);
+              await expireHumanInputRequestActivity(approvalResult.requestId);
+              throw new Error(`Human input request timed out for node ${action.ref}`);
+            }
+
+            resolution = humanInputResolutions.get(action.ref)!;
+          }
+
+          console.log(`[Workflow] Human input resolved for ${action.ref}: approved=${resolution.approved}`);
+
+          // Store the final result (merging in responseData for dynamic ports)
+          // Include both 'approved' and 'rejected' fields so downstream nodes can consume either port's data
+          results.set(action.ref, {
+            approved: resolution.approved,
+            rejected: !resolution.approved,
+            respondedBy: resolution.respondedBy,
+            responseNote: resolution.responseNote,
+            respondedAt: resolution.respondedAt,
+            requestId: approvalResult.requestId,
+            ...(typeof resolution.responseData === 'object' ? resolution.responseData : {}),
+          });
+
+          // Determine active ports based on resolution
+          const activePorts: string[] = [
+            'respondedBy',
+            'responseNote',
+            'respondedAt',
+            'requestId'
+          ];
+
+          const inputType = (pendingData.inputType ?? 'approval') as string;
+          
+          if (inputType === 'approval' || inputType === 'review') {
+             // Standard approval gating
+             activePorts.push(resolution.approved ? 'approved' : 'rejected');
+          } else if (inputType === 'selection') {
+             // Activate ports for selected options
+             const selection = (resolution.responseData as any)?.selection;
+             if (selection !== undefined && selection !== null) {
+                activePorts.push('selection');
+                if (Array.isArray(selection)) {
+                  selection.forEach((val: string) => activePorts.push(`option:${val}`));
+                } else if (typeof selection === 'string') {
+                  activePorts.push(`option:${selection}`);
+                }
+             }
+             
+             if (resolution.approved) {
+                activePorts.push('approved');
+             } else {
+                activePorts.push('rejected');
+             }
+          } else {
+             // Fallback for form/acknowledge
+             if (resolution.approved) {
+                activePorts.push('approved');
+             } else {
+                activePorts.push('rejected');
+             }
+          }
+
+          // Explicitly mark the node as completed via trace (since we suppressed it earlier)
+          await recordTraceEventActivity({
+            type: 'NODE_COMPLETED',
+            runId: input.runId,
+            nodeRef: action.ref,
+            timestamp: new Date().toISOString(),
+            outputSummary: results.get(action.ref),
+            data: { activatedPorts: activePorts },
+            level: 'info',
+            context: {
+                activityId: 'workflow-orchestration',
+            }
+          });
+
+          // Return active ports to scheduler for conditional execution
+          return { activePorts };
+        } else {
+          // Normal component - just store the result
+          results.set(action.ref, output.output);
+          
+          // Return any active ports returned by the component activity
+          return { activePorts: output.activeOutputPorts };
+        }
       },
     });
 

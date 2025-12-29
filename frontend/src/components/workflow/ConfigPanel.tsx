@@ -1,6 +1,6 @@
 import * as LucideIcons from 'lucide-react'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { X, ExternalLink, Loader2, Trash2, ChevronDown, ChevronRight, Circle, CheckCircle2, AlertCircle } from 'lucide-react'
+import { X, ExternalLink, Loader2, Trash2, ChevronDown, ChevronRight, Circle, CheckCircle2, AlertCircle, Pencil, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,14 +19,14 @@ import { ParameterFieldWrapper } from './ParameterField'
 import { WebhookDetails } from './WebhookDetails'
 import { SecretSelect } from '@/components/inputs/SecretSelect'
 import type { Node } from 'reactflow'
-import type { NodeData } from '@/schemas/node'
+import type { FrontendNodeData } from '@/schemas/node'
 import type { ComponentType, KeyboardEvent } from 'react'
 import {
   describePortDataType,
   inputSupportsManualValue,
   isListOfTextPortDataType,
 } from '@/utils/portUtils'
-import { API_BASE_URL } from '@/services/api'
+import { API_BASE_URL, api } from '@/services/api'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { useApiKeyStore } from '@/store/apiKeyStore'
 import type { WorkflowSchedule } from '@shipsec/shared'
@@ -72,9 +72,9 @@ function CollapsibleSection({ title, count, defaultOpen = true, children }: Coll
 }
 
 interface ConfigPanelProps {
-  selectedNode: Node<NodeData> | null
+  selectedNode: Node<FrontendNodeData> | null
   onClose: () => void
-  onUpdateNode?: (nodeId: string, data: Partial<NodeData>) => void
+  onUpdateNode?: (id: string, data: Partial<FrontendNodeData>) => void
   initialWidth?: number
   onWidthChange?: (width: number) => void
   workflowId?: string | null
@@ -367,7 +367,7 @@ export function ConfigPanel({
   const handleParameterChange = (paramId: string, value: any) => {
     if (!selectedNode || !onUpdateNode) return
 
-    const nodeData = selectedNode.data as any
+    const nodeData: FrontendNodeData = selectedNode.data
 
     const updatedParameters = {
       ...(nodeData.parameters ?? {}),
@@ -388,7 +388,7 @@ export function ConfigPanel({
     return null
   }
 
-  const nodeData = selectedNode.data as any
+  const nodeData: FrontendNodeData = selectedNode.data
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug
   const component = getComponent(componentRef)
 
@@ -446,14 +446,78 @@ export function ConfigPanel({
   const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
   const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{ className?: string }>
 
-  const componentInputs = component.inputs ?? []
-  const componentOutputs = component.outputs ?? []
+  const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
+
+  // Dynamic Ports Resolution
+  const [dynamicInputs, setDynamicInputs] = useState<any[] | null>(null)
+  const [dynamicOutputs, setDynamicOutputs] = useState<any[] | null>(null)
+
+  // Node name editing state
+  const [isEditingNodeName, setIsEditingNodeName] = useState(false)
+  const [editingNodeName, setEditingNodeName] = useState('')
+
+  const handleSaveNodeName = useCallback(() => {
+    const trimmedName = editingNodeName.trim()
+    if (trimmedName && trimmedName !== nodeData.label) {
+      onUpdateNode?.(selectedNode.id, { label: trimmedName })
+    }
+    setIsEditingNodeName(false)
+  }, [editingNodeName, nodeData.label, onUpdateNode, selectedNode.id])
+
+  // Debounce ref
+  const assertPortResolution = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    // If component doesn't have resolvePorts capability, skip
+    // We assume all might have it for now, or check metadata if available
+
+    // reset if component changes
+    if (!component) return
+
+    // Debounce the API call
+    if (assertPortResolution.current) {
+      clearTimeout(assertPortResolution.current)
+    }
+
+    assertPortResolution.current = setTimeout(async () => {
+      try {
+        // Only call if we have parameters
+        const result = await api.components.resolvePorts(component.id, manualParameters)
+        if (result) {
+          if (result.inputs) {
+            setDynamicInputs(result.inputs)
+            const currentDynamic = selectedNode?.data?.dynamicInputs
+            if (JSON.stringify(currentDynamic) !== JSON.stringify(result.inputs)) {
+              onUpdateNode?.(selectedNode!.id, { dynamicInputs: result.inputs })
+            }
+          }
+          if (result.outputs) {
+            setDynamicOutputs(result.outputs)
+            const currentDynamicOutputs = selectedNode?.data?.dynamicOutputs
+            if (JSON.stringify(currentDynamicOutputs) !== JSON.stringify(result.outputs)) {
+              onUpdateNode?.(selectedNode!.id, { dynamicOutputs: result.outputs })
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to resolve dynamic ports', e)
+      }
+    }, 500) // 500ms debounce
+
+    return () => {
+      if (assertPortResolution.current) {
+        clearTimeout(assertPortResolution.current)
+      }
+    }
+  }, [component?.id, JSON.stringify(manualParameters)]) // Deep compare parameters
+
+  const componentInputs = dynamicInputs ?? component.inputs ?? []
+  const componentOutputs = dynamicOutputs ?? component.outputs ?? []
   const componentParameters = component.parameters ?? []
   const exampleItems = [
     component.example,
     ...(component.examples ?? []),
   ].filter((value): value is string => Boolean(value && value.trim().length > 0))
-  const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
   const [scheduleActionState, setScheduleActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
   const handleNavigateSchedules = useCallback(() => {
     if (!workflowId) {
@@ -545,7 +609,7 @@ export function ConfigPanel({
         </Button>
       </div>
 
-      {/* Component Info */}
+      {/* Component Info with inline Node Name editing */}
       <div className="px-4 py-3 border-b bg-muted/20">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg border bg-background flex-shrink-0">
@@ -567,7 +631,62 @@ export function ConfigPanel({
             )} />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-medium text-sm">{component.name}</h4>
+            {/* Node Name - editable for non-entry-point nodes */}
+            {!isEntryPointComponent && isEditingNodeName ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  type="text"
+                  value={editingNodeName}
+                  onChange={(e) => setEditingNodeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSaveNodeName()
+                    } else if (e.key === 'Escape') {
+                      setIsEditingNodeName(false)
+                    }
+                  }}
+                  onBlur={handleSaveNodeName}
+                  placeholder={component.name}
+                  className="h-6 text-sm font-medium py-0 px-1"
+                  autoFocus
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 flex-shrink-0"
+                  onClick={handleSaveNodeName}
+                >
+                  <Check className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 group">
+                <h4 className="font-medium text-sm truncate">
+                  {nodeData.label || component.name}
+                </h4>
+                {!isEntryPointComponent && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => {
+                      setEditingNodeName(nodeData.label || component.name)
+                      setIsEditingNodeName(true)
+                    }}
+                    title="Rename node"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            )}
+            {/* Show component name as subscript if custom name is set */}
+            {nodeData.label && nodeData.label !== component.name && (
+              <span className="text-[10px] text-muted-foreground opacity-70">
+                {component.name}
+              </span>
+            )}
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
               {component.description}
             </p>

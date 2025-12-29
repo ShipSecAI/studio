@@ -8,7 +8,7 @@ interface ComponentCategoryConfig {
   icon: string;
 }
 
-const SUPPORTED_CATEGORIES: ReadonlyArray<ComponentCategory> = ['input', 'transform', 'ai', 'security', 'it_ops', 'output'];
+const SUPPORTED_CATEGORIES: ReadonlyArray<ComponentCategory> = ['input', 'transform', 'ai', 'security', 'it_ops', 'notification', 'manual_action', 'output'];
 
 const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConfig> = {
   input: {
@@ -45,6 +45,20 @@ const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConf
     description: 'IT operations and user management workflows',
     emoji: '🏢',
     icon: 'Building',
+  },
+  notification: {
+    label: 'Notification',
+    color: 'text-pink-600',
+    description: 'Slack, Email, and other messaging alerts',
+    emoji: '🔔',
+    icon: 'Bell',
+  },
+  manual_action: {
+    label: 'Manual Action',
+    color: 'text-amber-600',
+    description: 'Human-in-the-loop interactions, approvals, and manual tasks',
+    emoji: '👤',
+    icon: 'UserCheck',
   },
   output: {
     label: 'Output',

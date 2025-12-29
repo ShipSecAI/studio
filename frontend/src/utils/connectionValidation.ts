@@ -60,11 +60,12 @@ export function validateConnection(
     return { isValid: false, error: 'Connection handles not specified' }
   }
 
-  // Get port metadata (with support for dynamic outputs)
-  let sourceOutputs = sourceComponent.outputs ?? []
+  // Get port metadata (with support for dynamic outputs/inputs)
+  // 1. DYNAMIC OUTPUTS from source
+  let sourceOutputs = (sourceNode.data as any).dynamicOutputs || sourceComponent.outputs || []
   
-  // Special case: Entry Point has dynamic outputs based on runtimeInputs parameter
-  if (sourceComponent.id === 'core.workflow.entrypoint') {
+  // Special case: Entry Point legacy support if dynamicOutputs is missing
+  if (sourceComponent.id === 'core.workflow.entrypoint' && !(sourceNode.data as any).dynamicOutputs) {
     const sourceNodeData = sourceNode.data
     const runtimeInputsParam = sourceNodeData.parameters?.runtimeInputs
     
@@ -91,12 +92,16 @@ export function validateConnection(
       }
     }
   }
+
+  // 2. DYNAMIC INPUTS from target
+  const targetInputs = (targetNode.data as any).dynamicInputs || targetComponent.inputs || []
   
-  const sourcePort = sourceOutputs.find((p) => p.id === sourceHandle)
-  const targetPort = (targetComponent.inputs ?? []).find((p) => p.id === targetHandle)
+  const sourcePort = sourceOutputs.find((p: any) => p.id === sourceHandle)
+  const targetPort = targetInputs.find((p: any) => p.id === targetHandle)
 
   if (!sourcePort || !targetPort) {
-    return { isValid: false, error: 'Invalid connection ports' }
+    const detail = !sourcePort ? `Source port "${sourceHandle}" not found` : `Target port "${targetHandle}" not found`
+    return { isValid: false, error: `Invalid connection ports: ${detail}` }
   }
 
   if (!sourcePort.dataType || !targetPort.dataType) {

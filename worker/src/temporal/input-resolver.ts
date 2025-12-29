@@ -6,6 +6,7 @@ export interface InputWarning {
   target: string;
   sourceRef: string;
   sourceHandle: string;
+  [key: string]: unknown;
 }
 
 export interface ManualOverride {

@@ -72,6 +72,8 @@ export const OutputPortSchema = z.object({
   label: z.string(),
   dataType: PortDataTypeSchema.optional().default(DEFAULT_TEXT_PORT),
   description: z.string().optional(),
+  isBranching: z.boolean().optional(), // True if this port controls conditional execution
+  branchColor: z.enum(['green', 'red', 'amber', 'blue', 'purple', 'slate']).optional(), // Custom color for branching ports
 })
 
 export type OutputPort = z.infer<typeof OutputPortSchema>
@@ -82,7 +84,7 @@ export type OutputPort = z.infer<typeof OutputPortSchema>
 export const ParameterSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'file', 'json', 'secret', 'artifact']),
+  type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'file', 'json', 'secret', 'artifact', 'variable-list', 'form-fields', 'selection-options']),
   required: z.boolean().optional(),
   default: z.any().optional(),
   options: z
@@ -144,7 +146,7 @@ export const ComponentMetadataSchema = z.object({
   name: z.string().min(1),
   version: z.string().default('1.0.0'),
   type: z.enum(['trigger', 'input', 'scan', 'process', 'output']),
-  category: z.enum(['input', 'transform', 'ai', 'security', 'it_ops', 'output']),
+  category: z.enum(['input', 'transform', 'ai', 'security', 'it_ops', 'notification', 'manual_action', 'output']),
   categoryConfig: ComponentCategoryConfigSchema.optional().default({
     label: 'Uncategorized',
     color: 'text-muted-foreground',

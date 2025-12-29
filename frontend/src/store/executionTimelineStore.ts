@@ -27,6 +27,7 @@ export interface NodeVisualState {
   }
   lastMetadata?: TimelineEvent['metadata']
   lastActivityId?: string
+  humanInputRequestId?: string
   attempts: number
   retryCount: number
 }
@@ -341,6 +342,8 @@ const calculateNodeStates = (
 
     // Determine status based on last event
     let status: NodeStatus = 'idle'
+    let humanInputRequestId: string | undefined
+
     switch (lastEvent.type) {
       case 'STARTED':
         status = 'running'
@@ -348,11 +351,20 @@ const calculateNodeStates = (
       case 'PROGRESS':
         status = 'running'
         break
+      case 'AWAITING_INPUT':
+        status = 'awaiting_input'
+        if (lastEvent.data && typeof lastEvent.data.requestId === 'string') {
+          humanInputRequestId = lastEvent.data.requestId
+        }
+        break
       case 'COMPLETED':
         status = 'success'
         break
       case 'FAILED':
         status = 'error'
+        break
+      case 'SKIPPED':
+        status = 'skipped'
         break
     }
 
@@ -388,6 +400,7 @@ const calculateNodeStates = (
       },
       lastMetadata: latestMetadata ?? lastEvent.metadata,
       lastActivityId,
+      humanInputRequestId,
       attempts,
       retryCount,
     }
@@ -500,7 +513,7 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
           })
         }
 
-        const eventsList = (eventsResponse.events ?? []).filter(
+        const eventsList = (eventsResponse.events as unknown as ExecutionLog[] ?? []).filter(
           (event): event is ExecutionLog => 
             Boolean(event.id && event.runId && event.nodeId && event.timestamp && event.type && event.level)
         )

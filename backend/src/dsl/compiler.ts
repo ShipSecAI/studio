@@ -143,8 +143,21 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     const component = componentRegistry.get(node.type);
     const params: Record<string, unknown> = { ...componentParams };
 
+    let inputs = component?.metadata?.inputs ?? [];
+    if (component?.resolvePorts) {
+      try {
+        const resolved = component.resolvePorts(params);
+        if (resolved.inputs) {
+          inputs = resolved.inputs;
+        }
+      } catch (e) {
+        // Log but fallback to static inputs
+        console.warn(`Failed to resolve ports for node ${id} during compilation`, e);
+      }
+    }
+
     const inputMetadata = new Map(
-      component?.metadata?.inputs?.map((input) => [input.id, input]) ?? [],
+      inputs.map((input) => [input.id, input]),
     );
 
     // Remove manual values for connected ports unless the port explicitly prefers manual overrides

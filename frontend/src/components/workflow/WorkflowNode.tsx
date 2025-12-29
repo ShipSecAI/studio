@@ -5,12 +5,13 @@ import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MarkdownView } from '@/components/ui/markdown'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useComponentStore } from '@/store/componentStore'
 import { useExecutionStore } from '@/store/executionStore'
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore'
 import { useWorkflowStore } from '@/store/workflowStore'
 import { getNodeStyle } from './nodeStyles'
-import type { NodeData } from '@/schemas/node'
+import type { NodeData, FrontendNodeData } from '@/schemas/node'
 import type { NodeStatus } from '@/schemas/node'
 import type { InputPort } from '@/schemas/component'
 import { useWorkflowUiStore } from '@/store/workflowUiStore'
@@ -26,12 +27,15 @@ import { useApiKeyStore } from '@/store/apiKeyStore'
 import { API_BASE_URL } from '@/services/api'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useEntryPointActions } from './Canvas'
+import { ShieldAlert } from 'lucide-react'
 
 const STATUS_ICONS = {
   running: Loader2,
   success: CheckCircle,
   error: XCircle,
   waiting: Clock,
+  awaiting_input: ShieldAlert,
+  skipped: LucideIcons.Ban,
   idle: null,
 } as const
 
@@ -311,6 +315,83 @@ function TerminalButton({
 }
 
 /**
+ * Parameters Display - Shows required and select parameters on the node
+ */
+interface ParametersDisplayProps {
+  componentParameters: any[]
+  requiredParams: any[]
+  nodeParameters: Record<string, any> | undefined
+  position?: 'top' | 'bottom'
+}
+
+function ParametersDisplay({
+  componentParameters,
+  requiredParams,
+  nodeParameters,
+  position = 'bottom'
+}: ParametersDisplayProps) {
+  // Show required parameters and important select parameters (like mode)
+  // Exclude nested parameters (those with visibleWhen) like schemaType
+  const selectParams = componentParameters.filter(
+    param => param.type === 'select' && !param.required && !param.visibleWhen
+  )
+  const paramsToShow = [...requiredParams, ...selectParams]
+
+  if (paramsToShow.length === 0) return null
+
+  return (
+    <div className={cn(
+      position === 'top'
+        ? "pb-2 mb-2 border-b border-border/50"
+        : "pt-2 border-t border-border/50"
+    )}>
+      <div className="space-y-1">
+        {paramsToShow.map((param) => {
+          const value = nodeParameters?.[param.id]
+          const effectiveValue = value !== undefined ? value : param.default
+          const hasValue = effectiveValue !== undefined && effectiveValue !== null && effectiveValue !== ''
+          const isDefault = value === undefined && param.default !== undefined
+
+          // For select parameters, show the label instead of value
+          let displayValue = hasValue ? effectiveValue : ''
+          if (param.type === 'select' && hasValue && param.options) {
+            const option = param.options.find((opt: any) => opt.value === effectiveValue)
+            displayValue = option?.label || effectiveValue
+          }
+
+          return (
+            <div key={`param-${param.id}`} className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground font-medium truncate">
+                {param.label}
+              </span>
+              <div className="flex items-center gap-1">
+                {hasValue ? (
+                  <span
+                    className={cn(
+                      "font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[80px]",
+                      isDefault
+                        ? "text-muted-foreground bg-muted/50 italic"
+                        : param.type === 'select'
+                          ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 font-semibold"
+                          : "text-foreground bg-muted"
+                    )}
+                    title={isDefault ? `Default: ${String(displayValue)}` : String(displayValue)}
+                  >
+                    {String(displayValue)}
+                  </span>
+                ) : param.required ? (
+                  <span className="text-red-500 text-[10px]">*required</span>
+                ) : null}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
  * Enhanced WorkflowNode - Visual representation with timeline states
  */
 export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
@@ -319,13 +400,18 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const updateNodeInternals = useUpdateNodeInternals()
   const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode, isLiveFollowing } = useExecutionTimelineStore()
   const { markDirty } = useWorkflowStore()
-  const { mode, focusedTerminalNodeId, bringTerminalToFront } = useWorkflowUiStore()
+  const { mode, focusedTerminalNodeId, bringTerminalToFront, openHumanInputDialog } = useWorkflowUiStore()
   // Note: hover effects use CSS :hover instead of React state to avoid re-renders (which cause image flicker)
   const prefetchTerminal = useExecutionStore((state) => state.prefetchTerminal)
   const terminalSession = useExecutionStore((state) => state.getTerminalSession(id, 'pty'))
   const [isTerminalOpen, setIsTerminalOpen] = useState(false)
   const [isTerminalLoading, setIsTerminalLoading] = useState(false)
   const nodeRef = useRef<HTMLDivElement | null>(null)
+
+  // Inline label editing state
+  const [isEditingLabel, setIsEditingLabel] = useState(false)
+  const [editingLabelValue, setEditingLabelValue] = useState('')
+  const labelInputRef = useRef<HTMLInputElement | null>(null)
 
   // Entry Point specific state
   const navigate = useNavigate()
@@ -378,7 +464,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   }, [id, isTerminalOpen, prefetchTerminal, selectedRunId])
 
   // Cast to access extended frontend fields (componentId, componentSlug, status, etc.)
-  const nodeData = data as any
+  const nodeData = data as FrontendNodeData
 
   // Get component metadata
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug
@@ -573,17 +659,59 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Display label (custom or component name)
   const displayLabel = data.label || component.name
+  // Check if user has set a custom label (different from component name)
+  const hasCustomLabel = data.label && data.label !== component.name
+
+  // Label editing handlers
+  const handleStartEditing = () => {
+    if (isEntryPoint || mode !== 'design') return
+    setEditingLabelValue(data.label || component.name)
+    setIsEditingLabel(true)
+    // Focus the input after render
+    setTimeout(() => labelInputRef.current?.focus(), 0)
+  }
+
+  const handleSaveLabel = () => {
+    const trimmedValue = editingLabelValue.trim()
+    if (trimmedValue && trimmedValue !== data.label) {
+      setNodes((nodes) =>
+        nodes.map((n) =>
+          n.id === id
+            ? { ...n, data: { ...n.data, label: trimmedValue } }
+            : n
+        )
+      )
+      markDirty()
+    }
+    setIsEditingLabel(false)
+  }
+
+  const handleCancelEditing = () => {
+    setIsEditingLabel(false)
+  }
+
+  const handleLabelKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSaveLabel()
+    } else if (e.key === 'Escape') {
+      handleCancelEditing()
+    }
+  }
 
   // Check if there are unfilled required parameters or inputs
   const componentParameters = component.parameters ?? []
-  const componentInputs = component.inputs ?? []
+  const componentInputs = nodeData.dynamicInputs ?? component.inputs ?? []
   const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
   const requiredParams = componentParameters.filter(param => param.required)
   const requiredInputs = componentInputs.filter(input => input.required)
 
-  // DYNAMIC OUTPUTS: For Entry Point, generate outputs based on runtimeInputs parameter
-  let effectiveOutputs = component.outputs ?? []
-  if (component.id === 'core.workflow.entrypoint' && nodeData.parameters?.runtimeInputs) {
+  // DYNAMIC OUTPUTS: Use dynamicOutputs from node data (set by ConfigPanel via resolvePorts API)
+  // Fall back to Entry Point special case, then static component.outputs
+  let effectiveOutputs: any[] = nodeData.dynamicOutputs ?? (Array.isArray(component.outputs) ? component.outputs : [])
+
+  // Legacy: For Entry Point without dynamicOutputs, generate outputs based on runtimeInputs parameter
+  if (!nodeData.dynamicOutputs && component.id === 'core.workflow.entrypoint' && nodeData.parameters?.runtimeInputs) {
     try {
       const runtimeInputs = typeof nodeData.parameters.runtimeInputs === 'string'
         ? JSON.parse(nodeData.parameters.runtimeInputs)
@@ -753,6 +881,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     <div
       className={cn(
         'shadow-lg border-2 transition-[box-shadow,background-color,border-color,transform] relative group',
+        'bg-background',
         // Entry point nodes have more rounded corners (even more rounded)
         isEntryPoint ? 'rounded-[1.5rem]' : 'rounded-lg',
         isTextBlock ? 'min-w-[240px] max-w-none flex flex-col' : 'min-w-[240px] max-w-[280px]',
@@ -766,14 +895,13 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         !isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400',
 
         // Node status states (non-entry-point nodes only)
-        !isEntryPoint && nodeData.status && nodeData.status !== 'idle' && [
+        !isEntryPoint && (effectiveStatus !== 'idle' || isTimelineActive) && [
           nodeStyle.bg,
           nodeStyle.border,
         ],
 
         // Default state (all nodes when idle) - white/grey background
         (!nodeData.status || nodeData.status === 'idle') && !isTimelineActive && [
-          'bg-background',
           'border-border',
         ],
 
@@ -848,7 +976,34 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                {isEditingLabel ? (
+                  <input
+                    ref={labelInputRef}
+                    type="text"
+                    value={editingLabelValue}
+                    onChange={(e) => setEditingLabelValue(e.target.value)}
+                    onBlur={handleSaveLabel}
+                    onKeyDown={handleLabelKeyDown}
+                    className="text-sm font-semibold bg-transparent border-b border-primary outline-none w-full py-0"
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    className={cn(
+                      "group/label",
+                      !isEntryPoint && mode === 'design' && "cursor-text"
+                    )}
+                    onDoubleClick={handleStartEditing}
+                    title={!isEntryPoint && mode === 'design' ? "Double-click to rename" : undefined}
+                  >
+                    <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                    {hasCustomLabel && (
+                      <span className="text-[10px] text-muted-foreground opacity-70 truncate block">
+                        {component.name}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 {/* Delete button (Design Mode only, not Entry Point) */}
@@ -956,6 +1111,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               Failed
             </Badge>
           )}
+          {visualState.status === 'skipped' && (
+            <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-600">
+              <LucideIcons.Ban className="h-3 w-3 mr-1" />
+              Skipped
+            </Badge>
+          )}
 
           {/* Progress bar and events */}
           <ProgressBar
@@ -973,6 +1134,21 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         "px-3 py-3 pb-4 space-y-2",
         isTextBlock && "flex flex-col flex-1"
       )}>
+        {effectiveStatus === 'awaiting_input' && visualState.humanInputRequestId && (
+          <div className={cn("mb-2", isEntryPoint && "hidden")}>
+            <Button
+              variant="outline"
+              className="w-full bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-300 border-blue-500/50 shadow-sm animate-pulse h-8 text-xs font-semibold"
+              onClick={(e) => {
+                e.stopPropagation()
+                openHumanInputDialog(visualState.humanInputRequestId!)
+              }}
+            >
+              <LucideIcons.ShieldAlert className="w-3.5 h-3.5 mr-2" />
+              Action Required
+            </Button>
+          </div>
+        )}
         {isTextBlock && (
           trimmedTextBlockContent.length > 0 ? (
             <MarkdownView
@@ -1098,6 +1274,20 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     </div>
                   ))}
                 </div>
+              ) : isEntryPoint ? (
+                <div className="relative flex items-center justify-end gap-2 text-xs">
+                  <div className="flex-1 text-right italic font-medium opacity-60">
+                    Triggered
+                  </div>
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    // No ID provided - matches 'undefined' in React Flow, 
+                    // which is what edges created without sourceHandle expect.
+                    className="!w-[10px] !h-[10px] !border-2 !border-blue-500 !bg-blue-500 !rounded-full"
+                    style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+                  />
+                </div>
               ) : (
                 <div className="text-xs text-muted-foreground/60 text-center py-2">
                   No outputs
@@ -1105,7 +1295,20 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               )}
             </div>
           </div>
-        ) : componentInputs.length > 0 && (
+        ) : null}
+
+        {/* Parameters Display - Shown above ports for non-entry-point nodes */}
+        {!isEntryPoint && (
+          <ParametersDisplay
+            componentParameters={componentParameters}
+            requiredParams={requiredParams}
+            nodeParameters={nodeData.parameters}
+            position="top"
+          />
+        )}
+
+        {/* Input Ports (not shown for entry points) */}
+        {!isEntryPoint && componentInputs.length > 0 && (
           <div className="space-y-1.5">
             {componentInputs.map((input) => {
               // Check if this input has a connection
@@ -1185,10 +1388,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           </div>
         )}
 
-        {/* Output Ports (not shown for entry points - they're in the split layout) */}
-        {!isEntryPoint && effectiveOutputs.length > 0 && (
+        {/* Output Ports - Regular only (not shown for entry points - they're in the split layout) */}
+        {!isEntryPoint && effectiveOutputs.filter((o: any) => !o.isBranching).length > 0 && (
           <div className="space-y-1.5">
-            {effectiveOutputs.map((output) => (
+            {effectiveOutputs.filter((o: any) => !o.isBranching).map((output: any) => (
               <div key={output.id} className="relative flex items-center justify-end gap-2 text-xs">
                 <div className="flex-1 text-right">
                   <div className="text-muted-foreground font-medium">{output.label}</div>
@@ -1205,113 +1408,167 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           </div>
         )}
 
-        {/* Parameters Display (Required + Select types) */}
-        {(() => {
-          // Show required parameters and important select parameters (like mode)
-          // Exclude nested parameters (those with visibleWhen) like schemaType
-          const selectParams = componentParameters.filter(
-            param => param.type === 'select' && !param.required && !param.visibleWhen
-          )
-          const paramsToShow = [...requiredParams, ...selectParams]
+        {/* Branching Outputs - Compact horizontal section */}
+        {!isEntryPoint && (() => {
+          const branchingOutputs = effectiveOutputs.filter((o: any) => o.isBranching)
+          if (branchingOutputs.length === 0) return null
 
-          if (paramsToShow.length === 0) return null
+          // Determine which branches are active (for execution mode)
+          const data = isTimelineActive ? visualState.lastEvent?.data : undefined
+          const activatedPorts = data?.activatedPorts
+
+          // Legacy fallback for manual-approval
+          const legacyActiveBranchId = !activatedPorts && data
+            ? (data.approved === true ? 'approved'
+              : data.approved === false ? 'rejected'
+                : null)
+            : null
+
+          const isNodeFinished = isTimelineActive && (visualState.status === 'success' || visualState.status === 'error')
+          const isNodeSkipped = isTimelineActive && visualState.status === 'skipped'
+          const hasBranchDecision = isNodeFinished || isNodeSkipped
 
           return (
-            <div className="pt-2 border-t border-border/50">
-              <div className="space-y-1">
-                {paramsToShow.map((param) => {
-                  const value = nodeData.parameters?.[param.id]
-                  const effectiveValue = value !== undefined ? value : param.default
-                  const hasValue = effectiveValue !== undefined && effectiveValue !== null && effectiveValue !== ''
-                  const isDefault = value === undefined && param.default !== undefined
+            <div className="mt-2 pt-2 border-t border-dashed border-amber-300/50 dark:border-amber-700/50">
+              <div className="flex gap-2">
+                {/* Left side: Title */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <LucideIcons.GitBranch className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                  <span className="text-[9px] font-medium text-amber-600/80 dark:text-amber-400/80 uppercase tracking-wider">
+                    Branches
+                  </span>
+                </div>
 
-                  // For select parameters, show the label instead of value
-                  let displayValue = hasValue ? effectiveValue : ''
-                  if (param.type === 'select' && hasValue && param.options) {
-                    const option = param.options.find(opt => opt.value === effectiveValue)
-                    displayValue = option?.label || effectiveValue
-                  }
+                {/* Right side: Branch pills stacked */}
+                <div className="flex flex-col flex-1 gap-1">
+                  {branchingOutputs.map((output: any) => {
+                    const isActive = isNodeFinished && (
+                      activatedPorts
+                        ? activatedPorts.includes(output.id)
+                        : legacyActiveBranchId === output.id
+                    )
 
-                  return (
-                    <div key={`param-${param.id}`} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-muted-foreground font-medium truncate">
-                        {param.label}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {hasValue ? (
-                          <span
-                            className={cn(
-                              "font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[80px]",
-                              isDefault
-                                ? "text-muted-foreground bg-muted/50 italic"
-                                : param.type === 'select'
-                                  ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 font-semibold"
-                                  : "text-foreground bg-muted"
-                            )}
-                            title={isDefault ? `Default: ${String(displayValue)}` : String(displayValue)}
-                          >
-                            {String(displayValue)}
-                          </span>
-                        ) : param.required ? (
-                          <span className="text-red-500 text-[10px]">*required</span>
-                        ) : null}
+                    const isInactive = isNodeSkipped || (isNodeFinished && !isActive)
+                    const branchColor = output.branchColor || 'amber'
+
+                    // Color classes for design mode (no decision yet)
+                    const designModeColors: Record<string, string> = {
+                      green: "bg-green-50/80 dark:bg-green-900/20 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300",
+                      red: "bg-red-50/80 dark:bg-red-900/20 border-red-400 dark:border-red-600 text-red-700 dark:text-red-300",
+                      amber: "bg-amber-50/80 dark:bg-amber-900/20 border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300",
+                      blue: "bg-blue-50/80 dark:bg-blue-900/20 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300",
+                      purple: "bg-purple-50/80 dark:bg-purple-900/20 border-purple-400 dark:border-purple-600 text-purple-700 dark:text-purple-300",
+                      slate: "bg-slate-100/80 dark:bg-slate-800/30 border-slate-400 dark:border-slate-600 text-slate-700 dark:text-slate-300",
+                    }
+
+                    // Handle colors for design mode
+                    const handleDesignColors: Record<string, string> = {
+                      green: "!border-green-500 !bg-green-500",
+                      red: "!border-red-500 !bg-red-500",
+                      amber: "!border-amber-500 !bg-amber-500",
+                      blue: "!border-blue-500 !bg-blue-500",
+                      purple: "!border-purple-500 !bg-purple-500",
+                      slate: "!border-slate-500 !bg-slate-500",
+                    }
+
+                    return (
+                      <div
+                        key={output.id}
+                        className="relative flex items-center justify-end gap-2 text-xs"
+                      >
+                        <div
+                          className={cn(
+                            "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all",
+                            "border",
+                            // No decision yet (design or running)
+                            !hasBranchDecision && designModeColors[branchColor],
+                            // Active branch - always green
+                            isActive && "bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-400/50",
+                            // Inactive/Skipped branch - MUTED/OFF state
+                            isInactive && "bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 opacity-30 grayscale-[0.8]",
+                          )}
+                        >
+                          {isActive && <LucideIcons.Check className="h-2.5 w-2.5" />}
+                          {isInactive && <LucideIcons.X className="h-2.5 w-2.5 text-slate-400/50" />}
+                          <span>{output.label}</span>
+                        </div>
+                        <Handle
+                          type="source"
+                          position={Position.Right}
+                          id={output.id}
+                          className={cn(
+                            "!w-[10px] !h-[10px] !border-2 !rounded-full",
+                            !hasBranchDecision && handleDesignColors[branchColor],
+                            isActive && "!border-green-500 !bg-green-500",
+                            isInactive && "!border-slate-300 !bg-slate-200 dark:!bg-slate-800 opacity-30"
+                          )}
+                          style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+                        />
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )
-        })()}
+        })()
+        }
+
 
         {/* Enhanced Execution Status Messages */}
-        {isTimelineActive && (
-          <div className="pt-2 border-t border-border/50">
-            {visualState.lastEvent && (
-              <div className="text-xs text-muted-foreground mt-2">
-                <div className="font-medium">
-                  Last: {visualState.lastEvent.type.replace('_', ' ')}
-                </div>
-                {visualState.lastEvent.message && (
-                  <div className="truncate mt-1" title={visualState.lastEvent.message}>
-                    {visualState.lastEvent.message}
+        {
+          isTimelineActive && (
+            <div className="pt-2 border-t border-border/50">
+              {visualState.lastEvent && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  <div className="font-medium">
+                    Last: {visualState.lastEvent.type.replace('_', ' ')}
                   </div>
-                )}
-              </div>
-            )}
+                  {visualState.lastEvent.message && (
+                    <div className="truncate mt-1" title={visualState.lastEvent.message}>
+                      {visualState.lastEvent.message}
+                    </div>
+                  )}
+                </div>
+              )}
 
-            {/* Legacy status messages */}
-            {!isTimelineActive && nodeData.status === 'success' && nodeData.executionTime && (
-              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
-                {nodeData.executionTime}ms
+              {/* Legacy status messages */}
+              {!isTimelineActive && nodeData.status === 'success' && nodeData.executionTime && (
+                <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300">
+                  {nodeData.executionTime}ms
+                </Badge>
+              )}
+
+              {!isTimelineActive && nodeData.status === 'error' && nodeData.error && (
+                <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 truncate max-w-full" title={nodeData.error}>
+                  ✗ {nodeData.error}
+                </Badge>
+              )}
+            </div>
+          )
+        }
+
+        {/* Legacy status messages (when not in timeline mode) */}
+        {
+          !isTimelineActive && nodeData.status === 'success' && nodeData.executionTime && (
+            <div className="pt-2 border-t border-border">
+              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                ✓ {nodeData.executionTime}ms
               </Badge>
-            )}
+            </div>
+          )
+        }
 
-            {!isTimelineActive && nodeData.status === 'error' && nodeData.error && (
+        {
+          !isTimelineActive && nodeData.status === 'error' && nodeData.error && (
+            <div className="pt-2 border-t border-red-200">
               <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 truncate max-w-full" title={nodeData.error}>
                 ✗ {nodeData.error}
               </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Legacy status messages (when not in timeline mode) */}
-        {!isTimelineActive && nodeData.status === 'success' && nodeData.executionTime && (
-          <div className="pt-2 border-t border-border">
-            <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-              ✓ {nodeData.executionTime}ms
-            </Badge>
-          </div>
-        )}
-
-        {!isTimelineActive && nodeData.status === 'error' && nodeData.error && (
-          <div className="pt-2 border-t border-red-200">
-            <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 truncate max-w-full" title={nodeData.error}>
-              ✗ {nodeData.error}
-            </Badge>
-          </div>
-        )}
-      </div>
-    </div>
+            </div>
+          )
+        }
+      </div >
+    </div >
   )
 }

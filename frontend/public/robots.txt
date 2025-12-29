@@ -1,0 +1,43 @@
+# robots.txt - ShipSec Studio
+# Security automation platform robots configuration
+
+# Default rules for all bots
+User-agent: *
+Allow: /
+Allow: /docs/
+Allow: /api/docs
+Allow: /llms.txt
+Allow: /sitemap.xml
+
+# Disallow sensitive/admin areas
+Disallow: /admin/
+Disallow: /api/v1/admin/
+Disallow: /api/auth/
+Disallow: /api/internal/
+Disallow: /api/secrets/
+Disallow: /_next/
+Disallow: /.git/
+Disallow: /node_modules/
+Disallow: /build/
+Disallow: /dist/
+Disallow: /coverage/
+Disallow: /.env*
+Disallow: /config/
+Disallow: /secrets/
+Disallow: /temp/
+Disallow: /*?*sort=
+Disallow: /*?*filter=
+Disallow: /*?*page=
+
+# Google-specific rules
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+# Bing-specific rules
+User-agent: Bingbot
+
+
+# Sitemaps - primary and documentation
+Sitemap: https://studio.shipsec.ai/sitemap.xml
+Github: https://github.com/shipsecai/studio

@@ -15,6 +15,8 @@ const PACKET_ICONS = {
 }
 
 interface DataFlowEdgeProps extends EdgeProps {
+  sourceHandle?: string | null
+  targetHandle?: string | null
   data?: {
     packets?: DataPacket[]
     isHighlighted?: boolean
@@ -59,7 +61,7 @@ const DataPacket = memo(({ packet, onHover }: {
 })
 
 // Enhanced edge with data flow visualization
-export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, targetX, targetY, data, markerEnd }: DataFlowEdgeProps) => {
+export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, targetX, targetY, data, markerEnd, sourceHandle, targetHandle }: DataFlowEdgeProps) => {
   const [hoveredPacket, setHoveredPacket] = useState<DataPacket | null>(null)
   const [animatedPackets, setAnimatedPackets] = useState<AnimatedPacket[]>([])
   const animationRef = useRef<number | null>(null)
@@ -73,6 +75,38 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
     selectedRunId,
   } = useExecutionTimelineStore()
   const { mode } = useWorkflowUiStore()
+
+  const nodeStates = useExecutionTimelineStore((state) => state.nodeStates)
+  const sourceNodeState = nodeStates[source]
+
+  const isDimmed = useMemo(() => {
+    if (mode !== 'execution' || !selectedRunId || !sourceNodeState) return false
+
+    // If node is skipped, all its outgoing edges are dimmed
+    if (sourceNodeState.status === 'skipped') return true
+
+    // Only dim after the node has finished or failed
+    const isFinished = sourceNodeState.status === 'success' || sourceNodeState.status === 'error'
+    if (!isFinished) return false
+
+    const data = sourceNodeState.lastEvent?.data as any
+    const activatedPorts = data?.activatedPorts as string[] | undefined
+
+    // If we have activatedPorts info (from backend NODE_COMPLETED trace)
+    if (activatedPorts && sourceHandle) {
+      return !activatedPorts.includes(sourceHandle)
+    }
+
+    // Legacy fallback for manual-approval (core.manual_action.approval)
+    if (data && typeof data.approved === 'boolean') {
+      const activeBranch = data.approved ? 'approved' : 'rejected'
+      if (sourceHandle === 'approved' || sourceHandle === 'rejected') {
+        return sourceHandle !== activeBranch
+      }
+    }
+
+    return false
+  }, [mode, selectedRunId, sourceNodeState, sourceHandle])
 
   const packets = useMemo(() => {
     const packetsFromProps = data?.packets
@@ -88,9 +122,11 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
       (packet) =>
         packet.sourceNode === source &&
         packet.targetNode === target &&
+        // If we have an input handle, ensure packet matches it
+        (!packet.inputKey || (targetHandle && packet.inputKey === targetHandle)) &&
         new Date(packet.timestamp).getTime() <= cutoff
     )
-  }, [data?.packets, dataFlows, source, target, currentTime])
+  }, [data?.packets, dataFlows, source, target, targetHandle, currentTime])
 
   const edgePath = useMemo(() => {
     const [path] = getBezierPath({
@@ -114,7 +150,7 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
 
   // Animate packets along the path
   useEffect(() => {
-    if (!edgePath || mode !== 'execution' || !selectedRunId || playbackMode === 'live' || packets.length === 0) {
+    if (!edgePath || mode !== 'execution' || !selectedRunId || playbackMode === 'live' || packets.length === 0 || isDimmed) {
       setAnimatedPackets([])
       return
     }
@@ -156,7 +192,7 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [packets, currentTime, isPlaying, playbackSpeed, edgePath, selectedRunId, playbackMode])
+  }, [packets, currentTime, isPlaying, playbackSpeed, edgePath, selectedRunId, playbackMode, isDimmed])
 
   // Position packets along the Bezier curve
   const getPointOnBezierCurve = (t: number, sourceX: number, sourceY: number, targetX: number, targetY: number): { x: number; y: number } => {
@@ -171,14 +207,14 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
 
     // Cubic Bezier curve formula
     const x = Math.pow(1 - t, 3) * sourceX +
-              3 * Math.pow(1 - t, 2) * t * cp1x +
-              3 * (1 - t) * Math.pow(t, 2) * cp2x +
-              Math.pow(t, 3) * targetX
+      3 * Math.pow(1 - t, 2) * t * cp1x +
+      3 * (1 - t) * Math.pow(t, 2) * cp2x +
+      Math.pow(t, 3) * targetX
 
     const y = Math.pow(1 - t, 3) * sourceY +
-              3 * Math.pow(1 - t, 2) * t * cp1y +
-              3 * (1 - t) * Math.pow(t, 2) * cp2y +
-              Math.pow(t, 3) * targetY
+      3 * Math.pow(1 - t, 2) * t * cp1y +
+      3 * (1 - t) * Math.pow(t, 2) * cp2y +
+      Math.pow(t, 3) * targetY
 
     return { x, y }
   }
@@ -200,6 +236,11 @@ export const DataFlowEdge = memo(({ id, source, target, sourceX, sourceY, target
         id={id}
         path={edgePath}
         markerEnd={markerEnd}
+        style={isDimmed ? {
+          stroke: 'hsl(var(--muted-foreground) / 0.2)',
+          strokeDasharray: '5,5',
+          opacity: 0.5
+        } : {}}
       />
 
       {/* Animated data packets */}

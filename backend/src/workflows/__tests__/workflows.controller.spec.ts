@@ -293,6 +293,9 @@ describe('WorkflowsController', () => {
         }
         return record;
       },
+      async hasPendingInputs() {
+        return false;
+      },
     };
 
     const traceRepositoryStub = {

@@ -545,6 +545,46 @@ export class ShipSecApiClient {
       body: payload,
     });
   }
+
+  // ===== Human Inputs =====
+
+  async listHumanInputs(options?: {
+    status?: 'pending' | 'resolved' | 'expired' | 'cancelled';
+    inputType?: 'approval' | 'form' | 'selection' | 'review' | 'acknowledge';
+    workflowId?: string;
+    runId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.client.GET('/api/v1/human-inputs', {
+      params: {
+        query: options,
+      },
+    });
+  }
+
+  async getHumanInput(id: string) {
+    return this.client.GET('/api/v1/human-inputs/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async resolveHumanInput(id: string, payload: components['schemas']['ResolveHumanInputDto']) {
+    return this.client.POST('/api/v1/human-inputs/{id}/resolve', {
+      params: { path: { id } },
+      body: payload,
+    });
+  }
+
+  async resolveHumanInputByToken(
+    token: string, 
+    payload: components['schemas']['ResolveByTokenDto']
+  ) {
+    return this.client.POST('/api/v1/human-inputs/resolve/{token}', {
+      params: { path: { token } },
+      body: payload,
+    });
+  }
 }
 
 /**
