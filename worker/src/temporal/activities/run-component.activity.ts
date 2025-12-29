@@ -223,21 +223,60 @@ export async function runComponentActivity(
     return { output, activeOutputPorts };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
+    
+    // Extract error properties without using 'any'
+    let errorType: string | undefined;
+    let errorDetails: Record<string, unknown> | undefined;
+    let fieldErrors: Record<string, string[]> | undefined;
+    let isRetryable = false;
+
+    if (error instanceof Error) {
+      errorType = error.name;
+      
+      // Check if it's a ComponentError (has type and retryable properties)
+      if ('type' in error && typeof (error as { type: unknown }).type === 'string') {
+        errorType = (error as { type: string }).type;
+      }
+      
+      // Check if it's retryable
+      if ('retryable' in error && typeof (error as { retryable: unknown }).retryable === 'boolean') {
+        isRetryable = (error as { retryable: boolean }).retryable;
+      }
+      
+      // Extract details if present
+      if ('details' in error && typeof (error as { details: unknown }).details === 'object' && (error as { details: unknown }).details !== null) {
+        errorDetails = (error as { details: Record<string, unknown> }).details;
+      }
+      
+      // Extract fieldErrors if it's a ValidationError
+      if (error instanceof ValidationError && error.fieldErrors) {
+        fieldErrors = error.fieldErrors;
+      }
+    }
+
+    const traceError: {
+      message: string;
+      type?: string;
+      stack?: string;
+      details?: Record<string, unknown>;
+      fieldErrors?: Record<string, string[]>;
+    } = {
+      message: errorMsg,
+      type: errorType || 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined,
+      details: errorDetails,
+      fieldErrors,
+    };
+    
     context.trace?.record({
       type: 'NODE_FAILED',
       timestamp: new Date().toISOString(),
       message: errorMsg,
-      error: {
-        message: errorMsg,
-        type: (error as any)?.type || (error instanceof Error ? error.name : 'UnknownError'),
-        stack: error instanceof Error ? error.stack : undefined,
-        details: (error as any)?.details,
-      },
+      error: traceError,
       level: 'error',
     });
 
-    const errorType =
-      error instanceof Error && error.name ? error.name : 'ComponentError';
+    const finalErrorType = errorType || 'ComponentError';
 
     const details = {
       componentId: action.componentId,
@@ -251,19 +290,11 @@ export async function runComponentActivity(
       stack: error instanceof Error ? error.stack : undefined,
     };
 
-    const isRetryable =
-      typeof error === 'object' &&
-      error !== null &&
-      'retryable' in error &&
-      typeof (error as any).retryable === 'boolean'
-        ? Boolean((error as any).retryable)
-        : false;
-
     if (isRetryable) {
-      throw ApplicationFailure.retryable(errorMsg, errorType, [details]);
+      throw ApplicationFailure.retryable(errorMsg, finalErrorType, [details]);
     }
 
-    throw ApplicationFailure.nonRetryable(errorMsg, errorType, [details]);
+    throw ApplicationFailure.nonRetryable(errorMsg, finalErrorType, [details]);
   } finally {
     // Do not finalize run here; lifecycle is managed by workflow orchestration.
   }

@@ -96,6 +96,7 @@ export const TraceErrorSchema = z.object({
   code: z.string().optional(),
   type: z.string().optional(),
   details: z.record(z.string(), z.unknown()).optional(),
+  fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 export type TraceError = z.infer<typeof TraceErrorSchema>;

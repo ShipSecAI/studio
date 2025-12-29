@@ -13,7 +13,7 @@ interface ExecutionErrorViewProps {
  * Handles specialized display for ValidationError, NotFoundError, etc.
  */
 export const ExecutionErrorView: React.FC<ExecutionErrorViewProps> = ({ error, className }) => {
-    const { type, message, details } = error
+    const { type, message, details, fieldErrors } = error
 
     // Pick icon and color based on error type
     const getErrorConfig = () => {
@@ -71,9 +71,6 @@ export const ExecutionErrorView: React.FC<ExecutionErrorViewProps> = ({ error, c
 
     const config = getErrorConfig()
     const Icon = config.icon
-
-    // Extract field errors for ValidationError
-    const fieldErrors = details?.fieldErrors as Record<string, string[]> | undefined
 
     return (
         <div className={cn(

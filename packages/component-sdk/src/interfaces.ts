@@ -152,6 +152,7 @@ export interface TraceEvent {
     type?: string;
     stack?: string;
     details?: Record<string, unknown>;
+    fieldErrors?: Record<string, string[]>;
   };
   outputSummary?: unknown;
   data?: TraceEventData;

@@ -3,6 +3,7 @@ import {
   componentRegistry,
   createExecutionContext,
   NotFoundError,
+  ValidationError,
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
@@ -250,18 +251,52 @@ export async function executeWorkflow(
         });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
+        
+        // Extract error properties without using 'any'
+        let errorType: string | undefined;
+        let errorDetails: Record<string, unknown> | undefined;
+        let fieldErrors: Record<string, string[]> | undefined;
+
+        if (error instanceof Error) {
+          errorType = error.name;
+          
+          // Check if it's a ComponentError (has type property)
+          if ('type' in error && typeof (error as { type: unknown }).type === 'string') {
+            errorType = (error as { type: string }).type;
+          }
+          
+          // Extract details if present
+          if ('details' in error && typeof (error as { details: unknown }).details === 'object' && (error as { details: unknown }).details !== null) {
+            errorDetails = (error as { details: Record<string, unknown> }).details;
+          }
+          
+          // Extract fieldErrors if it's a ValidationError
+          if (error instanceof ValidationError && error.fieldErrors) {
+            fieldErrors = error.fieldErrors;
+          }
+        }
+        
+        const traceError: {
+          message: string;
+          type?: string;
+          stack?: string;
+          details?: Record<string, unknown>;
+          fieldErrors?: Record<string, string[]>;
+        } = {
+          message: errorMsg,
+          type: errorType || 'UnknownError',
+          stack: error instanceof Error ? error.stack : undefined,
+          details: errorDetails,
+          fieldErrors,
+        };
+        
         options.trace?.record({
           type: 'NODE_FAILED',
           runId,
           nodeRef: action.ref,
           timestamp: new Date().toISOString(),
           message: errorMsg,
-          error: {
-            message: errorMsg,
-            type: (error as any)?.type || (error instanceof Error ? error.name : 'UnknownError'),
-            stack: error instanceof Error ? error.stack : undefined,
-            details: (error as any)?.details,
-          },
+          error: traceError,
           level: 'error',
           context: {
             runId,
