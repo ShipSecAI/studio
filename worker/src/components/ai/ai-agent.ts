@@ -14,9 +14,13 @@ import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sd
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   type ExecutionContext,
   type AgentTraceEvent,
+  ConfigurationError,
+  ValidationError,
+  fromHttpResponse,
 } from '@shipsec/component-sdk';
 import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
 import {
@@ -361,7 +365,7 @@ class MCPClient {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '<no body>');
-      throw new Error(`MCP request failed (${response.status} ${response.statusText}): ${errorText}`);
+      throw fromHttpResponse(response, `MCP request failed: ${errorText}`);
     }
 
     const contentType = response.headers.get('content-type') ?? '';
@@ -396,8 +400,9 @@ function resolveApiKey(provider: ModelProvider, overrideKey?: string | null): st
     return trimmed;
   }
 
-  throw new Error(
+  throw new ConfigurationError(
     `Model provider API key is not configured for "${provider}". Connect a Secret Loader node to the modelApiKey input or supply chatModel.apiKey.`,
+    { configKey: 'apiKey', details: { provider } },
   );
 }
 
@@ -726,16 +731,22 @@ function resolveStructuredOutputSchema(params: {
     try {
       const example = JSON.parse(params.jsonExample);
       return jsonExampleToJsonSchema(example);
-    } catch {
-      throw new Error('Invalid JSON example: unable to parse JSON.');
+    } catch (e) {
+      throw new ValidationError('Invalid JSON example: unable to parse JSON.', {
+        cause: e instanceof Error ? e : undefined,
+        details: { field: 'jsonExample' },
+      });
     }
   }
 
   if (params.schemaType === 'json-schema' && params.jsonSchema) {
     try {
       return JSON.parse(params.jsonSchema);
-    } catch {
-      throw new Error('Invalid JSON Schema: unable to parse JSON.');
+    } catch (e) {
+      throw new ValidationError('Invalid JSON Schema: unable to parse JSON.', {
+        cause: e instanceof Error ? e : undefined,
+        details: { field: 'jsonSchema' },
+      });
     }
   }
 
@@ -784,6 +795,13 @@ const definition: ComponentDefinition<Input, Output> = {
   label: 'AI SDK Agent',
   category: 'ai',
   runner: { kind: 'inline' },
+  retryPolicy: {
+    maxAttempts: 3,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ValidationError', 'ConfigurationError', 'AuthenticationError'],
+  } satisfies ComponentRetryPolicy,
   inputSchema,
   outputSchema,
   docs: `An AI SDK-powered agent that maintains conversation memory, calls MCP tools, and returns both the final answer and a reasoning trace.
@@ -1039,7 +1057,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
     debugLog('Trimmed input', trimmedInput);
 
     if (!trimmedInput) {
-      throw new Error('AI Agent requires a non-empty user input.');
+      throw new ValidationError('AI Agent requires a non-empty user input.', {
+        fieldErrors: { userInput: ['Input cannot be empty'] },
+      });
     }
 
     const effectiveProvider = (chatModel?.provider ?? 'openai') as ModelProvider;
@@ -1244,7 +1264,18 @@ Loop the Conversation State output back into the next agent invocation to keep m
             };
             debugLog('Auto-fix succeeded', fixedOutput);
           } else {
-            throw new Error(`Structured output failed and auto-fix could not parse response: ${textResult.text.slice(0, 200)}`);
+            throw new ValidationError(
+              `Structured output failed and auto-fix could not parse response`,
+              {
+                cause: error instanceof Error ? error : undefined,
+                details: {
+                  field: 'structuredOutput',
+                  originalError: error instanceof Error ? error.message : String(error),
+                  responseSnippet: textResult.text.slice(0, 500),
+                  fullResponseLength: textResult.text.length,
+                },
+              },
+            );
           }
         } else {
           throw error;
