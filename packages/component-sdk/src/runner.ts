@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import type { ExecutionContext, RunnerConfig, DockerRunnerConfig } from './types';
 import { createTerminalChunkEmitter } from './terminal';
+import { ContainerError, TimeoutError, ValidationError, ConfigurationError } from './errors';
 
 type PtySpawn = typeof import('node-pty')['spawn'];
 let cachedPtySpawn: PtySpawn | null = null;
@@ -116,7 +117,9 @@ function runDockerWithStandardIO<I, O>(
 
     const timeout = setTimeout(() => {
       proc.kill();
-      reject(new Error(`Docker container timed out after ${timeoutSeconds}s`));
+      reject(new TimeoutError(`Docker container timed out after ${timeoutSeconds}s`, timeoutSeconds * 1000, {
+        details: { dockerArgs: formatArgs(dockerArgs) },
+      }));
     }, timeoutSeconds * 1000);
 
     const proc = spawn('docker', dockerArgs, {
@@ -173,7 +176,10 @@ function runDockerWithStandardIO<I, O>(
     proc.on('error', (error) => {
       clearTimeout(timeout);
       context.logger.error(`[Docker] Failed to start: ${error.message}`);
-      reject(new Error(`Failed to start Docker container: ${error.message}`));
+      reject(new ContainerError(`Failed to start Docker container: ${error.message}`, {
+        cause: error,
+        details: { dockerArgs: formatArgs(dockerArgs) },
+      }));
     });
 
     proc.on('close', (code) => {
@@ -190,7 +196,9 @@ function runDockerWithStandardIO<I, O>(
           data: { exitCode: code, stderr },
         });
 
-        reject(new Error(`Docker container failed with exit code ${code}: ${stderr}`));
+        reject(new ContainerError(`Docker container failed with exit code ${code}: ${stderr}`, {
+          details: { exitCode: code, stderr, dockerArgs: formatArgs(dockerArgs) },
+        }));
         return;
       }
 
@@ -215,7 +223,10 @@ function runDockerWithStandardIO<I, O>(
       } catch (e) {
         clearTimeout(timeout);
         proc.kill();
-        reject(new Error(`Failed to write input to Docker container: ${e}`));
+        reject(new ValidationError(`Failed to write input to Docker container: ${e}`, {
+          cause: e as Error,
+          details: { inputType: typeof params },
+        }));
       }
     } else {
       // Close stdin immediately if stdinJson is false
@@ -255,8 +266,12 @@ async function runDockerWithPty<I, O>(
       });
     } catch (error) {
       reject(
-        new Error(
+        new ContainerError(
           `Failed to spawn Docker PTY: ${error instanceof Error ? error.message : String(error)}`,
+          {
+            cause: error instanceof Error ? error : undefined,
+            details: { dockerArgs: formatArgs(dockerArgs) },
+          },
         ),
       );
       return;
@@ -264,7 +279,9 @@ async function runDockerWithPty<I, O>(
 
     const timeout = setTimeout(() => {
       ptyProcess.kill();
-      reject(new Error(`Docker container timed out after ${timeoutSeconds}s`));
+      reject(new TimeoutError(`Docker container timed out after ${timeoutSeconds}s`, timeoutSeconds * 1000, {
+        details: { dockerArgs: formatArgs(dockerArgs) },
+      }));
     }, timeoutSeconds * 1000);
 
     // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
@@ -289,10 +306,15 @@ async function runDockerWithPty<I, O>(
           data: { exitCode, output: stdout.trim() },
         });
 
-        // Include the actual output in the error message
-        const outputPreview = stdout.trim().slice(-500); // Last 500 chars
-        reject(new Error(
-          `Docker PTY execution failed with exit code ${exitCode}\n\nOutput:\n${outputPreview}`
+        reject(new ContainerError(
+          `Docker PTY execution failed with exit code ${exitCode}`,
+          {
+            details: {
+              exitCode,
+              outputPreview: stdout.trim().slice(-500),
+              dockerArgs: formatArgs(dockerArgs),
+            },
+          },
         ));
         return;
       }
@@ -332,6 +354,9 @@ export async function runComponentWithRunner<I, O>(
       context.emitProgress('Remote execution not yet implemented; returning inline output');
       return runComponentInline(execute, params, context);
     default:
-      throw new Error(`Unsupported runner type ${(runner as any).kind}`);
+      throw new ConfigurationError(`Unsupported runner type: ${(runner as any).kind}`, {
+        configKey: 'runner.kind',
+        details: { runnerKind: (runner as any).kind },
+      });
   }
 }
