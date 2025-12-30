@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, port, ValidationError } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   items: z.array(z.string()).min(1, 'Provide at least one item').describe('Array of text values to pick from'),
@@ -93,8 +93,9 @@ const definition: ComponentDefinition<Input, Output> = {
     const { items, index } = params;
 
     if (index < 0 || index >= items.length) {
-      throw new Error(
+      throw new ValidationError(
         `Requested index ${index} is out of bounds for array with ${items.length} items.`,
+        { fieldErrors: { index: [`Must be between 0 and ${items.length - 1}`] } },
       );
     }
 

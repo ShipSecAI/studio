@@ -1,4 +1,5 @@
 import type { ComponentDefinition } from './types';
+import { ConfigurationError } from './errors';
 
 type AnyComponentDefinition = ComponentDefinition<any, any>;
 
@@ -7,7 +8,10 @@ export class ComponentRegistry {
 
   register<I, O>(definition: ComponentDefinition<I, O>): void {
     if (this.components.has(definition.id)) {
-      throw new Error(`Component ${definition.id} is already registered`);
+      throw new ConfigurationError(`Component ${definition.id} is already registered`, {
+        configKey: 'componentId',
+        details: { componentId: definition.id },
+      });
     }
     this.components.set(definition.id, definition as AnyComponentDefinition);
   }

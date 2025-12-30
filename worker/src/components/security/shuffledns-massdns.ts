@@ -2,9 +2,11 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   runComponentWithRunner,
   type DockerRunnerConfig,
+  ContainerError,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -116,6 +118,13 @@ const definition: ComponentDefinition<Input, Output> = {
   outputSchema,
   docs:
     'Bruteforce or resolve subdomains using Shuffledns with MassDNS. Supports resolvers, trusted resolvers, thread control, retries, and wildcard handling.',
+  retryPolicy: {
+    maxAttempts: 2,
+    initialIntervalSeconds: 5,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
+  } satisfies ComponentRetryPolicy,
   metadata: {
     slug: 'shuffledns-massdns',
     version: '1.0.0',
@@ -287,7 +296,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
-      throw new Error('Shuffledns runner must be docker');
+      throw new ContainerError('Shuffledns runner must be docker', {
+        details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
+      });
     }
 
     const runnerConfig: DockerRunnerConfig = {

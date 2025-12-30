@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { promisify } from 'util';
 import { exec as execCallback } from 'child_process';
+import { ValidationError, ConfigurationError, ContainerError } from '@shipsec/component-sdk';
 
 const exec = promisify(execCallback);
 
@@ -28,10 +29,14 @@ export class IsolatedContainerVolume {
   ) {
     // Validate tenant ID to prevent injection attacks
     if (!/^[a-zA-Z0-9_-]+$/.test(tenantId)) {
-      throw new Error('Invalid tenant ID: must contain only alphanumeric characters, hyphens, and underscores');
+      throw new ValidationError('Invalid tenant ID: must contain only alphanumeric characters, hyphens, and underscores', {
+        fieldErrors: { tenantId: ['must contain only alphanumeric characters, hyphens, and underscores'] },
+      });
     }
     if (!/^[a-zA-Z0-9_-]+$/.test(runId)) {
-      throw new Error('Invalid run ID: must contain only alphanumeric characters, hyphens, and underscores');
+      throw new ValidationError('Invalid run ID: must contain only alphanumeric characters, hyphens, and underscores', {
+        fieldErrors: { runId: ['must contain only alphanumeric characters, hyphens, and underscores'] },
+      });
     }
   }
 
@@ -52,7 +57,9 @@ export class IsolatedContainerVolume {
    */
   async initialize(files: Record<string, string | Buffer>): Promise<string> {
     if (this.isInitialized) {
-      throw new Error('Volume already initialized');
+      throw new ConfigurationError('Volume already initialized', {
+        details: { volumeName: this.volumeName, tenantId: this.tenantId, runId: this.runId },
+      });
     }
 
     // Create unique volume name with timestamp to prevent collisions
@@ -83,8 +90,12 @@ export class IsolatedContainerVolume {
           // Ignore cleanup errors during initialization failure
         });
       }
-      throw new Error(
+      throw new ContainerError(
         `Failed to initialize isolated volume: ${error instanceof Error ? error.message : String(error)}`,
+        {
+          cause: error instanceof Error ? error : undefined,
+          details: { tenantId: this.tenantId, runId: this.runId },
+        },
       );
     }
   }
@@ -98,16 +109,22 @@ export class IsolatedContainerVolume {
   private validateFilename(filename: string): void {
     // Prevent path traversal
     if (filename.includes('..') || filename.startsWith('/')) {
-      throw new Error(`Invalid filename (path traversal): ${filename}`);
+      throw new ValidationError(`Invalid filename (path traversal): ${filename}`, {
+        fieldErrors: { filename: ['path traversal not allowed'] },
+        details: { filename },
+      });
     }
 
     // Prevent shell metacharacters that could cause injection
     // Allow: alphanumeric, dots, hyphens, underscores, forward slashes (for subdirs)
     const safePattern = /^[a-zA-Z0-9._/-]+$/;
     if (!safePattern.test(filename)) {
-      throw new Error(
-        `Invalid filename (contains unsafe characters): ${filename}. ` +
-        `Only alphanumeric, dots, hyphens, underscores, and slashes allowed.`
+      throw new ValidationError(
+        `Invalid filename (contains unsafe characters): ${filename}. Only alphanumeric, dots, hyphens, underscores, and slashes allowed.`,
+        {
+          fieldErrors: { filename: ['contains unsafe characters'] },
+          details: { filename, allowedPattern: safePattern.toString() },
+        },
       );
     }
 
@@ -115,7 +132,10 @@ export class IsolatedContainerVolume {
     const parts = filename.split('/');
     for (const part of parts) {
       if (part.startsWith('.') && part !== '.' && part !== '..') {
-        throw new Error(`Invalid filename (hidden file): ${filename}`);
+        throw new ValidationError(`Invalid filename (hidden file): ${filename}`, {
+          fieldErrors: { filename: ['hidden files not allowed'] },
+          details: { filename },
+        });
       }
     }
   }
@@ -127,7 +147,9 @@ export class IsolatedContainerVolume {
    */
   private async writeFiles(files: Record<string, string | Buffer>): Promise<void> {
     if (!this.volumeName) {
-      throw new Error('Volume not initialized');
+      throw new ConfigurationError('Volume not initialized', {
+        details: { tenantId: this.tenantId, runId: this.runId },
+      });
     }
 
     for (const [filename, content] of Object.entries(files)) {
@@ -149,7 +171,9 @@ export class IsolatedContainerVolume {
    */
   private async writeFileToVolume(filename: string, content: string): Promise<void> {
     if (!this.volumeName) {
-      throw new Error('Volume not initialized');
+      throw new ConfigurationError('Volume not initialized', {
+        details: { tenantId: this.tenantId, runId: this.runId },
+      });
     }
 
     // Escape single quotes in filename to prevent shell injection
@@ -205,7 +229,9 @@ export class IsolatedContainerVolume {
    */
   async readFiles(filenames: string[]): Promise<Record<string, string>> {
     if (!this.volumeName) {
-      throw new Error('Volume not initialized');
+      throw new ConfigurationError('Volume not initialized', {
+        details: { tenantId: this.tenantId, runId: this.runId },
+      });
     }
 
     const results: Record<string, string> = {};
@@ -232,7 +258,9 @@ export class IsolatedContainerVolume {
    */
   private async readFileFromVolume(filename: string): Promise<string> {
     if (!this.volumeName) {
-      throw new Error('Volume not initialized');
+      throw new ConfigurationError('Volume not initialized', {
+        details: { tenantId: this.tenantId, runId: this.runId },
+      });
     }
 
     // Note: Using cat as entrypoint (not sh), so filename is passed as argument
@@ -287,7 +315,9 @@ export class IsolatedContainerVolume {
    */
   getBindMount(containerPath: string = '/inputs', readOnly: boolean = true): string {
     if (!this.volumeName) {
-      throw new Error('Volume not initialized');
+      throw new ConfigurationError('Volume not initialized', {
+        details: { tenantId: this.tenantId, runId: this.runId },
+      });
     }
 
     const mode = readOnly ? 'ro' : 'rw';
@@ -303,7 +333,9 @@ export class IsolatedContainerVolume {
    */
   getVolumeConfig(containerPath: string = '/inputs', readOnly: boolean = true) {
     if (!this.volumeName) {
-      throw new Error('Volume not initialized');
+      throw new ConfigurationError('Volume not initialized', {
+        details: { tenantId: this.tenantId, runId: this.runId },
+      });
     }
 
     return {

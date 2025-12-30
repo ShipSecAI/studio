@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   runComponentWithRunner,
+  ServiceError,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -128,6 +130,13 @@ const definition: ComponentDefinition<Input, Output> = {
   inputSchema,
   outputSchema,
   docs: 'Run ProjectDiscovery httpx to probe hosts for live HTTP services, capturing metadata like status codes and titles.',
+  retryPolicy: {
+    maxAttempts: 2,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ValidationError', 'ConfigurationError'],
+  } satisfies ComponentRetryPolicy,
   metadata: {
     slug: 'httpx',
     version: '1.0.0',
@@ -346,7 +355,9 @@ const definition: ComponentDefinition<Input, Output> = {
             const errorMessage = stderr
               ? `httpx exited with code ${exitCode}: ${stderr}`
               : `httpx exited with code ${exitCode}`;
-            throw new Error(errorMessage);
+            throw new ServiceError(errorMessage, {
+              details: { exitCode, stderr, tool: 'httpx' },
+            });
           }
 
           runnerOutput = parsedRunnerResult.data.raw ?? '';

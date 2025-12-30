@@ -6,6 +6,7 @@ import {
   startChild,
   uuid4,
 } from '@temporalio/workflow';
+import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionParams } from '../input-resolver';
 import { resolveHumanInputSignal, type HumanInputResolution } from '../signals';
@@ -76,6 +77,18 @@ function isApprovalPending(output: unknown): output is { pending: true; title: s
   );
 }
 
+function mapRetryPolicy(policy?: ComponentRetryPolicy) {
+  if (!policy) return undefined;
+
+  return {
+    maximumAttempts: policy.maxAttempts,
+    initialInterval: policy.initialIntervalSeconds ? policy.initialIntervalSeconds * 1000 : undefined,
+    maximumInterval: policy.maximumIntervalSeconds ? policy.maximumIntervalSeconds * 1000 : undefined,
+    backoffCoefficient: policy.backoffCoefficient,
+    nonRetryableErrorTypes: policy.nonRetryableErrorTypes,
+  };
+}
+
 export async function shipsecWorkflowRun(
   input: RunWorkflowActivityInput,
 ): Promise<RunWorkflowActivityOutput> {
@@ -124,7 +137,11 @@ export async function shipsecWorkflowRun(
       run: async (actionRef, schedulerContext) => {
         const action = actionsByRef.get(actionRef);
         if (!action) {
-          throw new Error(`Action not found: ${actionRef}`);
+          throw ApplicationFailure.nonRetryable(
+            `Action not found: ${actionRef}`,
+            'NotFoundError',
+            [{ resourceType: 'action', resourceId: actionRef }],
+          );
         }
 
         const { params, warnings } = buildActionParams(action, results);
@@ -182,7 +199,16 @@ export async function shipsecWorkflowRun(
           },
         };
 
-        const output = await runComponentActivity(activityInput);
+        const retryOptions = mapRetryPolicy(action.retryPolicy);
+
+        const { runComponentActivity: runComponentWithRetry } = proxyActivities<{
+          runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
+        }>({
+          startToCloseTimeout: '10 minutes',
+          retry: retryOptions,
+        });
+
+        const output = await runComponentWithRetry(activityInput);
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
         if (isApprovalPending(output.output)) {
@@ -235,7 +261,11 @@ export async function shipsecWorkflowRun(
               // Timeout occurred
               console.log(`[Workflow] Human input timeout for ${action.ref}`);
               await expireHumanInputRequestActivity(approvalResult.requestId);
-              throw new Error(`Human input request timed out for node ${action.ref}`);
+              throw ApplicationFailure.nonRetryable(
+                `Human input request timed out for node ${action.ref}`,
+                'TimeoutError',
+                [{ nodeRef: action.ref, requestId: approvalResult.requestId, timeoutMs }],
+              );
             }
 
             resolution = humanInputResolutions.get(action.ref)!;

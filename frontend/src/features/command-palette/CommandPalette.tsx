@@ -159,6 +159,7 @@ export function CommandPalette() {
             const name = component.name.toLowerCase()
             const slug = component.slug.toLowerCase()
             const category = component.category.toLowerCase()
+            const id = component.id.toLowerCase()
             if (
                 category === 'demo' ||
                 name.includes('demo') ||
@@ -167,7 +168,9 @@ export function CommandPalette() {
                 name === 'live event' ||
                 name === 'parallel sleep' ||
                 slug === 'live-event' ||
-                slug === 'parallel-sleep'
+                slug === 'parallel-sleep' ||
+                id.startsWith('test.') ||
+                id === 'docker-echo'
             ) {
                 return false
             }

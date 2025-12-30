@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, port, ValidationError } from '@shipsec/component-sdk';
 
 // Support both direct text and file objects from previous components
 const manualTriggerFileSchema = z.object({
@@ -151,9 +151,11 @@ const definition: ComponentDefinition<Input, Output> = {
       context.logger.info(`[TextJoiner] Processing file input: ${params.items.name} (${itemsArray.length} items)`);
     } else {
       // Case 4: File object from entry point (no content)
-      throw new Error(`File object from entry point has no content. File ID: ${params.items.id}, Name: ${params.items.fileName}.
+      throw new ValidationError(`File object from entry point has no content. File ID: ${params.items.id}, Name: ${params.items.fileName}.
 Please use a File Loader component to extract file content before passing to Text Joiner.
-Expected workflow: Entry Point → File Loader → Text Joiner`);
+Expected workflow: Entry Point → File Loader → Text Joiner`, {
+        fieldErrors: { items: ['File content is required - use File Loader first'] },
+      });
     }
 
     // Handle escape sequences

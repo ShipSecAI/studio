@@ -272,6 +272,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     const name = component.name.toLowerCase()
     const slug = component.slug.toLowerCase()
     const category = component.category.toLowerCase()
+    const id = component.id.toLowerCase()
 
     return (
       category === 'demo' ||
@@ -281,7 +282,9 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
       name === 'live event' ||
       name === 'parallel sleep' ||
       slug === 'live-event' ||
-      slug === 'parallel-sleep'
+      slug === 'parallel-sleep' ||
+      id.startsWith('test.') ||
+      id === 'docker-echo'
     )
   }
 

@@ -729,7 +729,22 @@ export class WorkflowsService {
     );
 
     const nodeOverrides = options.nodeOverrides ?? {};
-    const definitionWithOverrides = this.applyNodeOverrides(compiledDefinition, nodeOverrides);
+    let definitionWithOverrides = this.applyNodeOverrides(compiledDefinition, nodeOverrides);
+
+    // Inject retry policies from component registry
+    definitionWithOverrides = {
+      ...definitionWithOverrides,
+      actions: definitionWithOverrides.actions.map((action) => {
+        const component = componentRegistry.get(action.componentId);
+        if (component?.retryPolicy) {
+          return {
+            ...action,
+            retryPolicy: component.retryPolicy,
+          };
+        }
+        return action;
+      }),
+    };
     const normalizedKey = this.normalizeIdempotencyKey(options.idempotencyKey);
     const runId = options.runId ?? (normalizedKey ? this.runIdFromIdempotencyKey(normalizedKey) : `shipsec-run-${randomUUID()}`);
     const triggerMetadata = options.trigger ?? this.buildEntryPointTriggerMetadata(auth);

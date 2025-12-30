@@ -157,7 +157,8 @@ describe("HTTP Request Component", () => {
       );
       expect(true).toBe(false); // Should fail if reached
     } catch (e: any) {
-      expect(e.message).toContain("HTTP Request Failed: 404");
+      expect(e.message).toBe("Not Found");
+      expect(e.details?.status).toBe(404);
     }
   });
 

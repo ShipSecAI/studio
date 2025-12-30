@@ -112,6 +112,8 @@ export interface ExecutionFailureMetadata {
   reason: {
     message: string;
     name?: string;
+    type?: string;
+    details?: Record<string, unknown>;
   };
 }
 
@@ -145,7 +147,13 @@ export interface TraceEvent {
   timestamp: string;
   level?: TraceEventLevel;
   message?: string;
-  error?: string;
+  error?: string | {
+    message: string;
+    type?: string;
+    stack?: string;
+    details?: Record<string, unknown>;
+    fieldErrors?: Record<string, string[]>;
+  };
   outputSummary?: unknown;
   data?: TraceEventData;
   context?: ExecutionContextMetadata;

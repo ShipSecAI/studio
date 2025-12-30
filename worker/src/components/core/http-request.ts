@@ -3,6 +3,10 @@ import {
   componentRegistry,
   ComponentDefinition,
   port,
+  fromHttpResponse,
+  TimeoutError,
+  NetworkError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
@@ -41,11 +45,27 @@ const outputSchema = z.object({
 
 type Output = z.infer<typeof outputSchema>;
 
+// Retry policy for HTTP requests - sensible defaults for API calls
+const httpRequestRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 3,
+  initialIntervalSeconds: 1,
+  maximumIntervalSeconds: 30,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'AuthenticationError',
+    'NotFoundError',
+    'ValidationError',
+    'ConfigurationError',
+    'PermissionError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output, Params> = {
   id: 'core.http.request',
   label: 'HTTP Request',
   category: 'transform',
   runner: { kind: 'inline' },
+  retryPolicy: httpRequestRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Performs a generic HTTP request to any API endpoint. Supports all standard methods, headers, and body types.',
@@ -248,7 +268,7 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       context.logger.info(`[HTTP] Response: ${response.status} ${response.statusText}`);
 
       if (failOnError && !response.ok) {
-        throw new Error(`HTTP Request Failed: ${response.status} ${response.statusText} - ${rawText.slice(0, 200)}`);
+        throw fromHttpResponse(response, rawText.slice(0, 500));
       }
 
       return {
@@ -262,7 +282,21 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
-        throw new Error(`HTTP request timed out after ${timeout}ms`);
+        throw new TimeoutError(
+          `HTTP request timed out after ${timeout}ms`,
+          timeout,
+          { details: { url, method } }
+        );
+      }
+      // Wrap network errors appropriately
+      if (
+        error.message?.includes('ECONNREFUSED') ||
+        error.message?.includes('ENOTFOUND') ||
+        error.message?.includes('ENETUNREACH') ||
+        error.message?.includes('socket hang up') ||
+        error.name === 'FetchError'
+      ) {
+        throw NetworkError.from(error);
       }
       throw error;
     }

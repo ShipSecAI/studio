@@ -21,7 +21,7 @@ export interface PersistedTraceEvent {
   sequence: number;
   level: string;
   message?: string;
-  error?: string;
+  error?: unknown;
   outputSummary?: unknown;
   data?: Record<string, unknown> | null;
 }

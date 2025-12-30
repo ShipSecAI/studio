@@ -2,8 +2,11 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   runComponentWithRunner,
+  ServiceError,
+  ValidationError,
 } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
@@ -134,10 +137,20 @@ const dockerTimeoutSeconds = (() => {
   return parsed;
 })();
 
+// Retry policy for Amass - long-running subdomain enumeration
+const amassRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 2,
+  initialIntervalSeconds: 10,
+  maximumIntervalSeconds: 60,
+  backoffCoefficient: 1.5,
+  nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.amass.enum',
   label: 'Amass Enumeration',
   category: 'security',
+  retryPolicy: amassRetryPolicy,
   runner: {
     kind: 'docker',
     image: 'owaspamass/amass:v4.2.0',
@@ -548,14 +561,20 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
         return outputSchema.parse(parsed);
       } catch (error) {
         context.logger.error(`[Amass] Failed to parse raw output: ${(error as Error).message}`);
-        throw new Error('Amass returned unexpected raw output format');
+        throw new ServiceError('Amass returned unexpected raw output format', {
+          cause: error as Error,
+          details: { outputType: typeof result },
+        });
       }
     }
 
     const parsed = outputSchema.safeParse(result);
     if (!parsed.success) {
       context.logger.error('[Amass] Output validation failed', parsed.error);
-      throw new Error('Amass output validation failed');
+      throw new ValidationError('Amass output validation failed', {
+        cause: parsed.error,
+        details: { issues: parsed.error.issues },
+      });
     }
 
     context.logger.info(

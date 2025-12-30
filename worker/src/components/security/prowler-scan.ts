@@ -3,8 +3,12 @@ import { spawn } from 'node:child_process';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
+  ConfigurationError,
   port,
   runComponentWithRunner,
+  ServiceError,
+  ValidationError,
 } from '@shipsec/component-sdk';
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
@@ -241,10 +245,20 @@ async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[
   });
 }
 
+// Retry policy for Prowler - AWS security scans
+const prowlerRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 2,
+  initialIntervalSeconds: 10,
+  maximumIntervalSeconds: 60,
+  backoffCoefficient: 1.5,
+  nonRetryableErrorTypes: ['ConfigurationError', 'ValidationError'],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'security.prowler.scan',
   label: 'Prowler Scan',
   category: 'security',
+  retryPolicy: prowlerRetryPolicy,
   runner: {
     kind: 'inline',
   },
@@ -413,8 +427,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     // Validate creds when running AWS scans
     if (params.scanMode === 'aws' && !params.credentials) {
-      throw new Error(
+      throw new ConfigurationError(
         'AWS scan requires credentials input. Ensure the previous step outputs { accessKeyId, secretAccessKey, sessionToken? } into the "credentials" input.',
+        { configKey: 'credentials' },
       );
     }
 
@@ -468,7 +483,10 @@ const definition: ComponentDefinition<Input, Output> = {
       try {
         cmd.push(...splitArgs(params.customFlags));
       } catch (err) {
-        throw new Error(`Failed to parse custom CLI flags: ${(err as Error).message}`);
+        throw new ValidationError(`Failed to parse custom CLI flags: ${(err as Error).message}`, {
+          cause: err as Error,
+          fieldErrors: { customFlags: ['Invalid CLI flag syntax'] },
+        });
       }
     }
 
@@ -548,11 +566,15 @@ const definition: ComponentDefinition<Input, Output> = {
         if (parsed.success) {
           const result = parsed.data;
           if (result.parse_error) {
-            throw new Error(`Failed to parse custom CLI flags: ${result.parse_error}`);
+            throw new ValidationError(`Failed to parse custom CLI flags: ${result.parse_error}`, {
+              fieldErrors: { customFlags: ['Invalid CLI flag syntax'] },
+            });
           }
           if (result.returncode !== 0) {
             const msg = result.stderr.trim();
-            throw new Error(msg.length > 0 ? msg : `prowler exited with status ${result.returncode}`);
+            throw new ServiceError(msg.length > 0 ? msg : `prowler exited with status ${result.returncode}`, {
+              details: { returncode: result.returncode },
+            });
           }
           rawSegments = result.artifacts.length > 0 ? result.artifacts : [result.stdout];
           commandForOutput = result.command;
@@ -590,7 +612,9 @@ const definition: ComponentDefinition<Input, Output> = {
     }
 
     if (rawSegments.length === 0) {
-      throw new Error('Prowler did not produce any ASFF output files.');
+      throw new ServiceError('Prowler did not produce any ASFF output files.', {
+        details: { volumeName: outputVolume.getVolumeName() },
+      });
     }
 
     const { findings, errors } = normaliseFindings(rawSegments, context.runId);

@@ -33,6 +33,7 @@ import {
 
 
 import { ArtifactAdapter, FileStorageAdapter, SecretsAdapter, RedisTerminalStreamAdapter, KafkaLogAdapter, KafkaTraceAdapter, KafkaAgentTracePublisher } from '../../adapters';
+import { ConfigurationError } from '@shipsec/component-sdk';
 import * as schema from '../../adapters/schema';
 
 // Load environment variables from .env file
@@ -74,7 +75,9 @@ async function main() {
   // Initialize database connection for worker
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL is not set');
+    throw new ConfigurationError('DATABASE_URL is not set', {
+      configKey: 'DATABASE_URL',
+    });
   }
   const pool = new Pool({ connectionString });
   const db = drizzle(pool, { schema });
@@ -109,7 +112,9 @@ async function main() {
     : [];
 
   if (kafkaBrokers.length === 0) {
-    throw new Error('LOG_KAFKA_BROKERS must be configured for workflow logging');
+    throw new ConfigurationError('LOG_KAFKA_BROKERS must be configured for workflow logging', {
+      configKey: 'LOG_KAFKA_BROKERS',
+    });
   }
 
   const traceAdapter = new KafkaTraceAdapter({

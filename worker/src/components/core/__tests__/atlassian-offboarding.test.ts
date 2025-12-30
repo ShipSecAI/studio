@@ -226,7 +226,7 @@ describe('atlassian offboarding component', () => {
     });
 
     await expect(component.execute(params, context)).rejects.toThrow(
-      /Atlassian search API error 400: Bad Request/,
+      /{"error":"bad request"}/,
     );
   });
 

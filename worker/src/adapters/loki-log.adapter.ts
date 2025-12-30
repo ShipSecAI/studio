@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { ServiceError } from '@shipsec/component-sdk';
 
 import { workflowLogStreams } from './schema';
 import type * as schema from './schema';
@@ -62,8 +63,12 @@ export class LokiLogClient implements LokiPushClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Loki push failed: ${response.status} ${response.statusText} - ${errorText}`,
+      throw new ServiceError(
+        `Loki push failed: ${errorText}`,
+        {
+          statusCode: response.status,
+          details: { statusText: response.statusText, errorText },
+        },
       );
     }
   }

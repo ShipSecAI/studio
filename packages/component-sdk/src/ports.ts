@@ -7,6 +7,7 @@ import type {
   MapPortType,
   PortDataType,
 } from './types';
+import { ValidationError } from './errors';
 
 type PrimitiveOptions = {
   coerceFrom?: PrimitiveCoercionSource[];
@@ -50,7 +51,9 @@ function secret(options: PrimitiveOptions = {}): PrimitivePortType {
 
 function credential(name: string): ContractPortType {
   if (!name || typeof name !== 'string') {
-    throw new Error('port.credential requires a contract name');
+    throw new ValidationError('port.credential requires a contract name', {
+      fieldErrors: { name: ['contract name is required and must be a string'] },
+    });
   }
   return {
     kind: 'contract',

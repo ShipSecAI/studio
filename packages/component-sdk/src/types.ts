@@ -277,6 +277,63 @@ export interface IScopedTraceService {
   record(event: TraceEventInput): void;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Retry Policy Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Per-error-type retry configuration
+ */
+export interface ErrorTypePolicy {
+  /** Should this error type be retried? */
+  retryable?: boolean;
+
+  /** Override retry delay for this specific error (milliseconds) */
+  retryDelayMs?: number;
+}
+
+/**
+ * Component retry policy configuration.
+ * Maps to Temporal's retry options for workflow activities.
+ */
+export interface ComponentRetryPolicy {
+  /** Max retry attempts (0 = unlimited, 1 = no retry, undefined = use default) */
+  maxAttempts?: number;
+
+  /** Initial delay before first retry (seconds) */
+  initialIntervalSeconds?: number;
+
+  /** Max delay between retries (seconds) */
+  maximumIntervalSeconds?: number;
+
+  /** Exponential backoff multiplier (2.0 = double each time) */
+  backoffCoefficient?: number;
+
+  /** Error types that should NOT be retried (overrides default) */
+  nonRetryableErrorTypes?: string[];
+
+  /** Per-error type configuration (overrides defaults) */
+  errorTypePolicies?: Record<string, ErrorTypePolicy>;
+}
+
+/**
+ * Default retry policy applied when a component doesn't specify one.
+ */
+export const DEFAULT_RETRY_POLICY: ComponentRetryPolicy = {
+  maxAttempts: 3,
+  initialIntervalSeconds: 1,
+  maximumIntervalSeconds: 60,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'AuthenticationError',
+    'NotFoundError',
+    'ValidationError',
+    'ConfigurationError',
+    'PermissionError',
+    'ContainerError',
+  ],
+};
+
 export interface ComponentDefinition<I = unknown, O = unknown, P = Record<string, unknown>> {
   id: string;
   label: string;
@@ -287,6 +344,10 @@ export interface ComponentDefinition<I = unknown, O = unknown, P = Record<string
   docs?: string;
   metadata?: ComponentUiMetadata;
   requiresSecrets?: boolean;
+
+  /** Retry policy for this component (optional, uses default if not specified) */
+  retryPolicy?: ComponentRetryPolicy;
+
   execute: (params: I, context: ExecutionContext) => Promise<O>;
   resolvePorts?: (
     params: P,

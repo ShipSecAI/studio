@@ -13,7 +13,7 @@ export const workflowTraces = pgTable(
     nodeRef: text('node_ref').notNull(),
     timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
     message: text('message'),
-    error: text('error'),
+    error: jsonb('error'),
     outputSummary: jsonb('output_summary'),
     level: text('level').notNull().default('info'),
     data: jsonb('data'),

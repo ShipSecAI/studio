@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   runComponentWithRunner,
+  ValidationError,
 } from '@shipsec/component-sdk';
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
@@ -108,10 +110,20 @@ const outputSchema: z.ZodType<Output> = z.object({
   errors: z.array(z.string()).optional(),
 });
 
+// Retry policy for Supabase Scanner
+const supabaseScannerRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 2,
+  initialIntervalSeconds: 5,
+  maximumIntervalSeconds: 30,
+  backoffCoefficient: 2,
+  nonRetryableErrorTypes: ['ValidationError', 'ConfigurationError'],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.supabase.scanner',
   label: 'Supabase Security Scanner',
   category: 'security',
+  retryPolicy: supabaseScannerRetryPolicy,
   // Base runner; volumes and command are finalised dynamically in execute()
   runner: {
     kind: 'docker',
@@ -228,8 +240,9 @@ const definition: ComponentDefinition<Input, Output> = {
     const input = inputSchema.parse(params);
 
     if (!input.projectRef) {
-      throw new Error(
+      throw new ValidationError(
         'Could not infer Supabase project ref from URL. Please provide a valid https://<project-ref>.supabase.co URL or set projectRef explicitly.',
+        { fieldErrors: { supabaseUrl: ['Invalid or missing project reference'] } },
       );
     }
 

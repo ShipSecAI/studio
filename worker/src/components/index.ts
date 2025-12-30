@@ -12,6 +12,7 @@ import './core/entry-point';
 import './core/file-loader';
 import './core/http-request';
 import './core/logic-script';
+import './core/test-error-generator';
 import './notification/slack';
 import './core/text-splitter';
 import './core/text-joiner';

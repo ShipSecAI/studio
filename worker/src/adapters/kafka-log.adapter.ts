@@ -1,4 +1,5 @@
 import { Kafka, logLevel as KafkaLogLevel, type Producer } from 'kafkajs';
+import { ConfigurationError } from '@shipsec/component-sdk';
 
 import type { WorkflowLogEntry, WorkflowLogSink } from '../temporal/types';
 
@@ -19,7 +20,10 @@ export class KafkaLogAdapter implements WorkflowLogSink {
 
   constructor(private readonly config: KafkaLogAdapterConfig) {
     if (!config.brokers.length) {
-      throw new Error('KafkaLogAdapter requires at least one broker');
+      throw new ConfigurationError('KafkaLogAdapter requires at least one broker', {
+        configKey: 'brokers',
+        details: { brokers: config.brokers },
+      });
     }
 
     const kafka = new Kafka({

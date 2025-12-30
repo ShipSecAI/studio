@@ -1,9 +1,17 @@
 import { z } from 'zod';
 import {
   componentRegistry,
+  ComponentRetryPolicy,
   port,
   type ComponentDefinition,
   type ExecutionContext,
+  ConfigurationError,
+  AuthenticationError,
+  PermissionError,
+  NetworkError,
+  TimeoutError,
+  NotFoundError,
+  fromHttpResponse,
 } from '@shipsec/component-sdk';
 
 const inputSchema = z
@@ -54,6 +62,13 @@ const definition: ComponentDefinition<
   label: 'GitHub Remove Org Membership',
   category: 'output',
   runner: { kind: 'inline' },
+  retryPolicy: {
+    maxAttempts: 3,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ConfigurationError', 'AuthenticationError', 'PermissionError', 'ValidationError'],
+  } satisfies ComponentRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Launches a GitHub device authorization flow (using provided client credentials) and removes a user from a GitHub team (optional) and organization to free up a seat.',
@@ -147,7 +162,9 @@ const definition: ComponentDefinition<
     const trimmedConnectionId = connectionId.trim();
 
     if (trimmedConnectionId.length === 0) {
-      throw new Error('GitHub connection ID is required when using an existing connection.');
+      throw new ConfigurationError('GitHub connection ID is required when using an existing connection.', {
+        configKey: 'connectionId',
+      });
     }
 
     context.emitProgress(
@@ -190,8 +207,9 @@ const definition: ComponentDefinition<
           },
         );
       } catch (error) {
-        throw new Error(
+        throw new NetworkError(
           `GitHub API request failed while removing ${login} from team ${teamSlug}: ${(error as Error).message}`,
+          { cause: error as Error },
         );
       }
 
@@ -204,9 +222,7 @@ const definition: ComponentDefinition<
         context.logger.info(`[GitHub] ${login} not found in team ${teamSlug}. Continuing with organization removal.`);
       } else {
         const errorBody = await safeReadText(teamResponse);
-        throw new Error(
-          `Failed to remove ${login} from team ${teamSlug}: ${teamResponse.status} ${teamResponse.statusText} ${errorBody}`,
-        );
+        throw fromHttpResponse(teamResponse, `Failed to remove ${login} from team ${teamSlug}: ${errorBody}`);
       }
     }
 
@@ -221,8 +237,9 @@ const definition: ComponentDefinition<
         },
       );
     } catch (error) {
-      throw new Error(
+      throw new NetworkError(
         `GitHub API request failed while removing ${login} from organization ${organization}: ${(error as Error).message}`,
+        { cause: error as Error },
       );
     }
 
@@ -261,9 +278,7 @@ const definition: ComponentDefinition<
     }
 
     const errorBody = await safeReadText(orgResponse);
-    throw new Error(
-      `Failed to remove ${login} from organization ${organization}: ${orgResponse.status} ${orgResponse.statusText} ${errorBody}`,
-    );
+    throw fromHttpResponse(orgResponse, `Failed to remove ${login} from organization ${organization}: ${errorBody}`);
   },
 };
 
@@ -306,9 +321,7 @@ async function fetchConnectionAccessToken(
 
   if (!response.ok) {
     const raw = await safeReadText(response);
-    throw new Error(
-      `Failed to fetch GitHub token from connection ${connectionId}: ${response.status} ${response.statusText} ${raw}`,
-    );
+    throw fromHttpResponse(response, `Failed to fetch GitHub token from connection ${connectionId}: ${raw}`);
   }
 
   const payload = (await response.json()) as {
@@ -319,7 +332,10 @@ async function fetchConnectionAccessToken(
   };
 
   if (!payload.accessToken || payload.accessToken.trim().length === 0) {
-    throw new Error(`GitHub connection ${connectionId} did not provide an access token.`);
+    throw new ConfigurationError(`GitHub connection ${connectionId} did not provide an access token.`, {
+      configKey: 'connectionId',
+      details: { connectionId },
+    });
   }
 
   context.logger.info(`[GitHub] Using stored OAuth token from connection ${connectionId}.`);
@@ -382,9 +398,7 @@ async function requestDeviceCode(
 
   if (!response.ok) {
     const raw = await safeReadText(response);
-    throw new Error(
-      `Failed to initiate GitHub device authorization: ${response.status} ${response.statusText} ${raw}`,
-    );
+    throw fromHttpResponse(response, `Failed to initiate GitHub device authorization: ${raw}`);
   }
 
   const payload = (await response.json()) as {
@@ -399,13 +413,16 @@ async function requestDeviceCode(
   };
 
   if (payload.error) {
-    throw new Error(
+    throw new AuthenticationError(
       `GitHub device authorization error: ${payload.error_description ?? payload.error}`,
+      { details: { error: payload.error, errorDescription: payload.error_description } },
     );
   }
 
   if (!payload.device_code || !payload.user_code || !payload.verification_uri || !payload.expires_in) {
-    throw new Error('GitHub device authorization response was missing required fields.');
+    throw new AuthenticationError('GitHub device authorization response was missing required fields.', {
+      details: { receivedFields: Object.keys(payload) },
+    });
   }
 
   return {
@@ -448,9 +465,7 @@ async function pollForAccessToken(
 
     if (!response.ok) {
       const raw = await safeReadText(response);
-      throw new Error(
-        `Failed to exchange GitHub device code: ${response.status} ${response.statusText} ${raw}`,
-      );
+      throw fromHttpResponse(response, `Failed to exchange GitHub device code: ${raw}`);
     }
 
     const payload = (await response.json()) as {
@@ -478,17 +493,18 @@ async function pollForAccessToken(
         context.emitProgress('GitHub asked to slow down polling, increasing interval.');
         continue;
       case 'access_denied':
-        throw new Error('GitHub authorization was denied by the user.');
+        throw new PermissionError('GitHub authorization was denied by the user.');
       case 'expired_token':
-        throw new Error('GitHub device authorization expired before approval.');
+        throw new TimeoutError('GitHub device authorization expired before approval.', 0);
       default:
-        throw new Error(
+        throw new AuthenticationError(
           `GitHub device authorization failed: ${payload.error_description ?? payload.error ?? 'unknown_error'}`,
+          { details: { error: payload.error, errorDescription: payload.error_description } },
         );
     }
   }
 
-  throw new Error('Timed out waiting for GitHub device authorization to complete.');
+  throw new TimeoutError('Timed out waiting for GitHub device authorization to complete.', 0);
 }
 
 async function resolveLogin(
@@ -506,15 +522,16 @@ async function resolveLogin(
 
     if (!searchResponse.ok) {
       const body = await safeReadText(searchResponse);
-      throw new Error(
-        `Failed to resolve GitHub username for ${trimmed}: ${searchResponse.status} ${searchResponse.statusText} ${body}`,
-      );
+      throw fromHttpResponse(searchResponse, `Failed to resolve GitHub username for ${trimmed}: ${body}`);
     }
 
     const payload = await searchResponse.json() as { total_count: number; items: Array<{ login: string }> };
 
     if (!payload.total_count || payload.items.length === 0) {
-      throw new Error(`No public GitHub user found for email ${trimmed}. Provide a username instead.`);
+      throw new NotFoundError(`No public GitHub user found for email ${trimmed}. Provide a username instead.`, {
+        resourceType: 'user',
+        resourceId: trimmed,
+      });
     }
 
     const { login } = payload.items[0];

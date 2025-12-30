@@ -2,7 +2,11 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
+  ConfigurationError,
+  NotFoundError,
+  ServiceError,
 } from '@shipsec/component-sdk';
 import * as Okta from '@okta/okta-sdk-nodejs';
 
@@ -113,9 +117,15 @@ async function getUserDetails(
     };
   } catch (error: any) {
     if (error.status === 404) {
-      throw new Error(`User ${userEmail} not found`);
+      throw new NotFoundError(`User ${userEmail} not found`, {
+        resourceType: 'user',
+        resourceId: userEmail,
+      });
     }
-    throw new Error(`Failed to get user details: ${error.message}`);
+    throw new ServiceError(`Failed to get user details: ${error.message}`, {
+      cause: error,
+      details: { userEmail, operation: 'getUserDetails' },
+    });
   }
 }
 
@@ -130,9 +140,15 @@ async function deactivateUser(
     await client.userApi.deactivateUser({ userId });
   } catch (error: any) {
     if (error.status === 404) {
-      throw new Error(`User ${userId} not found`);
+      throw new NotFoundError(`User ${userId} not found`, {
+        resourceType: 'user',
+        resourceId: userId,
+      });
     }
-    throw new Error(`Failed to deactivate user: ${error.message}`);
+    throw new ServiceError(`Failed to deactivate user: ${error.message}`, {
+      cause: error,
+      details: { userId, operation: 'deactivateUser' },
+    });
   }
 }
 
@@ -150,7 +166,10 @@ async function deleteUser(
       // User already deleted
       return;
     }
-    throw new Error(`Failed to delete user: ${error.message}`);
+    throw new ServiceError(`Failed to delete user: ${error.message}`, {
+      cause: error,
+      details: { userId, operation: 'deleteUser' },
+    });
   }
 }
 
@@ -159,6 +178,13 @@ const definition: ComponentDefinition<Input, OktaUserOffboardOutput> = {
   label: 'Okta User Offboard',
   category: 'it_ops',
   runner: { kind: 'inline' },
+  retryPolicy: {
+    maxAttempts: 3,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ConfigurationError', 'NotFoundError', 'ValidationError'],
+  } satisfies ComponentRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Offboard a user from Okta by deactivating or deleting their account to revoke access and complete the offboarding process.',
@@ -260,7 +286,9 @@ const definition: ComponentDefinition<Input, OktaUserOffboardOutput> = {
       // Resolve API token
       const resolvedApiToken = apiToken.trim();
       if (!resolvedApiToken) {
-        throw new Error('API token is required to contact Okta.');
+        throw new ConfigurationError('API token is required to contact Okta.', {
+          configKey: 'apiToken',
+        });
       }
 
       // Initialize Okta client

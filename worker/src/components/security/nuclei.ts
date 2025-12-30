@@ -5,6 +5,9 @@ import {
   port,
   runComponentWithRunner,
   type DockerRunnerConfig,
+  ValidationError,
+  ServiceError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 import * as yaml from 'js-yaml';
@@ -159,10 +162,24 @@ const dockerTimeoutSeconds = (() => {
   return parsed;
 })();
 
+// Retry policy for Nuclei - expensive, long-running scans
+const nucleiRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 2, // Only retry once for expensive vulnerability scans
+  initialIntervalSeconds: 10,
+  maximumIntervalSeconds: 60,
+  backoffCoefficient: 1.5,
+  nonRetryableErrorTypes: [
+    'ContainerError',
+    'ValidationError',
+    'ConfigurationError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.nuclei.scan',
   label: 'Nuclei Vulnerability Scanner',
   category: 'security',
+  retryPolicy: nucleiRetryPolicy,
   runner: {
     kind: 'docker',
     // Using custom ShipSecAI image instead of projectdiscovery/nuclei:latest because:
@@ -395,8 +412,9 @@ const definition: ComponentDefinition<Input, Output> = {
           // Validate size (10MB max)
           const sizeMB = zipBuffer.length / (1024 * 1024);
           if (sizeMB > 10) {
-            throw new Error(
+            throw new ValidationError(
               `Template archive too large: ${sizeMB.toFixed(2)}MB (max 10MB)`,
+              { details: { sizeMB, maxSizeMB: 10 } }
             );
           }
 
@@ -512,10 +530,11 @@ const definition: ComponentDefinition<Input, Output> = {
 
         // Nuclei exits with 0 even when findings exist
         if (exitCode !== 0 && !stderr.includes('No results found')) {
-          throw new Error(
+          throw new ServiceError(
             stderr
               ? `Nuclei scan failed: ${stderr}`
               : `Nuclei exited with code ${exitCode}`,
+            { details: { exitCode, stderr: stderr?.slice(0, 500) } }
           );
         }
       } else if (typeof rawRunnerResult === 'string') {
@@ -562,15 +581,21 @@ function validateNucleiTemplate(yamlContent: string): void {
     const template = yaml.load(yamlContent) as any;
 
     if (!template || typeof template !== 'object') {
-      throw new Error('Invalid YAML: not an object');
+      throw new ValidationError('Invalid YAML: not an object', {
+        details: { received: typeof template },
+      });
     }
 
     if (!template.id || typeof template.id !== 'string') {
-      throw new Error('Invalid template: missing or invalid "id" field');
+      throw new ValidationError('Invalid template: missing or invalid "id" field', {
+        fieldErrors: { id: ['Template must have a string id field'] },
+      });
     }
 
     if (!template.info || typeof template.info !== 'object') {
-      throw new Error('Invalid template: missing or invalid "info" section');
+      throw new ValidationError('Invalid template: missing or invalid "info" section', {
+        fieldErrors: { info: ['Template must have an info section'] },
+      });
     }
 
     // Security checks
@@ -588,8 +613,9 @@ function validateNucleiTemplate(yamlContent: string): void {
 
     for (const pattern of dangerousPatterns) {
       if (yamlLower.includes(pattern)) {
-        throw new Error(
+        throw new ValidationError(
           `Security violation: template contains potentially dangerous pattern: ${pattern}`,
+          { details: { pattern, location: 'template_content' } },
         );
       }
     }
@@ -597,16 +623,22 @@ function validateNucleiTemplate(yamlContent: string): void {
     if (template.info.severity) {
       const validSeverities = ['info', 'low', 'medium', 'high', 'critical'];
       if (!validSeverities.includes(template.info.severity.toLowerCase())) {
-        throw new Error(
+        throw new ValidationError(
           `Invalid severity: ${template.info.severity}. Must be one of: ${validSeverities.join(', ')}`,
+          { fieldErrors: { severity: [`Must be one of: ${validSeverities.join(', ')}`] } },
         );
       }
     }
   } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`YAML validation failed: ${error.message}`);
+    if (error instanceof ValidationError) {
+      throw error; // Re-throw ValidationErrors as-is
     }
-    throw new Error('YAML validation failed: unknown error');
+    if (error instanceof Error) {
+      throw new ValidationError(`YAML validation failed: ${error.message}`, {
+        cause: error,
+      });
+    }
+    throw new ValidationError('YAML validation failed: unknown error');
   }
 }
 
@@ -661,7 +693,9 @@ async function extractAndValidateZip(
     }
 
     if (Object.keys(files).length === 0) {
-      throw new Error('No valid YAML templates found in archive');
+      throw new ValidationError('No valid YAML templates found in archive', {
+        details: { archiveSizeBytes: zipBuffer.length },
+      });
     }
 
     context.logger.info(
@@ -670,10 +704,15 @@ async function extractAndValidateZip(
 
     return files;
   } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to extract zip archive: ${error.message}`);
+    if (error instanceof ValidationError) {
+      throw error; // Re-throw ValidationErrors as-is
     }
-    throw new Error('Failed to extract zip archive');
+    if (error instanceof Error) {
+      throw new ServiceError(`Failed to extract zip archive: ${error.message}`, {
+        cause: error,
+      });
+    }
+    throw new ServiceError('Failed to extract zip archive');
   }
 }
 

@@ -1,6 +1,7 @@
 import type { DestinationAdapterDefinition, DestinationConfig } from '@shipsec/shared';
 import type { ArtifactDestination, ArtifactRemoteUpload } from '@shipsec/shared';
 import type { ExecutionContext } from '@shipsec/component-sdk';
+import { ConfigurationError, NotFoundError } from '@shipsec/component-sdk';
 
 export interface DestinationSaveInput {
   fileName: string;
@@ -33,7 +34,10 @@ class DestinationRegistry {
 
   register(registration: DestinationAdapterRegistration) {
     if (this.adapters.has(registration.id)) {
-      throw new Error(`Destination adapter ${registration.id} is already registered`);
+      throw new ConfigurationError(`Destination adapter ${registration.id} is already registered`, {
+        configKey: 'adapterId',
+        details: { adapterId: registration.id },
+      });
     }
     this.adapters.set(registration.id, registration);
   }
@@ -41,7 +45,10 @@ class DestinationRegistry {
   create(config: DestinationConfig): DestinationAdapter {
     const registration = this.adapters.get(config.adapterId);
     if (!registration) {
-      throw new Error(`Destination adapter ${config.adapterId} is not registered`);
+      throw new NotFoundError(`Destination adapter ${config.adapterId} is not registered`, {
+        resourceType: 'destinationAdapter',
+        resourceId: config.adapterId,
+      });
     }
     return registration.create(config.config ?? {});
   }

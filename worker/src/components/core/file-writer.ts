@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { componentRegistry, ComponentDefinition, port, ValidationError } from '@shipsec/component-sdk';
 import {
   DestinationConfigSchema,
   type DestinationConfig,
@@ -52,7 +52,9 @@ type Output = z.infer<typeof outputSchema>;
 function buildBufferFromContent(content: unknown, format: Input['contentFormat']): Buffer {
   if (format === 'base64') {
     if (typeof content !== 'string') {
-      throw new Error('Base64 content must be provided as a string.');
+      throw new ValidationError('Base64 content must be provided as a string.', {
+        fieldErrors: { content: ['Expected a base64-encoded string'] },
+      });
     }
     return Buffer.from(content, 'base64');
   }
@@ -169,7 +171,9 @@ const definition: ComponentDefinition<Input, Output> = {
   },
   async execute(params, context) {
     if (params.content === undefined || params.content === null) {
-      throw new Error('No content provided. Connect an upstream node or set the Content parameter.');
+      throw new ValidationError('No content provided. Connect an upstream node or set the Content parameter.', {
+        fieldErrors: { content: ['Content is required'] },
+      });
     }
 
     const buffer = buildBufferFromContent(params.content, params.contentFormat);

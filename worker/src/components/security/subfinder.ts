@@ -5,6 +5,8 @@ import {
   port,
   runComponentWithRunner,
   type DockerRunnerConfig,
+  ContainerError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -70,10 +72,24 @@ const outputSchema = z.object({
 
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
 
+// Retry policy for Subfinder - long-running discovery operations
+const subfinderRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 2, // Only retry once for expensive scans
+  initialIntervalSeconds: 5,
+  maximumIntervalSeconds: 30,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'ContainerError',
+    'ValidationError',
+    'ConfigurationError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.subfinder.run',
   label: 'Subfinder',
   category: 'security',
+  retryPolicy: subfinderRetryPolicy,
   runner: {
     kind: 'docker',
     image: 'projectdiscovery/subfinder:v2.10.1',
@@ -160,7 +176,9 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
   async execute(input, context) {
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
-      throw new Error('Subfinder runner is expected to be docker-based.');
+      throw new ContainerError('Subfinder runner is expected to be docker-based.', {
+        details: { expectedKind: 'docker', actualKind: baseRunner.kind },
+      });
     }
 
     if (input.domains.length === 0) {

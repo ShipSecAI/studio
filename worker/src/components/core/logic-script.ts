@@ -2,9 +2,11 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ContainerError,
   port,
   runComponentWithRunner,
   type DockerRunnerConfig,
+  ValidationError,
 } from '@shipsec/component-sdk';
 
 const variableConfigSchema = z.object({
@@ -222,7 +224,9 @@ const definition: ComponentDefinition<Input, Output> = {
       runnerConfig,
       async () => {
         // Fallback if docker runner fails - should not happen
-        throw new Error('Docker runner should handle this execution');
+        throw new ContainerError('Docker runner should handle this execution', {
+          details: { reason: 'fallback_triggered' },
+        });
       },
       params,
       context,
@@ -237,7 +241,10 @@ const definition: ComponentDefinition<Input, Output> = {
         try {
           result = JSON.parse(match[1].trim());
         } catch (err) {
-          throw new Error('Failed to parse script result JSON.');
+          throw new ValidationError('Failed to parse script result JSON.', {
+            cause: err as Error,
+            details: { rawOutput: match[1].trim().slice(0, 200) },
+          });
         }
       } else {
         // If no result markers, maybe the raw output is the result

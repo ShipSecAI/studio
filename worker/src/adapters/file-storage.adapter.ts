@@ -1,7 +1,7 @@
 import { Client } from 'minio';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
-import { IFileStorageService } from '@shipsec/component-sdk';
+import { IFileStorageService, NotFoundError } from '@shipsec/component-sdk';
 import * as schema from './schema';
 
 /**
@@ -31,7 +31,10 @@ export class FileStorageAdapter implements IFileStorageService {
       .limit(1);
 
     if (!file) {
-      throw new Error(`File not found: ${fileId}`);
+      throw new NotFoundError(`File not found: ${fileId}`, {
+        resourceType: 'file',
+        resourceId: fileId,
+      });
     }
 
     // Download from MinIO
@@ -69,7 +72,10 @@ export class FileStorageAdapter implements IFileStorageService {
       .limit(1);
 
     if (!file) {
-      throw new Error(`File not found: ${fileId}`);
+      throw new NotFoundError(`File not found: ${fileId}`, {
+        resourceType: 'file',
+        resourceId: fileId,
+      });
     }
 
     return {

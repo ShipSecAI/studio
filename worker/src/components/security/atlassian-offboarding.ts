@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { componentRegistry, type ComponentDefinition, port } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  type ComponentDefinition,
+  ComponentRetryPolicy,
+  port,
+  ValidationError,
+  ConfigurationError,
+  NetworkError,
+  fromHttpResponse,
+} from '@shipsec/component-sdk';
 
 const emailUsernameArraySchema = z
   .array(z.string().min(1, 'Email username cannot be empty'))
@@ -169,6 +178,13 @@ const definition: ComponentDefinition<Input, Output> = {
   outputSchema,
   docs:
     'Search for Atlassian accounts by email username and remove them from an organization using the Atlassian Admin API. Typical workflow: Secret Fetch → Atlassian Offboarding → Console Log / Notify.\n\nPrerequisites:\n- Atlassian organization ID (UUID) with admin API access.\n- Admin API bearer token delivered via Secret Fetch (connect the secret output to the accessToken input).\n\nInputs:\n- emailUsernames: comma/newline separated list or array of email usernames (portion before @).\n- orgId: Atlassian organization identifier.\n- accessToken: bearer token supplied via a secret/credential port.\n\nOutputs:\n- results: entry for each requested username including accountId, status, and message.\n- summary: aggregate counts (requested/found/deleted/failed).\n- searchRaw: raw API response for audit/debug.\n\nSee docs/atlassian-offboarding.md for end-to-end workflow guidance.',
+  retryPolicy: {
+    maxAttempts: 3,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ValidationError', 'ConfigurationError', 'NotFoundError'],
+  } satisfies ComponentRetryPolicy,
   metadata: {
     slug: 'atlassian-offboarding',
     version: '1.0.0',
@@ -274,7 +290,9 @@ const definition: ComponentDefinition<Input, Output> = {
     const requestedUsernames = Array.from(new Set(requestedEmails));
 
     if (requestedUsernames.length === 0) {
-      throw new Error('No valid email usernames provided after trimming input.');
+      throw new ValidationError('No valid email usernames provided after trimming input.', {
+        fieldErrors: { emailUsernames: ['At least one valid email username is required'] },
+      });
     }
 
     context.logger.info(
@@ -283,7 +301,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const accessToken = params.accessToken.trim();
     if (!accessToken) {
-      throw new Error('Access token is required to call the Atlassian Admin API.');
+      throw new ConfigurationError('Access token is required to call the Atlassian Admin API.', {
+        configKey: 'accessToken',
+      });
     }
     context.logger.info('[AtlassianOffboarding] Using access token provided via secret input.');
 
@@ -320,7 +340,9 @@ const definition: ComponentDefinition<Input, Output> = {
     } catch (error) {
       const message = (error as Error).message ?? 'Unknown error';
       context.logger.error(`[AtlassianOffboarding] Search request failed: ${message}`);
-      throw new Error(`Failed to call Atlassian search API: ${message}`);
+      throw new NetworkError(`Failed to call Atlassian search API: ${message}`, {
+        cause: error as Error,
+      });
     }
 
     const searchDuration = Date.now() - searchStartedAt;
@@ -333,9 +355,7 @@ const definition: ComponentDefinition<Input, Output> = {
       context.logger.error(
         `[AtlassianOffboarding] Atlassian search API returned ${searchResponse.status}: ${searchResponse.statusText}`,
       );
-      throw new Error(
-        `Atlassian search API error ${searchResponse.status}: ${searchResponse.statusText}. Body: ${bodySnippet}`,
-      );
+      throw fromHttpResponse(searchResponse, `Atlassian search API error: ${bodySnippet}`);
     }
 
     let searchPayloadJson: unknown;
@@ -347,7 +367,10 @@ const definition: ComponentDefinition<Input, Output> = {
     } catch (error) {
       const message = (error as Error).message ?? 'Unknown error';
       context.logger.error(`[AtlassianOffboarding] Failed to parse search response JSON: ${message}`);
-      throw new Error(`Unable to parse Atlassian search response JSON: ${message}`);
+      throw new ValidationError(`Unable to parse Atlassian search response JSON: ${message}`, {
+        cause: error as Error,
+        details: { operation: 'parseSearchResponse' },
+      });
     }
 
     const searchResults = getSearchResults(searchPayloadJson);

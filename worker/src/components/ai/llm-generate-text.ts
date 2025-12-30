@@ -6,6 +6,8 @@ import {
   componentRegistry,
   ComponentDefinition,
   port,
+  ConfigurationError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
 
@@ -60,11 +62,25 @@ type Dependencies = {
   createGoogleGenerativeAI?: typeof createGoogleGenerativeAIImpl;
 };
 
+// Retry policy for LLM generation - handle transient API errors
+const llmGenerateTextRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 3,
+  initialIntervalSeconds: 2,
+  maximumIntervalSeconds: 30,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'AuthenticationError',
+    'ConfigurationError',
+    'ValidationError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.ai.generate-text',
   label: 'AI Generate Text',
   category: 'ai',
   runner: { kind: 'inline' },
+  retryPolicy: llmGenerateTextRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Runs a single LLM completion using a provider config emitted by the provider components.',
@@ -165,8 +181,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const resolvedApiKey = modelApiKey?.trim() || chatModel.apiKey?.trim();
     if (!resolvedApiKey) {
-      throw new Error(
+      throw new ConfigurationError(
         'No API key available. Provide a key via the provider component or connect an override.',
+        { configKey: 'apiKey' }
       );
     }
 

@@ -1,6 +1,6 @@
 import { and, eq, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ISecretsService } from '@shipsec/component-sdk';
+import { ISecretsService, ServiceError } from '@shipsec/component-sdk';
 import { SecretEncryption, parseMasterKey } from '@shipsec/shared';
 
 import * as schema from './schema';
@@ -74,7 +74,10 @@ export class SecretsAdapter implements ISecretsService {
 
       return { value, version: options?.version ?? record.versionNumber };
     } catch (error) {
-      throw new Error(`Failed to decrypt secret '${key}': ${(error as Error).message}`);
+      throw new ServiceError(`Failed to decrypt secret '${key}'`, {
+        cause: error as Error,
+        details: { secretKey: key, keyId: record.keyId },
+      });
     }
   }
 

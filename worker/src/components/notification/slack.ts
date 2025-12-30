@@ -3,6 +3,10 @@ import {
   componentRegistry,
   ComponentDefinition,
   port,
+  ConfigurationError,
+  fromHttpResponse,
+  AuthenticationError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
@@ -57,11 +61,25 @@ const mapTypeToPort = (type: string, id: string, label: string) => {
     }
   };
 
+// Retry policy optimized for Slack API rate limits
+const slackRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 5,
+  initialIntervalSeconds: 2,
+  maximumIntervalSeconds: 60,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'AuthenticationError',
+    'ConfigurationError',
+    'ValidationError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output, Params> = {
   id: 'core.notification.slack',
   label: 'Slack Message',
   category: 'notification',
   runner: { kind: 'inline' },
+  retryPolicy: slackRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Send dynamic Slack messages with {{variable}} support in both text and Block Kit JSON.',
@@ -167,16 +185,27 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     };
 
     if (authType === 'webhook') {
-      if (!webhookUrl) throw new Error('Slack Webhook URL is required.');
+      if (!webhookUrl) {
+        throw new ConfigurationError('Slack Webhook URL is required.', {
+          configKey: 'webhookUrl',
+        });
+      }
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!response.ok) throw new Error(`Webhook failed: ${response.status}`);
+      if (!response.ok) {
+        const responseBody = await response.text();
+        throw fromHttpResponse(response, responseBody);
+      }
       return { ok: true };
     } else {
-      if (!slackToken) throw new Error('Slack token missing.');
+      if (!slackToken) {
+        throw new ConfigurationError('Slack token missing.', {
+          configKey: 'slackToken',
+        });
+      }
       body.channel = channel;
       body.thread_ts = thread_ts;
 
@@ -191,6 +220,11 @@ const definition: ComponentDefinition<Input, Output, Params> = {
 
       const result = await response.json() as any;
       if (!result.ok) {
+        // Slack API returns ok: false with an error code
+        // Check for common auth errors
+        if (result.error === 'invalid_auth' || result.error === 'token_revoked') {
+          throw new AuthenticationError(`Slack authentication failed: ${result.error}`);
+        }
         return { ok: false, error: result.error };
       }
       return { ok: true, ts: result.ts };

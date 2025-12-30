@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   runComponentWithRunner,
+  ConfigurationError,
 } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
@@ -185,6 +187,13 @@ cat "$MESSAGE_FILE" | "$@"
   inputSchema,
   outputSchema,
   docs: 'Sends notifications using ProjectDiscovery notify with a provided provider configuration.',
+  retryPolicy: {
+    maxAttempts: 3,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ValidationError', 'ConfigurationError'],
+  } satisfies ComponentRetryPolicy,
   metadata: {
     slug: 'notify',
     version: '1.0.0',
@@ -282,7 +291,10 @@ cat "$MESSAGE_FILE" | "$@"
   async execute(input, context) {
     // Validate that providerConfig is provided
     if (!input.providerConfig || input.providerConfig.trim() === '') {
-      throw new Error('Provider configuration is required. Please provide it via the parameter field or as an input.');
+      throw new ConfigurationError(
+        'Provider configuration is required. Please provide it via the parameter field or as an input.',
+        { configKey: 'providerConfig' },
+      );
     }
 
     const { messages, providerIds, recipientIds } = input;

@@ -5,6 +5,8 @@ import {
   port,
   runComponentWithRunner,
   type DockerRunnerConfig,
+  ContainerError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -317,10 +319,24 @@ const buildDnsxArgs = (options: BuildDnsxArgsOptions): string[] => {
   return args;
 };
 
+// Retry policy for DNSX - fast, lightweight operations
+const dnsxRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 3,
+  initialIntervalSeconds: 1,
+  maximumIntervalSeconds: 10,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'ContainerError',
+    'ValidationError',
+    'ConfigurationError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.dnsx.run',
   label: 'DNSX Resolver',
   category: 'security',
+  retryPolicy: dnsxRetryPolicy,
   runner: {
     kind: 'docker',
     image: DNSX_IMAGE,
@@ -630,7 +646,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
-      throw new Error('DNSX runner must be docker');
+      throw new ContainerError('DNSX runner must be docker', {
+        details: { expectedKind: 'docker', actualKind: baseRunner.kind },
+      });
     }
 
     let rawPayload: unknown;

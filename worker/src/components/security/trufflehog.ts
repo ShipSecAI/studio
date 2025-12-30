@@ -2,9 +2,12 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   runComponentWithRunner,
   type DockerRunnerConfig,
+  ContainerError,
+  ValidationError,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -234,6 +237,13 @@ const definition: ComponentDefinition<Input, Output> = {
       HOME: '/tmp',
     },
   },
+  retryPolicy: {
+    maxAttempts: 2,
+    initialIntervalSeconds: 5,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
+  } satisfies ComponentRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Scan for secrets and credentials using TruffleHog. Supports Git repositories, GitHub, GitLab, filesystems, S3 buckets, Docker images, and more.',
@@ -408,14 +418,18 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
-      throw new Error('TruffleHog runner must be docker');
+      throw new ContainerError('TruffleHog runner must be docker', {
+        details: { reason: 'runner_type_mismatch', expected: 'docker', actual: baseRunner.kind },
+      });
     }
 
     try {
       // If filesystemContent is provided, use isolated volume
       if (input.filesystemContent && Object.keys(input.filesystemContent).length > 0) {
         if (input.scanType !== 'filesystem') {
-          throw new Error('filesystemContent can only be used with scanType=filesystem');
+          throw new ValidationError('filesystemContent can only be used with scanType=filesystem', {
+            fieldErrors: { scanType: ['Must be "filesystem" when using filesystemContent'] },
+          });
         }
 
         const tenantId = (context as any).tenantId ?? 'default-tenant';

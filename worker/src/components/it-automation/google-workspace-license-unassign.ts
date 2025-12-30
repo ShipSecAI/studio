@@ -2,7 +2,11 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
+  ConfigurationError,
+  NotFoundError,
+  ServiceError,
 } from '@shipsec/component-sdk';
 import { admin, auth as googleAdminAuth } from '@googleapis/admin';
 
@@ -113,9 +117,15 @@ async function getUserDetails(
     };
   } catch (error: any) {
     if (error.code === 404) {
-      throw new Error(`User ${userEmail} not found`);
+      throw new NotFoundError(`User ${userEmail} not found`, {
+        resourceType: 'user',
+        resourceId: userEmail,
+      });
     }
-    throw new Error(`Failed to get user details: ${error.message}`);
+    throw new ServiceError(`Failed to get user details: ${error.message}`, {
+      cause: error,
+      details: { userEmail, operation: 'getUserDetails' },
+    });
   }
 }
 
@@ -135,7 +145,10 @@ async function deleteUser(
       // User already deleted
       return;
     }
-    throw new Error(`Failed to delete user: ${error.message}`);
+    throw new ServiceError(`Failed to delete user: ${error.message}`, {
+      cause: error,
+      details: { userEmail, operation: 'deleteUser' },
+    });
   }
 }
 
@@ -177,6 +190,13 @@ const definition: ComponentDefinition<Input, GoogleWorkspaceUserDeleteOutput> = 
   label: 'Google Workspace User Delete',
   category: 'it_ops',
   runner: { kind: 'inline' },
+  retryPolicy: {
+    maxAttempts: 3,
+    initialIntervalSeconds: 2,
+    maximumIntervalSeconds: 30,
+    backoffCoefficient: 2,
+    nonRetryableErrorTypes: ['ConfigurationError', 'NotFoundError', 'ValidationError'],
+  } satisfies ComponentRetryPolicy,
   inputSchema,
   outputSchema,
   docs: componentDocumentation,
@@ -255,7 +275,10 @@ const definition: ComponentDefinition<Input, GoogleWorkspaceUserDeleteOutput> = 
     try {
       // Validate secret input
       if (!service_account_secret) {
-        throw new Error('Service account secret is required. Please provide the Google Workspace service account JSON key directly or connect a Secret Fetch component.');
+        throw new ConfigurationError(
+          'Service account secret is required. Please provide the Google Workspace service account JSON key directly or connect a Secret Fetch component.',
+          { configKey: 'service_account_secret' },
+        );
       }
 
       // Parse service account key from the input (could be string or object)
@@ -265,7 +288,13 @@ const definition: ComponentDefinition<Input, GoogleWorkspaceUserDeleteOutput> = 
           ? service_account_secret
           : JSON.stringify(service_account_secret);
       } catch (error) {
-        throw new Error(`Failed to parse service account secret: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new ConfigurationError(
+          `Failed to parse service account secret: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          {
+            configKey: 'service_account_secret',
+            cause: error instanceof Error ? error : undefined,
+          },
+        );
       }
 
       // Initialize Google client

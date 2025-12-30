@@ -56,7 +56,7 @@ export class TraceService {
     timestamp: Date;
     type: PersistedTraceEventType;
     message: string | null;
-    error: string | null;
+    error: unknown;
     outputSummary: unknown | null;
     level: string;
     data: unknown | null;
@@ -77,7 +77,7 @@ export class TraceService {
       level,
       timestamp: record.timestamp.toISOString(),
       message: record.message ?? undefined,
-      error: record.error ? { message: record.error } : undefined,
+      error: this.toTraceError(record.error),
       outputSummary,
     };
 
@@ -152,6 +152,42 @@ export class TraceService {
     const metadata = this.parseMetadata(metadataRaw);
 
     return { payload, metadata };
+  }
+
+  private toTraceError(error: unknown): TraceEventPayload['error'] {
+    if (!error) {
+      return undefined;
+    }
+
+    if (typeof error === 'string') {
+      return { message: error };
+    }
+
+    if (typeof error === 'object' && error !== null) {
+      const errObj = error as Record<string, unknown>;
+      
+      // Extract fieldErrors if present and valid
+      let fieldErrors: Record<string, string[]> | undefined;
+      if ('fieldErrors' in errObj && errObj.fieldErrors !== null && typeof errObj.fieldErrors === 'object') {
+        const fieldErrorsObj = errObj.fieldErrors as Record<string, unknown>;
+        const isValidFieldErrors = Object.values(fieldErrorsObj).every(
+          (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')
+        );
+        if (isValidFieldErrors) {
+          fieldErrors = fieldErrorsObj as Record<string, string[]>;
+        }
+      }
+      
+      return {
+        message: typeof errObj.message === 'string' ? errObj.message : String(error),
+        type: typeof errObj.type === 'string' ? errObj.type : undefined,
+        stack: typeof errObj.stack === 'string' ? errObj.stack : undefined,
+        details: this.toRecord(errObj.details),
+        fieldErrors,
+      };
+    }
+
+    return { message: String(error) };
   }
 
   private parseMetadata(metadataRaw: unknown): TraceEventMetadata | undefined {

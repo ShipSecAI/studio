@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { ITraceService } from '@shipsec/component-sdk';
+import { ConfigurationError } from '@shipsec/component-sdk';
 import * as schema from '../../adapters/schema';
 import type { HumanInputType } from '../../adapters/schema';
 
@@ -65,7 +66,9 @@ export async function createHumanInputRequestActivity(
   input: CreateHumanInputRequestInput
 ): Promise<CreateHumanInputRequestResult> {
   if (!db) {
-    throw new Error('Human input activity not initialized - database connection missing');
+    throw new ConfigurationError('Human input activity not initialized - database connection missing', {
+      configKey: 'database',
+    });
   }
 
   const requestId = randomUUID();

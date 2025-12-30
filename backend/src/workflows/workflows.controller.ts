@@ -129,6 +129,18 @@ const traceErrorSchema = {
     message: { type: 'string' },
     stack: { type: 'string' },
     code: { type: 'string' },
+    type: { type: 'string' },
+    details: {
+      type: 'object',
+      additionalProperties: true,
+    },
+    fieldErrors: {
+      type: 'object',
+      additionalProperties: {
+        type: 'array',
+        items: { type: 'string' },
+      },
+    },
   },
   additionalProperties: false,
 };

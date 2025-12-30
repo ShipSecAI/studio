@@ -5,6 +5,8 @@ import {
   componentRegistry,
   createExecutionContext,
   runComponentWithRunner,
+  NotFoundError,
+  ValidationError,
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
@@ -90,7 +92,11 @@ export async function runComponentActivity(
   const component = componentRegistry.get(action.componentId);
   if (!component) {
     console.error(`❌ Component not found: ${action.componentId}`);
-    throw new Error(`Component not registered: ${action.componentId}`);
+    throw new NotFoundError(`Component not registered: ${action.componentId}`, {
+      resourceType: 'component',
+      resourceId: action.componentId,
+      details: { actionRef: action.ref },
+    });
   }
 
   console.log(`✅ Component found: ${action.componentId}`);
@@ -179,7 +185,12 @@ export async function runComponentActivity(
 
   if (warnings.length > 0) {
     const missing = warnings.map((warning) => `'${warning.target}'`).join(', ');
-    throw new Error(`Missing required inputs for ${action.ref}: ${missing}`);
+    throw new ValidationError(`Missing required inputs for ${action.ref}: ${missing}`, {
+      fieldErrors: Object.fromEntries(
+        warnings.map((w) => [w.target, [`mapped from ${w.sourceRef}.${w.sourceHandle} was undefined`]])
+      ),
+      details: { actionRef: action.ref, componentId: action.componentId },
+    });
   }
 
   const parsedParams = component.inputSchema.parse(params);
@@ -212,16 +223,60 @@ export async function runComponentActivity(
     return { output, activeOutputPorts };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
+    
+    // Extract error properties without using 'any'
+    let errorType: string | undefined;
+    let errorDetails: Record<string, unknown> | undefined;
+    let fieldErrors: Record<string, string[]> | undefined;
+    let isRetryable = false;
+
+    if (error instanceof Error) {
+      errorType = error.name;
+      
+      // Check if it's a ComponentError (has type and retryable properties)
+      if ('type' in error && typeof (error as { type: unknown }).type === 'string') {
+        errorType = (error as { type: string }).type;
+      }
+      
+      // Check if it's retryable
+      if ('retryable' in error && typeof (error as { retryable: unknown }).retryable === 'boolean') {
+        isRetryable = (error as { retryable: boolean }).retryable;
+      }
+      
+      // Extract details if present
+      if ('details' in error && typeof (error as { details: unknown }).details === 'object' && (error as { details: unknown }).details !== null) {
+        errorDetails = (error as { details: Record<string, unknown> }).details;
+      }
+      
+      // Extract fieldErrors if it's a ValidationError
+      if (error instanceof ValidationError && error.fieldErrors) {
+        fieldErrors = error.fieldErrors;
+      }
+    }
+
+    const traceError: {
+      message: string;
+      type?: string;
+      stack?: string;
+      details?: Record<string, unknown>;
+      fieldErrors?: Record<string, string[]>;
+    } = {
+      message: errorMsg,
+      type: errorType || 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined,
+      details: errorDetails,
+      fieldErrors,
+    };
+    
     context.trace?.record({
       type: 'NODE_FAILED',
       timestamp: new Date().toISOString(),
       message: errorMsg,
-      error: errorMsg,
+      error: traceError,
       level: 'error',
     });
 
-    const errorType =
-      error instanceof Error && error.name ? error.name : 'ComponentError';
+    const finalErrorType = errorType || 'ComponentError';
 
     const details = {
       componentId: action.componentId,
@@ -235,19 +290,11 @@ export async function runComponentActivity(
       stack: error instanceof Error ? error.stack : undefined,
     };
 
-    const isRetryable =
-      typeof error === 'object' &&
-      error !== null &&
-      'retryable' in error &&
-      typeof (error as any).retryable === 'boolean'
-        ? Boolean((error as any).retryable)
-        : false;
-
     if (isRetryable) {
-      throw ApplicationFailure.retryable(errorMsg, errorType, [details]);
+      throw ApplicationFailure.retryable(errorMsg, finalErrorType, [details]);
     }
 
-    throw ApplicationFailure.nonRetryable(errorMsg, errorType, [details]);
+    throw ApplicationFailure.nonRetryable(errorMsg, finalErrorType, [details]);
   } finally {
     // Do not finalize run here; lifecycle is managed by workflow orchestration.
   }

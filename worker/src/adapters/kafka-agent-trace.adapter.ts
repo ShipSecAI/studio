@@ -1,5 +1,6 @@
 import { Kafka, logLevel as KafkaLogLevel, type Producer } from 'kafkajs';
 import type { AgentTraceEvent, AgentTracePublisher } from '@shipsec/component-sdk';
+import { ConfigurationError } from '@shipsec/component-sdk';
 
 export interface KafkaAgentTracePublisherConfig {
   brokers: string[];
@@ -17,7 +18,10 @@ export class KafkaAgentTracePublisher implements AgentTracePublisher {
     private readonly logger: Pick<Console, 'log' | 'error'> = console,
   ) {
     if (!config.brokers.length) {
-      throw new Error('KafkaAgentTracePublisher requires at least one broker');
+      throw new ConfigurationError('KafkaAgentTracePublisher requires at least one broker', {
+        configKey: 'brokers',
+        details: { brokers: config.brokers },
+      });
     }
 
     const kafka = new Kafka({

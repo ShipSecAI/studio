@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ConfigurationError } from './errors';
 
 export interface ComponentContract<T = unknown> {
   name: string;
@@ -15,7 +16,10 @@ const contractRegistry = new Map<string, ComponentContract<any>>();
 
 export function registerContract<T>(contract: ComponentContract<T>): void {
   if (contractRegistry.has(contract.name)) {
-    throw new Error(`Contract ${contract.name} is already registered`);
+    throw new ConfigurationError(`Contract ${contract.name} is already registered`, {
+      configKey: 'contractName',
+      details: { contractName: contract.name },
+    });
   }
   contractRegistry.set(contract.name, contract as ComponentContract<any>);
 }

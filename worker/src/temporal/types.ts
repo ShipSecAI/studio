@@ -1,6 +1,7 @@
 // Shared types between workflows and activities
 // This file MUST NOT import anything that executes code or external libraries
 import type { ExecutionTriggerMetadata } from '@shipsec/shared';
+import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
 
 // Inline workflow definition types to avoid importing Zod
 export interface WorkflowAction {
@@ -15,6 +16,7 @@ export interface WorkflowAction {
       sourceHandle: string;
     }
   >;
+  retryPolicy?: ComponentRetryPolicy;
 }
 
 export type WorkflowEdgeKind = 'success' | 'error';

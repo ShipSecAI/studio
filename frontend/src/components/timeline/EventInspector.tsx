@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { ChevronDown, FileText, AlertCircle, CheckCircle, Activity, X, Wrench } from 'lucide-react'
+import { ExecutionErrorView } from '@/components/workflow/ExecutionErrorView'
 import { Badge } from '@/components/ui/badge'
 import { MessageModal } from '@/components/ui/MessageModal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -518,16 +519,26 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                       )}
                     </div>
 
-                    {isExpanded && normalizedPayload && (
+                    {isExpanded && (normalizedPayload || event.error) && (
                       <div className="mt-3 space-y-4 rounded-md border bg-background/80 p-3 text-xs">
-                        <section>
-                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                            Payload
-                          </div>
-                          <pre className="mt-2 max-h-52 overflow-auto rounded-md bg-muted/20 px-3 py-2 font-mono text-[11px]">
-                            {formatData(normalizedPayload)}
-                          </pre>
-                        </section>
+                        {event.error && (
+                          <section>
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                              Error Details
+                            </div>
+                            <ExecutionErrorView error={event.error} />
+                          </section>
+                        )}
+                        {normalizedPayload && (
+                          <section>
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Payload
+                            </div>
+                            <pre className="mt-2 max-h-52 overflow-auto rounded-md bg-muted/20 px-3 py-2 font-mono text-[11px]">
+                              {formatData(normalizedPayload)}
+                            </pre>
+                          </section>
+                        )}
                       </div>
                     )}
 
@@ -598,11 +609,19 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
                             )}
                             {event.metadata?.failure && (
                               <div className="col-span-2">
-                                <span className="block text-[10px] uppercase tracking-wide">Failure context</span>
-                                <div className="mt-1 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive space-y-1">
-                                  {event.metadata.failure.at && <div>at: {event.metadata.failure.at}</div>}
-                                  {event.metadata.failure.reason?.message && <div>message: {event.metadata.failure.reason.message}</div>}
-                                  {event.metadata.failure.reason?.name && <div>name: {event.metadata.failure.reason.name}</div>}
+                                <span className="block text-[10px] uppercase tracking-wide font-bold text-destructive">Failure context</span>
+                                <div className="mt-1 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive space-y-2">
+                                  {event.metadata.failure.at && <div><span className="opacity-70 font-semibold uppercase text-[9px]">At:</span> {event.metadata.failure.at}</div>}
+                                  {event.metadata.failure.reason?.type && <div><span className="opacity-70 font-semibold uppercase text-[9px]">Type:</span> {event.metadata.failure.reason.type}</div>}
+                                  <div><span className="opacity-70 font-semibold uppercase text-[9px]">Message:</span> {event.metadata.failure.reason?.message}</div>
+                                  {event.metadata.failure.reason?.details && Object.keys(event.metadata.failure.reason.details).length > 0 && (
+                                    <div>
+                                      <span className="opacity-70 font-semibold uppercase text-[9px] block mb-1">Details:</span>
+                                      <pre className="mt-1 rounded bg-black/5 dark:bg-white/5 p-1.5 font-mono text-[10px] overflow-auto max-h-32">
+                                        {formatData(event.metadata.failure.reason.details)}
+                                      </pre>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}

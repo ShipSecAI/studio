@@ -3,6 +3,8 @@ import {
   componentRegistry,
   ComponentDefinition,
   port,
+  ConfigurationError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
 
@@ -36,11 +38,18 @@ const outputSchema = z.object({
 
 type Output = z.infer<typeof outputSchema>;
 
+// Retry policy for provider configuration - no retries needed for config validation
+const openaiProviderRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 1, // Provider config is deterministic, no retry needed
+  nonRetryableErrorTypes: ['ConfigurationError', 'ValidationError'],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.provider.openai',
   label: 'OpenAI Provider',
   category: 'ai',
   runner: { kind: 'inline' },
+  retryPolicy: openaiProviderRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Emits a reusable OpenAI provider configuration that downstream AI components can consume.',
@@ -105,7 +114,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const effectiveApiKey = apiKey.trim();
     if (!effectiveApiKey) {
-      throw new Error('OpenAI API key is required but was not provided.');
+      throw new ConfigurationError('OpenAI API key is required but was not provided.', {
+        configKey: 'apiKey',
+      });
     }
 
     const trimmedBaseUrl = apiBaseUrl?.trim() ? apiBaseUrl.trim() : process.env.OPENAI_BASE_URL;

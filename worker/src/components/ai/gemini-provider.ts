@@ -3,6 +3,8 @@ import {
   componentRegistry,
   ComponentDefinition,
   port,
+  ConfigurationError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
 
@@ -36,11 +38,18 @@ const outputSchema = z.object({
 
 type Output = z.infer<typeof outputSchema>;
 
+// Retry policy for provider configuration - no retries needed for config validation
+const geminiProviderRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 1, // Provider config is deterministic, no retry needed
+  nonRetryableErrorTypes: ['ConfigurationError', 'ValidationError'],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.provider.gemini',
   label: 'Gemini Provider',
   category: 'ai',
   runner: { kind: 'inline' },
+  retryPolicy: geminiProviderRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Emits a Gemini provider configuration for downstream AI components.',
@@ -110,7 +119,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const effectiveApiKey = apiKey.trim();
     if (!effectiveApiKey) {
-      throw new Error('Gemini API key is required but was not provided.');
+      throw new ConfigurationError('Gemini API key is required but was not provided.', {
+        configKey: 'apiKey',
+      });
     }
 
     const trimmedBaseUrl = apiBaseUrl?.trim() ? apiBaseUrl.trim() : process.env.GEMINI_BASE_URL;

@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { DestinationAdapterRegistration, DestinationSaveInput, DestinationSaveResult } from '../registry';
 import type { ExecutionContext } from '@shipsec/component-sdk';
+import { ConfigurationError } from '@shipsec/component-sdk';
 
 interface AwsCredentialPayload {
   accessKeyId: string;
@@ -98,7 +99,10 @@ export const s3DestinationAdapter: DestinationAdapterRegistration = {
 
 function ensureS3Config(config: unknown): S3AdapterConfig {
   if (!isS3Config(config)) {
-    throw new Error('S3 destination requires a bucket name.');
+    throw new ConfigurationError('S3 destination requires a bucket name.', {
+      configKey: 'bucket',
+      details: { receivedConfig: typeof config },
+    });
   }
   return config;
 }
@@ -113,11 +117,16 @@ function isS3Config(config: unknown): config is S3AdapterConfig {
 
 function ensureAwsCredentials(config: S3AdapterConfig): AwsCredentialPayload {
   if (!config.credentials) {
-    throw new Error('S3 destination requires AWS credentials to be provided via the credentials port.');
+    throw new ConfigurationError('S3 destination requires AWS credentials to be provided via the credentials port.', {
+      configKey: 'credentials',
+    });
   }
   const { accessKeyId, secretAccessKey, sessionToken, region } = config.credentials;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error('S3 destination requires both access key ID and secret access key.');
+    throw new ConfigurationError('S3 destination requires both access key ID and secret access key.', {
+      configKey: 'credentials',
+      details: { hasAccessKeyId: !!accessKeyId, hasSecretAccessKey: !!secretAccessKey },
+    });
   }
   return {
     accessKeyId,

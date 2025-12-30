@@ -3,6 +3,8 @@ import {
   componentRegistry,
   ComponentDefinition,
   port,
+  ConfigurationError,
+  ComponentRetryPolicy,
 } from '@shipsec/component-sdk';
 import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
 
@@ -42,11 +44,18 @@ const outputSchema = z.object({
 
 type Output = z.infer<typeof outputSchema>;
 
+// Retry policy for provider configuration - no retries needed for config validation
+const openrouterProviderRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 1, // Provider config is deterministic, no retry needed
+  nonRetryableErrorTypes: ['ConfigurationError', 'ValidationError'],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.provider.openrouter',
   label: 'OpenRouter Provider',
   category: 'ai',
   runner: { kind: 'inline' },
+  retryPolicy: openrouterProviderRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Emits an OpenRouter provider configuration for downstream AI components.',
@@ -119,7 +128,9 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const effectiveApiKey = apiKey.trim();
     if (!effectiveApiKey) {
-      throw new Error('OpenRouter API key is required but was not provided.');
+      throw new ConfigurationError('OpenRouter API key is required but was not provided.', {
+        configKey: 'apiKey',
+      });
     }
 
     const trimmedBaseUrl = apiBaseUrl?.trim() ? apiBaseUrl.trim() : DEFAULT_BASE_URL;

@@ -2,8 +2,11 @@ import { z } from 'zod';
 import {
   componentRegistry,
   type ComponentDefinition,
+  ConfigurationError,
+  NotFoundError,
   port,
   registerContract,
+  ValidationError,
 } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
@@ -120,8 +123,9 @@ const definition: ComponentDefinition<Input, Output> = {
   },
   async execute(params, context) {
     if (!context.secrets) {
-      throw new Error(
+      throw new ConfigurationError(
         'Secret Fetch component requires the secrets service. Ensure the worker injects ISecretsService.',
+        { configKey: 'secrets' },
       );
     }
 
@@ -132,7 +136,10 @@ const definition: ComponentDefinition<Input, Output> = {
     });
 
     if (!resolved) {
-      throw new Error('Secret value unavailable. Verify the secret mapping and active version.');
+      throw new NotFoundError('Secret value unavailable. Verify the secret mapping and active version.', {
+        resourceType: 'Secret',
+        resourceId: params.secretId,
+      });
     }
 
     const format = params.outputFormat ?? 'raw';
@@ -142,7 +149,10 @@ const definition: ComponentDefinition<Input, Output> = {
       try {
         secretOutput = JSON.parse(resolved.value);
       } catch (error) {
-        throw new Error(`Failed to parse secret value as JSON: ${(error as Error).message}`);
+        throw new ValidationError(`Failed to parse secret value as JSON: ${(error as Error).message}`, {
+          cause: error as Error,
+          fieldErrors: { outputFormat: ['Invalid JSON in secret value'] },
+        });
       }
     }
 

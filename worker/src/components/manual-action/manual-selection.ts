@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ComponentDefinition,
+  ComponentRetryPolicy,
   port,
   registerContract,
+  ValidationError,
 } from '@shipsec/component-sdk';
 
 /**
@@ -74,6 +76,10 @@ const definition: ComponentDefinition<Input, Output, Params> = {
   label: 'Manual Selection',
   category: 'manual_action',
   runner: { kind: 'inline' },
+  retryPolicy: {
+    maxAttempts: 1,
+    nonRetryableErrorTypes: ['ValidationError'],
+  } satisfies ComponentRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Pauses workflow execution until a user selects an option. Supports Markdown and dynamic context variables.',
@@ -228,7 +234,9 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     }
 
     if (options.length === 0) {
-        throw new Error('Manual Selection component requires at least one option.');
+        throw new ValidationError('Manual Selection component requires at least one option.', {
+          fieldErrors: { options: ['At least one option is required'] },
+        });
     }
 
     // Calculate timeout

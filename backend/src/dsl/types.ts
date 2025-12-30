@@ -14,6 +14,24 @@ export const WorkflowActionSchema = z.object({
       }),
     )
     .default({}),
+  retryPolicy: z
+    .object({
+      maxAttempts: z.number().int().optional(),
+      initialIntervalSeconds: z.number().optional(),
+      maximumIntervalSeconds: z.number().optional(),
+      backoffCoefficient: z.number().optional(),
+      nonRetryableErrorTypes: z.array(z.string()).optional(),
+      errorTypePolicies: z
+        .record(
+          z.string(),
+          z.object({
+            retryable: z.boolean().optional(),
+            retryDelayMs: z.number().optional(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export type WorkflowAction = z.infer<typeof WorkflowActionSchema>;

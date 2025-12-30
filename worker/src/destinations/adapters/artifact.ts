@@ -1,5 +1,6 @@
 import type { DestinationAdapterRegistration, DestinationSaveInput, DestinationSaveResult } from '../registry';
 import type { ArtifactDestination } from '@shipsec/shared';
+import { ConfigurationError } from '@shipsec/component-sdk';
 
 interface ArtifactAdapterConfig {
   destinations?: ArtifactDestination[];
@@ -29,8 +30,9 @@ export const artifactDestinationAdapter: DestinationAdapterRegistration = {
     return {
       async save(input: DestinationSaveInput, context): Promise<DestinationSaveResult> {
         if (!context.artifacts) {
-          throw new Error(
+          throw new ConfigurationError(
             'Artifact service is not available in this execution context. Enable artifact storage to use this destination.',
+            { configKey: 'artifacts' },
           );
         }
 

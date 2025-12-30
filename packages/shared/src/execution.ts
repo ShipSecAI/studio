@@ -49,6 +49,8 @@ export type FailureSummary = z.infer<typeof FailureSummarySchema>;
 export const ExecutionFailureReasonSchema = z.object({
   message: z.string(),
   name: z.string().optional(),
+  type: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ExecutionFailureMetadataSchema = z.object({
@@ -92,6 +94,9 @@ export const TraceErrorSchema = z.object({
   message: z.string(),
   stack: z.string().optional(),
   code: z.string().optional(),
+  type: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 export type TraceError = z.infer<typeof TraceErrorSchema>;

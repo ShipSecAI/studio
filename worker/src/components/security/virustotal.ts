@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  ComponentDefinition,
+  port,
+  ValidationError,
+  ConfigurationError,
+  fromHttpResponse,
+  ComponentRetryPolicy,
+} from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
   indicator: z.string().describe('The IP, Domain, File Hash, or URL to inspect.'),
@@ -19,11 +27,25 @@ const outputSchema = z.object({
 type Input = z.infer<typeof inputSchema>;
 type Output = z.infer<typeof outputSchema>;
 
+// Retry policy for VirusTotal API - handles rate limits and transient failures
+const virusTotalRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 4,
+  initialIntervalSeconds: 2,
+  maximumIntervalSeconds: 120,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: [
+    'AuthenticationError',
+    'ValidationError',
+    'ConfigurationError',
+  ],
+};
+
 const definition: ComponentDefinition<Input, Output> = {
   id: 'security.virustotal.lookup',
   label: 'VirusTotal Lookup',
   category: 'security',
   runner: { kind: 'inline' },
+  retryPolicy: virusTotalRetryPolicy,
   inputSchema,
   outputSchema,
   docs: 'Check the reputation of an IP, Domain, File Hash, or URL using the VirusTotal v3 API.',
@@ -77,8 +99,16 @@ const definition: ComponentDefinition<Input, Output> = {
   async execute(params, context) {
     const { indicator, type, apiKey } = params;
 
-    if (!indicator) throw new Error('Indicator is required');
-    if (!apiKey) throw new Error('VirusTotal API Key is required');
+    if (!indicator) {
+      throw new ValidationError('Indicator is required', {
+        fieldErrors: { indicator: ['Indicator is required'] },
+      });
+    }
+    if (!apiKey) {
+      throw new ConfigurationError('VirusTotal API Key is required', {
+        configKey: 'apiKey',
+      });
+    }
 
     let endpoint = '';
     
@@ -132,7 +162,7 @@ const definition: ComponentDefinition<Input, Output> = {
 
     if (!response.ok) {
        const text = await response.text();
-       throw new Error(`VirusTotal API failed (${response.status}): ${text}`);
+       throw fromHttpResponse(response, text);
     }
 
     const data = await response.json() as any;

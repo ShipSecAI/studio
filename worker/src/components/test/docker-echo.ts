@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 import type { ComponentDefinition } from '@shipsec/component-sdk';
+import { ContainerError } from '@shipsec/component-sdk';
 
 type Input = { message: string };
 type Output = string;
@@ -30,7 +31,9 @@ const definition: ComponentDefinition<Input, Output> = {
   async execute(params, context) {
     // This should never be called when using Docker runner
     // The Docker runner intercepts and runs the container directly
-    throw new Error('This component should run in Docker, not inline');
+    throw new ContainerError('This component should run in Docker, not inline', {
+      details: { reason: 'inline_fallback_not_supported' },
+    });
   },
 };
 
