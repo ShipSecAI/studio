@@ -19,7 +19,6 @@ import {
 } from '@/components/ai-elements/message';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
 import { MessageResponse } from '@/components/ai-elements/message';
-import { CodeBlock, CodeBlockCopyButton } from '@/components/ai-elements/code-block';
 import { useState, useRef, useEffect } from 'react';
 
 interface TemplateUpdate {
@@ -212,53 +211,18 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
           const hasSample = toolInput?.sampleData && Object.keys(toolInput.sampleData).length > 0;
           const hasTemplate = toolInput?.template || toolInput?.html;
 
+          // Just show a simple success indicator - the actual data is visible in the sidebar tabs
+          const updates: string[] = [];
+          if (hasTemplate) updates.push('template');
+          if (hasSchema) updates.push('schema');
+          if (hasSample) updates.push('sample data');
+
           elements.push(
-            <div key={`tool-${i}`} className="mt-4 space-y-3">
-              <div className="flex items-center gap-2 px-3 py-2 bg-green-500/5 border border-green-500/10 rounded-lg text-[11px] text-green-500/80 w-fit">
-                <WrenchIcon className="w-3 h-3" />
-                <span className="font-medium">Successfully updated preview</span>
-              </div>
-
-              <div className="grid gap-3">
-                {hasTemplate && (
-                  <div className="space-y-1.5 pl-9">
-                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-bold">Template Code</span>
-                    <CodeBlock
-                      code={toolInput.template || toolInput.html}
-                      language="typescript"
-                      className="max-h-[300px]"
-                    >
-                      <CodeBlockCopyButton />
-                    </CodeBlock>
-                  </div>
-                )}
-
-                {hasSchema && (
-                  <div className="space-y-1.5 pl-9">
-                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-bold">Input Schema</span>
-                    <CodeBlock
-                      code={JSON.stringify(toolInput.inputSchema, null, 2)}
-                      language="json"
-                      className="max-h-[200px]"
-                    >
-                      <CodeBlockCopyButton />
-                    </CodeBlock>
-                  </div>
-                )}
-
-                {hasSample && (
-                  <div className="space-y-1.5 pl-9">
-                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-bold">Sample Data</span>
-                    <CodeBlock
-                      code={JSON.stringify(toolInput.sampleData, null, 2)}
-                      language="json"
-                      className="max-h-[200px]"
-                    >
-                      <CodeBlockCopyButton />
-                    </CodeBlock>
-                  </div>
-                )}
-              </div>
+            <div key={`tool-${i}`} className="flex items-center gap-2 mt-3 px-3 py-2 bg-green-500/5 border border-green-500/10 rounded-lg text-[11px] text-green-500/80 w-fit">
+              <WrenchIcon className="w-3 h-3" />
+              <span className="font-medium">
+                Updated {updates.join(', ')}
+              </span>
             </div>
           );
         }
