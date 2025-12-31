@@ -39,7 +39,10 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.kafkaTopic = process.env.EVENT_KAFKA_TOPIC ?? 'telemetry.events';
-    this.kafkaGroupId = process.env.EVENT_KAFKA_GROUP_ID ?? 'shipsec-event-ingestor';
+    const baseGroupId = process.env.EVENT_KAFKA_GROUP_ID ?? 'shipsec-event-ingestor';
+    this.kafkaGroupId = process.env.NODE_ENV === 'production' 
+      ? baseGroupId 
+      : `${baseGroupId}-dev-${Math.random().toString(36).substring(7)}`;
     this.kafkaClientId = process.env.EVENT_KAFKA_CLIENT_ID ?? 'shipsec-backend-events';
   }
 

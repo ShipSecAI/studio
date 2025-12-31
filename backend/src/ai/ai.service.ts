@@ -4,36 +4,55 @@ import {
   generateText,
   convertToModelMessages,
   tool,
-  type UIMessage 
+  createGateway,
+  type UIMessage,
+  type LanguageModel
 } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 
 /**
  * AI Service - AI SDK v6 with Tools
  * 
- * Configured with OpenRouter (GLM-4.5-Air Free) for development.
+ * Configured with Multi-Provider Support (Default: Vercel AI Gateway)
  */
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly client: ReturnType<typeof createOpenAI>;
-  private readonly modelName = 'z-ai/glm-4.5-air';
+  private model: LanguageModel;
 
   constructor() {
-    this.client = createOpenAI({ 
-      apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-    });
-    
-    this.logger.log(`AI Service initialized with model: ${this.modelName}`);
+    const provider = process.env.AI_PROVIDER || 'gateway';
+    // Default to a fast model if not specified, aligning with user preference
+    const modelName = process.env.AI_MODEL_NAME || 'xiaomi/mimo-v2-flash';
+
+    this.logger.log(`Initializing AI Service. Provider: ${provider}, Model: ${modelName}`);
+
+    switch (provider) {
+      case 'openai':
+        const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        this.model = openai(modelName);
+        break;
+      case 'google':
+        const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_API_KEY });
+        this.model = google(modelName);
+        break;
+      case 'gateway':
+      default:
+        const gateway = createGateway({
+          apiKey: process.env.AI_GATEWAY_API_KEY,
+        });
+        this.model = gateway(modelName);
+        break;
+    }
   }
 
   /**
    * Get the model instance for a request.
    */
   getModel() {
-    return this.client(this.modelName);
+    return this.model;
   }
 
   buildSystemPrompt(context?: string): string {
@@ -101,9 +120,9 @@ After using the tool, provide a brief conversational response explaining what yo
         description: 'Update the template editor with generated template code (Preact+HTM), input schema, and sample data.',
         inputSchema: z.object({
           template: z.string().describe('The complete JS code for the Preact Template component using html`...` syntax from htm/preact.'),
-          inputSchema: z.record(z.string(), z.any()).describe('JSON Schema object defining the data prop the template expects.'),
-          sampleData: z.record(z.string(), z.any()).describe('Sample data object matching the schema.'),
-          description: z.string().describe('A brief description of what this template does.'),
+          inputSchema: z.record(z.string(), z.any()).describe('JSON Schema object defining the data prop the template expects.').optional(),
+          sampleData: z.record(z.string(), z.any()).describe('Sample data object matching the schema.').optional(),
+          description: z.string().describe('A brief description of what this template does.').optional(),
         }),
         // No execute function - tool invocations are sent to the client
       }),
@@ -115,27 +134,40 @@ After using the tool, provide a brief conversational response explaining what yo
    * Takes UIMessage[] directly from useChat
    */
   async streamChat(messages: UIMessage[], options?: { system?: string; model?: string; context?: string }) {
-    const modelMessages = await convertToModelMessages(messages);
-    
-    const tools = options?.context === 'template' ? this.getTemplateTools() : undefined;
-    
-    return streamText({
-      model: this.getModel(),
-      system: options?.system || this.buildSystemPrompt(options?.context),
-      messages: modelMessages,
-      tools,
-    });
+    try {
+      // Convert UI messages to Core Messages using the SDK standard function
+      const modelMessages = await convertToModelMessages(messages);
+      
+      const tools = options?.context === 'template' ? this.getTemplateTools() : undefined;
+      
+      return streamText({
+        model: this.getModel(),
+        system: options?.system || this.buildSystemPrompt(options?.context),
+        messages: modelMessages,
+        tools,
+      });
+    } catch (error) {
+      this.logger.error('Stream chat failed', error);
+      throw error;
+    }
   }
 
   /**
    * Generate text (non-streaming)
    */
   async chat(messages: UIMessage[], options?: { system?: string; model?: string }) {
-    const result = await generateText({
-      model: this.getModel(),
-      system: options?.system || 'You are a helpful AI assistant.',
-      messages: await convertToModelMessages(messages),
-    });
-    return result;
+    try {
+      const modelMessages = await convertToModelMessages(messages);
+      
+      const result = await generateText({
+        model: this.getModel(),
+        system: options?.system || 'You are a helpful AI assistant.',
+        messages: modelMessages,
+      });
+      return result;
+    } catch (error) {
+      this.logger.error('Chat generation failed', error);
+      throw error;
+    }
   }
 }

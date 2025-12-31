@@ -186,11 +186,15 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
           </MessageResponse>
         );
       } else if (part.type === 'reasoning' || part.type === 'thought') {
+        const isStreaming = status === 'streaming' &&
+          i === message.parts.length - 1 &&
+          message.id === messages[messages.length - 1].id;
+
         elements.push(
-          <Reasoning key={`reasoning-${i}`} isStreaming={message.role === 'assistant' && status === 'streaming'}>
+          <Reasoning key={`reasoning-${i}`} isStreaming={isStreaming}>
             <ReasoningTrigger />
             <ReasoningContent>
-              {part.reasoning || part.thought || ''}
+              {part.reasoning || part.thought || (part as any).text || ''}
             </ReasoningContent>
           </Reasoning>
         );
