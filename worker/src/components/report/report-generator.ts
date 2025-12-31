@@ -527,8 +527,13 @@ const definition: ComponentDefinition<Input, Output> = {
     } else {
       // Save to run artifacts using the storage service
       try {
-        const uploadResult = await context.storage.uploadFile(buffer, {
-          filename: params.fileName,
+        if (!context.artifacts) {
+          throw new Error('Artifacts service is not available');
+        }
+
+        const uploadResult = await context.artifacts.upload({
+          name: params.fileName,
+          content: buffer,
           mimeType: params.format === 'pdf' ? 'application/pdf' : 'text/html',
           metadata: {
             templateId,
@@ -538,13 +543,13 @@ const definition: ComponentDefinition<Input, Output> = {
             findingsCount: reportData.findings.length,
           },
         });
-        // Handle both string result and object result
-        artifactId = typeof uploadResult === 'string' ? uploadResult : uploadResult.artifactId;
+        
+        artifactId = uploadResult.artifactId;
         context.logger.info(`[ReportGenerator] Saved report as artifact: ${artifactId}`);
       } catch (error) {
         context.logger.error(`[ReportGenerator] Failed to save report: ${error}`);
         throw new ValidationError('Failed to save report artifact.', {
-          fieldErrors: { storage: ['Storage upload failed'] },
+          fieldErrors: { storage: ['Artifact upload failed'] },
         });
       }
     }

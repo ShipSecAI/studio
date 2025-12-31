@@ -1980,6 +1980,24 @@ export interface components {
                 respondedAt: string | null;
             };
         };
+        TemplateResponseDto: {
+            id: string;
+            name: string;
+            description: string | null;
+            content: {
+                [key: string]: unknown;
+            };
+            inputSchema: {
+                [key: string]: unknown;
+            };
+            sampleData: {
+                [key: string]: unknown;
+            } | null;
+            version: number;
+            isSystem: boolean;
+            createdAt: string;
+            updatedAt: string;
+        };
         CreateReportTemplateDto: {
             name: string;
             description?: string;
@@ -2007,6 +2025,19 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        PreviewTemplateDto: {
+            data: {
+                [key: string]: unknown;
+            };
+        };
+        PreviewTemplateResponseDto: {
+            templateId: string;
+            templateVersion: number;
+            sampleData: {
+                [key: string]: unknown;
+            };
+            renderedHtml: string;
+        };
         GenerateReportDto: {
             /** Format: uuid */
             templateId: string;
@@ -2019,6 +2050,16 @@ export interface components {
              */
             format: "pdf" | "html";
             fileName?: string;
+        };
+        GenerateReportResponseDto: {
+            artifactId: string;
+            fileName: string;
+            /** @enum {string} */
+            format: "pdf" | "html";
+            size: number;
+            templateId: string;
+            templateVersion: string;
+            generatedAt: string;
         };
         GenerateTemplateDto: {
             /** @description Description of the template to generate */
@@ -4307,7 +4348,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TemplateResponseDto"][];
+                };
             };
         };
     };
@@ -4328,7 +4371,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TemplateResponseDto"];
+                };
             };
         };
     };
@@ -4345,7 +4390,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TemplateResponseDto"][];
+                };
             };
         };
     };
@@ -4364,7 +4411,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TemplateResponseDto"];
+                };
             };
         };
     };
@@ -4387,7 +4436,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TemplateResponseDto"];
+                };
             };
         };
     };
@@ -4438,13 +4489,19 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewTemplateDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PreviewTemplateResponseDto"];
+                };
             };
         };
     };
@@ -4465,7 +4522,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GenerateReportResponseDto"];
+                };
             };
         };
     };

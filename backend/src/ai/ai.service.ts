@@ -26,7 +26,7 @@ export interface GenerationResult {
   text?: string;
   object?: unknown;
   usage?: { totalTokens: number; promptTokens: number; completionTokens: number };
-  stream?: ReturnType<typeof streamText>;
+  stream?: Awaited<ReturnType<typeof streamText>>;
 }
 
 @Injectable()
@@ -95,7 +95,7 @@ export class AiService {
       schema: z.object({
         template: z.string().describe('The HTML template string'),
         description: z.string().describe('Brief description'),
-        inputSchema: z.record(z.unknown()).describe('JSON Schema'),
+        inputSchema: z.record(z.string(), z.unknown()).describe('JSON Schema'),
       }),
       model: options?.model,
       temperature: options?.temperature,

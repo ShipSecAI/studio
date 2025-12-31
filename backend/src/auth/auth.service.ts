@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 
@@ -9,23 +9,32 @@ import { LocalAuthProvider } from './providers/local-auth.provider';
 import { ClerkAuthProvider } from './providers/clerk-auth.provider';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
-  private readonly provider: AuthProviderStrategy;
+  private provider: AuthProviderStrategy | null = null;
 
   constructor(
     private readonly configService: ConfigService,
-  ) {
+  ) {}
+
+  onModuleInit() {
     this.provider = this.createProvider();
     this.logger.log(`Auth provider initialised: ${this.provider.name}`);
   }
 
+  private get initializedProvider(): AuthProviderStrategy {
+    if (!this.provider) {
+      throw new Error('AuthService not initialized. Call onModuleInit first.');
+    }
+    return this.provider;
+  }
+
   async authenticate(request: Request): Promise<AuthContext> {
-    return this.provider.authenticate(request);
+    return this.initializedProvider.authenticate(request);
   }
 
   get providerName(): string {
-    return this.provider.name;
+    return this.initializedProvider.name;
   }
 
   private createProvider(): AuthProviderStrategy {

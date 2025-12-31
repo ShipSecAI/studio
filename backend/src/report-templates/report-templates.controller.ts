@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,13 +10,17 @@ import {
   Post,
   Put,
   Query,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiResponse } from '@nestjs/swagger';
 import { ReportTemplatesService } from './report-templates.service';
 import { AiService } from '../ai/ai.service';
 import {
   CreateReportTemplateDto,
   ListTemplatesQueryDto,
+  PreviewTemplateDto,
+  PreviewTemplateResponseDto,
   TemplateResponseDto,
   UpdateReportTemplateDto,
   GenerateReportDto,
@@ -23,16 +28,19 @@ import {
   GenerateTemplateDto,
 } from './dto/template.dto';
 import { AuthGuard } from '../auth/auth.guard';
+import { CurrentAuth } from '../auth/auth-context.decorator';
+import type { AuthContext } from '../auth/types';
 import { ZodValidationPipe } from 'nestjs-zod';
-import type { ZodSchema } from 'nestjs-zod';
+import { ZodSchema } from 'zod';
 
 const CreateReportTemplateSchema: ZodSchema = CreateReportTemplateDto.schema;
 const UpdateReportTemplateSchema: ZodSchema = UpdateReportTemplateDto.schema;
 const ListTemplatesQuerySchema: ZodSchema = ListTemplatesQueryDto.schema;
 const GenerateReportSchema: ZodSchema = GenerateReportDto.schema;
 const GenerateTemplateSchema: ZodSchema = GenerateTemplateDto.schema;
+const PreviewTemplateSchema: ZodSchema = PreviewTemplateDto.schema;
 
-@Controller('api/v1/templates')
+@Controller('templates')
 @UseGuards(AuthGuard)
 export class ReportTemplatesController {
   constructor(
@@ -41,72 +49,103 @@ export class ReportTemplatesController {
   ) {}
 
   @Get()
+  @ApiOkResponse({ type: [TemplateResponseDto] })
   async list(
+    @CurrentAuth() auth: AuthContext | null,
     @Query(new ZodValidationPipe(ListTemplatesQuerySchema)) query: ListTemplatesQueryDto,
   ) {
-    const templates = await this.templatesService.list({} as any, query);
-    return templates.map((t) => TemplateResponseDto.create(t));
+    const context = this.requireAuth(auth);
+    const templates = await this.templatesService.list(context, query);
+    return templates.map((template) => this.toTemplateResponse(template));
   }
 
   @Get('system')
-  async listSystem() {
+  @ApiOkResponse({ type: [TemplateResponseDto] })
+  async listSystem(@CurrentAuth() _auth: AuthContext | null) {
+    this.requireAuth(_auth);
     const templates = await this.templatesService.listSystemTemplates();
-    return templates.map((t) => TemplateResponseDto.create(t));
+    return templates.map((template) => this.toTemplateResponse(template));
   }
 
   @Post()
+  @ApiCreatedResponse({ type: TemplateResponseDto })
   async create(
+    @CurrentAuth() auth: AuthContext | null,
     @Body(new ZodValidationPipe(CreateReportTemplateSchema)) dto: CreateReportTemplateDto,
   ) {
-    const template = await this.templatesService.create({} as any, dto);
-    return TemplateResponseDto.create(template);
+    const context = this.requireAuth(auth);
+    const template = await this.templatesService.create(context, dto);
+    return this.toTemplateResponse(template);
   }
 
   @Get(':id')
-  async get(@Param('id') id: string) {
-    const template = await this.templatesService.get({} as any, id);
-    return TemplateResponseDto.create(template);
+  @ApiOkResponse({ type: TemplateResponseDto })
+  async get(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('id') id: string,
+  ) {
+    const context = this.requireAuth(auth);
+    const template = await this.templatesService.get(context, id);
+    return this.toTemplateResponse(template);
   }
 
   @Put(':id')
+  @ApiOkResponse({ type: TemplateResponseDto })
   async update(
+    @CurrentAuth() auth: AuthContext | null,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateReportTemplateSchema)) dto: UpdateReportTemplateDto,
   ) {
-    const template = await this.templatesService.update({} as any, id, dto);
-    return TemplateResponseDto.create(template);
+    const context = this.requireAuth(auth);
+    const template = await this.templatesService.update(context, id, dto);
+    return this.toTemplateResponse(template);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(@Param('id') id: string) {
-    await this.templatesService.delete({} as any, id);
+  @ApiNoContentResponse()
+  async delete(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('id') id: string,
+  ) {
+    const context = this.requireAuth(auth);
+    await this.templatesService.delete(context, id);
   }
 
   @Get(':id/versions')
-  async getVersions(@Param('id') id: string) {
-    return this.templatesService.getVersions({} as any, id);
+  async getVersions(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('id') id: string,
+  ) {
+    const context = this.requireAuth(auth);
+    return this.templatesService.getVersions(context, id);
   }
 
   @Post(':id/preview')
+  @ApiResponse({ status: 201, type: PreviewTemplateResponseDto })
   async preview(
+    @CurrentAuth() auth: AuthContext | null,
     @Param('id') id: string,
-    @Body() body: { data: Record<string, unknown> },
-  ) {
-    const template = await this.templatesService.get({} as any, id);
-    return {
+    @Body(new ZodValidationPipe(PreviewTemplateSchema)) body: PreviewTemplateDto,
+  ): Promise<PreviewTemplateResponseDto> {
+    const context = this.requireAuth(auth);
+    const template = await this.templatesService.get(context, id);
+    return PreviewTemplateResponseDto.create({
       templateId: template.id,
       templateVersion: template.version,
       sampleData: body.data,
       renderedHtml: '',
-    };
+    });
   }
 
   @Post('generate')
+  @ApiCreatedResponse({ type: GenerateReportResponseDto })
   async generate(
+    @CurrentAuth() auth: AuthContext | null,
     @Body(new ZodValidationPipe(GenerateReportSchema)) dto: GenerateReportDto,
   ): Promise<GenerateReportResponseDto> {
-    const template = await this.templatesService.get({} as any, dto.templateId);
+    const context = this.requireAuth(auth);
+    const template = await this.templatesService.get(context, dto.templateId);
     return {
       artifactId: '',
       fileName: dto.fileName ?? `report-${Date.now()}.${dto.format}`,
@@ -120,8 +159,10 @@ export class ReportTemplatesController {
 
   @Post('ai-generate')
   async aiGenerate(
+    @CurrentAuth() auth: AuthContext | null,
     @Body(new ZodValidationPipe(GenerateTemplateSchema)) dto: GenerateTemplateDto,
   ) {
+    this.requireAuth(auth);
     const systemPrompt = dto.systemPrompt || `You are a report template generation expert.
 Generate custom HTML templates using our template syntax.
 
@@ -140,18 +181,62 @@ Return ONLY the template HTML, no explanations.`;
       context: { type: 'template' },
     });
 
-    return result.stream?.toDataStreamResponse();
+    if (result.stream) {
+      return result.stream.toTextStreamResponse();
+    }
+    throw new Error('Streaming not available');
   }
 
   @Post('ai-generate-structured')
   async aiGenerateStructured(
+    @CurrentAuth() auth: AuthContext | null,
     @Body(new ZodValidationPipe(GenerateTemplateSchema)) dto: GenerateTemplateDto,
   ) {
+    this.requireAuth(auth);
     const result = await this.aiService.generateTemplate(dto.prompt, {
       systemPrompt: dto.systemPrompt,
       model: dto.model,
     });
 
     return result;
+  }
+
+  private requireAuth(auth: AuthContext | null): AuthContext {
+    if (!auth?.isAuthenticated) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (!auth.organizationId) {
+      throw new BadRequestException('Organization context is required');
+    }
+    return auth;
+  }
+
+  private toTemplateResponse(template: {
+    id: string;
+    name: string;
+    description: string | null;
+    content: unknown;
+    inputSchema: unknown;
+    sampleData: unknown;
+    version: number;
+    isSystem: boolean;
+    createdAt: string | Date;
+    updatedAt: string | Date;
+  }) {
+    const createdAt = template.createdAt instanceof Date
+      ? template.createdAt.toISOString()
+      : template.createdAt;
+    const updatedAt = template.updatedAt instanceof Date
+      ? template.updatedAt.toISOString()
+      : template.updatedAt;
+
+    return TemplateResponseDto.create({
+      ...template,
+      content: template.content as Record<string, unknown>,
+      inputSchema: template.inputSchema as Record<string, unknown>,
+      sampleData: template.sampleData as Record<string, unknown> | null,
+      createdAt,
+      updatedAt,
+    });
   }
 }

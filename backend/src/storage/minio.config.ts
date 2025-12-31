@@ -23,7 +23,9 @@ export class MinioConfig {
       secretKey,
     });
 
-    this.ensureBucket();
+    if (process.env.SKIP_INGEST_SERVICES !== 'true') {
+      this.ensureBucket();
+    }
   }
 
   getClient(): Client {

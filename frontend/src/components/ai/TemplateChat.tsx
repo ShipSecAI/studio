@@ -6,6 +6,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai';
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Loader } from '@/components/ai-elements/loader';
+import { buildApiUrl, getApiAuthHeaders } from '@/services/api';
 
 interface TemplateChatProps {
   onInsertTemplate?: (template: string) => void;
@@ -25,8 +26,30 @@ export function TemplateChat({ onInsertTemplate, systemPrompt }: TemplateChatPro
   const [inputValue, setInputValue] = useState('');
 
   const transport = useMemo(() => new DefaultChatTransport({
-    api: '/api/v1/templates/ai-generate',
-    body: { systemPrompt },
+    prepareSendMessagesRequest: async ({ body, headers }) => {
+      const authHeaders = await getApiAuthHeaders();
+      return {
+        api: buildApiUrl('/api/v1/templates/ai-generate'),
+        body: {
+          ...(body ?? {}),
+          ...(systemPrompt ? { systemPrompt } : {}),
+        },
+        headers: {
+          ...headersInitToRecord(headers),
+          ...authHeaders,
+        },
+      };
+    },
+    prepareReconnectToStreamRequest: async ({ headers }) => {
+      const authHeaders = await getApiAuthHeaders();
+      return {
+        api: buildApiUrl('/api/v1/templates/ai-generate'),
+        headers: {
+          ...headersInitToRecord(headers),
+          ...authHeaders,
+        },
+      };
+    },
   }), [systemPrompt]);
 
   const {
@@ -153,4 +176,24 @@ export function TemplateChat({ onInsertTemplate, systemPrompt }: TemplateChatPro
       </div>
     </div>
   );
+}
+
+function headersInitToRecord(headers?: HeadersInit): Record<string, string> {
+  if (!headers) {
+    return {};
+  }
+  if (headers instanceof Headers) {
+    const record: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      record[key] = value;
+    });
+    return record;
+  }
+  if (Array.isArray(headers)) {
+    return headers.reduce<Record<string, string>>((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {});
+  }
+  return { ...(headers as Record<string, string>) };
 }

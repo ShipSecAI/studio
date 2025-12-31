@@ -24,6 +24,13 @@ export default defineConfig({
     port: 5173,
     open: false,
     allowedHosts: ['studio.shipsec.ai'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3211',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   preview: {
     allowedHosts: ['studio.shipsec.ai'],

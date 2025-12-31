@@ -44,5 +44,11 @@
     "chalk": "^5.6.2",
     "chalk-animation": "^2.0.3",
     "long": "^5.3.2"
+  },
+  "resolutions": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3"
   }
 }

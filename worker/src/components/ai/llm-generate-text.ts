@@ -196,7 +196,7 @@ const definition: ComponentDefinition<Input, Output> = {
     context.logger.info(`[AIGenerateText] Calling ${chatModel.provider} model ${chatModel.modelId}`);
 
     const result = await generateText({
-      model,
+      model: model as any,
       prompt: userPrompt,
       system: trimmedSystemPrompt ? trimmedSystemPrompt : undefined,
       temperature,

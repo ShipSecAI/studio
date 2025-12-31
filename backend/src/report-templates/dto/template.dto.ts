@@ -45,33 +45,22 @@ export const TemplateResponseSchema = z.object({
   updatedAt: z.string(),
 });
 
-export class TemplateResponseDto extends createZodDto(TemplateResponseSchema) {
-  static create(template: {
-    id: string;
-    name: string;
-    description: string | null;
-    content: Record<string, unknown>;
-    inputSchema: Record<string, unknown>;
-    sampleData: Record<string, unknown> | null;
-    version: number;
-    isSystem: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  }): TemplateResponseDto {
-    return {
-      id: template.id,
-      name: template.name,
-      description: template.description,
-      content: template.content,
-      inputSchema: template.inputSchema,
-      sampleData: template.sampleData,
-      version: template.version,
-      isSystem: template.isSystem,
-      createdAt: template.createdAt.toISOString(),
-      updatedAt: template.updatedAt.toISOString(),
-    };
-  }
-}
+export class TemplateResponseDto extends createZodDto(TemplateResponseSchema) {}
+
+export const PreviewTemplateSchema = z.object({
+  data: RecordUnknownSchema,
+});
+
+export class PreviewTemplateDto extends createZodDto(PreviewTemplateSchema) {}
+
+export const PreviewTemplateResponseSchema = z.object({
+  templateId: z.string(),
+  templateVersion: z.number(),
+  sampleData: RecordUnknownSchema,
+  renderedHtml: z.string(),
+});
+
+export class PreviewTemplateResponseDto extends createZodDto(PreviewTemplateResponseSchema) {}
 
 export const GenerateReportSchema = z.object({
   templateId: z.string().uuid(),

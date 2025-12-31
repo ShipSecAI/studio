@@ -16,8 +16,8 @@
     "delete:runs": "bun scripts/delete-all-workflow-runs.ts"
   },
   "dependencies": {
-    "@ai-sdk/google": "^3.0.0-beta.27",
-    "@ai-sdk/openai": "^3.0.0-beta.34",
+    "@ai-sdk/google": "^3.0.2",
+    "@ai-sdk/openai": "^3.0.2",
     "@clerk/backend": "^2.9.4",
     "@clerk/types": "^4.81.0",
     "@grpc/grpc-js": "^1.14.0",
@@ -34,7 +34,7 @@
     "@temporalio/workflow": "^1.11.3",
     "@types/express": "^5.0.3",
     "@types/minio": "^7.1.1",
-    "ai": "^6.0.0-beta.68",
+    "ai": "^6.0.5",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

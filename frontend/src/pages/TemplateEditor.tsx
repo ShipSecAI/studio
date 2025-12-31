@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import type { components } from '@shipsec/backend-client'
 import { useTemplateStore } from '@/store/templateStore'
 import { TemplateChat } from '@/components/ai/TemplateChat'
 import {
@@ -8,17 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { api } from '@/services/api'
 
-interface Template {
-  id: string
-  name: string
-  description: string | null
-  content: Record<string, unknown>
-  inputSchema: Record<string, unknown>
-  sampleData: Record<string, unknown> | null
-  version: number
-  isSystem: boolean
-}
+type Template = components['schemas']['TemplateResponseDto']
 
 export function TemplateEditor() {
   const { id } = useParams<{ id: string }>()
@@ -54,16 +47,10 @@ export function TemplateEditor() {
 
   const generatePreview = async (template: Template) => {
     try {
-      const response = await fetch(`/api/v1/templates/${template.id}/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: template.sampleData || {} }),
+      const data = await api.templates.preview(template.id, {
+        data: template.sampleData || {},
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        setPreviewHtml(data.renderedHtml || '<p>Preview not available</p>')
-      }
+      setPreviewHtml(data.renderedHtml || '<p>Preview not available</p>')
     } catch (error) {
       console.error('Failed to generate preview:', error)
       setPreviewHtml('<p>Preview generation failed</p>')

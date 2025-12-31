@@ -18,8 +18,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@ai-sdk/google": "^3.0.0-beta.27",
-    "@ai-sdk/openai": "^3.0.0-beta.34",
+    "@ai-sdk/google": "^3.0.2",
+    "@ai-sdk/openai": "^3.0.2",
     "@aws-sdk/client-s3": "^3.642.0",
     "@googleapis/admin": "^29.0.0",
     "@grpc/grpc-js": "^1.14.0",
@@ -32,7 +32,7 @@
     "@temporalio/worker": "^1.11.3",
     "@temporalio/workflow": "^1.11.3",
     "adm-zip": "^0.5.16",
-    "ai": "^6.0.0-beta.68",
+    "ai": "^6.0.5",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.6",
     "google-auth-library": "^10.4.2",

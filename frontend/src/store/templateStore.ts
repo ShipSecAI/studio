@@ -1,17 +1,10 @@
 import { create } from 'zustand'
+import type { components } from '@shipsec/backend-client'
+import { api } from '@/services/api'
 
-interface Template {
-  id: string
-  name: string
-  description: string | null
-  content: Record<string, unknown>
-  inputSchema: Record<string, unknown>
-  sampleData: Record<string, unknown> | null
-  version: number
-  isSystem: boolean
-  createdAt: string
-  updatedAt: string
-}
+type Template = components['schemas']['TemplateResponseDto']
+type CreateReportTemplateDto = components['schemas']['CreateReportTemplateDto']
+type UpdateReportTemplateDto = components['schemas']['UpdateReportTemplateDto']
 
 interface TemplateStoreState {
   templates: Template[]
@@ -20,8 +13,8 @@ interface TemplateStoreState {
   selectedTemplate: Template | null
   fetchTemplates: (filters?: { isSystem?: boolean }) => Promise<void>
   selectTemplate: (id: string) => Promise<void>
-  createTemplate: (data: Partial<Template>) => Promise<Template>
-  updateTemplate: (id: string, data: Partial<Template>) => Promise<Template>
+  createTemplate: (data: CreateReportTemplateDto) => Promise<Template>
+  updateTemplate: (id: string, data: UpdateReportTemplateDto) => Promise<Template>
   deleteTemplate: (id: string) => Promise<void>
 }
 
@@ -34,22 +27,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
   async fetchTemplates(filters) {
     set({ loading: true, error: null })
     try {
-      const params = new URLSearchParams()
-      if (filters?.isSystem !== undefined) {
-        params.set('isSystem', String(filters.isSystem))
-      }
-
-      const response = await fetch(`/api/v1/templates?${params}`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch templates')
-      }
-
-      const templates = await response.json()
+      const templates = await api.templates.list(filters)
       set({ templates, loading: false })
     } catch (error) {
       set({
@@ -68,17 +46,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
 
     set({ loading: true, error: null })
     try {
-      const response = await fetch(`/api/v1/templates/${id}`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Template not found')
-      }
-
-      const template = await response.json()
+      const template = await api.templates.get(id)
       set({ selectedTemplate: template, loading: false })
     } catch (error) {
       set({
@@ -89,19 +57,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
   },
 
   async createTemplate(data) {
-    const response = await fetch('/api/v1/templates', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to create template')
-    }
-
-    const template = await response.json()
+    const template = await api.templates.create(data)
     set((state) => ({
       templates: [template, ...state.templates],
     }))
@@ -109,19 +65,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
   },
 
   async updateTemplate(id, data) {
-    const response = await fetch(`/api/v1/templates/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to update template')
-    }
-
-    const template = await response.json()
+    const template = await api.templates.update(id, data)
     set((state) => ({
       templates: state.templates.map((t) => (t.id === id ? template : t)),
       selectedTemplate: state.selectedTemplate?.id === id ? template : state.selectedTemplate,
@@ -130,14 +74,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
   },
 
   async deleteTemplate(id) {
-    const response = await fetch(`/api/v1/templates/${id}`, {
-      method: 'DELETE',
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to delete template')
-    }
-
+    await api.templates.delete(id)
     set((state) => ({
       templates: state.templates.filter((t) => t.id !== id),
       selectedTemplate: state.selectedTemplate?.id === id ? null : state.selectedTemplate,

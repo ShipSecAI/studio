@@ -7,6 +7,7 @@ import {
   text,
   timestamp,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
 
 export const reportTemplates = pgTable(
@@ -20,8 +21,8 @@ export const reportTemplates = pgTable(
     sampleData: jsonb('sample_data'),
     version: integer('version').notNull().default(1),
     isSystem: boolean('is_system').notNull().default(false),
-    createdBy: uuid('created_by'),
-    orgId: uuid('org_id'),
+    createdBy: varchar('created_by', { length: 191 }),
+    orgId: varchar('org_id', { length: 191 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -40,7 +41,7 @@ export const generatedReports = pgTable(
     workflowRunId: uuid('workflow_run_id'),
     inputData: jsonb('input_data'),
     artifactId: uuid('artifact_id'),
-    orgId: uuid('org_id'),
+    orgId: varchar('org_id', { length: 191 }),
     generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({

@@ -32,6 +32,11 @@ type ApiKeyResponseDto = components['schemas']['ApiKeyResponseDto']
 type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto']
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto']
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto']
+type TemplateResponseDto = components['schemas']['TemplateResponseDto']
+type CreateReportTemplateDto = components['schemas']['CreateReportTemplateDto']
+type UpdateReportTemplateDto = components['schemas']['UpdateReportTemplateDto']
+type PreviewTemplateDto = components['schemas']['PreviewTemplateDto']
+type PreviewTemplateResponseDto = components['schemas']['PreviewTemplateResponseDto']
 
 type TerminalChunkResponse = {
   runId: string
@@ -490,6 +495,53 @@ export const api = {
     delete: async (id: string): Promise<void> => {
       const response = await apiClient.deleteApiKey(id)
       if (response.error) throw new Error('Failed to delete API key')
+    },
+  },
+
+  templates: {
+    list: async (filters?: { limit?: number; offset?: number; isSystem?: boolean }): Promise<TemplateResponseDto[]> => {
+      const response = await apiClient.listTemplates(filters)
+      if (response.error) throw new Error('Failed to fetch templates')
+      return (response.data ?? []) as TemplateResponseDto[]
+    },
+
+    listSystem: async (): Promise<TemplateResponseDto[]> => {
+      const response = await apiClient.listSystemTemplates()
+      if (response.error) throw new Error('Failed to fetch system templates')
+      return (response.data ?? []) as TemplateResponseDto[]
+    },
+
+    get: async (id: string): Promise<TemplateResponseDto> => {
+      const response = await apiClient.getTemplate(id)
+      if (response.error) throw new Error('Failed to fetch template')
+      if (!response.data) throw new Error('Template not found')
+      return response.data as TemplateResponseDto
+    },
+
+    create: async (input: CreateReportTemplateDto): Promise<TemplateResponseDto> => {
+      const response = await apiClient.createTemplate(input)
+      if (response.error) throw new Error('Failed to create template')
+      if (!response.data) throw new Error('Template creation failed')
+      return response.data as TemplateResponseDto
+    },
+
+    update: async (id: string, input: UpdateReportTemplateDto): Promise<TemplateResponseDto> => {
+      const response = await apiClient.updateTemplate(id, input)
+      if (response.error) throw new Error('Failed to update template')
+      if (!response.data) throw new Error('Template update failed')
+      return response.data as TemplateResponseDto
+    },
+
+    delete: async (id: string): Promise<void> => {
+      const response = await apiClient.deleteTemplate(id)
+      if (response.error) throw new Error('Failed to delete template')
+    },
+
+    preview: async (id: string, input: PreviewTemplateDto): Promise<PreviewTemplateResponseDto> => {
+      const response = await apiClient.previewTemplate(id, input)
+      if (response.error) throw new Error('Failed to generate preview')
+      if (!response.data) throw new Error('Preview generation failed')
+      return response.data as PreviewTemplateResponseDto
     },
   },
 

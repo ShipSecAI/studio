@@ -26,9 +26,9 @@ export function parseTemplate(template: string): TemplateComponent {
         .replace(/'/g, '&#039;');
     };
 
-    const flatten = (obj: unknown): unknown => {
+    const flatten = (obj: unknown): string => {
       if (obj === null || obj === undefined) return '';
-      if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') return obj;
+      if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
       if (Array.isArray(obj)) return obj.map(flatten).join('');
       if (typeof obj === 'object') {
         return Object.entries(obj as Record<string, unknown>)
@@ -44,7 +44,7 @@ export function parseTemplate(template: string): TemplateComponent {
       let changed = false;
       const ifRegex = /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
 
-      html = html.replace(ifRegex, (_, propName, content) => {
+      html = html.replace(ifRegex, (_: string, propName: string, content: string) => {
         const value = scope[propName];
         if (value && (Array.isArray(value) ? value.length > 0 : value)) {
           changed = true;
@@ -60,7 +60,7 @@ export function parseTemplate(template: string): TemplateComponent {
       let changed = false;
       const loopRegex = /\{\{#each\s+(\w+)\s+as\s+(\w+)(?:\s*,\s*(\w+))?\}\}([\s\S]*?)\{\{\/each\}\}/g;
 
-      html = html.replace(loopRegex, (_, arrayName, itemName, indexName, content) => {
+      html = html.replace(loopRegex, (_: string, arrayName: string, itemName: string, indexName: string, content: string) => {
         const array = scope[arrayName];
         if (Array.isArray(array)) {
           changed = true;
@@ -68,7 +68,7 @@ export function parseTemplate(template: string): TemplateComponent {
             .map((item, idx) => {
               let itemContent = content;
               if (typeof item === 'object' && item !== null) {
-                itemContent = itemContent.replace(new RegExp(`\\{\\{${itemName}\\.(\\w+)\\}\\}`, 'g'), (_, prop) => {
+                itemContent = itemContent.replace(new RegExp(`\\{\\{${itemName}\\.(\\w+)\\}\\}`, 'g'), (_: string, prop: string) => {
                   return flatten((item as Record<string, unknown>)[prop]);
                 });
               } else {
@@ -91,7 +91,7 @@ export function parseTemplate(template: string): TemplateComponent {
       let changed = false;
 
     const propRegex = /\{\{(\w+(?:\.\w+)*)\}\}/g;
-    html = html.replace(propRegex, (_, path: string) => {
+    html = html.replace(propRegex, (_: string, path: string) => {
         changed = true;
         const parts = path.split('.');
         let value: unknown = scope;
