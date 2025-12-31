@@ -1,12 +1,14 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+const RecordUnknownSchema = z.record(z.string(), z.any());
+
 export const CreateReportTemplateSchema = z.object({
   name: z.string().min(1).max(191),
   description: z.string().optional(),
-  content: z.record(z.unknown()),
-  inputSchema: z.record(z.unknown()),
-  sampleData: z.record(z.unknown()).optional(),
+  content: RecordUnknownSchema,
+  inputSchema: RecordUnknownSchema,
+  sampleData: RecordUnknownSchema.optional(),
   isSystem: z.boolean().optional(),
 });
 
@@ -15,9 +17,9 @@ export class CreateReportTemplateDto extends createZodDto(CreateReportTemplateSc
 export const UpdateReportTemplateSchema = z.object({
   name: z.string().min(1).max(191).optional(),
   description: z.string().optional(),
-  content: z.record(z.unknown()).optional(),
-  inputSchema: z.record(z.unknown()).optional(),
-  sampleData: z.record(z.unknown()).optional(),
+  content: RecordUnknownSchema.optional(),
+  inputSchema: RecordUnknownSchema.optional(),
+  sampleData: RecordUnknownSchema.optional(),
 });
 
 export class UpdateReportTemplateDto extends createZodDto(UpdateReportTemplateSchema) {}
@@ -34,9 +36,9 @@ export const TemplateResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  content: z.record(z.unknown()),
-  inputSchema: z.record(z.unknown()),
-  sampleData: z.record(z.unknown()).nullable(),
+  content: RecordUnknownSchema,
+  inputSchema: RecordUnknownSchema,
+  sampleData: RecordUnknownSchema.nullable(),
   version: z.number(),
   isSystem: z.boolean(),
   createdAt: z.string(),
@@ -73,7 +75,7 @@ export class TemplateResponseDto extends createZodDto(TemplateResponseSchema) {
 
 export const GenerateReportSchema = z.object({
   templateId: z.string().uuid(),
-  data: z.record(z.unknown()),
+  data: RecordUnknownSchema,
   format: z.enum(['pdf', 'html']).default('pdf'),
   fileName: z.string().optional(),
 });

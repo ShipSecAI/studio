@@ -38,6 +38,7 @@ const coreModules = [
   ApiKeysModule,
   WebhooksModule,
   HumanInputsModule,
+  ReportTemplatesModule,
 ];
 
 const testingModules =

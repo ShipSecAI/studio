@@ -16,6 +16,8 @@
     "delete:runs": "bun scripts/delete-all-workflow-runs.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.0-beta.27",
+    "@ai-sdk/openai": "^3.0.0-beta.34",
     "@clerk/backend": "^2.9.4",
     "@clerk/types": "^4.81.0",
     "@grpc/grpc-js": "^1.14.0",

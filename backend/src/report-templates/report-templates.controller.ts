@@ -41,7 +41,7 @@ const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-@Controller('api/v1/templates')
+@Controller('templates')
 @UseGuards(AuthGuard)
 export class ReportTemplatesController {
   constructor(

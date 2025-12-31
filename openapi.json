@@ -4149,6 +4149,282 @@
         ]
       }
     },
+    "/api/v1/templates": {
+      "get": {
+        "operationId": "ReportTemplatesController_list",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "50",
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d+$",
+              "default": "0",
+              "type": "string"
+            }
+          },
+          {
+            "name": "isSystem",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      },
+      "post": {
+        "operationId": "ReportTemplatesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
+    "/api/v1/templates/system": {
+      "get": {
+        "operationId": "ReportTemplatesController_listSystem",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
+    "/api/v1/templates/{id}": {
+      "get": {
+        "operationId": "ReportTemplatesController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      },
+      "put": {
+        "operationId": "ReportTemplatesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReportTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      },
+      "delete": {
+        "operationId": "ReportTemplatesController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
+    "/api/v1/templates/{id}/versions": {
+      "get": {
+        "operationId": "ReportTemplatesController_getVersions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
+    "/api/v1/templates/{id}/preview": {
+      "post": {
+        "operationId": "ReportTemplatesController_preview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
+    "/api/v1/templates/generate": {
+      "post": {
+        "operationId": "ReportTemplatesController_generate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
+    "/api/v1/templates/ai-generate": {
+      "post": {
+        "operationId": "ReportTemplatesController_aiGenerate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
+    "/api/v1/templates/ai-generate-structured": {
+      "post": {
+        "operationId": "ReportTemplatesController_aiGenerateStructured",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ReportTemplates"
+        ]
+      }
+    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -6718,6 +6994,135 @@
           "success",
           "message",
           "input"
+        ]
+      },
+      "CreateReportTemplateDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": "string"
+          },
+          "content": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "inputSchema": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "sampleData": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "isSystem": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "content",
+          "inputSchema"
+        ]
+      },
+      "UpdateReportTemplateDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 191
+          },
+          "description": {
+            "type": "string"
+          },
+          "content": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "inputSchema": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "sampleData": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        }
+      },
+      "GenerateReportDto": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "data": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "format": {
+            "default": "pdf",
+            "type": "string",
+            "enum": [
+              "pdf",
+              "html"
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "templateId",
+          "data"
+        ]
+      },
+      "GenerateTemplateDto": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "description": "Description of the template to generate",
+            "type": "string",
+            "minLength": 10
+          },
+          "systemPrompt": {
+            "description": "Custom system prompt for the AI",
+            "type": "string"
+          },
+          "model": {
+            "description": "Model to use for generation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
         ]
       }
     }
