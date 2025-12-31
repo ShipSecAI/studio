@@ -9,7 +9,8 @@
 
 **Official Vercel AI SDK Integration Complete!**
 
-- Used `@ai-sdk/react` with official `useChat` hook for streaming chat
+- Upgraded to **AI SDK 3.0 (v3)** (`@ai-sdk/react@3.0.5`)
+- Refactored chat architecture to use `DefaultChatTransport` and `UIMessage.parts`
 - Integrated **AI Elements** components from Vercel (`shadcn@latest add https://registry.ai-sdk.dev/*`)
 - Full chat UI with thinking states, streaming responses, and message bubbles
 - Two AI endpoints: streaming (`ai-generate`) and structured output (`ai-generate-structured`)

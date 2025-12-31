@@ -154,7 +154,7 @@ export function PromptInputProvider({
     (FileUIPart & { id: string })[]
   >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const openRef = useRef<() => void>(() => {});
+  const openRef = useRef<() => void>(() => { });
 
   const add = useCallback((files: File[] | FileList) => {
     const incoming = Array.from(files);
@@ -714,9 +714,9 @@ export const PromptInput = ({
     const text = usingProvider
       ? controller.textInput.value
       : (() => {
-          const formData = new FormData(form);
-          return (formData.get("message") as string) || "";
-        })();
+        const formData = new FormData(form);
+        return (formData.get("message") as string) || "";
+      })();
 
     // Reset form immediately after capturing text to avoid race condition
     // where user input during async blob conversion would be lost
@@ -855,7 +855,7 @@ export const PromptInputTextarea = ({
       attachments.files.length > 0
     ) {
       e.preventDefault();
-      const lastAttachment = attachments.files.at(-1);
+      const lastAttachment = attachments.files[attachments.files.length - 1];
       if (lastAttachment) {
         attachments.remove(lastAttachment.id);
       }
@@ -888,15 +888,15 @@ export const PromptInputTextarea = ({
 
   const controlledProps = controller
     ? {
-        value: controller.textInput.value,
-        onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
-          controller.textInput.setInput(e.currentTarget.value);
-          onChange?.(e);
-        },
-      }
+      value: controller.textInput.value,
+      onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
+        controller.textInput.setInput(e.currentTarget.value);
+        onChange?.(e);
+      },
+    }
     : {
-        onChange,
-      };
+      onChange,
+    };
 
   return (
     <InputGroupTextarea
@@ -1063,11 +1063,11 @@ interface SpeechRecognition extends EventTarget {
   onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
   onend: ((this: SpeechRecognition, ev: Event) => any) | null;
   onresult:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any)
-    | null;
+  | ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any)
+  | null;
   onerror:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any)
-    | null;
+  | ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any)
+  | null;
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -1100,10 +1100,10 @@ interface SpeechRecognitionErrorEvent extends Event {
 declare global {
   interface Window {
     SpeechRecognition: {
-      new (): SpeechRecognition;
+      new(): SpeechRecognition;
     };
     webkitSpeechRecognition: {
-      new (): SpeechRecognition;
+      new(): SpeechRecognition;
     };
   }
 }

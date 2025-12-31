@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, type UIMessage } from 'ai';
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Loader } from '@/components/ai-elements/loader';
@@ -11,21 +12,35 @@ interface TemplateChatProps {
   systemPrompt?: string;
 }
 
+// Helper to get text content from UIMessage
+const getMessageContent = (message: UIMessage) => {
+  return message.parts
+    .filter(part => part.type === 'text')
+    .map(part => part.text)
+    .join('');
+};
+
 export function TemplateChat({ onInsertTemplate, systemPrompt }: TemplateChatProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [inputValue, setInputValue] = useState('');
+
+  const transport = useMemo(() => new DefaultChatTransport({
+    api: '/api/v1/templates/ai-generate',
+    body: { systemPrompt },
+  }), [systemPrompt]);
+
   const {
     messages,
-    append,
+    sendMessage,
     status,
     stop,
   } = useChat({
-    api: '/api/v1/templates/ai-generate',
-    body: { systemPrompt },
-    onFinish: (message) => {
+    transport,
+    onFinish: ({ message }) => {
       setIsGenerating(false);
-      if (message.role === 'assistant' && onInsertTemplate && message.content) {
-        onInsertTemplate(message.content);
+      const content = getMessageContent(message);
+      if (message.role === 'assistant' && onInsertTemplate && content) {
+        onInsertTemplate(content);
       }
     },
   });
@@ -34,9 +49,9 @@ export function TemplateChat({ onInsertTemplate, systemPrompt }: TemplateChatPro
     e.preventDefault();
     if (!inputValue.trim()) return;
     setIsGenerating(true);
-    await append({
+    await sendMessage({
       role: 'user',
-      content: inputValue,
+      parts: [{ type: 'text', text: inputValue }],
     });
     setInputValue('');
   };
@@ -71,25 +86,28 @@ export function TemplateChat({ onInsertTemplate, systemPrompt }: TemplateChatPro
             </div>
           )}
 
-          {messages.map((message, index) => (
-            <Message key={index} from={message.role}>
-              <MessageContent>
-                <div className="whitespace-pre-wrap">
-                  {message.content}
-                </div>
-                {message.role === 'assistant' && onInsertTemplate && message.content && (
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => onInsertTemplate(message.content)}
-                      className="px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                    >
-                      Insert Template
-                    </button>
+          {messages.map((message, index) => {
+            const content = getMessageContent(message);
+            return (
+              <Message key={index} from={message.role}>
+                <MessageContent>
+                  <div className="whitespace-pre-wrap">
+                    {content}
                   </div>
-                )}
-              </MessageContent>
-            </Message>
-          ))}
+                  {message.role === 'assistant' && onInsertTemplate && content && (
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => onInsertTemplate(content)}
+                        className="px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      >
+                        Insert Template
+                      </button>
+                    </div>
+                  )}
+                </MessageContent>
+              </Message>
+            );
+          })}
 
           {isGenerating && (
             <Message from="assistant">
