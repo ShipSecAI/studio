@@ -11,15 +11,12 @@ import {
   ZoomInIcon,
   ZoomOutIcon,
   LayoutListIcon,
-  Code2Icon,
-  PanelLeftOpen,
-  PanelLeftClose
+  Code2Icon
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { useThemeStore } from '@/store/themeStore'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SchematicForm } from '@/components/SchematicForm';
-import { cn } from '@/lib/utils';
 
 export function TemplateEditor() {
   const { id } = useParams<{ id: string }>()
@@ -37,9 +34,6 @@ export function TemplateEditor() {
 
   // View Mode for Sample Data (Form vs Code)
   const [sampleDataViewMode, setSampleDataViewMode] = useState<'form' | 'code'>('form')
-
-  // Sidebar collapsed state (collapsed by default like Workflow Editor)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // State for iframe content
   const [srcDoc, setSrcDoc] = useState('')
@@ -258,120 +252,105 @@ export function TemplateEditor() {
 
   return (
     <div className="h-full flex flex-col bg-background text-foreground overflow-hidden">
-      {/* Main Content - No separate header, everything in one row */}
-      <div className="flex-1 flex overflow-hidden relative">
-
-        {/* Sidebar Toggle Button - Shows when sidebar is closed */}
-        {!sidebarOpen && (
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 bg-card border border-border rounded-lg shadow-md hover:bg-accent transition-colors text-xs font-medium"
-          >
-            <PanelLeftOpen className="w-4 h-4" />
-            <span>Show Panel</span>
-          </button>
-        )}
-
-        {/* Left Panel - Collapsible Sidebar */}
-        <aside
-          className={cn(
-            'flex flex-col border-r border-border bg-card shadow-xl z-10 shrink-0 overflow-hidden transition-all duration-200 ease-in-out',
-            sidebarOpen ? 'w-[480px] opacity-100' : 'w-0 opacity-0'
-          )}
+      {/* Top Bar - App Title Bar */}
+      <header className="min-h-[56px] border-b bg-background flex flex-nowrap items-center px-4 gap-3 py-0 shrink-0">
+        <button
+          onClick={() => navigate('/templates')}
+          className="p-2 hover:bg-accent rounded-lg transition-colors group shrink-0"
+          aria-label="Back to templates"
         >
-          <div className="w-[480px] flex flex-col h-full">
-            {/* Top Section: Tabs (Data & Schema) - Takes 50% of height */}
-            <div className="h-[50%] flex flex-col min-h-0 border-b border-border">
-              <Tabs defaultValue="data" className="flex-1 flex flex-col h-full w-full">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/10 shrink-0">
-                  <TabsList className="bg-muted/50 p-1 rounded-lg h-8">
-                    <TabsTrigger value="data" className="text-xs px-3 h-6 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground">Sample Data</TabsTrigger>
-                    <TabsTrigger value="schema" className="text-xs px-3 h-6 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground">Input Schema</TabsTrigger>
-                  </TabsList>
+          <ArrowLeftIcon className="w-5 h-5 text-muted-foreground group-hover:text-foreground" />
+        </button>
+
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="text-base font-semibold text-foreground bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-primary rounded px-2 py-1 min-w-0 max-w-[300px]"
+            disabled={selectedTemplate.isSystem}
+          />
+          <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full shrink-0">v{selectedTemplate.version}</span>
+          {selectedTemplate.isSystem && <span className="px-2 py-0.5 bg-muted text-muted-foreground text-xs font-medium rounded-full shrink-0">System</span>}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleSave}
+            disabled={saving || selectedTemplate.isSystem}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm"
+          >
+            <SaveIcon className="w-4 h-4" />
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+
+        {/* Left Panel - Always Visible Sidebar */}
+        <aside className="w-[480px] flex flex-col border-r border-border bg-card shadow-xl z-10 shrink-0">
+          {/* Top Section: Tabs (Data & Schema) - Takes 50% of height */}
+          <div className="h-[50%] flex flex-col min-h-0 border-b border-border">
+            <Tabs defaultValue="data" className="flex-1 flex flex-col h-full w-full">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/10 shrink-0">
+                <TabsList className="bg-muted/50 p-1 rounded-lg h-8">
+                  <TabsTrigger value="data" className="text-xs px-3 h-6 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground">Sample Data</TabsTrigger>
+                  <TabsTrigger value="schema" className="text-xs px-3 h-6 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground">Input Schema</TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent value="data" className="flex-1 min-h-0 flex flex-col m-0 p-0 outline-none data-[state=inactive]:hidden" style={{ width: '100%' }}>
+                {/* Data Toolbar */}
+                <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-background/50 shrink-0">
+                  <div className="flex gap-1 bg-muted/30 p-0.5 rounded-md">
+                    <button
+                      onClick={() => setSampleDataViewMode('form')}
+                      className={`p-1.5 rounded-sm transition-all ${sampleDataViewMode === 'form' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                      title="Form View (RJSF)"
+                    >
+                      <LayoutListIcon className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setSampleDataViewMode('code')}
+                      className={`p-1.5 rounded-sm transition-all ${sampleDataViewMode === 'code' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                      title="Code View"
+                    >
+                      <Code2Icon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                    title="Hide panel"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      formatJson(setSampleData, sampleData)
+                    }}
+                    className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground hover:text-primary transition-colors hover:bg-muted/50 px-2 py-1 rounded"
+                    title="Format JSON"
                   >
-                    <PanelLeftClose className="w-4 h-4 text-muted-foreground" />
+                    Format
                   </button>
                 </div>
 
-                <TabsContent value="data" className="flex-1 min-h-0 flex flex-col m-0 p-0 outline-none data-[state=inactive]:hidden" style={{ width: '100%' }}>
-                  {/* Data Toolbar */}
-                  <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-background/50 shrink-0">
-                    <div className="flex gap-1 bg-muted/30 p-0.5 rounded-md">
-                      <button
-                        onClick={() => setSampleDataViewMode('form')}
-                        className={`p-1.5 rounded-sm transition-all ${sampleDataViewMode === 'form' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                        title="Form View (RJSF)"
-                      >
-                        <LayoutListIcon className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setSampleDataViewMode('code')}
-                        className={`p-1.5 rounded-sm transition-all ${sampleDataViewMode === 'code' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                        title="Code View"
-                      >
-                        <Code2Icon className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        formatJson(setSampleData, sampleData)
-                      }}
-                      className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground hover:text-primary transition-colors hover:bg-muted/50 px-2 py-1 rounded"
-                      title="Format JSON"
-                    >
-                      Format
-                    </button>
-                  </div>
-
-                  {/* Data Editor Area */}
-                  <div className="flex-1 overflow-auto bg-background w-full">
-                    {sampleDataViewMode === 'form' ? (
-                      <div className="p-4 w-full">
-                        <SchematicForm
-                          className="w-full"
-                          schema={(() => { try { return JSON.parse(inputSchema); } catch (e) { return {}; } })()}
-                          data={(() => { try { return JSON.parse(sampleData); } catch (e) { return {}; } })()}
-                          onChange={(newData) => setSampleData(JSON.stringify(newData, null, 2))}
-                        />
-                      </div>
-                    ) : (
-                      <Editor
-                        height="100%"
-                        defaultLanguage="json"
-                        value={sampleData}
-                        onChange={(val) => setSampleData(val || '')}
-                        theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                        options={{
-                          minimap: { enabled: false },
-                          fontSize: 12,
-                          lineNumbers: 'on',
-                          scrollBeyondLastLine: false,
-                          automaticLayout: true,
-                          tabSize: 2,
-                          padding: { top: 12, bottom: 12 },
-                        }}
+                {/* Data Editor Area */}
+                <div className="flex-1 overflow-auto bg-background w-full">
+                  {sampleDataViewMode === 'form' ? (
+                    <div className="p-4 w-full">
+                      <SchematicForm
+                        className="w-full"
+                        schema={(() => { try { return JSON.parse(inputSchema); } catch (e) { return {}; } })()}
+                        data={(() => { try { return JSON.parse(sampleData); } catch (e) { return {}; } })()}
+                        onChange={(newData) => setSampleData(JSON.stringify(newData, null, 2))}
                       />
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="schema" className="flex-1 min-h-0 flex flex-col m-0 p-0 outline-none data-[state=inactive]:hidden" style={{ width: '100%' }}>
-                  <div className="flex-1 overflow-hidden relative bg-background w-full">
-                    <div className="absolute top-2 right-4 z-10">
-                      <span className="px-2 py-1 bg-muted/80 backdrop-blur text-muted-foreground text-[10px] uppercase font-bold rounded border border-border">View Only</span>
                     </div>
+                  ) : (
                     <Editor
                       height="100%"
                       defaultLanguage="json"
-                      value={inputSchema}
+                      value={sampleData}
+                      onChange={(val) => setSampleData(val || '')}
                       theme={theme === 'dark' ? 'vs-dark' : 'light'}
                       options={{
-                        readOnly: true,
                         minimap: { enabled: false },
                         fontSize: 12,
                         lineNumbers: 'on',
@@ -379,58 +358,62 @@ export function TemplateEditor() {
                         automaticLayout: true,
                         tabSize: 2,
                         padding: { top: 12, bottom: 12 },
-                        renderLineHighlight: 'none',
                       }}
                     />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            {/* Bottom Section: AI Assistant - Takes remaining height (45%) */}
-            <div className="flex-1 flex flex-col min-h-0 bg-muted/5 border-t border-border shadow-[0_-1px_10px_rgba(0,0,0,0.02)]">
-              <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-500/5 to-transparent border-b border-purple-500/10 shrink-0">
-                <div className="flex items-center gap-2">
-                  <SparklesIcon className="w-4 h-4 text-purple-600" />
-                  <span className="text-sm font-semibold text-foreground">AI Designer</span>
+                  )}
                 </div>
+              </TabsContent>
+
+              <TabsContent value="schema" className="flex-1 min-h-0 flex flex-col m-0 p-0 outline-none data-[state=inactive]:hidden" style={{ width: '100%' }}>
+                <div className="flex-1 overflow-hidden relative bg-background w-full">
+                  <div className="absolute top-2 right-4 z-10">
+                    <span className="px-2 py-1 bg-muted/80 backdrop-blur text-muted-foreground text-[10px] uppercase font-bold rounded border border-border">View Only</span>
+                  </div>
+                  <Editor
+                    height="100%"
+                    defaultLanguage="json"
+                    value={inputSchema}
+                    theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                    options={{
+                      readOnly: true,
+                      minimap: { enabled: false },
+                      fontSize: 12,
+                      lineNumbers: 'on',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      tabSize: 2,
+                      padding: { top: 12, bottom: 12 },
+                      renderLineHighlight: 'none',
+                    }}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Bottom Section: AI Assistant - Takes remaining height (50%) */}
+          <div className="flex-1 flex flex-col min-h-0 bg-muted/5 border-t border-border shadow-[0_-1px_10px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-500/5 to-transparent border-b border-purple-500/10 shrink-0">
+              <div className="flex items-center gap-2">
+                <SparklesIcon className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-semibold text-foreground">AI Designer</span>
               </div>
-              <div className="flex-1 overflow-hidden relative w-full">
-                <TemplateChat onUpdateTemplate={handleUpdateTemplate} />
-              </div>
+            </div>
+            <div className="flex-1 overflow-hidden relative w-full">
+              <TemplateChat onUpdateTemplate={handleUpdateTemplate} />
             </div>
           </div>
         </aside>
 
-
-
         {/* Right Panel - Preview */}
         <div className="flex-1 flex flex-col min-w-0 bg-background">
-          {/* Preview Header with Template Name and Save */}
+          {/* Preview Header */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card shrink-0">
-            {/* Left side: Back, Name, Version */}
-            <div className="flex items-center gap-3">
-              <button onClick={() => navigate('/templates')} className="p-1.5 hover:bg-accent rounded-lg transition-colors group">
-                <ArrowLeftIcon className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
-              </button>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="text-sm font-semibold text-foreground bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-primary rounded px-2 py-1"
-                disabled={selectedTemplate.isSystem}
-              />
-              <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-medium rounded-full">v{selectedTemplate.version}</span>
-              {selectedTemplate.isSystem && <span className="px-1.5 py-0.5 bg-muted text-muted-foreground text-[10px] font-medium rounded-full">System</span>}
-            </div>
-
-            {/* Center: Preview label */}
             <div className="flex items-center gap-2">
               <EyeIcon className="w-4 h-4 text-green-500" />
               <span className="text-sm font-medium text-foreground">Preview</span>
             </div>
 
-            {/* Right side: Zoom, Refresh, Save */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPreviewScale(Math.max(50, previewScale - 10))}
@@ -450,19 +433,10 @@ export function TemplateEditor() {
               <div className="w-px h-4 bg-border mx-1"></div>
               <button
                 onClick={handleRefreshPreview}
-                className="p-1.5 hover:bg-accent rounded transition-colors"
-                title="Refresh preview"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
               >
-                <RefreshCwIcon className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <div className="w-px h-4 bg-border mx-1"></div>
-              <button
-                onClick={handleSave}
-                disabled={saving || selectedTemplate.isSystem}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-xs"
-              >
-                <SaveIcon className="w-3.5 h-3.5" />
-                {saving ? 'Saving...' : 'Save'}
+                <RefreshCwIcon className="w-3.5 h-3.5" />
+                Refresh
               </button>
             </div>
           </div>
@@ -491,3 +465,4 @@ export function TemplateEditor() {
     </div>
   )
 }
+
