@@ -76,7 +76,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     ? (gitSha.startsWith('v') ? gitSha : gitSha.slice(0, 7))
     : 'dev'
 
-  // Auto-collapse sidebar when opening workflow builder, expand for other routes
+  // Auto-collapse sidebar when opening workflow builder or template editor, expand for other routes
   // On mobile, always start collapsed
   useEffect(() => {
     if (isMobile) {
@@ -84,8 +84,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       setWasExplicitlyOpened(false)
     } else {
       const isWorkflowRoute = location.pathname.startsWith('/workflows') && location.pathname !== '/'
-      setSidebarOpen(!isWorkflowRoute)
-      setWasExplicitlyOpened(!isWorkflowRoute)
+      const isTemplateEditorRoute = location.pathname.match(/^\/templates\/[^/]+\/edit$/)
+      const shouldCollapse = isWorkflowRoute || isTemplateEditorRoute
+      setSidebarOpen(!shouldCollapse)
+      setWasExplicitlyOpened(!shouldCollapse)
     }
   }, [location.pathname, isMobile])
 
@@ -499,8 +501,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           // On mobile, main content takes full width since sidebar is overlay
           isMobile ? 'w-full' : ''
         )}>
-          {/* Only show AppTopBar for non-workflow-builder pages */}
-          {!location.pathname.startsWith('/workflows') && (
+          {/* Only show AppTopBar for non-workflow-builder and non-template-editor pages */}
+          {!location.pathname.startsWith('/workflows') && !location.pathname.match(/^\/templates\/[^/]+\/edit$/) && (
             <AppTopBar
               sidebarOpen={sidebarOpen}
               onSidebarToggle={handleToggle}
