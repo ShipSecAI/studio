@@ -22,6 +22,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
+import { ReportTemplatesModule } from './report-templates/report-templates.module';
 
 const coreModules = [
   AgentsModule,

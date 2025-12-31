@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { componentRegistry, type ComponentDefinition, port, ValidationError } from '@shipsec/component-sdk';
+import { renderTemplate, generateDefaultTemplate } from './renderer';
 
 /**
  * Severity levels for security findings
@@ -490,7 +491,6 @@ const definition: ComponentDefinition<Input, Output> = {
       `[ReportGenerator] Generating report using template: ${templateId} v${templateVersion}`
     );
 
-    // Build report data
     const reportData = {
       findings: params.findings ?? [],
       metadata: params.metadata ?? {},
@@ -498,27 +498,18 @@ const definition: ComponentDefinition<Input, Output> = {
       ...params.additionalData,
     };
 
-    // Generate HTML
-    // TODO: In full implementation, fetch template from DB and render with Preact/HTM
-    const html = getDefaultReportHTML(reportData);
+    const template = params.template && typeof params.template === 'object' && 'template' in params.template
+      ? (params.template as { template: string }).template
+      : generateDefaultTemplate();
 
-    let buffer: Buffer;
-    let mimeType: string;
+    const result = renderTemplate({
+      template,
+      data: reportData,
+      includeBranding: params.includeBranding,
+    });
 
-    if (params.format === 'pdf') {
-      // TODO: Use Puppeteer component to generate PDF
-      // For now, store HTML and note that PDF generation is pending
-      context.logger.warn(
-        '[ReportGenerator] PDF generation pending Puppeteer integration. Storing HTML instead.'
-      );
-
-      // Temporary: store HTML with .pdf extension (will be replaced once Puppeteer is ready)
-      buffer = Buffer.from(html, 'utf-8');
-      mimeType = 'text/html';
-    } else {
-      buffer = Buffer.from(html, 'utf-8');
-      mimeType = 'text/html';
-    }
+    const buffer = Buffer.from(result.html, 'utf-8');
+    const mimeType = params.format === 'pdf' ? 'application/pdf' : 'text/html';
 
     context.logger.info(
       `[ReportGenerator] Generated ${buffer.byteLength} bytes of ${params.format}`
