@@ -2193,6 +2193,54 @@
         ]
       }
     },
+    "/api/v1/ai": {
+      "post": {
+        "operationId": "AiController_generate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateAiDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI SDK-compatible SSE stream"
+          }
+        },
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/v1/ai/generate-structured": {
+      "post": {
+        "operationId": "AiController_generateStructured",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateAiDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Structured template generation response"
+          }
+        },
+        "tags": [
+          "AI"
+        ]
+      }
+    },
     "/api/v1/api-keys": {
       "get": {
         "operationId": "ApiKeysController_list",
@@ -4442,54 +4490,6 @@
         ]
       }
     },
-    "/api/v1/templates/ai-generate": {
-      "post": {
-        "operationId": "ReportTemplatesController_aiGenerate",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateTemplateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ReportTemplates"
-        ]
-      }
-    },
-    "/api/v1/templates/ai-generate-structured": {
-      "post": {
-        "operationId": "ReportTemplatesController_aiGenerateStructured",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateTemplateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ReportTemplates"
-        ]
-      }
-    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -5863,6 +5863,34 @@
         "required": [
           "artifacts"
         ]
+      },
+      "GenerateAiDto": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "messages": {
+            "type": "array",
+            "items": {}
+          },
+          "systemPrompt": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "context": {
+            "type": "string",
+            "enum": [
+              "template",
+              "agent",
+              "report",
+              "general"
+            ]
+          }
+        }
       },
       "ApiKeyResponseDto": {
         "type": "object",
@@ -7309,27 +7337,6 @@
           "templateId",
           "templateVersion",
           "generatedAt"
-        ]
-      },
-      "GenerateTemplateDto": {
-        "type": "object",
-        "properties": {
-          "prompt": {
-            "type": "string",
-            "minLength": 10,
-            "description": "Description of the template to generate"
-          },
-          "systemPrompt": {
-            "description": "Custom system prompt for the AI",
-            "type": "string"
-          },
-          "model": {
-            "description": "Model to use for generation",
-            "type": "string"
-          }
-        },
-        "required": [
-          "prompt"
         ]
       }
     }

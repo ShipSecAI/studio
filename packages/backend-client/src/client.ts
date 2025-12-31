@@ -532,6 +532,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AiController_generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/generate-structured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AiController_generateStructured"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/api-keys": {
         parameters: {
             query?: never;
@@ -1160,38 +1192,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/templates/ai-generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["ReportTemplatesController_aiGenerate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/templates/ai-generate-structured": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["ReportTemplatesController_aiGenerateStructured"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -1605,6 +1605,14 @@ export interface components {
                 /** Format: date-time */
                 createdAt: string;
             }[];
+        };
+        GenerateAiDto: {
+            prompt?: string;
+            messages?: unknown[];
+            systemPrompt?: string;
+            model?: string;
+            /** @enum {string} */
+            context?: "template" | "agent" | "report" | "general";
         };
         ApiKeyResponseDto: {
             id: string;
@@ -2060,14 +2068,6 @@ export interface components {
             templateId: string;
             templateVersion: string;
             generatedAt: string;
-        };
-        GenerateTemplateDto: {
-            /** @description Description of the template to generate */
-            prompt: string;
-            /** @description Custom system prompt for the AI */
-            systemPrompt?: string;
-            /** @description Model to use for generation */
-            model?: string;
         };
     };
     responses: never;
@@ -3208,6 +3208,50 @@ export interface operations {
                 content: {
                     "application/octet-stream": string;
                 };
+            };
+        };
+    };
+    AiController_generate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateAiDto"];
+            };
+        };
+        responses: {
+            /** @description AI SDK-compatible SSE stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AiController_generateStructured: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateAiDto"];
+            };
+        };
+        responses: {
+            /** @description Structured template generation response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -4525,48 +4569,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["GenerateReportResponseDto"];
                 };
-            };
-        };
-    };
-    ReportTemplatesController_aiGenerate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenerateTemplateDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ReportTemplatesController_aiGenerateStructured: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenerateTemplateDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

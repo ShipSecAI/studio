@@ -29,10 +29,11 @@ export function TemplateChat({ onInsertTemplate, systemPrompt }: TemplateChatPro
     prepareSendMessagesRequest: async ({ body, headers }) => {
       const authHeaders = await getApiAuthHeaders();
       return {
-        api: buildApiUrl('/api/v1/templates/ai-generate'),
+        api: buildApiUrl('/api/v1/ai'),
         body: {
           ...(body ?? {}),
           ...(systemPrompt ? { systemPrompt } : {}),
+          context: 'template',
         },
         headers: {
           ...headersInitToRecord(headers),
@@ -43,7 +44,7 @@ export function TemplateChat({ onInsertTemplate, systemPrompt }: TemplateChatPro
     prepareReconnectToStreamRequest: async ({ headers }) => {
       const authHeaders = await getApiAuthHeaders();
       return {
-        api: buildApiUrl('/api/v1/templates/ai-generate'),
+        api: buildApiUrl('/api/v1/ai'),
         headers: {
           ...headersInitToRecord(headers),
           ...authHeaders,

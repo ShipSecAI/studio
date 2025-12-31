@@ -82,11 +82,3 @@ export const GenerateReportResponseSchema = z.object({
 });
 
 export class GenerateReportResponseDto extends createZodDto(GenerateReportResponseSchema) {}
-
-export const GenerateTemplateSchema = z.object({
-  prompt: z.string().min(10).describe('Description of the template to generate'),
-  systemPrompt: z.string().optional().describe('Custom system prompt for the AI'),
-  model: z.string().optional().describe('Model to use for generation'),
-});
-
-export class GenerateTemplateDto extends createZodDto(GenerateTemplateSchema) {}

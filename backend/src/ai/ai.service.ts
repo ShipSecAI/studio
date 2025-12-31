@@ -34,6 +34,9 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly openai: ReturnType<typeof createOpenAI>;
   private readonly google: ReturnType<typeof createGoogleGenerativeAI>;
+  private readonly defaultProvider: ModelProvider;
+  private readonly hasOpenAiKey: boolean;
+  private readonly hasGoogleKey: boolean;
 
   constructor() {
     const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -41,11 +44,35 @@ export class AiService {
 
     this.openai = createOpenAI({ apiKey: openaiApiKey });
     this.google = createGoogleGenerativeAI({ apiKey: googleApiKey });
+    this.hasOpenAiKey = Boolean(openaiApiKey);
+    this.hasGoogleKey = Boolean(googleApiKey);
+    this.defaultProvider = this.resolveDefaultProvider();
   }
 
-  private getModel(provider: ModelProvider = 'openai', model?: string) {
+  private getModel(provider: ModelProvider, model?: string) {
     const modelName = model || (provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o-mini');
+    this.ensureProviderConfigured(provider);
     return provider === 'gemini' ? this.google(modelName) : this.openai(modelName);
+  }
+
+  private resolveDefaultProvider(): ModelProvider {
+    const envProvider = process.env.SHIPSEC_AI_PROVIDER ?? process.env.AI_PROVIDER;
+    if (envProvider === 'gemini' || envProvider === 'openai') {
+      return envProvider;
+    }
+    if (this.hasGoogleKey) {
+      return 'gemini';
+    }
+    return 'openai';
+  }
+
+  private ensureProviderConfigured(provider: ModelProvider) {
+    if (provider === 'gemini' && !this.hasGoogleKey) {
+      throw new Error('GOOGLE_API_KEY is required for Gemini models');
+    }
+    if (provider === 'openai' && !this.hasOpenAiKey) {
+      throw new Error('OPENAI_API_KEY is required for OpenAI models');
+    }
   }
 
   buildSystemPrompt(context?: AIGenerationContext): string {
@@ -62,7 +89,17 @@ export class AiService {
   }
 
   async generate(options: GenerateOptions): Promise<GenerationResult> {
-    const { prompt, systemPrompt, mode, schema, model, provider = 'openai', temperature = 0.7, context } = options;
+    const {
+      prompt,
+      systemPrompt,
+      mode,
+      schema,
+      model,
+      provider,
+      temperature = 0.7,
+      context,
+    } = options;
+    const selectedProvider = provider ?? this.defaultProvider;
 
     const messages = [
       { role: 'system' as const, content: systemPrompt || this.buildSystemPrompt(context) },
@@ -71,15 +108,26 @@ export class AiService {
 
     try {
       if (mode === 'streaming') {
-        return { stream: streamText({ model: this.getModel(provider, model), messages, temperature }) };
+        return {
+          stream: streamText({ model: this.getModel(selectedProvider, model), messages, temperature }),
+        };
       }
 
       if (mode === 'object' && schema) {
-        const result = await generateObject({ model: this.getModel(provider, model), schema, messages, temperature });
+        const result = await generateObject({
+          model: this.getModel(selectedProvider, model),
+          schema,
+          messages,
+          temperature,
+        });
         return { object: result.object, usage: result.usage as any };
       }
 
-      const result = await generateText({ model: this.getModel(provider, model), messages, temperature });
+      const result = await generateText({
+        model: this.getModel(selectedProvider, model),
+        messages,
+        temperature,
+      });
       return { text: result.text, usage: result.usage as any };
     } catch (error) {
       this.logger.error(`AI generation failed: ${error}`);

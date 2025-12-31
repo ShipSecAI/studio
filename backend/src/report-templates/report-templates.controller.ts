@@ -15,7 +15,6 @@ import {
 } from '@nestjs/common';
 import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiResponse } from '@nestjs/swagger';
 import { ReportTemplatesService } from './report-templates.service';
-import { AiService } from '../ai/ai.service';
 import {
   CreateReportTemplateDto,
   ListTemplatesQueryDto,
@@ -25,7 +24,6 @@ import {
   UpdateReportTemplateDto,
   GenerateReportDto,
   GenerateReportResponseDto,
-  GenerateTemplateDto,
 } from './dto/template.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentAuth } from '../auth/auth-context.decorator';
@@ -37,7 +35,6 @@ const CreateReportTemplateSchema: ZodSchema = CreateReportTemplateDto.schema;
 const UpdateReportTemplateSchema: ZodSchema = UpdateReportTemplateDto.schema;
 const ListTemplatesQuerySchema: ZodSchema = ListTemplatesQueryDto.schema;
 const GenerateReportSchema: ZodSchema = GenerateReportDto.schema;
-const GenerateTemplateSchema: ZodSchema = GenerateTemplateDto.schema;
 const PreviewTemplateSchema: ZodSchema = PreviewTemplateDto.schema;
 
 @Controller('templates')
@@ -45,7 +42,6 @@ const PreviewTemplateSchema: ZodSchema = PreviewTemplateDto.schema;
 export class ReportTemplatesController {
   constructor(
     private readonly templatesService: ReportTemplatesService,
-    private readonly aiService: AiService,
   ) {}
 
   @Get()
@@ -155,50 +151,6 @@ export class ReportTemplatesController {
       templateVersion: template.version.toString(),
       generatedAt: new Date().toISOString(),
     };
-  }
-
-  @Post('ai-generate')
-  async aiGenerate(
-    @CurrentAuth() auth: AuthContext | null,
-    @Body(new ZodValidationPipe(GenerateTemplateSchema)) dto: GenerateTemplateDto,
-  ) {
-    this.requireAuth(auth);
-    const systemPrompt = dto.systemPrompt || `You are a report template generation expert.
-Generate custom HTML templates using our template syntax.
-
-Template Syntax:
-- \`{{variable}}\` - Interpolate variables
-- \`{{#each items as item}}\` ... \`{{/each}}\` - Loop through arrays
-- \`{{#if condition}}\` ... \`{{/if}}\` - Conditional rendering
-
-Return ONLY the template HTML, no explanations.`;
-
-    const result = await this.aiService.generate({
-      prompt: dto.prompt,
-      systemPrompt,
-      mode: 'streaming',
-      model: dto.model,
-      context: { type: 'template' },
-    });
-
-    if (result.stream) {
-      return result.stream.toTextStreamResponse();
-    }
-    throw new Error('Streaming not available');
-  }
-
-  @Post('ai-generate-structured')
-  async aiGenerateStructured(
-    @CurrentAuth() auth: AuthContext | null,
-    @Body(new ZodValidationPipe(GenerateTemplateSchema)) dto: GenerateTemplateDto,
-  ) {
-    this.requireAuth(auth);
-    const result = await this.aiService.generateTemplate(dto.prompt, {
-      systemPrompt: dto.systemPrompt,
-      model: dto.model,
-    });
-
-    return result;
   }
 
   private requireAuth(auth: AuthContext | null): AuthContext {
