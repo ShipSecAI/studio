@@ -439,7 +439,7 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
               <div className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Live Runs
               </div>
-              <div className="max-h-48 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
+              <div className="max-h-48 overflow-y-auto">
                 {otherLiveRuns.map(renderRunItem)}
               </div>
               <DropdownMenuSeparator />
@@ -456,7 +456,7 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
               {isLoadingRuns ? 'Loading runs…' : 'No previous runs found'}
             </div>
           ) : (
-            <div className="max-h-64 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
+            <div className="max-h-64 overflow-y-auto">
               {historicalRuns.map(renderRunItem)}
             </div>
           )}
