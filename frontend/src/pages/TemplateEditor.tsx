@@ -289,7 +289,7 @@ export function TemplateEditor() {
               AI Assistant
             </h2>
           </div>
-          <div className="flex-1 overflow-hidden relative w-full">
+          <div className="flex-1 overflow-hidden min-h-0 relative w-full">
             <TemplateChat onUpdateTemplate={handleUpdateTemplate} />
           </div>
         </aside>

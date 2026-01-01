@@ -246,8 +246,8 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border-t border-border font-sans">
-      <div className="flex-1 overflow-y-auto p-6 space-y-10">
+    <div className="flex flex-col h-full bg-card font-sans">
+      <div className="flex-1 overflow-y-auto p-6 space-y-10 overscroll-contain">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-8">
             <div className="w-16 h-16 rounded-3xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20 shadow-inner">
