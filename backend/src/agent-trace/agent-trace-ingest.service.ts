@@ -23,7 +23,10 @@ export class AgentTraceIngestService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.kafkaTopic = process.env.AGENT_TRACE_KAFKA_TOPIC ?? 'telemetry.agent-trace';
-    this.kafkaGroupId = process.env.AGENT_TRACE_KAFKA_GROUP_ID ?? 'shipsec-agent-trace-ingestor';
+    const baseGroupId = process.env.AGENT_TRACE_KAFKA_GROUP_ID ?? 'shipsec-agent-trace-ingestor';
+    this.kafkaGroupId = process.env.NODE_ENV === 'production' 
+      ? baseGroupId 
+      : `${baseGroupId}-dev-${Math.random().toString(36).substring(7)}`;
     this.kafkaClientId = process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? 'shipsec-backend-agent-trace';
   }
 

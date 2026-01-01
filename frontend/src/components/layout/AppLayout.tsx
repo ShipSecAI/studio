@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command, Zap } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command, Zap, FileText } from 'lucide-react'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
@@ -76,7 +76,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     ? (gitSha.startsWith('v') ? gitSha : gitSha.slice(0, 7))
     : 'dev'
 
-  // Auto-collapse sidebar when opening workflow builder, expand for other routes
+  // Auto-collapse sidebar when opening workflow builder or template editor, expand for other routes
   // On mobile, always start collapsed
   useEffect(() => {
     if (isMobile) {
@@ -84,8 +84,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       setWasExplicitlyOpened(false)
     } else {
       const isWorkflowRoute = location.pathname.startsWith('/workflows') && location.pathname !== '/'
-      setSidebarOpen(!isWorkflowRoute)
-      setWasExplicitlyOpened(!isWorkflowRoute)
+      const isTemplateEditorRoute = location.pathname.match(/^\/templates\/[^/]+\/edit$/)
+      const shouldCollapse = isWorkflowRoute || isTemplateEditorRoute
+      setSidebarOpen(!shouldCollapse)
+      setWasExplicitlyOpened(!shouldCollapse)
     }
   }, [location.pathname, isMobile])
 
@@ -247,6 +249,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/integrations',
       icon: Plug,
     }] : []),
+    {
+      name: 'Report Templates',
+      href: '/templates',
+      icon: FileText,
+    },
     {
       name: 'Artifact Library',
       href: '/artifacts',
@@ -494,8 +501,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           // On mobile, main content takes full width since sidebar is overlay
           isMobile ? 'w-full' : ''
         )}>
-          {/* Only show AppTopBar for non-workflow-builder pages */}
-          {!location.pathname.startsWith('/workflows') && (
+          {/* Only show AppTopBar for non-workflow-builder and non-template-editor pages */}
+          {!location.pathname.startsWith('/workflows') && !location.pathname.match(/^\/templates\/[^/]+\/edit$/) && (
             <AppTopBar
               sidebarOpen={sidebarOpen}
               onSidebarToggle={handleToggle}

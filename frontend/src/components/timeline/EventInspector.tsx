@@ -347,7 +347,7 @@ export function EventInspector({ className, layoutVariant = 'stacked-soft' }: Ev
         </div>
 
         <div
-          className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40"
+          className="flex-1 min-h-0 overflow-y-auto"
           onScroll={handleScroll}
         >
           {displayEvents.length === 0 ? (

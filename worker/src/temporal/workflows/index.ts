@@ -7,6 +7,7 @@ import {
   startChild,
   sleep,
   uuid4,
+  CancellationScope,
 } from '@temporalio/workflow';
 import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
@@ -347,14 +348,10 @@ export async function shipsecWorkflowRun(
                 workflowVersionId: prepared.workflowVersionId,
                 workflowVersion: prepared.workflowVersion,
                 organizationId: prepared.organizationId,
-                parentRunId: input.runId,
-                parentNodeRef: action.ref,
-                depth: depth + 1,
-                callChain: [...callChain, childWorkflowId],
               },
             ],
             workflowId: prepared.runId,
-          })
+          });
 
           const timeoutMs = timeoutSeconds * 1000
           let outcome: { kind: 'result'; result: Awaited<ReturnType<typeof child.result>> } | { kind: 'timeout' }

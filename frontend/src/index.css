@@ -88,10 +88,19 @@
     border-color: hsl(var(--border));
   }
 
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 0;
   }
 
   /* Disable all transitions during theme switching for instant color change */
@@ -146,7 +155,38 @@ select {
 }
 
 input[type="text"],
-input[type="number"],
+input[type="number"] {
+  cursor: text;
+}
+
+/* Global Slim Scrollbar Styling */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 3.5px;
+    height: 3.5px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 20px;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    background-clip: content-box;
+  }
+}
+
 textarea {
   cursor: text;
 }
@@ -155,24 +195,6 @@ textarea {
 .config-panel {
   z-index: 100;
   pointer-events: auto !important;
-}
-
-/* Config panel scrollbar styling */
-.config-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.config-panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.config-panel::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
-  border-radius: 3px;
-}
-
-.config-panel::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
 }
 
 /* Smooth scrolling for config panel content */

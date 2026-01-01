@@ -8,6 +8,8 @@ import { ArtifactLibrary } from '@/pages/ArtifactLibrary'
 import { IntegrationCallback } from '@/pages/IntegrationCallback'
 import { NotFound } from '@/pages/NotFound'
 import { SchedulesPage } from '@/pages/SchedulesPage'
+import { TemplatesPage } from '@/pages/TemplatesPage'
+import { TemplateEditor } from '@/pages/TemplateEditor'
 import { ActionCenterPage } from '@/pages/ActionCenterPage'
 import { RunRedirect } from '@/pages/RunRedirect'
 import { ToastProvider } from '@/components/ui/toast-provider'
@@ -79,6 +81,8 @@ function App() {
                     <Route path="/action-center" element={<ActionCenterPage />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
                     <Route path="/runs/:runId" element={<RunRedirect />} />
+                    <Route path="/templates" element={<TemplatesPage />} />
+                    <Route path="/templates/:id/edit" element={<TemplateEditor />} />
                     <Route
                       path="/integrations/callback/:provider"
                       element={<IntegrationCallback />}

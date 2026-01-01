@@ -30,7 +30,10 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
       throw new Error('LOG_KAFKA_BROKERS must be configured for Kafka log ingestion');
     }
     this.kafkaTopic = process.env.LOG_KAFKA_TOPIC ?? 'telemetry.logs';
-    this.kafkaGroupId = process.env.LOG_KAFKA_GROUP_ID ?? 'shipsec-log-ingestor';
+    const baseGroupId = process.env.LOG_KAFKA_GROUP_ID ?? 'shipsec-log-ingestor';
+    this.kafkaGroupId = process.env.NODE_ENV === 'production' 
+      ? baseGroupId 
+      : `${baseGroupId}-dev-${Math.random().toString(36).substring(7)}`;
     this.kafkaClientId = process.env.LOG_KAFKA_CLIENT_ID ?? 'shipsec-backend';
 
     const lokiUrl = process.env.LOKI_URL;

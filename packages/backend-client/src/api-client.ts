@@ -25,6 +25,9 @@ type UpdateSchedulePayload = components['schemas']['UpdateScheduleRequestDto'];
 type ScheduleStatus = 'active' | 'paused' | 'error';
 type CreateApiKeyPayload = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyPayload = components['schemas']['UpdateApiKeyDto'];
+type CreateReportTemplatePayload = components['schemas']['CreateReportTemplateDto'];
+type UpdateReportTemplatePayload = components['schemas']['UpdateReportTemplateDto'];
+type PreviewTemplatePayload = components['schemas']['PreviewTemplateDto'];
 
 /**
  * ShipSec API Client
@@ -440,6 +443,56 @@ export class ShipSecApiClient {
   async deleteSecret(id: string) {
     return this.client.DELETE('/api/v1/secrets/{id}', {
       params: { path: { id } },
+    });
+  }
+
+  // ===== Report Templates =====
+
+  async listTemplates(options?: { limit?: number; offset?: number; isSystem?: boolean }) {
+    return this.client.GET('/api/v1/templates', {
+      params: {
+        query: {
+          limit: options?.limit?.toString(),
+          offset: options?.offset?.toString(),
+          isSystem: options?.isSystem === undefined ? undefined : options.isSystem ? 'true' : 'false',
+        },
+      },
+    });
+  }
+
+  async listSystemTemplates() {
+    return this.client.GET('/api/v1/templates/system');
+  }
+
+  async getTemplate(id: string) {
+    return this.client.GET('/api/v1/templates/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async createTemplate(payload: CreateReportTemplatePayload) {
+    return this.client.POST('/api/v1/templates', {
+      body: payload,
+    });
+  }
+
+  async updateTemplate(id: string, payload: UpdateReportTemplatePayload) {
+    return this.client.PUT('/api/v1/templates/{id}', {
+      params: { path: { id } },
+      body: payload,
+    });
+  }
+
+  async deleteTemplate(id: string) {
+    return this.client.DELETE('/api/v1/templates/{id}', {
+      params: { path: { id } },
+    });
+  }
+
+  async previewTemplate(id: string, payload: PreviewTemplatePayload) {
+    return this.client.POST('/api/v1/templates/{id}/preview', {
+      params: { path: { id } },
+      body: payload,
     });
   }
 
