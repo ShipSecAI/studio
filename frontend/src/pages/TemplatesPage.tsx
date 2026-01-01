@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTemplateStore } from '@/store/templateStore'
-import { LayoutListIcon, Trash2Icon, FileTextIcon } from 'lucide-react'
+import { Trash2Icon, FileTextIcon } from 'lucide-react'
 
 export function TemplatesPage() {
   const navigate = useNavigate()
@@ -103,24 +103,21 @@ export function TemplatesPage() {
             <div
               key={template.id}
               onClick={() => navigate(`/templates/${template.id}/edit`)}
-              className="bg-card border border-border rounded-xl p-4 hover:border-primary/50 hover:shadow-sm transition-all group cursor-pointer flex flex-col h-full relative"
+              className="bg-card border border-border rounded-xl p-4 shadow-sm hover:border-primary/50 hover:shadow-md transition-all group cursor-pointer flex flex-col h-full relative"
             >
               {/* Header */}
               <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                   <div className="p-1.5 bg-primary/10 rounded-md text-primary shrink-0">
-                      <LayoutListIcon className="w-4 h-4" />
-                   </div>
-                   <div className="min-w-0">
-                      <h3 className="font-semibold text-sm text-foreground truncate">{template.name}</h3>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {template.isSystem && (
-                          <span className="px-1.5 py-px bg-muted text-muted-foreground text-[9px] uppercase font-bold rounded border border-border">
-                            System
-                          </span>
-                        )}
-                        <span className="text-[10px] text-muted-foreground">v{template.version}</span>
-                      </div>
+                <div className="flex flex-col gap-1 min-w-0">
+                   <h3 className="font-semibold text-sm text-foreground truncate">{template.name}</h3>
+                   <div className="flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[9px] font-bold uppercase rounded-md border border-primary/20 shrink-0">
+                        v{template.version}
+                      </span>
+                      {template.isSystem && (
+                        <span className="px-1.5 py-0.5 bg-muted text-muted-foreground text-[9px] uppercase font-bold rounded-md border border-border shrink-0">
+                          System
+                        </span>
+                      )}
                    </div>
                 </div>
                 
