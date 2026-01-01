@@ -68,8 +68,8 @@ export function TemplateChat({
   // Track processed tool calls to avoid duplicates and ensure exactly one result per call
   const [processedToolCallIds] = useState(new Set<string>());
 
-  // Track previous values for undo functionality
-  const [previousValues, setPreviousValues] = useState<TemplateUpdate | null>(null);
+  // Stack of AI change checkpoints for step-by-step undo
+  const [undoStack, setUndoStack] = useState<TemplateUpdate[]>([]);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
 
   // Build system prompt with current template context
@@ -123,12 +123,15 @@ When making changes, consider the existing template structure and build upon it 
   const isLoading = status === 'streaming' || status === 'submitted';
 
   const handleConfirmUndo = () => {
-    // Prefer originalValues (base state) over previousValues (last AI change)
-    const valuesToRestore = originalValues || previousValues;
+    // Pop from undo stack if available, otherwise use originalValues
+    const valuesToRestore = undoStack.length > 0 
+      ? undoStack[undoStack.length - 1] 
+      : originalValues;
+
     if (valuesToRestore && onUndoTemplate) {
       onUndoTemplate(valuesToRestore);
-      // Clear previousValues since we've restored, but keep originalValues intact
-      setPreviousValues(null);
+      // Pop the stack after restoring
+      setUndoStack(prev => prev.slice(0, -1));
     }
     setShowUndoConfirm(false);
   };
@@ -192,10 +195,10 @@ When making changes, consider the existing template structure and build upon it 
         const templateContent = args.template || args.html;
 
         if (templateContent) {
-          // Save previous values for undo before updating
+          // Push current state onto undo stack before AI updates
           if (onSavePreviousValues) {
             const prevValues = onSavePreviousValues();
-            setPreviousValues(prevValues);
+            setUndoStack(prev => [...prev, prevValues]);
           }
 
           // Final update to ensure consistency
@@ -302,7 +305,7 @@ When making changes, consider the existing template structure and build upon it 
               <span className="font-medium">
                 Updated {updates.join(', ')}
               </span>
-              {(originalValues || previousValues) && onUndoTemplate && (
+              {(undoStack.length > 0 || originalValues) && onUndoTemplate && (
                 <button
                   onClick={() => setShowUndoConfirm(true)}
                   className="ml-2 px-2 py-0.5 bg-muted hover:bg-muted/80 rounded text-[10px] font-medium text-muted-foreground transition-colors"
@@ -467,7 +470,10 @@ When making changes, consider the existing template structure and build upon it 
           <DialogHeader>
             <DialogTitle>Undo AI Changes?</DialogTitle>
             <DialogDescription>
-              This will restore the template, schema, and sample data to their previous state before the AI update. This action cannot be undone.
+              {undoStack.length > 0 
+                ? `This will revert the last AI change (${undoStack.length} change${undoStack.length > 1 ? 's' : ''} remaining in stack).`
+                : 'This will restore the template to its original state before any AI changes.'}
+              {' '}This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-end">
