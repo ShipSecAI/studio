@@ -370,78 +370,8 @@ export function TemplateEditor() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden bg-secondary/10">
 
-        {/* Left Panel: AI Assistant */}
-        <aside className="w-[380px] flex flex-col border-r border-border bg-card z-10 shrink-0">
-          <div className="px-4 py-3 border-b border-border bg-background/50 backdrop-blur-sm">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <SparklesIcon className="w-4 h-4 text-purple-500" />
-              AI Assistant
-            </h2>
-          </div>
-          <div className="flex-1 overflow-hidden min-h-0 relative w-full">
-            <TemplateChat onUpdateTemplate={handleUpdateTemplate} />
-          </div>
-        </aside>
-
-        {/* Middle Panel: Preview */}
-        <div className="flex-1 flex flex-col min-w-0 bg-secondary/30 relative">
-          {/* Preview Header (Floating) */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-background/80 backdrop-blur-md border border-border/50 rounded-full shadow-sm">
-            <div className="flex items-center gap-2">
-              <EyeIcon className="w-3.5 h-3.5 text-green-500" />
-              <span className="text-xs font-medium text-foreground mr-2">Preview</span>
-            </div>
-            <div className="w-px h-3 bg-border"></div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPreviewScale(Math.max(50, previewScale - 10))}
-                className="p-1 hover:bg-muted rounded-full transition-colors"
-                title="Zoom out"
-              >
-                <ZoomOutIcon className="w-3 h-3 text-muted-foreground" />
-              </button>
-              <span className="text-[10px] text-muted-foreground min-w-[2.5rem] text-center tabular-nums">{previewScale}%</span>
-              <button
-                onClick={() => setPreviewScale(Math.min(150, previewScale + 10))}
-                className="p-1 hover:bg-muted rounded-full transition-colors"
-                title="Zoom in"
-              >
-                <ZoomInIcon className="w-3 h-3 text-muted-foreground" />
-              </button>
-            </div>
-            <div className="w-px h-3 bg-border mx-1"></div>
-            <button
-              onClick={handleRefreshPreview}
-              className="p-1 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground"
-              title="Refresh"
-            >
-              <RefreshCwIcon className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Preview Content */}
-          <div className="flex-1 overflow-hidden p-8 pt-20 flex justify-center">
-            <div
-              className="bg-white shadow-lg overflow-hidden rounded-xl transition-transform duration-200 ease-out origin-top flex flex-col"
-              style={{
-                width: '816px', // A4 Width
-                height: '100%', // Fill available vertical space
-                maxHeight: 'calc(100vh - 160px)', // Constrain to viewport
-                transform: `scale(${previewScale / 100})`,
-              }}
-            >
-              <iframe
-                srcDoc={srcDoc}
-                className="w-full h-full border-none flex-1"
-                title="Template Preview"
-                sandbox="allow-scripts allow-same-origin"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Right Panel: Data & Schema Configuration */}
-        <aside className="w-[420px] flex flex-col border-l border-border bg-card z-10 shrink-0">
+        {/* Left Panel: Data & Schema Configuration */}
+        <aside className="w-[420px] flex flex-col border-r border-border bg-card z-10 shrink-0">
            <Tabs defaultValue="data" className="flex-1 flex flex-col h-full w-full">
               <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background/50 backdrop-blur-sm shrink-0">
                 <TabsList className="bg-muted/50 p-1 rounded-lg h-8">
@@ -526,6 +456,76 @@ export function TemplateEditor() {
                 </div>
               </TabsContent>
             </Tabs>
+        </aside>
+
+        {/* Middle Panel: Preview */}
+        <div className="flex-1 flex flex-col min-w-0 bg-secondary/30 relative">
+          {/* Preview Header (Floating) */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-background/80 backdrop-blur-md border border-border/50 rounded-full shadow-sm">
+            <div className="flex items-center gap-2">
+              <EyeIcon className="w-3.5 h-3.5 text-green-500" />
+              <span className="text-xs font-medium text-foreground mr-2">Preview</span>
+            </div>
+            <div className="w-px h-3 bg-border"></div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPreviewScale(Math.max(50, previewScale - 10))}
+                className="p-1 hover:bg-muted rounded-full transition-colors"
+                title="Zoom out"
+              >
+                <ZoomOutIcon className="w-3 h-3 text-muted-foreground" />
+              </button>
+              <span className="text-[10px] text-muted-foreground min-w-[2.5rem] text-center tabular-nums">{previewScale}%</span>
+              <button
+                onClick={() => setPreviewScale(Math.min(150, previewScale + 10))}
+                className="p-1 hover:bg-muted rounded-full transition-colors"
+                title="Zoom in"
+              >
+                <ZoomInIcon className="w-3 h-3 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="w-px h-3 bg-border mx-1"></div>
+            <button
+              onClick={handleRefreshPreview}
+              className="p-1 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground"
+              title="Refresh"
+            >
+              <RefreshCwIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Preview Content */}
+          <div className="flex-1 overflow-hidden p-8 pt-20 flex justify-center">
+            <div
+              className="bg-white shadow-lg overflow-hidden rounded-xl transition-transform duration-200 ease-out origin-top flex flex-col"
+              style={{
+                width: '816px', // A4 Width
+                height: '100%', // Fill available vertical space
+                maxHeight: 'calc(100vh - 160px)', // Constrain to viewport
+                transform: `scale(${previewScale / 100})`,
+              }}
+            >
+              <iframe
+                srcDoc={srcDoc}
+                className="w-full h-full border-none flex-1"
+                title="Template Preview"
+                sandbox="allow-scripts allow-same-origin"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel: AI Assistant */}
+        <aside className="w-[380px] flex flex-col border-l border-border bg-card z-10 shrink-0">
+          <div className="px-4 py-3 border-b border-border bg-background/50 backdrop-blur-sm">
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              <SparklesIcon className="w-4 h-4 text-purple-500" />
+              AI Assistant
+            </h2>
+          </div>
+          <div className="flex-1 overflow-hidden min-h-0 relative w-full">
+            <TemplateChat onUpdateTemplate={handleUpdateTemplate} />
+          </div>
         </aside>
       </div>
     </div>
