@@ -10,7 +10,8 @@ import {
   ZoomInIcon,
   ZoomOutIcon,
   LayoutListIcon,
-  Code2Icon
+  Code2Icon,
+  SparklesIcon
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { useThemeStore } from '@/store/themeStore'
@@ -345,11 +346,6 @@ export function TemplateEditor() {
                 className="w-full min-h-[1056px] h-full border-none"
                 title="Template Preview"
                 sandbox="allow-scripts allow-same-origin"
-                onLoad={(e) => {
-                   // Adjust height to content if needed, though A4 fixed ratio is usually preferred for reports
-                   // const iframe = e.target as HTMLIFrameElement;
-                   // if(iframe.contentWindow) iframe.style.height = iframe.contentWindow.document.body.scrollHeight + 'px';
-                }}
               />
             </div>
           </div>
