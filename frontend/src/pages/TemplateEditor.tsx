@@ -28,15 +28,6 @@ export function TemplateEditor() {
   const { selectedTemplate, selectTemplate, updateTemplate, loading, error, isDirty, setDirty } = useTemplateStore()
   const { theme } = useThemeStore()
 
-  console.log('[TemplateEditor] Render:', { 
-    hasId: !!id, 
-    hasSelectedTemplate: !!selectedTemplate, 
-    loading, 
-    error,
-    isDirty,
-    canEdit: !selectedTemplate?.isSystem 
-  })
-
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
@@ -55,11 +46,6 @@ export function TemplateEditor() {
   } | null>(null)
 
   const canEdit = !selectedTemplate?.isSystem
-
-  // Log isDirty changes from store
-  useEffect(() => {
-    console.log('[TemplateEditor] isDirty changed:', isDirty)
-  }, [isDirty])
 
   // View Mode for Sample Data (Form vs Code)
   const [sampleDataViewMode, setSampleDataViewMode] = useState<'form' | 'code'>('form')
@@ -200,7 +186,6 @@ export function TemplateEditor() {
       inputSchema !== originalValues.inputSchema ||
       sampleData !== originalValues.sampleData
 
-    console.log('[TemplateEditor] Dirty check:', { hasChanges, nameChanged: name !== originalValues.name })
     setDirty(hasChanges)
   }, [name, description, content, inputSchema, sampleData, originalValues, setDirty])
   useEffect(() => {
@@ -217,7 +202,6 @@ export function TemplateEditor() {
 
   const handleSave = async () => {
     if (!id || !selectedTemplate) return
-    console.log('[TemplateEditor] Save started, isDirty:', isDirty)
     setSaving(true)
     try {
       let parsedSchema: Record<string, unknown> = {}
@@ -252,13 +236,10 @@ export function TemplateEditor() {
         inputSchema: parsedSchema,
         sampleData: parsedSampleData,
       })
-
-      console.log('[TemplateEditor] Save completed')
     } catch (error) {
       console.error('Failed to save template:', error)
     } finally {
       setSaving(false)
-      console.log('[TemplateEditor] Save finished, saving=false')
     }
   }
 
@@ -268,7 +249,6 @@ export function TemplateEditor() {
     sampleData: Record<string, unknown>;
     description: string;
   }) => {
-    console.log('[TemplateEditor] handleUpdateTemplate called:', { hasTemplate: !!update.template, hasSchema: !!update.inputSchema, hasSampleData: !!update.sampleData })
     if (update.template) setContent(update.template)
     if (update.inputSchema && Object.keys(update.inputSchema).length > 0) setInputSchema(JSON.stringify(update.inputSchema, null, 2))
     if (update.sampleData && Object.keys(update.sampleData).length > 0) setSampleData(JSON.stringify(update.sampleData, null, 2))
@@ -309,7 +289,6 @@ export function TemplateEditor() {
   }
 
   const saveState = saving ? 'saving' : isDirty ? 'dirty' : 'clean'
-  console.log('[TemplateEditor] saveState calculated:', { saving, isDirty, saveState })
 
   const saveLabel = saveState === 'clean' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Save'
   const saveBadgeText = saveState === 'clean' ? 'Synced' : saveState === 'saving' ? 'Syncing' : 'Pending'

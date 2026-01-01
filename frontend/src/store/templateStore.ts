@@ -72,17 +72,12 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
   },
 
   async updateTemplate(id, data) {
-    console.log('[templateStore] updateTemplate called for id:', id)
     const template = await api.templates.update(id, data)
-    console.log('[templateStore] updateTemplate completed, setting isDirty: false')
-    set((state) => {
-      console.log('[templateStore] Setting isDirty: false, current isDirty:', state.isDirty)
-      return {
-        templates: state.templates.map((t) => (t.id === id ? template : t)),
-        selectedTemplate: state.selectedTemplate?.id === id ? template : state.selectedTemplate,
-        isDirty: false,
-      }
-    })
+    set((state) => ({
+      templates: state.templates.map((t) => (t.id === id ? template : t)),
+      selectedTemplate: state.selectedTemplate?.id === id ? template : state.selectedTemplate,
+      isDirty: false,
+    }))
     return template
   },
 
