@@ -8,15 +8,8 @@ import {
   SendIcon,
   SparklesIcon,
   StopCircleIcon,
-  CopyIcon,
-  CheckIcon,
-  UserIcon,
-  BotIcon,
   WrenchIcon,
 } from 'lucide-react';
-import {
-  MessageAction,
-} from '@/components/ai-elements/message';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { useState, useRef, useEffect } from 'react';
@@ -61,7 +54,6 @@ export function TemplateChat({
   currentSampleData,
   originalValues,
 }: TemplateChatProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -237,12 +229,6 @@ When making changes, consider the existing template structure and build upon it 
     }
   };
 
-  const handleCopy = async (content: string, id: string) => {
-    await navigator.clipboard.writeText(content);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
   // Helper to extract text content and tool info from message parts
   const renderMessageContent = (message: typeof messages[0]) => {
     if (!('parts' in message) || !Array.isArray(message.parts)) {
@@ -371,38 +357,12 @@ When making changes, consider the existing template structure and build upon it 
             const textContent = getMessageText(message);
 
             return (
-              <div key={message.id} className="group flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className={cn(
-                  "flex items-center gap-3",
-                  isUser ? "flex-row-reverse text-right" : "flex-row"
-                )}>
-                  <div className={cn(
-                    "flex-shrink-0 w-6 h-6 rounded flex items-center justify-center shadow-sm",
-                    isUser ? "bg-primary text-primary-foreground" : "bg-purple-600 text-white"
-                  )}>
-                    {isUser ? <UserIcon className="w-3 h-3" /> : <BotIcon className="w-3 h-3" />}
-                  </div>
-
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                    {isUser ? "Question" : "ShipSec AI"}
-                  </span>
-
-                  {!isUser && textContent && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                      <MessageAction
-                        tooltip="Copy"
-                        onClick={() => handleCopy(textContent, message.id)}
-                        className="h-6 w-6"
-                      >
-                        {copiedId === message.id ? <CheckIcon className="w-3 h-3 text-green-500" /> : <CopyIcon className="w-3 h-3" />}
-                      </MessageAction>
-                    </div>
-                  )}
-                </div>
-
+              <div key={message.id} className="group animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className={cn(
                   "text-sm leading-relaxed text-foreground/90 selection:bg-primary/20",
-                  isUser ? "pr-9 text-right font-medium text-foreground" : "pl-9"
+                  isUser 
+                    ? "bg-muted/50 text-foreground rounded-2xl px-4 py-2.5 ml-auto max-w-[85%]"
+                    : "text-foreground/90"
                 )}>
                   {isUser ? textContent : renderMessageContent(message)}
                 </div>
@@ -410,24 +370,13 @@ When making changes, consider the existing template structure and build upon it 
             );
           })
         )}
-        {isLoading && (() => {
-          const lastMsg = messages[messages.length - 1];
-          const hasContent = lastMsg?.role === 'assistant' && renderMessageContent(lastMsg);
-          const label = hasContent ? 'Working' : 'Thinking';
-          
-          return (
-            <div className="flex flex-col gap-3 pl-9 animate-in fade-in duration-500">
-               <div className="flex items-center gap-1.5 p-2 w-fit rounded-lg bg-muted/30">
-                  <span className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                    <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                    <span className="w-1.5 h-1.5 bg-foreground/40 rounded-full animate-bounce"></span>
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider ml-1">{label}</span>
-               </div>
-            </div>
-          );
-        })()}
+        {isLoading && (
+          <div className="flex gap-1 animate-in fade-in duration-500">
+            <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+            <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce"></span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
