@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTemplateStore } from '@/store/templateStore'
+import { LayoutListIcon, Trash2Icon } from 'lucide-react'
 
 export function TemplatesPage() {
   const navigate = useNavigate()
@@ -27,8 +28,11 @@ export function TemplatesPage() {
       const template = await createTemplate({
         name: newTemplateName,
         description: newTemplateDescription || undefined,
-        content: {},
-        inputSchema: {},
+        content: { 
+          template: DEFAULT_TEMPLATE_CODE,
+          type: 'preact-htm'
+        },
+        inputSchema: DEFAULT_SCHEMA,
       })
       setShowCreateModal(false)
       setNewTemplateName('')
@@ -94,48 +98,59 @@ export function TemplatesPage() {
       )}
 
       {!loading && !error && filteredTemplates.length > 0 && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTemplates.map((template) => (
             <div
               key={template.id}
-              className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 hover:shadow-md transition-all group"
+              className="bg-card border border-border rounded-xl p-5 hover:border-primary/50 hover:shadow-lg transition-all group flex flex-col h-full"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{template.name}</h3>
+              <div className="flex-1">
+                <div className="flex items-start justify-between mb-3">
+                   <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                      <LayoutListIcon className="w-5 h-5" />
+                   </div>
+                   <div className="flex gap-2">
                     {template.isSystem && (
-                      <span className="px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded-full border border-border">
+                      <span className="px-2 py-0.5 bg-muted text-muted-foreground text-[10px] uppercase font-bold rounded-full border border-border">
                         System
                       </span>
                     )}
-                    <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full border border-primary/20">
+                    <span className="px-2 py-0.5 bg-primary/5 text-primary text-[10px] uppercase font-bold rounded-full border border-primary/10">
                       v{template.version}
                     </span>
-                  </div>
-                  {template.description && (
-                    <p className="text-muted-foreground text-sm mt-1">{template.description}</p>
-                  )}
-                  <p className="text-tertiary text-xs mt-2">
-                    Updated {new Date(template.updatedAt).toLocaleDateString()}
-                  </p>
+                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                
+                <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-1">{template.name}</h3>
+                
+                {template.description ? (
+                  <p className="text-muted-foreground text-sm line-clamp-2 mb-4 h-10">{template.description}</p>
+                ) : (
+                  <p className="text-muted-foreground/50 text-sm italic mb-4 h-10">No description provided.</p>
+                )}
+                
+                <p className="text-muted-foreground text-xs flex items-center gap-1.5 mt-auto pt-4 border-t border-border">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                  Updated {new Date(template.updatedAt).toLocaleDateString()}
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-3 mt-4 pt-0">
+                <button
+                  onClick={() => navigate(`/templates/${template.id}/edit`)}
+                  className="flex-1 px-3 py-2 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors font-medium shadow-sm text-center"
+                >
+                  Edit
+                </button>
+                {!template.isSystem && (
                   <button
-                    onClick={() => navigate(`/templates/${template.id}/edit`)}
-                    className="px-3 py-1.5 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors font-medium"
+                    onClick={() => deleteTemplate(template.id)}
+                    className="px-3 py-2 text-sm text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-lg transition-colors font-medium border border-destructive/20"
+                    aria-label="Delete template"
                   >
-                    Edit
+                    <Trash2Icon className="w-4 h-4" />
                   </button>
-                  {!template.isSystem && (
-                    <button
-                      onClick={() => deleteTemplate(template.id)}
-                      className="px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors font-medium"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           ))}
@@ -196,3 +211,23 @@ export function TemplatesPage() {
     </div>
   )
 }
+
+// Default template content to prevent render errors
+const DEFAULT_TEMPLATE_CODE = `function Template({ data }) {
+  return html\`
+    <div style="font-family: sans-serif; padding: 40px; color: #333; text-align: center;">
+      <h1 style="color: #2563eb; margin-bottom: 16px;">\${data.title || 'New Template'}</h1>
+      <p style="color: #666;">This is a new template. Ask the AI Assistant to customize it!</p>
+      <div style="margin-top: 32px; padding: 16px; background: #f9fafb; border-radius: 8px; font-size: 12px; color: #999;">
+        Generated by ShipSec.ai
+      </div>
+    </div>
+  \`;
+}`;
+
+const DEFAULT_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string", default: "My New Report" }
+  }
+};
