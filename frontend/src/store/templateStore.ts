@@ -11,11 +11,13 @@ interface TemplateStoreState {
   loading: boolean
   error: string | null
   selectedTemplate: Template | null
+  isDirty: boolean
   fetchTemplates: (filters?: { isSystem?: boolean }) => Promise<void>
   selectTemplate: (id: string) => Promise<void>
   createTemplate: (data: CreateReportTemplateDto) => Promise<Template>
   updateTemplate: (id: string, data: UpdateReportTemplateDto) => Promise<Template>
   deleteTemplate: (id: string) => Promise<void>
+  setDirty: (dirty: boolean) => void
 }
 
 export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
@@ -23,6 +25,11 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
   loading: false,
   error: null,
   selectedTemplate: null,
+  isDirty: false,
+
+  setDirty(dirty) {
+    set({ isDirty: dirty })
+  },
 
   async fetchTemplates(filters) {
     set({ loading: true, error: null })
@@ -69,6 +76,7 @@ export const useTemplateStore = create<TemplateStoreState>((set, get) => ({
     set((state) => ({
       templates: state.templates.map((t) => (t.id === id ? template : t)),
       selectedTemplate: state.selectedTemplate?.id === id ? template : state.selectedTemplate,
+      isDirty: false,
     }))
     return template
   },

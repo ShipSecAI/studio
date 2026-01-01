@@ -4,24 +4,28 @@ import { useTemplateStore } from '@/store/templateStore'
 import { TemplateChat } from '@/components/ai/TemplateChat'
 import {
   ArrowLeftIcon,
-  SaveIcon,
   EyeIcon,
   RefreshCwIcon,
   ZoomInIcon,
   ZoomOutIcon,
   LayoutListIcon,
   Code2Icon,
-  SparklesIcon
+  SparklesIcon,
+  Save,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { useThemeStore } from '@/store/themeStore'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SchematicForm } from '@/components/SchematicForm';
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export function TemplateEditor() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { selectedTemplate, selectTemplate, updateTemplate, loading, error } = useTemplateStore()
+  const { selectedTemplate, selectTemplate, updateTemplate, loading, error, isDirty, setDirty } = useTemplateStore()
   const { theme } = useThemeStore()
 
   const [name, setName] = useState('')
@@ -31,6 +35,17 @@ export function TemplateEditor() {
   const [sampleData, setSampleData] = useState('')
   const [saving, setSaving] = useState(false)
   const [previewScale, setPreviewScale] = useState(100)
+
+  // Original values for dirty tracking
+  const [originalValues, setOriginalValues] = useState<{
+    name: string
+    description: string
+    content: string
+    inputSchema: string
+    sampleData: string
+  } | null>(null)
+
+  const canEdit = !selectedTemplate?.isSystem
 
   // View Mode for Sample Data (Form vs Code)
   const [sampleDataViewMode, setSampleDataViewMode] = useState<'form' | 'code'>('form')
@@ -147,11 +162,32 @@ export function TemplateEditor() {
         selectedTemplate.sampleData ? JSON.stringify(selectedTemplate.sampleData, null, 2) : '{}'
       )
 
+      // Store original values for dirty tracking
+      setOriginalValues({
+        name: selectedTemplate.name,
+        description: selectedTemplate.description || '',
+        content: initialContent,
+        inputSchema: JSON.stringify(selectedTemplate.inputSchema, null, 2),
+        sampleData: selectedTemplate.sampleData ? JSON.stringify(selectedTemplate.sampleData, null, 2) : '{}',
+      })
+
       renderPreview(initialContent, selectedTemplate.sampleData ? JSON.stringify(selectedTemplate.sampleData) : '{}')
     }
   }, [selectedTemplate, renderPreview])
 
-  // Debounced preview generation
+  // Track dirty state
+  useEffect(() => {
+    if (!originalValues) return
+
+    const hasChanges =
+      name !== originalValues.name ||
+      description !== originalValues.description ||
+      content !== originalValues.content ||
+      inputSchema !== originalValues.inputSchema ||
+      sampleData !== originalValues.sampleData
+
+    setDirty(hasChanges)
+  }, [name, description, content, inputSchema, sampleData, originalValues, setDirty])
   useEffect(() => {
     if (!selectedTemplate) return
     const timer = setTimeout(() => {
@@ -183,13 +219,23 @@ export function TemplateEditor() {
         console.error('Invalid JSON in sample data')
       }
 
-      await updateTemplate(id, {
+      const updatedTemplate = await updateTemplate(id, {
         name,
         description,
         content: { template: content, type: 'preact-htm' },
         inputSchema: parsedSchema,
         sampleData: parsedSampleData,
       })
+
+      // Update original values to reflect saved state
+      setOriginalValues({
+        name: updatedTemplate.name,
+        description: updatedTemplate.description || '',
+        content: content,
+        inputSchema: inputSchema,
+        sampleData: sampleData,
+      })
+      setDirty(false)
     } catch (error) {
       console.error('Failed to save template:', error)
     } finally {
@@ -242,6 +288,31 @@ export function TemplateEditor() {
     )
   }
 
+  const saveState = saving ? 'saving' : isDirty ? 'dirty' : 'clean'
+
+  const saveLabel = saveState === 'clean' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Save'
+  const saveBadgeText = saveState === 'clean' ? 'Synced' : saveState === 'saving' ? 'Syncing' : 'Pending'
+  const saveBadgeTone =
+    saveState === 'clean'
+      ? '!bg-emerald-50 !text-emerald-700 !border-emerald-300 dark:!bg-emerald-900 dark:!text-emerald-100 dark:!border-emerald-500'
+      : saveState === 'saving'
+        ? '!bg-blue-50 !text-blue-700 !border-blue-300 dark:!bg-blue-900 dark:!text-blue-100 dark:!border-blue-500'
+        : '!bg-amber-50 !text-amber-700 !border-amber-300 dark:!bg-amber-900 dark:!text-amber-100 dark:!border-amber-500'
+
+  const saveButtonClasses = cn(
+    'gap-2 min-w-0 transition-all duration-200',
+    saveState === 'clean' && 'border-emerald-200 dark:border-emerald-700',
+    saveState === 'dirty' && 'border-gray-300 dark:border-gray-600',
+    saveState === 'saving' && 'border-blue-300 dark:border-blue-700'
+  )
+
+  const saveIcon =
+    saveState === 'clean'
+      ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      : saveState === 'saving'
+        ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+        : <Save className="h-4 w-4" />
+
   return (
     <div className="h-full flex flex-col bg-background text-foreground overflow-hidden">
       {/* Top Bar - App Title Bar */}
@@ -267,14 +338,32 @@ export function TemplateEditor() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
+          <Button
             onClick={handleSave}
-            disabled={saving || selectedTemplate.isSystem}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm"
+            disabled={!canEdit || saving || saveState === 'clean'}
+            variant="outline"
+            className={saveButtonClasses}
+            size="sm"
+            title={
+              saveState === 'dirty'
+                ? 'Changes pending sync'
+                : saveState === 'saving'
+                  ? 'Syncing now…'
+                  : 'No pending edits'
+            }
           >
-            <SaveIcon className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save'}
-          </button>
+            {saveIcon}
+            <span className="hidden xl:inline">{saveLabel}</span>
+            <span
+              className={cn(
+                'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-0 xl:ml-1',
+                saveBadgeTone,
+                'hidden sm:inline-block'
+              )}
+            >
+              {saveBadgeText}
+            </span>
+          </Button>
         </div>
       </header>
 
@@ -331,19 +420,19 @@ export function TemplateEditor() {
           </div>
 
           {/* Preview Content */}
-          <div className="flex-1 overflow-auto p-8 pt-16 flex justify-center">
+          <div className="flex-1 overflow-hidden p-8 pt-20 flex justify-center">
             <div
-              className="bg-white shadow-2xl overflow-hidden transition-transform duration-200 ease-out origin-top"
+              className="bg-white shadow-lg overflow-hidden rounded-xl transition-transform duration-200 ease-out origin-top flex flex-col"
               style={{
                 width: '816px', // A4 Width
-                minHeight: '1056px', // A4 Height
-                height: 'auto',
+                height: '100%', // Fill available vertical space
+                maxHeight: 'calc(100vh - 160px)', // Constrain to viewport
                 transform: `scale(${previewScale / 100})`,
               }}
             >
               <iframe
                 srcDoc={srcDoc}
-                className="w-full min-h-[1056px] h-full border-none"
+                className="w-full h-full border-none flex-1"
                 title="Template Preview"
                 sandbox="allow-scripts allow-same-origin"
               />
