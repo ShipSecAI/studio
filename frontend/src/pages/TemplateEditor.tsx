@@ -200,9 +200,13 @@ export function TemplateEditor() {
       inputSchema !== originalValues.inputSchema ||
       sampleData !== originalValues.sampleData
 
-    console.log('[TemplateEditor] Dirty check:', { hasChanges, nameChanged: name !== originalValues.name })
-    setDirty(hasChanges)
-  }, [name, description, content, inputSchema, sampleData, originalValues, setDirty])
+    console.log('[TemplateEditor] Dirty check:', { hasChanges, isDirty, nameChanged: name !== originalValues.name })
+    // Only update if there's a mismatch between computed state and store state
+    // This prevents race conditions during save
+    if (hasChanges !== isDirty) {
+      setDirty(hasChanges)
+    }
+  }, [name, description, content, inputSchema, sampleData, originalValues, setDirty, isDirty])
   useEffect(() => {
     if (!selectedTemplate) return
     const timer = setTimeout(() => {
