@@ -661,6 +661,12 @@ export const api = {
       return response.data
     },
 
+    getChildRuns: async (runId: string) => {
+      const response = await apiClient.listWorkflowRunChildren(runId)
+      if (response.error) throw new Error('Failed to fetch child runs')
+      return response.data || { runs: [] }
+    },
+
     getLogs: async (runId: string, options?: { nodeRef?: string; stream?: 'stdout' | 'stderr' | 'console'; level?: 'debug' | 'info' | 'warn' | 'error'; limit?: number; cursor?: string; startTime?: string; endTime?: string }) => {
       const client = createShipSecClient({
         baseUrl: API_BASE_URL,

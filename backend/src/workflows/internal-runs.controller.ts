@@ -42,6 +42,8 @@ export class InternalRunsController {
         nodeOverrides: body.nodeOverrides ?? undefined,
         runId: body.runId,
         idempotencyKey: body.idempotencyKey,
+        parentRunId: body.parentRunId,
+        parentNodeRef: body.parentNodeRef,
       },
     );
 

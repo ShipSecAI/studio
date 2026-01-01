@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Handle, NodeResizer, Position, type NodeProps, type Node, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { ExecutionErrorView } from './ExecutionErrorView'
-import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Trash2, ChevronDown } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, Clock, Activity, AlertCircle, Pause, Terminal as TerminalIcon, Trash2, ChevronDown, ExternalLink } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MarkdownView } from '@/components/ui/markdown'
@@ -1141,6 +1141,22 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               <LucideIcons.Ban className="h-3 w-3 mr-1" />
               Skipped
             </Badge>
+          )}
+
+          {/* View Child Run button - shown when this node spawned a child workflow */}
+          {visualState.lastMetadata?.childRunId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-7 text-xs font-medium gap-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-900/20 dark:hover:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(`/runs/${visualState.lastMetadata!.childRunId}`)
+              }}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View Child Run
+            </Button>
           )}
 
           {/* Detailed error representation - shown only when expanded */}

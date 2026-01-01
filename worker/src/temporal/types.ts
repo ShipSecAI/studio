@@ -117,6 +117,10 @@ export interface RunWorkflowActivityInput {
   workflowVersionId?: string | null;
   workflowVersion?: number | null;
   organizationId?: string | null;
+  parentRunId?: string | null;
+  parentNodeRef?: string | null;
+  depth?: number;
+  callChain?: string[];
 }
 
 export interface RunWorkflowActivityOutput {
@@ -161,4 +165,6 @@ export interface PrepareRunPayloadActivityInput {
   trigger?: ExecutionTriggerMetadata;
   runId?: string;
   organizationId?: string | null;
+  parentRunId?: string;
+  parentNodeRef?: string;
 }

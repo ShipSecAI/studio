@@ -407,6 +407,37 @@ export class WorkflowsController {
     return this.workflowsService.getRun(runId, auth);
   }
 
+  @Get('/runs/:runId/children')
+  @ApiOkResponse({
+    description: 'List direct child workflow runs spawned by a parent run',
+    schema: {
+      type: 'object',
+      properties: {
+        runs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              runId: { type: 'string' },
+              workflowId: { type: 'string' },
+              workflowName: { type: 'string' },
+              parentNodeRef: { type: 'string', nullable: true },
+              status: { type: 'string' },
+              startedAt: { type: 'string', format: 'date-time' },
+              completedAt: { type: 'string', format: 'date-time', nullable: true },
+            },
+          },
+        },
+      },
+    },
+  })
+  async listChildRuns(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('runId') runId: string,
+  ) {
+    return this.workflowsService.listChildRuns(runId, auth);
+  }
+
   @Get(':id')
   @ApiOkResponse({ type: WorkflowResponseDto })
   async findOne(

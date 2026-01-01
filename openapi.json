@@ -502,6 +502,71 @@
         ]
       }
     },
+    "/api/v1/workflows/runs/{runId}/children": {
+      "get": {
+        "operationId": "WorkflowsController_listChildRuns",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List direct child workflow runs spawned by a parent run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "runId": {
+                            "type": "string"
+                          },
+                          "workflowId": {
+                            "type": "string"
+                          },
+                          "workflowName": {
+                            "type": "string"
+                          },
+                          "parentNodeRef": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "completedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
     "/api/v1/workflows/{workflowId}/versions/{versionId}": {
       "get": {
         "operationId": "WorkflowsController_findVersion",
@@ -923,6 +988,22 @@
                               },
                               "code": {
                                 "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "details": {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              "fieldErrors": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
                               }
                             },
                             "additionalProperties": false,
@@ -1116,6 +1197,22 @@
                               },
                               "code": {
                                 "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "details": {
+                                "type": "object",
+                                "additionalProperties": true
+                              },
+                              "fieldErrors": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
                               }
                             },
                             "additionalProperties": false,
@@ -5268,6 +5365,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          },
+          "parentRunId": {
+            "type": "string"
+          },
+          "parentNodeRef": {
+            "type": "string"
           }
         },
         "required": [

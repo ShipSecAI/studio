@@ -106,6 +106,8 @@ export const PrepareRunRequestSchema = BaseRunWorkflowRequestSchema.extend({
   trigger: ExecutionTriggerMetadataSchema.optional(),
   runId: z.string().optional(),
   idempotencyKey: z.string().trim().min(1).max(128).optional(),
+  parentRunId: z.string().optional(),
+  parentNodeRef: z.string().optional(),
 }).refine(validateVersionSelection, 'Provide either version or versionId, not both');
 
 export class PrepareRunRequestDto extends createZodDto(PrepareRunRequestSchema) {}

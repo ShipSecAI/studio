@@ -118,6 +118,10 @@ export const TraceEventMetadataSchema = z.object({
   triggeredBy: z.string().optional(),
   failure: ExecutionFailureMetadataSchema.optional(),
   retryPolicy: TraceRetryPolicySchema.optional(),
+  childRunId: z.string().optional(),
+  parentRunId: z.string().optional(),
+  parentNodeRef: z.string().optional(),
+  depth: z.number().int().nonnegative().optional(),
 }).strip();
 
 export type TraceEventMetadata = z.infer<typeof TraceEventMetadataSchema>;

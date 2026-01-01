@@ -1,9 +1,11 @@
 import {
   ApplicationFailure,
   condition,
+  getExternalWorkflowHandle,
   proxyActivities,
   setHandler,
   startChild,
+  sleep,
   uuid4,
 } from '@temporalio/workflow';
 import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
@@ -113,6 +115,11 @@ export async function shipsecWorkflowRun(
 
   console.log(`[Workflow] Starting shipsec workflow run: ${input.runId}`);
 
+  const callChain = Array.isArray(input.callChain) && input.callChain.length > 0
+    ? input.callChain
+    : [input.workflowId]
+  const depth = typeof input.depth === 'number' && Number.isFinite(input.depth) ? input.depth : 0
+
   await setRunMetadataActivity({
     runId: input.runId,
     workflowId: input.workflowId,
@@ -172,6 +179,294 @@ export async function shipsecWorkflowRun(
               `[Workflow] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`
             );
           }
+        }
+
+        if (action.componentId === 'core.workflow.call') {
+          const MAX_SUBWORKFLOW_DEPTH = 10
+
+          if (depth >= MAX_SUBWORKFLOW_DEPTH) {
+            throw ApplicationFailure.nonRetryable(
+              `Maximum sub-workflow nesting depth (${MAX_SUBWORKFLOW_DEPTH}) exceeded`,
+              'SubWorkflowDepthError',
+              [{ runId: input.runId, nodeRef: action.ref, depth }],
+            )
+          }
+
+          for (const warning of warnings) {
+            await recordTraceEventActivity({
+              type: 'NODE_PROGRESS',
+              runId: input.runId,
+              nodeRef: action.ref,
+              timestamp: new Date().toISOString(),
+              message: `Input '${warning.target}' mapped from ${warning.sourceRef}.${warning.sourceHandle} was undefined`,
+              level: 'warn',
+              data: warning,
+              context: {
+                activityId: 'workflow-orchestration',
+              },
+            })
+          }
+
+          if (warnings.length > 0) {
+            const missing = warnings.map((warning) => `'${warning.target}'`).join(', ')
+            throw ApplicationFailure.nonRetryable(
+              `Missing required inputs for ${action.ref}: ${missing}`,
+              'ValidationError',
+              [{ runId: input.runId, nodeRef: action.ref }],
+            )
+          }
+
+          const childWorkflowId = mergedParams.workflowId
+          if (typeof childWorkflowId !== 'string' || childWorkflowId.trim().length === 0) {
+            throw ApplicationFailure.nonRetryable(
+              'core.workflow.call requires a workflowId parameter',
+              'ValidationError',
+              [{ runId: input.runId, nodeRef: action.ref }],
+            )
+          }
+
+          if (callChain.includes(childWorkflowId)) {
+            throw ApplicationFailure.nonRetryable(
+              `Circular sub-workflow call detected for workflow ${childWorkflowId}`,
+              'SubWorkflowCycleError',
+              [{ runId: input.runId, nodeRef: action.ref, callChain }],
+            )
+          }
+
+          const versionStrategy =
+            mergedParams.versionStrategy === 'specific' ? 'specific' : 'latest'
+          const versionIdRaw = mergedParams.versionId
+          const versionId =
+            versionStrategy === 'specific' && typeof versionIdRaw === 'string' && versionIdRaw.trim().length > 0
+              ? versionIdRaw.trim()
+              : undefined
+
+          if (versionStrategy === 'specific' && !versionId) {
+            throw ApplicationFailure.nonRetryable(
+              'versionId is required when versionStrategy is "specific"',
+              'ValidationError',
+              [{ runId: input.runId, nodeRef: action.ref }],
+            )
+          }
+
+          const timeoutSecondsRaw = mergedParams.timeoutSeconds
+          const timeoutSeconds =
+            typeof timeoutSecondsRaw === 'number' && Number.isFinite(timeoutSecondsRaw) && timeoutSecondsRaw > 0
+              ? Math.floor(timeoutSecondsRaw)
+              : 300
+
+          const childRuntimeInputsRaw = mergedParams.childRuntimeInputs
+          const childRuntimeInputs = Array.isArray(childRuntimeInputsRaw)
+            ? childRuntimeInputsRaw
+            : []
+          const childInputIds = childRuntimeInputs
+            .map((entry) => {
+              if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+                return undefined
+              }
+              const id = (entry as Record<string, unknown>).id
+              return typeof id === 'string' ? id : undefined
+            })
+            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+            .map((id) => id.trim())
+
+          const reservedIds = new Set([
+            'workflowId',
+            'versionStrategy',
+            'versionId',
+            'timeoutSeconds',
+            'childRuntimeInputs',
+            'childWorkflowName',
+          ])
+
+          const childInputs: Record<string, unknown> = {}
+          for (const id of childInputIds) {
+            if (reservedIds.has(id)) continue
+            childInputs[id] = mergedParams[id]
+          }
+
+          const childRunId = `shipsec-run-${uuid4()}`
+
+          await recordTraceEventActivity({
+            type: 'NODE_STARTED',
+            runId: input.runId,
+            nodeRef: action.ref,
+            timestamp: new Date().toISOString(),
+            level: 'info',
+            context: {
+              activityId: 'workflow-orchestration',
+              childRunId,
+            },
+          })
+
+          let prepared: PreparedRunPayload
+          try {
+            prepared = await prepareRunPayloadActivity({
+              workflowId: childWorkflowId,
+              versionId,
+              inputs: childInputs,
+              trigger: {
+                type: 'api',
+                sourceId: input.runId,
+                label: `Sub-workflow from ${input.workflowId}:${action.ref}`,
+              },
+              organizationId: input.organizationId ?? null,
+              runId: childRunId,
+              parentRunId: input.runId,
+              parentNodeRef: action.ref,
+            })
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            await recordTraceEventActivity({
+              type: 'NODE_FAILED',
+              runId: input.runId,
+              nodeRef: action.ref,
+              timestamp: new Date().toISOString(),
+              message,
+              level: 'error',
+              error: {
+                message,
+                type: 'SubWorkflowPrepareError',
+                details: { childRunId },
+              },
+              context: {
+                activityId: 'workflow-orchestration',
+                childRunId,
+              },
+            })
+            throw error
+          }
+
+          const child = await startChild(shipsecWorkflowRun, {
+            args: [
+              {
+                runId: prepared.runId,
+                workflowId: prepared.workflowId,
+                definition: prepared.definition as RunWorkflowActivityInput['definition'],
+                inputs: prepared.inputs ?? {},
+                workflowVersionId: prepared.workflowVersionId,
+                workflowVersion: prepared.workflowVersion,
+                organizationId: prepared.organizationId,
+                parentRunId: input.runId,
+                parentNodeRef: action.ref,
+                depth: depth + 1,
+                callChain: [...callChain, childWorkflowId],
+              },
+            ],
+            workflowId: prepared.runId,
+          })
+
+          const timeoutMs = timeoutSeconds * 1000
+          let outcome: { kind: 'result'; result: Awaited<ReturnType<typeof child.result>> } | { kind: 'timeout' }
+          try {
+            outcome = await Promise.race([
+              child.result().then((result) => ({ kind: 'result' as const, result })),
+              sleep(timeoutMs).then(() => ({ kind: 'timeout' as const })),
+            ])
+          } catch (childError) {
+            // child.result() rejects when the child workflow throws (shipsecWorkflowRun
+            // always throws on failure rather than returning { success: false }).
+            // Record NODE_FAILED so the UI shows the node as failed instead of stuck running.
+            const message = childError instanceof Error ? childError.message : String(childError)
+            await recordTraceEventActivity({
+              type: 'NODE_FAILED',
+              runId: input.runId,
+              nodeRef: action.ref,
+              timestamp: new Date().toISOString(),
+              message,
+              level: 'error',
+              error: {
+                message,
+                type: 'SubWorkflowError',
+                details: { childRunId },
+              },
+              context: {
+                activityId: 'workflow-orchestration',
+                childRunId,
+              },
+            })
+            throw childError
+          }
+
+          if (outcome.kind === 'timeout') {
+            const externalHandle = getExternalWorkflowHandle(child.workflowId)
+            await externalHandle.cancel()
+
+            await recordTraceEventActivity({
+              type: 'NODE_FAILED',
+              runId: input.runId,
+              nodeRef: action.ref,
+              timestamp: new Date().toISOString(),
+              message: `Sub-workflow timed out after ${timeoutSeconds}s`,
+              level: 'error',
+              error: {
+                message: `Sub-workflow timed out after ${timeoutSeconds}s`,
+                type: 'TimeoutError',
+                details: { timeoutSeconds, childRunId },
+              },
+              context: {
+                activityId: 'workflow-orchestration',
+                childRunId,
+              },
+            })
+
+            throw ApplicationFailure.nonRetryable(
+              `Sub-workflow timed out after ${timeoutSeconds}s`,
+              'TimeoutError',
+              [{ runId: input.runId, nodeRef: action.ref, childRunId, timeoutSeconds }],
+            )
+          }
+
+          const childResult = outcome.result
+          if (!childResult.success) {
+            const message = childResult.error ?? 'Sub-workflow failed'
+
+            await recordTraceEventActivity({
+              type: 'NODE_FAILED',
+              runId: input.runId,
+              nodeRef: action.ref,
+              timestamp: new Date().toISOString(),
+              message,
+              level: 'error',
+              error: {
+                message,
+                type: 'SubWorkflowFailure',
+                details: { childRunId },
+              },
+              context: {
+                activityId: 'workflow-orchestration',
+                childRunId,
+              },
+            })
+
+            throw ApplicationFailure.nonRetryable(
+              message,
+              'SubWorkflowFailure',
+              [{ runId: input.runId, nodeRef: action.ref, childRunId }],
+            )
+          }
+
+          const nodeOutput = {
+            result: childResult.outputs,
+            childRunId,
+          }
+
+          results.set(action.ref, nodeOutput)
+
+          await recordTraceEventActivity({
+            type: 'NODE_COMPLETED',
+            runId: input.runId,
+            nodeRef: action.ref,
+            timestamp: new Date().toISOString(),
+            outputSummary: nodeOutput,
+            level: 'info',
+            context: {
+              activityId: 'workflow-orchestration',
+              childRunId,
+            },
+          })
+
+          return {}
         }
 
         const nodeMetadata = input.definition.nodes?.[action.ref];

@@ -9,6 +9,7 @@ import { IntegrationCallback } from '@/pages/IntegrationCallback'
 import { NotFound } from '@/pages/NotFound'
 import { SchedulesPage } from '@/pages/SchedulesPage'
 import { ActionCenterPage } from '@/pages/ActionCenterPage'
+import { RunRedirect } from '@/pages/RunRedirect'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { AuthProvider } from '@/auth/auth-context'
@@ -77,6 +78,7 @@ function App() {
                     <Route path="/schedules" element={<SchedulesPage />} />
                     <Route path="/action-center" element={<ActionCenterPage />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
+                    <Route path="/runs/:runId" element={<RunRedirect />} />
                     <Route
                       path="/integrations/callback/:provider"
                       element={<IntegrationCallback />}

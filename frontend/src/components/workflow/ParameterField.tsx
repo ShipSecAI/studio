@@ -17,6 +17,8 @@ import { useIntegrationStore } from '@/store/integrationStore'
 import { getCurrentUserId } from '@/lib/currentUser'
 import { useArtifactStore } from '@/store/artifactStore'
 import { env } from '@/config/env'
+import { api } from '@/services/api'
+import { useWorkflowStore } from '@/store/workflowStore'
 import {
   Dialog,
   DialogContent,
@@ -87,10 +89,90 @@ export function ParameterField({
   const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId'
   const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection'
 
+  const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id)
+  const isWorkflowCallComponent = componentId === 'core.workflow.call'
+  const isWorkflowSelector = isWorkflowCallComponent && parameter.id === 'workflowId'
+
   const githubConnections = useMemo(
     () => integrationConnections.filter((connection) => connection.provider === 'github'),
     [integrationConnections],
   )
+
+  const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; name: string }>>([])
+  const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false)
+  const [workflowOptionsError, setWorkflowOptionsError] = useState<string | null>(null)
+  const [workflowPortSyncError, setWorkflowPortSyncError] = useState<string | null>(null)
+
+  const selectedWorkflowId =
+    typeof currentValue === 'string' && currentValue.trim().length > 0 ? currentValue.trim() : ''
+
+  const syncCallWorkflowPorts = useCallback(
+    async (workflowId: string) => {
+      setWorkflowPortSyncError(null)
+      try {
+        const workflow = await api.workflows.get(workflowId)
+        const graph = workflow.graph
+        const entrypoint = graph.nodes.find((node) => node.type === 'core.workflow.entrypoint')
+
+        const runtimeInputsCandidate = entrypoint?.data?.config?.runtimeInputs
+
+        const runtimeInputs = Array.isArray(runtimeInputsCandidate)
+          ? runtimeInputsCandidate
+          : []
+
+        onUpdateParameter?.('childWorkflowName', workflow.name)
+        onUpdateParameter?.('childRuntimeInputs', runtimeInputs)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        setWorkflowPortSyncError(message)
+        onUpdateParameter?.('childRuntimeInputs', [])
+      }
+    },
+    [onUpdateParameter],
+  )
+
+  useEffect(() => {
+    if (!isWorkflowSelector) return
+
+    let cancelled = false
+    setWorkflowOptionsLoading(true)
+    setWorkflowOptionsError(null)
+
+    api.workflows
+      .list()
+      .then((workflows) => {
+        if (cancelled) return
+        const options = workflows
+          .filter((workflow) => workflow.id !== currentBuilderWorkflowId)
+          .map((workflow) => ({ id: workflow.id, name: workflow.name }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+        setWorkflowOptions(options)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setWorkflowOptionsError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        if (cancelled) return
+        setWorkflowOptionsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isWorkflowSelector, currentBuilderWorkflowId])
+
+  useEffect(() => {
+    if (!isWorkflowSelector) return
+    if (!selectedWorkflowId) return
+
+    const existingRuntimeInputs = (parameters as any)?.childRuntimeInputs
+    const shouldSync =
+      !Array.isArray(existingRuntimeInputs) || existingRuntimeInputs.length === 0
+
+    if (!shouldSync) return
+    void syncCallWorkflowPorts(selectedWorkflowId)
+  }, [isWorkflowSelector, selectedWorkflowId, parameters, syncCallWorkflowPorts])
 
   useEffect(() => {
     if (!isConnectionSelector) {
@@ -217,6 +299,68 @@ export function ParameterField({
       return
     }
     onChange(nextValue)
+  }
+
+  if (isWorkflowSelector) {
+    const disabled = isReceivingInput || workflowOptionsLoading
+
+    return (
+      <div className="space-y-2">
+        <select
+          id={parameter.id}
+          value={selectedWorkflowId}
+          onChange={(event) => {
+            const nextValue = event.target.value
+            onChange(nextValue || undefined)
+
+            if (!nextValue) {
+              onUpdateParameter?.('childRuntimeInputs', [])
+              onUpdateParameter?.('childWorkflowName', undefined)
+              return
+            }
+
+            void syncCallWorkflowPorts(nextValue)
+          }}
+          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
+          disabled={disabled}
+        >
+          <option value="">Select a workflow…</option>
+          {workflowOptions.map((workflow) => (
+            <option key={workflow.id} value={workflow.id}>
+              {workflow.name}
+            </option>
+          ))}
+        </select>
+
+        {workflowOptionsError && (
+          <p className="text-xs text-destructive">
+            Failed to load workflows: {workflowOptionsError}
+          </p>
+        )}
+        {workflowPortSyncError && (
+          <p className="text-xs text-destructive">
+            Failed to load entrypoint inputs: {workflowPortSyncError}
+          </p>
+        )}
+
+        {selectedWorkflowId && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Selecting a workflow syncs its entrypoint inputs into dynamic ports.
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void syncCallWorkflowPorts(selectedWorkflowId)}
+              disabled={disabled}
+            >
+              Refresh ports
+            </Button>
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (isConnectionSelector) {

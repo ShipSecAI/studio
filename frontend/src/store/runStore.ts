@@ -22,6 +22,8 @@ export interface ExecutionRun {
   triggerSource: string | null
   triggerLabel: string | null
   inputPreview: ExecutionInputPreview
+  parentRunId?: string | null
+  parentNodeRef?: string | null
 }
 
 interface RunCacheEntry {
@@ -115,6 +117,8 @@ const normalizeRun = (run: any): ExecutionRun => {
     triggerLabel: triggerLabelRaw.length > 0 ? triggerLabelRaw : TRIGGER_LABELS[triggerType],
     inputPreview:
       (run.inputPreview as ExecutionInputPreview) ?? { runtimeInputs: {}, nodeOverrides: {} },
+    parentRunId: typeof run.parentRunId === 'string' ? run.parentRunId : null,
+    parentNodeRef: typeof run.parentNodeRef === 'string' ? run.parentNodeRef : null,
   }
 }
 

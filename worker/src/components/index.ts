@@ -26,6 +26,7 @@ import './core/credentials-aws';
 import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
+import './core/workflow-call';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';

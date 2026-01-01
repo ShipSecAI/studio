@@ -238,6 +238,12 @@ export class ShipSecApiClient {
     });
   }
 
+  async listWorkflowRunChildren(runId: string) {
+    return this.client.GET('/api/v1/workflows/runs/{runId}/children', {
+      params: { path: { runId } },
+    });
+  }
+
   async downloadWorkflowRunArtifact(runId: string, artifactId: string): Promise<Blob> {
     const response = (await this.client.GET(
       '/api/v1/workflows/runs/{runId}/artifacts/{artifactId}/download',

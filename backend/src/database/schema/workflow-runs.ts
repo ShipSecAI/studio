@@ -8,6 +8,8 @@ export const workflowRunsTable = pgTable('workflow_runs', {
   workflowVersionId: uuid('workflow_version_id'),
   workflowVersion: integer('workflow_version'),
   temporalRunId: text('temporal_run_id'),
+  parentRunId: text('parent_run_id'),
+  parentNodeRef: text('parent_node_ref'),
   totalActions: integer('total_actions').notNull().default(0),
   inputs: jsonb('inputs').$type<Record<string, unknown>>().notNull().default({}),
   triggerType: text('trigger_type').notNull().default('manual'),

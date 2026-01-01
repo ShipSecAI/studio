@@ -10,6 +10,7 @@ import {
 import { TopBar } from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ExecutionInspector } from '@/components/timeline/ExecutionInspector'
+import { RunBreadcrumbs } from '@/components/timeline/RunBreadcrumbs'
 import { RunWorkflowDialog } from '@/components/workflow/RunWorkflowDialog'
 import { WorkflowBuilderShell } from '@/components/workflow/WorkflowBuilderShell'
 import {
@@ -34,6 +35,7 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore'
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
 import { useWorkflowExecutionLifecycle } from '@/features/workflow-builder/hooks/useWorkflowExecutionLifecycle'
 import { api, API_BASE_URL } from '@/services/api'
+import { useRunStore } from '@/store/runStore'
 import {
   deserializeNodes,
   deserializeEdges,
@@ -154,6 +156,8 @@ function WorkflowBuilderContent() {
   } = useWorkflowUiStore()
 
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
+  const getRunById = useRunStore((state) => state.getRunById)
+  const selectedRun = selectedRunId ? getRunById(selectedRunId) : null
   const isMobile = useIsMobile()
 
   // Undo/redo history management
@@ -954,6 +958,20 @@ function WorkflowBuilderContent() {
       onRedo={redo}
       canUndo={canUndo}
       canRedo={canRedo}
+      executionOverlay={
+        selectedRun?.parentRunId ? (
+          <RunBreadcrumbs
+            currentRun={{
+              id: selectedRun.id,
+              workflowId: selectedRun.workflowId,
+              workflowName: selectedRun.workflowName,
+              parentRunId: selectedRun.parentRunId,
+              parentNodeRef: selectedRun.parentNodeRef,
+            }}
+            variant="floating"
+          />
+        ) : null
+      }
     />
   )
 }

@@ -13,17 +13,17 @@ const primitiveLabelMap: Record<string, string> = {
 const isPrimitive = (
   dataType: PortDataType,
 ): dataType is Extract<PortDataType, { kind: 'primitive' }> =>
-  dataType.kind === 'primitive'
+  dataType?.kind === 'primitive'
 
 const isList = (
   dataType: PortDataType,
 ): dataType is Extract<PortDataType, { kind: 'list' }> =>
-  dataType.kind === 'list'
+  dataType?.kind === 'list'
 
 const isMap = (
   dataType: PortDataType,
 ): dataType is Extract<PortDataType, { kind: 'map' }> =>
-  dataType.kind === 'map'
+  dataType?.kind === 'map'
 
 type ContractPort = Extract<
   PortDataType,
@@ -35,7 +35,7 @@ type ContractPort = Extract<
 >
 
 const isContract = (dataType: PortDataType): dataType is ContractPort =>
-  dataType.kind === 'contract'
+  dataType?.kind === 'contract'
 
 const canCoercePrimitive = (
   source: Extract<PortDataType, { kind: 'primitive' }>,
@@ -95,6 +95,10 @@ export const isListOfTextPortDataType = (dataType: PortDataType): boolean =>
   dataType.element.name === 'text'
 
 export const describePortDataType = (dataType: PortDataType): string => {
+  if (!dataType) {
+    return 'unknown'
+  }
+
   if (isPrimitive(dataType)) {
     return primitiveLabelMap[dataType.name] ?? dataType.name
   }

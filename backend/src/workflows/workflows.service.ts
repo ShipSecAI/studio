@@ -73,6 +73,8 @@ export interface WorkflowRunSummary {
   triggerSource?: string | null;
   triggerLabel?: string | null;
   inputPreview: ExecutionInputPreview;
+  parentRunId?: string | null;
+  parentNodeRef?: string | null;
 }
 
 const SHIPSEC_WORKFLOW_TYPE = 'shipsecWorkflowRun';
@@ -494,6 +496,8 @@ export class WorkflowsService {
       triggerSource,
       triggerLabel,
       inputPreview,
+      parentRunId: run.parentRunId ?? null,
+      parentNodeRef: run.parentNodeRef ?? null,
     };
   }
 
@@ -517,6 +521,44 @@ export class WorkflowsService {
     summaries.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     this.logger.log(`Loaded ${summaries.length} workflow run(s) for timeline`);
     return { runs: summaries };
+  }
+
+  async listChildRuns(
+    parentRunId: string,
+    auth?: AuthContext | null,
+    options: { limit?: number } = {},
+  ): Promise<{
+    runs: Array<{
+      runId: string;
+      workflowId: string;
+      workflowName: string;
+      parentNodeRef: string | null;
+      status: ExecutionStatus;
+      startedAt: string;
+      completedAt?: string;
+    }>;
+  }> {
+    const { organizationId } = await this.requireRunAccess(parentRunId, auth);
+    const children = await this.runRepository.listChildren(parentRunId, {
+      organizationId,
+      limit: options.limit,
+    });
+
+    const summaries = await Promise.all(
+      children.map((run) => this.buildRunSummary(run, organizationId)),
+    );
+
+    const runs = summaries.map((summary, index) => ({
+      runId: summary.id,
+      workflowId: summary.workflowId,
+      workflowName: summary.workflowName,
+      parentNodeRef: children[index]?.parentNodeRef ?? null,
+      status: summary.status,
+      startedAt: new Date(summary.startTime).toISOString(),
+      completedAt: summary.endTime ? new Date(summary.endTime).toISOString() : undefined,
+    }));
+
+    return { runs };
   }
 
   async getRun(runId: string, auth?: AuthContext | null): Promise<WorkflowRunSummary> {
@@ -713,6 +755,8 @@ export class WorkflowsService {
       nodeOverrides?: Record<string, Record<string, unknown>>;
       runId?: string;
       idempotencyKey?: string;
+      parentRunId?: string;
+      parentNodeRef?: string;
     } = {},
   ): Promise<PreparedRunPayload> {
     const organizationId = this.requireOrganizationId(auth);
@@ -763,6 +807,8 @@ export class WorkflowsService {
       triggerSource: triggerMetadata.sourceId,
       triggerLabel: triggerMetadata.label,
       inputPreview,
+      parentRunId: options.parentRunId,
+      parentNodeRef: options.parentNodeRef,
     });
 
     this.analyticsService.trackWorkflowStarted({

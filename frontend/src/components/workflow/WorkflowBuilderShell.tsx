@@ -28,6 +28,8 @@ interface WorkflowBuilderShellProps {
   onRedo?: () => void
   canUndo?: boolean
   canRedo?: boolean
+  /** Floating overlay content for execution mode (e.g., parent run breadcrumbs) */
+  executionOverlay?: ReactNode
 }
 
 const LIBRARY_PANEL_WIDTH = 320
@@ -58,6 +60,7 @@ export function WorkflowBuilderShell({
   onRedo,
   canUndo,
   canRedo,
+  executionOverlay,
 }: WorkflowBuilderShellProps) {
   const isMobile = useIsMobile()
   const layoutRef = useRef<HTMLDivElement | null>(null)
@@ -291,6 +294,14 @@ export function WorkflowBuilderShell({
             )}
           </div>
         )}
+
+        {/* Execution mode floating overlay (e.g., parent run breadcrumbs) */}
+        {mode === 'execution' && executionOverlay && (
+          <div className="absolute z-[35] top-[10px] left-[10px]">
+            {executionOverlay}
+          </div>
+        )}
+
         {showLoadingOverlay && (
           <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
             <svg

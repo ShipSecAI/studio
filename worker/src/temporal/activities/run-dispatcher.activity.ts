@@ -56,6 +56,8 @@ export async function prepareRunPayloadActivity(
       nodeOverrides: input.nodeOverrides,
       trigger: input.trigger,
       runId: input.runId,
+      parentRunId: input.parentRunId,
+      parentNodeRef: input.parentNodeRef,
     }),
   });
 
