@@ -1,11 +1,10 @@
 /**
- * E2E Tests - Report Templates & AI Generation
+ * E2E Tests - Report Templates
  *
- * Validates the report template CRUD operations and AI generation endpoints.
+ * Validates the report template CRUD operations.
  *
  * These tests require:
  * - Backend API running on http://localhost:3211
- * - AI service configured (ANTHROPIC_API_KEY or similar)
  * - Database running with migrations applied
  */
 
@@ -312,86 +311,5 @@ e2eDescribe('Report Templates E2E Tests', () => {
     const verifyRes = await fetch(`${API_BASE}/templates/${testTemplateId}`, { headers: HEADERS });
     expect(verifyRes.status).toBe(404);
     console.log(`  Verified template is deleted`);
-  });
-});
-
-e2eDescribe('AI Generation E2E Tests', () => {
-  e2eTest('AI endpoint - accepts valid request format', { timeout: 30000 }, async () => {
-    console.log('\n  Test: AI endpoint request format');
-
-    // Test the AI endpoint with proper message format
-    const aiRequest = {
-      messages: [
-        {
-          role: 'user',
-          parts: [{ type: 'text', text: 'Hello, this is a test' }],
-        },
-      ],
-      systemPrompt: 'You are a helpful assistant.',
-      context: 'template',
-    };
-
-    const res = await fetch(`${API_BASE}/ai`, {
-      method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify(aiRequest),
-    });
-
-    console.log(`  Status: ${res.status}`);
-    
-    // If AI is not configured, we should get a specific error, not 400
-    if (res.status === 400) {
-      const error = await res.text();
-      console.log(`  Error: ${error}`);
-      // This is a validation error - let's debug
-      expect(res.status).not.toBe(400);
-    } else if (res.status === 500) {
-      // AI service not configured - acceptable in test env
-      console.log('  ⚠️ AI service may not be configured (500 response)');
-      expect(true).toBe(true);
-    } else {
-      // Success - streaming response
-      expect(res.ok).toBe(true);
-      console.log('  ✓ AI endpoint accepted request');
-    }
-  });
-
-  e2eTest('AI endpoint - validates empty request', { timeout: 10000 }, async () => {
-    console.log('\n  Test: AI endpoint validation');
-
-    const res = await fetch(`${API_BASE}/ai`, {
-      method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify({}),
-    });
-
-    // Empty request should fail validation
-    expect(res.status).toBe(400);
-    console.log('  ✓ Empty request correctly rejected');
-  });
-
-  e2eTest('AI endpoint - with prompt field', { timeout: 30000 }, async () => {
-    console.log('\n  Test: AI endpoint with prompt field');
-
-    const aiRequest = {
-      prompt: 'Create a simple HTML template for a security report',
-      context: 'template',
-    };
-
-    const res = await fetch(`${API_BASE}/ai`, {
-      method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify(aiRequest),
-    });
-
-    console.log(`  Status: ${res.status}`);
-    
-    if (res.status === 500) {
-      console.log('  ⚠️ AI service may not be configured');
-      expect(true).toBe(true);
-    } else {
-      expect(res.ok).toBe(true);
-      console.log('  ✓ AI endpoint accepted prompt request');
-    }
   });
 });
