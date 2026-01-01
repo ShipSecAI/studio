@@ -20,6 +20,15 @@ import {
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
 import { MessageResponse } from '@/components/ai-elements/message';
 import { useState, useRef, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface TemplateUpdate {
   template: string;
@@ -30,19 +39,25 @@ interface TemplateUpdate {
 
 interface TemplateChatProps {
   onUpdateTemplate?: (update: TemplateUpdate) => void;
+  onSavePreviousValues?: () => TemplateUpdate;
+  onUndoTemplate?: (previousValues: TemplateUpdate) => void;
   systemPrompt?: string;
 }
 
 /**
  * Template Chat Component - AI SDK v6 compatible with Tools
  */
-export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatProps) {
+export function TemplateChat({ onUpdateTemplate, onSavePreviousValues, onUndoTemplate, systemPrompt }: TemplateChatProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Track processed tool calls to avoid duplicates and ensure exactly one result per call
   const [processedToolCallIds] = useState(new Set<string>());
+
+  // Track previous values for undo functionality
+  const [previousValues, setPreviousValues] = useState<TemplateUpdate | null>(null);
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
 
   const { messages, sendMessage, status, stop, addToolResult } = useChat({
     transport: new DefaultChatTransport({
@@ -59,6 +74,14 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
   });
 
   const isLoading = status === 'streaming' || status === 'submitted';
+
+  const handleConfirmUndo = () => {
+    if (previousValues && onUndoTemplate) {
+      onUndoTemplate(previousValues);
+      setPreviousValues(null);
+    }
+    setShowUndoConfirm(false);
+  };
 
   // Process tool invocations from messages
   useEffect(() => {
@@ -119,6 +142,12 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
         const templateContent = args.template || args.html;
 
         if (templateContent) {
+          // Save previous values for undo before updating
+          if (onSavePreviousValues) {
+            const prevValues = onSavePreviousValues();
+            setPreviousValues(prevValues);
+          }
+
           // Final update to ensure consistency
           onUpdateTemplate({
             template: templateContent,
@@ -140,7 +169,7 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
         }
       }
     }
-  }, [messages, onUpdateTemplate, addToolResult, processedToolCallIds, status]);
+  }, [messages, onUpdateTemplate, onSavePreviousValues, addToolResult, processedToolCallIds, status]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -223,6 +252,14 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
               <span className="font-medium">
                 Updated {updates.join(', ')}
               </span>
+              {previousValues && onUndoTemplate && (
+                <button
+                  onClick={() => setShowUndoConfirm(true)}
+                  className="ml-2 px-2 py-0.5 bg-muted hover:bg-muted/80 rounded text-[10px] font-medium text-muted-foreground transition-colors"
+                >
+                  Undo
+                </button>
+              )}
             </div>
           );
         }
@@ -373,6 +410,32 @@ export function TemplateChat({ onUpdateTemplate, systemPrompt }: TemplateChatPro
           </button>
         </form>
       </div>
+
+      {/* Undo Confirmation Dialog */}
+      <Dialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Undo AI Changes?</DialogTitle>
+            <DialogDescription>
+              This will restore the template, schema, and sample data to their previous state before the AI update. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setShowUndoConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmUndo}
+            >
+              Undo Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -255,6 +255,27 @@ export function TemplateEditor() {
     if (update.description && !description) setDescription(update.description)
   }
 
+  const handleSavePreviousValues = () => {
+    return {
+      template: content,
+      inputSchema: inputSchema ? JSON.parse(inputSchema) : {},
+      sampleData: sampleData ? JSON.parse(sampleData) : {},
+      description: description,
+    }
+  }
+
+  const handleUndoTemplate = (previousValues: {
+    template: string;
+    inputSchema: Record<string, unknown>;
+    sampleData: Record<string, unknown>;
+    description: string;
+  }) => {
+    setContent(previousValues.template)
+    setInputSchema(JSON.stringify(previousValues.inputSchema, null, 2))
+    setSampleData(JSON.stringify(previousValues.sampleData, null, 2))
+    setDescription(previousValues.description)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full bg-background">
@@ -524,7 +545,11 @@ export function TemplateEditor() {
             </h2>
           </div>
           <div className="flex-1 overflow-hidden min-h-0 relative w-full">
-            <TemplateChat onUpdateTemplate={handleUpdateTemplate} />
+            <TemplateChat
+              onUpdateTemplate={handleUpdateTemplate}
+              onSavePreviousValues={handleSavePreviousValues}
+              onUndoTemplate={handleUndoTemplate}
+            />
           </div>
         </aside>
       </div>
