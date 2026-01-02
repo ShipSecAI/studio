@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Loader2, Plus, X, Copy, Check, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { api } from '@/services/api'
 import type { WebhookConfiguration } from '@shipsec/shared'
 import { env } from '@/config/env'
+import { WebhookDetails } from './WebhookDetails'
+import { useApiKeyStore } from '@/store/apiKeyStore'
+import type { Node as ReactFlowNode } from 'reactflow'
+import type { FrontendNodeData } from '@/schemas/node'
 
 const WEBHOOK_BASE_URL = env.VITE_API_URL || 'https://api.shipsec.ai'
 
@@ -19,17 +23,20 @@ export interface WebhookNavigationState {
 
 export interface WorkflowWebhooksSidebarProps {
     workflowId: string
+    nodes: ReactFlowNode<FrontendNodeData>[]
     defaultWebhookUrl: string
     onClose: () => void
 }
 
 export function WorkflowWebhooksSidebar({
     workflowId,
+    nodes,
     defaultWebhookUrl,
     onClose,
 }: WorkflowWebhooksSidebarProps) {
     const navigate = useNavigate()
     const location = useLocation()
+    const { lastCreatedKey } = useApiKeyStore()
     const [webhooks, setWebhooks] = useState<WebhookConfiguration[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -62,6 +69,26 @@ export function WorkflowWebhooksSidebar({
             console.error('Failed to copy:', err)
         }
     }
+
+    // Calculate default entrypoint payload from nodes
+    const entryPointPayload = useMemo(() => {
+        const entryNode = nodes.find(n => n.data.componentId === 'core.workflow.entrypoint' || n.data.componentSlug === 'entry-point')
+        if (!entryNode || !entryNode.data.parameters?.runtimeInputs) return {}
+        try {
+            const inputs = typeof entryNode.data.parameters.runtimeInputs === 'string'
+                ? JSON.parse(entryNode.data.parameters.runtimeInputs)
+                : entryNode.data.parameters.runtimeInputs
+
+            if (!Array.isArray(inputs)) return {}
+
+            return inputs.reduce((acc: any, input: any) => {
+                acc[input.id] = input.type === 'number' ? 0 : input.type === 'boolean' ? false : 'value'
+                return acc
+            }, {})
+        } catch {
+            return {}
+        }
+    }, [nodes])
 
     // Build navigation state that tells webhook editor to return here with sidebar open
     const buildNavigationState = (): WebhookNavigationState => ({
@@ -141,6 +168,13 @@ export function WorkflowWebhooksSidebar({
                                 <Copy className="h-3.5 w-3.5" />
                             )}
                         </Button>
+                        <WebhookDetails
+                            url={defaultWebhookUrl}
+                            payload={entryPointPayload}
+                            apiKey={lastCreatedKey}
+                            triggerLabel=""
+                            className="h-7 w-7 p-0 shrink-0"
+                        />
                     </div>
                 </div>
 
@@ -176,6 +210,12 @@ export function WorkflowWebhooksSidebar({
                 {/* Custom Webhooks List */}
                 {!isLoading && !error && webhooks.map((webhook) => {
                     const webhookUrl = `${WEBHOOK_BASE_URL}/webhooks/inbound/${webhook.webhookPath}`
+                    // Generate a sample payload from expectedInputs
+                    const samplePayload = (webhook.expectedInputs as any[])?.reduce((acc: any, input: any) => {
+                        acc[input.id] = input.type === 'number' ? 0 : input.type === 'boolean' ? false : 'value'
+                        return acc
+                    }, {}) || {}
+
                     return (
                         <div
                             key={webhook.id}
@@ -199,22 +239,33 @@ export function WorkflowWebhooksSidebar({
                                         </p>
                                     )}
                                 </div>
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 shrink-0"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleCopy(webhookUrl, webhook.id)
-                                    }}
-                                    title="Copy URL"
-                                >
-                                    {copiedId === webhook.id ? (
-                                        <Check className="h-3.5 w-3.5 text-green-500" />
-                                    ) : (
-                                        <Copy className="h-3.5 w-3.5" />
-                                    )}
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7 shrink-0"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleCopy(webhookUrl, webhook.id)
+                                        }}
+                                        title="Copy URL"
+                                    >
+                                        {copiedId === webhook.id ? (
+                                            <Check className="h-3.5 w-3.5 text-green-500" />
+                                        ) : (
+                                            <Copy className="h-3.5 w-3.5" />
+                                        )}
+                                    </Button>
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <WebhookDetails
+                                            url={webhookUrl}
+                                            payload={samplePayload}
+                                            apiKey={lastCreatedKey}
+                                            triggerLabel=""
+                                            className="h-7 w-7 p-0 shrink-0"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                             <div className="flex items-center gap-2">
                                 <code className="flex-1 text-[10px] bg-muted px-2 py-1 rounded truncate font-mono text-muted-foreground">

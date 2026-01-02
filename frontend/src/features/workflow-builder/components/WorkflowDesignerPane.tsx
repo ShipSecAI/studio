@@ -237,6 +237,7 @@ export function WorkflowDesignerPane({
               <div className="flex h-full w-full overflow-hidden bg-background">
                 <WorkflowWebhooksSidebar
                   workflowId={workflowId}
+                  nodes={nodes}
                   defaultWebhookUrl={defaultWebhookUrl}
                   onClose={() => setWebhooksPanelExpanded(false)}
                 />
@@ -256,6 +257,7 @@ export function WorkflowDesignerPane({
             >
               <WorkflowWebhooksSidebar
                 workflowId={workflowId}
+                nodes={nodes}
                 defaultWebhookUrl={defaultWebhookUrl}
                 onClose={() => setWebhooksPanelExpanded(false)}
               />
