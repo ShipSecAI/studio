@@ -9,7 +9,8 @@
     "worker",
     "packages/backend-client",
     "packages/component-sdk",
-    "packages/shared"
+    "packages/shared",
+    "packages/browser-harness"
   ],
   "scripts": {
     "dev:frontend": "bun --cwd=frontend dev",

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Globe,
   X,
@@ -153,7 +153,6 @@ const getConsoleLevelColor = (level: string): string => {
 
 export function BrowserPanel({
   nodeId,
-  runId,
   data,
   onClose,
   onDownloadArtifact,
@@ -348,6 +347,7 @@ export function BrowserPanel({
             selected={selectedScreenshotIndex}
             onSelect={setSelectedScreenshotIndex}
             selectedUrl={selectedScreenshotUrl}
+            screenshotUrls={screenshotUrls}
             isLoading={isLoadingUrls}
             onDownload={handleDownload}
             isFullscreen={isFullscreen}
@@ -370,9 +370,8 @@ export function BrowserPanel({
     <>
       <div
         ref={panelRef}
-        className={`nodrag nowheel nopan select-text rounded-lg border-2 border-border bg-card overflow-hidden shadow-lg flex flex-col ${
-          isFullscreen ? 'fixed inset-4 z-50' : 'w-[640px] h-[480px]'
-        }`}
+        className={`nodrag nowheel nopan select-text rounded-lg border-2 border-border bg-card overflow-hidden shadow-lg flex flex-col ${isFullscreen ? 'fixed inset-4 z-50' : 'w-[640px] h-[480px]'
+          }`}
       >
         {content}
       </div>
@@ -404,11 +403,10 @@ function TabButton({ active, onClick, icon, label, count }: TabButtonProps) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-        active
-          ? 'border-primary text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
-      }`}
+      className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${active
+        ? 'border-primary text-foreground'
+        : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+        }`}
     >
       {icon}
       <span>{label}</span>
@@ -424,6 +422,7 @@ interface ScreenshotsTabProps {
   selected: number
   onSelect: (index: number) => void
   selectedUrl: string | null
+  screenshotUrls: Record<string, string>
   isLoading: boolean
   onDownload: (screenshot: BrowserScreenshot) => void
   isFullscreen: boolean
@@ -435,6 +434,7 @@ function ScreenshotsTab({
   selected,
   onSelect,
   selectedUrl,
+  screenshotUrls,
   isLoading,
   onDownload,
   isFullscreen,
@@ -526,11 +526,10 @@ function ScreenshotsTab({
           <button
             key={index}
             onClick={() => onSelect(index)}
-            className={`relative h-full aspect-video rounded border-2 overflow-hidden flex-shrink-0 transition-colors ${
-              index === selected
-                ? 'border-primary'
-                : 'border-border hover:border-muted-foreground'
-            }`}
+            className={`relative h-full aspect-video rounded border-2 overflow-hidden flex-shrink-0 transition-colors ${index === selected
+              ? 'border-primary'
+              : 'border-border hover:border-muted-foreground'
+              }`}
           >
             <img
               src={shot.fileId ? screenshotUrls[shot.fileId] : undefined}
@@ -567,11 +566,10 @@ function StepsTab({ steps }: StepsTabProps) {
         {steps.map((step, index) => (
           <div
             key={index}
-            className={`flex items-start gap-3 p-3 rounded-lg border ${
-              step.success
-                ? 'bg-background border-border'
-                : 'bg-destructive/10 border-destructive/30'
-            }`}
+            className={`flex items-start gap-3 p-3 rounded-lg border ${step.success
+              ? 'bg-background border-border'
+              : 'bg-destructive/10 border-destructive/30'
+              }`}
           >
             <div className="flex-shrink-0 text-xl">
               {getActionIcon(step.action)}
