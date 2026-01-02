@@ -543,7 +543,7 @@ export function WebhookEditorPage() {
                                 {deliveries.map((delivery: any) => (
                                     <div key={delivery.id} className="grid grid-cols-4 gap-4 p-4 border-b last:border-0 items-center text-sm">
                                         <div className="flex items-center gap-2">
-                                            {delivery.success ?
+                                            {delivery.status === 'delivered' ?
                                                 <Badge className="bg-emerald-500 hover:bg-emerald-600">Success</Badge> :
                                                 <Badge variant="destructive">Failed</Badge>
                                             }
