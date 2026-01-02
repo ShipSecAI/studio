@@ -498,8 +498,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     ? `${API_BASE_URL}/workflows/${workflowId}/run`
     : `${API_BASE_URL}/workflows/{workflowId}/run`
 
-  // Get schedule sidebar callback from Canvas context
-  const { onOpenScheduleSidebar } = useEntryPointActions()
+
+  // Get schedule and webhook sidebar callbacks from Canvas context
+  const { onOpenScheduleSidebar, onOpenWebhooksSidebar } = useEntryPointActions()
 
 
   const entryPointPayload = (() => {
@@ -1252,12 +1253,18 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setShowWebhookDialog(true)
+                  // Open webhooks sidebar instead of dialog
+                  if (onOpenWebhooksSidebar) {
+                    onOpenWebhooksSidebar()
+                  } else {
+                    // Fallback to dialog if sidebar callback not available
+                    setShowWebhookDialog(true)
+                  }
                 }}
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-border bg-muted/60 hover:bg-muted transition-colors text-[10px] font-medium text-muted-foreground hover:text-foreground w-fit"
               >
                 <LucideIcons.Webhook className="h-3 w-3 flex-shrink-0" />
-                <span>Webhook</span>
+                <span>Webhooks</span>
               </button>
 
               <button

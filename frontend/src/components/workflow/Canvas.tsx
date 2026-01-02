@@ -56,6 +56,7 @@ function useIsMobile(breakpoint = 768) {
 // Context for entry point actions
 interface EntryPointActionsContextValue {
   onOpenScheduleSidebar?: () => void
+  onOpenWebhooksSidebar?: () => void
   onScheduleCreate?: () => void
 }
 
@@ -809,9 +810,18 @@ export function Canvas({
           resolvedOnOpenScheduleSidebar()
         }
       },
+      onOpenWebhooksSidebar: () => {
+        if (onClearNodeSelection) {
+          onClearNodeSelection()
+        }
+        setSelectedNode(null)
+        if (scheduleContext?.onOpenWebhooksSidebar) {
+          scheduleContext.onOpenWebhooksSidebar()
+        }
+      },
       onScheduleCreate: resolvedOnScheduleCreate,
     }),
-    [resolvedOnOpenScheduleSidebar, resolvedOnScheduleCreate, onClearNodeSelection]
+    [resolvedOnOpenScheduleSidebar, resolvedOnScheduleCreate, onClearNodeSelection, scheduleContext]
   )
 
   return (
