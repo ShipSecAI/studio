@@ -25,7 +25,7 @@ import { useToast } from '@/components/ui/use-toast'
 import Editor, { loader } from '@monaco-editor/react'
 import { cn } from '@/lib/utils'
 import { SaveButton } from '@/components/ui/save-button'
-import type { WebhookConfiguration } from '@shipsec/shared'
+import type { WebhookConfiguration, WebhookDelivery, WebhookInputDefinition } from '@shipsec/shared'
 
 // Configure Monaco
 loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs' } })
@@ -35,13 +35,7 @@ interface WebhookFormState {
     name: string
     description: string
     parsingScript: string
-    expectedInputs: Array<{
-        id: string
-        label: string
-        type: string
-        required: boolean
-        description?: string
-    }>
+    expectedInputs: WebhookInputDefinition[]
 }
 
 const DEFAULT_PARSING_SCRIPT = `// Transform the incoming webhook payload into workflow inputs
@@ -125,7 +119,7 @@ export function WebhookEditorPage() {
     // Resources
     const [workflows, setWorkflows] = useState<Array<{ id: string; name: string }>>([])
     const [workflowRuntimeInputs, setWorkflowRuntimeInputs] = useState<Array<any>>([])
-    const [deliveries, setDeliveries] = useState<Array<any>>([])
+    const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([])
     const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(false)
 
     // Load Initial Data
@@ -180,15 +174,15 @@ export function WebhookEditorPage() {
 
         api.workflows.getRuntimeInputs(form.workflowId)
             .then(res => {
-                const inputs = res.inputs || []
-                setWorkflowRuntimeInputs(inputs)
+                const runtimeInputs = res.inputs || []
+                setWorkflowRuntimeInputs(runtimeInputs)
 
                 // Automatically populate expectedInputs from workflow runtime inputs
                 // This ensures the backend validation passes
-                const mappedInputs = inputs.map((input: any) => ({
+                const mappedInputs: WebhookInputDefinition[] = runtimeInputs.map((input: any) => ({
                     id: input.id,
                     label: input.label || input.id,
-                    type: input.type || 'string',
+                    type: (input.type === 'string' ? 'text' : input.type) || 'text',
                     required: input.required !== false,
                     description: input.description || '',
                 }))
@@ -202,7 +196,7 @@ export function WebhookEditorPage() {
         if (isNew || !id) return
         setIsLoadingDeliveries(true)
         api.webhooks.listDeliveries(id)
-            .then(data => setDeliveries((data as any) || []))
+            .then(data => setDeliveries(data || []))
             .catch(console.error)
             .finally(() => setIsLoadingDeliveries(false))
     }, [id, isNew])
@@ -540,7 +534,7 @@ export function WebhookEditorPage() {
                                     <div>Timestamp</div>
                                     <div className="text-right">Action</div>
                                 </div>
-                                {deliveries.map((delivery: any) => (
+                                {deliveries.map((delivery) => (
                                     <div key={delivery.id} className="grid grid-cols-4 gap-4 p-4 border-b last:border-0 items-center text-sm">
                                         <div className="flex items-center gap-2">
                                             {delivery.status === 'delivered' ?

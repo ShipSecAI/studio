@@ -4,6 +4,9 @@ import type {
   RunArtifactsResponse,
   WorkflowSchedule,
   ScheduleStatus,
+  WebhookConfiguration,
+  WebhookDelivery,
+  TestWebhookScriptResponse,
 } from '@shipsec/shared'
 import { useAuthStore } from '@/store/authStore'
 import { getFreshClerkToken } from '@/utils/clerk-token'
@@ -795,51 +798,28 @@ export const api = {
   },
 
   webhooks: {
-    list: async () => {
+    list: async (): Promise<WebhookConfiguration[]> => {
       const response = await apiClient.listWebhookConfigurations()
       if (response.error) throw new Error('Failed to fetch webhook configurations')
-      return response.data || []
+      return (response.data || []) as WebhookConfiguration[]
     },
 
-    get: async (id: string) => {
+    get: async (id: string): Promise<WebhookConfiguration> => {
       const response = await apiClient.getWebhookConfiguration(id)
       if (response.error || !response.data) throw new Error('Failed to fetch webhook configuration')
-      return response.data
+      return response.data as WebhookConfiguration
     },
 
-    create: async (payload: {
-      workflowId: string
-      name: string
-      description?: string
-      parsingScript: string
-      expectedInputs: Array<{
-        id: string
-        label: string
-        type: string
-        required: boolean
-        description?: string
-      }>
-    }) => {
+    create: async (payload: Partial<WebhookConfiguration>): Promise<WebhookConfiguration> => {
       const response = await apiClient.createWebhookConfiguration(payload as any)
       if (response.error) throw new Error('Failed to create webhook configuration')
-      return response.data
+      return response.data as WebhookConfiguration
     },
 
-    update: async (id: string, payload: {
-      name?: string
-      description?: string
-      parsingScript?: string
-      expectedInputs?: Array<{
-        id: string
-        label: string
-        type: string
-        required: boolean
-        description?: string
-      }>
-    }) => {
+    update: async (id: string, payload: Partial<WebhookConfiguration>): Promise<WebhookConfiguration> => {
       const response = await apiClient.updateWebhookConfiguration(id, payload as any)
       if (response.error) throw new Error('Failed to update webhook configuration')
-      return response.data
+      return response.data as WebhookConfiguration
     },
 
     delete: async (id: string) => {
@@ -847,20 +827,20 @@ export const api = {
       if (response.error) throw new Error('Failed to delete webhook configuration')
     },
 
-    testScript: async (payload: { script: string; payload: any; headers: Record<string, string> }) => {
+    testScript: async (payload: { script: string; payload: any; headers: Record<string, string> }): Promise<TestWebhookScriptResponse> => {
       const response = await apiClient.testWebhookScript({
         parsingScript: payload.script,
         testPayload: payload.payload,
         testHeaders: payload.headers,
       })
       if (response.error) throw new Error('Failed to test webhook script')
-      return response.data
+      return response.data as TestWebhookScriptResponse
     },
 
-    listDeliveries: async (id: string) => {
+    listDeliveries: async (id: string): Promise<WebhookDelivery[]> => {
       const response = await apiClient.listDeliveries(id)
       if (response.error) throw new Error('Failed to fetch webhook deliveries')
-      return response.data
+      return (response.data || []) as WebhookDelivery[]
     },
   },
 

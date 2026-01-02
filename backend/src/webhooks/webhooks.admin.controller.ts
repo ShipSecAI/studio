@@ -35,18 +35,21 @@ export class WebhooksAdminController {
 
   @Get()
   @ApiOperation({ summary: 'List all webhook configurations' })
+  @ApiOkResponse({ type: [WebhookConfigurationResponseDto] })
   async list(@CurrentAuth() auth: AuthContext) {
     return this.webhooksService.list(auth);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a webhook configuration by ID' })
+  @ApiOkResponse({ type: WebhookConfigurationResponseDto })
   async get(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     return this.webhooksService.get(auth, id);
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a new webhook configuration' })
+  @ApiOkResponse({ type: WebhookConfigurationResponseDto })
   async create(
     @CurrentAuth() auth: AuthContext,
     @Body(new ZodValidationPipe(CreateWebhookRequestDto.schema)) dto: CreateWebhookRequestDto,
@@ -56,6 +59,7 @@ export class WebhooksAdminController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a webhook configuration' })
+  @ApiOkResponse({ type: WebhookConfigurationResponseDto })
   async update(
     @CurrentAuth() auth: AuthContext,
     @Param('id') id: string,
@@ -73,12 +77,14 @@ export class WebhooksAdminController {
 
   @Post(':id/regenerate-path')
   @ApiOperation({ summary: 'Regenerate webhook path (creates new URL)' })
+  @ApiOkResponse({ type: RegeneratePathResponseDto })
   async regeneratePath(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     return this.webhooksService.regeneratePath(auth, id);
   }
 
   @Get(':id/url')
   @ApiOperation({ summary: 'Get the webhook URL for a configuration' })
+  @ApiOkResponse({ type: GetWebhookUrlResponseDto })
   async getUrl(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     return this.webhooksService.getUrl(auth, id);
   }
@@ -95,12 +101,14 @@ export class WebhooksAdminController {
 
   @Get(':id/deliveries')
   @ApiOperation({ summary: 'List delivery history for a webhook' })
+  @ApiOkResponse({ type: [WebhookDeliveryResponseDto] })
   async listDeliveries(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
     return this.webhooksService.listDeliveries(auth, id);
   }
 
   @Get(':id/deliveries/:deliveryId')
   @ApiOperation({ summary: 'Get details of a specific delivery' })
+  @ApiOkResponse({ type: WebhookDeliveryResponseDto })
   async getDelivery(@CurrentAuth() auth: AuthContext, @Param('deliveryId') deliveryId: string) {
     return this.webhooksService.getDelivery(auth, deliveryId);
   }

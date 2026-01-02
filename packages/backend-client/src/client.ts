@@ -1967,6 +1967,36 @@ export interface components {
             versionId?: string;
             version?: number;
         };
+        WebhookConfigurationResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workflowId: string;
+            /** Format: uuid */
+            workflowVersionId: string | null;
+            workflowVersion: number | null;
+            name: string;
+            description: string | null;
+            webhookPath: string;
+            parsingScript: string;
+            expectedInputs: {
+                id: string;
+                label: string;
+                /** @enum {string} */
+                type: "text" | "number" | "json" | "array" | "file";
+                /** @default true */
+                required: boolean;
+                description?: string;
+            }[];
+            /** @enum {string} */
+            status: "active" | "inactive";
+            organizationId: string | null;
+            createdBy: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         CreateWebhookRequestDto: {
             /** Format: uuid */
             workflowId: string;
@@ -2006,6 +2036,21 @@ export interface components {
             /** @enum {string} */
             status?: "active" | "inactive";
         };
+        RegeneratePathResponseDto: {
+            /** Format: uuid */
+            id: string;
+            webhookPath: string;
+            /** Format: uri */
+            url: string;
+        };
+        GetWebhookUrlResponseDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            webhookPath: string;
+            /** Format: uri */
+            url: string;
+        };
         TestWebhookScriptRequestDto: {
             parsingScript: string;
             testPayload: {
@@ -2025,6 +2070,29 @@ export interface components {
                 inputId: string;
                 message: string;
             }[];
+        };
+        WebhookDeliveryResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            webhookId: string;
+            workflowRunId: string | null;
+            /** @enum {string} */
+            status: "processing" | "delivered" | "failed";
+            payload: {
+                [key: string]: unknown;
+            };
+            headers?: {
+                [key: string]: string;
+            };
+            parsedData: {
+                [key: string]: unknown;
+            } | null;
+            errorMessage: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
         };
         HumanInputResponseDto: {
             /** Format: uuid */
@@ -4327,7 +4395,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WebhookConfigurationResponseDto"][];
+                };
             };
         };
     };
@@ -4344,11 +4414,13 @@ export interface operations {
             };
         };
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WebhookConfigurationResponseDto"];
+                };
             };
         };
     };
@@ -4367,7 +4439,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WebhookConfigurationResponseDto"];
+                };
             };
         };
     };
@@ -4390,7 +4464,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WebhookConfigurationResponseDto"];
+                };
             };
         };
     };
@@ -4424,11 +4500,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RegeneratePathResponseDto"];
+                };
             };
         };
     };
@@ -4447,7 +4525,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GetWebhookUrlResponseDto"];
+                };
             };
         };
     };
@@ -4489,7 +4569,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WebhookDeliveryResponseDto"][];
+                };
             };
         };
     };
@@ -4508,7 +4590,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WebhookDeliveryResponseDto"];
+                };
             };
         };
     };
