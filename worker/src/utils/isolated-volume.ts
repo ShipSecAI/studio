@@ -253,18 +253,15 @@ export class IsolatedContainerVolume {
   }
 
   /**
-   * Reads a single file from the volume using docker run.
-   * Uses cat entrypoint to avoid shell interpretation.
+   * Reads a single file from the volume using docker run and returns as Buffer.
    */
-  private async readFileFromVolume(filename: string): Promise<string> {
+  async readFileFromVolumeAsBuffer(filename: string): Promise<Buffer> {
     if (!this.volumeName) {
       throw new ConfigurationError('Volume not initialized', {
         details: { tenantId: this.tenantId, runId: this.runId },
       });
     }
 
-    // Note: Using cat as entrypoint (not sh), so filename is passed as argument
-    // to cat directly, not interpreted by shell. No escaping needed here.
     return new Promise((resolve, reject) => {
       const proc = spawn('docker', [
         'run',
@@ -272,14 +269,14 @@ export class IsolatedContainerVolume {
         '-v', `${this.volumeName}:/data:ro`,
         '--entrypoint', 'cat',
         'alpine:latest',
-        `/data/${filename}`,  // Safe: passed to cat, not shell
+        `/data/${filename}`,
       ]);
 
-      let stdout = '';
+      const chunks: Buffer[] = [];
       let stderr = '';
 
       proc.stdout.on('data', (data) => {
-        stdout += data.toString();
+        chunks.push(data);
       });
 
       proc.stderr.on('data', (data) => {
@@ -294,10 +291,19 @@ export class IsolatedContainerVolume {
         if (code !== 0) {
           reject(new Error(`Failed to read file ${filename}: exit code ${code}, stderr: ${stderr}`));
         } else {
-          resolve(stdout);
+          resolve(Buffer.concat(chunks));
         }
       });
     });
+  }
+
+  /**
+   * Reads a single file from the volume using docker run.
+   * Uses cat entrypoint to avoid shell interpretation.
+   */
+  private async readFileFromVolume(filename: string): Promise<string> {
+    const buffer = await this.readFileFromVolumeAsBuffer(filename);
+    return buffer.toString('utf-8');
   }
 
   /**

@@ -57,6 +57,9 @@ import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
 
+// Browser components
+import './browser/automation';
+
 // GitHub components
 import './github/connection-provider';
 import './github/remove-org-membership';
