@@ -31,6 +31,7 @@ This document specifies the design for first-class HTTP observability in ShipSec
      'SKIPPED',
      'HTTP_REQUEST_SENT',      // NEW
      'HTTP_RESPONSE_RECEIVED', // NEW
+     'HTTP_REQUEST_ERROR',     // NEW
    ] as const;
    ```
 
@@ -47,6 +48,7 @@ This document specifies the design for first-class HTTP observability in ShipSec
        | 'NODE_SKIPPED'
        | 'HTTP_REQUEST_SENT'      // NEW
        | 'HTTP_RESPONSE_RECEIVED' // NEW
+       | 'HTTP_REQUEST_ERROR'     // NEW
        ;
      // ... rest unchanged
    }
@@ -63,6 +65,7 @@ This document specifies the design for first-class HTTP observability in ShipSec
      | 'NODE_SKIPPED'
      | 'HTTP_REQUEST_SENT'      // NEW
      | 'HTTP_RESPONSE_RECEIVED' // NEW
+     | 'HTTP_REQUEST_ERROR'     // NEW
      ;
    
    // Add new event interfaces
@@ -81,7 +84,25 @@ This document specifies the design for first-class HTTP observability in ShipSec
        har: HarEntry; // Complete HAR entry
      };
    }
+
+   export interface HttpRequestErrorEvent extends TraceEventBase {
+     type: 'HTTP_REQUEST_ERROR';
+     data: {
+       correlationId: string;
+       request: HarRequest;
+       error: {
+         message: string;
+         name?: string;
+       };
+     };
+   }
    ```
+
+4. **`backend/src/trace/trace.service.ts`**
+   - Update `mapEventType` so `HTTP_*` types pass through instead of mapping to `PROGRESS`
+
+5. **`worker/src/adapters/schema/traces.schema.ts`** + **`backend/src/database/schema/traces.ts`**
+   - Extend the allowed `type` union to include the new `HTTP_*` types
 
 ---
 
@@ -245,10 +266,12 @@ async function instrumentedFetch(
 3. Build HAR request
 4. **Emit `HTTP_REQUEST_SENT` trace event immediately**
 5. Call native `fetch()`
-6. On error: emit error event, throw
-7. On success: stop timing, build HAR response
+6. On error: stop timing, emit `HTTP_REQUEST_ERROR`, throw
+7. On success: stop timing, build HAR response **from a cloned response**
 8. **Emit `HTTP_RESPONSE_RECEIVED` trace event with full HAR entry**
-9. Return original response
+9. Return original response (unconsumed body)
+
+**Important:** use `const responseForHar = response.clone()` and read the body from `responseForHar` to avoid consuming the body that components need.
 
 ### Context Helper
 
@@ -288,6 +311,9 @@ function createHttpClient(context: ExecutionContext, defaultOptions?: HttpInstru
    // ... assign to context.http
    ```
 
+3. **`worker/src/testing/test-utils.ts`** + **unit tests with inline `ExecutionContext` mocks**
+   - Add a default `http` stub so tests do not break when `http` becomes required
+
 ---
 
 ## Phase 8: Migrate Components
@@ -301,7 +327,12 @@ function createHttpClient(context: ExecutionContext, defaultOptions?: HttpInstru
    - Replace `fetch()` with `context.http.fetch()`
 
 3. **Other API wrappers**
-   - Any component using `fetch()` directly
+   - `worker/src/components/notification/slack.ts`
+   - `worker/src/components/security/virustotal.ts`
+   - `worker/src/components/github/remove-org-membership.ts`
+   - `worker/src/components/ai/ai-agent.ts`
+   - `worker/src/components/security/atlassian-offboarding.ts`
+   - (Skip `core/logic-script.ts` and Docker-based fetch usage for now)
 
 ### Migration Pattern
 
@@ -318,9 +349,21 @@ function createHttpClient(context: ExecutionContext, defaultOptions?: HttpInstru
 
 ---
 
-## Phase 9: Frontend HTTP Panel (Future)
+## Phase 9: Frontend HTTP Events + Panel
 
-### New Components to Create
+### Required event wiring (current UI)
+
+1. **`frontend/src/store/executionTimelineStore.ts`**
+   - Treat `HTTP_REQUEST_SENT` + `HTTP_RESPONSE_RECEIVED` + `HTTP_REQUEST_ERROR` as non-terminal events (status stays `running`)
+   - Do not let HTTP events override node status computed from `STARTED/COMPLETED/FAILED`
+
+2. **`frontend/src/components/timeline/EventInspector.tsx`**
+   - Add icon + tone mappings for `HTTP_*` events so the inspector renders without crashing
+
+3. **`frontend/src/components/timeline/ExecutionTimeline.tsx`**
+   - Add colors for `HTTP_*` types so timeline bars are consistent
+
+### New Components to Create (future)
 
 1. **`frontend/src/components/timeline/HttpExchangePanel.tsx`**
    - Display request/response in side-by-side or tabbed view
@@ -373,14 +416,30 @@ HTTP data stored in existing `workflow_traces.data` JSONB column:
 ```sql
 -- HTTP_REQUEST_SENT event
 {
-  "correlationId": "uuid",
-  "request": { /* HAR Request object */ }
+  "_payload": {
+    "correlationId": "uuid",
+    "request": { /* HAR Request object */ }
+  },
+  "_metadata": { /* packed trace metadata */ }
 }
 
 -- HTTP_RESPONSE_RECEIVED event  
 {
-  "correlationId": "uuid",
-  "har": { /* Complete HAR Entry */ }
+  "_payload": {
+    "correlationId": "uuid",
+    "har": { /* Complete HAR Entry */ }
+  },
+  "_metadata": { /* packed trace metadata */ }
+}
+
+-- HTTP_REQUEST_ERROR event
+{
+  "_payload": {
+    "correlationId": "uuid",
+    "request": { /* HAR Request object */ },
+    "error": { "message": "Network error", "name": "FetchError" }
+  },
+  "_metadata": { /* packed trace metadata */ }
 }
 ```
 
@@ -419,8 +478,7 @@ HTTP data stored in existing `workflow_traces.data` JSONB column:
 ## Open Questions
 
 1. **Should we add `HTTP_REQUEST_ERROR` as a third event type?**
-   - Currently errors go through normal `HTTP_RESPONSE_RECEIVED` or component failure
-   - Dedicated error event might be cleaner
+   - ✅ Resolved: add `HTTP_REQUEST_ERROR` so the UI can render error rows in the trace stream
 
 2. **Should HAR export be per-run or per-node?**
    - Per-run: all HTTP calls in one HAR file
@@ -435,15 +493,15 @@ HTTP data stored in existing `workflow_traces.data` JSONB column:
 ## Implementation Order
 
 1. ✅ Add `@types/har-format` dependency
-2. ▢ Add HTTP trace event types to shared/SDK/backend
+2. ▢ Add HTTP trace event types to shared/SDK/backend + schema unions + trace service mapping
 3. ▢ Create `http/types.ts` with HAR re-exports
 4. ▢ Create adapter interface + NoOp adapter
-5. ▢ Create Undici adapter
+5. ▢ Create Undici adapter (Node runtime)
 6. ▢ Create HAR builder utilities
-7. ▢ Create instrumented fetch
-8. ▢ Wire into execution context
-9. ▢ Migrate http-request component
-10. ▢ Migrate abuseipdb component
+7. ▢ Create instrumented fetch (clone response before reading)
+8. ▢ Wire into execution context + update test mocks
+9. ▢ Update frontend event handling for `HTTP_*` (inspector + timeline store + colors)
+10. ▢ Migrate `http-request` + `abuseipdb` + other inline fetch components (skip logic-script)
 11. ▢ Add unit tests
 12. ▢ Add integration tests
 13. ▢ Frontend HTTP panel (separate PR)
