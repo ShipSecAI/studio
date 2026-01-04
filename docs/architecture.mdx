@@ -48,6 +48,10 @@ ShipSec Studio is an open-source, no-code security workflow orchestration platfo
 │  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │     [Learn more about HITL Architecture]                        │   │
+│  │     (/architecture/human-in-the-loop)                           │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │                      SERVICE ADAPTERS                            │   │
 │  │  Secrets │ Storage │ Artifacts │ Trace │ Terminal │ Logs       │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
@@ -300,9 +304,10 @@ trace_events (
 ## Security Architecture
 
 ### Authentication & Multi-tenancy
-- **Clerk Integration** — Production-ready authentication
-- **Organization Isolation** — All data scoped by `organization_id`
-- **Role-Based Access** — Admin, Member, Viewer roles
+- **Clerk Integration** — Production-ready authentication for hosted environments.
+- **Local Auth** — Default for local setup using `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+- **Organization Isolation** — All data scoped by `organization_id`.
+- **Role-Based Access** — Admin, Member, Viewer roles.
 
 ### Secrets Management
 - **AES-256-GCM** encryption at rest (NOT HashiCorp Vault)

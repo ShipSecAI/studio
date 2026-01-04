@@ -1,0 +1,58 @@
+---
+title: "Human-in-the-Loop (HITL)"
+description: "How ShipSec Studio handles manual approvals, forms, and workflow pauses"
+---
+
+# Human-in-the-Loop (HITL)
+
+Human-in-the-Loop (HITL) allows workflows to pause and wait for human interaction (approvals, data entry, selection) before proceeding.
+
+## Architecture Overview
+
+HITL is implemented using **Temporal Signals** and a dedicated **Human Input Service** in the backend.
+
+### 1. The Block Scenario
+When a workflow hits a manual action node (e.g., `manual-action.approval`):
+- The Worker executes the component, which creates a **Human Input Request** in the database.
+- The component then enters a **Pending State** within the Temporal workflow.
+- Technically, the Temporal workflow task waits for a specific signal (`resolveHumanInput`).
+
+### 2. Notification & Access
+- The system generates a unique, cryptographically secure **Resolve Token**.
+- A notification (Slack, Email) is sent with a link containing this token.
+- Alternatively, the request appears in the "Pending Actions" section of the ShipSec Studio UI.
+
+### 3. The Resume Scenario (Signal)
+When a human interacts with the request (approves/rejects/submits form):
+- The Frontend (or public link) calls the Backend API.
+- The **Human Input Service**:
+    1. Validates the input/token.
+    2. Updates the request status in PostgreSQL to `resolved`.
+    3. Calls `temporalClient.signalWorkflow()` with the `resolveHumanInput` signal.
+- The blocked Temporal workflow receives the signal, resumes execution, and the manual action node returns the human's input to the next node in the graph.
+
+## Sequence Diagram
+
+```
+┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────────┐
+│ Temporal │      │  Worker  │      │ Backend  │      │   Human      │
+└────┬─────┘      └────┬─────┘      └────┬─────┘      └──────┬───────┘
+     │   Execute Node  │                 │                   │
+     ├────────────────>│                 │                   │
+     │                 │ Create Request  │                   │
+     │                 ├────────────────>│                   │
+     │   Signal Wait   │                 │ Notify Human      │
+     │<────────────────┤                 ├──────────────────>│
+     │      (PAUSED)   │                 │                   │
+     │                 │                 │      Interact     │
+     │                 │                 │<──────────────────┤
+     │  Signal Workflow│                 │                   │
+     │<──────────────────────────────────┤                   │
+     │     (RESUME)    │                 │                   │
+     │                 │                 │                   │
+```
+
+## Security
+- **Token Isolation**: Each request has a unique `resolveToken`.
+- **Expirations**: Requests can be configured with timeouts in the Temporal workflow logic.
+- **Audit Log**: Every resolution is tracked with `respondedBy` and `respondedAt` metadata.
