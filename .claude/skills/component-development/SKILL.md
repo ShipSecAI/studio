@@ -15,7 +15,7 @@ description: Creating components (inline/docker). Dynamic ports, retry policies,
 ```
 worker/src/components/<category>/<component-name>.ts
 ```
-Categories: `security/`, `core/`, `ai/`, `notification/`, `manual-action/`, `it-automation/`
+Categories: `security/`, `core/`, `ai/`, `notification/`, `manual-action/`
 
 ### ID Pattern
 ```
@@ -31,7 +31,7 @@ import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
 const definition: ComponentDefinition<Input, Output> = {
   id: 'category.tool.action',
   label: 'My Component',
-  category: 'security',  // or: core, ai, notification, manual_action, it_ops
+  category: 'security',  // or: core, ai, notification, manual_action
   runner: { kind: 'inline' },  // or: docker
   inputSchema: z.object({ ... }),
   outputSchema: z.object({ ... }),
