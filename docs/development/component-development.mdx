@@ -3,25 +3,95 @@ title: "Component Development"
 description: "Build custom security components for ShipSec Studio"
 ---
 
-This guide provides best practices and required patterns for developing ShipSec Studio components.
+This guide covers everything you need to build components for ShipSec Studio.
 
 ---
 
-## Component Basics
+## Getting Started
 
-### Quick Start
+### File Location
+
+Components live in `worker/src/components/<category>/`:
+
+```
+worker/src/components/
+├── security/        # Security tools (dnsx, subfinder, nuclei)
+├── core/            # Core utilities (http-request, file-loader)
+├── ai/              # AI components (llm, agents)
+├── notification/    # Notifications (slack, email)
+├── manual-action/   # Human-in-the-loop (approvals, forms)
+└── it-automation/   # IT ops (okta, google workspace)
+```
+
+### ID Naming Convention
+
+```
+<namespace>.<tool>.<action>
+
+Examples:
+  shipsec.dnsx.run       # Security tool
+  core.http.request      # Core utility  
+  ai.llm.generate        # AI component
+  notification.slack     # Notification
+```
+
+---
+
+## Runner Types
+
+| Type | Use Case | Example |
+|------|----------|---------|
+| `inline` | Pure TypeScript (HTTP calls, transforms, logic) | FileLoader, WebhookPost, HTTP Request |
+| `docker` | CLI tools in containers | Subfinder, DNSX, Nuclei |
+| `remote` | External executors (future) | K8s jobs, ECS tasks |
+
+### Inline Component Example
 
 ```typescript
 import { z } from 'zod';
 import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
 
 const inputSchema = z.object({
-  target: z.string()
+  url: z.string().url(),
+  method: z.enum(['GET', 'POST']).default('GET'),
 });
 
 const outputSchema = z.object({
-  result: z.string()
+  status: z.number(),
+  body: z.string(),
 });
+
+type Input = z.infer<typeof inputSchema>;
+type Output = z.infer<typeof outputSchema>;
+
+const definition: ComponentDefinition<Input, Output> = {
+  id: 'core.http.request',
+  label: 'HTTP Request',
+  category: 'transform',
+  runner: { kind: 'inline' },
+  inputSchema,
+  outputSchema,
+  async execute(input, context) {
+    context.logger.info(`Fetching ${input.url}`);
+    const response = await fetch(input.url, { method: input.method });
+    return { status: response.status, body: await response.text() };
+  }
+};
+
+componentRegistry.register(definition);
+export default definition;
+```
+
+### Docker Component Example
+
+```typescript
+import { z } from 'zod';
+import { 
+  componentRegistry, 
+  ComponentDefinition,
+  DockerRunnerConfig,
+  runComponentWithRunner 
+} from '@shipsec/component-sdk';
 
 const definition: ComponentDefinition<Input, Output> = {
   id: 'shipsec.tool.scan',
@@ -30,17 +100,216 @@ const definition: ComponentDefinition<Input, Output> = {
   runner: {
     kind: 'docker',
     image: 'tool:latest',
-    command: [/* build args */],
+    entrypoint: 'sh',
+    command: ['-c', 'tool "$@"', '--'],  // Shell wrapper for PTY
     network: 'bridge'
   },
   inputSchema,
   outputSchema,
   async execute(input, context) {
-    // Implementation
+    const args = ['-json', '-target', input.target];
+    
+    const runnerConfig: DockerRunnerConfig = {
+      ...this.runner,
+      command: [...(this.runner.command ?? []), ...args],
+    };
+
+    const rawOutput = await runComponentWithRunner(
+      runnerConfig,
+      async () => ({} as Output),
+      input,
+      context
+    );
+    
+    return parseOutput(rawOutput);
   }
 };
 
 componentRegistry.register(definition);
+export default definition;
+```
+
+---
+
+## ExecutionContext
+
+The `context` passed to `execute()` provides services and utilities:
+
+```typescript
+async execute(input, context) {
+  // Logging (shows in UI timeline)
+  context.logger.info('Starting scan...');
+  context.logger.warn('Rate limit approaching');
+  context.logger.error('Failed to connect');
+  
+  // Progress events (shows in UI)
+  context.emitProgress('Processing 50 targets...');
+  
+  // Secrets (encrypted, from secret manager)
+  const apiKey = await context.secrets?.get('API_KEY');
+  
+  // File downloads (from MinIO)
+  const file = await context.storage?.downloadFile(input.fileId);
+  
+  // Artifact uploads (saved to MinIO, shown in UI)
+  await context.artifacts?.upload({
+    name: 'report.json',
+    content: Buffer.from(JSON.stringify(results)),
+    mimeType: 'application/json',
+  });
+  
+  // Run metadata
+  const { runId, componentRef } = context;
+}
+```
+
+---
+
+## Component Metadata
+
+Define UI metadata for the workflow builder:
+
+```typescript
+import { port } from '@shipsec/component-sdk';
+
+const definition: ComponentDefinition<Input, Output> = {
+  id: 'shipsec.dnsx.scan',
+  label: 'DNSX Scanner',
+  category: 'security',
+  runner: { ... },
+  inputSchema,
+  outputSchema,
+  
+  metadata: {
+    slug: 'dnsx',
+    version: '1.0.0',
+    type: 'scan',
+    category: 'security',
+    description: 'DNS resolution and enumeration',
+    icon: 'dns',
+    author: { name: 'ShipSec', type: 'shipsecai' },
+    inputs: [
+      { id: 'domains', label: 'Domains', dataType: port.list(port.text()), required: true },
+    ],
+    outputs: [
+      { id: 'results', label: 'Results', dataType: port.json() },
+    ],
+    parameters: [
+      { id: 'threads', label: 'Threads', type: 'number', default: 10 },
+      { id: 'recordTypes', label: 'Record Types', type: 'multi-select', options: [
+        { label: 'A', value: 'A' },
+        { label: 'AAAA', value: 'AAAA' },
+        { label: 'CNAME', value: 'CNAME' },
+      ]},
+    ],
+  },
+};
+```
+
+### Port Utilities
+
+```typescript
+import { port } from '@shipsec/component-sdk';
+
+port.text()                    // String
+port.number()                  // Number
+port.boolean()                 // Boolean
+port.secret()                  // Secret value
+port.json()                    // JSON object
+port.any()                     // Any type
+port.list(port.text())         // Array<string>
+port.map(port.text())          // Record<string, string>
+port.credential('github')      // OAuth credential contract
+```
+
+---
+
+## Dynamic Ports (resolvePorts)
+
+Components can dynamically generate input/output ports based on parameter values:
+
+```typescript
+import { port } from '@shipsec/component-sdk';
+
+const definition: ComponentDefinition<Input, Output> = {
+  id: 'core.workflow.call',
+  // ... other fields ...
+  
+  resolvePorts(params) {
+    const dynamicInputs = (params.childRuntimeInputs || []).map(input => ({
+      id: input.id,
+      label: input.label || input.id,
+      dataType: port.text(),
+      required: input.required ?? true,
+    }));
+    
+    return {
+      inputs: dynamicInputs,
+      outputs: this.metadata?.outputs ?? [],
+    };
+  }
+};
+```
+
+**Use cases:** Workflow calls, Slack templates, manual actions with dynamic options.
+
+---
+
+## Retry Policy
+
+Components can specify custom retry behavior (maps to Temporal activity retry):
+
+```typescript
+const definition: ComponentDefinition<Input, Output> = {
+  id: 'shipsec.api.call',
+  // ... other fields ...
+  
+  retryPolicy: {
+    maxAttempts: 5,              // Max retries (0 = unlimited, 1 = no retry)
+    initialIntervalSeconds: 2,   // Initial delay
+    maximumIntervalSeconds: 120, // Max delay
+    backoffCoefficient: 2.0,     // Exponential backoff
+    nonRetryableErrorTypes: [    // Errors that should NOT retry
+      'AuthenticationError',
+      'ValidationError',
+    ],
+  },
+};
+```
+
+**Default policy:** 3 attempts, 1s initial, 60s max, 2x backoff.
+
+---
+
+## Error Handling
+
+Use SDK error types for proper retry behavior:
+
+```typescript
+import { 
+  NetworkError,        // Retryable - network issues
+  RateLimitError,      // Retryable - with delay
+  ServiceError,        // Retryable - 5xx errors
+  AuthenticationError, // Non-retryable - bad credentials
+  ValidationError,     // Non-retryable - bad input
+  NotFoundError,       // Non-retryable - resource missing
+  fromHttpResponse,    // Convert HTTP response to error
+  wrapError,           // Wrap unknown errors
+} from '@shipsec/component-sdk';
+
+async execute(input, context) {
+  try {
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw fromHttpResponse(response, await response.text());
+    }
+    
+    return await response.json();
+  } catch (error) {
+    throw wrapError(error, 'Failed to call API');
+  }
+}
 ```
 
 ---
@@ -57,38 +326,23 @@ All Docker-based components MUST use a shell wrapper for PTY compatibility:
 
 ```typescript
 // ✅ CORRECT - Shell wrapper pattern
-const definition: ComponentDefinition<Input, Output> = {
-  id: 'shipsec.tool.scan',
-  runner: {
-    kind: 'docker',
-    image: 'tool:latest',
-    entrypoint: 'sh',                      // Shell wrapper
-    command: ['-c', 'tool "$@"', '--'],    // Wraps CLI execution
-    network: 'bridge',
-  },
-  async execute(input, context) {
-    const args = ['-json', '-output', '/data/results.json'];
-
-    const config: DockerRunnerConfig = {
-      ...this.runner,
-      command: [...(this.runner.command ?? []), ...args],
-    };
-
-    return runComponentWithRunner(config, input, context);
-  }
-};
+runner: {
+  kind: 'docker',
+  image: 'tool:latest',
+  entrypoint: 'sh',                      // Shell wrapper
+  command: ['-c', 'tool "$@"', '--'],    // Wraps CLI execution
+  network: 'bridge',
+}
 ```
 
 ```typescript
 // ❌ WRONG - Direct binary execution
-const definition: ComponentDefinition<Input, Output> = {
-  runner: {
-    kind: 'docker',
-    image: 'tool:latest',
-    entrypoint: 'tool',                    // No shell wrapper - will hang
-    command: ['-read-stdin', '-output'],
-  }
-};
+runner: {
+  kind: 'docker',
+  image: 'tool:latest',
+  entrypoint: 'tool',                    // No shell wrapper - will hang
+  command: ['-read-stdin', '-output'],
+}
 ```
 
 ### Why Shell Wrappers?
@@ -112,7 +366,7 @@ Does your Docker image have a shell (/bin/sh)?
    │         entrypoint: 'tool', command: ['-stream', ...]
    │
    └─ NO → Rely on SDK stdin handling
-             Note: May have buffering issues
+            Note: May have buffering issues
 ```
 
 ---
@@ -123,113 +377,40 @@ Does your Docker image have a shell (/bin/sh)?
   All components that require file-based input/output MUST use the `IsolatedContainerVolume` utility for Docker-in-Docker compatibility and multi-tenant security.
 </Warning>
 
-### Standard File Access Pattern
+For detailed patterns and security guarantees, see [Isolated Volumes](/development/isolated-volumes).
+
+### Quick Example
 
 ```typescript
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
-import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 
-async execute(input: Input, context: ExecutionContext): Promise<Output> {
-  // 1. Get tenant ID
+async execute(input, context) {
   const tenantId = (context as any).tenantId ?? 'default-tenant';
-
-  // 2. Create volume
   const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
   try {
-    // 3. Prepare files
-    const files: Record<string, string | Buffer> = {
+    await volume.initialize({
       'targets.txt': input.targets.join('\n')
-    };
+    });
 
-    // 4. Initialize volume
-    await volume.initialize(files);
-    context.logger.info(`Created volume: ${volume.getVolumeName()}`);
-
-    // 5. Build command args
-    const args = buildCommandArgs(input);
-
-    // 6. Configure runner
     const runnerConfig: DockerRunnerConfig = {
-      kind: 'docker',
-      image: 'tool:latest',
-      command: args,
-      network: 'bridge',
-      volumes: [
-        volume.getVolumeConfig('/inputs', true)  // read-only
-      ]
+      ...this.runner,
+      command: [...(this.runner.command ?? []), '-l', '/inputs/targets.txt'],
+      volumes: [volume.getVolumeConfig('/inputs', true)]  // read-only
     };
 
-    // 7. Execute
-    const rawOutput = await runComponentWithRunner(
-      runnerConfig,
-      async () => ({} as Output),
-      input,
-      context
-    );
-
-    // 8. Parse and return
-    return parseOutput(rawOutput);
-
+    return await runComponentWithRunner(runnerConfig, parseOutput, input, context);
   } finally {
-    // 9. ALWAYS cleanup
-    await volume.cleanup();
-    context.logger.info('Cleaned up volume');
+    await volume.cleanup();  // ALWAYS cleanup
   }
-}
-```
-
-### Input + Output Files
-
-```typescript
-const volume = new IsolatedContainerVolume(tenantId, context.runId);
-
-try {
-  // Write inputs
-  await volume.initialize({ 'config.json': JSON.stringify(cfg) });
-
-  // Tool writes to same volume
-  const config = {
-    command: [
-      '--config', '/data/config.json',
-      '--output', '/data/results.json'
-    ],
-    volumes: [volume.getVolumeConfig('/data', false)] // read-write
-  };
-
-  await runComponentWithRunner(config, ...);
-
-  // Read outputs
-  const outputs = await volume.readFiles(['results.json', 'errors.log']);
-  return JSON.parse(outputs['results.json']);
-} finally {
-  await volume.cleanup();
 }
 ```
 
 ---
 
-## Output Buffering Solutions
-
-Even with PTY enabled, some CLI tools buffer their output. Use the shell wrapper pattern for PTY compatibility:
-
-```typescript
-runner: {
-  kind: 'docker',
-  image: 'projectdiscovery/nuclei:latest',
-  // Use shell wrapper for PTY compatibility
-  // Running CLI tools directly as entrypoint can cause them to hang with PTY
-  // The shell wrapper ensures proper TTY signal handling and clean exit
-  entrypoint: 'sh',
-  // Shell wrapper pattern: sh -c 'nuclei "$@"' -- [args...]
-  // This allows dynamic args to be appended and properly passed to the tool
-  command: ['-c', 'nuclei "$@"', '--'],
-}
-```
-
 ## UI-Only Components
 
-Components that are purely for UI purposes (documentation, notes) should be marked:
+Components that are purely for UI purposes (documentation, notes):
 
 ```typescript
 const definition: ComponentDefinition<Input, void> = {
@@ -250,41 +431,54 @@ const definition: ComponentDefinition<Input, void> = {
 
 ---
 
-## Security Requirements
+## Testing
 
-### Tenant Isolation
+### Unit Tests
 
-Every execution gets a unique volume:
-```
-tenant-{tenantId}-run-{runId}-{timestamp}
-```
-
-### Automatic Cleanup
+Located alongside component: `worker/src/components/<category>/__tests__/<component>.test.ts`
 
 ```typescript
-try {
-  await volume.initialize(...);
-  // ... use volume ...
-} finally {
-  await volume.cleanup();  // MUST be in finally
-}
+import { describe, it, expect, vi } from 'bun:test';
+import * as sdk from '@shipsec/component-sdk';
+import { componentRegistry } from '../../index';
+
+describe('my-component', () => {
+  it('should process input correctly', async () => {
+    const component = componentRegistry.get('my.component.id');
+    
+    const context = sdk.createExecutionContext({
+      runId: 'test-run',
+      componentRef: 'test-node',
+    });
+    
+    // Mock the runner for Docker components
+    vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('mock output');
+    
+    const result = await component!.execute({ target: 'example.com' }, context);
+    
+    expect(result.success).toBe(true);
+  });
+});
 ```
 
-### Read-Only Mounts
+**Run:** `bun --cwd worker test`
+
+### Integration Tests (Docker)
+
+Same folder with `-integration.test.ts`. Uses real Docker containers.
 
 ```typescript
-// Input files should be read-only
-volume.getVolumeConfig('/inputs', true)  // ✅ read-only
+const enableDocker = process.env.ENABLE_DOCKER_TESTS === 'true';
+const dockerDescribe = enableDocker ? describe : describe.skip;
 
-// Only make writable if tool needs to write
-volume.getVolumeConfig('/outputs', false)  // ⚠️ read-write
+dockerDescribe('Component Integration', () => {
+  // Tests that run real Docker containers
+});
 ```
 
----
+**Run:** `ENABLE_DOCKER_TESTS=true bun --cwd worker test`
 
-## Testing Checklist
-
-### Before Deployment
+### Testing Checklist
 
 - [ ] Used `entrypoint: 'sh'` with `command: ['-c', 'tool "$@"', '--']`
 - [ ] Tested with `docker run --rm -t` (PTY mode)
@@ -292,16 +486,6 @@ volume.getVolumeConfig('/outputs', false)  // ⚠️ read-write
 - [ ] No stdin-dependent operations
 - [ ] Tool arguments appended after `'--'` in command array
 - [ ] Workflow run completes successfully
-
-### Volume Testing
-
-```bash
-# Before execution
-docker volume ls --filter "label=studio.managed=true"
-
-# After execution (should be same or empty)
-docker volume ls --filter "label=studio.managed=true"
-```
 
 ### PTY Testing
 
@@ -313,7 +497,108 @@ docker run --rm -t your-image:latest sh -c 'tool "$@"' -- -flag value
 timeout 5 docker run --rm -t your-image:latest sh -c 'tool "$@"' -- --help
 ```
 
----
+### E2E Tests (Full Stack)
+
+E2E tests validate your component works with the entire platform: Backend API, Worker, Temporal, and infrastructure.
+
+Located in `e2e-tests/`. These tests create real workflows via the API and execute them.
+
+**Prerequisites:**
+```bash
+# Start full local environment
+just dev
+
+# Verify services are running
+curl http://localhost:3211/api/v1/health -H "x-internal-token: local-internal-token"
+```
+
+**Run E2E tests:**
+```bash
+RUN_E2E=true bun --cwd e2e-tests test
+```
+
+**Example E2E test pattern:**
+
+```typescript
+import { describe, test, expect } from 'bun:test';
+
+const API_BASE = 'http://localhost:3211/api/v1';
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'x-internal-token': 'local-internal-token',
+};
+
+// Only run when RUN_E2E=true and services are available
+const runE2E = process.env.RUN_E2E === 'true';
+const e2eDescribe = runE2E ? describe : describe.skip;
+
+// Helper to poll workflow status until completion
+async function pollRunStatus(runId: string, timeoutMs = 180000) {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    const res = await fetch(`${API_BASE}/workflows/runs/${runId}/status`, { headers: HEADERS });
+    const status = await res.json();
+    if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(status.status)) {
+      return status;
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  throw new Error(`Timeout waiting for workflow ${runId}`);
+}
+
+e2eDescribe('My Component E2E', () => {
+  test('should execute in a real workflow', async () => {
+    // 1. Create workflow with your component
+    const workflow = {
+      name: 'Test: My Component',
+      nodes: [
+        {
+          id: 'start',
+          type: 'core.workflow.entrypoint',
+          position: { x: 0, y: 0 },
+          data: { label: 'Start', config: { runtimeInputs: [] } },
+        },
+        {
+          id: 'my-node',
+          type: 'my.component.id',  // Your component ID
+          position: { x: 200, y: 0 },
+          data: {
+            label: 'My Component',
+            config: { target: 'example.com' },
+          },
+        },
+      ],
+      edges: [{ id: 'e1', source: 'start', target: 'my-node' }],
+    };
+
+    // 2. Create workflow via API
+    const createRes = await fetch(`${API_BASE}/workflows`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(workflow),
+    });
+    const { id: workflowId } = await createRes.json();
+
+    // 3. Execute workflow
+    const runRes = await fetch(`${API_BASE}/workflows/${workflowId}/run`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ inputs: {} }),
+    });
+    const { runId } = await runRes.json();
+
+    // 4. Poll until completion
+    const result = await pollRunStatus(runId);
+    
+    // 5. Assert results
+    expect(result.status).toBe('COMPLETED');
+  }, 180000);  // 3 minute timeout for workflow execution
+});
+```
+
+<Note>
+  E2E tests are **not** run in CI yet. They require the full local environment (`just dev`) and are intended for manual validation during development.
+</Note>
 
 ## Complete Example
 
@@ -323,7 +608,8 @@ import {
   componentRegistry, 
   ComponentDefinition,
   DockerRunnerConfig,
-  runComponentWithRunner 
+  runComponentWithRunner,
+  port,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -357,32 +643,44 @@ const definition: ComponentDefinition<Input, Output> = {
   inputSchema,
   outputSchema,
   
+  metadata: {
+    slug: 'dnsx',
+    version: '1.0.0',
+    type: 'scan',
+    category: 'security',
+    description: 'DNS resolution and enumeration',
+    inputs: [
+      { id: 'domains', label: 'Domains', dataType: port.list(port.text()), required: true },
+    ],
+    outputs: [
+      { id: 'results', label: 'Results', dataType: port.json() },
+    ],
+  },
+  
   async execute(input, context) {
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
     try {
-      // Prepare input files
+      context.emitProgress('Preparing input files...');
       await volume.initialize({
         'domains.txt': input.domains.join('\n')
       });
 
-      // Build command args
       const args = [
         '-l', '/inputs/domains.txt',
         '-json',
         '-t', String(input.threads),
-        '-stream',  // Prevent output buffering
+        '-stream',
       ];
 
-      // Configure runner
       const runnerConfig: DockerRunnerConfig = {
         ...this.runner,
         command: [...(this.runner.command ?? []), ...args],
         volumes: [volume.getVolumeConfig('/inputs', true)],
       };
 
-      // Execute
+      context.emitProgress('Running DNSX...');
       const rawOutput = await runComponentWithRunner(
         runnerConfig,
         async (stdout) => {
@@ -400,6 +698,7 @@ const definition: ComponentDefinition<Input, Output> = {
         context
       );
 
+      context.logger.info(`Found ${rawOutput.results.length} results`);
       return rawOutput;
 
     } finally {
@@ -416,7 +715,7 @@ export default definition;
 
 ## Questions?
 
-- Component development: Check this guide
 - File access patterns: See [Isolated Volumes](/development/isolated-volumes)
-- Security questions: Email support@shipsec.ai
+- SDK source: `packages/component-sdk/src/`
+- Example components: `worker/src/components/security/`
 - Bug reports: GitHub Issues
