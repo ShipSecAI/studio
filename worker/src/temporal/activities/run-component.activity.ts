@@ -159,7 +159,7 @@ export async function runComponentActivity(
   });
 
   // Record node I/O start
-  globalNodeIO?.recordStart({
+  await globalNodeIO?.recordStart({
     runId: input.runId,
     nodeRef: action.ref,
     workflowId: input.workflowId,
@@ -242,9 +242,10 @@ export async function runComponentActivity(
       }
 
       // Record node I/O completion
-      globalNodeIO?.recordCompletion({
+      await globalNodeIO?.recordCompletion({
         runId: input.runId,
         nodeRef: action.ref,
+        componentId: action.componentId,
         outputs: maskSecretOutputs(component, output) as Record<string, unknown>,
         status: 'completed',
       });
@@ -318,9 +319,10 @@ export async function runComponentActivity(
     });
 
     // Record node I/O failure
-    globalNodeIO?.recordCompletion({
+    await globalNodeIO?.recordCompletion({
       runId: input.runId,
       nodeRef: action.ref,
+      componentId: action.componentId,
       outputs: {},
       status: 'failed',
       errorMessage: errorMsg,

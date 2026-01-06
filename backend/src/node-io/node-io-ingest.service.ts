@@ -127,6 +127,7 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
       await this.nodeIORepository.recordCompletion({
         runId: event.runId,
         nodeRef: event.nodeRef,
+        componentId: event.componentId,
         outputs: event.outputs || {},
         status: event.status || 'completed',
         errorMessage: event.errorMessage,

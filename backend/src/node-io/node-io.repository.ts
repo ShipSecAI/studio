@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { nodeIOTable, type NodeIORecord, type NodeIOInsert } from '../database/schema';
@@ -74,6 +74,12 @@ export class NodeIORepository {
       target: [nodeIOTable.runId, nodeIOTable.nodeRef],
       set: {
         ...insert,
+        // Only update status to 'running' if it's not already in a terminal state
+        status: sql`CASE 
+          WHEN ${nodeIOTable.status} IN ('completed', 'failed', 'skipped') 
+          THEN ${nodeIOTable.status} 
+          ELSE ${insert.status} 
+        END`,
         updatedAt: new Date(),
       }
     });
@@ -85,6 +91,7 @@ export class NodeIORepository {
   async recordCompletion(data: {
     runId: string;
     nodeRef: string;
+    componentId?: string;
     outputs: Record<string, unknown>;
     status: 'completed' | 'failed' | 'skipped';
     errorMessage?: string;
@@ -103,33 +110,42 @@ export class NodeIORepository {
 
     const completedAt = new Date();
 
-    // Get the existing record to calculate duration
+    // Get existing record to calculate duration BEFORE upserting
     const existing = await this.findByRunAndNode(data.runId, data.nodeRef);
     const durationMs = existing?.startedAt
       ? completedAt.getTime() - new Date(existing.startedAt).getTime()
       : null;
 
-    await this.db
-      .update(nodeIOTable)
-      .set({
-        outputs: outputsSpilled 
-          ? createSpilledMarker(outputsStorageRef ?? 'unknown', outputsSize) 
-          : data.outputs,
-        outputsSize,
-        outputsSpilled,
-        outputsStorageRef,
-        completedAt,
-        durationMs,
-        status: data.status,
-        errorMessage: data.errorMessage ?? null,
+    const insert: NodeIOInsert = {
+      runId: data.runId,
+      nodeRef: data.nodeRef,
+      componentId: data.componentId || existing?.componentId || 'unknown',
+      outputs: outputsSpilled 
+        ? createSpilledMarker(outputsStorageRef ?? 'unknown', outputsSize) 
+        : data.outputs,
+      outputsSize,
+      outputsSpilled,
+      outputsStorageRef,
+      completedAt,
+      durationMs,
+      status: data.status,
+      errorMessage: data.errorMessage ?? null,
+    };
+
+    await this.db.insert(nodeIOTable).values(insert).onConflictDoUpdate({
+      target: [nodeIOTable.runId, nodeIOTable.nodeRef],
+      set: {
+        outputs: insert.outputs,
+        outputsSize: insert.outputsSize,
+        outputsSpilled: insert.outputsSpilled,
+        outputsStorageRef: insert.outputsStorageRef,
+        completedAt: insert.completedAt,
+        durationMs: insert.durationMs,
+        status: insert.status,
+        errorMessage: insert.errorMessage,
         updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(nodeIOTable.runId, data.runId),
-          eq(nodeIOTable.nodeRef, data.nodeRef),
-        ),
-      );
+      }
+    });
   }
 
   /**

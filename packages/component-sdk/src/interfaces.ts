@@ -181,12 +181,12 @@ export interface INodeIOService {
   /**
    * Record the start of a node execution (captures inputs)
    */
-  recordStart(data: NodeIOStartEvent): void;
+  recordStart(data: NodeIOStartEvent): Promise<void>;
 
   /**
    * Record the completion of a node execution (captures outputs)
    */
-  recordCompletion(data: NodeIOCompletionEvent): void;
+  recordCompletion(data: NodeIOCompletionEvent): Promise<void>;
 }
 
 export interface NodeIOStartEvent {
@@ -201,6 +201,7 @@ export interface NodeIOStartEvent {
 export interface NodeIOCompletionEvent {
   runId: string;
   nodeRef: string;
+  componentId?: string;
   outputs: Record<string, unknown>;
   status: 'completed' | 'failed' | 'skipped';
   errorMessage?: string;

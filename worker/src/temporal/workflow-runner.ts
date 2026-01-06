@@ -205,7 +205,7 @@ export async function executeWorkflow(
       }
 
       // Record node I/O start
-      options.nodeIO?.recordStart({
+      await options.nodeIO?.recordStart({
         runId,
         nodeRef: action.ref,
         workflowId: options.workflowId,
@@ -255,9 +255,10 @@ export async function executeWorkflow(
         results.set(action.ref, output);
         console.log(`💾 [WORKFLOW RUNNER] Result stored for: ${actionRef}`);
         // Record node I/O completion
-        options.nodeIO?.recordCompletion({
+        await options.nodeIO?.recordCompletion({
           runId,
           nodeRef: action.ref,
+          componentId: action.componentId,
           outputs: maskSecretOutputs(component, output) as Record<string, unknown>,
           status: 'completed',
         });
@@ -337,9 +338,10 @@ export async function executeWorkflow(
           },
         });
         // Record node I/O failure
-        options.nodeIO?.recordCompletion({
+        await options.nodeIO?.recordCompletion({
           runId,
           nodeRef: action.ref,
+          componentId: action.componentId,
           outputs: {}, // No successful output
           status: 'failed',
           errorMessage: errorMsg,

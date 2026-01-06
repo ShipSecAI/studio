@@ -72,7 +72,7 @@ export class KafkaNodeIOAdapter implements INodeIOService {
     });
   }
 
-  recordStart(data: NodeIOStartEvent): void {
+  async recordStart(data: NodeIOStartEvent): Promise<void> {
     const payload: SerializedNodeIOEvent = {
       type: 'NODE_IO_START',
       runId: data.runId,
@@ -84,21 +84,22 @@ export class KafkaNodeIOAdapter implements INodeIOService {
       timestamp: new Date().toISOString(),
     };
 
-    void this.processAndSend(payload);
+    return this.processAndSend(payload);
   }
 
-  recordCompletion(data: NodeIOCompletionEvent): void {
+  async recordCompletion(data: NodeIOCompletionEvent): Promise<void> {
     const payload: SerializedNodeIOEvent = {
       type: 'NODE_IO_COMPLETION',
       runId: data.runId,
       nodeRef: data.nodeRef,
+      componentId: data.componentId,
       outputs: data.outputs,
       status: data.status,
       errorMessage: data.errorMessage,
       timestamp: new Date().toISOString(),
     };
 
-    void this.processAndSend(payload);
+    return this.processAndSend(payload);
   }
 
   private async processAndSend(payload: SerializedNodeIOEvent): Promise<void> {
@@ -182,21 +183,21 @@ export class KafkaNodeIOAdapter implements INodeIOService {
           outputs: payload.outputsSpilled ? payload.outputs : { _truncated: true, _originalSize: messageSize },
         };
 
-        await this.sendRaw(JSON.stringify(truncated));
+        await this.sendRaw(payload.runId, JSON.stringify(truncated));
         return;
       }
 
-      await this.sendRaw(message);
+      await this.sendRaw(payload.runId, message);
     } catch (error) {
       this.logger.error('[KafkaNodeIOAdapter] Failed to process or send node I/O event', error);
     }
   }
 
-  private async sendRaw(message: string): Promise<void> {
+  private async sendRaw(key: string, message: string): Promise<void> {
     await this.connectPromise;
     await this.producer.send({
       topic: this.config.topic,
-      messages: [{ value: message }],
+      messages: [{ key, value: message }],
     });
   }
 }
