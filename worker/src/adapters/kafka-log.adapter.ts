@@ -1,5 +1,5 @@
 import { Kafka, logLevel as KafkaLogLevel, type Producer } from 'kafkajs';
-import { ConfigurationError } from '@shipsec/component-sdk';
+import { ConfigurationError, LOG_CHUNK_SIZE_CHARS } from '@shipsec/component-sdk';
 
 import type { WorkflowLogEntry, WorkflowLogSink } from '../temporal/types';
 
@@ -48,19 +48,17 @@ export class KafkaLogAdapter implements WorkflowLogSink {
     }
 
     // Chunk message if it's too large to prevent Kafka/Loki size limit errors.
-    // Loki limit is 256KB. We'll chunk at 100k characters for safety.
-    const CHUNK_SIZE = 100000;
     const messages: string[] = [];
     
-    if (entry.message.length <= CHUNK_SIZE) {
+    if (entry.message.length <= LOG_CHUNK_SIZE_CHARS) {
       messages.push(entry.message);
     } else {
       const totalChars = entry.message.length;
-      const totalChunks = Math.ceil(totalChars / CHUNK_SIZE);
+      const totalChunks = Math.ceil(totalChars / LOG_CHUNK_SIZE_CHARS);
       
       for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const chunk = entry.message.substring(start, start + CHUNK_SIZE);
+        const start = i * LOG_CHUNK_SIZE_CHARS;
+        const chunk = entry.message.substring(start, start + LOG_CHUNK_SIZE_CHARS);
         const indicator = ` [Chunk ${i + 1}/${totalChunks}]`;
         messages.push(chunk + indicator);
       }

@@ -89,9 +89,14 @@ export class NodeIOService {
     let inputs = record.inputs ?? null;
     let outputs = record.outputs ?? null;
 
-    // Helper to detect if a payload is actually a spill marker
-    const isSpillMarker = (data: any): boolean => {
-      return data && typeof data === 'object' && data['__shipsec_spilled__'] === true && typeof data['storageRef'] === 'string';
+    // Helper to detect if a payload is a spill marker (handles both new and legacy formats)
+    const isSpillMarker = (data: unknown): data is { storageRef: string; originalSize?: number } => {
+      if (!data || typeof data !== 'object') return false;
+      const d = data as Record<string, unknown>;
+      // New format: __spilled__ === true
+      // Legacy format: __shipsec_spilled__ === true
+      const hasSpillFlag = d['__spilled__'] === true || d['__shipsec_spilled__'] === true;
+      return hasSpillFlag && typeof d['storageRef'] === 'string';
     };
 
     let inputsSpilled = record.inputsSpilled;
@@ -100,8 +105,8 @@ export class NodeIOService {
 
     if (!inputsSpilled && isSpillMarker(inputs)) {
       inputsSpilled = true;
-      inputsStorageRef = (inputs as any).storageRef;
-      inputsSize = (inputs as any).originalSize ?? 0;
+      inputsStorageRef = inputs.storageRef;
+      inputsSize = inputs.originalSize ?? 0;
     }
 
     let outputsSpilled = record.outputsSpilled;
@@ -110,8 +115,8 @@ export class NodeIOService {
 
     if (!outputsSpilled && isSpillMarker(outputs)) {
       outputsSpilled = true;
-      outputsStorageRef = (outputs as any).storageRef;
-      outputsSize = (outputs as any).originalSize ?? 0;
+      outputsStorageRef = outputs.storageRef;
+      outputsSize = outputs.originalSize ?? 0;
     }
 
     if (inputsSpilled && inputsStorageRef) {

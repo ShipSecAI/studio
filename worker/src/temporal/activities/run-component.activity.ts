@@ -8,6 +8,7 @@ import {
   runComponentWithRunner,
   NotFoundError,
   ValidationError,
+  TEMPORAL_SPILL_THRESHOLD_BYTES,
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
@@ -77,36 +78,19 @@ export async function runComponentActivity(
 ): Promise<RunComponentActivityOutput> {
   const { action, params, warnings = [] } = input;
   const activityInfo = Context.current().info;
-  console.log(`🎯 ACTIVITY CALLED - runComponentActivity:`, {
-    activityId: activityInfo.activityId,
-    attempt: activityInfo.attempt,
-    workflowId: activityInfo.workflowExecution?.workflowId ?? 'unknown',
-    runId: activityInfo.workflowExecution?.runId ?? 'unknown',
-    componentId: action.componentId,
-    ref: action.ref,
-    timestamp: new Date().toISOString()
-  });
-  console.log(`[Activity] Action params:`, params);
-
-  console.log(`📋 Activity input details:`, {
-    componentId: action.componentId,
-    ref: action.ref,
-    hasParams: !!params,
-    paramKeys: params ? Object.keys(params) : [],
-    warningsCount: warnings.length
-  });
+  
+  // Minimal structured logging (avoid dumping params which may be large)
+  console.log(`[Activity] ${action.componentId}:${action.ref} attempt=${activityInfo.attempt}`);
 
   const component = componentRegistry.get(action.componentId);
   if (!component) {
-    console.error(`❌ Component not found: ${action.componentId}`);
+    console.error(`[Activity] Component not found: ${action.componentId}`);
     throw new NotFoundError(`Component not registered: ${action.componentId}`, {
       resourceType: 'component',
       resourceId: action.componentId,
       details: { actionRef: action.ref },
     });
   }
-
-  console.log(`✅ Component found: ${action.componentId}`);
 
   const nodeMetadata = input.metadata ?? {};
   const streamId = nodeMetadata.streamId ?? nodeMetadata.groupId ?? action.ref;
@@ -233,10 +217,8 @@ export async function runComponentActivity(
         try {
           const outputStr = JSON.stringify(output);
           const size = Buffer.byteLength(outputStr, 'utf8');
-          const SPILL_THRESHOLD = 2 * 1024 * 1024; // 2MB
 
-          if (size > SPILL_THRESHOLD && globalStorage) {
-            console.log(`📦 [ACTIVITY] Output size ${size} bytes exceeds threshold. Spilling to storage...`);
+          if (size > TEMPORAL_SPILL_THRESHOLD_BYTES && globalStorage) {
             const fileId = crypto.randomUUID();
             
             await globalStorage.uploadFile(
@@ -246,18 +228,15 @@ export async function runComponentActivity(
               'application/json'
             );
             
-            console.log(`📦 [ACTIVITY] Spilled output to ${fileId}`);
-            
-            // Replace output with spilled marker
+            // Replace output with standardized spilled marker
             output = {
-              __shipsec_spilled__: true,
+              __spilled__: true,
               storageRef: fileId,
               originalSize: size,
-              _type: 'spilled_output'
             };
           }
         } catch (err) {
-          console.warn('⚠️ [ACTIVITY] Failed to check/spill output size', err);
+          console.warn('[Activity] Failed to check/spill output size', err);
           // Continue with original output - if it fails in Temporal, it fails.
         }
       }
@@ -270,7 +249,7 @@ export async function runComponentActivity(
         status: 'completed',
       });
 
-      console.log(`✅ [ACTIVITY COMPLETE] runComponentActivity finished for ${action.ref}`);
+      // Clean up Node I/O recording - output has been recorded
       
       context.trace?.record({
         type: 'NODE_COMPLETED',
@@ -284,7 +263,7 @@ export async function runComponentActivity(
     return { output, activeOutputPorts };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`❌ [ACTIVITY FAIL] runComponentActivity failed for ${action.ref}:`, errorMsg);
+    console.error(`[Activity] Failed ${action.ref}: ${errorMsg}`);
     
     // Extract error properties without using 'any'
     let errorType: string | undefined;

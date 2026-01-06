@@ -1,6 +1,12 @@
 import { Kafka, logLevel as KafkaLogLevel, type Producer } from 'kafkajs';
 import type { INodeIOService, NodeIOStartEvent, NodeIOCompletionEvent, IFileStorageService } from '@shipsec/component-sdk';
-import { ConfigurationError } from '@shipsec/component-sdk';
+import { 
+  ConfigurationError, 
+  KAFKA_SPILL_THRESHOLD_BYTES, 
+  MAX_KAFKA_MESSAGE_BYTES,
+  createSpilledMarker,
+  isSpilledDataMarker,
+} from '@shipsec/component-sdk';
 import { randomUUID } from 'node:crypto';
 
 interface KafkaNodeIOAdapterConfig {
@@ -29,11 +35,6 @@ type SerializedNodeIOEvent = {
   errorMessage?: string;
   timestamp: string;
 };
-
-// Size threshold for spilling to object storage (100KB)
-const SPILL_THRESHOLD_BYTES = 100 * 1024;
-// Maximum Kafka message size (900KB)
-const MAX_KAFKA_MESSAGE_BYTES = 900 * 1024;
 
 /**
  * Kafka adapter for publishing node I/O events.
@@ -108,7 +109,7 @@ export class KafkaNodeIOAdapter implements INodeIOService {
         const size = Buffer.byteLength(inputsStr, 'utf8');
         payload.inputsSize = size;
         
-        if (size > SPILL_THRESHOLD_BYTES && this.storage) {
+        if (size > KAFKA_SPILL_THRESHOLD_BYTES && this.storage) {
           const fileId = randomUUID();
           
           await this.storage.uploadFile(
@@ -120,34 +121,35 @@ export class KafkaNodeIOAdapter implements INodeIOService {
           
           payload.inputsSpilled = true;
           payload.inputsStorageRef = fileId;
-          // Replace large inputs with marker for Kafka
-          payload.inputs = { _spilled: true, size };
+          // Replace large inputs with standardized spill marker
+          payload.inputs = createSpilledMarker(fileId, size);
         }
       }
 
       if (payload.outputs) {
-        // Detect if already spilled by activity
-        const isPreSpilled = 
+        // Detect if already spilled by activity (uses legacy marker format for backward compat)
+        const isPreSpilled = isSpilledDataMarker(payload.outputs) || (
           payload.outputs.__shipsec_spilled__ === true && 
-          typeof payload.outputs.storageRef === 'string' &&
-          payload.outputs._type === 'spilled_output';
+          typeof payload.outputs.storageRef === 'string'
+        );
 
         if (isPreSpilled) {
+          const spilledOutput = payload.outputs as Record<string, unknown>;
           payload.outputsSpilled = true;
-          payload.outputsStorageRef = payload.outputs.storageRef as string;
-          payload.outputsSize = (payload.outputs.originalSize as number) || 0;
+          payload.outputsStorageRef = (spilledOutput.storageRef ?? spilledOutput.__storageRef__) as string;
+          payload.outputsSize = (spilledOutput.originalSize as number) || 0;
           
-          // Replace markers with standard backend-friendly marker
-          payload.outputs = { 
-             _spilled: true, 
-             size: payload.outputsSize 
-          };
+          // Replace with standardized spill marker
+          payload.outputs = createSpilledMarker(
+            payload.outputsStorageRef!, 
+            payload.outputsSize
+          );
         } else {
           const outputsStr = JSON.stringify(payload.outputs);
           const size = Buffer.byteLength(outputsStr, 'utf8');
           payload.outputsSize = size;
           
-          if (size > SPILL_THRESHOLD_BYTES && this.storage) {
+          if (size > KAFKA_SPILL_THRESHOLD_BYTES && this.storage) {
             const fileId = randomUUID();
             
             await this.storage.uploadFile(
@@ -159,8 +161,8 @@ export class KafkaNodeIOAdapter implements INodeIOService {
             
             payload.outputsSpilled = true;
             payload.outputsStorageRef = fileId;
-            // Replace large outputs with marker for Kafka
-            payload.outputs = { _spilled: true, size };
+            // Replace large outputs with standardized spill marker
+            payload.outputs = createSpilledMarker(fileId, size);
           }
         }
       }
