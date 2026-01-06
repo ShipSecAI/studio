@@ -7,9 +7,11 @@ import {
   ConfigurationError,
   port,
   runComponentWithRunner,
+  resolveDockerPath,
   ServiceError,
   ValidationError,
 } from '@shipsec/component-sdk';
+
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 import { awsCredentialSchema, awsCredentialContractName } from '../core/credentials/aws-contract';
@@ -199,8 +201,9 @@ async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[
   const volumeName = volume.getVolumeName();
   if (!volumeName) return [];
 
+  const dockerPath = await resolveDockerPath();
   return new Promise((resolve, reject) => {
-    const proc = spawn('docker', [
+    const proc = spawn(dockerPath, [
       'run',
       '--rm',
       '-v',
@@ -211,6 +214,7 @@ async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[
       '-c',
       'ls -1 /data',
     ]);
+
 
     let stdout = '';
     let stderr = '';
@@ -251,8 +255,9 @@ async function setVolumeOwnership(volume: IsolatedContainerVolume, uid = 1000, g
   const volumeName = volume.getVolumeName();
   if (!volumeName) return;
 
+  const dockerPath = await resolveDockerPath();
   return new Promise((resolve, reject) => {
-    const proc = spawn('docker', [
+    const proc = spawn(dockerPath, [
       'run',
       '--rm',
       '-v',
@@ -263,6 +268,7 @@ async function setVolumeOwnership(volume: IsolatedContainerVolume, uid = 1000, g
       '-c',
       `chown -R ${uid}:${gid} /data && chmod -R 755 /data`,
     ]);
+
 
     let stderr = '';
 

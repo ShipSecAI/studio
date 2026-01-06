@@ -24,13 +24,26 @@ export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): 
 
   if (typeof sourceOutput === 'object') {
     const record = sourceOutput as Record<string, unknown>;
+    
+    // If it's a spilled marker, we return the marker itself along with the sourceHandle
+    // The activity will then be responsible for fetching the full data 
+    // and extracting the specific handle.
+    if (record['__spilled__'] === true && typeof record['storageRef'] === 'string') {
+      return {
+        ...record,
+        __spilled_handle__: sourceHandle,
+      };
+    }
+
     if (Object.prototype.hasOwnProperty.call(record, sourceHandle)) {
       return record[sourceHandle];
     }
   }
 
+
   return undefined;
 }
+
 
 type ComponentInputMetadata = {
   id: string;

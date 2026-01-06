@@ -9,12 +9,14 @@ import {
   NotFoundError,
   ValidationError,
   TEMPORAL_SPILL_THRESHOLD_BYTES,
+  isSpilledDataMarker,
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
   type INodeIOService,
   type AgentTracePublisher,
 } from '@shipsec/component-sdk';
+
 import { maskSecretOutputs, createLightweightSummary } from '../utils/component-output';
 import { RedisTerminalStreamAdapter } from '../../adapters';
 import type {
@@ -174,7 +176,57 @@ export async function runComponentActivity(
     level: 'info',
   });
 
-  for (const warning of warnings) {
+  const warningsToReport = [...warnings];
+
+  // Resolve spilled inputs if necessary
+  const resolvedParams = { ...params };
+  const spilledObjectsCache = new Map<string, any>();
+
+  for (const [key, value] of Object.entries(resolvedParams)) {
+    if (isSpilledDataMarker(value)) {
+      if (!globalStorage) {
+        console.warn(`[Activity] Parameter '${key}' is spilled but no storage service is available`);
+        continue;
+      }
+
+      try {
+        let fullData: any;
+        if (spilledObjectsCache.has(value.storageRef)) {
+          fullData = spilledObjectsCache.get(value.storageRef);
+        } else {
+          const content = await globalStorage.downloadFile(value.storageRef);
+          fullData = JSON.parse(content.buffer.toString('utf8'));
+          spilledObjectsCache.set(value.storageRef, fullData);
+        }
+
+
+        const handle = (value as any).__spilled_handle__;
+        if (handle && handle !== '__self__') {
+          if (fullData && typeof fullData === 'object' && Object.prototype.hasOwnProperty.call(fullData, handle)) {
+            resolvedParams[key] = fullData[handle];
+          } else {
+            console.warn(`[Activity] Spilled handle '${handle}' not found in downloaded data for parameter '${key}'`);
+            resolvedParams[key] = undefined;
+            warningsToReport.push({
+              target: key,
+              sourceRef: 'spilled-storage', // Minimal info since we don't have full mapping here
+              sourceHandle: handle,
+            });
+          }
+        } else {
+          resolvedParams[key] = fullData;
+        }
+      } catch (err) {
+        console.error(`[Activity] Failed to resolve spilled parameter '${key}':`, err);
+        throw ApplicationFailure.retryable(
+          `Failed to resolve spilled input parameter '${key}': ${err instanceof Error ? err.message : String(err)}`,
+          'SpillResolutionError'
+        );
+      }
+    }
+  }
+
+  for (const warning of warningsToReport) {
     context.trace?.record({
       type: 'NODE_PROGRESS',
       timestamp: new Date().toISOString(),
@@ -184,17 +236,18 @@ export async function runComponentActivity(
     });
   }
 
-  if (warnings.length > 0) {
-    const missing = warnings.map((warning) => `'${warning.target}'`).join(', ');
+  if (warningsToReport.length > 0) {
+    const missing = warningsToReport.map((warning) => `'${warning.target}'`).join(', ');
     throw new ValidationError(`Missing required inputs for ${action.ref}: ${missing}`, {
       fieldErrors: Object.fromEntries(
-        warnings.map((w) => [w.target, [`mapped from ${w.sourceRef}.${w.sourceHandle} was undefined`]])
+        warningsToReport.map((w) => [w.target, [`mapped from ${w.sourceRef}.${w.sourceHandle} was undefined`]])
       ),
       details: { actionRef: action.ref, componentId: action.componentId },
     });
   }
 
-  const parsedParams = component.inputSchema.parse(params);
+  const parsedParams = component.inputSchema.parse(resolvedParams);
+
 
   try {
     // Execute the component logic directly so that any

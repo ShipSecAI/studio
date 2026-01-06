@@ -103,21 +103,46 @@ plugin({
 // Harness code that runs the user script
 // Output is written to the file at SHIPSEC_OUTPUT_PATH (mounted from host)
 const harnessCode = `
-import { script } from "./user_script.ts";
-const INPUTS = JSON.parse(process.env.SHIPSEC_INPUTS || '{}');
-const OUTPUT_PATH = process.env.SHIPSEC_OUTPUT_PATH || '/shipsec-output/result.json';
+import { readFileSync, writeFileSync } from "node:fs";
 
 async function run() {
   try {
     console.log('[Script] Starting execution...');
-    const result = await script(INPUTS);
+    
+    // Read the combined payload from the mounted input file
+    const inputPath = process.env.SHIPSEC_INPUT_PATH || '/shipsec-output/input.json';
+    const payload = JSON.parse(readFileSync(inputPath, 'utf8'));
+    
+    // 1. Write user script to file so it can be imported
+    if (!payload.code) {
+      throw new Error("No script code provided in payload");
+    }
+    writeFileSync("./user_script.ts", payload.code);
+
+    // 2. Prepare inputs matching the variables definition
+    const inputValues = {};
+    if (Array.isArray(payload.variables)) {
+      payload.variables.forEach(v => {
+        if (v.name && payload[v.name] !== undefined) {
+          inputValues[v.name] = payload[v.name];
+        }
+      });
+    }
+
+    // 3. Import and execute the user script
+    // @ts-ignore
+    const { script } = await import("./user_script.ts");
+    const result = await script(inputValues);
+    
     console.log('[Script] Execution completed, writing output...');
+    const OUTPUT_PATH = process.env.SHIPSEC_OUTPUT_PATH || '/shipsec-output/result.json';
     
     // Write output to mounted file instead of stdout
-    await Bun.write(OUTPUT_PATH, JSON.stringify(result));
+    await Bun.write(OUTPUT_PATH, JSON.stringify(result || {}));
+
     console.log('[Script] Output written to', OUTPUT_PATH);
   } catch (err) {
-    console.error('Runtime Error:', err.message);
+    console.error('Runtime Error:', err.stack || err.message);
     process.exit(1);
   }
 }
@@ -138,7 +163,9 @@ const baseRunner: DockerRunnerConfig = {
   env: {},
   network: 'bridge', // Need network access for fetch() and HTTP imports
   timeoutSeconds: 30,
+  stdinJson: false, // Inputs are passed via mounted file now
 };
+
 
 const definition: ComponentDefinition<Input, Output> = {
   id: 'core.logic.script',
@@ -200,7 +227,7 @@ const definition: ComponentDefinition<Input, Output> = {
   async execute(params, context) {
     const { code, variables = [], returns = [] } = params;
 
-    // 1. Prepare Inputs from connected ports
+    // 1. Prepare Inputs from connected ports (keep for logging purposes)
     const inputValues: Record<string, any> = {};
     variables.forEach((v) => {
       if (v.name && params[v.name] !== undefined) {
@@ -208,18 +235,18 @@ const definition: ComponentDefinition<Input, Output> = {
       }
     });
 
+
     // 2. Process user code - ensure it has 'export' keyword
     let processedUserCode = code;
     const exportRegex = /^(?!\s*export\s+)(.*?\s*(?:async\s+)?function\s+script\b)/m;
     if (exportRegex.test(processedUserCode)) {
       processedUserCode = processedUserCode.replace(exportRegex, (match) => `export ${match.trimStart()}`);
     }
-    const userB64 = Buffer.from(processedUserCode).toString('base64');
 
-    // 3. Build the shell command that sets up files and runs bun
+    // 3. Build the shell command that sets up base harness files
+    // The heavy payload (code and inputs) is passed via stdin
     const shellCommand = [
       `echo "${pluginB64}" | base64 -d > plugin.ts`,
-      `echo "${userB64}" | base64 -d > user_script.ts`,
       `echo "${harnessB64}" | base64 -d > harness.ts`,
       `bun run --preload ./plugin.ts harness.ts`,
     ].join(' && ');
@@ -229,30 +256,37 @@ const definition: ComponentDefinition<Input, Output> = {
       ...baseRunner,
       command: ['-c', shellCommand],
       env: {
-        SHIPSEC_INPUTS: JSON.stringify(inputValues),
+        // No SHIPSEC_INPUTS here to avoid E2BIG
       },
     };
 
-    console.log('[LogicScript] Starting execution with inputs:', inputValues);
+    console.log('[LogicScript] Starting execution (inputs via mounted file)');
     context.emitProgress({
       message: 'Starting script execution in Docker...',
       level: 'info',
-      data: { inputCount: Object.keys(inputValues).length },
+      data: { inputCount: Object.keys(params).length },
     });
 
     // 5. Execute using the Docker runner
-    // Output is automatically read from /shipsec-output/result.json after container exits
-    const result = await runComponentWithRunner<typeof params, Record<string, unknown>>(
+    // We pass enriched params containing the processed code to runComponentWithRunner
+    // They will be written to the mounted input.json file in the container
+    const runnerParams = {
+      ...params,
+      code: processedUserCode,
+    };
+
+    const result = await runComponentWithRunner<typeof runnerParams, Record<string, unknown>>(
       runnerConfig,
       async () => {
-        // Fallback if docker runner fails - should not happen
         throw new ContainerError('Docker runner should handle this execution', {
           details: { reason: 'fallback_triggered' },
         });
       },
-      params,
+      runnerParams,
       context,
     );
+
+
 
     // 7. Map results to declared outputs
     const finalOutput: Record<string, unknown> = {};

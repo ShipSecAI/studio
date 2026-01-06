@@ -34,7 +34,9 @@ export interface DockerRunnerConfig {
     readOnly?: boolean;
   }>; // Optional volume mounts
   timeoutSeconds?: number;
+  stdinJson?: boolean; // Whether to write params as JSON to container's stdin (default: true)
 }
+
 
 export interface RemoteRunnerConfig {
   kind: 'remote';
