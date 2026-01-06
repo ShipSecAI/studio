@@ -158,3 +158,37 @@ export interface TraceEvent {
   data?: TraceEventData;
   context?: ExecutionContextMetadata;
 }
+
+/**
+ * Service interface for recording node inputs and outputs during workflow execution.
+ * This enables inspection and debugging of data flowing between nodes.
+ */
+export interface INodeIOService {
+  /**
+   * Record the start of a node execution (captures inputs)
+   */
+  recordStart(data: NodeIOStartEvent): void;
+
+  /**
+   * Record the completion of a node execution (captures outputs)
+   */
+  recordCompletion(data: NodeIOCompletionEvent): void;
+}
+
+export interface NodeIOStartEvent {
+  runId: string;
+  nodeRef: string;
+  workflowId?: string;
+  organizationId?: string | null;
+  componentId: string;
+  inputs?: Record<string, unknown>;
+}
+
+export interface NodeIOCompletionEvent {
+  runId: string;
+  nodeRef: string;
+  outputs: Record<string, unknown>;
+  status: 'completed' | 'failed' | 'skipped';
+  errorMessage?: string;
+}
+

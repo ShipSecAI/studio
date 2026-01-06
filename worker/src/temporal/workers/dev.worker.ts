@@ -32,7 +32,7 @@ import {
 // ... (existing imports)
 
 
-import { ArtifactAdapter, FileStorageAdapter, SecretsAdapter, RedisTerminalStreamAdapter, KafkaLogAdapter, KafkaTraceAdapter, KafkaAgentTracePublisher } from '../../adapters';
+import { ArtifactAdapter, FileStorageAdapter, SecretsAdapter, RedisTerminalStreamAdapter, KafkaLogAdapter, KafkaTraceAdapter, KafkaAgentTracePublisher, KafkaNodeIOAdapter } from '../../adapters';
 import { ConfigurationError } from '@shipsec/component-sdk';
 import * as schema from '../../adapters/schema';
 
@@ -129,6 +129,12 @@ async function main() {
     clientId: process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? 'shipsec-worker-agent-trace',
   });
 
+  const nodeIOAdapter = new KafkaNodeIOAdapter({
+    brokers: kafkaBrokers,
+    topic: process.env.NODE_IO_KAFKA_TOPIC ?? 'telemetry.node-io',
+    clientId: process.env.NODE_IO_KAFKA_CLIENT_ID ?? 'shipsec-worker-node-io',
+  });
+
   let logAdapter: KafkaLogAdapter;
   try {
     logAdapter = new KafkaLogAdapter({
@@ -161,6 +167,7 @@ async function main() {
   initializeComponentActivityServices({
     storage: storageAdapter,
     trace: traceAdapter,
+    nodeIO: nodeIOAdapter,
     logs: logAdapter,
     secrets: secretsAdapter,
     artifacts: artifactAdapter.factory(),

@@ -10,8 +10,10 @@ import {
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
+  type INodeIOService,
   type AgentTracePublisher,
 } from '@shipsec/component-sdk';
+import { maskSecretOutputs, createLightweightSummary } from '../utils/component-output';
 import { RedisTerminalStreamAdapter } from '../../adapters';
 import type {
   RunComponentActivityInput,
@@ -25,6 +27,7 @@ let globalStorage: IFileStorageService | undefined;
 let globalSecrets: ISecretsService | undefined;
 let globalArtifacts: ArtifactServiceFactory | undefined;
 let globalTrace: ITraceService | undefined;
+let globalNodeIO: INodeIOService | undefined;
 let globalLogs: WorkflowLogSink | undefined;
 let globalTerminal: RedisTerminalStreamAdapter | undefined;
 let globalAgentTracePublisher: AgentTracePublisher | undefined;
@@ -34,6 +37,7 @@ export function initializeComponentActivityServices(options: {
   secrets?: ISecretsService;
   artifacts?: ArtifactServiceFactory;
   trace: ITraceService;
+  nodeIO?: INodeIOService;
   logs?: WorkflowLogSink;
   terminalStream?: RedisTerminalStreamAdapter;
   agentTracePublisher?: AgentTracePublisher;
@@ -42,6 +46,7 @@ export function initializeComponentActivityServices(options: {
   globalSecrets = options.secrets;
   globalArtifacts = options.artifacts;
   globalTrace = options.trace;
+  globalNodeIO = options.nodeIO;
   globalLogs = options.logs;
   globalTerminal = options.terminalStream;
   globalAgentTracePublisher = options.agentTracePublisher;
@@ -167,6 +172,16 @@ export async function runComponentActivity(
     agentTracePublisher: globalAgentTracePublisher,
   });
 
+  // Record node I/O start
+  globalNodeIO?.recordStart({
+    runId: input.runId,
+    nodeRef: action.ref,
+    workflowId: input.workflowId,
+    organizationId: input.organizationId,
+    componentId: action.componentId,
+    inputs: maskSecretOutputs(component, params) as Record<string, unknown>,
+  });
+
   context.trace?.record({
     type: 'NODE_STARTED',
     timestamp: new Date().toISOString(),
@@ -211,10 +226,18 @@ export async function runComponentActivity(
       : undefined;
 
     if (!isSuspended) {
+      // Record node I/O completion
+      globalNodeIO?.recordCompletion({
+        runId: input.runId,
+        nodeRef: action.ref,
+        outputs: maskSecretOutputs(component, output) as Record<string, unknown>,
+        status: 'completed',
+      });
+
       context.trace?.record({
         type: 'NODE_COMPLETED',
         timestamp: new Date().toISOString(),
-        outputSummary: output as any,
+        outputSummary: createLightweightSummary(component, output),
         data: activeOutputPorts ? { activatedPorts: activeOutputPorts } : undefined,
         level: 'info',
       });
@@ -274,6 +297,15 @@ export async function runComponentActivity(
       message: errorMsg,
       error: traceError,
       level: 'error',
+    });
+
+    // Record node I/O failure
+    globalNodeIO?.recordCompletion({
+      runId: input.runId,
+      nodeRef: action.ref,
+      outputs: {},
+      status: 'failed',
+      errorMessage: errorMsg,
     });
 
     const finalErrorType = errorType || 'ComponentError';
