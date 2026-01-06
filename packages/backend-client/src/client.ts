@@ -3031,7 +3031,10 @@ export interface operations {
     };
     WorkflowsController_getNodeIODetail: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Request full node I/O data instead of a preview */
+                full?: boolean;
+            };
             header?: never;
             path: {
                 runId: string;
@@ -3067,6 +3070,8 @@ export interface operations {
                         outputsSize?: number;
                         inputsSpilled?: boolean;
                         outputsSpilled?: boolean;
+                        inputsTruncated?: boolean;
+                        outputsTruncated?: boolean;
                         errorMessage?: string | null;
                     };
                 };

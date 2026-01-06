@@ -256,9 +256,12 @@ export class ShipSecApiClient {
     });
   }
 
-  async getWorkflowNodeIO(runId: string, nodeRef: string) {
+  async getWorkflowNodeIO(runId: string, nodeRef: string, options?: { full?: boolean }) {
     return this.client.GET('/api/v1/workflows/runs/{runId}/node-io/{nodeRef}', {
-      params: { path: { runId, nodeRef } },
+      params: {
+        path: { runId, nodeRef },
+        query: options?.full !== undefined ? { full: options.full } : undefined,
+      },
     });
   }
 

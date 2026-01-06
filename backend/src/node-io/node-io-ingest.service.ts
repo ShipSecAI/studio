@@ -116,7 +116,7 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
         runId: event.runId,
         nodeRef: event.nodeRef,
         workflowId: event.workflowId,
-        organizationId: null, // event.organizationId, // Use null to avoid foreign key issues in local dev
+        organizationId: event.organizationId,
         componentId: event.componentId || 'unknown',
         inputs: event.inputs || {},
         inputsSize: event.inputsSize,

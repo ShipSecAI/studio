@@ -1625,6 +1625,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "full",
+            "required": false,
+            "in": "query",
+            "description": "Request full node I/O data instead of a preview",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -1684,6 +1693,12 @@
                       "type": "boolean"
                     },
                     "outputsSpilled": {
+                      "type": "boolean"
+                    },
+                    "inputsTruncated": {
+                      "type": "boolean"
+                    },
+                    "outputsTruncated": {
                       "type": "boolean"
                     },
                     "errorMessage": {

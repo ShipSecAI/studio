@@ -19,8 +19,10 @@ export interface NodeIOData {
   errorMessage?: string;
 }
 
-// Size threshold for spilling to object storage (100KB)
-const SPILL_THRESHOLD_BYTES = 100 * 1024;
+import { 
+  KAFKA_SPILL_THRESHOLD_BYTES, 
+  createSpilledMarker 
+} from '@shipsec/component-sdk';
 
 @Injectable()
 export class NodeIORepository {
@@ -48,7 +50,7 @@ export class NodeIORepository {
 
     // Favor provided spilled info from worker, fallback to local calculation
     const inputsSize = data.inputsSize ?? computedInputsSize;
-    const inputsSpilled = data.inputsSpilled ?? (inputsSize > SPILL_THRESHOLD_BYTES);
+    const inputsSpilled = data.inputsSpilled ?? (inputsSize > KAFKA_SPILL_THRESHOLD_BYTES);
     // Use the storage ref provided by worker (UUID), or generate a path-based fallback
     const inputsStorageRef = data.inputsStorageRef ?? null;
 
@@ -58,7 +60,9 @@ export class NodeIORepository {
       workflowId: data.workflowId ?? null,
       organizationId: data.organizationId ?? null,
       componentId: data.componentId,
-      inputs: inputsSpilled ? { _spilled: true, size: inputsSize } : data.inputs,
+      inputs: inputsSpilled 
+        ? createSpilledMarker(inputsStorageRef ?? 'unknown', inputsSize) 
+        : data.inputs,
       inputsSize,
       inputsSpilled,
       inputsStorageRef,
@@ -93,7 +97,7 @@ export class NodeIORepository {
 
     // Favor provided spilled info from worker, fallback to local calculation
     const outputsSize = data.outputsSize ?? computedOutputsSize;
-    const outputsSpilled = data.outputsSpilled ?? (outputsSize > SPILL_THRESHOLD_BYTES);
+    const outputsSpilled = data.outputsSpilled ?? (outputsSize > KAFKA_SPILL_THRESHOLD_BYTES);
     // Use the storage ref provided by worker (UUID), or generate a path-based fallback
     const outputsStorageRef = data.outputsStorageRef ?? null;
 
@@ -108,7 +112,9 @@ export class NodeIORepository {
     await this.db
       .update(nodeIOTable)
       .set({
-        outputs: outputsSpilled ? { _spilled: true, size: outputsSize } : data.outputs,
+        outputs: outputsSpilled 
+          ? createSpilledMarker(outputsStorageRef ?? 'unknown', outputsSize) 
+          : data.outputs,
         outputsSize,
         outputsSpilled,
         outputsStorageRef,

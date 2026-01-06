@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, AlertCircle, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MessageModal } from '@/components/ui/MessageModal'
 
 interface NodeIO {
     nodeRef: string
@@ -13,12 +14,14 @@ interface NodeIO {
     startedAt: string | null
     completedAt: string | null
     durationMs: number | null
-    inputs: Record<string, unknown> | null
-    outputs: Record<string, unknown> | null
+    inputs: any | null
+    outputs: any | null
     inputsSize: number
     outputsSize: number
     inputsSpilled: boolean
     outputsSpilled: boolean
+    inputsTruncated: boolean
+    outputsTruncated: boolean
     errorMessage: string | null
 }
 
@@ -27,9 +30,15 @@ export function NodeIOInspector() {
     const selectedNodeId = useExecutionTimelineStore((state) => state.selectedNodeId)
 
     const [loading, setLoading] = useState(false)
+    const [loadingDetail, setLoadingDetail] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [nodeIOList, setNodeIOList] = useState<NodeIO[]>([])
     const [selectedNodeIO, setSelectedNodeIO] = useState<NodeIO | null>(null)
+    const [fullViewModal, setFullViewModal] = useState<{ open: boolean; title: string; content: string }>({
+        open: false,
+        title: '',
+        content: '',
+    })
 
     useEffect(() => {
         if (!selectedRunId) {
@@ -53,6 +62,8 @@ export function NodeIOInspector() {
                     durationMs: n.durationMs ?? null,
                     inputs: n.inputs || null,
                     outputs: n.outputs || null,
+                    inputsTruncated: !!n.inputsTruncated,
+                    outputsTruncated: !!n.outputsTruncated,
                     errorMessage: n.errorMessage || null,
                 })) as NodeIO[]
                 setNodeIOList(nodes)
@@ -125,14 +136,44 @@ export function NodeIOInspector() {
     }
 
     const renderJson = (data: any) => {
-        if (!data || Object.keys(data).length === 0) {
+        if (data === null || data === undefined) {
             return <span className="text-muted-foreground italic text-[11px]">Empty</span>
         }
+
+        let content = '';
+        if (typeof data === 'string') {
+            content = data;
+        } else if (Object.keys(data).length === 0) {
+            return <span className="text-muted-foreground italic text-[11px]">Empty</span>
+        } else {
+            content = JSON.stringify(data, null, 2);
+        }
+
         return (
-            <pre className="text-[11px] font-mono whitespace-pre-wrap bg-slate-950 text-slate-100 p-2 rounded border border-slate-800">
-                {JSON.stringify(data, null, 2)}
+            <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
+                {content}
             </pre>
         )
+    }
+
+    const fetchFullNodeIO = async (type: 'inputs' | 'outputs') => {
+        if (!selectedRunId || !selectedNodeId) return
+        setLoadingDetail(true)
+        try {
+            const detail: any = await api.executions.getNodeIO(selectedRunId, selectedNodeId, true)
+            const data = type === 'inputs' ? detail.inputs : detail.outputs
+            const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+
+            setFullViewModal({
+                open: true,
+                title: `Full ${type === 'inputs' ? 'Inputs' : 'Outputs'} - ${selectedNodeId}`,
+                content,
+            })
+        } catch (err: any) {
+            console.error('Failed to fetch full node I/O', err)
+        } finally {
+            setLoadingDetail(false)
+        }
     }
 
     const renderNodeIO = (io: NodeIO) => (
@@ -158,24 +199,44 @@ export function NodeIOInspector() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-6">
                 <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold uppercase text-muted-foreground">Inputs</span>
-                        <span className="text-[10px] text-muted-foreground">
-                            {Math.round(io.inputsSize / 1024 * 10) / 10} KB
-                            {io.inputsSpilled && <Badge variant="secondary" className="ml-1 text-[8px] h-3 px-1">Spilled</Badge>}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground">
+                                {Math.round(io.inputsSize / 1024 * 10) / 10} KB
+                            </span>
+                            {io.inputsTruncated && (
+                                <button
+                                    onClick={() => fetchFullNodeIO('inputs')}
+                                    disabled={loadingDetail}
+                                    className="text-[10px] text-primary hover:text-primary/80 font-medium disabled:text-muted-foreground px-1.5 py-0.5 rounded bg-primary/5 hover:bg-primary/10 transition-colors"
+                                >
+                                    {loadingDetail ? 'Loading...' : 'View Full'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                     {renderJson(io.inputs)}
                 </div>
                 <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold uppercase text-muted-foreground">Outputs</span>
-                        <span className="text-[10px] text-muted-foreground">
-                            {Math.round(io.outputsSize / 1024 * 10) / 10} KB
-                            {io.outputsSpilled && <Badge variant="secondary" className="ml-1 text-[8px] h-3 px-1">Spilled</Badge>}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground">
+                                {Math.round(io.outputsSize / 1024 * 10) / 10} KB
+                            </span>
+                            {io.outputsTruncated && (
+                                <button
+                                    onClick={() => fetchFullNodeIO('outputs')}
+                                    disabled={loadingDetail}
+                                    className="text-[10px] text-primary hover:text-primary/80 font-medium disabled:text-muted-foreground px-1.5 py-0.5 rounded bg-primary/5 hover:bg-primary/10 transition-colors"
+                                >
+                                    {loadingDetail ? 'Loading...' : 'View Full'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                     {renderJson(io.outputs)}
                 </div>
@@ -266,6 +327,13 @@ export function NodeIOInspector() {
                     </div>
                 )}
             </div>
+
+            <MessageModal
+                open={fullViewModal.open}
+                onOpenChange={(open) => setFullViewModal(prev => ({ ...prev, open }))}
+                title={fullViewModal.title}
+                message={fullViewModal.content}
+            />
         </div>
     )
 }

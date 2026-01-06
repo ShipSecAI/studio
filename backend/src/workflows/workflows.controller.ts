@@ -19,6 +19,7 @@ import {
 import {
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
@@ -814,6 +815,7 @@ export class WorkflowsController {
   }
 
   @Get('/runs/:runId/node-io/:nodeRef')
+  @ApiQuery({ name: 'full', required: false, type: Boolean, description: 'Request full node I/O data instead of a preview' })
   @ApiOkResponse({
     description: 'Specific node input/output for a workflow run',
     schema: {
@@ -831,6 +833,8 @@ export class WorkflowsController {
         outputsSize: { type: 'number' },
         inputsSpilled: { type: 'boolean' },
         outputsSpilled: { type: 'boolean' },
+        inputsTruncated: { type: 'boolean' },
+        outputsTruncated: { type: 'boolean' },
         errorMessage: { type: 'string', nullable: true },
       },
     },

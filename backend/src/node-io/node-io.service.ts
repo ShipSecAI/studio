@@ -24,12 +24,14 @@ export interface NodeIODetail {
   startedAt: string | null;
   completedAt: string | null;
   durationMs: number | null;
-  inputs: Record<string, unknown> | null;
-  outputs: Record<string, unknown> | null;
+  inputs: any;
+  outputs: any;
   inputsSize: number;
   outputsSize: number;
   inputsSpilled: boolean;
   outputsSpilled: boolean;
+  inputsTruncated: boolean;
+  outputsTruncated: boolean;
   errorMessage: string | null;
 }
 
@@ -86,8 +88,8 @@ export class NodeIOService {
   }
 
   async toDetail(record: NodeIORecord, full = false): Promise<NodeIODetail> {
-    let inputs = record.inputs ?? null;
-    let outputs = record.outputs ?? null;
+    let inputs: any = record.inputs ?? null;
+    let outputs: any = record.outputs ?? null;
 
     // Helper to detect if a payload is a spill marker (handles both new and legacy formats)
     const isSpillMarker = (data: unknown): data is { storageRef: string; originalSize?: number } => {
@@ -119,6 +121,7 @@ export class NodeIOService {
       outputsSize = outputs.originalSize ?? 0;
     }
 
+    let inputsTruncated = false;
     if (inputsSpilled && inputsStorageRef) {
       if (full) {
         try {
@@ -126,27 +129,23 @@ export class NodeIOService {
           inputs = JSON.parse(buffer.toString('utf8'));
         } catch (err) {
           this.logger.error(`Failed to fetch spilled inputs from ${inputsStorageRef}`, err);
-          inputs = { _error: 'Failed to fetch spilled data', _ref: inputsStorageRef };
+          inputs = { error: 'Failed to fetch full data' };
         }
       } else {
         // Fetch preview
-         try {
+        try {
           const buffer = await this.storage.downloadFilePreview(inputsStorageRef, 2048);
-          const previewStr = buffer.toString('utf8');
-          inputs = { 
-            _spilled: true,
-            _truncated: true,
-            size: inputsSize,
-            preview: previewStr.slice(0, 500) + '...',
-            _ref: inputsStorageRef 
-          };
+          inputs = buffer.toString('utf8').slice(0, 1000) + '\n... (truncated)';
+          inputsTruncated = true;
         } catch (err) {
           this.logger.warn(`Failed to fetch preview for inputs from ${inputsStorageRef}`, err);
-          inputs = { _spilled: true, size: inputsSize, _ref: inputsStorageRef };
+          inputs = '(Data too large to display, click View Full to load)';
+          inputsTruncated = true;
         }
       }
     }
 
+    let outputsTruncated = false;
     if (outputsSpilled && outputsStorageRef) {
       if (full) {
         try {
@@ -154,22 +153,17 @@ export class NodeIOService {
           outputs = JSON.parse(buffer.toString('utf8'));
         } catch (err) {
           this.logger.error(`Failed to fetch spilled outputs from ${outputsStorageRef}`, err);
-          outputs = { _error: 'Failed to fetch spilled data', _ref: outputsStorageRef };
+          outputs = { error: 'Failed to fetch full data' };
         }
       } else {
-         try {
+        try {
           const buffer = await this.storage.downloadFilePreview(outputsStorageRef, 2048);
-          const previewStr = buffer.toString('utf8');
-          outputs = { 
-            _spilled: true, 
-            _truncated: true,
-            size: outputsSize, 
-            preview: previewStr.slice(0, 500) + '...',
-            _ref: outputsStorageRef 
-          };
+          outputs = buffer.toString('utf8').slice(0, 1000) + '\n... (truncated)';
+          outputsTruncated = true;
         } catch (err) {
           this.logger.warn(`Failed to fetch preview for outputs from ${outputsStorageRef}`, err);
-          outputs = { _spilled: true, size: outputsSize, _ref: outputsStorageRef };
+          outputs = '(Data too large to display, click View Full to load)';
+          outputsTruncated = true;
         }
       }
     }
@@ -187,6 +181,8 @@ export class NodeIOService {
       outputsSize,
       inputsSpilled,
       outputsSpilled,
+      inputsTruncated,
+      outputsTruncated,
       errorMessage: record.errorMessage,
     };
   }

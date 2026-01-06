@@ -694,8 +694,8 @@ export const api = {
       return response.data || []
     },
 
-    getNodeIO: async (runId: string, nodeRef: string) => {
-      const response = await apiClient.getWorkflowNodeIO(runId, nodeRef)
+    getNodeIO: async (runId: string, nodeRef: string, full?: boolean) => {
+      const response = await apiClient.getWorkflowNodeIO(runId, nodeRef, { full })
       if (response.error) throw new Error('Failed to fetch node I/O details')
       return response.data
     },

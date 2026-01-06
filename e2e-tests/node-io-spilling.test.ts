@@ -78,8 +78,9 @@ async function pollRunStatus(runId: string, timeoutMs = 180000): Promise<{status
   throw new Error(`Workflow run ${runId} did not complete within ${timeoutMs}ms`);
 }
 
-async function fetchNodeIO(runId: string, nodeRef: string) {
-  const res = await fetch(`${API_BASE}/workflows/runs/${runId}/node-io/${nodeRef}`, { headers: HEADERS });
+async function fetchNodeIO(runId: string, nodeRef: string, full = false) {
+  const url = `${API_BASE}/workflows/runs/${runId}/node-io/${nodeRef}${full ? '?full=true' : ''}`;
+  const res = await fetch(url, { headers: HEADERS });
   if (!res.ok) {
     throw new Error(`Failed to fetch node I/O: ${res.status} ${await res.text()}`);
   }
@@ -158,8 +159,8 @@ e2eDescribe('Node I/O Spilling E2E Tests', () => {
     // Wait a moment for Kafka ingestion to catch up
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Fetch Node I/O for the generator node
-    const nodeIO = await fetchNodeIO(runId, 'large-gen');
+    // Fetch Node I/O for the generator node (explicitly requesting full output)
+    const nodeIO = await fetchNodeIO(runId, 'large-gen', true);
     
     console.log(`  Inputs Spilled: ${nodeIO.inputsSpilled} (${nodeIO.inputsSize} bytes)`);
     console.log(`  Outputs Spilled: ${nodeIO.outputsSpilled} (${nodeIO.outputsSize} bytes)`);

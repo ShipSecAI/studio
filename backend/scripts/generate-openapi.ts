@@ -31,7 +31,7 @@ async function generateOpenApi() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  console.log('Document paths keys:', Object.keys(document.paths).filter(k => k.includes('human')));
+  console.log('Document paths keys:', Object.keys(document.paths));
   const cleaned = cleanupOpenApiDoc(document);
   const repoRootSpecPath = join(__dirname, '..', '..', 'openapi.json');
   const payload = JSON.stringify(cleaned, null, 2);
