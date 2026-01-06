@@ -6,7 +6,6 @@ import {
   port,
   runComponentWithRunner,
   type DockerRunnerConfig,
-  ValidationError,
 } from '@shipsec/component-sdk';
 
 const variableConfigSchema = z.object({
@@ -102,16 +101,21 @@ plugin({
 `;
 
 // Harness code that runs the user script
+// Output is written to the file at SHIPSEC_OUTPUT_PATH (mounted from host)
 const harnessCode = `
 import { script } from "./user_script.ts";
 const INPUTS = JSON.parse(process.env.SHIPSEC_INPUTS || '{}');
+const OUTPUT_PATH = process.env.SHIPSEC_OUTPUT_PATH || '/shipsec-output/result.json';
 
 async function run() {
   try {
+    console.log('[Script] Starting execution...');
     const result = await script(INPUTS);
-    console.log('---RESULT_START---');
-    console.log(JSON.stringify(result));
-    console.log('---RESULT_END---');
+    console.log('[Script] Execution completed, writing output...');
+    
+    // Write output to mounted file instead of stdout
+    await Bun.write(OUTPUT_PATH, JSON.stringify(result));
+    console.log('[Script] Output written to', OUTPUT_PATH);
   } catch (err) {
     console.error('Runtime Error:', err.message);
     process.exit(1);
@@ -229,6 +233,7 @@ const definition: ComponentDefinition<Input, Output> = {
       },
     };
 
+    console.log('[LogicScript] Starting execution with inputs:', inputValues);
     context.emitProgress({
       message: 'Starting script execution in Docker...',
       level: 'info',
@@ -236,7 +241,8 @@ const definition: ComponentDefinition<Input, Output> = {
     });
 
     // 5. Execute using the Docker runner
-    const raw = await runComponentWithRunner<typeof params, any>(
+    // Output is automatically read from /shipsec-output/result.json after container exits
+    const result = await runComponentWithRunner<typeof params, Record<string, unknown>>(
       runnerConfig,
       async () => {
         // Fallback if docker runner fails - should not happen
@@ -248,28 +254,6 @@ const definition: ComponentDefinition<Input, Output> = {
       context,
     );
 
-    // 6. Parse the result from stdout
-    let result: Record<string, unknown> = {};
-    
-    if (typeof raw === 'string') {
-      const match = raw.match(/---RESULT_START---([\s\S]*)---RESULT_END---/);
-      if (match) {
-        try {
-          result = JSON.parse(match[1].trim());
-        } catch (err) {
-          throw new ValidationError('Failed to parse script result JSON.', {
-            cause: err as Error,
-            details: { rawOutput: match[1].trim().slice(0, 200) },
-          });
-        }
-      } else {
-        // If no result markers, maybe the raw output is the result
-        console.warn('No result markers found in output, returning empty result');
-      }
-    } else if (raw && typeof raw === 'object') {
-      result = raw;
-    }
-
     // 7. Map results to declared outputs
     const finalOutput: Record<string, unknown> = {};
     returns.forEach((r) => {
@@ -280,6 +264,7 @@ const definition: ComponentDefinition<Input, Output> = {
       }
     });
 
+    console.log('[LogicScript] Execution completed with outputs:', finalOutput);
     context.emitProgress({
       message: 'Script execution completed',
       level: 'info',
