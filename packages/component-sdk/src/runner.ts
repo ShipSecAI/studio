@@ -109,6 +109,8 @@ async function runComponentInDocker<I, O>(
     dockerArgs.push(image, ...command);
 
     const useTerminal = Boolean(context.terminalCollector);
+    let capturedStdout = '';
+    
     if (useTerminal) {
       // Remove -i flag for PTY mode (stdin not needed with TTY)
       const argsWithoutStdin = dockerArgs.filter(arg => arg !== '-i');
@@ -116,13 +118,13 @@ async function runComponentInDocker<I, O>(
         argsWithoutStdin.splice(2, 0, '-t');
       }
       // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
-      await runDockerWithPty(argsWithoutStdin, params, context, timeoutSeconds);
+      capturedStdout = await runDockerWithPty(argsWithoutStdin, params, context, timeoutSeconds);
     } else {
-      await runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
+      capturedStdout = await runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
     }
 
-    // Read output from file
-    return await readOutputFromFile<O>(hostOutputPath, context);
+    // Read output from file (with stdout fallback for legacy components)
+    return await readOutputFromFile<O>(hostOutputPath, capturedStdout, context);
   } finally {
     // Cleanup temp directory
     await rm(outputDir, { recursive: true, force: true }).catch((err) => {
@@ -133,9 +135,18 @@ async function runComponentInDocker<I, O>(
 
 /**
  * Read component output from the mounted output file.
- * Falls back to empty object if file doesn't exist.
+ * If file doesn't exist, falls back to stdout parsing for backwards compatibility.
+ * 
+ * @param filePath Path to the output file
+ * @param stdout Captured stdout as fallback for legacy components
+ * @param context Execution context for logging
  */
-async function readOutputFromFile<O>(filePath: string, context: ExecutionContext): Promise<O> {
+async function readOutputFromFile<O>(
+  filePath: string, 
+  stdout: string,
+  context: ExecutionContext
+): Promise<O> {
+  // First, try to read from the output file (preferred method)
   try {
     await access(filePath, constants.R_OK);
     const content = await readFile(filePath, 'utf8');
@@ -143,24 +154,43 @@ async function readOutputFromFile<O>(filePath: string, context: ExecutionContext
     context.logger.info(`[Docker] Read output from file (${content.length} bytes)`);
     return output as O;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      context.logger.warn('[Docker] No output file found, returning empty result');
-      return {} as O;
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if (error instanceof SyntaxError) {
+        context.logger.error(`[Docker] Failed to parse output JSON: ${error.message}`);
+        throw new ValidationError(`Failed to parse container output as JSON: ${error.message}`, {
+          cause: error,
+        });
+      }
+      throw error;
     }
-    if (error instanceof SyntaxError) {
-      context.logger.error(`[Docker] Failed to parse output JSON: ${error.message}`);
-      throw new ValidationError(`Failed to parse container output as JSON: ${error.message}`, {
-        cause: error,
-      });
-    }
-    throw error;
+    // File not found - fall through to stdout fallback
   }
+
+  // Fallback: Use stdout (for backwards compatibility with legacy components)
+  // This allows components that just write to stdout to continue working.
+  if (stdout.trim().length > 0) {
+    context.logger.info(`[Docker] No output file found, using stdout fallback (${stdout.length} bytes)`);
+    
+    // Try to parse stdout as JSON
+    try {
+      const output = JSON.parse(stdout.trim());
+      return output as O;
+    } catch {
+      // Not JSON - return raw string as output
+      // This handles components like subfinder that output plain text
+      return stdout.trim() as unknown as O;
+    }
+  }
+
+  // No output file and no stdout - return empty object
+  context.logger.warn('[Docker] No output file or stdout, returning empty result');
+  return {} as O;
 }
 
 /**
  * Run Docker container with standard I/O.
- * Stdout/stderr are collected for logging only.
- * Output is read from the mounted output file after container exits.
+ * Stdout/stderr are collected - stdout is returned for backwards compatibility.
+ * Primary output method is the mounted output file.
  */
 function runDockerWithStandardIO<I, O>(
   dockerArgs: string[],
@@ -168,8 +198,8 @@ function runDockerWithStandardIO<I, O>(
   context: ExecutionContext,
   timeoutSeconds: number,
   stdinJson?: boolean,
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     const stdoutEmitter = createTerminalChunkEmitter(context, 'stdout');
     const stderrEmitter = createTerminalChunkEmitter(context, 'stderr');
 
@@ -184,11 +214,13 @@ function runDockerWithStandardIO<I, O>(
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
+    let stdout = '';
     let stderr = '';
 
     proc.stdout.on('data', (data) => {
       stdoutEmitter(data);
       const chunk = data.toString();
+      stdout += chunk; // Capture for fallback
       
       // Send to log collector (which has chunking support)
       const logEntry = {
@@ -264,8 +296,8 @@ function runDockerWithStandardIO<I, O>(
       context.logger.info(`[Docker] Completed successfully`);
       context.emitProgress('Docker container completed');
       
-      // Output will be read from file by the caller
-      resolve();
+      // Return captured stdout for fallback processing
+      resolve(stdout);
     });
 
     if (stdinJson !== false) {
@@ -292,14 +324,14 @@ function runDockerWithStandardIO<I, O>(
 /**
  * Run Docker container with PTY (pseudo-terminal).
  * Used when terminal streaming is enabled for interactive output.
- * Output is read from the mounted output file after container exits.
+ * Returns captured stdout for backwards compatibility.
  */
 async function runDockerWithPty<I, O>(
   dockerArgs: string[],
   params: I,
   context: ExecutionContext,
   timeoutSeconds: number,
-): Promise<void> {
+): Promise<string> {
   const spawnPty = await loadPtySpawn();
   if (!spawnPty) {
     context.logger.warn('[Docker][PTY] node-pty unavailable; falling back to standard IO');
@@ -308,8 +340,9 @@ async function runDockerWithPty<I, O>(
     return runDockerWithStandardIO(argsWithoutTty, params, context, timeoutSeconds);
   }
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const emitChunk = createTerminalChunkEmitter(context, 'pty');
+    let stdout = '';
 
     let ptyProcess: ReturnType<typeof spawnPty>;
     try {
@@ -346,8 +379,7 @@ async function runDockerWithPty<I, O>(
 
     ptyProcess.onData((data) => {
       emitChunk(data);
-      // NOTE: We don't accumulate stdout here. Terminal output is just for display.
-      // Output data is written to /shipsec-output/result.json by the container.
+      stdout += data; // Capture for fallback
     });
 
     ptyProcess.onExit(({ exitCode }) => {
@@ -382,8 +414,8 @@ async function runDockerWithPty<I, O>(
       });
       context.emitProgress('Docker container completed');
 
-      // Output will be read from file by the caller
-      resolve();
+      // Return captured stdout for fallback processing
+      resolve(stdout);
     });
   });
 }
