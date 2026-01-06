@@ -141,7 +141,8 @@ export class NodeIOService {
             _ref: inputsStorageRef 
           };
         } catch (err) {
-           inputs = { _spilled: true, size: inputsSize, _ref: inputsStorageRef };
+          this.logger.warn(`Failed to fetch preview for inputs from ${inputsStorageRef}`, err);
+          inputs = { _spilled: true, size: inputsSize, _ref: inputsStorageRef };
         }
       }
     }
@@ -167,7 +168,8 @@ export class NodeIOService {
             _ref: outputsStorageRef 
           };
         } catch (err) {
-           outputs = { _spilled: true, size: outputsSize, _ref: outputsStorageRef };
+          this.logger.warn(`Failed to fetch preview for outputs from ${outputsStorageRef}`, err);
+          outputs = { _spilled: true, size: outputsSize, _ref: outputsStorageRef };
         }
       }
     }
