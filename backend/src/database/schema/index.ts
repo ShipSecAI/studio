@@ -16,4 +16,5 @@ export * from './webhooks';
 
 export * from './terminal-records';
 export * from './agent-trace-events';
+export * from './mcp-servers';
 

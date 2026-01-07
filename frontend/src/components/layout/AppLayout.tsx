@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
 import { AppTopBar } from '@/components/layout/AppTopBar'
 import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command, Zap, Webhook } from 'lucide-react'
+import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command, Zap, Webhook, ServerCog } from 'lucide-react'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { hasAdminRole } from '@/utils/auth'
@@ -256,6 +256,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Artifact Library',
       href: '/artifacts',
       icon: Archive,
+    },
+    {
+      name: 'MCP Library',
+      href: '/mcp-library',
+      icon: ServerCog,
     },
   ]
 
