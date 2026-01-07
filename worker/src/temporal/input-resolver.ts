@@ -1,5 +1,7 @@
 import { coerceValueForPort } from '@shipsec/component-sdk/ports';
+import { isSpilledDataMarker } from '@shipsec/component-sdk';
 import type { PortDataType } from '@shipsec/component-sdk/types';
+
 import type { WorkflowAction } from './types';
 
 export interface InputWarning {
@@ -28,12 +30,13 @@ export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): 
     // If it's a spilled marker, we return the marker itself along with the sourceHandle
     // The activity will then be responsible for fetching the full data 
     // and extracting the specific handle.
-    if (record['__spilled__'] === true && typeof record['storageRef'] === 'string') {
+    if (isSpilledDataMarker(sourceOutput)) {
       return {
-        ...record,
+        ...sourceOutput,
         __spilled_handle__: sourceHandle,
       };
     }
+
 
     if (Object.prototype.hasOwnProperty.call(record, sourceHandle)) {
       return record[sourceHandle];
@@ -92,6 +95,13 @@ export function buildActionParams(
 
     if (resolved !== undefined) {
       if (portMetadata?.dataType) {
+        // Skip coercion for spilled data markers - we keep the marker
+        // so the activity can unspill and resolve the specific handle correctly.
+        if (isSpilledDataMarker(resolved)) {
+          params[targetKey] = resolved;
+          continue;
+        }
+
         const coercion = coerceValueForPort(portMetadata.dataType, resolved);
         if (coercion.ok) {
           params[targetKey] = coercion.value;
@@ -107,6 +117,7 @@ export function buildActionParams(
         params[targetKey] = resolved;
       }
     } else {
+
       warnings.push({
         target: targetKey,
         sourceRef: mapping.sourceRef,
