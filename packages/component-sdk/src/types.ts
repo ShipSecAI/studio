@@ -171,7 +171,8 @@ export type ComponentParameterType =
   | 'artifact'
   | 'variable-list'
   | 'form-fields'
-  | 'selection-options';
+  | 'selection-options'
+  | 'browser-actions';
 
 export interface ComponentParameterOption {
   label: string;
@@ -342,6 +343,7 @@ export interface ComponentDefinition<I = unknown, O = unknown, P = Record<string
   inputSchema: z.ZodType<I>;
   outputSchema: z.ZodType<O>;
   docs?: string;
+  parameters?: ComponentParameterMetadata[];
   metadata?: ComponentUiMetadata;
   requiresSecrets?: boolean;
 

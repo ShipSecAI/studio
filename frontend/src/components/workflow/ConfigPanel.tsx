@@ -690,6 +690,45 @@ export function ConfigPanel({
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-2">
+          {/* Parameters Section */}
+          {componentParameters.length > 0 && (
+            <CollapsibleSection
+              title="Parameters"
+              count={componentParameters.length}
+              defaultOpen={true}
+            >
+              <div className="space-y-0 mt-2">
+                {/* Render parameters in component definition order to preserve hierarchy */}
+                {componentParameters.map((param, index) => {
+                  // Only show border between top-level parameters (not nested ones)
+                  const isTopLevel = !param.visibleWhen
+                  const prevParam = index > 0 ? componentParameters[index - 1] : null
+                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false
+                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel
+
+                  return (
+                    <div
+                      key={param.id}
+                      className={cn(
+                        showBorder && "border-t border-border pt-3"
+                      )}
+                    >
+                      <ParameterFieldWrapper
+                        parameter={param}
+                        value={nodeData.parameters?.[param.id]}
+                        onChange={(value) => handleParameterChange(param.id, value)}
+                        connectedInput={nodeData.inputs?.[param.id]}
+                        componentId={component.id}
+                        parameters={nodeData.parameters}
+                        onUpdateParameter={handleParameterChange}
+                        allComponentParameters={componentParameters}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </CollapsibleSection>
+          )}
           {/* Documentation */}
           {(component.documentation || component.documentationUrl) && (
             <CollapsibleSection title="Documentation" defaultOpen={false}>
@@ -972,45 +1011,6 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
-          {/* Parameters Section */}
-          {componentParameters.length > 0 && (
-            <CollapsibleSection
-              title="Parameters"
-              count={componentParameters.length}
-              defaultOpen={true}
-            >
-              <div className="space-y-0 mt-2">
-                {/* Render parameters in component definition order to preserve hierarchy */}
-                {componentParameters.map((param, index) => {
-                  // Only show border between top-level parameters (not nested ones)
-                  const isTopLevel = !param.visibleWhen
-                  const prevParam = index > 0 ? componentParameters[index - 1] : null
-                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false
-                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel
-
-                  return (
-                    <div
-                      key={param.id}
-                      className={cn(
-                        showBorder && "border-t border-border pt-3"
-                      )}
-                    >
-                      <ParameterFieldWrapper
-                        parameter={param}
-                        value={nodeData.parameters?.[param.id]}
-                        onChange={(value) => handleParameterChange(param.id, value)}
-                        connectedInput={nodeData.inputs?.[param.id]}
-                        componentId={component.id}
-                        parameters={nodeData.parameters}
-                        onUpdateParameter={handleParameterChange}
-                        allComponentParameters={componentParameters}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            </CollapsibleSection>
-          )}
 
           {isEntryPointComponent && (
             <div className="space-y-4">

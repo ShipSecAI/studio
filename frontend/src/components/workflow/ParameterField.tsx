@@ -5,11 +5,14 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
-import { RuntimeInputsEditor } from './RuntimeInputsEditor'
-import { SimpleVariableListEditor } from './SimpleVariableListEditor'
-import { ScriptCodeEditor } from './ScriptCodeEditor'
-import { FormFieldsEditor } from './FormFieldsEditor'
-import { SelectionOptionsEditor } from './SelectionOptionsEditor'
+import {
+  RuntimeInputsEditor,
+  SimpleVariableListEditor,
+  ScriptCodeEditor,
+  FormFieldsEditor,
+  SelectionOptionsEditor,
+  BrowserActionsEditor,
+} from '../parameter-editors'
 import type { Parameter } from '@/schemas/component'
 import type { InputMapping } from '@/schemas/node'
 import { useSecretStore } from '@/store/secretStore'
@@ -1315,6 +1318,30 @@ export function ParameterFieldWrapper({
         )}
 
         <SelectionOptionsEditor
+          value={value || []}
+          onChange={onChange}
+        />
+
+        {parameter.helpText && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            💡 {parameter.helpText}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // Special case: Browser Actions Editor
+  if (parameter.type === 'browser-actions') {
+    return (
+      <div className="space-y-2">
+        {parameter.description && (
+          <p className="text-xs text-muted-foreground mb-2">
+            {parameter.description}
+          </p>
+        )}
+
+        <BrowserActionsEditor
           value={value || []}
           onChange={onChange}
         />

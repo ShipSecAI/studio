@@ -84,7 +84,7 @@ export type OutputPort = z.infer<typeof OutputPortSchema>
 export const ParameterSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'file', 'json', 'secret', 'artifact', 'variable-list', 'form-fields', 'selection-options']),
+  type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'file', 'json', 'secret', 'artifact', 'variable-list', 'form-fields', 'selection-options', 'browser-actions']),
   required: z.boolean().optional(),
   default: z.any().optional(),
   options: z

@@ -42,7 +42,10 @@ function serializeComponent(component: ReturnType<typeof componentRegistry.get>)
     runner: component.runner,
     inputs: metadata.inputs ?? [],
     outputs: metadata.outputs ?? [],
-    parameters: metadata.parameters ?? [],
+    parameters: [
+      ...(component.parameters ?? []),
+      ...(metadata.parameters ?? []),
+    ],
     examples: metadata.examples ?? [],
   };
 }
