@@ -28,6 +28,11 @@ import {
   McpToolDefinitionSchema,
   mcpToolContractName,
 } from './mcp-tool-contract';
+import {
+  getMcpClientService,
+  type McpServerConfig,
+  type McpToolInfo,
+} from '../../services/mcp-client.service.js';
 
 
 // Define types for dependencies to enable dependency injection for testing
@@ -183,6 +188,19 @@ const inputSchema = z.object({
     .boolean()
     .default(false)
     .describe('Attempt to fix malformed JSON responses from the model.'),
+  // MCP Library integration parameters
+  mcpLibraryEnabled: z
+    .boolean()
+    .default(true)
+    .describe('When enabled, automatically loads tools from MCP servers in the MCP Library.'),
+  mcpLibraryServerExclusions: z
+    .array(z.string())
+    .optional()
+    .describe('List of MCP server IDs to exclude from the library.'),
+  mcpLibraryToolExclusions: z
+    .array(z.string())
+    .optional()
+    .describe('List of tool names to exclude from MCP Library servers.'),
 });
 
 type Input = z.infer<typeof inputSchema>;
@@ -643,6 +661,276 @@ function buildToolArgumentSchema(args?: McpToolArgument[]) {
   return z.object(shape).passthrough();
 }
 
+/**
+ * Convert JSON Schema to Zod schema for MCP Library tools.
+ */
+function jsonSchemaToZod(schema: Record<string, unknown> | undefined): z.ZodTypeAny {
+  if (!schema || typeof schema !== 'object') {
+    return z.object({}).passthrough();
+  }
+
+  const schemaType = schema.type as string | undefined;
+  const properties = schema.properties as Record<string, unknown> | undefined;
+  const requiredFields = (schema.required as string[]) ?? [];
+
+  if (schemaType !== 'object' || !properties) {
+    return z.object({}).passthrough();
+  }
+
+  const shape: Record<string, z.ZodTypeAny> = {};
+
+  for (const [key, propSchema] of Object.entries(properties)) {
+    const prop = propSchema as Record<string, unknown>;
+    const propType = prop.type as string | undefined;
+    const propDesc = prop.description as string | undefined;
+
+    let field: z.ZodTypeAny;
+    switch (propType) {
+      case 'number':
+      case 'integer':
+        field = z.number();
+        break;
+      case 'boolean':
+        field = z.boolean();
+        break;
+      case 'array':
+        field = z.array(z.any());
+        break;
+      case 'object':
+        field = z.record(z.string(), z.any());
+        break;
+      case 'string':
+      default:
+        field = z.string();
+        break;
+    }
+
+    if (propDesc) {
+      field = field.describe(propDesc);
+    }
+
+    if (!requiredFields.includes(key)) {
+      field = field.optional();
+    }
+
+    shape[key] = field;
+  }
+
+  return z.object(shape).passthrough();
+}
+
+type RegisterMcpLibraryToolParams = {
+  server: McpServerConfig;
+  tool: McpToolInfo;
+  sessionId: string;
+  toolFactory: ToolFn;
+  agentStream: AgentStreamRecorder;
+  usedNames: Set<string>;
+  index: number;
+};
+
+/**
+ * Registers a single MCP Library tool using the MCP client service.
+ */
+function registerMcpLibraryTool({
+  server,
+  tool,
+  sessionId,
+  toolFactory,
+  agentStream,
+  usedNames,
+  index,
+}: RegisterMcpLibraryToolParams): RegisteredMcpTool | null {
+  const mcpClient = getMcpClientService();
+  const toolName = ensureUniqueToolName(tool.name, usedNames, index);
+
+  const metadata: RegisteredToolMetadata = {
+    toolId: `${server.id}:${tool.name}`,
+    title: tool.name,
+    description: tool.description,
+    source: `mcp-library:${server.name}`,
+    endpoint: server.endpoint ?? server.command ?? undefined,
+  };
+
+  const registeredTool = toolFactory<Record<string, unknown>, unknown>({
+    type: 'dynamic',
+    description: tool.description ?? `Invoke ${tool.name} from ${server.name}`,
+    inputSchema: jsonSchemaToZod(tool.inputSchema) as z.ZodObject<any>,
+    execute: async (args: Record<string, unknown>) => {
+      const invocationId = `${server.id}:${tool.name}-${randomUUID()}`;
+      const normalizedArgs = args ?? {};
+      agentStream.emitToolInput(invocationId, toolName, normalizedArgs);
+
+      try {
+        const result = await mcpClient.callTool(server, tool.name, normalizedArgs);
+        // Extract text content from MCP response
+        const output = result.content?.map(c => c.text ?? JSON.stringify(c)).join('\n')
+          ?? result.toolResult
+          ?? result;
+        agentStream.emitToolOutput(invocationId, toolName, output);
+        return output;
+      } catch (error) {
+        agentStream.emitToolError(
+          invocationId,
+          toolName,
+          error instanceof Error ? error.message : String(error),
+        );
+        throw error;
+      }
+    },
+  });
+
+  return {
+    name: toolName,
+    tool: registeredTool,
+    metadata,
+  };
+}
+
+/**
+ * Loads and registers tools from MCP Library servers.
+ */
+async function loadMcpLibraryTools(params: {
+  serverExclusions?: string[];
+  toolExclusions?: string[];
+  sessionId: string;
+  toolFactory: ToolFn;
+  agentStream: AgentStreamRecorder;
+  usedNames: Set<string>;
+  organizationId?: string | null;
+  logger?: {
+    info?: (...args: unknown[]) => void;
+    warn?: (...args: unknown[]) => void;
+    debug?: (...args: unknown[]) => void;
+  };
+}): Promise<RegisteredMcpTool[]> {
+  const {
+    serverExclusions = [],
+    toolExclusions = [],
+    sessionId,
+    toolFactory,
+    agentStream,
+    usedNames,
+    organizationId,
+    logger,
+  } = params;
+
+  const mcpClient = getMcpClientService();
+  const registered: RegisteredMcpTool[] = [];
+
+  // Fetch enabled MCP servers from the backend
+  const DEFAULT_API_BASE_URL =
+    process.env.STUDIO_API_BASE_URL ??
+    process.env.SHIPSEC_API_BASE_URL ??
+    process.env.API_BASE_URL ??
+    'http://localhost:3211';
+
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!internalToken) {
+    logger?.warn?.('[MCP Library] INTERNAL_SERVICE_TOKEN not set, skipping MCP Library integration');
+    return [];
+  }
+
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Internal-Token': internalToken,
+    };
+    if (organizationId) {
+      headers['X-Organization-Id'] = organizationId;
+    }
+
+    const baseUrl = DEFAULT_API_BASE_URL.replace(/\/+$/, '');
+    const response = await fetch(`${baseUrl}/api/v1/mcp-servers/enabled`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      logger?.warn?.(`[MCP Library] Failed to fetch servers: ${response.status}`);
+      return [];
+    }
+
+    const serversData = (await response.json()) as Array<{
+      id: string;
+      name: string;
+      transportType: 'http' | 'stdio' | 'sse' | 'websocket';
+      endpoint?: string | null;
+      command?: string | null;
+      args?: string[] | null;
+      enabled: boolean;
+    }>;
+
+    // Filter out excluded servers
+    const serverExclusionSet = new Set(serverExclusions);
+    const servers: McpServerConfig[] = serversData
+      .filter(s => !serverExclusionSet.has(s.id))
+      .map(s => ({
+        id: s.id,
+        name: s.name,
+        transportType: s.transportType,
+        endpoint: s.endpoint,
+        command: s.command,
+        args: s.args,
+        headers: null, // Headers are handled by internal endpoints for now
+        enabled: s.enabled,
+      }));
+
+    logger?.info?.(`[MCP Library] Found ${servers.length} enabled servers (${serversData.length - servers.length} excluded)`);
+
+    // Health check and discover tools from each server
+    const toolExclusionSet = new Set(toolExclusions);
+    let toolIndex = 0;
+
+    for (const server of servers) {
+      try {
+        // Health check
+        const healthResult = await mcpClient.healthCheck(server);
+        if (healthResult.status !== 'healthy') {
+          logger?.warn?.(`[MCP Library] Server "${server.name}" is unhealthy: ${healthResult.error}`);
+          continue;
+        }
+
+        // Discover tools
+        const tools = await mcpClient.discoverTools(server);
+        logger?.debug?.(`[MCP Library] Server "${server.name}" has ${tools.length} tools`);
+
+        for (const tool of tools) {
+          // Skip excluded tools
+          if (toolExclusionSet.has(tool.name)) {
+            logger?.debug?.(`[MCP Library] Skipping excluded tool "${tool.name}"`);
+            continue;
+          }
+
+          const registeredTool = registerMcpLibraryTool({
+            server,
+            tool,
+            sessionId,
+            toolFactory,
+            agentStream,
+            usedNames,
+            index: toolIndex++,
+          });
+
+          if (registeredTool) {
+            registered.push(registeredTool);
+          }
+        }
+      } catch (error) {
+        logger?.warn?.(
+          `[MCP Library] Failed to load tools from "${server.name}": ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+
+    logger?.info?.(`[MCP Library] Registered ${registered.length} tools from MCP Library`);
+    return registered;
+  } catch (error) {
+    logger?.warn?.(`[MCP Library] Error loading MCP Library: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  }
+}
+
 function mapStepToReasoning(step: any, index: number, sessionId: string): ReasoningStep {
   const getArgs = (entity: any) =>
     entity?.args !== undefined ? entity.args : entity?.input ?? null;
@@ -995,6 +1283,33 @@ Loop the Conversation State output back into the next agent invocation to keep m
         helpText: 'When enabled, tries to extract valid JSON from responses that contain extra text or formatting issues.',
         visibleWhen: { structuredOutputEnabled: true },
       },
+      {
+        id: 'mcpLibraryEnabled',
+        label: 'MCP Library',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Automatically load tools from MCP servers configured in the MCP Library.',
+        helpText: 'When enabled, all healthy MCP servers will have their tools available to this agent.',
+      },
+      {
+        id: 'mcpLibraryServerExclusions',
+        label: 'Excluded MCP Servers',
+        type: 'json',
+        required: false,
+        description: 'List of MCP server IDs to exclude from the library.',
+        helpText: 'Enter an array of server IDs: ["server-id-1", "server-id-2"]',
+        visibleWhen: { mcpLibraryEnabled: true },
+      },
+      {
+        id: 'mcpLibraryToolExclusions',
+        label: 'Excluded MCP Tools',
+        type: 'json',
+        required: false,
+        description: 'List of tool names to exclude from MCP Library servers.',
+        helpText: 'Enter an array of tool names: ["tool-name-1", "tool-name-2"]',
+        visibleWhen: { mcpLibraryEnabled: true },
+      },
     ],
   },
   async execute(
@@ -1026,6 +1341,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
       jsonExample,
       jsonSchema,
       autoFixFormat,
+      mcpLibraryEnabled,
+      mcpLibraryServerExclusions,
+      mcpLibraryToolExclusions,
     } = params;
 
     const debugLog = (...args: unknown[]) => context.logger.debug(`[AIAgent Debug] ${args.join(' ')}`);
@@ -1121,7 +1439,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
     const toolFn = dependencies?.tool ?? toolImpl;
     const toolMetadataByName = new Map<string, RegisteredToolMetadata>();
     const registeredTools: Record<string, Tool<any, any>> = {};
+    const usedToolNames = new Set<string>();
 
+    // Register directly-connected MCP tools first
     const registeredMcpTools = registerMcpTools({
       tools: mcpTools,
       sessionId,
@@ -1132,6 +1452,42 @@ Loop the Conversation State output back into the next agent invocation to keep m
     for (const entry of registeredMcpTools) {
       registeredTools[entry.name] = entry.tool;
       toolMetadataByName.set(entry.name, entry.metadata);
+      usedToolNames.add(entry.name);
+    }
+
+    // Load MCP Library tools if enabled (default: true)
+    if (mcpLibraryEnabled !== false) {
+      debugLog('Loading MCP Library tools...');
+      context.emitProgress({
+        level: 'info',
+        message: 'Loading MCP Library tools...',
+        data: { agentRunId, agentStatus: 'loading_mcp_library' },
+      });
+
+      try {
+        const mcpLibraryTools = await loadMcpLibraryTools({
+          serverExclusions: mcpLibraryServerExclusions,
+          toolExclusions: mcpLibraryToolExclusions,
+          sessionId,
+          toolFactory: toolFn,
+          agentStream,
+          usedNames: usedToolNames,
+          organizationId: (context as any).organizationId ?? null,
+          logger: context.logger,
+        });
+
+        for (const entry of mcpLibraryTools) {
+          registeredTools[entry.name] = entry.tool;
+          toolMetadataByName.set(entry.name, entry.metadata);
+        }
+
+        debugLog(`Loaded ${mcpLibraryTools.length} MCP Library tools`);
+      } catch (error) {
+        // Log but don't fail the agent if MCP Library loading fails
+        context.logger.warn(
+          `[AIAgent] Failed to load MCP Library tools: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     }
 
     const availableToolsCount = Object.keys(registeredTools).length;

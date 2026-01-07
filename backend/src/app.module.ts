@@ -22,6 +22,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
+import { McpServersModule } from './mcp-servers/mcp-servers.module';
 
 const coreModules = [
   AgentsModule,
@@ -37,6 +38,7 @@ const coreModules = [
   ApiKeysModule,
   WebhooksModule,
   HumanInputsModule,
+  McpServersModule,
 ];
 
 const testingModules =
