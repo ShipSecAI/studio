@@ -1,29 +1,30 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { definition } from './slack';
 
-const originalFetch = global.fetch;
-
 describe('Slack Component Template Support', () => {
-    const mockContext = {
-        logger: {
-            info: mock(() => {}),
-            error: mock(() => {}),
-            warn: mock(() => {}),
-            debug: mock(() => {}),
-        },
-    } as any;
+    let httpFetchMock: ReturnType<typeof mock>;
+
+    const createMockContext = () => {
+        httpFetchMock = mock(() => Promise.resolve(new Response(JSON.stringify({ ok: true, ts: '123' }), { status: 200 })));
+        return {
+            logger: {
+                info: mock(() => {}),
+                error: mock(() => {}),
+                warn: mock(() => {}),
+                debug: mock(() => {}),
+            },
+            http: {
+                fetch: httpFetchMock,
+            },
+        } as any;
+    };
 
     beforeEach(() => {
         mock.restore();
     });
 
-    afterEach(() => {
-        global.fetch = originalFetch;
-    });
-
     it('should interpolate text and blocks with dynamic variables', async () => {
-        const globalFetch = mock(() => Promise.resolve(new Response(JSON.stringify({ ok: true, ts: '123' }), { status: 200 })));
-        global.fetch = globalFetch;
+        const mockContext = createMockContext();
 
         const params = {
             authType: 'bot_token' as const,
@@ -43,7 +44,7 @@ describe('Slack Component Template Support', () => {
         const result = await definition.execute(params, mockContext);
 
         expect(result.ok).toBe(true);
-        const body = JSON.parse(globalFetch.mock.calls[0][1].body);
+        const body = JSON.parse(httpFetchMock.mock.calls[0][1].body);
         
         // Check text interpolation
         expect(body.text).toBe('Alert: CRITICAL issue on prod-db-01');
@@ -53,8 +54,7 @@ describe('Slack Component Template Support', () => {
     });
 
     it('should handle JSON string blocks template', async () => {
-        const globalFetch = mock(() => Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 })));
-        global.fetch = globalFetch;
+        const mockContext = createMockContext();
 
         const params = {
             authType: 'webhook' as const,
@@ -66,7 +66,7 @@ describe('Slack Component Template Support', () => {
 
         await definition.execute(params, mockContext);
 
-        const body = JSON.parse(globalFetch.mock.calls[0][1].body);
+        const body = JSON.parse(httpFetchMock.mock.calls[0][1].body);
         expect(body.blocks[0].text.text).toBe('Alice joined');
     });
 

@@ -228,132 +228,135 @@ describe('core.ai.agent component', () => {
         headers: { 'Content-Type': 'application/json' },
       });
     });
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    try {
-      toolLoopAgentGenerateImpl = async (instance) => {
-        const toolResult = await instance.settings.tools.call_mcp_tool.execute({
-          toolName: 'lookup',
-          arguments: { question: 'Lookup reference' },
-        });
+    // Create a context with the mock fetch
+    const contextWithMockFetch: ExecutionContext = {
+      ...workflowContext,
+      http: {
+        fetch: fetchMock as unknown as ExecutionContext['http']['fetch'],
+        toCurl: () => '',
+      },
+    };
 
-        return makeAgentResult({
-          text: 'Final resolved answer',
-          usage: {
-            promptTokens: 20,
-            completionTokens: 30,
-            totalTokens: 50,
-          },
-          totalUsage: {
-            promptTokens: 20,
-            completionTokens: 30,
-            totalTokens: 50,
-          },
-          toolResults: [
-            {
-              toolCallId: 'call-1',
-              toolName: 'call_mcp_tool',
-              args: { question: 'Lookup reference' },
-              result: toolResult,
-            },
-          ],
-          steps: [
-            {
-              text: 'Consulting MCP',
-              finishReason: 'tool',
-              toolCalls: [
-                {
-                  toolCallId: 'call-1',
-                  toolName: 'call_mcp_tool',
-                  args: { question: 'Lookup reference' },
-                },
-              ],
-              toolResults: [
-                {
-                  toolCallId: 'call-1',
-                  toolName: 'call_mcp_tool',
-                  args: { question: 'Lookup reference' },
-                  result: toolResult,
-                },
-              ],
-            },
-          ],
-        });
-      };
+    toolLoopAgentGenerateImpl = async (instance) => {
+      const toolResult = await instance.settings.tools.call_mcp_tool.execute({
+        toolName: 'lookup',
+        arguments: { question: 'Lookup reference' },
+      });
 
-      const component = componentRegistry.get('core.ai.agent');
-      expect(component).toBeDefined();
-
-      const params = {
-        userInput: 'What does the MCP tool return?',
-        conversationState: undefined,
-        chatModel: {
-          provider: 'gemini',
-          modelId: 'gemini-2.5-flash',
-          baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      return makeAgentResult({
+        text: 'Final resolved answer',
+        usage: {
+          promptTokens: 20,
+          completionTokens: 30,
+          totalTokens: 50,
         },
-        modelApiKey: 'gm-gemini-from-secret',
-        mcpTools: [
+        totalUsage: {
+          promptTokens: 20,
+          completionTokens: 30,
+          totalTokens: 50,
+        },
+        toolResults: [
           {
-            id: 'call-mcp',
-            title: 'Lookup',
-            endpoint: 'https://mcp.test/api',
-            metadata: {
-              toolName: 'call_mcp_tool',
-            },
+            toolCallId: 'call-1',
+            toolName: 'call_mcp_tool',
+            args: { question: 'Lookup reference' },
+            result: toolResult,
           },
         ],
-        systemPrompt: '',
-        temperature: 0.6,
-        maxTokens: 512,
-        memorySize: 6,
-        stepLimit: 3,
-      };
+        steps: [
+          {
+            text: 'Consulting MCP',
+            finishReason: 'tool',
+            toolCalls: [
+              {
+                toolCallId: 'call-1',
+                toolName: 'call_mcp_tool',
+                args: { question: 'Lookup reference' },
+              },
+            ],
+            toolResults: [
+              {
+                toolCallId: 'call-1',
+                toolName: 'call_mcp_tool',
+                args: { question: 'Lookup reference' },
+                result: toolResult,
+              },
+            ],
+          },
+        ],
+      });
+    };
 
-      const result = (await runComponentWithRunner(
-        component!.runner,
-        (params: any, context: any) => 
-          (component!.execute as any)(params, context, {
-            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-            tool: ((definition: any) => {
-              createdTools.push(definition);
-              return definition;
-            }) as unknown as ToolFn,
-            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-          }),
-        params,
-        workflowContext,
-      )) as any;
+    const component = componentRegistry.get('core.ai.agent');
+    expect(component).toBeDefined();
 
-      expect(createdTools).toHaveLength(1);
-      expect(stepCountIsMock).toHaveBeenCalledWith(3);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(result.toolInvocations).toHaveLength(1);
-      expect(result.toolInvocations[0]).toMatchObject({
-        toolName: 'call_mcp_tool',
-        result: { answer: 'Evidence' },
-      });
-      expect(result.reasoningTrace[0]).toMatchObject({
-        thought: 'Consulting MCP',
-      });
-      const toolMessage = result.conversationState.messages.find((msg: any) => msg.role === 'tool');
-      expect(toolMessage?.content).toMatchObject({
-        toolName: 'call_mcp_tool',
-        result: { answer: 'Evidence' },
-      });
-      const agentSettings = toolLoopAgentConstructorMock.mock.calls[0][0];
-      expect(agentSettings.model).toMatchObject({
+    const params = {
+      userInput: 'What does the MCP tool return?',
+      conversationState: undefined,
+      chatModel: {
         provider: 'gemini',
         modelId: 'gemini-2.5-flash',
-      });
-      expect(result.responseText).toBe('Final resolved answer');
-      expect(result.agentRunId).toBeTruthy();
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      },
+      modelApiKey: 'gm-gemini-from-secret',
+      mcpTools: [
+        {
+          id: 'call-mcp',
+          title: 'Lookup',
+          endpoint: 'https://mcp.test/api',
+          metadata: {
+            toolName: 'call_mcp_tool',
+          },
+        },
+      ],
+      systemPrompt: '',
+      temperature: 0.6,
+      maxTokens: 512,
+      memorySize: 6,
+      stepLimit: 3,
+    };
+
+    const result = (await runComponentWithRunner(
+      component!.runner,
+      (params: any, context: any) => 
+        (component!.execute as any)(params, context, {
+          ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
+          stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
+          tool: ((definition: any) => {
+            createdTools.push(definition);
+            return definition;
+          }) as unknown as ToolFn,
+          createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
+          createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
+        }),
+      params,
+      contextWithMockFetch,
+    )) as any;
+
+    expect(createdTools).toHaveLength(1);
+    expect(stepCountIsMock).toHaveBeenCalledWith(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.toolInvocations).toHaveLength(1);
+    expect(result.toolInvocations[0]).toMatchObject({
+      toolName: 'call_mcp_tool',
+      result: { answer: 'Evidence' },
+    });
+    expect(result.reasoningTrace[0]).toMatchObject({
+      thought: 'Consulting MCP',
+    });
+    const toolMessage = result.conversationState.messages.find((msg: any) => msg.role === 'tool');
+    expect(toolMessage?.content).toMatchObject({
+      toolName: 'call_mcp_tool',
+      result: { answer: 'Evidence' },
+    });
+    const agentSettings = toolLoopAgentConstructorMock.mock.calls[0][0];
+    expect(agentSettings.model).toMatchObject({
+      provider: 'gemini',
+      modelId: 'gemini-2.5-flash',
+    });
+    expect(result.responseText).toBe('Final resolved answer');
+    expect(result.agentRunId).toBeTruthy();
   });
 
   test('emits agent trace events via publisher and fallback progress stream', async () => {
