@@ -129,21 +129,7 @@ export class McpServersController {
     @CurrentAuth() auth: AuthContext | null,
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<TestConnectionResponse> {
-    // For now, return a placeholder - actual implementation will be in Phase 3
-    // when we integrate the MCP client service
-    try {
-      // Just verify the server exists and has valid config
-      await this.mcpServersService.getServer(auth, id);
-      return {
-        success: true,
-        message: 'Server configuration is valid. Full connection test requires worker integration.',
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return this.mcpServersService.testServerConnection(auth, id);
   }
 
   @Post(':id/discover')

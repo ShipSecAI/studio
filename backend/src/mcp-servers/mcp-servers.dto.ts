@@ -190,6 +190,12 @@ export class TestConnectionResponse {
 
   @ApiPropertyOptional()
   toolCount?: number;
+
+  @ApiPropertyOptional({ description: 'MCP protocol version reported by the server' })
+  protocolVersion?: string;
+
+  @ApiPropertyOptional({ description: 'Response time in milliseconds' })
+  responseTimeMs?: number;
 }
 
 export class HealthStatusResponse {
