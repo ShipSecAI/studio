@@ -297,6 +297,217 @@ export class McpServersService {
     }));
   }
 
+  /**
+   * Test connection to an MCP server using actual HTTP health check.
+   * For HTTP/SSE transports, sends an MCP initialize request to verify the server responds.
+   */
+  async testServerConnection(
+    auth: AuthContext | null,
+    id: string,
+  ): Promise<{ success: boolean; message: string; protocolVersion?: string; responseTimeMs?: number }> {
+    const organizationId = this.assertOrganizationId(auth);
+    const { server, headers } = await this.getServerWithDecryptedHeaders(auth, id);
+
+    // stdio and websocket transports require worker integration for full testing
+    if (server.transportType === 'stdio') {
+      return {
+        success: true,
+        message: 'stdio transport requires worker integration for connection testing',
+      };
+    }
+
+    if (server.transportType === 'websocket') {
+      return {
+        success: true,
+        message: 'WebSocket transport requires worker integration for connection testing',
+      };
+    }
+
+    // HTTP and SSE transports can be tested directly
+    if (!server.endpoint) {
+      await this.repository.updateHealthStatus(id, 'unhealthy', { organizationId });
+      return {
+        success: false,
+        message: 'Server has no endpoint configured',
+      };
+    }
+
+    // Use healthCheckUrl if provided, otherwise default to endpoint
+    const healthCheckUrl = server.healthCheckUrl || server.endpoint;
+
+    try {
+      const startTime = Date.now();
+      const result = await this.performMcpHealthCheck(healthCheckUrl, headers);
+      const responseTimeMs = Date.now() - startTime;
+
+      // Update health status in database
+      await this.repository.updateHealthStatus(
+        id,
+        result.success ? 'healthy' : 'unhealthy',
+        { organizationId },
+      );
+
+      return {
+        ...result,
+        responseTimeMs,
+      };
+    } catch (error) {
+      this.logger.error(`Health check failed for server ${id}:`, error);
+      await this.repository.updateHealthStatus(id, 'unhealthy', { organizationId });
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Health check failed',
+      };
+    }
+  }
+
+  /**
+   * Perform MCP protocol health check by sending an initialize request.
+   * Uses the Streamable HTTP transport pattern from the MCP spec.
+   */
+  private async performMcpHealthCheck(
+    endpoint: string,
+    headers: Record<string, string> | null,
+  ): Promise<{ success: boolean; message: string; protocolVersion?: string }> {
+    const TIMEOUT_MS = 10_000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    try {
+      // MCP Streamable HTTP protocol: POST with JSON-RPC initialize request
+      const initializeRequest = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: {
+            name: 'shipsec-studio',
+            version: '1.0.0',
+          },
+        },
+      };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          ...(headers ?? {}),
+        },
+        body: JSON.stringify(initializeRequest),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const statusText = response.statusText || 'Unknown error';
+        if (response.status === 401 || response.status === 403) {
+          return {
+            success: false,
+            message: `Authentication failed (HTTP ${response.status}): Check your API key or headers`,
+          };
+        }
+        return {
+          success: false,
+          message: `HTTP ${response.status}: ${statusText}`,
+        };
+      }
+
+      // Parse response
+      const contentType = response.headers.get('content-type') ?? '';
+
+      if (contentType.includes('application/json')) {
+        const data = (await response.json()) as {
+          error?: { message?: string };
+          result?: { protocolVersion?: string };
+        };
+
+        // Check for JSON-RPC error
+        if (data.error) {
+          return {
+            success: false,
+            message: data.error.message || 'MCP server returned an error',
+          };
+        }
+
+        // Success - server responded to initialize
+        if (data.result?.protocolVersion) {
+          return {
+            success: true,
+            message: `Connected to MCP server (protocol ${data.result.protocolVersion})`,
+            protocolVersion: data.result.protocolVersion,
+          };
+        }
+
+        // Response but no protocol version - might be a non-MCP endpoint
+        return {
+          success: true,
+          message: 'Server responded successfully',
+        };
+      }
+
+      // SSE response - server is responding in streaming mode
+      if (contentType.includes('text/event-stream')) {
+        return {
+          success: true,
+          message: 'MCP server responding (SSE streaming mode)',
+        };
+      }
+
+      // Other content types - server responded but may not be MCP
+      return {
+        success: true,
+        message: `Server responded (${contentType || 'unknown content type'})`,
+      };
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          return {
+            success: false,
+            message: `Connection timeout (${TIMEOUT_MS / 1000}s) - server did not respond`,
+          };
+        }
+
+        // Network errors
+        if (error.message.includes('ECONNREFUSED')) {
+          return {
+            success: false,
+            message: 'Connection refused - server may be down or unreachable',
+          };
+        }
+
+        if (error.message.includes('ENOTFOUND')) {
+          return {
+            success: false,
+            message: 'DNS lookup failed - check the server URL',
+          };
+        }
+
+        if (error.message.includes('certificate')) {
+          return {
+            success: false,
+            message: 'SSL/TLS certificate error - check server certificate',
+          };
+        }
+
+        return {
+          success: false,
+          message: error.message,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Unknown error during health check',
+      };
+    }
+  }
+
   private validateTransportConfig(config: {
     transportType: TransportType;
     endpoint?: string | null;

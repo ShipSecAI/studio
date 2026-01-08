@@ -43,6 +43,12 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
+import {
   Search,
   Plus,
   Trash2,
@@ -53,6 +59,7 @@ import {
   AlertCircle,
   CheckCircle2,
   HelpCircle,
+  FileJson,
 } from 'lucide-react'
 import { useMcpServerStore } from '@/store/mcpServerStore'
 import { useMcpHealthPolling } from '@/hooks/useMcpHealthPolling'
@@ -148,6 +155,10 @@ export function McpLibraryPage() {
   const [testingServer, setTestingServer] = useState<string | null>(null)
   const [toolsDialogOpen, setToolsDialogOpen] = useState(false)
   const [selectedServerForTools, setSelectedServerForTools] = useState<string | null>(null)
+  const [jsonImportValue, setJsonImportValue] = useState('')
+  const [jsonParseError, setJsonParseError] = useState<string | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual')
 
   const {
     servers,
@@ -186,6 +197,9 @@ export function McpLibraryPage() {
   const handleCreateNew = () => {
     setEditingServer(null)
     setFormData(INITIAL_FORM_DATA)
+    setJsonImportValue('')
+    setJsonParseError(null)
+    setActiveTab('manual')
     setEditorOpen(true)
   }
 
@@ -311,6 +325,139 @@ export function McpLibraryPage() {
     setSelectedServerForTools(serverId)
     setToolsDialogOpen(true)
     await fetchServerTools(serverId)
+  }
+
+  // Parse Claude Code style JSON config
+  const parseClaudeCodeConfig = (jsonString: string): {
+    servers: Array<{ name: string; config: ServerFormData }>;
+    error?: string
+  } => {
+    try {
+      const parsed = JSON.parse(jsonString)
+
+      // Validate structure - support both { mcpServers: {...} } and direct server config
+      let mcpServers: Record<string, unknown>
+
+      if (parsed.mcpServers && typeof parsed.mcpServers === 'object') {
+        mcpServers = parsed.mcpServers
+      } else if (parsed.url || parsed.command) {
+        // Direct single server config without name
+        mcpServers = { 'Imported Server': parsed }
+      } else {
+        return { servers: [], error: 'Invalid config: expected mcpServers object or server config with url/command' }
+      }
+
+      const servers: Array<{ name: string; config: ServerFormData }> = []
+
+      for (const [name, config] of Object.entries(mcpServers)) {
+        const serverConfig = config as {
+          url?: string
+          headers?: Record<string, string>
+          command?: string
+          args?: string[]
+        }
+
+        // Determine transport type based on config
+        let transportType: TransportType = 'http'
+        if (serverConfig.command) {
+          transportType = 'stdio'
+        } else if (serverConfig.url) {
+          // Check URL for transport hints
+          const url = serverConfig.url.toLowerCase()
+          if (url.includes('/sse') || url.endsWith('/events')) {
+            transportType = 'sse'
+          } else if (url.startsWith('ws://') || url.startsWith('wss://')) {
+            transportType = 'websocket'
+          }
+        }
+
+        servers.push({
+          name,
+          config: {
+            name,
+            description: '',
+            transportType,
+            endpoint: serverConfig.url ?? '',
+            command: serverConfig.command ?? '',
+            args: serverConfig.args?.join('\n') ?? '',
+            headers: serverConfig.headers ? JSON.stringify(serverConfig.headers, null, 2) : '',
+            healthCheckUrl: '', // Will default to endpoint
+            enabled: true,
+          },
+        })
+      }
+
+      return { servers }
+    } catch (e) {
+      return { servers: [], error: e instanceof Error ? `JSON parse error: ${e.message}` : 'Invalid JSON' }
+    }
+  }
+
+  const handleImportJson = async () => {
+    const { servers, error } = parseClaudeCodeConfig(jsonImportValue)
+
+    if (error) {
+      setJsonParseError(error)
+      return
+    }
+
+    if (servers.length === 0) {
+      setJsonParseError('No servers found in config')
+      return
+    }
+
+    setIsImporting(true)
+    setJsonParseError(null)
+
+    try {
+      // Batch create all servers
+      const results = await Promise.allSettled(
+        servers.map(({ config }) => {
+          const payload: CreateMcpServer = {
+            name: config.name.trim(),
+            description: config.description.trim() || undefined,
+            transportType: config.transportType,
+            endpoint: ['http', 'sse', 'websocket'].includes(config.transportType)
+              ? config.endpoint.trim() || undefined
+              : undefined,
+            command: config.transportType === 'stdio' ? config.command.trim() || undefined : undefined,
+            args: config.transportType === 'stdio' && config.args.trim()
+              ? config.args.split('\n').map((a) => a.trim()).filter(Boolean)
+              : undefined,
+            headers: config.headers.trim() ? JSON.parse(config.headers) : undefined,
+            enabled: true,
+          }
+          return createServer(payload)
+        })
+      )
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length
+      const failed = results.filter((r) => r.status === 'rejected').length
+
+      if (failed > 0) {
+        toast({
+          title: 'Partial import',
+          description: `Created ${succeeded} server(s), ${failed} failed`,
+          variant: succeeded > 0 ? 'default' : 'destructive',
+        })
+      } else {
+        toast({
+          title: 'Import successful',
+          description: `Created ${succeeded} MCP server(s)`,
+        })
+      }
+
+      setEditorOpen(false)
+      setJsonImportValue('')
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description: err instanceof Error ? err.message : 'Failed to import servers',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   const serverTools = useMemo(() => {
@@ -527,130 +674,193 @@ export function McpLibraryPage() {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="space-y-4 mt-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="My MCP Server"
-              />
-            </div>
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as 'manual' | 'import')}
+            className="mt-4"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="manual">Manual</TabsTrigger>
+              <TabsTrigger value="import" disabled={!!editingServer}>
+                <FileJson className="h-4 w-4 mr-2" />
+                Import JSON
+              </TabsTrigger>
+            </TabsList>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Optional description..."
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="transportType">Transport Type *</Label>
-              <Select
-                value={formData.transportType}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, transportType: value as TransportType })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRANSPORT_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {['http', 'sse', 'websocket'].includes(formData.transportType) && (
+            <TabsContent value="manual" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="endpoint">Endpoint URL *</Label>
+                <Label htmlFor="name">Name *</Label>
                 <Input
-                  id="endpoint"
-                  value={formData.endpoint}
-                  onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
-                  placeholder="https://mcp.example.com/mcp"
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="My MCP Server"
                 />
               </div>
-            )}
 
-            {formData.transportType === 'stdio' && (
-              <>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Optional description..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="transportType">Transport Type *</Label>
+                <Select
+                  value={formData.transportType}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, transportType: value as TransportType })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRANSPORT_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {['http', 'sse', 'websocket'].includes(formData.transportType) && (
                 <div className="space-y-2">
-                  <Label htmlFor="command">Command *</Label>
+                  <Label htmlFor="endpoint">Endpoint URL *</Label>
                   <Input
-                    id="command"
-                    value={formData.command}
-                    onChange={(e) => setFormData({ ...formData, command: e.target.value })}
-                    placeholder="npx"
+                    id="endpoint"
+                    value={formData.endpoint}
+                    onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
+                    placeholder="https://mcp.example.com/mcp"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="args">Arguments (one per line)</Label>
-                  <Textarea
-                    id="args"
-                    value={formData.args}
-                    onChange={(e) => setFormData({ ...formData, args: e.target.value })}
-                    placeholder="-y&#10;@modelcontextprotocol/server-everything"
-                    rows={3}
-                  />
-                </div>
-              </>
-            )}
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="headers">Headers (JSON)</Label>
-              <Textarea
-                id="headers"
-                value={formData.headers}
-                onChange={(e) => setFormData({ ...formData, headers: e.target.value })}
-                placeholder='{"Authorization": "Bearer xxx"}'
-                rows={3}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                {editingServer
-                  ? 'Leave empty to keep existing headers, or enter new JSON to replace.'
-                  : 'Optional authentication headers in JSON format.'}
-              </p>
-            </div>
+              {formData.transportType === 'stdio' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="command">Command *</Label>
+                    <Input
+                      id="command"
+                      value={formData.command}
+                      onChange={(e) => setFormData({ ...formData, command: e.target.value })}
+                      placeholder="npx"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="args">Arguments (one per line)</Label>
+                    <Textarea
+                      id="args"
+                      value={formData.args}
+                      onChange={(e) => setFormData({ ...formData, args: e.target.value })}
+                      placeholder="-y&#10;@modelcontextprotocol/server-everything"
+                      rows={3}
+                    />
+                  </div>
+                </>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="healthCheckUrl">Health Check URL</Label>
-              <Input
-                id="healthCheckUrl"
-                value={formData.healthCheckUrl}
-                onChange={(e) => setFormData({ ...formData, healthCheckUrl: e.target.value })}
-                placeholder="Optional custom health endpoint"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="headers">Headers (JSON)</Label>
+                <Textarea
+                  id="headers"
+                  value={formData.headers}
+                  onChange={(e) => setFormData({ ...formData, headers: e.target.value })}
+                  placeholder='{"Authorization": "Bearer xxx"}'
+                  rows={3}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {editingServer
+                    ? 'Leave empty to keep existing headers, or enter new JSON to replace.'
+                    : 'Optional authentication headers in JSON format.'}
+                </p>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <Switch
-                id="enabled"
-                checked={formData.enabled}
-                onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-              />
-              <Label htmlFor="enabled">Enabled</Label>
-            </div>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="healthCheckUrl">Health Check URL</Label>
+                <Input
+                  id="healthCheckUrl"
+                  value={formData.healthCheckUrl}
+                  onChange={(e) => setFormData({ ...formData, healthCheckUrl: e.target.value })}
+                  placeholder={formData.endpoint || 'Defaults to endpoint URL'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to use the endpoint URL for health checks.
+                </p>
+              </div>
 
-          <div className="flex justify-end gap-2 mt-6">
-            <Button variant="outline" onClick={() => setEditorOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving || !formData.name.trim()}>
-              {isSaving ? 'Saving...' : editingServer ? 'Update' : 'Create'}
-            </Button>
-          </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="enabled"
+                  checked={formData.enabled}
+                  onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
+                />
+                <Label htmlFor="enabled">Enabled</Label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving || !formData.name.trim()}>
+                  {isSaving ? 'Saving...' : editingServer ? 'Update' : 'Create'}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="import" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Paste Claude Code JSON Config</Label>
+                <Textarea
+                  value={jsonImportValue}
+                  onChange={(e) => {
+                    setJsonImportValue(e.target.value)
+                    setJsonParseError(null)
+                  }}
+                  placeholder={`{
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "YOUR_API_KEY"
+      }
+    }
+  }
+}`}
+                  rows={14}
+                  className="font-mono text-sm"
+                />
+                {jsonParseError && (
+                  <div className="flex items-start gap-2 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>{jsonParseError}</span>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Supports Claude Code config format. Multiple servers will be batch imported.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleImportJson}
+                  disabled={isImporting || !jsonImportValue.trim()}
+                >
+                  {isImporting ? 'Importing...' : 'Import Servers'}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         </SheetContent>
       </Sheet>
 
