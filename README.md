@@ -65,13 +65,30 @@ Get started with ShipSec Studio in minutes:
 
 The easiest way to run ShipSec Studio on your own infrastructure:
 
-#### Prerequisites
+#### One-Line Install
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | bash
+```
+
+This installer will:
+- Check and install missing dependencies (docker, just, curl, jq, git)
+- Start Docker if not running
+- Clone the repository and start all services
+- Guide you through any required setup steps
+
+Once complete, visit **http://localhost:8090** to access ShipSec Studio.
+
+#### Manual Installation
+
+If you prefer to install manually:
+
+**Prerequisites:**
 - **[docker](https://www.docker.com/)** - For running the application and security components
 - **[just](https://github.com/casey/just)** - Command runner for simplified workflows
 - **curl** and **jq** - For fetching release information
 
-#### Quick Start
+**Steps:**
 
 ```bash
 # Clone the repository
