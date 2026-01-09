@@ -144,6 +144,17 @@ export class McpServersController {
     return this.mcpServersService.getServerTools(auth, id);
   }
 
+  @Post(':serverId/tools/:toolId/toggle')
+  @ApiOperation({ summary: 'Toggle a tool enabled/disabled state' })
+  @ApiOkResponse({ type: McpToolResponse })
+  async toggleToolEnabled(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('serverId', new ParseUUIDPipe()) serverId: string,
+    @Param('toolId', new ParseUUIDPipe()) toolId: string,
+  ): Promise<McpToolResponse> {
+    return this.mcpServersService.toggleToolEnabled(auth, serverId, toolId);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete an MCP server configuration' })

@@ -229,6 +229,7 @@ export class McpServersRepository {
         toolName: mcpServerTools.toolName,
         description: mcpServerTools.description,
         inputSchema: mcpServerTools.inputSchema,
+        enabled: mcpServerTools.enabled,
         discoveredAt: mcpServerTools.discoveredAt,
         serverName: mcpServers.name,
       })
@@ -240,9 +241,31 @@ export class McpServersRepository {
     return rows;
   }
 
+  async toggleToolEnabled(toolId: string): Promise<McpServerToolRecord> {
+    // First get current state
+    const [current] = await this.db
+      .select()
+      .from(mcpServerTools)
+      .where(eq(mcpServerTools.id, toolId))
+      .limit(1);
+
+    if (!current) {
+      throw new NotFoundException(`Tool ${toolId} not found`);
+    }
+
+    // Toggle the enabled state
+    const [updated] = await this.db
+      .update(mcpServerTools)
+      .set({ enabled: !current.enabled })
+      .where(eq(mcpServerTools.id, toolId))
+      .returning();
+
+    return updated;
+  }
+
   async upsertTools(
     serverId: string,
-    tools: Array<Omit<NewMcpServerToolRecord, 'id' | 'serverId' | 'discoveredAt'>>,
+    tools: Array<Omit<NewMcpServerToolRecord, 'id' | 'serverId' | 'discoveredAt' | 'enabled'>>,
   ): Promise<McpServerToolRecord[]> {
     if (tools.length === 0) {
       // Clear existing tools if none discovered
@@ -250,23 +273,61 @@ export class McpServersRepository {
       return [];
     }
 
-    // Use a transaction to replace all tools
+    // Use a transaction to upsert tools while preserving enabled state
     return this.db.transaction(async (tx) => {
-      // Delete existing tools
-      await tx.delete(mcpServerTools).where(eq(mcpServerTools.serverId, serverId));
+      // Get existing tools to preserve enabled state
+      const existingTools = await tx
+        .select()
+        .from(mcpServerTools)
+        .where(eq(mcpServerTools.serverId, serverId));
 
-      // Insert new tools
-      const inserted = await tx
-        .insert(mcpServerTools)
-        .values(
-          tools.map((tool) => ({
-            ...tool,
-            serverId,
-          })),
-        )
-        .returning();
+      const existingToolMap = new Map(existingTools.map((t) => [t.toolName, t]));
+      const discoveredToolNames = new Set(tools.map((t) => t.toolName));
 
-      return inserted;
+      // Delete tools that no longer exist
+      const toolsToDelete = existingTools.filter((t) => !discoveredToolNames.has(t.toolName));
+      if (toolsToDelete.length > 0) {
+        await tx
+          .delete(mcpServerTools)
+          .where(
+            and(
+              eq(mcpServerTools.serverId, serverId),
+              sql`${mcpServerTools.toolName} IN (${sql.join(toolsToDelete.map((t) => sql`${t.toolName}`), sql`, `)})`
+            )
+          );
+      }
+
+      // Upsert each tool
+      const results: McpServerToolRecord[] = [];
+      for (const tool of tools) {
+        const existing = existingToolMap.get(tool.toolName);
+        if (existing) {
+          // Update existing tool (preserve enabled state)
+          const [updated] = await tx
+            .update(mcpServerTools)
+            .set({
+              description: tool.description,
+              inputSchema: tool.inputSchema,
+              discoveredAt: sql`now()`,
+            })
+            .where(eq(mcpServerTools.id, existing.id))
+            .returning();
+          results.push(updated);
+        } else {
+          // Insert new tool (default enabled=true)
+          const [inserted] = await tx
+            .insert(mcpServerTools)
+            .values({
+              ...tool,
+              serverId,
+              enabled: true,
+            })
+            .returning();
+          results.push(inserted);
+        }
+      }
+
+      return results;
     });
   }
 

@@ -54,6 +54,7 @@ export const McpToolSchema = z.object({
   inputSchema: z.record(z.string(), z.unknown()).nullable(),
   serverId: z.string().uuid(),
   serverName: z.string(),
+  enabled: z.boolean(),
   discoveredAt: z.string().datetime(),
 });
 export type McpTool = z.infer<typeof McpToolSchema>;

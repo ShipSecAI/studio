@@ -178,6 +178,9 @@ export class McpToolResponse {
   serverName!: string;
 
   @ApiProperty()
+  enabled!: boolean;
+
+  @ApiProperty()
   discoveredAt!: string;
 }
 

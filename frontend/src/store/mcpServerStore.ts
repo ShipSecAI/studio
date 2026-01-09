@@ -31,6 +31,7 @@ interface McpToolResponse {
   inputSchema?: Record<string, unknown> | null
   serverId: string
   serverName: string
+  enabled: boolean
   discoveredAt: string
 }
 
@@ -76,6 +77,7 @@ interface McpServerStoreActions {
   fetchServerTools: (serverId: string) => Promise<McpToolResponse[]>
   fetchAllTools: () => Promise<McpToolResponse[]>
   discoverTools: (serverId: string) => Promise<McpToolResponse[]>
+  toggleTool: (serverId: string, toolId: string) => Promise<McpToolResponse>
 
   // Health
   refreshHealth: () => Promise<void>
@@ -274,6 +276,19 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
     }))
 
     return tools
+  },
+
+  toggleTool: async (serverId, toolId) => {
+    const tool = await apiRequest<McpToolResponse>(
+      `/api/v1/mcp-servers/${serverId}/tools/${toolId}/toggle`,
+      { method: 'POST' }
+    )
+
+    set((state) => ({
+      tools: state.tools.map((t) => (t.id === toolId ? tool : t)),
+    }))
+
+    return tool
   },
 
   refreshHealth: async () => {
