@@ -155,10 +155,10 @@ export function McpLibraryPage() {
   const [testingServer, setTestingServer] = useState<string | null>(null)
   const [toolsDialogOpen, setToolsDialogOpen] = useState(false)
   const [selectedServerForTools, setSelectedServerForTools] = useState<string | null>(null)
-  const [jsonImportValue, setJsonImportValue] = useState('')
+  const [jsonValue, setJsonValue] = useState('')
   const [jsonParseError, setJsonParseError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
-  const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual')
+  const [activeTab, setActiveTab] = useState<'manual' | 'json'>('manual')
 
   const {
     servers,
@@ -194,10 +194,39 @@ export function McpLibraryPage() {
     )
   }, [servers, searchQuery])
 
+  // Generate Claude Code style JSON from form data
+  const formDataToJson = (data: ServerFormData): string => {
+    const serverConfig: Record<string, unknown> = {}
+
+    if (data.transportType === 'stdio') {
+      serverConfig.command = data.command
+      if (data.args.trim()) {
+        serverConfig.args = data.args.split('\n').map(a => a.trim()).filter(Boolean)
+      }
+    } else {
+      serverConfig.url = data.endpoint
+    }
+
+    if (data.headers.trim()) {
+      try {
+        serverConfig.headers = JSON.parse(data.headers)
+      } catch {
+        // Keep as string if invalid JSON
+        serverConfig.headers = data.headers
+      }
+    }
+
+    return JSON.stringify({
+      mcpServers: {
+        [data.name || 'server']: serverConfig
+      }
+    }, null, 2)
+  }
+
   const handleCreateNew = () => {
     setEditingServer(null)
     setFormData(INITIAL_FORM_DATA)
-    setJsonImportValue('')
+    setJsonValue('')
     setJsonParseError(null)
     setActiveTab('manual')
     setEditorOpen(true)
@@ -208,7 +237,7 @@ export function McpLibraryPage() {
     if (!server) return
 
     setEditingServer(serverId)
-    setFormData({
+    const editFormData: ServerFormData = {
       name: server.name,
       description: server.description ?? '',
       transportType: server.transportType,
@@ -216,9 +245,13 @@ export function McpLibraryPage() {
       command: server.command ?? '',
       args: server.args?.join('\n') ?? '',
       headers: '', // Never show existing headers
-      healthCheckUrl: server.healthCheckUrl ?? '',
+      healthCheckUrl: '',
       enabled: server.enabled,
-    })
+    }
+    setFormData(editFormData)
+    setJsonValue(formDataToJson(editFormData))
+    setJsonParseError(null)
+    setActiveTab('manual')
     setEditorOpen(true)
   }
 
@@ -393,8 +426,9 @@ export function McpLibraryPage() {
     }
   }
 
-  const handleImportJson = async () => {
-    const { servers, error } = parseClaudeCodeConfig(jsonImportValue)
+  // Handle saving from JSON tab (parses JSON and saves)
+  const handleJsonSave = async () => {
+    const { servers, error } = parseClaudeCodeConfig(jsonValue)
 
     if (error) {
       setJsonParseError(error)
@@ -406,11 +440,47 @@ export function McpLibraryPage() {
       return
     }
 
+    // When editing, update the server with the parsed config
+    if (editingServer) {
+      const firstServer = servers[0].config
+      setIsSaving(true)
+      try {
+        const payload: CreateMcpServer = {
+          name: formData.name.trim(), // Keep original name
+          description: firstServer.description.trim() || undefined,
+          transportType: firstServer.transportType,
+          endpoint: ['http', 'sse', 'websocket'].includes(firstServer.transportType)
+            ? firstServer.endpoint.trim() || undefined
+            : undefined,
+          command: firstServer.transportType === 'stdio' ? firstServer.command.trim() || undefined : undefined,
+          args: firstServer.transportType === 'stdio' && firstServer.args.trim()
+            ? firstServer.args.split('\n').map((a) => a.trim()).filter(Boolean)
+            : undefined,
+          headers: firstServer.headers.trim() ? JSON.parse(firstServer.headers) : undefined,
+          enabled: formData.enabled,
+        }
+        await updateServer(editingServer, payload)
+        toast({ title: 'Server updated', description: `${payload.name} has been updated.` })
+        setEditorOpen(false)
+        setEditingServer(null)
+        setFormData(INITIAL_FORM_DATA)
+      } catch (err) {
+        toast({
+          title: 'Error',
+          description: err instanceof Error ? err.message : 'Failed to save server',
+          variant: 'destructive',
+        })
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+
+    // When adding new, batch create all servers
     setIsImporting(true)
     setJsonParseError(null)
 
     try {
-      // Batch create all servers
       const results = await Promise.allSettled(
         servers.map(({ config }) => {
           const payload: CreateMcpServer = {
@@ -448,7 +518,7 @@ export function McpLibraryPage() {
       }
 
       setEditorOpen(false)
-      setJsonImportValue('')
+      setJsonValue('')
     } catch (err) {
       toast({
         title: 'Import failed',
@@ -676,14 +746,14 @@ export function McpLibraryPage() {
 
           <Tabs
             value={activeTab}
-            onValueChange={(v) => setActiveTab(v as 'manual' | 'import')}
+            onValueChange={(v) => setActiveTab(v as 'manual' | 'json')}
             className="mt-4"
           >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="manual">Manual</TabsTrigger>
-              <TabsTrigger value="import" disabled={!!editingServer}>
+              <TabsTrigger value="json">
                 <FileJson className="h-4 w-4 mr-2" />
-                Import JSON
+                JSON
               </TabsTrigger>
             </TabsList>
 
@@ -783,19 +853,6 @@ export function McpLibraryPage() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="healthCheckUrl">Health Check URL</Label>
-                <Input
-                  id="healthCheckUrl"
-                  value={formData.healthCheckUrl}
-                  onChange={(e) => setFormData({ ...formData, healthCheckUrl: e.target.value })}
-                  placeholder={formData.endpoint || 'Defaults to endpoint URL'}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Leave empty to use the endpoint URL for health checks.
-                </p>
-              </div>
-
               <div className="flex items-center gap-2">
                 <Switch
                   id="enabled"
@@ -815,21 +872,21 @@ export function McpLibraryPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="import" className="space-y-4 mt-4">
+            <TabsContent value="json" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>Paste Claude Code JSON Config</Label>
+                <Label>{editingServer ? 'Server Configuration (JSON)' : 'Paste JSON Config'}</Label>
                 <Textarea
-                  value={jsonImportValue}
+                  value={jsonValue}
                   onChange={(e) => {
-                    setJsonImportValue(e.target.value)
+                    setJsonValue(e.target.value)
                     setJsonParseError(null)
                   }}
                   placeholder={`{
   "mcpServers": {
-    "context7": {
-      "url": "https://mcp.context7.com/mcp",
+    "server-name": {
+      "url": "https://mcp.example.com/mcp",
       "headers": {
-        "CONTEXT7_API_KEY": "YOUR_API_KEY"
+        "Authorization": "Bearer xxx"
       }
     }
   }
@@ -844,7 +901,9 @@ export function McpLibraryPage() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Supports Claude Code config format. Multiple servers will be batch imported.
+                  {editingServer
+                    ? 'Edit the JSON configuration and save.'
+                    : 'Paste Claude Code config format. Multiple servers will be created.'}
                 </p>
               </div>
 
@@ -853,10 +912,12 @@ export function McpLibraryPage() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleImportJson}
-                  disabled={isImporting || !jsonImportValue.trim()}
+                  onClick={handleJsonSave}
+                  disabled={(editingServer ? isSaving : isImporting) || !jsonValue.trim()}
                 >
-                  {isImporting ? 'Importing...' : 'Import Servers'}
+                  {editingServer
+                    ? (isSaving ? 'Saving...' : 'Update')
+                    : (isImporting ? 'Creating...' : 'Create')}
                 </Button>
               </div>
             </TabsContent>
