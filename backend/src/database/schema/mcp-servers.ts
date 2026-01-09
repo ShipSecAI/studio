@@ -72,6 +72,7 @@ export const mcpServerTools = pgTable(
     toolName: varchar('tool_name', { length: 191 }).notNull(),
     description: text('description'),
     inputSchema: jsonb('input_schema').$type<Record<string, unknown> | null>().default(null),
+    enabled: boolean('enabled').notNull().default(true),
     discoveredAt: timestamp('discovered_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({

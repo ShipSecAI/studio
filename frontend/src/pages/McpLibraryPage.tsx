@@ -173,6 +173,8 @@ export function McpLibraryPage() {
     toggleServer,
     testConnection,
     fetchServerTools,
+    fetchAllTools,
+    toggleTool,
   } = useMcpServerStore()
 
   // Enable health polling on this page
@@ -180,7 +182,20 @@ export function McpLibraryPage() {
 
   useEffect(() => {
     fetchServers()
-  }, [fetchServers])
+    fetchAllTools()
+  }, [fetchServers, fetchAllTools])
+
+  // Run health checks for ALL servers on page load
+  useEffect(() => {
+    if (servers.length > 0) {
+      // Health check all servers in parallel (don't await, let them run in background)
+      servers.forEach((server) => {
+        testConnection(server.id).catch(() => {
+          // Silently ignore individual health check errors
+        })
+      })
+    }
+  }, [servers.length]) // Only re-run when server count changes
 
   const filteredServers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -193,6 +208,19 @@ export function McpLibraryPage() {
         server.endpoint?.toLowerCase().includes(query)
     )
   }, [servers, searchQuery])
+
+  // Calculate tool counts per server (enabled/total)
+  const toolCountsByServer = useMemo(() => {
+    const counts: Record<string, { enabled: number; total: number }> = {}
+    for (const server of servers) {
+      const serverTools = tools.filter((t) => t.serverId === server.id)
+      counts[server.id] = {
+        enabled: serverTools.filter((t) => t.enabled).length,
+        total: serverTools.length,
+      }
+    }
+    return counts
+  }, [servers, tools])
 
   // Generate Claude Code style JSON from form data
   const formDataToJson = (data: ServerFormData): string => {
@@ -272,15 +300,29 @@ export function McpLibraryPage() {
         headers: formData.headers.trim()
           ? JSON.parse(formData.headers)
           : undefined,
-        healthCheckUrl: formData.healthCheckUrl.trim() || undefined,
-        enabled: formData.enabled,
+        enabled: true, // Always enabled on create, can toggle from list
       }
 
       if (editingServer) {
         await updateServer(editingServer, payload)
+        // Run health check after update to refresh status and tools
+        testConnection(editingServer).catch(() => {
+          // Silently ignore health check errors on update
+        })
         toast({ title: 'Server updated', description: `${payload.name} has been updated.` })
       } else {
-        await createServer(payload)
+        const newServer = await createServer(payload)
+        // Immediately run health check to set status and discover tools
+        testConnection(newServer.id).then((result) => {
+          if (result.toolCount !== undefined && result.toolCount > 0) {
+            toast({
+              title: 'Server ready',
+              description: `Discovered ${result.toolCount} tool(s) from ${payload.name}.`,
+            })
+          }
+        }).catch(() => {
+          // Silently ignore health check errors
+        })
         toast({ title: 'Server created', description: `${payload.name} has been added.` })
       }
 
@@ -358,6 +400,22 @@ export function McpLibraryPage() {
     setSelectedServerForTools(serverId)
     setToolsDialogOpen(true)
     await fetchServerTools(serverId)
+  }
+
+  const handleToggleTool = async (serverId: string, toolId: string) => {
+    try {
+      const tool = await toggleTool(serverId, toolId)
+      toast({
+        title: tool.enabled ? 'Tool enabled' : 'Tool disabled',
+        description: `${tool.toolName} has been ${tool.enabled ? 'enabled' : 'disabled'}.`,
+      })
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to toggle tool',
+        variant: 'destructive',
+      })
+    }
   }
 
   // Parse Claude Code style JSON config
@@ -599,6 +657,7 @@ export function McpLibraryPage() {
               <TableHead className="w-[100px]">Type</TableHead>
               <TableHead>Endpoint</TableHead>
               <TableHead className="w-[120px]">Status</TableHead>
+              <TableHead className="w-[80px] text-center">Tools</TableHead>
               <TableHead className="w-[100px] text-center">Enabled</TableHead>
               <TableHead className="w-[180px] text-right">Actions</TableHead>
             </TableRow>
@@ -612,12 +671,13 @@ export function McpLibraryPage() {
                   <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-10 mx-auto" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-10 mx-auto" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                 </TableRow>
               ))
             ) : filteredServers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <Plug className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">
                     {searchQuery ? 'No servers match your search' : 'No MCP servers configured'}
@@ -651,6 +711,24 @@ export function McpLibraryPage() {
                   </TableCell>
                   <TableCell>
                     <HealthIndicator status={healthStatus[server.id] ?? null} />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {toolCountsByServer[server.id]?.total > 0 ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {toolCountsByServer[server.id].enabled}/{toolCountsByServer[server.id].total}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{toolCountsByServer[server.id].enabled} enabled out of {toolCountsByServer[server.id].total} tools</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     <Switch
@@ -853,15 +931,6 @@ export function McpLibraryPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="enabled"
-                  checked={formData.enabled}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-                />
-                <Label htmlFor="enabled">Enabled</Label>
-              </div>
-
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={() => setEditorOpen(false)}>
                   Cancel
@@ -953,7 +1022,13 @@ export function McpLibraryPage() {
               Tools from {selectedServer?.name ?? 'Server'}
             </DialogTitle>
             <DialogDescription>
-              These are the tools discovered from this MCP server.
+              {serverTools.length > 0 ? (
+                <span className="flex items-center gap-2 mt-1">
+                  Enabled: {serverTools.filter((t) => t.enabled).length} / {serverTools.length}
+                </span>
+              ) : (
+                'These are the tools discovered from this MCP server.'
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[400px] overflow-y-auto">
@@ -966,13 +1041,24 @@ export function McpLibraryPage() {
             ) : (
               <div className="space-y-3">
                 {serverTools.map((tool) => (
-                  <div key={tool.id} className="border rounded-lg p-3">
-                    <div className="font-medium">{tool.toolName}</div>
-                    {tool.description && (
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {tool.description}
+                  <div key={tool.id} className={cn(
+                    "border rounded-lg p-3 transition-opacity",
+                    !tool.enabled && "opacity-60"
+                  )}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">{tool.toolName}</div>
+                        {tool.description && (
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {tool.description}
+                          </div>
+                        )}
                       </div>
-                    )}
+                      <Switch
+                        checked={tool.enabled}
+                        onCheckedChange={() => handleToggleTool(tool.serverId, tool.id)}
+                      />
+                    </div>
                     {tool.inputSchema && (
                       <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-x-auto">
                         {JSON.stringify(tool.inputSchema, null, 2)}

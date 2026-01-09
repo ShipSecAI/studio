@@ -65,6 +65,7 @@ export class McpServersService {
       inputSchema: record.inputSchema,
       serverId: record.serverId,
       serverName: record.serverName ?? serverName ?? 'Unknown',
+      enabled: record.enabled,
       discoveredAt: record.discoveredAt.toISOString(),
     };
   }
@@ -276,6 +277,18 @@ export class McpServersService {
     return updated.map((t) => this.mapToolToResponse(t, server.name));
   }
 
+  async toggleToolEnabled(
+    auth: AuthContext | null,
+    serverId: string,
+    toolId: string,
+  ): Promise<McpToolResponse> {
+    const organizationId = this.assertOrganizationId(auth);
+    // Verify server belongs to organization
+    const server = await this.repository.findById(serverId, { organizationId });
+    const tool = await this.repository.toggleToolEnabled(toolId);
+    return this.mapToolToResponse(tool, server.name);
+  }
+
   async updateHealthStatus(
     auth: AuthContext | null,
     serverId: string,
@@ -300,11 +313,12 @@ export class McpServersService {
   /**
    * Test connection to an MCP server using actual HTTP health check.
    * For HTTP/SSE transports, sends an MCP initialize request to verify the server responds.
+   * Also discovers and stores tools on successful connection.
    */
   async testServerConnection(
     auth: AuthContext | null,
     id: string,
-  ): Promise<{ success: boolean; message: string; protocolVersion?: string; responseTimeMs?: number }> {
+  ): Promise<{ success: boolean; message: string; protocolVersion?: string; responseTimeMs?: number; toolCount?: number }> {
     const organizationId = this.assertOrganizationId(auth);
     const { server, headers } = await this.getServerWithDecryptedHeaders(auth, id);
 
@@ -347,9 +361,26 @@ export class McpServersService {
         { organizationId },
       );
 
+      // If connection successful, discover tools
+      let toolCount: number | undefined;
+      if (result.success) {
+        try {
+          const tools = await this.discoverMcpTools(server.endpoint, headers);
+          if (tools.length > 0) {
+            await this.repository.upsertTools(id, tools);
+            toolCount = tools.length;
+            this.logger.log(`Discovered ${tools.length} tools from MCP server ${server.name}`);
+          }
+        } catch (toolError) {
+          this.logger.warn(`Tool discovery failed for server ${id}:`, toolError);
+          // Don't fail the health check if tool discovery fails
+        }
+      }
+
       return {
         ...result,
         responseTimeMs,
+        toolCount,
       };
     } catch (error) {
       this.logger.error(`Health check failed for server ${id}:`, error);
@@ -505,6 +536,75 @@ export class McpServersService {
         success: false,
         message: 'Unknown error during health check',
       };
+    }
+  }
+
+  /**
+   * Discover tools from an MCP server by sending a tools/list request.
+   */
+  private async discoverMcpTools(
+    endpoint: string,
+    headers: Record<string, string> | null,
+  ): Promise<Array<{ toolName: string; description?: string | null; inputSchema?: Record<string, unknown> | null }>> {
+    const TIMEOUT_MS = 10_000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    try {
+      // MCP tools/list request
+      const toolsListRequest = {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/list',
+        params: {},
+      };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          ...(headers ?? {}),
+        },
+        body: JSON.stringify(toolsListRequest),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Unexpected content type: ${contentType}`);
+      }
+
+      const data = (await response.json()) as {
+        error?: { message?: string };
+        result?: {
+          tools?: Array<{
+            name: string;
+            description?: string;
+            inputSchema?: Record<string, unknown>;
+          }>;
+        };
+      };
+
+      if (data.error) {
+        throw new Error(data.error.message || 'tools/list failed');
+      }
+
+      const tools = data.result?.tools ?? [];
+      return tools.map((tool) => ({
+        toolName: tool.name,
+        description: tool.description ?? null,
+        inputSchema: tool.inputSchema ?? null,
+      }));
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
     }
   }
 
