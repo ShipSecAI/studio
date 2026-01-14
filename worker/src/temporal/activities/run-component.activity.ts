@@ -17,7 +17,7 @@ import {
   type AgentTracePublisher,
 } from '@shipsec/component-sdk';
 
-import { maskSecretOutputs, createLightweightSummary } from '../utils/component-output';
+import { maskSecretInputs, maskSecretOutputs, createLightweightSummary } from '../utils/component-output';
 import { RedisTerminalStreamAdapter } from '../../adapters';
 import type {
   RunComponentActivityInput,
@@ -167,7 +167,7 @@ export async function runComponentActivity(
     workflowId: input.workflowId,
     organizationId: input.organizationId,
     componentId: action.componentId,
-    inputs: maskSecretOutputs(component, params) as Record<string, unknown>,
+    inputs: maskSecretInputs(component, params) as Record<string, unknown>,
   });
 
   context.trace?.record({

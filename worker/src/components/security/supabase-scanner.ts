@@ -129,9 +129,10 @@ const definition: ComponentDefinition<Input, Output> = {
     kind: 'docker',
     image: 'ghcr.io/shipsecai/supabase-scanner:latest',
     network: 'bridge',
-    // Entry-point from the image handles a single CLI argument: the config path
-    // We set the argument in execute() via command: ['/configs/scanner_config.yaml']
-    command: ['/configs/scanner_config.yaml'],
+    // Distroless image (no shell) - use image's ENTRYPOINT directly
+    // ENTRYPOINT: ["/usr/bin/python3", "/app/supabase_scanner.py"]
+    // Config path passed as command argument
+    command: [],
     timeoutSeconds: 180,
   },
   inputSchema,
@@ -283,15 +284,18 @@ const definition: ComponentDefinition<Input, Output> = {
     let volumeInitialized = false;
 
     // Build runner with isolated volume mounts
-    const baseRunner = definition.runner;
+    // Distroless image uses ENTRYPOINT directly, config path passed as command arg
+    const baseRunner = definition.runner as DockerRunnerConfig;
     const runner: DockerRunnerConfig = {
-      ...(baseRunner.kind === 'docker'
-        ? baseRunner
-        : { kind: 'docker', image: 'ghcr.io/shipsecai/supabase-scanner:latest', command: [containerConfigPath] }),
-      env: { ...(baseRunner.kind === 'docker' ? baseRunner.env ?? {} : {}) },
+      kind: 'docker',
+      image: baseRunner.image,
+      network: baseRunner.network,
+      timeoutSeconds: baseRunner.timeoutSeconds,
+      env: { ...(baseRunner.env ?? {}) },
+      // Pass config path as command argument to image's ENTRYPOINT
       command: [containerConfigPath],
       volumes: [],
-    } as DockerRunnerConfig;
+    };
 
     let report: unknown = {};
     let score: number | null = null;

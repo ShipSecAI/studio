@@ -125,7 +125,9 @@ const definition: ComponentDefinition<Input, Output> = {
         });
       }
       outputs[inputDef.id] = value;
-      context.logger.info(`[EntryPoint] Output '${inputDef.id}' = ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+      // Mask secret values in logs
+      const logValue = inputDef.type === 'secret' ? '***' : (typeof value === 'object' ? JSON.stringify(value) : value);
+      context.logger.info(`[EntryPoint] Output '${inputDef.id}' = ${logValue}`);
     }
 
     context.emitProgress(`Collected ${Object.keys(outputs).length} runtime inputs`);

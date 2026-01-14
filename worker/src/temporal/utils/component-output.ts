@@ -3,6 +3,64 @@ import { componentRegistry } from '@shipsec/component-sdk';
 type RegisteredComponent = NonNullable<ReturnType<typeof componentRegistry.get>>;
 
 /**
+ * Masks values based on a list of secret port definitions.
+ */
+function maskSecretPorts(
+  secretPorts: Array<{ id: string }>,
+  data: unknown
+): unknown {
+  if (secretPorts.length === 0) {
+    return data;
+  }
+
+  if (secretPorts.some((port) => port.id === '__self__')) {
+    return '***';
+  }
+
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const clone = { ...(data as Record<string, unknown>) };
+    for (const port of secretPorts) {
+      if (Object.prototype.hasOwnProperty.call(clone, port.id)) {
+        clone[port.id] = '***';
+      }
+    }
+    return clone;
+  }
+
+  return '***';
+}
+
+/**
+ * Identifies secret ports from a list of port definitions.
+ */
+function getSecretPorts(
+  ports: Array<{ id: string; dataType?: { kind: string; name?: string; credential?: boolean } }> | undefined
+): Array<{ id: string }> {
+  return (
+    ports?.filter((port) => {
+      if (!port.dataType) {
+        return false;
+      }
+      if (port.dataType.kind === 'primitive') {
+        return port.dataType.name === 'secret';
+      }
+      if (port.dataType.kind === 'contract') {
+        return Boolean(port.dataType.credential);
+      }
+      return false;
+    }) ?? []
+  );
+}
+
+/**
+ * Masks inputs containing sensitive information (secrets) based on component metadata.
+ */
+export function maskSecretInputs(component: RegisteredComponent, input: unknown): unknown {
+  const secretPorts = getSecretPorts(component.metadata?.inputs);
+  return maskSecretPorts(secretPorts, input);
+}
+
+/**
  * Masks outputs containing sensitive information (secrets) based on component metadata.
  */
 export function maskSecretOutputs(component: RegisteredComponent, output: unknown): unknown {

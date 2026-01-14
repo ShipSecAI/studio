@@ -139,6 +139,10 @@ function isPlaceholderIssue(issue: ZodIssue, placeholderFields: Set<string>): bo
       return true;
     case 'too_big':
       return true;
+    case 'custom':
+      // Custom validations (from .refine()) fail on placeholders but will pass at runtime
+      // when the actual value comes from the connected edge
+      return true;
     case 'invalid_union':
       if ('unionErrors' in issue) {
         const unionIssue = issue as ZodIssue & { unionErrors: ZodError[] };

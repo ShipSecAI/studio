@@ -417,10 +417,13 @@ async function runDockerWithPty<I, O>(
         `[Docker][PTY] Failed to spawn PTY: ${error instanceof Error ? error.message : String(error)}. Diagnostic: ${JSON.stringify(diag)}`,
       );
       context.logger.warn('[Docker][PTY] Falling back to standard IO due to PTY spawn failure');
-      
-      // Remove -t flag before falling back (stdin is not a TTY)
-      const argsWithoutTty = dockerArgs.filter((arg) => arg !== '-t');
-      resolve(runDockerWithStandardIO(argsWithoutTty, params, context, timeoutSeconds));
+
+      // Remove -t flag and restore -i flag for standard IO (it was removed for PTY mode)
+      const argsForStandardIO = dockerArgs.filter((arg) => arg !== '-t');
+      if (!argsForStandardIO.includes('-i')) {
+        argsForStandardIO.splice(2, 0, '-i');
+      }
+      resolve(runDockerWithStandardIO(argsForStandardIO, params, context, timeoutSeconds));
       return;
     }
 
