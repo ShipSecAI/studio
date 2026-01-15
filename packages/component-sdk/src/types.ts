@@ -238,6 +238,14 @@ export type ParametersSchema<Shape extends Record<string, any> = Record<string, 
     readonly __inferred: z.infer<z.ZodObject<Shape>>;
   };
 
+/**
+ * Binding type for tool mode - determines how inputs are handled when component is used as an agent tool.
+ * - 'credential': Pre-bound from workflow (API keys, tokens) - never exposed to agent
+ * - 'action': Provided by agent at runtime (the actual work to do)
+ * - 'config': Pre-configured settings that don't change per invocation
+ */
+export type PortBindingType = 'credential' | 'action' | 'config';
+
 export interface ComponentPortMetadata {
   id: string;
   label: string;
@@ -251,6 +259,15 @@ export interface ComponentPortMetadata {
   isBranching?: boolean;
   /** Custom color for branching ports: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate' */
   branchColor?: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate';
+  /**
+   * Binding type for tool mode. Determines how this input is handled when the component
+   * is used as an agent-callable tool.
+   * - 'credential': Pre-bound from workflow, never exposed to agent
+   * - 'action': Provided by agent at runtime
+   * - 'config': Pre-configured, doesn't change per invocation
+   * @default Inferred from dataType: secret/contract → 'credential', others → 'action'
+   */
+  bindingType?: PortBindingType;
 }
 
 export type ComponentParameterType =
@@ -315,6 +332,25 @@ export type ComponentUiType =
   | 'process'
   | 'output';
 
+/**
+ * Configuration for exposing a component as an agent-callable tool.
+ */
+export interface AgentToolConfig {
+  /** Whether this component can be used as an agent tool */
+  enabled: boolean;
+  /**
+   * Tool name exposed to the agent. Defaults to component slug with underscores.
+   * Should be descriptive and follow snake_case convention.
+   * @example 'check_ip_reputation', 'query_cloudtrail'
+   */
+  toolName?: string;
+  /**
+   * Description of what the tool does, shown to the agent.
+   * Should clearly explain the tool's purpose and when to use it.
+   */
+  toolDescription?: string;
+}
+
 export interface ComponentUiMetadata {
   slug: string;
   version: string;
@@ -332,6 +368,12 @@ export interface ComponentUiMetadata {
   examples?: string[];
   /** UI-only component - should not be included in workflow execution */
   uiOnly?: boolean;
+  /**
+   * Configuration for exposing this component as an agent-callable tool.
+   * When enabled, the component can be used in tool mode within workflows,
+   * allowing AI agents to invoke it via the MCP gateway.
+   */
+  agentTool?: AgentToolConfig;
 }
 
 export interface ExecutionContext {
