@@ -10,6 +10,6 @@ import { SecretsService } from './secrets.service';
   imports: [DatabaseModule],
   controllers: [SecretsController],
   providers: [SecretsService, SecretsRepository, SecretsEncryptionService],
-  exports: [SecretsService],
+  exports: [SecretsService, SecretsEncryptionService],
 })
 export class SecretsModule {}
