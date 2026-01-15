@@ -18,6 +18,7 @@ import { TestingSupportModule } from './testing/testing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { McpModule } from './mcp/mcp.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -37,6 +38,7 @@ const coreModules = [
   ApiKeysModule,
   WebhooksModule,
   HumanInputsModule,
+  McpModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
