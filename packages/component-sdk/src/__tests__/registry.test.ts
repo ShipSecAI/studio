@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { z } from 'zod';
 import { ComponentRegistry } from '../registry';
-import { withPortMeta } from '../port-meta';
 import { defineComponent } from '../define-component';
 import { inputs, outputs, param, parameters, port } from '../schema-builders';
 import type { ComponentDefinition } from '../types';
@@ -19,9 +18,9 @@ describe('ComponentRegistry', () => {
       label: 'Test Component',
       category: 'transform',
       runner: { kind: 'inline' },
-      inputs: z.object({ input: withPortMeta(z.string(), { label: 'Input' }) }),
-      outputs: z.object({ output: withPortMeta(z.string(), { label: 'Output' }) }),
-      execute: async (params: any) => ({ output: params.input }),
+      inputs: inputs({ input: port(z.string(), { label: 'Input' }) }),
+      outputs: outputs({ output: port(z.string(), { label: 'Output' }) }),
+      execute: async ({ inputs: payload }) => ({ output: payload.input }),
     };
 
     registry.register(component);
@@ -38,8 +37,8 @@ describe('ComponentRegistry', () => {
       label: 'Duplicate',
       category: 'transform',
       runner: { kind: 'inline' },
-      inputs: z.object({}),
-      outputs: z.object({}),
+      inputs: inputs({}),
+      outputs: outputs({}),
       execute: async () => ({}),
     };
 
@@ -61,8 +60,8 @@ describe('ComponentRegistry', () => {
       label: 'One',
       category: 'input',
       runner: { kind: 'inline' },
-      inputs: z.object({}),
-      outputs: z.object({}),
+      inputs: inputs({}),
+      outputs: outputs({}),
       execute: async () => ({}),
     };
 
@@ -71,8 +70,8 @@ describe('ComponentRegistry', () => {
       label: 'Two',
       category: 'output',
       runner: { kind: 'inline' },
-      inputs: z.object({}),
-      outputs: z.object({}),
+      inputs: inputs({}),
+      outputs: outputs({}),
       execute: async () => ({}),
     };
 
@@ -91,8 +90,8 @@ describe('ComponentRegistry', () => {
       label: 'Exists',
       category: 'transform',
       runner: { kind: 'inline' },
-      inputs: z.object({}),
-      outputs: z.object({}),
+      inputs: inputs({}),
+      outputs: outputs({}),
       execute: async () => ({}),
     };
 
@@ -109,8 +108,8 @@ describe('ComponentRegistry', () => {
       label: 'Clear Test',
       category: 'transform',
       runner: { kind: 'inline' },
-      inputs: z.object({}),
-      outputs: z.object({}),
+      inputs: inputs({}),
+      outputs: outputs({}),
       execute: async () => ({}),
     };
 
@@ -127,8 +126,8 @@ describe('ComponentRegistry', () => {
       label: 'Param Component',
       category: 'transform',
       runner: { kind: 'inline' },
-      inputs: z.object({ input: withPortMeta(z.string(), { label: 'Input' }) }),
-      outputs: z.object({ output: withPortMeta(z.string(), { label: 'Output' }) }),
+      inputs: inputs({ input: port(z.string(), { label: 'Input' }) }),
+      outputs: outputs({ output: port(z.string(), { label: 'Output' }) }),
       parameters: parameters({
         mode: param(z.string().default('fast'), {
           label: 'Mode',
@@ -139,7 +138,7 @@ describe('ComponentRegistry', () => {
           ],
         }),
       }),
-      execute: async (params: any) => ({ output: params.input }),
+      execute: async ({ inputs: payload }) => ({ output: payload.input }),
     };
 
     registry.register(component);

@@ -1,7 +1,6 @@
 import type {
   ComponentDefinition,
   ComponentParameterMetadata,
-  UnifiedComponentDefinition,
 } from './types';
 import { ConfigurationError } from './errors';
 import { z } from 'zod';
@@ -10,7 +9,7 @@ import { extractParameters } from './zod-parameters';
 import { getPortMeta } from './port-meta';
 import { validateComponentSchema, validateParameterSchema } from './schema-validation';
 
-type AnyComponentDefinition = ComponentDefinition<any, any, any> | UnifiedComponentDefinition<any, any, any>;
+type AnyComponentDefinition = ComponentDefinition<any, any, any>;
 
 type ZodDef = { type?: string; typeName?: string; [key: string]: any };
 
@@ -39,9 +38,7 @@ export interface CachedComponentMetadata {
 export class ComponentRegistry {
   private components = new Map<string, CachedComponentMetadata>();
 
-  register<I, O, P = Record<string, unknown>>(
-    definition: ComponentDefinition<I, O, P> | UnifiedComponentDefinition<I, O, P>,
-  ): void {
+  register<I, O, P = Record<string, unknown>>(definition: ComponentDefinition<I, O, P>): void {
     if (this.components.has(definition.id)) {
       throw new ConfigurationError(`Component ${definition.id} is already registered`, {
         configKey: 'componentId',

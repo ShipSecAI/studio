@@ -13,6 +13,8 @@ export interface ParamMeta {
   label: string;
   /** Tooltip/help text */
   description?: string;
+  /** Supplemental helper text */
+  helpText?: string;
   /** Form field editor type */
   editor: ComponentParameterType;
   /** Placeholder text */

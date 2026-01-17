@@ -50,6 +50,7 @@ export function extractParameters(schema: z.ZodTypeAny): ComponentParameterMetad
       default: defaultValue,
       placeholder: paramMeta.placeholder,
       description: paramMeta.description,
+      helpText: paramMeta.helpText,
       options: paramMeta.options,
       min: paramMeta.min,
       max: paramMeta.max,

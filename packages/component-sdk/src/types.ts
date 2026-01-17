@@ -339,8 +339,8 @@ export interface ComponentDefinition<I = unknown, O = unknown, P = Record<string
   label: string;
   category: ComponentCategory;
   runner: RunnerConfig;
-  inputs: z.ZodType<I>;
-  outputs: z.ZodType<O>;
+  inputs: InputsSchema<I>;
+  outputs: OutputsSchema<O>;
   parameters?: ParametersSchema<P>;
   docs?: string;
   ui?: ComponentUiMetadata;
@@ -349,39 +349,16 @@ export interface ComponentDefinition<I = unknown, O = unknown, P = Record<string
   /** Retry policy for this component (optional, uses default if not specified) */
   retryPolicy?: ComponentRetryPolicy;
 
-  execute: (params: I, context: ExecutionContext) => Promise<O>;
+  execute: (payload: ExecutionPayload<I, P>, context: ExecutionContext) => Promise<O>;
   resolvePorts?: (
     params: P,
   ) => {
-    inputs?: z.ZodObject<any, any> | InputsSchema;
-    outputs?: z.ZodObject<any, any> | OutputsSchema;
+    inputs?: InputsSchema;
+    outputs?: OutputsSchema;
   };
 }
 
 export interface ExecutionPayload<I, P> {
   inputs: I;
   params: P;
-}
-
-export interface UnifiedComponentDefinition<
-  I = unknown,
-  O = unknown,
-  P = Record<string, unknown>,
-> {
-  id: string;
-  label: string;
-  category: ComponentCategory;
-  runner: RunnerConfig;
-  inputs: InputsSchema<I>;
-  outputs: OutputsSchema<O>;
-  parameters?: ParametersSchema<P>;
-  docs?: string;
-  ui?: ComponentUiMetadata;
-  requiresSecrets?: boolean;
-  retryPolicy?: ComponentRetryPolicy;
-  execute: (payload: ExecutionPayload<I, P>, context: ExecutionContext) => Promise<O>;
-  resolvePorts?: (params: P) => {
-    inputs?: InputsSchema;
-    outputs?: OutputsSchema;
-  };
 }
