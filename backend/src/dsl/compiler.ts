@@ -2,6 +2,7 @@ import { WorkflowGraphDto, WorkflowNodeDto } from '../workflows/dto/workflow-gra
 // Ensure all worker components are registered before accessing the registry
 import '../../../worker/src/components';
 import { componentRegistry } from '@shipsec/component-sdk';
+import { extractPorts } from '@shipsec/component-sdk/zod-ports';
 import {
   WorkflowAction,
   WorkflowDefinition,
@@ -61,7 +62,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       return true; // Let validation catch unknown components
     }
     // Skip UI-only components (they're for documentation/notes, not execution)
-    const isUiOnly = (component.metadata as any)?.uiOnly === true;
+    const isUiOnly = (component.ui as any)?.uiOnly === true;
     return !isUiOnly;
   });
 
@@ -143,12 +144,12 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     const component = componentRegistry.get(node.type);
     const params: Record<string, unknown> = { ...componentParams };
 
-    let inputs = component?.metadata?.inputs ?? [];
+    let inputs = componentRegistry.getMetadata(node.type)?.inputs ?? [];
     if (component?.resolvePorts) {
       try {
         const resolved = component.resolvePorts(params);
         if (resolved.inputs) {
-          inputs = resolved.inputs;
+          inputs = extractPorts(resolved.inputs);
         }
       } catch (e) {
         // Log but fallback to static inputs

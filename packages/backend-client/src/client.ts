@@ -3643,15 +3643,12 @@ export interface operations {
                         inputs?: {
                             id?: string;
                             label?: string;
-                            dataType?: {
+                            connectionType?: {
                                 /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract";
-                                name?: string;
-                                element?: Record<string, never>;
-                                value?: Record<string, never>;
-                                coercion?: {
-                                    from?: ("any" | "text" | "secret" | "number" | "boolean" | "file" | "json")[];
-                                };
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
                             } & {
                                 [key: string]: unknown;
                             };
@@ -3663,15 +3660,12 @@ export interface operations {
                         outputs?: {
                             id?: string;
                             label?: string;
-                            dataType?: {
+                            connectionType?: {
                                 /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract";
-                                name?: string;
-                                element?: Record<string, never>;
-                                value?: Record<string, never>;
-                                coercion?: {
-                                    from?: ("any" | "text" | "secret" | "number" | "boolean" | "file" | "json")[];
-                                };
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
                             } & {
                                 [key: string]: unknown;
                             };
@@ -3746,15 +3740,12 @@ export interface operations {
                         inputs?: {
                             id?: string;
                             label?: string;
-                            dataType?: {
+                            connectionType?: {
                                 /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract";
-                                name?: string;
-                                element?: Record<string, never>;
-                                value?: Record<string, never>;
-                                coercion?: {
-                                    from?: ("any" | "text" | "secret" | "number" | "boolean" | "file" | "json")[];
-                                };
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
                             } & {
                                 [key: string]: unknown;
                             };
@@ -3766,15 +3757,12 @@ export interface operations {
                         outputs?: {
                             id?: string;
                             label?: string;
-                            dataType?: {
+                            connectionType?: {
                                 /** @enum {string} */
-                                kind: "primitive" | "list" | "map" | "contract";
-                                name?: string;
-                                element?: Record<string, never>;
-                                value?: Record<string, never>;
-                                coercion?: {
-                                    from?: ("any" | "text" | "secret" | "number" | "boolean" | "file" | "json")[];
-                                };
+                                kind: "primitive" | "list" | "map" | "contract" | "any";
+                                name?: string | null;
+                                element?: Record<string, never> | null;
+                                credential?: boolean | null;
                             } & {
                                 [key: string]: unknown;
                             };

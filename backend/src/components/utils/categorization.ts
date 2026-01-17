@@ -84,7 +84,7 @@ function normalizeCategory(category?: string | null): ComponentCategory | null {
 }
 
 export function categorizeComponent(component: ComponentDefinition): ComponentCategory {
-  const fromMetadata = normalizeCategory(component.metadata?.category);
+  const fromMetadata = normalizeCategory(component.ui?.category);
   if (fromMetadata) {
     return fromMetadata;
   }

@@ -19,7 +19,7 @@ describe('compileWorkflowGraph', () => {
             label: 'Trigger',
             config: {
               runtimeInputs: [
-                { id: 'fileId', label: 'File ID', type: 'text', required: true },
+                { id: 'fileId', label: 'File ID', type: 'file', required: true },
               ],
             },
           },

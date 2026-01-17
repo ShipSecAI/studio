@@ -2794,7 +2794,7 @@
                             "label": {
                               "type": "string"
                             },
-                            "dataType": {
+                            "connectionType": {
                               "type": "object",
                               "properties": {
                                 "kind": {
@@ -2803,37 +2803,21 @@
                                     "primitive",
                                     "list",
                                     "map",
-                                    "contract"
+                                    "contract",
+                                    "any"
                                   ]
                                 },
                                 "name": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "nullable": true
                                 },
                                 "element": {
-                                  "type": "object"
-                                },
-                                "value": {
-                                  "type": "object"
-                                },
-                                "coercion": {
                                   "type": "object",
-                                  "properties": {
-                                    "from": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string",
-                                        "enum": [
-                                          "any",
-                                          "text",
-                                          "secret",
-                                          "number",
-                                          "boolean",
-                                          "file",
-                                          "json"
-                                        ]
-                                      }
-                                    }
-                                  }
+                                  "nullable": true
+                                },
+                                "credential": {
+                                  "type": "boolean",
+                                  "nullable": true
                                 }
                               },
                               "required": [
@@ -2870,7 +2854,7 @@
                             "label": {
                               "type": "string"
                             },
-                            "dataType": {
+                            "connectionType": {
                               "type": "object",
                               "properties": {
                                 "kind": {
@@ -2879,37 +2863,21 @@
                                     "primitive",
                                     "list",
                                     "map",
-                                    "contract"
+                                    "contract",
+                                    "any"
                                   ]
                                 },
                                 "name": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "nullable": true
                                 },
                                 "element": {
-                                  "type": "object"
-                                },
-                                "value": {
-                                  "type": "object"
-                                },
-                                "coercion": {
                                   "type": "object",
-                                  "properties": {
-                                    "from": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string",
-                                        "enum": [
-                                          "any",
-                                          "text",
-                                          "secret",
-                                          "number",
-                                          "boolean",
-                                          "file",
-                                          "json"
-                                        ]
-                                      }
-                                    }
-                                  }
+                                  "nullable": true
+                                },
+                                "credential": {
+                                  "type": "boolean",
+                                  "nullable": true
                                 }
                               },
                               "required": [
@@ -3121,7 +3089,7 @@
                           "label": {
                             "type": "string"
                           },
-                          "dataType": {
+                          "connectionType": {
                             "type": "object",
                             "properties": {
                               "kind": {
@@ -3130,37 +3098,21 @@
                                   "primitive",
                                   "list",
                                   "map",
-                                  "contract"
+                                  "contract",
+                                  "any"
                                 ]
                               },
                               "name": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "element": {
-                                "type": "object"
-                              },
-                              "value": {
-                                "type": "object"
-                              },
-                              "coercion": {
                                 "type": "object",
-                                "properties": {
-                                  "from": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string",
-                                      "enum": [
-                                        "any",
-                                        "text",
-                                        "secret",
-                                        "number",
-                                        "boolean",
-                                        "file",
-                                        "json"
-                                      ]
-                                    }
-                                  }
-                                }
+                                "nullable": true
+                              },
+                              "credential": {
+                                "type": "boolean",
+                                "nullable": true
                               }
                             },
                             "required": [
@@ -3197,7 +3149,7 @@
                           "label": {
                             "type": "string"
                           },
-                          "dataType": {
+                          "connectionType": {
                             "type": "object",
                             "properties": {
                               "kind": {
@@ -3206,37 +3158,21 @@
                                   "primitive",
                                   "list",
                                   "map",
-                                  "contract"
+                                  "contract",
+                                  "any"
                                 ]
                               },
                               "name": {
-                                "type": "string"
+                                "type": "string",
+                                "nullable": true
                               },
                               "element": {
-                                "type": "object"
-                              },
-                              "value": {
-                                "type": "object"
-                              },
-                              "coercion": {
                                 "type": "object",
-                                "properties": {
-                                  "from": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string",
-                                      "enum": [
-                                        "any",
-                                        "text",
-                                        "secret",
-                                        "number",
-                                        "boolean",
-                                        "file",
-                                        "json"
-                                      ]
-                                    }
-                                  }
-                                }
+                                "nullable": true
+                              },
+                              "credential": {
+                                "type": "boolean",
+                                "nullable": true
                               }
                             },
                             "required": [

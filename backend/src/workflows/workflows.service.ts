@@ -6,7 +6,7 @@ import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
 import { compileWorkflowGraph } from '../dsl/compiler';
 // Ensure all worker components are registered before accessing the registry
 import '@shipsec/studio-worker/components';
-import { componentRegistry } from '@shipsec/component-sdk';
+import { componentRegistry, extractPorts } from '@shipsec/component-sdk';
 import { WorkflowDefinition } from '../dsl/types';
 import {
   TemporalService,
@@ -1245,10 +1245,13 @@ export class WorkflowsService {
       }
       
       try {
-        const component = componentRegistry.get(componentId);
-        if (!component) {
+        const entry = componentRegistry.getMetadata(componentId);
+        if (!entry) {
           return node;
         }
+        const component = entry.definition;
+        const baseInputs = entry.inputs ?? extractPorts(component.inputs);
+        const baseOutputs = entry.outputs ?? extractPorts(component.outputs);
         
         // Get parameters from node data (they may be stored in config, parameters, or at data level)
         const params = nodeData.parameters || nodeData.config || {};
@@ -1261,8 +1264,8 @@ export class WorkflowsService {
               ...node,
               data: {
                 ...nodeData,
-                dynamicInputs: resolved.inputs ?? component.metadata?.inputs ?? [],
-                dynamicOutputs: resolved.outputs ?? component.metadata?.outputs ?? [],
+                dynamicInputs: resolved.inputs ? extractPorts(resolved.inputs) : baseInputs,
+                dynamicOutputs: resolved.outputs ? extractPorts(resolved.outputs) : baseOutputs,
               },
             };
           } catch (resolveError) {
@@ -1272,8 +1275,8 @@ export class WorkflowsService {
               ...node,
               data: {
                 ...nodeData,
-                dynamicInputs: component.metadata?.inputs ?? [],
-                dynamicOutputs: component.metadata?.outputs ?? [],
+                dynamicInputs: baseInputs,
+                dynamicOutputs: baseOutputs,
               },
             };
           }
@@ -1283,8 +1286,8 @@ export class WorkflowsService {
             ...node,
             data: {
               ...nodeData,
-              dynamicInputs: component.metadata?.inputs ?? [],
-              dynamicOutputs: component.metadata?.outputs ?? [],
+              dynamicInputs: baseInputs,
+              dynamicOutputs: baseOutputs,
             },
           };
         }

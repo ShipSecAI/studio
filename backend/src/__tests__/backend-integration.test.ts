@@ -83,7 +83,7 @@ interface Component {
   inputs: Array<{
     id: string;
     label: string;
-    dataType: Record<string, unknown>;
+    connectionType: Record<string, unknown>;
     required: boolean;
     description: string | null;
     valuePriority?: 'manual-first' | 'connection-first';
@@ -91,7 +91,7 @@ interface Component {
   outputs: Array<{
     id: string;
     label: string;
-    dataType: Record<string, unknown>;
+    connectionType: Record<string, unknown>;
     description: string | null;
   }>;
   parameters: Array<{

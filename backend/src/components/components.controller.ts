@@ -3,15 +3,12 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 // Ensure all worker components are registered before accessing the registry
 import '@shipsec/studio-worker/components';
-import { componentRegistry } from '@shipsec/component-sdk';
+import { componentRegistry, extractPorts, type CachedComponentMetadata } from '@shipsec/component-sdk';
 import { categorizeComponent, getCategoryConfig } from './utils/categorization';
 
-function serializeComponent(component: ReturnType<typeof componentRegistry.get>) {
-  if (!component) {
-    return null;
-  }
-
-  const metadata = component.metadata ?? {
+function serializeComponent(entry: CachedComponentMetadata) {
+  const component = entry.definition;
+  const metadata = component.ui ?? {
     slug: component.id,
     version: '1.0.0',
     type: 'process',
@@ -40,8 +37,8 @@ function serializeComponent(component: ReturnType<typeof componentRegistry.get>)
     deprecated: metadata.deprecated ?? false,
     example: metadata.example ?? null,
     runner: component.runner,
-    inputs: metadata.inputs ?? [],
-    outputs: metadata.outputs ?? [],
+    inputs: entry.inputs ?? [],
+    outputs: entry.outputs ?? [],
     parameters: metadata.parameters ?? [],
     examples: metadata.examples ?? [],
   };
@@ -114,28 +111,21 @@ export class ComponentsController {
               properties: {
                 id: { type: 'string' },
                 label: { type: 'string' },
-                dataType: {
+                connectionType: {
                   type: 'object',
                   properties: {
-                    kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
-                    name: { type: 'string' },
-                    element: { type: 'object' },
-                    value: { type: 'object' },
-                    coercion: {
-                      type: 'object',
-                      properties: {
-                        from: {
-                          type: 'array',
-                          items: {
-                            type: 'string',
-                            enum: ['any', 'text', 'secret', 'number', 'boolean', 'file', 'json'],
-                          },
-                        },
-                      },
-                    },
+                    kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract', 'any'] },
+                    name: { type: 'string', nullable: true },
+                    element: { type: 'object', nullable: true },
+                    credential: { type: 'boolean', nullable: true },
                   },
                   required: ['kind'],
                   additionalProperties: true,
+                },
+                editor: {
+                  type: 'string',
+                  enum: ['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'json', 'secret'],
+                  nullable: true,
                 },
                 required: { type: 'boolean' },
                 description: { type: 'string', nullable: true },
@@ -150,25 +140,13 @@ export class ComponentsController {
               properties: {
                 id: { type: 'string' },
                 label: { type: 'string' },
-                dataType: {
+                connectionType: {
                   type: 'object',
                   properties: {
-                    kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
-                    name: { type: 'string' },
-                    element: { type: 'object' },
-                    value: { type: 'object' },
-                    coercion: {
-                      type: 'object',
-                      properties: {
-                        from: {
-                          type: 'array',
-                          items: {
-                            type: 'string',
-                            enum: ['any', 'text', 'secret', 'number', 'boolean', 'file', 'json'],
-                          },
-                        },
-                      },
-                    },
+                    kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract', 'any'] },
+                    name: { type: 'string', nullable: true },
+                    element: { type: 'object', nullable: true },
+                    credential: { type: 'boolean', nullable: true },
                   },
                   required: ['kind'],
                   additionalProperties: true,
@@ -228,10 +206,9 @@ export class ComponentsController {
     },
   })
   listComponents() {
-    const components = componentRegistry.list();
+    const components = componentRegistry.listMetadata();
 
-    // Transform to frontend-friendly format
-    return components.map((component) => serializeComponent(component));
+    return components.map((entry) => serializeComponent(entry));
   }
 
   @Get(':id')
@@ -278,28 +255,21 @@ export class ComponentsController {
             properties: {
               id: { type: 'string' },
               label: { type: 'string' },
-              dataType: {
+              connectionType: {
                 type: 'object',
                 properties: {
-                  kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
-                  name: { type: 'string' },
-                  element: { type: 'object' },
-                  value: { type: 'object' },
-                  coercion: {
-                    type: 'object',
-                    properties: {
-                      from: {
-                        type: 'array',
-                        items: {
-                          type: 'string',
-                          enum: ['any', 'text', 'secret', 'number', 'boolean', 'file', 'json'],
-                        },
-                      },
-                    },
-                  },
+                  kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract', 'any'] },
+                  name: { type: 'string', nullable: true },
+                  element: { type: 'object', nullable: true },
+                  credential: { type: 'boolean', nullable: true },
                 },
                 required: ['kind'],
                 additionalProperties: true,
+              },
+              editor: {
+                type: 'string',
+                enum: ['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'json', 'secret'],
+                nullable: true,
               },
               required: { type: 'boolean' },
               description: { type: 'string', nullable: true },
@@ -314,25 +284,13 @@ export class ComponentsController {
             properties: {
               id: { type: 'string' },
               label: { type: 'string' },
-              dataType: {
+              connectionType: {
                 type: 'object',
                 properties: {
-                  kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract'] },
-                  name: { type: 'string' },
-                  element: { type: 'object' },
-                  value: { type: 'object' },
-                  coercion: {
-                    type: 'object',
-                    properties: {
-                      from: {
-                        type: 'array',
-                        items: {
-                          type: 'string',
-                          enum: ['any', 'text', 'secret', 'number', 'boolean', 'file', 'json'],
-                        },
-                      },
-                    },
-                  },
+                  kind: { type: 'string', enum: ['primitive', 'list', 'map', 'contract', 'any'] },
+                  name: { type: 'string', nullable: true },
+                  element: { type: 'object', nullable: true },
+                  credential: { type: 'boolean', nullable: true },
                 },
                 required: ['kind'],
                 additionalProperties: true,
@@ -350,30 +308,34 @@ export class ComponentsController {
     },
   })
   getComponent(@Param('id') id: string) {
-    const component = componentRegistry.get(id);
+    const entry = componentRegistry.getMetadata(id);
 
-    if (!component) {
+    if (!entry) {
       throw new NotFoundException(`Component ${id} not found`);
     }
 
-    return serializeComponent(component);
+    return serializeComponent(entry);
   }
   @Post(':id/resolve-ports')
   @ApiOkResponse({
     description: 'Resolve dynamic ports based on parameters',
   })
   resolvePorts(@Param('id') id: string, @Body() body: Record<string, unknown>) {
-    const component = componentRegistry.get(id);
+    const entry = componentRegistry.getMetadata(id);
 
-    if (!component) {
+    if (!entry) {
       throw new NotFoundException(`Component ${id} not found`);
     }
+
+    const component = entry.definition;
+    const baseInputs = entry.inputs ?? extractPorts(component.inputs);
+    const baseOutputs = entry.outputs ?? extractPorts(component.outputs);
 
     if (!component.resolvePorts) {
       // If no dynamic resolver, return static definition
       return {
-        inputs: component.metadata?.inputs ?? [],
-        outputs: component.metadata?.outputs ?? [],
+        inputs: baseInputs,
+        outputs: baseOutputs,
       };
     }
 
@@ -381,15 +343,15 @@ export class ComponentsController {
     try {
       const resolved = component.resolvePorts(body);
       return {
-        inputs: resolved.inputs ?? component.metadata?.inputs ?? [],
-        outputs: resolved.outputs ?? component.metadata?.outputs ?? [],
+        inputs: resolved.inputs ? extractPorts(resolved.inputs) : baseInputs,
+        outputs: resolved.outputs ? extractPorts(resolved.outputs) : baseOutputs,
       };
     } catch (error: any) {
         // Fallback to static on error
         console.error(`Error resolving ports for ${id}:`, error);
          return {
-            inputs: component.metadata?.inputs ?? [],
-            outputs: component.metadata?.outputs ?? [],
+            inputs: baseInputs,
+            outputs: baseOutputs,
           };
     }
   }
