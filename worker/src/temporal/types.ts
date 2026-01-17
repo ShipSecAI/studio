@@ -8,6 +8,7 @@ export interface WorkflowAction {
   ref: string;
   componentId: string;
   params: Record<string, unknown>;
+  inputOverrides: Record<string, unknown>;
   dependsOn: string[];
   inputMappings: Record<
     string,
@@ -73,6 +74,7 @@ export interface RunComponentActivityInput {
     ref: string;
     componentId: string;
   };
+  inputs: Record<string, unknown>;
   params: Record<string, unknown>;
   warnings?: Array<{
     target: string;
@@ -161,7 +163,7 @@ export interface PrepareRunPayloadActivityInput {
   versionId?: string;
   version?: number;
   inputs?: Record<string, unknown>;
-  nodeOverrides?: Record<string, Record<string, unknown>>;
+  nodeOverrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>;
   trigger?: ExecutionTriggerMetadata;
   runId?: string;
   organizationId?: string | null;

@@ -167,7 +167,7 @@ export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): 
 
 type ComponentInputMetadata = {
   id: string;
-  valuePriority?: 'manual-first' | 'auto-first' | string;
+  valuePriority?: 'manual-first' | 'connection-first' | string;
   connectionType: ConnectionType;
 };
 
@@ -175,18 +175,20 @@ type ComponentMetadataSnapshot = {
   inputs?: ComponentInputMetadata[];
 };
 
-export function buildActionParams(
+export function buildActionPayload(
   action: WorkflowAction,
   results: Map<string, unknown>,
   options: {
     componentMetadata?: ComponentMetadataSnapshot;
   } = {},
 ): {
+    inputs: Record<string, unknown>;
     params: Record<string, unknown>;
     warnings: InputWarning[];
     manualOverrides: ManualOverride[];
   } {
   const params = { ...(action.params ?? {}) } as Record<string, unknown>;
+  const inputs = { ...(action.inputOverrides ?? {}) } as Record<string, unknown>;
   const warnings: InputWarning[] = [];
   const manualOverrides: ManualOverride[] = [];
 
@@ -198,8 +200,8 @@ export function buildActionParams(
     const portMetadata = inputMetadata.get(targetKey);
     const preferManual = portMetadata?.valuePriority === 'manual-first';
     const manualProvided =
-      preferManual && Object.prototype.hasOwnProperty.call(params, targetKey)
-        ? params[targetKey] !== undefined
+      preferManual && Object.prototype.hasOwnProperty.call(inputs, targetKey)
+        ? inputs[targetKey] !== undefined
         : false;
 
     if (manualProvided) {
@@ -214,7 +216,7 @@ export function buildActionParams(
       if (portMetadata?.connectionType) {
         const coercion = coerceValueForConnectionType(portMetadata.connectionType, resolved);
         if (coercion.ok) {
-          params[targetKey] = coercion.value;
+          inputs[targetKey] = coercion.value;
         } else {
           warnings.push({
             target: targetKey,
@@ -224,7 +226,7 @@ export function buildActionParams(
           continue;
         }
       } else {
-        params[targetKey] = resolved;
+        inputs[targetKey] = resolved;
       }
     } else {
 
@@ -236,5 +238,5 @@ export function buildActionParams(
     }
   }
 
-  return { params, warnings, manualOverrides };
+  return { inputs, params, warnings, manualOverrides };
 }

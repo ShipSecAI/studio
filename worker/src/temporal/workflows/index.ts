@@ -10,7 +10,7 @@ import {
 } from '@temporalio/workflow';
 import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
-import { buildActionParams } from '../input-resolver';
+import { buildActionPayload } from '../input-resolver';
 import { resolveHumanInputSignal, type HumanInputResolution } from '../signals';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
@@ -154,7 +154,8 @@ export async function shipsecWorkflowRun(
            )
          }
 
-        const { params, warnings } = buildActionParams(action, results);
+        const { inputs, params, warnings } = buildActionPayload(action, results);
+        const mergedInputs: Record<string, unknown> = { ...inputs };
         const mergedParams: Record<string, unknown> = { ...params };
 
         // Only apply inputs to the actual entrypoint component, not just any node matching the entrypoint ref
@@ -166,7 +167,7 @@ export async function shipsecWorkflowRun(
             console.log(
               `[Workflow] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`
             );
-            mergedParams.__runtimeData = input.inputs;
+            mergedInputs.__runtimeData = input.inputs;
           } else {
             // Entrypoint ref points to a non-entrypoint component - this is a configuration error
             // Log warning but don't apply inputs to wrong component
@@ -486,6 +487,7 @@ export async function shipsecWorkflowRun(
             ref: action.ref,
             componentId: action.componentId,
           },
+          inputs: mergedInputs,
           params: mergedParams,
           warnings,
           metadata: {
@@ -742,7 +744,7 @@ export interface ScheduleTriggerWorkflowInput {
   scheduleId?: string;
   scheduleName?: string | null;
   runtimeInputs?: Record<string, unknown>;
-  nodeOverrides?: Record<string, Record<string, unknown>>;
+  nodeOverrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>;
   trigger?: ExecutionTriggerMetadata;
 }
 

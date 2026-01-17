@@ -78,11 +78,27 @@ export async function finalizeRunActivity(input: { runId: string }): Promise<voi
 export async function runComponentActivity(
   input: RunComponentActivityInput,
 ): Promise<RunComponentActivityOutput> {
-  const { action, params, warnings = [] } = input;
+  const { action, inputs, params, warnings = [] } = input;
   const activityInfo = Context.current().info;
-  
-  // Minimal structured logging (avoid dumping params which may be large)
-  console.log(`[Activity] ${action.componentId}:${action.ref} attempt=${activityInfo.attempt}`);
+  console.log(`🎯 ACTIVITY CALLED - runComponentActivity:`, {
+    activityId: activityInfo.activityId,
+    attempt: activityInfo.attempt,
+    workflowId: activityInfo.workflowExecution?.workflowId ?? 'unknown',
+    runId: activityInfo.workflowExecution?.runId ?? 'unknown',
+    componentId: action.componentId,
+    ref: action.ref,
+    timestamp: new Date().toISOString()
+  });
+
+  console.log(`📋 Activity input details:`, {
+    componentId: action.componentId,
+    ref: action.ref,
+    hasParams: !!params,
+    paramKeys: params ? Object.keys(params) : [],
+    hasInputs: !!inputs,
+    inputKeys: inputs ? Object.keys(inputs) : [],
+    warningsCount: warnings.length
+  });
 
   const component = componentRegistry.get(action.componentId);
   if (!component) {
@@ -246,14 +262,17 @@ export async function runComponentActivity(
     });
   }
 
-  const parsedParams = component.inputs.parse(params);
+  const parsedInputs = component.inputs.parse(inputs);
+  const parsedParams = component.parameters
+    ? component.parameters.parse(params)
+    : params;
 
   try {
     // Execute the component logic directly so that any
     // normalisation/parsing inside `execute` runs.
     // Docker/remote execution should be invoked from within
     // the component via `runComponentWithRunner`.
-    let output = await component.execute(parsedParams, context);
+    const output = await component.execute({ inputs: parsedInputs, params: parsedParams }, context);
 
     // Check if component requested suspension (e.g. approval gate)
     const isSuspended = output && typeof output === 'object' && 'pending' in output && (output as any).pending === true;

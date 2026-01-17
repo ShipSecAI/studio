@@ -25,7 +25,7 @@ import {
   WorkflowSchedulerError,
 } from './workflow-scheduler';
 import { createLightweightSummary } from './utils/component-output';
-import { buildActionParams } from './input-resolver';
+import { buildActionPayload } from './input-resolver';
 import type { ArtifactServiceFactory } from './artifact-factory';
 
 
@@ -131,7 +131,7 @@ export async function executeWorkflow(
         },
       });
 
-      const { params, warnings, manualOverrides } = buildActionParams(action, results, {
+      const { inputs, params, warnings, manualOverrides } = buildActionPayload(action, results, {
         componentMetadata: { inputs: inputPorts },
       });
 
@@ -237,7 +237,7 @@ export async function executeWorkflow(
           console.log(
             `[WorkflowRunner] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`
           );
-          params.__runtimeData = request.inputs;
+          inputs.__runtimeData = request.inputs;
         } else {
           // Entrypoint ref points to a non-entrypoint component - this is a configuration error
           // Log warning but don't apply inputs to wrong component
@@ -262,10 +262,13 @@ export async function executeWorkflow(
         workflowId: options.workflowId,
         organizationId: options.organizationId,
         componentId: action.componentId,
-        inputs: maskSecretOutputs(inputPorts, params) as Record<string, unknown>,
+        inputs: maskSecretOutputs(inputPorts, inputs) as Record<string, unknown>,
       });
 
-      const parsedParams = component.inputs.parse(params);
+      const parsedInputs = component.inputs.parse(inputs);
+      const parsedParams = component.parameters
+        ? component.parameters.parse(params)
+        : params;
 
       // Create execution context with SDK interfaces
       const scopedArtifacts = options.artifacts
@@ -300,7 +303,7 @@ export async function executeWorkflow(
 
       try {
         console.log(`⚡️ [WORKFLOW RUNNER] Executing component: ${action.componentId} for action: ${actionRef}`);
-        const rawOutput = await component.execute(parsedParams, context);
+        const rawOutput = await component.execute({ inputs: parsedInputs, params: parsedParams }, context);
         console.log(`✅ [WORKFLOW RUNNER] Component execution completed: ${action.componentId} for action: ${actionRef}`);
         let output = component.outputs.parse(rawOutput);
 
@@ -331,7 +334,6 @@ export async function executeWorkflow(
             console.warn('[WorkflowRunner] Failed to check/spill output size', err);
           }
         }
-
         results.set(action.ref, output);
         console.log(`💾 [WORKFLOW RUNNER] Result stored for: ${actionRef}`);
         // Record node I/O completion
