@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { extractPorts } from '@shipsec/component-sdk';
-import { definition } from './slack';
+import { definition } from '../slack';
 
 describe('Slack Component Template Support', () => {
     let httpFetchMock: ReturnType<typeof mock>;

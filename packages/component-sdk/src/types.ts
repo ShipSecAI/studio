@@ -337,7 +337,7 @@ export interface ComponentUiMetadata {
 export interface ExecutionContext {
   runId: string;
   componentRef: string;
-    logger: Logger;
+  logger: Logger;
   emitProgress: (progress: ProgressEventInput | string) => void;
   logCollector?: (entry: LogEventInput) => void;
   terminalCollector?: (chunk: TerminalChunkInput) => void;

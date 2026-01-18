@@ -1,12 +1,12 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { definition } from "./http-request";
+import { definition } from "../http-request";
 import type { ExecutionContext } from "@shipsec/component-sdk";
 
 // Helper to create a dummy context
 const mockContext: ExecutionContext = {
   runId: "test-run",
   componentRef: "test-node",
-  ui: { workflowId: "test-wf", executionId: "test-exec" },
+  metadata: { workflowId: "test-wf", executionId: "test-exec" },
   logger: {
     debug: () => {},
     info: () => {},
