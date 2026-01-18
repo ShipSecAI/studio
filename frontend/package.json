@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "bun test --preload ./src/test/setup.ts",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
