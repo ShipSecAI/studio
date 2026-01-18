@@ -1,6 +1,6 @@
 import type { ComponentDefinition, ComponentCategory } from '@shipsec/component-sdk';
 
-interface ComponentCategoryConfig {
+export interface ComponentCategoryConfig {
   label: string;
   color: string;
   description: string;

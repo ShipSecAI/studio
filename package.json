@@ -25,7 +25,7 @@
     "mcp:delete": "pm2 delete shipsec-mcp-server || true",
     "mcp:logs": "pm2 logs shipsec-mcp-server",
     "mcp:status": "pm2 status shipsec-mcp-server",
-    "typecheck": "bun --filter='@shipsec/*' typecheck",
+    "typecheck": "tsc --build",
     "test": "bun test",
     "test:e2e": "RUN_E2E=true bun test e2e-tests",
     "dev:docs": "cd docs && mint dev"
@@ -37,6 +37,7 @@
     "openapi-typescript": "^7.10.1",
     "pm2": "^6.0.14",
     "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
     "undici": "^7.18.2"
   },
   "dependencies": {

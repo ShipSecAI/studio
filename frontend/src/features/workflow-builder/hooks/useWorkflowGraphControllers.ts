@@ -43,7 +43,7 @@ const isEntryPointNode = (node?: ReactFlowNode<FrontendNodeData>) => {
   return componentRef === ENTRY_COMPONENT_ID || componentRef === ENTRY_COMPONENT_SLUG
 }
 
-export const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
+export const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]): ReactFlowNode<FrontendNodeData>[] =>
   nodes.map((node) => ({
     ...node,
     position: { ...node.position },

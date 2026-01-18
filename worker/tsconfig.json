@@ -18,6 +18,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "emitDeclarationOnly": true,
     "types": [
       "bun-types"
     ],
@@ -31,5 +32,16 @@
   "exclude": [
     "node_modules",
     "dist"
+  ],
+  "references": [
+    {
+      "path": "../packages/shared"
+    },
+    {
+      "path": "../packages/component-sdk"
+    },
+    {
+      "path": "../packages/contracts"
+    }
   ]
 }
