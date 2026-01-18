@@ -654,10 +654,14 @@ const definition = defineComponent({
           try {
             const fileMap = await outputVolume.readFiles([file]);
             contents.push(fileMap[file]);
-          } catch {}
+          } catch {
+            // Skip files that can't be read
+          }
         }
         rawSegments = contents;
-      } catch {}
+      } catch {
+        // Fall through to check if rawSegments is empty
+      }
     }
 
     if (rawSegments.length === 0) {

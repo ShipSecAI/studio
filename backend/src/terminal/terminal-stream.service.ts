@@ -242,7 +242,9 @@ export class TerminalStreamService implements OnModuleDestroy {
       if (parsed && typeof parsed === 'object') {
         return parsed as Record<string, string>;
       }
-    } catch {}
+    } catch {
+      // Ignore parse errors and return empty state
+    }
     return {};
   }
 

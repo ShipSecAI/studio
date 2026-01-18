@@ -250,7 +250,9 @@ export class TerminalArchiveService {
           offset: parsed.archive.offset ?? 0,
         };
       }
-    } catch {}
+    } catch {
+      // Ignore parse errors and return null
+    }
     return null;
   }
 

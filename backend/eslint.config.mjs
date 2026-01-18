@@ -44,7 +44,7 @@ export default [
       "@typescript-eslint/no-redeclare": "error",
       "no-import-assign": "error",
       "no-unused-vars": "off",
-      "no-empty": "off",
+      "no-empty": "warn",
       "no-control-regex": "off",
       "no-case-declarations": "off",
       "no-useless-catch": "off",
