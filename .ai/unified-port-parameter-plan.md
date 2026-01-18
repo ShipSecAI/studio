@@ -59,12 +59,16 @@ Todos:
 ## Phase 4: Frontend UI + Data Model
 Intent: Surface inputs + parameters with clear status and overrides.
 Todos:
-- [ ] Update node config shape to store parameter values + input overrides.
-- [ ] ConfigPanel renders Parameters + Inputs sections from schemas.
-- [ ] Inputs show Connected/Manual/Empty status.
-- [ ] Manual override editor uses `PortMeta.editor` and `valuePriority`.
-- [ ] Remove any `ui.parameters` usage.
-- [ ] Commit checkpoint.
+- [x] Update node config shape to store parameter values + input overrides.
+- [x] ConfigPanel renders Parameters + Inputs sections from schemas.
+- [x] Inputs show Connected/Manual/Empty status.
+- [x] Manual override editor uses `PortMeta.editor` and `valuePriority`.
+- [x] Remove any legacy `parameters` field usage.
+- [x] Commit checkpoint.
+
+### Phase Notes
+- Full cutover from legacy `parameters` to `config.params` and `config.inputOverrides`.
+- Updated serializer, ConfigPanel, WorkflowNode, and validation logic.
 
 ## Phase 5: Component Migration
 Intent: Migrate all components to the unified API.
@@ -87,6 +91,6 @@ Todos:
 - [ ] Commit checkpoint.
 
 ## Validation (End of Each Phase)
-- [ ] `bun run typecheck`
+- [x] `bun run typecheck` (Backend + Frontend)
 - [ ] `bun run lint`
 - [ ] `bun run test` (plus targeted backend/worker suites as needed)

@@ -49,8 +49,7 @@ export const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
     position: { ...node.position },
     data: {
       ...node.data,
-      parameters: node.data?.parameters ? { ...node.data.parameters } : {},
-      config: node.data?.config ? { ...node.data.config } : {},
+      config: node.data?.config ? { ...node.data.config } : { params: {}, inputOverrides: {} },
       inputs: node.data?.inputs ? { ...node.data.inputs } : {},
     },
   }))

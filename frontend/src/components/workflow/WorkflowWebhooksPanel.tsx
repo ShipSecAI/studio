@@ -73,11 +73,12 @@ export function WorkflowWebhooksSidebar({
     // Calculate default entrypoint payload from nodes
     const entryPointPayload = useMemo(() => {
         const entryNode = nodes.find(n => n.data.componentId === 'core.workflow.entrypoint' || n.data.componentSlug === 'entry-point')
-        if (!entryNode || !entryNode.data.parameters?.runtimeInputs) return {}
+        const params = entryNode?.data.config?.params || {}
+        if (!entryNode || !params.runtimeInputs) return {}
         try {
-            const inputs = typeof entryNode.data.parameters.runtimeInputs === 'string'
-                ? JSON.parse(entryNode.data.parameters.runtimeInputs)
-                : entryNode.data.parameters.runtimeInputs
+            const inputs = typeof params.runtimeInputs === 'string'
+                ? JSON.parse(params.runtimeInputs)
+                : params.runtimeInputs
 
             if (!Array.isArray(inputs)) return {}
 

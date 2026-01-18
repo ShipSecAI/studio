@@ -93,13 +93,15 @@ describe('WorkflowNode – text block rendering', () => {
   it('renders configured content inside the node body', () => {
     const nodeData = {
       label: 'Text',
-      config: {},
+      config: {
+        params: {
+          content: 'Review the execution summary before approval.',
+        },
+        inputOverrides: {},
+      },
       componentId: 'core.ui.text',
       componentSlug: 'text-block',
       componentVersion: '1.0.0',
-      parameters: {
-        content: 'Review the execution summary before approval.',
-      },
       inputs: {},
       status: 'idle',
     }
@@ -131,13 +133,15 @@ describe('WorkflowNode – text block rendering', () => {
   it('falls back to helper text when no content is provided', () => {
     const nodeData = {
       label: 'Text',
-      config: {},
+      config: {
+        params: {
+          content: '   ',
+        },
+        inputOverrides: {},
+      },
       componentId: 'core.ui.text',
       componentSlug: 'text-block',
       componentVersion: '1.0.0',
-      parameters: {
-        content: '   ',
-      },
       inputs: {},
       status: 'idle',
     }

@@ -504,11 +504,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
 
   const entryPointPayload = (() => {
-    if (!isEntryPoint || !nodeData.parameters?.runtimeInputs) return {}
+    const params = nodeData.config?.params || {}
+    if (!isEntryPoint || !params.runtimeInputs) return {}
     try {
-      const inputs = typeof nodeData.parameters.runtimeInputs === 'string'
-        ? JSON.parse(nodeData.parameters.runtimeInputs)
-        : nodeData.parameters.runtimeInputs
+      const inputs = typeof params.runtimeInputs === 'string'
+        ? JSON.parse(params.runtimeInputs)
+        : params.runtimeInputs
 
       if (!Array.isArray(inputs)) return {}
 
@@ -664,8 +665,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Enhanced styling for timeline visualization
   const isTimelineActive = mode === 'execution' && selectedRunId && visualState.status !== 'idle'
-  const textBlockContent = typeof nodeData.parameters?.content === 'string'
-    ? nodeData.parameters.content
+  const textBlockContent = typeof nodeData.config?.params?.content === 'string'
+    ? nodeData.config.params.content
     : ''
   const trimmedTextBlockContent = textBlockContent.trim()
 
@@ -714,7 +715,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Check if there are unfilled required parameters or inputs
   const componentParameters = component.parameters ?? []
   const componentInputs = nodeData.dynamicInputs ?? component.inputs ?? []
-  const manualParameters = (nodeData.parameters ?? {}) as Record<string, unknown>
+  const manualParameters = (nodeData.config?.params ?? {}) as Record<string, unknown>
+  const inputOverrides = (nodeData.config?.inputOverrides ?? {}) as Record<string, unknown>
   const requiredParams = componentParameters.filter(param => param.required)
   const requiredInputs = componentInputs.filter(input => input.required)
 
@@ -723,11 +725,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   let effectiveOutputs: any[] = nodeData.dynamicOutputs ?? (Array.isArray(component.outputs) ? component.outputs : [])
 
   // Legacy: For Entry Point without dynamicOutputs, generate outputs based on runtimeInputs parameter
-  if (!nodeData.dynamicOutputs && component.id === 'core.workflow.entrypoint' && nodeData.parameters?.runtimeInputs) {
+  const runtimeInputsVal = nodeData.config?.params?.runtimeInputs
+  if (!nodeData.dynamicOutputs && component.id === 'core.workflow.entrypoint' && runtimeInputsVal) {
     try {
-      const runtimeInputs = typeof nodeData.parameters.runtimeInputs === 'string'
-        ? JSON.parse(nodeData.parameters.runtimeInputs)
-        : nodeData.parameters.runtimeInputs
+      const runtimeInputs = typeof runtimeInputsVal === 'string'
+        ? JSON.parse(runtimeInputsVal)
+        : runtimeInputsVal
 
       if (Array.isArray(runtimeInputs) && runtimeInputs.length > 0) {
         effectiveOutputs = runtimeInputs.map((input: any) => {
@@ -751,7 +754,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     const manualEligible = inputSupportsManualValue(input) || manualOverridesPort(input)
     if (!manualEligible) return false
     if (hasConnection && !manualOverridesPort(input)) return false
-    const manualCandidate = manualParameters[input.id]
+    const manualCandidate = inputOverrides[input.id]
     if (manualCandidate === undefined || manualCandidate === null) return false
     if (typeof manualCandidate === 'string') {
       return manualCandidate.trim().length > 0
@@ -762,7 +765,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const hasUnfilledRequired =
     // Check unfilled required parameters
     requiredParams.some(param => {
-      const value = nodeData.parameters?.[param.id]
+      const value = manualParameters[param.id]
       const effectiveValue = value !== undefined ? value : param.default
       return effectiveValue === undefined || effectiveValue === null || effectiveValue === ''
     }) ||
@@ -1213,17 +1216,16 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 console.log('[WorkflowNode] Checkbox clicked, updating content:', next)
                 setNodes((nds) => nds.map((n) => {
                   if (n.id !== id) return n
-                  const currentParams = (n.data as any).parameters || {}
-                  const updatedParams = { ...currentParams, content: next }
+                  const currentConfig = (n.data as any).config || { params: {}, inputOverrides: {} }
+                  const updatedParams = { ...(currentConfig.params || {}), content: next }
                   return {
                     ...n,
                     data: {
                       ...n.data,
-                      // Update both parameters and config to keep them in sync
-                      // The serializer uses parameters || config, and the graph signature
-                      // needs both to be updated for change detection to work
-                      parameters: updatedParams,
-                      config: updatedParams,
+                      config: {
+                        ...currentConfig,
+                        params: updatedParams,
+                      },
                     },
                   }
                 }))
@@ -1358,7 +1360,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           <ParametersDisplay
             componentParameters={componentParameters}
             requiredParams={requiredParams}
-            nodeParameters={nodeData.parameters}
+            nodeParameters={nodeData.config?.params}
             position="top"
           />
         )}
@@ -1373,7 +1375,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               const hasConnection = Boolean(connection)
 
               // Get source node and output info if connected
-              const manualCandidate = manualParameters[input.id]
+              const manualCandidate = inputOverrides[input.id]
               const manualValueProvided = manualValueProvidedForInput(input, hasConnection)
 
               let sourceInfo: string | null = null

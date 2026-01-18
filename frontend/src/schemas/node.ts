@@ -49,14 +49,29 @@ export const InputMappingSchema = z.object({
 export type InputMapping = z.infer<typeof InputMappingSchema>
 
 /**
+ * Node config with separated params and inputOverrides
+ * Backend structure: { params, inputOverrides, joinStrategy?, streamId?, groupId?, maxConcurrency? }
+ */
+export const NodeConfigSchema = z.object({
+  params: z.record(z.string(), z.unknown()).default({}),
+  inputOverrides: z.record(z.string(), z.unknown()).default({}),
+  joinStrategy: z.enum(['all', 'any', 'first']).optional(),
+  streamId: z.string().optional(),
+  groupId: z.string().optional(),
+  maxConcurrency: z.number().int().positive().optional(),
+}).passthrough() // Allow additional fields like dynamic ports
+
+export type NodeConfig = z.infer<typeof NodeConfigSchema>
+
+/**
  * Node data contains component configuration and state
- * Backend structure: { label: string, config: Record<string, any> }
- * Frontend extends with: { componentSlug, componentVersion, parameters, status, etc. }
+ * Backend structure: { label: string, config: { params, inputOverrides, ... } }
+ * Frontend extends with: { componentSlug, componentVersion, status, etc. }
  */
 export const NodeDataSchema = z.object({
   // Backend fields (required from backend)
   label: z.string(),
-  config: z.record(z.string(), z.any()).default({}),
+  config: NodeConfigSchema.default({ params: {}, inputOverrides: {} }),
 }).passthrough() // Allow additional frontend fields like componentSlug, status, etc.
 
 export type NodeData = z.infer<typeof NodeDataSchema>
@@ -89,7 +104,6 @@ export interface FrontendNodeData extends NodeData {
   componentId?: string
   componentSlug?: string
   componentVersion?: string
-  parameters?: Record<string, any>
   inputs?: Record<string, InputMapping>
   dynamicInputs?: InputPort[]
   dynamicOutputs?: InputPort[]

@@ -68,7 +68,7 @@ export function validateConnection(
   // Special case: Entry Point legacy support if dynamicOutputs is missing
   if (sourceComponent.id === 'core.workflow.entrypoint' && !(sourceNode.data as any).dynamicOutputs) {
     const sourceNodeData = sourceNode.data
-    const runtimeInputsParam = sourceNodeData.parameters?.runtimeInputs
+    const runtimeInputsParam = sourceNodeData.config?.params?.runtimeInputs
     
     if (runtimeInputsParam) {
       try {
@@ -177,7 +177,8 @@ export function getNodeValidationWarnings(
   const warnings: string[] = []
 
   // Check for required inputs that are not connected
-  const manualParameters = (node.data.parameters ?? {}) as Record<string, unknown>
+  const manualParameters = (node.data.config?.params ?? {}) as Record<string, unknown>
+  const inputOverrides = (node.data.config?.inputOverrides ?? {}) as Record<string, unknown>
 
   component.inputs.forEach((input) => {
     if (input.required) {
@@ -187,7 +188,7 @@ export function getNodeValidationWarnings(
 
       const manualOverridesPort = input.valuePriority === 'manual-first'
       const allowsManualInput = inputSupportsManualValue(input) || manualOverridesPort
-      const manualCandidate = manualParameters[input.id]
+      const manualCandidate = inputOverrides[input.id]
       const manualValueProvided = allowsManualInput && (!hasConnection || manualOverridesPort) && manualCandidate !== undefined && manualCandidate !== null && (
         typeof manualCandidate === 'string' ? manualCandidate.trim().length > 0 : true
       )
@@ -201,7 +202,7 @@ export function getNodeValidationWarnings(
   // Check for required parameters that are not set
   component.parameters.forEach((param) => {
     if (param.required) {
-      const value = node.data.parameters?.[param.id]
+      const value = manualParameters[param.id]
       if (value === undefined || value === null || value === '') {
         warnings.push(`Required parameter "${param.label}" is not set`)
       }

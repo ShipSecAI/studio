@@ -320,13 +320,15 @@ function WorkflowBuilderContent() {
       position: { x: 0, y: 0 },
       data: {
         label: component?.name ?? 'Entry Point',
-        config: {},
+        config: {
+          params: {
+            runtimeInputs: ENTRY_DEFAULT_RUNTIME_INPUTS.map((input) => ({ ...input })),
+          },
+          inputOverrides: {},
+        },
         componentId: ENTRY_COMPONENT_ID,
         componentSlug: slug,
         componentVersion: component?.version ?? '1.0.0',
-        parameters: {
-          runtimeInputs: ENTRY_DEFAULT_RUNTIME_INPUTS.map((input) => ({ ...input })),
-        },
         inputs: {},
         status: 'idle',
       },
@@ -733,7 +735,7 @@ function WorkflowBuilderContent() {
     }
 
     const nodeData = triggerNode.data as any
-    const runtimeInputsParam = nodeData.parameters?.runtimeInputs
+    const runtimeInputsParam = nodeData.config?.params?.runtimeInputs
 
     if (!runtimeInputsParam) {
       return []

@@ -1,6 +1,6 @@
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
 import { MarkerType } from 'reactflow'
-import type { NodeData } from '@/schemas/node'
+import type { NodeData, NodeConfig } from '@/schemas/node'
 import type { components } from '@shipsec/backend-client'
 
 // Backend types
@@ -12,10 +12,19 @@ type UpdateWorkflowRequestDto = components['schemas']['UpdateWorkflowRequestDto'
 /**
  * Serialize React Flow nodes to API format
  * Strips runtime execution state and React Flow metadata
- * Frontend: { id, type: 'workflow', position, data: { componentId, componentSlug, label, parameters, status, ... } }
- * Backend: { id, type: componentId, position, data: { label, config } }
+ * Frontend: { id, type: 'workflow', position, data: { componentId, componentSlug, label, status, ... } }
+ * Backend: { id, type: componentId, position, data: { label, config: { params, inputOverrides } } }
  */
 import type { FrontendNodeData } from '@/schemas/node';
+
+const ENTRY_POINT_COMPONENT_IDS = [
+  'core.workflow.entrypoint',
+  'entry-point',
+] as const;
+
+function isEntryPointComponent(componentId: string): boolean {
+  return ENTRY_POINT_COMPONENT_IDS.includes(componentId as any);
+}
 
 export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]): BackendNode[] {
   return reactFlowNodes.map((node) => {
@@ -25,13 +34,37 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
       node.type ||
       'unknown'
 
-    // Get base config from parameters or config
-    const baseConfig = node.data.parameters || node.data.config || {}
+    // Use config.params and config.inputOverrides
+    const existingConfig = node.data.config || { params: {}, inputOverrides: {} }
+    let params = { ...(existingConfig.params || {}) }
+    let inputOverrides = { ...(existingConfig.inputOverrides || {}) }
 
-    // Include UI metadata (like size for text blocks) in config
-    // This preserves UI state across saves without requiring backend schema changes
+    // For Entry Point components, extract runtimeInputs and populate inputOverrides
+    if (isEntryPointComponent(componentId)) {
+      const runtimeInputs = params.runtimeInputs as Array<{ id: string; type: string; label: string; required?: boolean; description?: string; defaultValue?: unknown }> | undefined
+
+      if (runtimeInputs && Array.isArray(runtimeInputs)) {
+        // Build inputOverrides with default values if they don't exist yet
+        runtimeInputs.forEach(input => {
+          if (input.defaultValue !== undefined && inputOverrides[input.id] === undefined) {
+            inputOverrides[input.id] = input.defaultValue
+          }
+        })
+      }
+    }
+
+    // Include UI metadata
     const ui = (node.data as any).ui
-    const configWithUi = ui ? { ...baseConfig, __ui: ui } : baseConfig
+
+    // Build the new config structure
+    const config: Record<string, unknown> = {
+      ...existingConfig,
+      params,
+      inputOverrides,
+    }
+
+    // Add UI metadata
+    if (ui) config.__ui = ui
 
     return {
       id: node.id,
@@ -39,7 +72,7 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
       position: node.position,
       data: {
         label: node.data.label || '',
-        config: configWithUi,
+        config,
       },
     }
   })
@@ -111,7 +144,7 @@ export function serializeWorkflowForUpdate(
 /**
  * Deserialize workflow nodes from API to React Flow format
  * Backend sends: { graph: { nodes: [...], edges: [...] } }
- * Frontend needs: { id, type: 'workflow', position, data: { componentId, componentSlug, label, parameters, status, config } }
+ * Frontend needs: { id, type: 'workflow', position, data: { componentId, componentSlug, label, status, config } }
  */
 export function deserializeNodes(workflow: { graph: { nodes: BackendNode[], edges?: BackendEdge[] } }): ReactFlowNode<NodeData>[] {
   const nodes = workflow.graph.nodes
@@ -136,10 +169,22 @@ export function deserializeNodes(workflow: { graph: { nodes: BackendNode[], edge
   }
 
   return nodes.map((node) => {
-    // Extract UI metadata from config if present
-    const configWithPossibleUi = node.data.config || {}
-    const { __ui, ...cleanConfig } = configWithPossibleUi as { __ui?: any; [key: string]: any }
-    
+    // Extract config from backend node data
+    const backendConfig = node.data.config || {}
+    const { __ui, params, inputOverrides, ...restOfConfig } = backendConfig as {
+      __ui?: any
+      params?: Record<string, unknown>
+      inputOverrides?: Record<string, unknown>
+      [key: string]: any
+    }
+
+    // Ensure config has the required structure
+    const config: NodeConfig = {
+      params: params || {},
+      inputOverrides: inputOverrides || {},
+      ...restOfConfig,
+    } as NodeConfig
+
     // Extract dynamic ports from backend node data (if present)
     const backendNodeData = node.data as any
     const dynamicInputs = backendNodeData.dynamicInputs
@@ -152,12 +197,11 @@ export function deserializeNodes(workflow: { graph: { nodes: BackendNode[], edge
       data: {
         // Backend's data.label and data.config (required)
         label: node.data.label,
-        config: cleanConfig,
+        config,
         // Frontend extensions
         componentId: node.type,
         componentSlug: node.type,
         componentVersion: '1.0.0', // Default version if not specified
-        parameters: cleanConfig, // Map config to parameters for frontend (without __ui)
         status: 'idle', // Reset execution state
         inputs: inputMappingsByNode.get(node.id) ?? {},
         // Dynamic ports resolved by backend

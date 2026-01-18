@@ -87,8 +87,8 @@ export const useWorkflowHistory = ({
         data: {
           label: node.data?.label,
           componentId: node.data?.componentId,
-          parameters: node.data?.parameters,
           inputs: node.data?.inputs,
+          config: node.data?.config,
         },
       }))
       .sort((a, b) => a.id.localeCompare(b.id))

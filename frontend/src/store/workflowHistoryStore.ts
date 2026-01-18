@@ -54,8 +54,7 @@ const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]): ReactFlowNode<Fro
     position: { ...node.position },
     data: {
       ...node.data,
-      parameters: node.data?.parameters ? { ...node.data.parameters } : {},
-      config: node.data?.config ? { ...node.data.config } : {},
+      config: node.data?.config ? { ...node.data.config } : { params: {}, inputOverrides: {} },
       inputs: node.data?.inputs ? { ...node.data.inputs } : {},
     },
   }))
@@ -80,7 +79,6 @@ const computeStateSignature = (state: GraphState): string => {
         label: node.data?.label,
         componentId: node.data?.componentId,
         componentSlug: node.data?.componentSlug,
-        parameters: node.data?.parameters,
         inputs: node.data?.inputs,
         config: node.data?.config,
       },

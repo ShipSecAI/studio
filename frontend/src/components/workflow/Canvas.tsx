@@ -488,12 +488,14 @@ export function Canvas({
         data: {
           // Backend fields (required)
           label: component.name,
-          config: {},
+          config: {
+            params: initialParameters,
+            inputOverrides: {},
+          },
           // Frontend fields
           componentId: component.id,
           componentSlug: component.slug ?? component.id,
           componentVersion: component.version,
-          parameters: initialParameters,
           inputs: {},
           status: 'idle',
           // Pass workflowId to node data for entry point webhook URL
