@@ -9,6 +9,7 @@
     "start:prod": "bun run build/main.js",
     "build": "bun build src/main.ts --outdir build --target bun",
     "test": "bun test",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "generate:openapi": "bun scripts/generate-openapi.ts",
     "migration:push": "bun x drizzle-kit push",
