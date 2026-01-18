@@ -15,6 +15,7 @@ import {
   type ITraceService,
   type INodeIOService,
   type AgentTracePublisher,
+  type SpilledDataMarker,
 } from '@shipsec/component-sdk';
 
 import { maskSecretInputs, maskSecretOutputs, createLightweightSummary } from '../utils/component-output';
@@ -119,13 +120,13 @@ export async function runComponentActivity(
 
   const scopedArtifacts = globalArtifacts
     ? globalArtifacts({
-        runId: input.runId,
-        workflowId: input.workflowId,
-        workflowVersionId: input.workflowVersionId ?? null,
-        componentId: action.componentId,
-        componentRef: action.ref,
-        organizationId: input.organizationId ?? null,
-      })
+      runId: input.runId,
+      workflowId: input.workflowId,
+      workflowVersionId: input.workflowVersionId ?? null,
+      componentId: action.componentId,
+      componentRef: action.ref,
+      organizationId: input.organizationId ?? null,
+    })
     : undefined;
 
   const allowSecrets = component.requiresSecrets === true;
@@ -148,42 +149,42 @@ export async function runComponentActivity(
     trace: globalTrace,
     logCollector: globalLogs
       ? (entry) => {
-          void globalLogs
-            ?.append({
-              runId: entry.runId,
-              nodeRef: entry.nodeRef,
-              stream: entry.stream,
-              level: entry.level,
-              message: entry.message,
-              timestamp: new Date(entry.timestamp),
-              metadata: entry.metadata,
-              organizationId: input.organizationId ?? null,
-            })
-            .catch((error) => {
-              console.error('[Logs] Failed to append log entry', error);
-            });
+        void globalLogs
+          ?.append({
+            runId: entry.runId,
+            nodeRef: entry.nodeRef,
+            stream: entry.stream,
+            level: entry.level,
+            message: entry.message,
+            timestamp: new Date(entry.timestamp),
+            metadata: entry.metadata,
+            organizationId: input.organizationId ?? null,
+          })
+          .catch((error) => {
+            console.error('[Logs] Failed to append log entry', error);
+          });
       }
       : undefined,
     terminalCollector: globalTerminal
       ? (chunk) => {
-          void globalTerminal
-            ?.append(chunk)
-            .catch((error) => {
-              console.error('[Terminal] Failed to append chunk', error);
-            });
-        }
+        void globalTerminal
+          ?.append(chunk)
+          .catch((error) => {
+            console.error('[Terminal] Failed to append chunk', error);
+          });
+      }
       : undefined,
     agentTracePublisher: globalAgentTracePublisher,
   });
 
-  // Record node I/O start
+  // Record node I/O start (using raw inputs/params from workflow)
   await globalNodeIO?.recordStart({
     runId: input.runId,
     nodeRef: action.ref,
     workflowId: input.workflowId,
     organizationId: input.organizationId,
     componentId: action.componentId,
-    inputs: maskSecretInputs(component, params) as Record<string, unknown>,
+    inputs: maskSecretInputs(component, { ...inputs, ...params }) as Record<string, unknown>,
   });
 
   context.trace?.record({
@@ -194,53 +195,58 @@ export async function runComponentActivity(
 
   const warningsToReport = [...warnings];
 
-  // Resolve spilled inputs if necessary
-  const resolvedParams = { ...params };
+  // Resolve spilled inputs and params if necessary
   const spilledObjectsCache = new Map<string, any>();
+  const resolvedParams = { ...params };
+  const resolvedInputs = { ...inputs };
 
-  for (const [key, value] of Object.entries(resolvedParams)) {
-    if (isSpilledDataMarker(value)) {
-      if (!globalStorage) {
-        console.warn(`[Activity] Parameter '${key}' is spilled but no storage service is available`);
-        continue;
-      }
-
-      try {
-        let fullData: any;
-        if (spilledObjectsCache.has(value.storageRef)) {
-          fullData = spilledObjectsCache.get(value.storageRef);
-        } else {
-          const content = await globalStorage.downloadFile(value.storageRef);
-          fullData = JSON.parse(content.buffer.toString('utf8'));
-          spilledObjectsCache.set(value.storageRef, fullData);
+  async function unspill(obj: Record<string, any>, contextLabel: string) {
+    for (const [key, value] of Object.entries(obj)) {
+      if (isSpilledDataMarker(value)) {
+        if (!globalStorage) {
+          console.warn(`[Activity] ${contextLabel} '${key}' is spilled but no storage service is available`);
+          continue;
         }
 
-
-        const handle = (value as any).__spilled_handle__;
-        if (handle && handle !== '__self__') {
-          if (fullData && typeof fullData === 'object' && Object.prototype.hasOwnProperty.call(fullData, handle)) {
-            resolvedParams[key] = fullData[handle];
+        try {
+          let fullData: any;
+          if (spilledObjectsCache.has(value.storageRef)) {
+            fullData = spilledObjectsCache.get(value.storageRef);
           } else {
-            console.warn(`[Activity] Spilled handle '${handle}' not found in downloaded data for parameter '${key}'`);
-            resolvedParams[key] = undefined;
-            warningsToReport.push({
-              target: key,
-              sourceRef: 'spilled-storage', // Minimal info since we don't have full mapping here
-              sourceHandle: handle,
-            });
+            const content = await globalStorage.downloadFile(value.storageRef);
+            fullData = JSON.parse(content.buffer.toString('utf8'));
+            spilledObjectsCache.set(value.storageRef, fullData);
           }
-        } else {
-          resolvedParams[key] = fullData;
+
+          const handle = (value as any).__spilled_handle__;
+          if (handle && handle !== '__self__') {
+            if (fullData && typeof fullData === 'object' && Object.prototype.hasOwnProperty.call(fullData, handle)) {
+              obj[key] = fullData[handle];
+            } else {
+              console.warn(`[Activity] Spilled handle '${handle}' not found in downloaded data for ${contextLabel.toLowerCase()} '${key}'`);
+              obj[key] = undefined;
+              warningsToReport.push({
+                target: key,
+                sourceRef: 'spilled-storage',
+                sourceHandle: String(handle),
+              });
+            }
+          } else {
+            obj[key] = fullData;
+          }
+        } catch (err) {
+          console.error(`[Activity] Failed to resolve spilled ${contextLabel.toLowerCase()} '${key}':`, err);
+          throw ApplicationFailure.retryable(
+            `Failed to resolve spilled ${contextLabel.toLowerCase()} '${key}': ${err instanceof Error ? err.message : String(err)}`,
+            'SpillResolutionError'
+          );
         }
-      } catch (err) {
-        console.error(`[Activity] Failed to resolve spilled parameter '${key}':`, err);
-        throw ApplicationFailure.retryable(
-          `Failed to resolve spilled input parameter '${key}': ${err instanceof Error ? err.message : String(err)}`,
-          'SpillResolutionError'
-        );
       }
     }
   }
+
+  await unspill(resolvedParams, 'Parameter');
+  await unspill(resolvedInputs, 'Input');
 
   for (const warning of warningsToReport) {
     context.trace?.record({
@@ -275,10 +281,10 @@ export async function runComponentActivity(
     }
   }
 
-  const parsedInputs = inputsSchema.parse(inputs);
+  const parsedInputs = inputsSchema.parse(resolvedInputs);
   const parsedParams = component.parameters
-    ? component.parameters.parse(params)
-    : params;
+    ? component.parameters.parse(resolvedParams)
+    : resolvedParams;
 
   try {
     // Execute the component logic directly so that any
@@ -304,14 +310,14 @@ export async function runComponentActivity(
 
           if (size > TEMPORAL_SPILL_THRESHOLD_BYTES && globalStorage) {
             const fileId = crypto.randomUUID();
-            
+
             await globalStorage.uploadFile(
               fileId,
               'output.json',
               Buffer.from(outputStr),
               'application/json'
             );
-            
+
             // Replace output with standardized spilled marker
             output = {
               __spilled__: true,
@@ -335,7 +341,7 @@ export async function runComponentActivity(
       });
 
       // Clean up Node I/O recording - output has been recorded
-      
+
       context.trace?.record({
         type: 'NODE_COMPLETED',
         timestamp: new Date().toISOString(),
@@ -349,7 +355,7 @@ export async function runComponentActivity(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`[Activity] Failed ${action.ref}: ${errorMsg}`);
-    
+
     // Extract error properties without using 'any'
     let errorType: string | undefined;
     let errorDetails: Record<string, unknown> | undefined;
@@ -358,22 +364,22 @@ export async function runComponentActivity(
 
     if (error instanceof Error) {
       errorType = error.name;
-      
+
       // Check if it's a ComponentError (has type and retryable properties)
       if ('type' in error && typeof (error as { type: unknown }).type === 'string') {
         errorType = (error as { type: string }).type;
       }
-      
+
       // Check if it's retryable
       if ('retryable' in error && typeof (error as { retryable: unknown }).retryable === 'boolean') {
         isRetryable = (error as { retryable: boolean }).retryable;
       }
-      
+
       // Extract details if present
       if ('details' in error && typeof (error as { details: unknown }).details === 'object' && (error as { details: unknown }).details !== null) {
         errorDetails = (error as { details: Record<string, unknown> }).details;
       }
-      
+
       // Extract fieldErrors if it's a ValidationError
       if (error instanceof ValidationError && error.fieldErrors) {
         fieldErrors = error.fieldErrors;
@@ -393,7 +399,7 @@ export async function runComponentActivity(
       details: errorDetails,
       fieldErrors,
     };
-    
+
     context.trace?.record({
       type: 'NODE_FAILED',
       timestamp: new Date().toISOString(),
