@@ -53,39 +53,38 @@ import {
   defineComponent,
   inputs,
   outputs,
-  parameters,
   port,
-  param
 } from '@shipsec/component-sdk';
 
-const inputSchema = z.object({
-  url: z.string().url(),
-  method: z.enum(['GET', 'POST']).default('GET'),
-});
-
-const outputSchema = z.object({
-  status: z.number(),
-  body: z.string(),
-});
-
-type Input = z.infer<typeof inputSchema>;
-type Output = z.infer<typeof outputSchema>;
-
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'core.http.request',
   label: 'HTTP Request',
   category: 'transform',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
-  async execute(input, context) {
-    context.logger.info(`Fetching ${input.url}`);
-    const response = await fetch(input.url, { method: input.method });
+  
+  inputs: inputs({
+    url: port(z.string().url(), {
+      label: 'URL',
+      description: 'The URL to fetch',
+    }),
+    method: port(z.enum(['GET', 'POST']).default('GET'), {
+      label: 'Method',
+      description: 'HTTP verb to use',
+    }),
+  }),
+  
+  outputs: outputs({
+    status: port(z.number(), { label: 'Status Code' }),
+    body: port(z.string(), { label: 'Response Body' }),
+  }),
+
+  async execute({ inputs }, context) {
+    context.logger.info(`Fetching ${inputs.url}`);
+    const response = await fetch(inputs.url, { method: inputs.method });
     return { status: response.status, body: await response.text() };
   }
-};
+});
 
-componentRegistry.register(definition);
 export default definition;
 ```
 
@@ -94,13 +93,15 @@ export default definition;
 ```typescript
 import { z } from 'zod';
 import { 
-  componentRegistry, 
-  ComponentDefinition,
-  DockerRunnerConfig,
-  runComponentWithRunner 
+  defineComponent,
+  inputs,
+  outputs,
+  port,
+  runComponentWithRunner,
+  DockerRunnerConfig
 } from '@shipsec/component-sdk';
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'shipsec.tool.scan',
   label: 'Tool Scanner',
   category: 'security',
@@ -108,13 +109,20 @@ const definition: ComponentDefinition<Input, Output> = {
     kind: 'docker',
     image: 'tool:latest',
     entrypoint: 'sh',
-    command: ['-c', 'tool "$@"', '--'],  // Shell wrapper for PTY
+    command: ['-c', 'tool "$@"', '--'],
     network: 'bridge'
   },
-  inputSchema,
-  outputSchema,
-  async execute(input, context) {
-    const args = ['-json', '-target', input.target];
+  
+  inputs: inputs({
+    target: port(z.string(), { label: 'Target Host' }),
+  }),
+  
+  outputs: outputs({
+    results: port(z.any(), { label: 'Scan Results' }),
+  }),
+
+  async execute({ inputs }, context) {
+    const args = ['-json', '-target', inputs.target];
     
     const runnerConfig: DockerRunnerConfig = {
       ...this.runner,
@@ -123,16 +131,18 @@ const definition: ComponentDefinition<Input, Output> = {
 
     const rawOutput = await runComponentWithRunner(
       runnerConfig,
-      async () => ({} as Output),
-      input,
+      async (stdout) => {
+         // Logic to parse tool stdout
+         return JSON.parse(stdout);
+      },
+      inputs,
       context
     );
     
-    return parseOutput(rawOutput);
+    return { results: rawOutput };
   }
 });
 
-componentRegistry.register(definition);
 export default definition;
 ```
 
@@ -143,7 +153,7 @@ export default definition;
 The `context` passed to `execute()` provides services and utilities:
 
 ```typescript
-async execute(input, context) {
+async execute({ inputs, params }, context) {
   // Logging (shows in UI timeline)
   context.logger.info('Starting scan...');
   context.logger.warn('Rate limit approaching');
@@ -156,7 +166,7 @@ async execute(input, context) {
   const apiKey = await context.secrets?.get('API_KEY');
   
   // File downloads (from MinIO)
-  const file = await context.storage?.downloadFile(input.fileId);
+  const file = await context.storage?.downloadFile(inputs.fileId);
   
   // Artifact uploads (saved to MinIO, shown in UI)
   await context.artifacts?.upload({
@@ -172,63 +182,106 @@ async execute(input, context) {
 
 ---
 
-## Component Metadata
+## Component Definition
 
-Define UI metadata for the workflow builder:
+A component is defined using `defineComponent` and must specify its `inputs`, `outputs`, and optional `parameters`.
 
-```typescript
-import { port } from '@shipsec/component-sdk';
+### Inputs vs. Parameters
 
-const definition: ComponentDefinition<Input, Output> = {
-  id: 'shipsec.dnsx.scan',
-  label: 'DNSX Scanner',
-  category: 'security',
-  runner: { ... },
-  inputSchema,
-  outputSchema,
-  
-  metadata: {
-    slug: 'dnsx',
-    version: '1.0.0',
-    type: 'scan',
-    category: 'security',
-    description: 'DNS resolution and enumeration',
-    icon: 'dns',
-    author: { name: 'ShipSec', type: 'shipsecai' },
-    inputs: [
-      { id: 'domains', label: 'Domains', dataType: port.list(port.text()), required: true },
-    ],
-    outputs: [
-      { id: 'results', label: 'Results', dataType: port.json() },
-    ],
-    parameters: [
-      { id: 'threads', label: 'Threads', type: 'number', default: 10 },
-      { id: 'recordTypes', label: 'Record Types', type: 'multi-select', options: [
-        { label: 'A', value: 'A' },
-        { label: 'AAAA', value: 'AAAA' },
-        { label: 'CNAME', value: 'CNAME' },
-      ]},
-    ],
-  },
-};
-```
+Understanding the difference between **Inputs** and **Parameters** is critical for building good components.
 
-### Port Utilities
+| Aspect | Inputs (`inputs()`) | Parameters (`parameters()`) |
+|--------|---------------------|-----------------------------|
+| **When set** | Runtime (during execution) | Design-time (during workflow building) |
+| **Source** | Upstream node outputs or Manual Overrides | Sidebar form fields in the UI |
+| **Visibility** | Connection handles on the node | Config panel in the sidebar |
+| **Use Case** | Dynamic data (e.g., target IP, file ID) | Static config (e.g., model name, timeout) |
+
+### Defining Inputs (Ports)
+
+Inputs represent the data that flows into your component from other parts of the workflow. They appear as connection handles on the left side of the node.
 
 ```typescript
-import { port } from '@shipsec/component-sdk';
-
-port.text()                    // String
-port.number()                  // Number
-port.boolean()                 // Boolean
-port.secret()                  // Secret value (masked in UI)
-port.json()                    // JSON object
-port.any()                     // Any type
-port.file()                    // File reference
-port.list(port.text())         // Array<string>
-port.map(port.text())          // Record<string, string>
-port.credential('github')      // OAuth credential contract
+inputs: inputs({
+  ipAddress: port(z.string().ip(), { 
+    label: 'IP Address',
+    description: 'The IP address to scan',
+    valuePriority: 'connection-first', // default: connection-first
+  }),
+})
 ```
+
+Supported `valuePriority` values:
+- `connection-first`: Use the value from the port connection if it exists, otherwise use the manual override.
+- `manual-first`: Always use the manual override if a value is provided, even if a port is connected.
+
+### Defining Parameters
+
+Parameters are configuration settings for the component that are set when the user is designing the workflow. They do not accept connections from other nodes; they are always static values (or manual strings).
+
+```typescript
+parameters: parameters({
+  threads: param(z.number().default(10), {
+    label: 'Threads',
+    editor: 'number',
+    min: 1,
+    max: 100,
+    description: 'Number of concurrent threads to use.'
+  }),
+  mode: param(z.enum(['fast', 'thorough']).default('fast'), {
+    label: 'Scan Mode',
+    editor: 'select',
+    options: [
+      { label: 'Fast Scan', value: 'fast' },
+      { label: 'Thorough Scan', value: 'thorough' },
+    ],
+  }),
+})
+```
+
+### Parameter Editors
+
+The `editor` field in `param()` determines how the field is rendered in the UI sidebar:
+
+- `text`: Standard text input.
+- `textarea`: Multi-line text area.
+- `number`: Numeric input with optional min/max.
+- `boolean`: Checkbox/switch.
+- `select`: Dropdown menu (requires `options`).
+- `multi-select`: Multi-selection dropdown.
+- `json`: Code editor for JSON objects.
+- `secret`: Masked password-style input.
+- `variable-list`: Specialized editor for logic-script variables.
+
+### Visibility Rules
+
+You can use `visibleWhen` to show or hide parameters based on the values of other parameters:
+
+```typescript
+parameters: parameters({
+  useProxy: param(z.boolean().default(false), { editor: 'boolean', label: 'Use Proxy' }),
+  proxyUrl: param(z.string().optional(), { 
+    editor: 'text', 
+    label: 'Proxy URL',
+    visibleWhen: { useProxy: true } 
+  }),
+})
+```
+
+### Connection Types
+
+When defining a `port`, you can specify its `connectionType` for compatibility checks in the canvas.
+
+```typescript
+port(z.string(), {
+  label: 'API Key',
+  connectionType: { kind: 'primitive', name: 'secret' }
+})
+```
+
+Supported primitives: `text`, `number`, `boolean`, `secret`, `json`, `file`, `any`.
+Lists: `{ kind: 'list', element: ConnectionType }`.
+Objects with contracts: `{ kind: 'primitive', name: 'json', contract: 'aws-credentials' }`.
 
 ### Entry Point Runtime Input Types
 
@@ -265,26 +318,28 @@ When a workflow with secret inputs is triggered:
 Components can dynamically generate input/output ports based on parameter values:
 
 ```typescript
-import { port } from '@shipsec/component-sdk';
+import { inputs, port } from '@shipsec/component-sdk';
 
-const definition: ComponentDefinition<Input, Output> = {
-  id: 'core.workflow.call',
-  // ... other fields ...
-  
+export default defineComponent({
+  // ...
+  parameters: parameters({
+    variables: param(z.array(VariableSchema), { ... }),
+  }),
+
   resolvePorts(params) {
-    const dynamicInputs = (params.childRuntimeInputs || []).map(input => ({
-      id: input.id,
-      label: input.label || input.id,
-      dataType: port.text(),
-      required: input.required ?? true,
-    }));
+    const dynamicInputShape: Record<string, any> = {};
+    
+    for (const v of params.variables) {
+      dynamicInputShape[v.name] = port(z.string(), { 
+        label: v.label || v.name 
+      });
+    }
     
     return {
-      inputs: dynamicInputs,
-      outputs: this.metadata?.outputs ?? [],
+      inputs: inputs(dynamicInputShape),
     };
   }
-};
+});
 ```
 
 **Use cases:** Workflow calls, Slack templates, manual actions with dynamic options.
@@ -333,9 +388,9 @@ import {
   wrapError,           // Wrap unknown errors
 } from '@shipsec/component-sdk';
 
-async execute(input, context) {
+async execute({ inputs }, context) {
   try {
-    const response = await fetch(url);
+    const response = await fetch(inputs.url);
     
     if (!response.ok) {
       throw fromHttpResponse(response, await response.text());
@@ -350,52 +405,7 @@ async execute(input, context) {
 
 ---
 
-## Inputs vs. Parameters
 
-| Feature | Inputs | Parameters |
-|---------|--------|------------|
-| **Source** | Upstream nodes or Manual Overrides | User configuration in Sidebar |
-| **Schema** | Defined via `inputs()` and `port()` | Defined via `parameters()` and `param()` |
-| **UI** | Visible in the "Inputs" section | Visible in the "Parameters" section |
-| **Mapping** | Can be connected to other nodes | Static values only |
-
-### Defining Ports
-
-Use the `port()` helper to add metadata to your Zod schemas:
-
-```typescript
-const inputSchema = inputs({
-  domain: port(z.string(), {
-    label: 'Target Domain',
-    description: 'The root domain to enumerate.',
-    connectionType: { kind: 'primitive', name: 'text' },
-  }),
-  apiKey: port(z.string(), {
-    label: 'API Key',
-    editor: 'secret', // Uses masked input in UI
-    connectionType: { kind: 'primitive', name: 'secret' },
-  })
-});
-```
-
-### Defining Parameters
-
-Use the `param()` helper for static settings:
-
-```typescript
-const parameterSchema = parameters({
-  timeout: param(z.number().default(30), {
-    label: 'Timeout (s)',
-    editor: 'number',
-    min: 1,
-    max: 300,
-  }),
-  verbose: param(z.boolean().default(false), {
-    label: 'Verbose Output',
-    editor: 'boolean',
-  })
-});
-```
 
 ---
 
@@ -469,13 +479,13 @@ For detailed patterns and security guarantees, see [Isolated Volumes](/developme
 ```typescript
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-async execute(input, context) {
+async execute({ inputs }, context) {
   const tenantId = (context as any).tenantId ?? 'default-tenant';
   const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
   try {
     await volume.initialize({
-      'targets.txt': input.targets.join('\n')
+      'targets.txt': inputs.targets.join('\n')
     });
 
     const runnerConfig: DockerRunnerConfig = {
@@ -484,7 +494,7 @@ async execute(input, context) {
       volumes: [volume.getVolumeConfig('/inputs', true)]  // read-only
     };
 
-    return await runComponentWithRunner(runnerConfig, parseOutput, input, context);
+    return await runComponentWithRunner(runnerConfig, parseOutput, inputs, context);
   } finally {
     await volume.cleanup();  // ALWAYS cleanup
   }
@@ -539,7 +549,10 @@ describe('my-component', () => {
     // Mock the runner for Docker components
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('mock output');
     
-    const result = await component!.execute({ target: 'example.com' }, context);
+    const result = await component!.execute({
+      inputs: { target: 'example.com' },
+      params: {}
+    }, context);
     
     expect(result.success).toBe(true);
   });
@@ -714,7 +727,7 @@ const outputSchema = z.object({
 type Input = z.infer<typeof inputSchema>;
 type Output = z.infer<typeof outputSchema>;
 
-const definition: ComponentDefinition<Input, Output> = {
+export default defineComponent({
   id: 'shipsec.dnsx.scan',
   label: 'DNSX Scanner',
   category: 'security',
@@ -725,37 +738,45 @@ const definition: ComponentDefinition<Input, Output> = {
     command: ['-c', 'dnsx "$@"', '--'],
     network: 'bridge',
   },
-  inputSchema,
-  outputSchema,
   
-  metadata: {
-    slug: 'dnsx',
-    version: '1.0.0',
-    type: 'scan',
-    category: 'security',
-    description: 'DNS resolution and enumeration',
-    inputs: [
-      { id: 'domains', label: 'Domains', dataType: port.list(port.text()), required: true },
-    ],
-    outputs: [
-      { id: 'results', label: 'Results', dataType: port.json() },
-    ],
-  },
+  inputs: inputs({
+    domains: port(z.array(z.string()).min(1), { 
+      label: 'Domains',
+      connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } }
+    }),
+  }),
+
+  parameters: parameters({
+    threads: param(z.number().default(10), {
+      label: 'Threads',
+      editor: 'number',
+      min: 1,
+      max: 100,
+    }),
+  }),
+
+  outputs: outputs({
+    results: port(z.array(z.object({
+      domain: z.string(),
+      records: z.array(z.string()),
+    })), { label: 'Scan Results' }),
+    rawOutput: port(z.string(), { label: 'Raw Stdout' }),
+  }),
   
-  async execute(input, context) {
+  async execute({ inputs, params }, context) {
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
     try {
       context.emitProgress('Preparing input files...');
       await volume.initialize({
-        'domains.txt': input.domains.join('\n')
+        'domains.txt': inputs.domains.join('\n')
       });
 
       const args = [
         '-l', '/inputs/domains.txt',
         '-json',
-        '-t', String(input.threads),
+        '-t', String(params.threads),
         '-stream',
       ];
 
@@ -779,7 +800,7 @@ const definition: ComponentDefinition<Input, Output> = {
           });
           return { results, rawOutput: stdout };
         },
-        input,
+        inputs,
         context
       );
 
@@ -790,7 +811,7 @@ const definition: ComponentDefinition<Input, Output> = {
       await volume.cleanup();
     }
   }
-};
+});
 
 componentRegistry.register(definition);
 export default definition;

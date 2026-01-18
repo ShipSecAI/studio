@@ -26,20 +26,27 @@ Examples: `shipsec.dnsx.run`, `core.http.request`, `ai.llm.generate`
 ### Minimal Component
 ```typescript
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import { defineComponent, inputs, outputs, port } from '@shipsec/component-sdk';
 
-const definition: ComponentDefinition<Input, Output> = {
+export default defineComponent({
   id: 'category.tool.action',
   label: 'My Component',
   category: 'security',  // or: core, ai, notification, manual_action
   runner: { kind: 'inline' },  // or: docker
-  inputSchema: z.object({ ... }),
-  outputSchema: z.object({ ... }),
-  async execute(input, context) { ... }
-};
+  
+  inputs: inputs({
+    target: port(z.string(), { label: 'Target Host' }),
+  }),
 
-componentRegistry.register(definition);
-export default definition;
+  outputs: outputs({
+    success: port(z.boolean(), { label: 'Success' }),
+  }),
+
+  async execute({ inputs }, context) { 
+    // ... logic ...
+    return { success: true };
+  }
+});
 ```
 
 ---
@@ -55,9 +62,10 @@ export default definition;
 
 2. **Copy structure from similar component** — don't start from scratch
 
-3. **Always include:**
-   - `inputSchema` + `outputSchema` (Zod)
-   - `metadata` block with inputs/outputs/parameters
+3. **Always use defineComponent helper** with separated schemas:
+   - `inputs()` + `port()`
+   - `outputs()` + `port()`
+   - `parameters()` + `param()` (optional)
    - Unit test in `__tests__/<component>.test.ts`
 
 4. **For Docker components:**
@@ -70,13 +78,12 @@ export default definition;
 ```
 □ ID follows pattern: namespace.tool.action
 □ File in correct category folder
-□ inputSchema/outputSchema defined with Zod
-□ metadata.inputs/outputs match schema
+□ inputs/outputs/parameters defined with port()/param() helpers
+□ execute() receives { inputs, params }
 □ Docker: shell wrapper pattern used
 □ Docker with files: IsolatedContainerVolume used
 □ Unit test created
-□ Registered with componentRegistry.register()
-□ Exported as default
+□ Exported as default (componentRegistry.register is handled by defineComponent)
 ```
 
 ---
@@ -127,24 +134,41 @@ const runtimeInputs = [
 ```
 → See: `docs/development/component-development.mdx#entry-point-runtime-input-types`
 
-### Dynamic Ports
+### Inputs vs. Parameters
+
+| Type | Function | UI Location | Use Case |
+|------|----------|-------------|----------|
+| **Inputs** | `inputs()` + `port()` | Canvas handles | Runtime data (target, apiKey, fileId) |
+| **Parameters**| `parameters()` + `param()` | Sidebar form | Static config (model, timeout, enum) |
+
+**Note on Inputs:** You can set `valuePriority: 'manual-first'` in port metadata to prioritize manual overrides over connected data.
+
+### Defining Parameters
 ```typescript
-resolvePorts(params) {
-  return { inputs: [...], outputs: [...] };
-}
+parameters: parameters({
+  model: param(z.string().default('gpt-4'), {
+    label: 'Model Name',
+    editor: 'select',
+    options: [{ label: 'GPT-4', value: 'gpt-4' }],
+  }),
+  timeout: param(z.number().min(1), { 
+    label: 'Timeout', 
+    editor: 'number' 
+  }),
+})
 ```
-→ See: `docs/development/component-development.mdx#dynamic-ports-resolveports`
+Editors: `text`, `textarea`, `number`, `boolean`, `select`, `multi-select`, `json`, `secret`.
 
 ---
 
 ## Context Services
 
 ```typescript
-async execute(input, context) {
+async execute({ inputs, params }, context) {
   context.logger.info('...');           // Logs to UI timeline
   context.emitProgress('...');          // Progress events
   await context.secrets?.get('KEY');    // Encrypted secrets
-  await context.storage?.downloadFile(id);  // MinIO files
+  await context.storage?.downloadFile(inputs.fileId);  // MinIO files
   await context.artifacts?.upload({...});   // Save artifacts
 }
 ```
@@ -189,9 +213,9 @@ RUN_E2E=true bun --cwd e2e-tests test
 | Docker without shell wrapper | Use `entrypoint: 'sh', command: ['-c', 'tool "$@"', '--']` |
 | Direct file mounts in Docker | Use `IsolatedContainerVolume` |
 | Missing `finally` for volume cleanup | Always `await volume.cleanup()` in finally |
-| No metadata block | Add `metadata: { inputs: [...], outputs: [...] }` |
+| Missing `port()` wrapper | All input/output schemas must use `port()` |
+| Mixing inputs and parameters | Use `inputs()` for runtime ports and `parameters()` for design-time config |
 | Throwing plain Error | Use SDK errors: `ValidationError`, `ServiceError`, etc. |
-| Forgetting to register | Add `componentRegistry.register(definition)` |
 
 ---
 
