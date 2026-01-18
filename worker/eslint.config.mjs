@@ -50,7 +50,7 @@ export default [
       "no-useless-catch": "off",
       "no-console": "off",
       "no-prototype-builtins": "off",
-      "no-useless-escape": "off",
+      "no-useless-escape": "warn",
 
       // Loose rules for now - gradually make stricter
       "@typescript-eslint/no-unused-vars": "off",
