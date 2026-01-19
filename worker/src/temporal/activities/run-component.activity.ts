@@ -5,7 +5,6 @@ import * as crypto from 'node:crypto';
 import {
   componentRegistry,
   createExecutionContext,
-  runComponentWithRunner,
   NotFoundError,
   ValidationError,
   TEMPORAL_SPILL_THRESHOLD_BYTES,
@@ -15,7 +14,6 @@ import {
   type ITraceService,
   type INodeIOService,
   type AgentTracePublisher,
-  type SpilledDataMarker,
 } from '@shipsec/component-sdk';
 
 import {
@@ -286,14 +284,14 @@ export async function runComponentActivity(
 
   // For components with dynamic ports (resolvePorts), resolve the actual input/output schemas
   let inputsSchema = component.inputs;
-  let outputsSchema = component.outputs;
+  let _outputsSchema = component.outputs;
   if (typeof component.resolvePorts === 'function') {
     const resolved = component.resolvePorts(params);
     if (resolved?.inputs) {
       inputsSchema = resolved.inputs;
     }
     if (resolved?.outputs) {
-      outputsSchema = resolved.outputs;
+      _outputsSchema = resolved.outputs;
     }
   }
 

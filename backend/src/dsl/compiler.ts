@@ -168,7 +168,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       const metadata = inputMetadata.get(targetKey);
       const prefersManual = metadata?.valuePriority === 'manual-first';
       if (!prefersManual) {
-        delete inputOverrides[targetKey];
+        Reflect.deleteProperty(inputOverrides, targetKey);
       }
     }
 

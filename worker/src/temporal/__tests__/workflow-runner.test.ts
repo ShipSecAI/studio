@@ -405,7 +405,7 @@ describe('executeWorkflow', () => {
         outputs: outputs({
           triggeredBy: withPortMeta(z.string().optional(), { label: 'Triggered By' }),
         }),
-        async execute({ inputs }, context) {
+        async execute({ inputs: _inputs }, context) {
           const triggeredBy = context.metadata.triggeredBy;
           return triggeredBy ? { triggeredBy } : {};
         },

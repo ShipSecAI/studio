@@ -263,8 +263,8 @@ function validateInputMappings(
 
     // Check if all required inputs have mappings or static values
     for (const input of componentInputs) {
-      const hasStaticValue = action.inputOverrides?.hasOwnProperty(input.id);
-      const hasMapping = action.inputMappings?.hasOwnProperty(input.id);
+      const hasStaticValue = Object.hasOwn(action.inputOverrides ?? {}, input.id);
+      const hasMapping = Object.hasOwn(action.inputMappings ?? {}, input.id);
 
       if (input.required && !hasStaticValue && !hasMapping) {
         errors.push({

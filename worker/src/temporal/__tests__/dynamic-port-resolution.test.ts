@@ -16,8 +16,6 @@ import {
   parameters,
   port,
   param,
-  withPortMeta,
-  type ExecutionContext,
   createExecutionContext,
 } from '@shipsec/component-sdk';
 

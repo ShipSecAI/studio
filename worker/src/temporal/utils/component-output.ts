@@ -66,7 +66,7 @@ export function maskSecretInputs(component: RegisteredComponent, input: unknown)
   return masked;
 }
 
-function getSecretParameters(params: Record<string, any>): string[] {
+function _getSecretParameters(_params: Record<string, any>): string[] {
   const secretKeys: string[] = [];
   // Since we don't have a direct helper like extractPorts for parameters yet that returns the metadata easily,
   // and they are branded Zod schemas, we can look at the internal metadata if available.
@@ -94,7 +94,7 @@ export function maskSecretParameters(component: RegisteredComponent, params: unk
         }
       }
     }
-  } catch (e) {
+  } catch (_e) {
     // Fallback if metadata extraction fails
   }
 

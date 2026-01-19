@@ -6,7 +6,7 @@ import type {
 import type { ArtifactDestination } from '@shipsec/shared';
 import { ConfigurationError } from '@shipsec/component-sdk';
 
-interface ArtifactAdapterConfig {
+interface _ArtifactAdapterConfig {
   destinations?: ArtifactDestination[];
 }
 

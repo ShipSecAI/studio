@@ -36,7 +36,7 @@ class MockRedis {
     let removed = 0;
     for (const key of keys) {
       if (this.entries[key]) {
-        delete this.entries[key];
+        Reflect.deleteProperty(this.entries, key);
         removed += 1;
       }
     }

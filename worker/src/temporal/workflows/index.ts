@@ -23,7 +23,7 @@ import type {
 } from '../types';
 
 const {
-  runComponentActivity,
+  runComponentActivity: _runComponentActivity,
   setRunMetadataActivity,
   finalizeRunActivity,
   createHumanInputRequestActivity,

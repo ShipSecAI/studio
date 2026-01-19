@@ -886,6 +886,7 @@ export class WorkflowsController {
     let active = true;
     let lastStatusSignature: string | null = null;
     let intervalId: NodeJS.Timeout | undefined;
+    // eslint-disable-next-line prefer-const -- initialized later after cleanup function is defined
     let heartbeatId: NodeJS.Timeout | undefined;
     let earliestEventTimestamp: number | null = null;
     let latestEventTimestamp: number | null = null;

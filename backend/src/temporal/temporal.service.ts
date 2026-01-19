@@ -65,7 +65,7 @@ export interface CreateTemporalScheduleInput {
   dispatchArgs: ScheduleTriggerWorkflowArgs;
 }
 
-export interface UpdateTemporalScheduleInput extends CreateTemporalScheduleInput {}
+export type UpdateTemporalScheduleInput = CreateTemporalScheduleInput;
 
 export interface ScheduleTriggerWorkflowArgs {
   workflowId: string;
