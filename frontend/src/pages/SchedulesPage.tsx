@@ -145,9 +145,8 @@ export function SchedulesPage() {
 
   const clearAction = (id: string) => {
     setActionState((state) => {
-      const next = { ...state };
-      delete next[id];
-      return next;
+      const { [id]: _removed, ...rest } = state;
+      return rest;
     });
   };
 

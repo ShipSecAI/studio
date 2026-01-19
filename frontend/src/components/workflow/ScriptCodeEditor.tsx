@@ -271,7 +271,8 @@ export function ScriptCodeEditor({
         <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md text-xs text-amber-700 dark:text-amber-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            Type interfaces don't match your variable definitions. Click "Sync Types" to update.
+            Type interfaces don&apos;t match your variable definitions. Click &quot;Sync Types&quot;
+            to update.
           </span>
         </div>
       )}

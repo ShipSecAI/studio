@@ -169,9 +169,8 @@ export function WorkflowSchedulesSidebar({
         await onAction(schedule, action);
       } finally {
         setActionState((state) => {
-          const next = { ...state };
-          delete next[schedule.id];
-          return next;
+          const { [schedule.id]: _removed, ...rest } = state;
+          return rest;
         });
       }
     },

@@ -219,9 +219,8 @@ export function WebhooksPage() {
       });
     } finally {
       setActionState((prev) => {
-        const next = { ...prev };
-        delete next[webhook.id];
-        return next;
+        const { [webhook.id]: _removed, ...rest } = prev;
+        return rest;
       });
     }
   };
@@ -250,9 +249,8 @@ export function WebhooksPage() {
       });
     } finally {
       setActionState((prev) => {
-        const next = { ...prev };
-        delete next[webhook.id];
-        return next;
+        const { [webhook.id]: _removed, ...rest } = prev;
+        return rest;
       });
     }
   };
@@ -499,8 +497,8 @@ export function WebhooksPage() {
                           <Link2 className="h-10 w-10 text-muted-foreground" />
                           <p className="font-medium">No webhooks found</p>
                           <p className="text-sm text-muted-foreground max-w-lg">
-                            Create your first webhook with the &quot;New webhook&quot; button or tweak the
-                            filters above.&nbsp;
+                            Create your first webhook with the &quot;New webhook&quot; button or
+                            tweak the filters above.&nbsp;
                           </p>
                         </div>
                       </TableCell>
