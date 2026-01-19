@@ -9,6 +9,7 @@
     "start:prod": "bun run build/main.js",
     "build": "bun build src/main.ts --outdir build --target bun",
     "test": "bun test",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "generate:openapi": "bun scripts/generate-openapi.ts",
     "migration:push": "bun x drizzle-kit push",
@@ -52,6 +53,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@nestjs/testing": "^10.4.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/express-serve-static-core": "^4.19.6",
@@ -60,9 +62,17 @@
     "@types/node": "^20.16.11",
     "@types/pg": "^8.15.5",
     "@types/supertest": "^2.0.16",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
     "bun-types": "^1.2.23",
     "drizzle-kit": "^0.31.5",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.0.0",
+    "prettier": "^3.8.0",
     "supertest": "^7.1.4",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.53.0"
   }
 }

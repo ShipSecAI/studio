@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useAuth, useAuthProvider } from '../../auth/auth-context';
-import { AuthModal, useAuthModal } from './AuthModal';
+import { useAuth, useAuthProvider } from '../../auth/useAuth';
+import { AuthModal } from './AuthModal';
+import { useAuthModal } from './useAuthModal';
 import { AdminLoginForm } from './AdminLoginForm';
 import { Button } from '../ui/button';
 import { Shield, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { useAuthStore } from '../../store/authStore';
 
-interface ProtectedRouteProps {
+export interface ProtectedRouteProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
   requireAuth?: boolean;
@@ -30,7 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { openSignIn, isOpen, close } = useAuthModal();
   const adminUsername = useAuthStore((state) => state.adminUsername);
   const adminPassword = useAuthStore((state) => state.adminPassword);
-  
+
   // Track whether we've attempted to open the sign-in dialog
   const [signInAttempted, setSignInAttempted] = useState(false);
 
@@ -44,11 +45,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Automatically trigger sign-in for Clerk when not authenticated (only once on mount)
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && requireAuth && authProvider.name === 'clerk' && !signInAttempted) {
+    if (
+      !isLoading &&
+      !isAuthenticated &&
+      requireAuth &&
+      authProvider.name === 'clerk' &&
+      !signInAttempted
+    ) {
       triggerSignIn();
     }
   }, [isLoading, isAuthenticated, requireAuth, authProvider, signInAttempted, triggerSignIn]);
-  
+
   // Reset signInAttempted when user becomes authenticated (for future sign-outs)
   useEffect(() => {
     if (isAuthenticated) {
@@ -95,9 +102,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
                 <Lock className="h-6 w-6" />
               </div>
               <CardTitle>Authentication Required</CardTitle>
-              <CardDescription>
-                Please sign in to continue
-              </CardDescription>
+              <CardDescription>Please sign in to continue</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {!signInAttempted ? (
@@ -134,16 +139,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
                 <Lock className="h-6 w-6" />
               </div>
               <CardTitle>Authentication Required</CardTitle>
-              <CardDescription>
-                Please sign in to access this content
-              </CardDescription>
+              <CardDescription>Please sign in to access this content</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button onClick={openSignIn} className="w-full">
                 Sign In
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                You'll be redirected back after signing in
+                You&apos;ll be redirected back after signing in
               </p>
             </CardContent>
           </Card>
@@ -184,9 +187,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Check role requirements
   if (roles.length > 0 && isAuthenticated && user) {
     const userRole = user.organizationRole?.toUpperCase();
-    const hasRequiredRole = roles.some(role =>
-      userRole === role.toUpperCase() || role === '*'
-    );
+    const hasRequiredRole = roles.some((role) => userRole === role.toUpperCase() || role === '*');
 
     if (!hasRequiredRole) {
       return (
@@ -198,7 +199,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               </div>
               <CardTitle>Insufficient Permissions</CardTitle>
               <CardDescription>
-                You don't have the required permissions to access this content
+                You don&apos;t have the required permissions to access this content
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -215,58 +216,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // All checks passed - render children
   return <>{children}</>;
 };
-
-// Higher-order component for protecting routes
-export function withAuth<P extends object>(
-  Component: React.ComponentType<P>,
-  options: Omit<ProtectedRouteProps, 'children'> = {}
-) {
-  const WrappedComponent = (props: P) => (
-    <ProtectedRoute {...options}>
-      <Component {...props} />
-    </ProtectedRoute>
-  );
-
-  WrappedComponent.displayName = `withAuth(${Component.displayName || Component.name})`;
-  return WrappedComponent;
-}
-
-// Hook to check if current user has required permissions
-export function usePermissions() {
-  const { user, isAuthenticated } = useAuth();
-
-  const hasRole = (requiredRoles: string[]) => {
-    if (!isAuthenticated || !user) return false;
-
-    const userRole = user.organizationRole?.toUpperCase();
-    return requiredRoles.some(role =>
-      userRole === role.toUpperCase() || role === '*'
-    );
-  };
-
-  const hasOrg = () => {
-    return isAuthenticated && user && !!user.organizationId;
-  };
-
-  const canAccess = (options: {
-    requireAuth?: boolean;
-    requireOrg?: boolean;
-    roles?: string[];
-  } = {}) => {
-    const { requireAuth = true, requireOrg = false, roles = [] } = options;
-
-    if (requireAuth && !isAuthenticated) return false;
-    if (requireOrg && !hasOrg()) return false;
-    if (roles.length > 0 && !hasRole(roles)) return false;
-
-    return true;
-  };
-
-  return {
-    user,
-    isAuthenticated,
-    hasRole,
-    hasOrg,
-    canAccess,
-  };
-}

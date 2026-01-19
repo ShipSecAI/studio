@@ -92,7 +92,9 @@ export class NodeIOService {
     let outputs: any = record.outputs ?? null;
 
     // Helper to detect if a payload is a spill marker (handles both new and legacy formats)
-    const isSpillMarker = (data: unknown): data is { storageRef: string; originalSize?: number } => {
+    const isSpillMarker = (
+      data: unknown,
+    ): data is { storageRef: string; originalSize?: number } => {
       if (!data || typeof data !== 'object') return false;
       const d = data as Record<string, unknown>;
       // New format: __spilled__ === true

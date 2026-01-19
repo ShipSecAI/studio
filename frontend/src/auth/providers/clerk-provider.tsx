@@ -10,11 +10,7 @@ import {
   OrganizationSwitcher,
 } from '@clerk/clerk-react';
 
-import type {
-  FrontendAuthProvider,
-  FrontendAuthUser,
-  FrontendAuthToken
-} from '../types';
+import type { FrontendAuthProvider, FrontendAuthUser, FrontendAuthToken } from '../types';
 import { registerClerkTokenGetter } from '../../utils/clerk-token';
 
 const clerkConfig = {
@@ -22,23 +18,20 @@ const clerkConfig = {
   jwtTemplate: (import.meta.env.VITE_CLERK_JWT_TEMPLATE || '').trim() || undefined,
 };
 
-type ClerkProviderProps = {
+interface ClerkProviderProps {
   children: React.ReactNode;
   onProviderChange?: (provider: FrontendAuthProvider | null) => void;
-};
+}
 
-export const ClerkAuthProvider: React.FC<ClerkProviderProps> = ({
-  children,
-  onProviderChange,
-}) => {
-  
+export const ClerkAuthProvider: React.FC<ClerkProviderProps> = ({ children, onProviderChange }) => {
   if (!clerkConfig.publishableKey) {
-    console.warn('Clerk publishable key is not configured; skipping Clerk provider initialisation.');
+    console.warn(
+      'Clerk publishable key is not configured; skipping Clerk provider initialisation.',
+    );
     onProviderChange?.(null);
     return <>{children}</>;
   }
 
-  
   return (
     <ClerkReactProvider publishableKey={clerkConfig.publishableKey}>
       <ClerkAuthBridge onProviderChange={onProviderChange}>{children}</ClerkAuthBridge>
@@ -46,10 +39,7 @@ export const ClerkAuthProvider: React.FC<ClerkProviderProps> = ({
   );
 };
 
-function ClerkAuthBridge({
-  children,
-  onProviderChange,
-}: ClerkProviderProps) {
+function ClerkAuthBridge({ children, onProviderChange }: ClerkProviderProps) {
   const { openSignIn, openSignUp, signOut } = useClerk();
   const { user } = useUser();
   const { isLoaded, isSignedIn, getToken, sessionId } = useClerkAuth();
@@ -80,9 +70,7 @@ function ClerkAuthBridge({
         // Always fetch fresh token - Clerk's getToken() handles refresh automatically
         // If skipCache is needed, we can add it here, but Clerk's SDK handles caching intelligently
         const jwt = await getToken(
-          clerkConfig.jwtTemplate
-            ? { template: clerkConfig.jwtTemplate }
-            : undefined,
+          clerkConfig.jwtTemplate ? { template: clerkConfig.jwtTemplate } : undefined,
         );
 
         if (!cancelled) {
@@ -196,30 +184,22 @@ function ClerkAuthBridge({
 
 // Clerk-specific UI Components
 const ClerkSignInModal = ({ afterSignInUrl }: { afterSignInUrl?: string }) => (
-  <SignIn
-    routing="virtual"
-    afterSignInUrl={afterSignInUrl || "/"}
-    signUpUrl="/sign-up"
-  />
+  <SignIn routing="virtual" afterSignInUrl={afterSignInUrl || '/'} signUpUrl="/sign-up" />
 );
 
 const ClerkSignUpModal = ({ afterSignUpUrl }: { afterSignUpUrl?: string }) => (
-  <SignUp
-    routing="virtual"
-    afterSignUpUrl={afterSignUpUrl || "/"}
-    signInUrl="/sign-in"
-  />
+  <SignUp routing="virtual" afterSignUpUrl={afterSignUpUrl || '/'} signInUrl="/sign-in" />
 );
 
 const ClerkUserButtonComponent = ({
   afterSignOutUrl,
-  appearance
+  appearance,
 }: {
   afterSignOutUrl?: string;
   appearance?: any;
 }) => (
   <UserButton
-    afterSignOutUrl={afterSignOutUrl || "/"}
+    afterSignOutUrl={afterSignOutUrl || '/'}
     appearance={{
       elements: {
         userButtonPopoverCard: 'shadow-lg',
@@ -234,11 +214,7 @@ const ClerkUserButtonComponent = ({
   />
 );
 
-const ClerkOrganizationSwitcherComponent = ({
-  appearance
-}: {
-  appearance?: any;
-}) => (
+const ClerkOrganizationSwitcherComponent = ({ appearance }: { appearance?: any }) => (
   <OrganizationSwitcher
     appearance={appearance}
     hidePersonal={false}

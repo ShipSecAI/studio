@@ -61,7 +61,7 @@ export interface WorkflowDefinition {
   actions: WorkflowAction[];
   config: {
     environment: string;
-  timeoutSeconds: number;
+    timeoutSeconds: number;
   };
 }
 
@@ -76,11 +76,11 @@ export interface RunComponentActivityInput {
   };
   inputs: Record<string, unknown>;
   params: Record<string, unknown>;
-  warnings?: Array<{
+  warnings?: {
     target: string;
     sourceRef: string;
     sourceHandle: string;
-  }>;
+  }[];
   metadata?: {
     streamId?: string;
     joinStrategy?: WorkflowJoinStrategy;
@@ -163,7 +163,10 @@ export interface PrepareRunPayloadActivityInput {
   versionId?: string;
   version?: number;
   inputs?: Record<string, unknown>;
-  nodeOverrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>;
+  nodeOverrides?: Record<
+    string,
+    { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+  >;
   trigger?: ExecutionTriggerMetadata;
   runId?: string;
   organizationId?: string | null;

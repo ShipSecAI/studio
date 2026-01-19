@@ -31,10 +31,8 @@ import {
   McpToolArgumentSchema,
   McpToolDefinitionSchema,
   llmProviderContractName,
-  type LlmProviderConfig,
   type McpToolDefinition,
 } from '@shipsec/contracts';
-
 
 // Define types for dependencies to enable dependency injection for testing
 export type ToolLoopAgentClass = typeof ToolLoopAgentImpl;
@@ -49,8 +47,7 @@ type ModelProvider = 'openai' | 'gemini' | 'openrouter';
 
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? '';
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? '';
-const OPENROUTER_BASE_URL =
-  process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1';
+const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1';
 
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
@@ -67,10 +64,10 @@ const agentMessageSchema = z.object({
 
 type AgentMessage = z.infer<typeof agentMessageSchema>;
 
-type CoreMessage = {
+interface _CoreMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
-};
+}
 
 const toolInvocationMetadataSchema = z.object({
   toolId: z.string().optional(),
@@ -118,7 +115,8 @@ const reasoningStepSchema = z.object({
 
 const inputSchema = inputs({
   userInput: port(
-    z.string()
+    z
+      .string()
       .min(1, 'Input text cannot be empty')
       .describe('Incoming user text for this agent turn.'),
     {
@@ -151,9 +149,7 @@ const inputSchema = inputs({
     },
   ),
   modelApiKey: port(
-    z.string()
-      .optional()
-      .describe('Optional API key override supplied via a Secret Loader node.'),
+    z.string().optional().describe('Optional API key override supplied via a Secret Loader node.'),
     {
       label: 'Model API Key',
       description: 'Optional override API key supplied via a Secret Loader output.',
@@ -162,7 +158,8 @@ const inputSchema = inputs({
     },
   ),
   mcpTools: port(
-    z.array(McpToolDefinitionSchema())
+    z
+      .array(McpToolDefinitionSchema())
       .optional()
       .describe('Normalized MCP tool definitions emitted by provider components.'),
     {
@@ -173,12 +170,18 @@ const inputSchema = inputs({
 });
 
 const parameterSchema = parameters({
-  systemPrompt: param(z.string().default('').describe('Optional system instructions that anchor the agent behaviour.'), {
-    label: 'System Prompt',
-    editor: 'textarea',
-    rows: 3,
-    description: 'Optional system instructions that guide the model response.',
-  }),
+  systemPrompt: param(
+    z
+      .string()
+      .default('')
+      .describe('Optional system instructions that anchor the agent behaviour.'),
+    {
+      label: 'System Prompt',
+      editor: 'textarea',
+      rows: 3,
+      description: 'Optional system instructions that guide the model response.',
+    },
+  ),
   temperature: param(
     z
       .number()
@@ -279,16 +282,12 @@ const parameterSchema = parameters({
       editor: 'json',
       description:
         'Provide an example JSON object. Property types and names will be used to generate the schema. All fields are treated as required.',
-      helpText:
-        'Example: { "name": "John", "age": 30, "skills": ["security", "architecture"] }',
+      helpText: 'Example: { "name": "John", "age": 30, "skills": ["security", "architecture"] }',
       visibleWhen: { structuredOutputEnabled: true, schemaType: 'json-example' },
     },
   ),
   jsonSchema: param(
-    z
-      .string()
-      .optional()
-      .describe('Full JSON Schema definition for structured output validation.'),
+    z.string().optional().describe('Full JSON Schema definition for structured output validation.'),
     {
       label: 'JSON Schema',
       editor: 'json',
@@ -299,10 +298,7 @@ const parameterSchema = parameters({
     },
   ),
   autoFixFormat: param(
-    z
-      .boolean()
-      .default(false)
-      .describe('Attempt to fix malformed JSON responses from the model.'),
+    z.boolean().default(false).describe('Attempt to fix malformed JSON responses from the model.'),
     {
       label: 'Auto-Fix Format',
       editor: 'boolean',
@@ -369,9 +365,19 @@ const outputSchema = outputs({
 });
 
 type AgentStreamPart =
-  | { type: 'message-start'; messageId: string; role: 'assistant' | 'user'; metadata?: Record<string, unknown> }
+  | {
+      type: 'message-start';
+      messageId: string;
+      role: 'assistant' | 'user';
+      metadata?: Record<string, unknown>;
+    }
   | { type: 'text-delta'; textDelta: string }
-  | { type: 'tool-input-available'; toolCallId: string; toolName: string; input: Record<string, unknown> }
+  | {
+      type: 'tool-input-available';
+      toolCallId: string;
+      toolName: string;
+      input: Record<string, unknown>;
+    }
   | { type: 'tool-output-available'; toolCallId: string; toolName: string; output: unknown }
   | { type: 'finish'; finishReason: string; responseText: string }
   | { type: `data-${string}`; data: unknown };
@@ -380,7 +386,10 @@ class AgentStreamRecorder {
   private sequence = 0;
   private activeTextId: string | null = null;
 
-  constructor(private readonly context: ExecutionContext, private readonly agentRunId: string) {}
+  constructor(
+    private readonly context: ExecutionContext,
+    private readonly agentRunId: string,
+  ) {}
 
   emitMessageStart(role: 'assistant' | 'user' = 'assistant'): void {
     this.emitPart({
@@ -439,7 +448,7 @@ class AgentStreamRecorder {
     if (!textDelta.trim()) {
       return;
     }
-    const textId = this.ensureTextStream();
+    const _textId = this.ensureTextStream();
     this.emitPart({
       type: 'text-delta',
       textDelta,
@@ -601,7 +610,9 @@ function trimConversation(history: AgentMessage[], memorySize: number): AgentMes
   return [...systemMessages.slice(0, 1), ...trimmedNonSystem];
 }
 
-function sanitizeHeaders(headers?: Record<string, string | undefined> | null): Record<string, string> | undefined {
+function sanitizeHeaders(
+  headers?: Record<string, string | undefined> | null,
+): Record<string, string> | undefined {
   if (!headers) {
     return undefined;
   }
@@ -620,14 +631,14 @@ function sanitizeHeaders(headers?: Record<string, string | undefined> | null): R
 
 type RegisteredToolMetadata = z.infer<typeof toolInvocationMetadataSchema>;
 
-type RegisteredMcpTool = {
+interface RegisteredMcpTool {
   name: string;
   tool: Tool<any, any>;
   metadata: RegisteredToolMetadata;
-};
+}
 
-type RegisterMcpToolParams = {
-  tools?: Array<McpToolDefinition>;
+interface RegisterMcpToolParams {
+  tools?: McpToolDefinition[];
   sessionId: string;
   toolFactory: ToolFn;
   agentStream: AgentStreamRecorder;
@@ -635,7 +646,7 @@ type RegisterMcpToolParams = {
   logger?: {
     warn?: (...args: unknown[]) => void;
   };
-};
+}
 
 function registerMcpTools({
   tools,
@@ -807,9 +818,9 @@ function buildToolArgumentSchema(args?: McpToolArgument[]) {
 
 function mapStepToReasoning(step: any, index: number, sessionId: string): ReasoningStep {
   const getArgs = (entity: any) =>
-    entity?.args !== undefined ? entity.args : entity?.input ?? null;
+    entity?.args !== undefined ? entity.args : (entity?.input ?? null);
   const getOutput = (entity: any) =>
-    entity?.result !== undefined ? entity.result : entity?.output ?? null;
+    entity?.result !== undefined ? entity.result : (entity?.output ?? null);
 
   return {
     step: index + 1,
@@ -843,9 +854,7 @@ function jsonExampleToJsonSchema(example: unknown): object {
   }
 
   if (Array.isArray(example)) {
-    const items = example.length > 0
-      ? jsonExampleToJsonSchema(example[0])
-      : {};
+    const items = example.length > 0 ? jsonExampleToJsonSchema(example[0]) : {};
     return { type: 'array', items };
   }
 
@@ -985,7 +994,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
     version: '1.0.0',
     type: 'process',
     category: 'ai',
-    description: 'AI SDK agent with conversation memory, MCP tool calling, and reasoning trace output.',
+    description:
+      'AI SDK agent with conversation memory, MCP tool calling, and reasoning trace output.',
     icon: 'Bot',
     author: {
       name: 'ShipSecAI',
@@ -1004,7 +1014,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
       createGoogleGenerativeAI?: CreateGoogleGenerativeAIFn;
       generateObject?: GenerateObjectFn;
       generateText?: GenerateTextFn;
-    }
+    },
   ) {
     const { userInput, conversationState, chatModel, mcpTools, modelApiKey } = inputs;
     const {
@@ -1020,7 +1030,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
       autoFixFormat,
     } = params;
 
-    const debugLog = (...args: unknown[]) => context.logger.debug(`[AIAgent Debug] ${args.join(' ')}`);
+    const debugLog = (...args: unknown[]) =>
+      context.logger.debug(`[AIAgent Debug] ${args.join(' ')}`);
     const agentRunId = `${context.runId}:${context.componentRef}:${randomUUID()}`;
     const agentStream = new AgentStreamRecorder(context as ExecutionContext, agentRunId);
     agentStream.emitMessageStart();
@@ -1092,9 +1103,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
     debugLog('Incoming conversation state', incomingState);
 
     const sessionId = incomingState?.sessionId ?? randomUUID();
-    const existingMessages = Array.isArray(incomingState?.messages) ? incomingState!.messages : [];
+    const existingMessages = Array.isArray(incomingState?.messages) ? incomingState.messages : [];
     const existingToolHistory = Array.isArray(incomingState?.toolInvocations)
-      ? incomingState!.toolInvocations
+      ? incomingState.toolInvocations
       : [];
     debugLog('Session details', {
       sessionId,
@@ -1135,14 +1146,13 @@ Loop the Conversation State output back into the next agent invocation to keep m
     });
 
     const systemMessageEntry = historyWithUser.find((message) => message.role === 'system');
-    const resolvedSystemPrompt =
-      systemPrompt?.trim()?.length
-        ? systemPrompt.trim()
-        : systemMessageEntry && typeof systemMessageEntry.content === 'string'
-          ? systemMessageEntry.content
-          : systemMessageEntry && systemMessageEntry.content !== undefined
-            ? JSON.stringify(systemMessageEntry.content)
-            : '';
+    const resolvedSystemPrompt = systemPrompt?.trim()?.length
+      ? systemPrompt.trim()
+      : systemMessageEntry && typeof systemMessageEntry.content === 'string'
+        ? systemMessageEntry.content
+        : systemMessageEntry && systemMessageEntry.content !== undefined
+          ? JSON.stringify(systemMessageEntry.content)
+          : '';
     debugLog('Resolved system prompt', resolvedSystemPrompt);
 
     const messagesForModel = historyWithUser
@@ -1231,14 +1241,19 @@ Loop the Conversation State output back into the next agent invocation to keep m
       } catch (error) {
         // If generateObject fails and auto-fix is enabled, try text generation + fix
         if (autoFixFormat) {
-          context.logger.warn('[AIAgent] Structured output failed, attempting auto-fix via text generation.');
+          context.logger.warn(
+            '[AIAgent] Structured output failed, attempting auto-fix via text generation.',
+          );
 
           const textResult = await generateText({
             model,
             system: resolvedSystemPrompt || undefined,
             messages: [
               ...messagesForModel,
-              { role: 'user' as const, content: `Respond with valid JSON matching this schema: ${JSON.stringify(structuredSchema)}` }
+              {
+                role: 'user' as const,
+                content: `Respond with valid JSON matching this schema: ${JSON.stringify(structuredSchema)}`,
+              },
             ] as any,
             temperature,
             maxOutputTokens: maxTokens,
@@ -1322,7 +1337,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
       debugLog('Generation result', generationResult);
 
       responseText =
-        typeof generationResult.text === 'string' ? generationResult.text : String(generationResult.text ?? '');
+        typeof generationResult.text === 'string'
+          ? generationResult.text
+          : String(generationResult.text ?? '');
     }
     debugLog('Response text', responseText);
 
@@ -1330,12 +1347,14 @@ Loop the Conversation State output back into the next agent invocation to keep m
     debugLog('Current timestamp', currentTimestamp);
 
     const getToolArgs = (entity: any) =>
-      entity?.args !== undefined ? entity.args : entity?.input ?? null;
+      entity?.args !== undefined ? entity.args : (entity?.input ?? null);
     const getToolOutput = (entity: any) =>
-      entity?.result !== undefined ? entity.result : entity?.output ?? null;
+      entity?.result !== undefined ? entity.result : (entity?.output ?? null);
 
     const reasoningTrace: ReasoningStep[] = Array.isArray(generationResult.steps)
-      ? generationResult.steps.map((step: any, index: number) => mapStepToReasoning(step, index, sessionId))
+      ? generationResult.steps.map((step: any, index: number) =>
+          mapStepToReasoning(step, index, sessionId),
+        )
       : [];
     debugLog('Reasoning trace', reasoningTrace);
 

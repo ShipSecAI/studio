@@ -28,7 +28,6 @@ import { createLightweightSummary } from './utils/component-output';
 import { buildActionPayload } from './input-resolver';
 import type { ArtifactServiceFactory } from './artifact-factory';
 
-
 export interface ExecuteWorkflowOptions {
   runId?: string;
   storage?: IFileStorageService;
@@ -57,7 +56,7 @@ export async function executeWorkflow(
   console.log(`📋 [WORKFLOW RUNNER] Entrypoint ref: ${definition.entrypoint.ref}`);
 
   const results = new Map<string, unknown>();
-  const actionsByRef = new Map<string, typeof definition.actions[number]>(
+  const actionsByRef = new Map<string, (typeof definition.actions)[number]>(
     definition.actions.map((action) => [action.ref, action]),
   );
 
@@ -84,8 +83,10 @@ export async function executeWorkflow(
     const runAction = async (
       actionRef: string,
       schedulerContext: WorkflowSchedulerRunContext,
-    ): Promise<void> => {
-      console.log(`🎯 [WORKFLOW RUNNER] runAction called for: ${actionRef} (triggered by: ${schedulerContext.triggeredBy || 'root'})`);
+    ): Promise<{ activePorts?: string[] | undefined } | null> => {
+      console.log(
+        `🎯 [WORKFLOW RUNNER] runAction called for: ${actionRef} (triggered by: ${schedulerContext.triggeredBy || 'root'})`,
+      );
 
       const action = actionsByRef.get(actionRef);
       if (!action) {
@@ -182,7 +183,9 @@ export async function executeWorkflow(
       for (const [key, value] of Object.entries(resolvedParams)) {
         if (isSpilledDataMarker(value)) {
           if (!options.storage) {
-            console.warn(`[WorkflowRunner] Parameter '${key}' is spilled but no storage service is available`);
+            console.warn(
+              `[WorkflowRunner] Parameter '${key}' is spilled but no storage service is available`,
+            );
             continue;
           }
 
@@ -198,10 +201,16 @@ export async function executeWorkflow(
 
             const handle = (value as any).__spilled_handle__;
             if (handle && handle !== '__self__') {
-              if (fullData && typeof fullData === 'object' && Object.prototype.hasOwnProperty.call(fullData, handle)) {
+              if (
+                fullData &&
+                typeof fullData === 'object' &&
+                Object.prototype.hasOwnProperty.call(fullData, handle)
+              ) {
                 resolvedParams[key] = fullData[handle];
               } else {
-                console.warn(`[WorkflowRunner] Spilled handle '${handle}' not found in downloaded data for parameter '${key}'`);
+                console.warn(
+                  `[WorkflowRunner] Spilled handle '${handle}' not found in downloaded data for parameter '${key}'`,
+                );
                 resolvedParams[key] = undefined;
                 warnings.push({
                   target: key,
@@ -215,7 +224,7 @@ export async function executeWorkflow(
           } catch (err) {
             console.error(`[WorkflowRunner] Failed to resolve spilled parameter '${key}':`, err);
             throw new WorkflowSchedulerError(
-              `Failed to resolve spilled input parameter '${key}': ${err instanceof Error ? err.message : String(err)}`
+              `Failed to resolve spilled input parameter '${key}': ${err instanceof Error ? err.message : String(err)}`,
             );
           }
         }
@@ -223,19 +232,17 @@ export async function executeWorkflow(
 
       if (warnings.length > 0) {
         const missing = warnings.map((warning) => `'${warning.target}'`).join(', ');
-        throw new WorkflowSchedulerError(
-          `Missing required inputs for ${action.ref}: ${missing}`,
-        );
+        throw new WorkflowSchedulerError(`Missing required inputs for ${action.ref}: ${missing}`);
       }
 
       const isEntrypointRef = definition.entrypoint.ref === action.ref;
       const isEntrypointComponent = action.componentId === 'core.workflow.entrypoint';
-      
+
       if (isEntrypointRef && request.inputs) {
         // Only apply inputs to the actual entrypoint component, not just any node matching the entrypoint ref
         if (isEntrypointComponent) {
           console.log(
-            `[WorkflowRunner] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`
+            `[WorkflowRunner] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`,
           );
           inputs.__runtimeData = request.inputs;
         } else {
@@ -243,14 +250,14 @@ export async function executeWorkflow(
           // Log warning but don't apply inputs to wrong component
           console.error(
             `[WorkflowRunner] CRITICAL: Entrypoint ref '${definition.entrypoint.ref}' points to component '${action.componentId}' instead of 'core.workflow.entrypoint'. ` +
-            `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`
+              `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`,
           );
         }
       } else if (request.inputs && Object.keys(request.inputs).length > 0) {
         // Log when inputs exist but are not being applied (for debugging)
         if (isEntrypointRef && !isEntrypointComponent) {
           console.warn(
-            `[WorkflowRunner] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`
+            `[WorkflowRunner] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`,
           );
         }
       }
@@ -266,9 +273,7 @@ export async function executeWorkflow(
       });
 
       const parsedInputs = component.inputs.parse(inputs);
-      const parsedParams = component.parameters
-        ? component.parameters.parse(params)
-        : params;
+      const parsedParams = component.parameters ? component.parameters.parse(params) : params;
 
       // Create execution context with SDK interfaces
       const scopedArtifacts = options.artifacts
@@ -302,9 +307,16 @@ export async function executeWorkflow(
       });
 
       try {
-        console.log(`⚡️ [WORKFLOW RUNNER] Executing component: ${action.componentId} for action: ${actionRef}`);
-        const rawOutput = await component.execute({ inputs: parsedInputs, params: parsedParams }, context);
-        console.log(`✅ [WORKFLOW RUNNER] Component execution completed: ${action.componentId} for action: ${actionRef}`);
+        console.log(
+          `⚡️ [WORKFLOW RUNNER] Executing component: ${action.componentId} for action: ${actionRef}`,
+        );
+        const rawOutput = await component.execute(
+          { inputs: parsedInputs, params: parsedParams },
+          context,
+        );
+        console.log(
+          `✅ [WORKFLOW RUNNER] Component execution completed: ${action.componentId} for action: ${actionRef}`,
+        );
         let output = component.outputs.parse(rawOutput);
 
         // Check for payload size and spill if necessary
@@ -315,14 +327,14 @@ export async function executeWorkflow(
 
             if (size > TEMPORAL_SPILL_THRESHOLD_BYTES) {
               const fileId = randomUUID();
-              
+
               await options.storage.uploadFile(
                 fileId,
                 'output.json',
                 Buffer.from(outputStr),
-                'application/json'
+                'application/json',
               );
-              
+
               // Replace output with standardized spilled marker
               output = {
                 __spilled__: true,
@@ -363,7 +375,7 @@ export async function executeWorkflow(
         });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        
+
         // Extract error properties without using 'any'
         let errorType: string | undefined;
         let errorDetails: Record<string, unknown> | undefined;
@@ -371,23 +383,27 @@ export async function executeWorkflow(
 
         if (error instanceof Error) {
           errorType = error.name;
-          
+
           // Check if it's a ComponentError (has type property)
           if ('type' in error && typeof (error as { type: unknown }).type === 'string') {
             errorType = (error as { type: string }).type;
           }
-          
+
           // Extract details if present
-          if ('details' in error && typeof (error as { details: unknown }).details === 'object' && (error as { details: unknown }).details !== null) {
+          if (
+            'details' in error &&
+            typeof (error as { details: unknown }).details === 'object' &&
+            (error as { details: unknown }).details !== null
+          ) {
             errorDetails = (error as { details: Record<string, unknown> }).details;
           }
-          
+
           // Extract fieldErrors if it's a ValidationError
           if (error instanceof ValidationError && error.fieldErrors) {
             fieldErrors = error.fieldErrors;
           }
         }
-        
+
         const traceError: {
           message: string;
           type?: string;
@@ -401,7 +417,7 @@ export async function executeWorkflow(
           details: errorDetails,
           fieldErrors,
         };
-        
+
         options.trace?.record({
           type: 'NODE_FAILED',
           runId,
@@ -431,6 +447,9 @@ export async function executeWorkflow(
 
         throw error;
       }
+
+      // Return null as per the expected return type
+      return null;
     };
 
     await runWorkflowWithScheduler(definition, {
@@ -458,14 +477,14 @@ export async function executeWorkflow(
 
     if (reportedFailure) {
       const baseMessage = 'One or more workflow actions failed';
-      console.error(`❌ [WORKFLOW RUNNER] Workflow failed: ${baseMessage}: ${failureDetails.join('; ')}`);
+      console.error(
+        `❌ [WORKFLOW RUNNER] Workflow failed: ${baseMessage}: ${failureDetails.join('; ')}`,
+      );
       return {
         outputs: outputsObject,
         success: false,
         error:
-          failureDetails.length > 0
-            ? `${baseMessage}: ${failureDetails.join('; ')}`
-            : baseMessage,
+          failureDetails.length > 0 ? `${baseMessage}: ${failureDetails.join('; ')}` : baseMessage,
       };
     }
 

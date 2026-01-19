@@ -34,7 +34,13 @@ async function bootstrap() {
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cache-Control', 'x-organization-id'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Cache-Control',
+      'x-organization-id',
+    ],
   });
   const port = Number(process.env.PORT ?? 3211);
   const host = process.env.HOST ?? '0.0.0.0';
@@ -61,11 +67,14 @@ async function enforceVersionCheck() {
 
   try {
     const result = await performVersionCheck();
-    const currentVersion = process.env.SHIPSEC_VERSION_CHECK_VERSION ?? result.response.min_supported_version;
+    const currentVersion =
+      process.env.SHIPSEC_VERSION_CHECK_VERSION ?? result.response.min_supported_version;
     const latest = result.response.latest_version;
 
     if (result.outcome === 'unsupported') {
-      console.error(`[version-check] Version ${currentVersion} is no longer supported. Latest available: ${latest}.`);
+      console.error(
+        `[version-check] Version ${currentVersion} is no longer supported. Latest available: ${latest}.`,
+      );
       if (result.response.upgrade_url) {
         console.error(`[version-check] Upgrade URL: ${result.response.upgrade_url}`);
       }
@@ -73,7 +82,9 @@ async function enforceVersionCheck() {
     }
 
     if (result.outcome === 'upgrade') {
-      console.warn(`[version-check] Version ${latest} is available. You are running ${currentVersion}.`);
+      console.warn(
+        `[version-check] Version ${latest} is available. You are running ${currentVersion}.`,
+      );
       if (result.response.upgrade_url) {
         console.warn(`[version-check] Upgrade URL: ${result.response.upgrade_url}`);
       }
@@ -81,7 +92,10 @@ async function enforceVersionCheck() {
       console.log(`[version-check] Version ${currentVersion} is supported.`);
     }
   } catch (error) {
-    console.warn('[version-check] Failed to contact version service. Continuing without enforcement.', error);
+    console.warn(
+      '[version-check] Failed to contact version service. Continuing without enforcement.',
+      error,
+    );
   }
 }
 

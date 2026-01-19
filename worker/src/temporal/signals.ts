@@ -34,4 +34,3 @@ export interface PendingHumanInput {
   title: string;
   createdAt: string;
 }
-

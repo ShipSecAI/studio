@@ -75,11 +75,14 @@ const parameterSchema = parameters({
     description: 'Instructions (Markdown supported)',
     helpText: 'Provide context for the selection. Supports interpolation.',
   }),
-  variables: param(z.array(z.object({ name: z.string(), type: z.string().optional() })).default([]), {
-    label: 'Context Variables',
-    editor: 'variable-list',
-    description: 'Define variables to use as {{name}} in your description and options.',
-  }),
+  variables: param(
+    z.array(z.object({ name: z.string(), type: z.string().optional() })).default([]),
+    {
+      label: 'Context Variables',
+      editor: 'variable-list',
+      description: 'Define variables to use as {{name}} in your description and options.',
+    },
+  ),
   options: param(
     z.array(z.union([z.string(), z.object({ label: z.string(), value: z.string() })])).default([]),
     {
@@ -111,9 +114,7 @@ function interpolate(template: string, vars: Record<string, any>): string {
   });
 }
 
-const mapTypeToSchema = (
-  type: string,
-): { schema: z.ZodTypeAny; meta?: PortMeta } => {
+const mapTypeToSchema = (type: string): { schema: z.ZodTypeAny; meta?: PortMeta } => {
   switch (type) {
     case 'string':
       return { schema: z.string() };
@@ -163,7 +164,8 @@ const definition = defineComponent({
     version: '1.3.0',
     type: 'process',
     category: 'manual_action',
-    description: 'Ask the user to select from a list of options. Supports dynamic context templates.',
+    description:
+      'Ask the user to select from a list of options. Supports dynamic context templates.',
     icon: 'ListChecks',
     author: {
       name: 'ShipSecAI',
@@ -175,28 +177,25 @@ const definition = defineComponent({
   resolvePorts(params: z.infer<typeof parameterSchema>) {
     const inputShape: Record<string, z.ZodTypeAny> = {};
     if (params.variables && Array.isArray(params.variables)) {
-        for (const v of params.variables) {
-            if (!v || !v.name) continue;
-            const { schema, meta } = mapTypeToSchema(v.type || 'json');
-            inputShape[v.name] = port(schema.optional(), {
-              ...(meta ?? {}),
-              label: v.name,
-            });
-        }
+      for (const v of params.variables) {
+        if (!v || !v.name) continue;
+        const { schema, meta } = mapTypeToSchema(v.type || 'json');
+        inputShape[v.name] = port(schema.optional(), {
+          ...(meta ?? {}),
+          label: v.name,
+        });
+      }
     }
-    
+
     // Output port for the selection itself
     const outputShape: Record<string, z.ZodTypeAny> = {
-      selection: port(
-        params.multiple ? z.array(z.string()) : z.string(),
-        {
-          label: 'Selection',
-          description: 'The selected value(s)',
-          connectionType: params.multiple
-            ? { kind: 'list', element: { kind: 'primitive', name: 'text' } }
-            : { kind: 'primitive', name: 'text' },
-        },
-      ),
+      selection: port(params.multiple ? z.array(z.string()) : z.string(), {
+        label: 'Selection',
+        description: 'The selected value(s)',
+        connectionType: params.multiple
+          ? { kind: 'list', element: { kind: 'primitive', name: 'text' } }
+          : { kind: 'primitive', name: 'text' },
+      }),
       approved: port(z.boolean(), {
         label: 'Approved',
         description: 'True if approved, false if rejected',
@@ -209,23 +208,23 @@ const definition = defineComponent({
 
     // Add dynamic ports for each option
     if (params.options && Array.isArray(params.options)) {
-        for (const opt of params.options) {
-            const val = typeof opt === 'string' ? opt : opt.value;
-            const label = typeof opt === 'string' ? opt : (opt.label || opt.value);
-            if (val) {
-                // Use a prefix to avoid collisions with standard ports
-                // We use the value as the ID suffix. 
-                // Note: Values must be safe for port IDs (alphanumeric, -, _)
-                // We might want to sanitize it.
-                outputShape[`option:${val}`] = port(z.boolean(), {
-                  label: `Option: ${label}`,
-                  description: `Active when '${label}' is selected`,
-                  isBranching: true,
-                });
-            }
+      for (const opt of params.options) {
+        const val = typeof opt === 'string' ? opt : opt.value;
+        const label = typeof opt === 'string' ? opt : opt.label || opt.value;
+        if (val) {
+          // Use a prefix to avoid collisions with standard ports
+          // We use the value as the ID suffix.
+          // Note: Values must be safe for port IDs (alphanumeric, -, _)
+          // We might want to sanitize it.
+          outputShape[`option:${val}`] = port(z.boolean(), {
+            label: `Option: ${label}`,
+            description: `Active when '${label}' is selected`,
+            isBranching: true,
+          });
         }
+      }
     }
-    
+
     return { inputs: inputs(inputShape), outputs: outputs(outputShape) };
   },
   async execute({ inputs, params }, context) {
@@ -241,24 +240,24 @@ const definition = defineComponent({
     const description = interpolate(descriptionTemplate, contextData);
 
     // Parse and interpolate options
-    let options: Array<{ label: string; value: string }> = [];
+    let options: { label: string; value: string }[] = [];
     if (Array.isArray(optionsRaw)) {
-        options = optionsRaw.map(opt => {
-            if (typeof opt === 'string') {
-                const val = interpolate(opt, contextData);
-                return { label: val, value: val };
-            }
-            return {
-                label: interpolate(opt.label || opt.value, contextData),
-                value: opt.value,
-            };
-        });
+      options = optionsRaw.map((opt) => {
+        if (typeof opt === 'string') {
+          const val = interpolate(opt, contextData);
+          return { label: val, value: val };
+        }
+        return {
+          label: interpolate(opt.label || opt.value, contextData),
+          value: opt.value,
+        };
+      });
     }
 
     if (options.length === 0) {
-        throw new ValidationError('Manual Selection component requires at least one option.', {
-          fieldErrors: { options: ['At least one option is required'] },
-        });
+      throw new ValidationError('Manual Selection component requires at least one option.', {
+        fieldErrors: { options: ['At least one option is required'] },
+      });
     }
 
     // Calculate timeout
@@ -271,7 +270,7 @@ const definition = defineComponent({
     }
 
     const requestId = `req-${context.runId}-${context.componentRef}`;
-    
+
     context.logger.info(`[Manual Selection] Created request: ${title}`);
 
     return {
@@ -293,10 +292,14 @@ function parseTimeout(timeout: string): number | null {
   const value = parseInt(match[1], 10);
   const unit = match[2];
   switch (unit) {
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 60 * 60 * 1000;
-    case 'd': return value * 24 * 60 * 60 * 1000;
-    default: return null;
+    case 'm':
+      return value * 60 * 1000;
+    case 'h':
+      return value * 60 * 60 * 1000;
+    case 'd':
+      return value * 24 * 60 * 60 * 1000;
+    default:
+      return null;
   }
 }
 

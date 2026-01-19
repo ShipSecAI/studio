@@ -45,7 +45,10 @@ const inputSchema = inputs({
       z
         .string()
         .min(1)
-        .regex(/^[\w.-]+$/, 'Domains may only include letters, numbers, dots, underscores, and hyphens.'),
+        .regex(
+          /^[\w.-]+$/,
+          'Domains may only include letters, numbers, dots, underscores, and hyphens.',
+        ),
     ),
     {
       label: 'Domains',
@@ -54,8 +57,6 @@ const inputSchema = inputs({
     },
   ),
 });
-
-type Input = z.infer<typeof inputSchema>;
 
 const parameterSchema = parameters({
   recordTypes: param(z.array(recordTypeEnum).default(['A']), {
@@ -107,7 +108,8 @@ const parameterSchema = parameters({
     label: 'Include DNS Responses',
     editor: 'boolean',
     description: 'Adds -resp so dnsx returns answer sections (recommended for JSON mode).',
-    helpText: 'Disable only if you strictly need terse host output; JSON parsing may lose data otherwise.',
+    helpText:
+      'Disable only if you strictly need terse host output; JSON parsing may lose data otherwise.',
   }),
   responsesOnly: param(z.boolean().default(false), {
     label: 'Responses Only',
@@ -178,11 +180,7 @@ const parameterSchema = parameters({
     },
   ),
   proxy: param(
-    z
-      .string()
-      .trim()
-      .max(255, 'Proxy definitions must be shorter than 255 characters.')
-      .optional(),
+    z.string().trim().max(255, 'Proxy definitions must be shorter than 255 characters.').optional(),
     {
       label: 'Proxy',
       editor: 'text',
@@ -191,24 +189,22 @@ const parameterSchema = parameters({
     },
   ),
   customFlags: param(
-    z
-      .string()
-      .trim()
-      .optional()
-      .describe('Raw CLI flags appended to the dnsx invocation.'),
+    z.string().trim().optional().describe('Raw CLI flags appended to the dnsx invocation.'),
     {
       label: 'Custom CLI Flags',
       editor: 'textarea',
       rows: 3,
       placeholder: '--rcode noerror --proxy socks5://127.0.0.1:9050',
       description: 'Paste additional dnsx CLI options exactly as you would on the command line.',
-      helpText: 'Flags are appended after the generated options; avoid duplicating list/record selections.',
+      helpText:
+        'Flags are appended after the generated options; avoid duplicating list/record selections.',
     },
   ),
   outputMode: param(outputModeEnum.default('json'), {
     label: 'Output Mode',
     editor: 'select',
-    description: 'JSON mode (default) returns structured dnsx records; Silent mode prints resolved hosts only.',
+    description:
+      'JSON mode (default) returns structured dnsx records; Silent mode prints resolved hosts only.',
     options: [
       { label: 'Silent (resolved hosts)', value: 'silent' },
       { label: 'JSON (structured records)', value: 'json' },
@@ -218,15 +214,14 @@ const parameterSchema = parameters({
 
 type Output = z.infer<typeof outputSchema>;
 
-
-type DnsxRecord = {
+interface DnsxRecord {
   host: string;
   statusCode?: string;
   ttl?: number;
   resolver?: string[];
   answers: Record<string, string[]>;
   timestamp?: string;
-};
+}
 
 const dnsxLineSchema = z
   .object({
@@ -469,11 +464,7 @@ const dnsxRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 1,
   maximumIntervalSeconds: 10,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'ContainerError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
 };
 
 const definition = defineComponent({
@@ -501,8 +492,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs:
-    'Executes dnsx inside Docker to resolve DNS records for the provided domains. Supports multiple record types, custom resolvers, and rate limiting.',
+  docs: 'Executes dnsx inside Docker to resolve DNS records for the provided domains. Supports multiple record types, custom resolvers, and rate limiting.',
   ui: {
     slug: 'dnsx',
     version: '1.0.0',
@@ -545,7 +535,9 @@ const definition = defineComponent({
     } = parsedParams;
 
     const trimmedStatusCodeFilter =
-      typeof statusCodeFilter === 'string' && statusCodeFilter.length > 0 ? statusCodeFilter : undefined;
+      typeof statusCodeFilter === 'string' && statusCodeFilter.length > 0
+        ? statusCodeFilter
+        : undefined;
     const trimmedWildcardDomain =
       typeof wildcardDomain === 'string' && wildcardDomain.length > 0 ? wildcardDomain : undefined;
     const trimmedProxy = typeof proxy === 'string' && proxy.length > 0 ? proxy : undefined;
@@ -660,7 +652,7 @@ const definition = defineComponent({
 
       rawPayload = await runComponentWithRunner(
         runnerConfig,
-        async () => ({} as Output),
+        async () => ({}) as Output,
         runnerPayload,
         context,
       );
@@ -671,7 +663,7 @@ const definition = defineComponent({
     }
 
     const buildOutput = (params: {
-      records: Array<z.infer<typeof dnsxLineSchema>>;
+      records: z.infer<typeof dnsxLineSchema>[];
       rawOutput: string;
       domainCount: number;
       recordCount: number;
@@ -714,9 +706,10 @@ const definition = defineComponent({
 
         return {
           host: record.host,
-          statusCode: typeof (record as Record<string, unknown>).status_code === 'string'
-            ? (record as Record<string, unknown>).status_code as string
-            : undefined,
+          statusCode:
+            typeof (record as Record<string, unknown>).status_code === 'string'
+              ? ((record as Record<string, unknown>).status_code as string)
+              : undefined,
           ttl: Number.isFinite(ttl) ? ttl : undefined,
           resolver: Array.isArray(record.resolver)
             ? record.resolver.map((entry: unknown) => String(entry))
@@ -727,14 +720,28 @@ const definition = defineComponent({
       });
 
       const derivedResolvers = ensureUnique(
-        params.records
-          .flatMap((record) => (Array.isArray(record.resolver) ? record.resolver.map((entry) => String(entry)) : [])),
+        params.records.flatMap((record) =>
+          Array.isArray(record.resolver) ? record.resolver.map((entry) => String(entry)) : [],
+        ),
       );
 
       const derivedRecordTypes = ensureUnique(
         params.records.flatMap((record) => {
           const keys: string[] = [];
-          const candidateKeys = ['a', 'aaaa', 'cname', 'mx', 'ns', 'txt', 'ptr', 'srv', 'soa', 'caa', 'any', 'axfr'];
+          const candidateKeys = [
+            'a',
+            'aaaa',
+            'cname',
+            'mx',
+            'ns',
+            'txt',
+            'ptr',
+            'srv',
+            'soa',
+            'caa',
+            'any',
+            'axfr',
+          ];
           candidateKeys.forEach((key) => {
             const value = (record as Record<string, unknown>)[key];
             if (Array.isArray(value) && value.length > 0) {
@@ -837,7 +844,7 @@ const definition = defineComponent({
           const validated = outputSchema.safeParse(record);
           if (validated.success) {
             return buildOutput({
-              records: validated.data.results as Array<z.infer<typeof dnsxLineSchema>>,
+              records: validated.data.results as z.infer<typeof dnsxLineSchema>[],
               rawOutput: validated.data.rawOutput ?? rawOutput,
               domainCount: validated.data.domainCount ?? domainCount,
               recordCount: validated.data.recordCount ?? validated.data.results.length,
@@ -924,7 +931,7 @@ const definition = defineComponent({
         .filter((line: string) => line.length > 0);
 
       const parseErrors: string[] = [];
-      const parsedRecords: Array<z.infer<typeof dnsxLineSchema>> = [];
+      const parsedRecords: z.infer<typeof dnsxLineSchema>[] = [];
 
       for (const line of lines) {
         try {
@@ -951,7 +958,9 @@ const definition = defineComponent({
       }
 
       if (parsedRecords.length === 0) {
-        context.logger.error('[DNSX] No valid JSON lines returned from dnsx; falling back to raw output.');
+        context.logger.error(
+          '[DNSX] No valid JSON lines returned from dnsx; falling back to raw output.',
+        );
         const fallbackLines: string[] = lines.length > 0 ? lines : trimmed.split('\n');
         const fallbackResults: DnsxRecord[] = fallbackLines.map((line: string) => {
           const tokens = line.split(/\s+/).filter((token) => token.length > 0);
@@ -1015,7 +1024,7 @@ const definition = defineComponent({
     }
 
     return buildOutput({
-      records: safeResult.data.results as Array<z.infer<typeof dnsxLineSchema>>,
+      records: safeResult.data.results as z.infer<typeof dnsxLineSchema>[],
       rawOutput: safeResult.data.rawOutput,
       domainCount: safeResult.data.domainCount ?? domainCount,
       recordCount: safeResult.data.recordCount ?? safeResult.data.results.length,

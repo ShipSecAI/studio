@@ -1,12 +1,20 @@
-import type { ExecutionStatus } from '@/schemas/execution'
-import type { ExecutionRun } from '@/store/runStore'
+import type { ExecutionStatus } from '@/schemas/execution';
+import type { ExecutionRun } from '@/store/runStore';
 
-export const TERMINAL_RUN_STATUSES: ExecutionStatus[] = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT']
+export const TERMINAL_RUN_STATUSES: ExecutionStatus[] = [
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+  'TERMINATED',
+  'TIMED_OUT',
+];
 
 export const normalizeRunSummary = (run: any): ExecutionRun => {
-  const status = (typeof run.status === 'string' ? run.status.toUpperCase() : 'FAILED') as ExecutionStatus
-  const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString()
-  const endTime = typeof run.endTime === 'string' ? run.endTime : undefined
+  const status = (
+    typeof run.status === 'string' ? run.status.toUpperCase() : 'FAILED'
+  ) as ExecutionStatus;
+  const startTime = typeof run.startTime === 'string' ? run.startTime : new Date().toISOString();
+  const endTime = typeof run.endTime === 'string' ? run.endTime : undefined;
 
   return {
     id: String(run.id ?? run.runId ?? ''),
@@ -25,20 +33,19 @@ export const normalizeRunSummary = (run: any): ExecutionRun => {
     triggerType: (run.triggerType ?? 'manual') as ExecutionRun['triggerType'],
     triggerSource: typeof run.triggerSource === 'string' ? run.triggerSource : null,
     triggerLabel: typeof run.triggerLabel === 'string' ? run.triggerLabel : null,
-    inputPreview:
-      run.inputPreview ?? {
-        runtimeInputs: {},
-        nodeOverrides: {},
-      },
-  }
-}
+    inputPreview: run.inputPreview ?? {
+      runtimeInputs: {},
+      nodeOverrides: {},
+    },
+  };
+};
 
 export const isRunLive = (run?: ExecutionRun | null) => {
   if (!run) {
-    return false
+    return false;
   }
   if (run.isLive) {
-    return true
+    return true;
   }
-  return !TERMINAL_RUN_STATUSES.includes(run.status)
-}
+  return !TERMINAL_RUN_STATUSES.includes(run.status);
+};

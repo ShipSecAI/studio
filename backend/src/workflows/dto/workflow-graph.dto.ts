@@ -1,7 +1,4 @@
-import {
-  ExecutionStatusSchema,
-  ExecutionTriggerMetadataSchema,
-} from '@shipsec/shared';
+import { ExecutionStatusSchema, ExecutionTriggerMetadataSchema } from '@shipsec/shared';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -13,14 +10,16 @@ export const WorkflowViewportSchema = z.object({
 
 export const WorkflowNodeDataSchema = z.object({
   label: z.string(),
-  config: z.object({
-    params: z.record(z.string(), z.unknown()).default({}),
-    inputOverrides: z.record(z.string(), z.unknown()).default({}),
-    joinStrategy: z.enum(['all', 'any', 'first']).optional(),
-    streamId: z.string().optional(),
-    groupId: z.string().optional(),
-    maxConcurrency: z.number().int().positive().optional(),
-  }).default({ params: {}, inputOverrides: {} }),
+  config: z
+    .object({
+      params: z.record(z.string(), z.unknown()).default({}),
+      inputOverrides: z.record(z.string(), z.unknown()).default({}),
+      joinStrategy: z.enum(['all', 'any', 'first']).optional(),
+      streamId: z.string().optional(),
+      groupId: z.string().optional(),
+      maxConcurrency: z.number().int().positive().optional(),
+    })
+    .default({ params: {}, inputOverrides: {} }),
   // Dynamic ports resolved from component's resolvePorts function
   dynamicInputs: z.array(z.record(z.string(), z.unknown())).optional(),
   dynamicOutputs: z.array(z.record(z.string(), z.unknown())).optional(),
@@ -33,7 +32,7 @@ export const WorkflowNodeSchema = z.object({
     x: z.number(),
     y: z.number(),
   }),
-  
+
   data: WorkflowNodeDataSchema,
 });
 
@@ -48,33 +47,36 @@ export const WorkflowEdgeSchema = z.object({
   type: z.enum(['default', 'smoothstep', 'step', 'straight', 'bezier']).optional(),
 });
 
-export const WorkflowGraphSchema = z.object({
-  id: z.string().optional(),
-  name: z.string(),
-  description: z.string().optional(),
-  nodes: z.array(WorkflowNodeSchema).min(1),
-  edges: z.array(WorkflowEdgeSchema),
-  viewport: WorkflowViewportSchema.default({ x: 0, y: 0, zoom: 1 }),
-}).refine(
-  (data) => {
-    const portInputs = new Set<string>();
-    for (const edge of data.edges) {
-      const targetHandle = edge.targetHandle ?? edge.sourceHandle;
-      if (!targetHandle) continue;
+export const WorkflowGraphSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string(),
+    description: z.string().optional(),
+    nodes: z.array(WorkflowNodeSchema).min(1),
+    edges: z.array(WorkflowEdgeSchema),
+    viewport: WorkflowViewportSchema.default({ x: 0, y: 0, zoom: 1 }),
+  })
+  .refine(
+    (data) => {
+      const portInputs = new Set<string>();
+      for (const edge of data.edges) {
+        const targetHandle = edge.targetHandle ?? edge.sourceHandle;
+        if (!targetHandle) continue;
 
-      const key = `${edge.target}:${targetHandle}`;
-      if (portInputs.has(key)) {
-        return false;
+        const key = `${edge.target}:${targetHandle}`;
+        if (portInputs.has(key)) {
+          return false;
+        }
+        portInputs.add(key);
       }
-      portInputs.add(key);
-    }
-    return true;
-  },
-  {
-    message: 'Multiple edges connecting to the same input port are not allowed. Each port must have only one source.',
-    path: ['edges'],
-  }
-);
+      return true;
+    },
+    {
+      message:
+        'Multiple edges connecting to the same input port are not allowed. Each port must have only one source.',
+      path: ['edges'],
+    },
+  );
 
 export class WorkflowGraphDto extends createZodDto(WorkflowGraphSchema) {}
 export type WorkflowGraph = WorkflowGraphDto;
@@ -126,11 +128,7 @@ export const PrepareRunRequestSchema = BaseRunWorkflowRequestSchema.extend({
 export class PrepareRunRequestDto extends createZodDto(PrepareRunRequestSchema) {}
 
 export const ListRunsQuerySchema = z.object({
-  workflowId: z
-    .string()
-    .trim()
-    .min(1)
-    .optional(),
+  workflowId: z.string().trim().min(1).optional(),
   status: z
     .string()
     .trim()
@@ -143,55 +141,27 @@ export const ListRunsQuerySchema = z.object({
 export class ListRunsQueryDto extends createZodDto(ListRunsQuerySchema) {}
 
 export const TemporalRunQuerySchema = z.object({
-  temporalRunId: z
-    .string()
-    .trim()
-    .min(1)
-    .optional(),
+  temporalRunId: z.string().trim().min(1).optional(),
 });
 
 export class TemporalRunQueryDto extends createZodDto(TemporalRunQuerySchema) {}
 
 export const StreamRunQuerySchema = TemporalRunQuerySchema.extend({
-  cursor: z
-    .string()
-    .trim()
-    .min(1)
-    .optional(),
+  cursor: z.string().trim().min(1).optional(),
   terminalCursor: z.string().trim().optional(),
-  logCursor: z
-    .string()
-    .datetime()
-    .optional(),
+  logCursor: z.string().datetime().optional(),
 });
 
 export class StreamRunQueryDto extends createZodDto(StreamRunQuerySchema) {}
 
 export const WorkflowLogsQuerySchema = z.object({
-  nodeRef: z
-    .string()
-    .trim()
-    .min(1)
-    .optional(),
-  stream: z
-    .enum(['stdout', 'stderr', 'console'])
-    .optional(),
-  level: z
-    .enum(['debug', 'info', 'warn', 'error'])
-    .optional(),
+  nodeRef: z.string().trim().min(1).optional(),
+  stream: z.enum(['stdout', 'stderr', 'console']).optional(),
+  level: z.enum(['debug', 'info', 'warn', 'error']).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  cursor: z
-    .string()
-    .datetime()
-    .optional(),
-  startTime: z
-    .string()
-    .datetime()
-    .optional(),
-  endTime: z
-    .string()
-    .datetime()
-    .optional(),
+  cursor: z.string().datetime().optional(),
+  startTime: z.string().datetime().optional(),
+  endTime: z.string().datetime().optional(),
 });
 
 export class WorkflowLogsQueryDto extends createZodDto(WorkflowLogsQuerySchema) {}
@@ -214,7 +184,7 @@ export interface ServiceWorkflowResponse {
   id: string;
   name: string;
   description?: string | null;
-  graph: z.infer<typeof WorkflowGraphSchema>;  // The original stored graph (contains nodes, edges, viewport)
+  graph: z.infer<typeof WorkflowGraphSchema>; // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: any | null;
   lastRun: Date | null;
   runCount: number;
@@ -229,7 +199,7 @@ export const WorkflowResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional().nullable(),
-  graph: WorkflowGraphSchema,  // The original stored graph (contains nodes, edges, viewport)
+  graph: WorkflowGraphSchema, // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: z.unknown().nullable(),
   lastRun: z.string().nullable(), // Date string from JSON serialization
   runCount: z.number().int().nonnegative(),
@@ -247,7 +217,7 @@ export const WorkflowVersionResponseSchema = z.object({
   version: z.number().int().positive(),
   graph: WorkflowGraphSchema,
   createdAt: z.string(),
-})
+});
 
 export class WorkflowVersionResponseDto extends createZodDto(WorkflowVersionResponseSchema) {}
 
@@ -268,10 +238,9 @@ export const WorkflowRuntimeInputsResponseSchema = z.object({
   inputs: z.array(RuntimeInputSchema),
 });
 
-export class WorkflowRuntimeInputsResponseDto extends createZodDto(WorkflowRuntimeInputsResponseSchema) {}
+export class WorkflowRuntimeInputsResponseDto extends createZodDto(
+  WorkflowRuntimeInputsResponseSchema,
+) {}
 
 // Constants for entry point component identification
-export const ENTRY_POINT_COMPONENT_IDS = [
-  'core.workflow.entrypoint',
-  'entry-point',
-] as const;
+export const ENTRY_POINT_COMPONENT_IDS = ['core.workflow.entrypoint', 'entry-point'] as const;

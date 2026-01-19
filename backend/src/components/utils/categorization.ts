@@ -1,6 +1,6 @@
 import type { ComponentDefinition, ComponentCategory } from '@shipsec/component-sdk';
 
-interface ComponentCategoryConfig {
+export interface ComponentCategoryConfig {
   label: string;
   color: string;
   description: string;
@@ -8,7 +8,16 @@ interface ComponentCategoryConfig {
   icon: string;
 }
 
-const SUPPORTED_CATEGORIES: ReadonlyArray<ComponentCategory> = ['input', 'transform', 'ai', 'security', 'it_ops', 'notification', 'manual_action', 'output'];
+const SUPPORTED_CATEGORIES: readonly ComponentCategory[] = [
+  'input',
+  'transform',
+  'ai',
+  'security',
+  'it_ops',
+  'notification',
+  'manual_action',
+  'output',
+];
 
 const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConfig> = {
   input: {

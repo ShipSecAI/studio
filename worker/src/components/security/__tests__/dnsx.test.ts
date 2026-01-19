@@ -12,7 +12,7 @@ mock.module('../../utils/isolated-volume', () => ({
       return { source: 'test-volume', target, readOnly };
     }
 
-    async cleanup() { }
+    async cleanup() {}
   },
 }));
 
@@ -52,7 +52,7 @@ describe('dnsx component', () => {
         recordTypes: ['A' as const],
         resolvers: [],
         outputMode: 'json' as const,
-      }
+      },
     };
 
     const ndjson = [
@@ -107,7 +107,7 @@ describe('dnsx component', () => {
         statusCodeFilter: 'noerror,servfail',
         proxy: 'socks5://127.0.0.1:9000',
         customFlags: "--rcode refused --proxy 'socks5://127.0.0.1:9000'",
-      }
+      },
     };
 
     const spy = vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('');
@@ -121,7 +121,9 @@ describe('dnsx component', () => {
       const command = (runnerConfig as any).command as string[];
       expect(command).toEqual(expect.arrayContaining(['-rcode', 'noerror,servfail']));
       expect(command).toEqual(expect.arrayContaining(['-proxy', 'socks5://127.0.0.1:9000']));
-      expect(command).toEqual(expect.arrayContaining(['--rcode', 'refused', '--proxy', 'socks5://127.0.0.1:9000']));
+      expect(command).toEqual(
+        expect.arrayContaining(['--rcode', 'refused', '--proxy', 'socks5://127.0.0.1:9000']),
+      );
     }
   });
 
@@ -140,7 +142,7 @@ describe('dnsx component', () => {
       },
       params: {
         outputMode: 'silent' as const,
-      }
+      },
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
@@ -171,7 +173,7 @@ describe('dnsx component', () => {
       params: {
         recordTypes: ['A' as const],
         resolvers: [],
-      }
+      },
     };
 
     const spy = vi.spyOn(sdk, 'runComponentWithRunner');

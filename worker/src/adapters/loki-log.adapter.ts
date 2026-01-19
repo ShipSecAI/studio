@@ -40,9 +40,9 @@ export class LokiLogClient implements LokiPushClient {
     }
 
     if (this.config.username && this.config.password) {
-      const credentials = Buffer.from(
-        `${this.config.username}:${this.config.password}`,
-      ).toString('base64');
+      const credentials = Buffer.from(`${this.config.username}:${this.config.password}`).toString(
+        'base64',
+      );
       headers.Authorization = `Basic ${credentials}`;
     }
 
@@ -63,13 +63,10 @@ export class LokiLogClient implements LokiPushClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new ServiceError(
-        `Loki push failed: ${errorText}`,
-        {
-          statusCode: response.status,
-          details: { statusText: response.statusText, errorText },
-        },
-      );
+      throw new ServiceError(`Loki push failed: ${errorText}`, {
+        statusCode: response.status,
+        details: { statusText: response.statusText, errorText },
+      });
     }
   }
 
@@ -197,15 +194,10 @@ export class LokiLogAdapter implements WorkflowLogSink {
     };
 
     const upsert = async () => {
-      await this.db!
-        .insert(workflowLogStreams)
+      await this.db!.insert(workflowLogStreams)
         .values(values)
         .onConflictDoUpdate({
-          target: [
-            workflowLogStreams.runId,
-            workflowLogStreams.nodeRef,
-            workflowLogStreams.stream,
-          ],
+          target: [workflowLogStreams.runId, workflowLogStreams.nodeRef, workflowLogStreams.stream],
           set: {
             labels: input.labels,
             lastTimestamp: input.timestamp,
@@ -236,7 +228,8 @@ export class LokiLogAdapter implements WorkflowLogSink {
 
     if (!this.ensureIndexPromise) {
       this.ensureIndexPromise = (async () => {
-        await this.db!.execute(sql`
+        if (!this.db) return;
+        await this.db.execute(sql`
           WITH ranked_streams AS (
             SELECT
               id,
@@ -254,7 +247,8 @@ export class LokiLogAdapter implements WorkflowLogSink {
           );
         `);
 
-        await this.db!.execute(sql`
+        if (!this.db) return;
+        await this.db.execute(sql`
           CREATE UNIQUE INDEX IF NOT EXISTS workflow_log_streams_run_node_stream_uidx
           ON workflow_log_streams (run_id, node_ref, stream);
         `);

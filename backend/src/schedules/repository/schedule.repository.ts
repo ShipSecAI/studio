@@ -22,13 +22,8 @@ export class ScheduleRepository {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async create(
-    values: Omit<WorkflowScheduleInsert, 'id'>,
-  ): Promise<WorkflowScheduleRecord> {
-    const [record] = await this.db
-      .insert(workflowSchedulesTable)
-      .values(values)
-      .returning();
+  async create(values: Omit<WorkflowScheduleInsert, 'id'>): Promise<WorkflowScheduleRecord> {
+    const [record] = await this.db.insert(workflowSchedulesTable).values(values).returning();
     return record;
   }
 
@@ -60,10 +55,7 @@ export class ScheduleRepository {
     return record;
   }
 
-  async delete(
-    id: string,
-    options: { organizationId?: string | null } = {},
-  ): Promise<void> {
+  async delete(id: string, options: { organizationId?: string | null } = {}): Promise<void> {
     await this.db
       .delete(workflowSchedulesTable)
       .where(this.buildIdFilter(id, options.organizationId));

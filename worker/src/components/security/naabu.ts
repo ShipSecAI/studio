@@ -31,7 +31,7 @@ const parameterSchema = parameters({
       .trim()
       .min(1, 'Port list cannot be empty')
       .optional()
-      .describe('Specific ports or ranges to scan (e.g. \"80,443,1000-2000\")'),
+      .describe('Specific ports or ranges to scan (e.g. "80,443,1000-2000")'),
     {
       label: 'Ports',
       editor: 'text',
@@ -40,13 +40,7 @@ const parameterSchema = parameters({
     },
   ),
   topPorts: param(
-    z
-      .number()
-      .int()
-      .positive()
-      .max(65535)
-      .optional()
-      .describe('Scan the top N most common ports'),
+    z.number().int().positive().max(65535).optional().describe('Scan the top N most common ports'),
     {
       label: 'Top Ports',
       editor: 'number',
@@ -88,14 +82,7 @@ const parameterSchema = parameters({
     },
   ),
   retries: param(
-    z
-      .number()
-      .int()
-      .min(0)
-      .max(10)
-      .optional()
-      .default(1)
-      .describe('Number of retries per port'),
+    z.number().int().min(0).max(10).optional().default(1).describe('Number of retries per port'),
     {
       label: 'Retries',
       editor: 'number',
@@ -157,19 +144,22 @@ const outputSchema = outputs({
     label: 'Open Port Count',
     description: 'Total number of open ports discovered.',
   }),
-  options: port(z.object({
-    ports: z.string().nullable(),
-    topPorts: z.number().nullable(),
-    excludePorts: z.string().nullable(),
-    rate: z.number().nullable(),
-    retries: z.number(),
-    enablePing: z.boolean(),
-    interface: z.string().nullable(),
-  }), {
-    label: 'Options',
-    description: 'Effective Naabu scan options applied for the run.',
-    connectionType: { kind: 'primitive', name: 'json' },
-  }),
+  options: port(
+    z.object({
+      ports: z.string().nullable(),
+      topPorts: z.number().nullable(),
+      excludePorts: z.string().nullable(),
+      rate: z.number().nullable(),
+      retries: z.number(),
+      enablePing: z.boolean(),
+      interface: z.string().nullable(),
+    }),
+    {
+      label: 'Options',
+      description: 'Effective Naabu scan options applied for the run.',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
 });
 
 type Finding = z.infer<typeof findingSchema>;
@@ -295,7 +285,8 @@ eval "$CMD"
     type: 'scan',
     category: 'security',
     description: 'Fast active port scanning using ProjectDiscovery Naabu.',
-    documentation: 'ProjectDiscovery Naabu documentation covers usage, CLI flags, and configuration examples.',
+    documentation:
+      'ProjectDiscovery Naabu documentation covers usage, CLI flags, and configuration examples.',
     documentationUrl: 'https://github.com/projectdiscovery/naabu',
     icon: 'Radar',
     author: {
@@ -304,7 +295,8 @@ eval "$CMD"
     },
     isLatest: true,
     deprecated: false,
-    example: '`naabu -host scanme.sh -top-ports 100` - Quickly identifies the most common open TCP ports on a target host.',
+    example:
+      '`naabu -host scanme.sh -top-ports 100` - Quickly identifies the most common open TCP ports on a target host.',
     examples: [
       'Scan Amass or Subfinder discoveries to identify exposed services.',
       'Target a custom list of IPs with tuned rate and retries for stealth scans.',
@@ -394,9 +386,9 @@ function parseNaabuOutput(raw: string): Finding[] {
 
   raw
     .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .forEach(line => {
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .forEach((line) => {
       let payload: any = null;
       try {
         payload = JSON.parse(line);
@@ -405,21 +397,23 @@ function parseNaabuOutput(raw: string): Finding[] {
       }
 
       if (payload && typeof payload === 'object') {
-        const host = typeof payload.host === 'string' && payload.host.length > 0
-          ? payload.host
-          : typeof payload.ip === 'string'
-            ? payload.ip
-            : '';
+        const host =
+          typeof payload.host === 'string' && payload.host.length > 0
+            ? payload.host
+            : typeof payload.ip === 'string'
+              ? payload.ip
+              : '';
         const portValue = Number(payload.port);
         if (!host || !Number.isFinite(portValue)) {
           return;
         }
 
-        const protocol = typeof payload.proto === 'string'
-          ? payload.proto
-          : typeof payload.protocol === 'string'
-            ? payload.protocol
-            : 'tcp';
+        const protocol =
+          typeof payload.proto === 'string'
+            ? payload.proto
+            : typeof payload.protocol === 'string'
+              ? payload.protocol
+              : 'tcp';
 
         const finding: Finding = {
           host,
@@ -451,8 +445,8 @@ function parseNaabuOutput(raw: string): Finding[] {
 componentRegistry.register(definition);
 
 // Create local type aliases for internal use (inferred types)
-type Input = typeof inputSchema['__inferred'];
-type Output = typeof outputSchema['__inferred'];
+type Input = (typeof inputSchema)['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
 
 // Export schema types for the registry
 export type NaabuInput = typeof inputSchema;

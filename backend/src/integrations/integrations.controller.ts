@@ -86,7 +86,9 @@ export class IntegrationsController {
 
   @Get('connections')
   @ApiOkResponse({ type: [IntegrationConnectionResponse] })
-  async listConnections(@Query('userId') userId?: string): Promise<IntegrationConnectionResponse[]> {
+  async listConnections(
+    @Query('userId') userId?: string,
+  ): Promise<IntegrationConnectionResponse[]> {
     if (!userId) {
       throw new BadRequestException('userId is required');
     }

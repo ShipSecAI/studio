@@ -66,9 +66,7 @@ export const WorkflowDefinitionSchema = z.object({
   entrypoint: z.object({ ref: z.string() }),
   nodes: z.record(z.string(), WorkflowNodeMetadataSchema).default({}),
   edges: z.array(WorkflowEdgeSchema).default([]),
-  dependencyCounts: z
-    .record(z.string(), z.number().int().nonnegative())
-    .default({}),
+  dependencyCounts: z.record(z.string(), z.number().int().nonnegative()).default({}),
   actions: z.array(WorkflowActionSchema),
   config: z.object({
     environment: z.string().default('default'),

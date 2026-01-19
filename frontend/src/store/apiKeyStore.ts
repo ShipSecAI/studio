@@ -45,7 +45,9 @@ export const useApiKeyStore = create<ApiKeyStore>((set, get) => ({
     try {
       const apiKeys = await api.apiKeys.list();
       set({
-        apiKeys: apiKeys.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+        apiKeys: apiKeys.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        ),
         loading: false,
         error: null,
         initialized: true,

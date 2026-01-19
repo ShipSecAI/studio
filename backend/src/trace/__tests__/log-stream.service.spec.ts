@@ -6,8 +6,8 @@ import type { LogStreamRepository } from '../log-stream.repository';
 import type { AuthContext } from '../../auth/types';
 
 describe('LogStreamService', () => {
-const originalEnv = { ...process.env };
-const originalFetch = global.fetch;
+  const originalEnv = { ...process.env };
+  const originalFetch = global.fetch;
   const authContext: AuthContext = {
     userId: 'test-user',
     organizationId: 'test-org',
@@ -48,11 +48,13 @@ const originalFetch = global.fetch;
     } as unknown as LogStreamRepository;
     const service = new LogStreamService(repository);
 
-    await expect(service.fetch('run-123', null)).rejects.toThrow('Loki integration is not configured');
+    await expect(service.fetch('run-123', null)).rejects.toThrow(
+      'Loki integration is not configured',
+    );
   });
 
   it('returns log entries from Loki', async () => {
-    const calls: Array<{ input: string | URL; init?: RequestInit }> = [];
+    const calls: { input: string | URL; init?: RequestInit }[] = [];
     const nanoTs = (BigInt(record.firstTimestamp.getTime()) * 1000000n).toString();
 
     // @ts-expect-error override global fetch for test
@@ -79,7 +81,10 @@ const originalFetch = global.fetch;
       listByRunId: async () => [record],
     } as unknown as LogStreamRepository;
     const service = new LogStreamService(repository);
-    const result = await service.fetch('run-123', authContext, { nodeRef: 'node-1', stream: 'stdout' });
+    const result = await service.fetch('run-123', authContext, {
+      nodeRef: 'node-1',
+      stream: 'stdout',
+    });
 
     expect(result.logs).toHaveLength(2);
     expect(result.logs[0]).toEqual({
@@ -105,7 +110,7 @@ const originalFetch = global.fetch;
   });
 
   it('derives start and end timestamps from stored metadata', async () => {
-    const calls: Array<{ input: string | URL; init?: RequestInit }> = [];
+    const calls: { input: string | URL; init?: RequestInit }[] = [];
     const first = new Date('2025-02-01T00:00:00Z');
     const last = new Date('2025-02-01T00:05:00Z');
     const firstNs = (BigInt(first.getTime()) * 1000000n).toString();

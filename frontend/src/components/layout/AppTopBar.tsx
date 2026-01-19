@@ -1,17 +1,17 @@
-import { useLocation, Link } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { env } from '@/config/env'
-import { cn } from '@/lib/utils'
+import { useLocation, Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { env } from '@/config/env';
+import { cn } from '@/lib/utils';
 
 interface AppTopBarProps {
-  title?: string
-  subtitle?: string
-  showSidebarToggle?: boolean
-  sidebarOpen?: boolean
-  onSidebarToggle?: () => void
-  actions?: React.ReactNode
-  isMobile?: boolean
+  title?: string;
+  subtitle?: string;
+  showSidebarToggle?: boolean;
+  sidebarOpen?: boolean;
+  onSidebarToggle?: () => void;
+  actions?: React.ReactNode;
+  isMobile?: boolean;
 }
 
 export function AppTopBar({
@@ -21,92 +21,94 @@ export function AppTopBar({
   sidebarOpen,
   onSidebarToggle,
   actions,
-  isMobile = false
+  isMobile = false,
 }: AppTopBarProps) {
-  const location = useLocation()
+  const location = useLocation();
 
   // Determine page title and navigation based on current route
   const getPageInfo = () => {
-    if (title) return { title, subtitle }
+    if (title) return { title, subtitle };
 
     if (location.pathname === '/') {
       return {
         title: 'Security Workflow Builder',
         shortTitle: 'Workflows',
-        subtitle: 'Create and manage security automation workflows'
-      }
+        subtitle: 'Create and manage security automation workflows',
+      };
     }
 
     if (location.pathname.startsWith('/workflows')) {
       return {
         title: 'Workflow Builder',
         shortTitle: 'Builder',
-        subtitle: 'Design and automate security workflows'
-      }
+        subtitle: 'Design and automate security workflows',
+      };
     }
 
     if (location.pathname.startsWith('/schedules')) {
       return {
         title: 'Workflow Schedules',
         shortTitle: 'Schedules',
-        subtitle: 'Manage recurring workflow cadences'
-      }
+        subtitle: 'Manage recurring workflow cadences',
+      };
     }
 
     if (location.pathname === '/secrets') {
       return {
         title: 'Secret Manager',
         shortTitle: 'Secrets',
-        subtitle: 'Store and manage sensitive credentials'
-      }
+        subtitle: 'Store and manage sensitive credentials',
+      };
     }
 
     if (location.pathname === '/webhooks') {
       return {
         title: 'Webhooks Manager',
         shortTitle: 'Webhooks',
-        subtitle: 'Manage and debug incoming webhooks'
-      }
+        subtitle: 'Manage and debug incoming webhooks',
+      };
     }
 
     if (location.pathname === '/api-keys') {
       return {
         title: 'API Keys',
         shortTitle: 'API Keys',
-        subtitle: 'Manage API keys for workflow triggers'
-      }
+        subtitle: 'Manage API keys for workflow triggers',
+      };
     }
 
     if (env.VITE_ENABLE_CONNECTIONS && location.pathname === '/integrations') {
       return {
         title: 'Connections',
         shortTitle: 'Connections',
-        subtitle: 'Manage OAuth tokens for external providers'
-      }
+        subtitle: 'Manage OAuth tokens for external providers',
+      };
     }
 
     if (location.pathname === '/artifacts') {
       return {
         title: 'Artifact Library',
         shortTitle: 'Artifacts',
-        subtitle: 'Browse artifacts saved across workflow runs'
-      }
+        subtitle: 'Browse artifacts saved across workflow runs',
+      };
     }
 
     return {
       title: 'Security Workflow Builder',
       shortTitle: 'Workflows',
-      subtitle: 'Create and manage security automation workflows'
-    }
-  }
+      subtitle: 'Create and manage security automation workflows',
+    };
+  };
 
-  const pageInfo = getPageInfo()
+  const pageInfo = getPageInfo();
 
   return (
-    <div className={cn(
-      'h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
-      'flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40'
-    )}>
+    <div
+      className={cn(
+        'h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
+        'flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40',
+      )}
+    >
       {/* Sidebar toggle - works on both mobile and desktop */}
       {showSidebarToggle && onSidebarToggle && (
         <Button
@@ -135,7 +137,7 @@ export function AppTopBar({
                 alt="ShipSec"
                 className="w-6 h-6"
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none'
+                  e.currentTarget.style.display = 'none';
                 }}
               />
               <div className="flex flex-col leading-none">
@@ -147,22 +149,20 @@ export function AppTopBar({
             {location.pathname !== '/' && !location.pathname.startsWith('/workflows') && (
               <>
                 <span className="text-muted-foreground">|</span>
-                <span className="font-medium text-sm truncate">{pageInfo.shortTitle || pageInfo.title}</span>
+                <span className="font-medium text-sm truncate">
+                  {pageInfo.shortTitle || pageInfo.title}
+                </span>
               </>
             )}
           </div>
         ) : (
           /* Desktop: Full page title */
-          <h1 className="text-xl font-semibold truncate">
-            {pageInfo.title}
-          </h1>
+          <h1 className="text-xl font-semibold truncate">{pageInfo.title}</h1>
         )}
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-        {actions}
-      </div>
+      <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">{actions}</div>
     </div>
-  )
+  );
 }

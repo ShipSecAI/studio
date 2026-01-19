@@ -109,12 +109,14 @@ export class WorkflowRunRepository {
     return record;
   }
 
-  async list(options: {
-    workflowId?: string;
-    status?: string;
-    limit?: number;
-    organizationId?: string | null;
-  } = {}): Promise<WorkflowRunRecord[]> {
+  async list(
+    options: {
+      workflowId?: string;
+      status?: string;
+      limit?: number;
+      organizationId?: string | null;
+    } = {},
+  ): Promise<WorkflowRunRecord[]> {
     let condition: ReturnType<typeof eq> | undefined;
 
     if (options.workflowId) {
@@ -122,10 +124,7 @@ export class WorkflowRunRepository {
     }
 
     if (options.organizationId) {
-      const organizationCondition = eq(
-        workflowRunsTable.organizationId,
-        options.organizationId,
-      );
+      const organizationCondition = eq(workflowRunsTable.organizationId, options.organizationId);
       condition = condition ? and(condition, organizationCondition) : organizationCondition;
     }
 
@@ -161,8 +160,8 @@ export class WorkflowRunRepository {
       .where(
         and(
           eq(humanInputRequestsTable.runId, runId),
-          eq(humanInputRequestsTable.status, 'pending')
-        )
+          eq(humanInputRequestsTable.status, 'pending'),
+        ),
       );
     return Number(result.count) > 0;
   }

@@ -87,7 +87,10 @@ export class DeleteApiKeyResponseDto extends createZodDto(DeleteApiKeyResponseSc
 export const ListApiKeysQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).default('50').transform(Number),
   offset: z.string().regex(/^\d+$/).default('0').transform(Number),
-  isActive: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  isActive: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 });
 
 export class ListApiKeysQueryDto extends createZodDto(ListApiKeysQuerySchema) {}

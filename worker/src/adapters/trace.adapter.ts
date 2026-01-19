@@ -38,7 +38,9 @@ export class TraceAdapter implements ITraceService {
     }
 
     const context =
-      event.message !== undefined ? `${event.type} - ${event.nodeRef}: ${event.message}` : `${event.type} - ${event.nodeRef}`;
+      event.message !== undefined
+        ? `${event.type} - ${event.nodeRef}: ${event.message}`
+        : `${event.type} - ${event.nodeRef}`;
     this.logger.log(`[TRACE][${event.level}] ${context}`);
 
     if (!this.db) {
@@ -128,7 +130,7 @@ export class TraceAdapter implements ITraceService {
 
     if (hasMetadata) {
       packed._metadata = {
-        ...((event.context as unknown) as Record<string, unknown>),
+        ...(event.context as unknown as Record<string, unknown>),
       };
     }
 

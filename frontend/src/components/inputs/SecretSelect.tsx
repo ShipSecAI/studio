@@ -1,15 +1,20 @@
-import { useState, useEffect } from 'react'
-import { ChevronDown, KeyRound, ExternalLink } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { fetchSecrets, type SecretSummary, getSecretLabel, getSecretDescription } from '@/api/secrets'
+import { useState, useEffect } from 'react';
+import { ChevronDown, KeyRound, ExternalLink } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  fetchSecrets,
+  type SecretSummary,
+  getSecretLabel,
+  getSecretDescription,
+} from '@/api/secrets';
 
 interface SecretSelectProps {
-  value?: string
-  onChange: (value: string) => void
-  placeholder?: string
-  disabled?: boolean
-  className?: string
-  allowManualEntry?: boolean
+  value?: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  allowManualEntry?: boolean;
 }
 
 export function SecretSelect({
@@ -20,71 +25,71 @@ export function SecretSelect({
   className,
   allowManualEntry = true,
 }: SecretSelectProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [secrets, setSecrets] = useState<SecretSummary[]>([])
-  const [loading, setLoading] = useState(false)
-  const [manualMode, setManualMode] = useState(false)
-  const [manualValue, setManualValue] = useState(value || '')
+  const [isOpen, setIsOpen] = useState(false);
+  const [secrets, setSecrets] = useState<SecretSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualValue, setManualValue] = useState(value || '');
 
   // Fetch secrets when component opens
   useEffect(() => {
     if (isOpen && secrets.length === 0) {
-      loadSecrets()
+      loadSecrets();
     }
-  }, [isOpen])
+  }, [isOpen]);
 
   // Sync manual value with prop
   useEffect(() => {
-    setManualValue(value || '')
-  }, [value])
+    setManualValue(value || '');
+  }, [value]);
 
   // Determine if current value is a manual entry (UUID format)
   useEffect(() => {
-    if (value && !secrets.find(s => s.id === value)) {
-      setManualMode(true)
+    if (value && !secrets.find((s) => s.id === value)) {
+      setManualMode(true);
     } else {
-      setManualMode(false)
+      setManualMode(false);
     }
-  }, [value, secrets])
+  }, [value, secrets]);
 
   const loadSecrets = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const fetchedSecrets = await fetchSecrets()
-      setSecrets(fetchedSecrets)
+      const fetchedSecrets = await fetchSecrets();
+      setSecrets(fetchedSecrets);
     } catch (error) {
-      console.error('Failed to load secrets:', error)
+      console.error('Failed to load secrets:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSelect = (secretId: string) => {
-    onChange(secretId)
-    setIsOpen(false)
-    setManualMode(false)
-  }
+    onChange(secretId);
+    setIsOpen(false);
+    setManualMode(false);
+  };
 
   const handleManualChange = (newValue: string) => {
-    setManualValue(newValue)
-    onChange(newValue)
-  }
+    setManualValue(newValue);
+    onChange(newValue);
+  };
 
   const toggleMode = () => {
     if (manualMode) {
       // Switching to dropdown mode
-      setManualMode(false)
+      setManualMode(false);
       // Clear the manual value
-      onChange('')
-      setManualValue('')
+      onChange('');
+      setManualValue('');
     } else {
       // Switching to manual mode
-      setManualMode(true)
-      setIsOpen(false)
+      setManualMode(true);
+      setIsOpen(false);
     }
-  }
+  };
 
-  const selectedSecret = secrets.find(s => s.id === value)
+  const selectedSecret = secrets.find((s) => s.id === value);
 
   return (
     <div className="relative">
@@ -99,10 +104,10 @@ export function SecretSelect({
             placeholder="Enter secret UUID..."
             disabled={disabled}
             className={cn(
-              "flex-1 px-3 py-2 text-sm border rounded-md bg-background",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-              disabled && "opacity-50 cursor-not-allowed",
-              className
+              'flex-1 px-3 py-2 text-sm border rounded-md bg-background',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+              disabled && 'opacity-50 cursor-not-allowed',
+              className,
             )}
           />
         ) : (
@@ -112,12 +117,12 @@ export function SecretSelect({
             onClick={() => !disabled && setIsOpen(!isOpen)}
             disabled={disabled}
             className={cn(
-              "flex-1 px-3 py-2 text-sm border rounded-md bg-background",
-              "flex items-center justify-between gap-2",
-              "hover:bg-muted/50 transition-colors",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-              disabled && "opacity-50 cursor-not-allowed",
-              className
+              'flex-1 px-3 py-2 text-sm border rounded-md bg-background',
+              'flex items-center justify-between gap-2',
+              'hover:bg-muted/50 transition-colors',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+              disabled && 'opacity-50 cursor-not-allowed',
+              className,
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -137,11 +142,11 @@ export function SecretSelect({
             onClick={toggleMode}
             disabled={disabled}
             className={cn(
-              "p-2 text-sm border rounded-md bg-background hover:bg-muted/50 transition-colors",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-              disabled && "opacity-50 cursor-not-allowed"
+              'p-2 text-sm border rounded-md bg-background hover:bg-muted/50 transition-colors',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+              disabled && 'opacity-50 cursor-not-allowed',
             )}
-            title={manualMode ? "Switch to dropdown selection" : "Switch to manual entry"}
+            title={manualMode ? 'Switch to dropdown selection' : 'Switch to manual entry'}
           >
             {manualMode ? <KeyRound className="h-4 w-4" /> : <ExternalLink className="h-4 w-4" />}
           </button>
@@ -167,9 +172,9 @@ export function SecretSelect({
                   type="button"
                   onClick={() => handleSelect(secret.id)}
                   className={cn(
-                    "w-full px-3 py-2 text-sm text-left hover:bg-muted/50 transition-colors",
-                    "flex flex-col gap-1",
-                    value === secret.id && "bg-muted"
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted/50 transition-colors',
+                    'flex flex-col gap-1',
+                    value === secret.id && 'bg-muted',
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -188,11 +193,8 @@ export function SecretSelect({
 
       {/* Click outside to close */}
       {!manualMode && isOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setIsOpen(false)}
-        />
+        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
       )}
     </div>
-  )
+  );
 }

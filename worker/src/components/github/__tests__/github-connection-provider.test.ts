@@ -30,7 +30,7 @@ describe('github.connection.provider component', () => {
       inputs: {},
       params: {
         connectionId: '  connection-abc  ',
-      }
+      },
     };
 
     const result = await component.execute(executePayload, context);

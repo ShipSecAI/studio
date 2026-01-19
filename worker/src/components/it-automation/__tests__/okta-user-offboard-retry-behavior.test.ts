@@ -59,7 +59,7 @@ describe('Okta User Offboard - Retry Behavior Verification', () => {
         params: {
           action: baseParams.action,
           dry_run: baseParams.dry_run,
-        }
+        },
       };
       const result = await execute(executePayload, createMockExecutionContext());
 
@@ -84,7 +84,7 @@ describe('Okta User Offboard - Retry Behavior Verification', () => {
         params: {
           action: baseParams.action,
           dry_run: baseParams.dry_run,
-        }
+        },
       };
       const result = await execute(executePayload, createMockExecutionContext());
 
@@ -117,7 +117,7 @@ describe('Okta User Offboard - Retry Behavior Verification', () => {
         params: {
           action: baseParams.action,
           dry_run: baseParams.dry_run,
-        }
+        },
       };
       const result = await execute(executePayload, createMockExecutionContext());
 
@@ -158,7 +158,7 @@ describe('Okta User Offboard - Retry Behavior Verification', () => {
       params: {
         action: baseParams.action,
         dry_run: baseParams.dry_run,
-      }
+      },
     };
     const result = await execute(executePayload, createMockExecutionContext());
 
@@ -171,7 +171,9 @@ describe('Okta User Offboard - Retry Behavior Verification', () => {
   });
 
   it('handles dry run mode without mutating accounts', async () => {
-    const definition = componentRegistry.get<OktaUserOffboardInput, OktaUserOffboardOutput>('it-automation.okta.user-offboard');
+    const definition = componentRegistry.get<OktaUserOffboardInput, OktaUserOffboardOutput>(
+      'it-automation.okta.user-offboard',
+    );
     if (!definition) throw new Error('Component definition not found');
     const execute = definition.execute;
 
@@ -199,13 +201,10 @@ describe('Okta User Offboard - Retry Behavior Verification', () => {
       params: {
         dry_run: true,
         action: baseParams.action,
-      }
+      },
     };
 
-    const result = await execute(
-      executePayload,
-      createMockExecutionContext(),
-    );
+    const result = await execute(executePayload, createMockExecutionContext());
 
     expect(result.success).toBe(true);
     expect(result.userDeactivated).toBe(true);

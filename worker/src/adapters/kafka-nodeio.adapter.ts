@@ -1,8 +1,13 @@
 import { Kafka, logLevel as KafkaLogLevel, type Producer } from 'kafkajs';
-import type { INodeIOService, NodeIOStartEvent, NodeIOCompletionEvent, IFileStorageService } from '@shipsec/component-sdk';
-import { 
-  ConfigurationError, 
-  KAFKA_SPILL_THRESHOLD_BYTES, 
+import type {
+  INodeIOService,
+  NodeIOStartEvent,
+  NodeIOCompletionEvent,
+  IFileStorageService,
+} from '@shipsec/component-sdk';
+import {
+  ConfigurationError,
+  KAFKA_SPILL_THRESHOLD_BYTES,
   MAX_KAFKA_MESSAGE_BYTES,
   createSpilledMarker,
   isSpilledDataMarker,
@@ -16,7 +21,7 @@ interface KafkaNodeIOAdapterConfig {
   logLevel?: keyof typeof KafkaLogLevel;
 }
 
-type SerializedNodeIOEvent = {
+interface SerializedNodeIOEvent {
   type: 'NODE_IO_START' | 'NODE_IO_COMPLETION';
   runId: string;
   nodeRef: string;
@@ -34,7 +39,7 @@ type SerializedNodeIOEvent = {
   status?: 'completed' | 'failed' | 'skipped';
   errorMessage?: string;
   timestamp: string;
-};
+}
 
 /**
  * Kafka adapter for publishing node I/O events.
@@ -109,17 +114,17 @@ export class KafkaNodeIOAdapter implements INodeIOService {
         const inputsStr = JSON.stringify(payload.inputs);
         const size = Buffer.byteLength(inputsStr, 'utf8');
         payload.inputsSize = size;
-        
+
         if (size > KAFKA_SPILL_THRESHOLD_BYTES && this.storage) {
           const fileId = randomUUID();
-          
+
           await this.storage.uploadFile(
             fileId,
             'inputs.json',
             Buffer.from(inputsStr),
-            'application/json'
+            'application/json',
           );
-          
+
           payload.inputsSpilled = true;
           payload.inputsStorageRef = fileId;
           // Replace large inputs with standardized spill marker
@@ -129,37 +134,38 @@ export class KafkaNodeIOAdapter implements INodeIOService {
 
       if (payload.outputs) {
         // Detect if already spilled by activity (uses legacy marker format for backward compat)
-        const isPreSpilled = isSpilledDataMarker(payload.outputs) || (
-          payload.outputs.__shipsec_spilled__ === true && 
-          typeof payload.outputs.storageRef === 'string'
-        );
+        const isPreSpilled =
+          isSpilledDataMarker(payload.outputs) ||
+          (payload.outputs.__shipsec_spilled__ === true &&
+            typeof payload.outputs.storageRef === 'string');
 
         if (isPreSpilled) {
           const spilledOutput = payload.outputs as Record<string, unknown>;
           payload.outputsSpilled = true;
-          payload.outputsStorageRef = (spilledOutput.storageRef ?? spilledOutput.__storageRef__) as string;
+          payload.outputsStorageRef = (spilledOutput.storageRef ??
+            spilledOutput.__storageRef__) as string;
           payload.outputsSize = (spilledOutput.originalSize as number) || 0;
-          
+
           // Replace with standardized spill marker
           payload.outputs = createSpilledMarker(
-            payload.outputsStorageRef!, 
-            payload.outputsSize
+            payload.outputsStorageRef ?? '',
+            payload.outputsSize,
           );
         } else {
           const outputsStr = JSON.stringify(payload.outputs);
           const size = Buffer.byteLength(outputsStr, 'utf8');
           payload.outputsSize = size;
-          
+
           if (size > KAFKA_SPILL_THRESHOLD_BYTES && this.storage) {
             const fileId = randomUUID();
-            
+
             await this.storage.uploadFile(
               fileId,
               'outputs.json',
               Buffer.from(outputsStr),
-              'application/json'
+              'application/json',
             );
-            
+
             payload.outputsSpilled = true;
             payload.outputsStorageRef = fileId;
             // Replace large outputs with standardized spill marker
@@ -179,8 +185,12 @@ export class KafkaNodeIOAdapter implements INodeIOService {
 
         const truncated: SerializedNodeIOEvent = {
           ...payload,
-          inputs: payload.inputsSpilled ? payload.inputs : { _truncated: true, _originalSize: messageSize },
-          outputs: payload.outputsSpilled ? payload.outputs : { _truncated: true, _originalSize: messageSize },
+          inputs: payload.inputsSpilled
+            ? payload.inputs
+            : { _truncated: true, _originalSize: messageSize },
+          outputs: payload.outputsSpilled
+            ? payload.outputs
+            : { _truncated: true, _originalSize: messageSize },
         };
 
         await this.sendRaw(payload.runId, JSON.stringify(truncated));

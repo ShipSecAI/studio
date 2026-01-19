@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import { parseHttpxOutput } from '../httpx';
-import type { HttpxInput, HttpxOutput, InputShape, OutputShape } from '../httpx';
+import type { HttpxOutput, InputShape, OutputShape } from '../httpx';
 
 const runHttpxTests = process.env.ENABLE_HTTPX_COMPONENT_TESTS === 'true';
 const describeHttpx = runHttpxTests ? describe : describe.skip;
@@ -122,7 +122,10 @@ describeHttpx('httpx component', () => {
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(payload);
 
-    const result = (await component.execute({ inputs: params, params: {} }, context)) as HttpxOutput;
+    const result = (await component.execute(
+      { inputs: params, params: {} },
+      context,
+    )) as HttpxOutput;
 
     expect(result.results).toHaveLength(1);
     expect(result.resultCount).toBe(1);
@@ -171,7 +174,6 @@ describeHttpx('httpx component', () => {
       targets: [],
     });
 
-
     const spy = vi.spyOn(sdk, 'runComponentWithRunner');
     const result = await component.execute({ inputs: params, params: {} }, context);
 
@@ -202,6 +204,8 @@ describeHttpx('httpx component', () => {
       exitCode: 2,
     });
 
-    await expect(component.execute({ inputs: params, params: {} }, context)).rejects.toThrow(/httpx exited with code 2/);
+    await expect(component.execute({ inputs: params, params: {} }, context)).rejects.toThrow(
+      /httpx exited with code 2/,
+    );
   });
 });

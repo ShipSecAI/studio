@@ -19,7 +19,14 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
 // import { WorkflowsBootstrapService } from './workflows.bootstrap';
 
 @Module({
-  imports: [DatabaseModule, TemporalModule, StorageModule, TerminalModule, AnalyticsModule, NodeIOModule],
+  imports: [
+    DatabaseModule,
+    TemporalModule,
+    StorageModule,
+    TerminalModule,
+    AnalyticsModule,
+    NodeIOModule,
+  ],
   controllers: [WorkflowsController, InternalRunsController],
   providers: [
     WorkflowsService,

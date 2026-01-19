@@ -105,11 +105,15 @@ describe('executeWorkflow', () => {
       ],
     };
 
-    const result = await executeWorkflow(definition, {}, {
-      runId: 'trace-run',
-      trace,
-      logs,
-    });
+    const result = await executeWorkflow(
+      definition,
+      {},
+      {
+        runId: 'trace-run',
+        trace,
+        logs,
+      },
+    );
 
     expect(result.success).toBe(true);
     await Promise.resolve();
@@ -166,10 +170,30 @@ describe('executeWorkflow', () => {
         merge: { ref: 'merge', streamId: 'stream-merge', joinStrategy: 'all' },
       },
       edges: [
-        { id: 'start->branchA', sourceRef: 'start', targetRef: 'branchA', kind: 'success' as const },
-        { id: 'start->branchB', sourceRef: 'start', targetRef: 'branchB', kind: 'success' as const },
-        { id: 'branchA->merge', sourceRef: 'branchA', targetRef: 'merge', kind: 'success' as const },
-        { id: 'branchB->merge', sourceRef: 'branchB', targetRef: 'merge', kind: 'success' as const },
+        {
+          id: 'start->branchA',
+          sourceRef: 'start',
+          targetRef: 'branchA',
+          kind: 'success' as const,
+        },
+        {
+          id: 'start->branchB',
+          sourceRef: 'start',
+          targetRef: 'branchB',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchA->merge',
+          sourceRef: 'branchA',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchB->merge',
+          sourceRef: 'branchB',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
       ],
       dependencyCounts: {
         start: 0,
@@ -260,10 +284,30 @@ describe('executeWorkflow', () => {
         merge: { ref: 'merge', streamId: 'trace-merge', joinStrategy: 'all' },
       },
       edges: [
-        { id: 'start->branchLeft', sourceRef: 'start', targetRef: 'branchLeft', kind: 'success' as const },
-        { id: 'start->branchRight', sourceRef: 'start', targetRef: 'branchRight', kind: 'success' as const },
-        { id: 'branchLeft->merge', sourceRef: 'branchLeft', targetRef: 'merge', kind: 'success' as const },
-        { id: 'branchRight->merge', sourceRef: 'branchRight', targetRef: 'merge', kind: 'success' as const },
+        {
+          id: 'start->branchLeft',
+          sourceRef: 'start',
+          targetRef: 'branchLeft',
+          kind: 'success' as const,
+        },
+        {
+          id: 'start->branchRight',
+          sourceRef: 'start',
+          targetRef: 'branchRight',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchLeft->merge',
+          sourceRef: 'branchLeft',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchRight->merge',
+          sourceRef: 'branchRight',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
       ],
       dependencyCounts: {
         start: 0,
@@ -361,7 +405,7 @@ describe('executeWorkflow', () => {
         outputs: outputs({
           triggeredBy: withPortMeta(z.string().optional(), { label: 'Triggered By' }),
         }),
-        async execute({ inputs }, context) {
+        async execute({ inputs: _inputs }, context) {
           const triggeredBy = context.metadata.triggeredBy;
           return triggeredBy ? { triggeredBy } : {};
         },
@@ -386,10 +430,30 @@ describe('executeWorkflow', () => {
         merge: { ref: 'merge', joinStrategy: 'any' },
       },
       edges: [
-        { id: 'start->branchSlow', sourceRef: 'start', targetRef: 'branchSlow', kind: 'success' as const },
-        { id: 'start->branchFast', sourceRef: 'start', targetRef: 'branchFast', kind: 'success' as const },
-        { id: 'branchSlow->merge', sourceRef: 'branchSlow', targetRef: 'merge', kind: 'success' as const },
-        { id: 'branchFast->merge', sourceRef: 'branchFast', targetRef: 'merge', kind: 'success' as const },
+        {
+          id: 'start->branchSlow',
+          sourceRef: 'start',
+          targetRef: 'branchSlow',
+          kind: 'success' as const,
+        },
+        {
+          id: 'start->branchFast',
+          sourceRef: 'start',
+          targetRef: 'branchFast',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchSlow->merge',
+          sourceRef: 'branchSlow',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchFast->merge',
+          sourceRef: 'branchFast',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
       ],
       dependencyCounts: {
         start: 0,
@@ -502,7 +566,9 @@ describe('executeWorkflow', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('One or more workflow actions failed');
 
-    const warnEvent = events.find((event) => event.type === 'NODE_PROGRESS' && event.level === 'warn');
+    const warnEvent = events.find(
+      (event) => event.type === 'NODE_PROGRESS' && event.level === 'warn',
+    );
     expect(warnEvent).toBeDefined();
     expect(warnEvent?.message).toContain("Input 'label'");
   });
@@ -622,7 +688,7 @@ describe('executeWorkflow', () => {
       componentRegistry.register(failComponent);
     }
 
-    const failureMetadata: Array<ExecutionContext['metadata']['failure']> = [];
+    const failureMetadata: ExecutionContext['metadata']['failure'][] = [];
 
     if (!componentRegistry.has('test.capture.failure-metadata')) {
       const captureComponent: ComponentDefinition = {

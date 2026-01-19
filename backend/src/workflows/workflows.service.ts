@@ -1,6 +1,12 @@
 import { randomUUID, createHash } from 'node:crypto';
 
-import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
 
 import { compileWorkflowGraph } from '../dsl/compiler';
@@ -18,10 +24,7 @@ import {
   ServiceWorkflowResponse,
   UpdateWorkflowMetadataDto,
 } from './dto/workflow-graph.dto';
-import {
-  WorkflowRecord,
-  WorkflowRepository,
-} from './repository/workflow.repository';
+import { WorkflowRecord, WorkflowRepository } from './repository/workflow.repository';
 import { WorkflowRoleRepository } from './repository/workflow-role.repository';
 import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
@@ -111,11 +114,11 @@ interface FlowContext {
   definition: WorkflowDefinition;
   targetsBySource: Map<
     string,
-    Array<{
+    {
       targetRef: string;
       sourceHandle: string;
       inputKey: string;
-    }>
+    }[]
   >;
 }
 
@@ -138,10 +141,7 @@ export class WorkflowsService {
     return auth?.organizationId ?? null;
   }
 
-  async ensureWorkflowAdminAccess(
-    workflowId: string,
-    auth?: AuthContext | null,
-  ): Promise<string> {
+  async ensureWorkflowAdminAccess(workflowId: string, auth?: AuthContext | null): Promise<string> {
     return this.requireWorkflowAdmin(workflowId, auth);
   }
 
@@ -196,11 +196,11 @@ export class WorkflowsService {
 
   private ensureOrganizationAdmin(auth?: AuthContext | null): void {
     this.logger.debug(
-      `[WORKFLOWS] Checking org admin - Auth: ${auth ? 'present' : 'null'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}, User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}`
+      `[WORKFLOWS] Checking org admin - Auth: ${auth ? 'present' : 'null'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}, User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}`,
     );
     if (!auth?.roles || !auth.roles.includes('ADMIN')) {
       this.logger.warn(
-        `[WORKFLOWS] Access denied - User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}`
+        `[WORKFLOWS] Access denied - User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}`,
       );
       throw new ForbiddenException('Administrator role required');
     }
@@ -234,10 +234,7 @@ export class WorkflowsService {
     return organizationId;
   }
 
-  private async requireRunAccess(
-    runId: string,
-    auth?: AuthContext | null,
-  ) {
+  private async requireRunAccess(runId: string, auth?: AuthContext | null) {
     const organizationId = this.requireOrganizationId(auth);
     const run = await this.runRepository.findByRunId(runId, { organizationId });
     if (!run) {
@@ -246,10 +243,7 @@ export class WorkflowsService {
     return { organizationId, run };
   }
 
-  async resolveRunForAccess(
-    runId: string,
-    auth?: AuthContext | null,
-  ) {
+  async resolveRunForAccess(runId: string, auth?: AuthContext | null) {
     return this.requireRunAccess(runId, auth);
   }
 
@@ -264,19 +258,13 @@ export class WorkflowsService {
     };
   }
 
-  async ensureRunAccess(
-    runId: string,
-    auth?: AuthContext | null,
-  ): Promise<void> {
+  async ensureRunAccess(runId: string, auth?: AuthContext | null): Promise<void> {
     await this.requireRunAccess(runId, auth);
   }
 
-  async create(
-    dto: WorkflowGraphDto,
-    auth?: AuthContext | null,
-  ): Promise<ServiceWorkflowResponse> {
+  async create(dto: WorkflowGraphDto, auth?: AuthContext | null): Promise<ServiceWorkflowResponse> {
     const input = this.parse(dto);
-    
+
     // Validate workflow graph before saving (including port connections)
     try {
       compileWorkflowGraph(input);
@@ -286,7 +274,7 @@ export class WorkflowsService {
       }
       throw error;
     }
-    
+
     this.ensureOrganizationAdmin(auth);
     const organizationId = this.requireOrganizationId(auth);
     const record = await this.repository.create(input, { organizationId });
@@ -322,7 +310,7 @@ export class WorkflowsService {
     auth?: AuthContext | null,
   ): Promise<ServiceWorkflowResponse> {
     const input = this.parse(dto);
-    
+
     // Validate workflow graph before saving (including port connections)
     try {
       compileWorkflowGraph(input);
@@ -332,7 +320,7 @@ export class WorkflowsService {
       }
       throw error;
     }
-    
+
     const organizationId = await this.requireWorkflowAdmin(id, auth);
     const record = await this.repository.update(id, input, { organizationId });
     const version = await this.versionRepository.create({
@@ -427,7 +415,7 @@ export class WorkflowsService {
         ? await this.versionRepository.findLatestByWorkflowId(workflow.id, { organizationId })
         : undefined;
     const graph = (version?.graph ?? workflow?.graph) as { nodes?: unknown[] } | undefined;
-    const nodeCount = Array.isArray(graph?.nodes) ? graph!.nodes!.length : 0;
+    const nodeCount = graph?.nodes && Array.isArray(graph.nodes) ? graph.nodes.length : 0;
 
     const eventCount = await this.traceRepository.countByType(
       run.runId,
@@ -436,13 +424,11 @@ export class WorkflowsService {
     );
 
     // Calculate duration from events (more accurate than createdAt/updatedAt)
-    const eventTimeRange = await this.traceRepository.getEventTimeRange(
-      run.runId,
-      organizationId,
-    );
-    const duration = eventTimeRange.firstTimestamp && eventTimeRange.lastTimestamp
-      ? this.computeDuration(eventTimeRange.firstTimestamp, eventTimeRange.lastTimestamp)
-      : this.computeDuration(run.createdAt, run.updatedAt);
+    const eventTimeRange = await this.traceRepository.getEventTimeRange(run.runId, organizationId);
+    const duration =
+      eventTimeRange.firstTimestamp && eventTimeRange.lastTimestamp
+        ? this.computeDuration(eventTimeRange.firstTimestamp, eventTimeRange.lastTimestamp)
+        : this.computeDuration(run.createdAt, run.updatedAt);
 
     let currentStatus: ExecutionStatus = 'RUNNING';
     try {
@@ -476,8 +462,10 @@ export class WorkflowsService {
     const triggerType = (run.triggerType as ExecutionTriggerType) ?? 'manual';
     const triggerSource = run.triggerSource ?? null;
     const triggerLabel = run.triggerLabel ?? (triggerType === 'manual' ? 'Manual run' : null);
-    const inputPreview: ExecutionInputPreview =
-      run.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} };
+    const inputPreview: ExecutionInputPreview = run.inputPreview ?? {
+      runtimeInputs: {},
+      nodeOverrides: {},
+    };
 
     return {
       id: run.runId,
@@ -528,7 +516,7 @@ export class WorkflowsService {
     auth?: AuthContext | null,
     options: { limit?: number } = {},
   ): Promise<{
-    runs: Array<{
+    runs: {
       runId: string;
       workflowId: string;
       workflowName: string;
@@ -536,7 +524,7 @@ export class WorkflowsService {
       status: ExecutionStatus;
       startedAt: string;
       completedAt?: string;
-    }>;
+    }[];
   }> {
     const { organizationId } = await this.requireRunAccess(parentRunId, auth);
     const children = await this.runRepository.listChildren(parentRunId, {
@@ -603,7 +591,10 @@ export class WorkflowsService {
     auth?: AuthContext | null,
     options: {
       trigger?: ExecutionTriggerMetadata;
-      nodeOverrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>;
+      nodeOverrides?: Record<
+        string,
+        { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+      >;
       runId?: string;
       idempotencyKey?: string;
     } = {},
@@ -740,7 +731,9 @@ export class WorkflowsService {
         this.logger.error(`Stack trace: ${errorStack}`);
       }
 
-      this.logger.debug(`Full error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+      this.logger.debug(
+        `Full error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`,
+      );
 
       throw error;
     }
@@ -752,7 +745,10 @@ export class WorkflowsService {
     auth?: AuthContext | null,
     options: {
       trigger?: ExecutionTriggerMetadata;
-      nodeOverrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>;
+      nodeOverrides?: Record<
+        string,
+        { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+      >;
       runId?: string;
       idempotencyKey?: string;
       parentRunId?: string;
@@ -790,7 +786,9 @@ export class WorkflowsService {
       }),
     };
     const normalizedKey = this.normalizeIdempotencyKey(options.idempotencyKey);
-    const runId = options.runId ?? (normalizedKey ? this.runIdFromIdempotencyKey(normalizedKey) : `shipsec-run-${randomUUID()}`);
+    const runId =
+      options.runId ??
+      (normalizedKey ? this.runIdFromIdempotencyKey(normalizedKey) : `shipsec-run-${randomUUID()}`);
     const triggerMetadata = options.trigger ?? this.buildEntryPointTriggerMetadata(auth);
     const inputs = request.inputs ?? {};
     const inputPreview = this.buildInputPreview(inputs, nodeOverrides);
@@ -812,16 +810,16 @@ export class WorkflowsService {
     });
 
     this.analyticsService.trackWorkflowStarted({
-        workflowId: workflow.id,
-        workflowVersionId: version.id,
-        workflowVersion: version.version,
-        runId,
-        organizationId,
-        nodeCount: compiledDefinition.actions.length,
-        inputCount: Object.keys(request.inputs ?? {}).length,
-        triggerType: triggerMetadata.type,
-        triggerSource: triggerMetadata.sourceId ?? undefined,
-        triggerLabel: triggerMetadata.label ?? undefined
+      workflowId: workflow.id,
+      workflowVersionId: version.id,
+      workflowVersion: version.version,
+      runId,
+      organizationId,
+      nodeCount: compiledDefinition.actions.length,
+      inputCount: Object.keys(request.inputs ?? {}).length,
+      triggerType: triggerMetadata.type,
+      triggerSource: triggerMetadata.sourceId ?? undefined,
+      triggerLabel: triggerMetadata.label ?? undefined,
     });
 
     return {
@@ -862,9 +860,7 @@ export class WorkflowsService {
         organizationId,
       });
       if (!version) {
-        throw new NotFoundException(
-          `Workflow ${workflowId} version ${request.version} not found`,
-        );
+        throw new NotFoundException(`Workflow ${workflowId} version ${request.version} not found`);
       }
       return version;
     }
@@ -898,13 +894,9 @@ export class WorkflowsService {
           entrypoint: { ref: entryAction.ref },
         };
 
-        await this.versionRepository.setCompiledDefinition(
-          version.id,
-          patchedDefinition,
-          {
-            organizationId: organizationId ?? undefined,
-          },
-        );
+        await this.versionRepository.setCompiledDefinition(version.id, patchedDefinition, {
+          organizationId: organizationId ?? undefined,
+        });
 
         return patchedDefinition;
       }
@@ -912,9 +904,7 @@ export class WorkflowsService {
       return definition;
     }
 
-    this.logger.log(
-      `Compiling workflow ${workflow.id} version ${version.version} for execution`,
-    );
+    this.logger.log(`Compiling workflow ${workflow.id} version ${version.version} for execution`);
     const graph = WorkflowGraphSchema.parse(version.graph);
     const definition = compileWorkflowGraph(graph);
 
@@ -959,7 +949,9 @@ export class WorkflowsService {
     }
 
     // Track workflow completion/failure when status changes to terminal state
-    if (['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'].includes(statusPayload.status)) {
+    if (
+      ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'].includes(statusPayload.status)
+    ) {
       const startTime = run.createdAt;
       const endTime = statusPayload.completedAt ? new Date(statusPayload.completedAt) : new Date();
       const durationMs = endTime.getTime() - startTime.getTime();
@@ -986,10 +978,7 @@ export class WorkflowsService {
     return this.temporalService.getWorkflowResult({ workflowId: runId, runId: temporalRunId });
   }
 
-  async getRunConfig(
-    runId: string,
-    auth?: AuthContext | null,
-  ): Promise<WorkflowRunConfigPayload> {
+  async getRunConfig(runId: string, auth?: AuthContext | null): Promise<WorkflowRunConfigPayload> {
     const { run } = await this.requireRunAccess(runId, auth);
     return {
       runId: run.runId,
@@ -1000,11 +989,7 @@ export class WorkflowsService {
     };
   }
 
-  async getWorkflowVersion(
-    workflowId: string,
-    versionId: string,
-    auth?: AuthContext | null,
-  ) {
+  async getWorkflowVersion(workflowId: string, versionId: string, auth?: AuthContext | null) {
     const organizationId = this.requireOrganizationId(auth);
     const version = await this.versionRepository.findById(versionId, { organizationId });
     if (!version || version.workflowId !== workflowId) {
@@ -1160,10 +1145,8 @@ export class WorkflowsService {
     return context;
   }
 
-  private buildTargetsIndex(
-    definition: WorkflowDefinition,
-  ): FlowContext['targetsBySource'] {
-    const map = new Map<string, Array<{ targetRef: string; sourceHandle: string; inputKey: string }>>();
+  private buildTargetsIndex(definition: WorkflowDefinition): FlowContext['targetsBySource'] {
+    const map = new Map<string, { targetRef: string; sourceHandle: string; inputKey: string }[]>();
 
     for (const action of definition.actions) {
       const mappings = action.inputMappings ?? {};
@@ -1232,18 +1215,19 @@ export class WorkflowsService {
 
   private parse(dto: WorkflowGraphDto) {
     const parsed = WorkflowGraphSchema.parse(dto);
-    
+
     // Resolve dynamic ports for each node based on its component and parameters
     const nodesWithResolvedPorts = parsed.nodes.map((node) => {
       const nodeData = node.data as any;
       // Component ID can be in node.type, data.componentId, or data.componentSlug
       // In the workflow graph schema, node.type contains the component ID (e.g., "security.virustotal.lookup")
-      const componentId = node.type !== 'workflow' ? node.type : (nodeData.componentId || nodeData.componentSlug);
-      
+      const componentId =
+        node.type !== 'workflow' ? node.type : nodeData.componentId || nodeData.componentSlug;
+
       if (!componentId) {
         return node;
       }
-      
+
       try {
         const entry = componentRegistry.getMetadata(componentId);
         if (!entry) {
@@ -1252,10 +1236,10 @@ export class WorkflowsService {
         const component = entry.definition;
         const baseInputs = entry.inputs ?? extractPorts(component.inputs);
         const baseOutputs = entry.outputs ?? extractPorts(component.outputs);
-        
+
         // Get parameters from node data (they may be stored in config, parameters, or at data level)
         const params = nodeData.parameters || nodeData.config || {};
-        
+
         // Resolve ports using the component's resolvePorts function if available
         if (typeof component.resolvePorts === 'function') {
           try {
@@ -1269,7 +1253,9 @@ export class WorkflowsService {
               },
             };
           } catch (resolveError) {
-            this.logger.warn(`Failed to resolve ports for component ${componentId}: ${resolveError}`);
+            this.logger.warn(
+              `Failed to resolve ports for component ${componentId}: ${resolveError}`,
+            );
             // Fall back to static metadata
             return {
               ...node,
@@ -1296,7 +1282,7 @@ export class WorkflowsService {
         return node;
       }
     });
-    
+
     return {
       ...parsed,
       nodes: nodesWithResolvedPorts,
@@ -1315,7 +1301,10 @@ export class WorkflowsService {
 
   private applyNodeOverrides(
     definition: WorkflowDefinition,
-    overrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>,
+    overrides?: Record<
+      string,
+      { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+    >,
   ): WorkflowDefinition {
     if (!overrides || Object.keys(overrides).length === 0) {
       return definition;
@@ -1323,7 +1312,11 @@ export class WorkflowsService {
 
     const updatedActions = definition.actions.map((action) => {
       const override = overrides[action.ref];
-      if (!override || (Object.keys(override.params ?? {}).length === 0 && Object.keys(override.inputOverrides ?? {}).length === 0)) {
+      if (
+        !override ||
+        (Object.keys(override.params ?? {}).length === 0 &&
+          Object.keys(override.inputOverrides ?? {}).length === 0)
+      ) {
         return action;
       }
 
@@ -1362,10 +1355,16 @@ export class WorkflowsService {
 
   private buildInputPreview(
     inputs?: Record<string, unknown>,
-    nodeOverrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>,
+    nodeOverrides?: Record<
+      string,
+      { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+    >,
   ): ExecutionInputPreview {
     const runtimeInputs = inputs ? { ...inputs } : {};
-    const overrides: Record<string, { params: Record<string, unknown>; inputOverrides: Record<string, unknown> }> = {};
+    const overrides: Record<
+      string,
+      { params: Record<string, unknown>; inputOverrides: Record<string, unknown> }
+    > = {};
 
     if (nodeOverrides) {
       for (const [key, value] of Object.entries(nodeOverrides)) {
@@ -1416,12 +1415,13 @@ export class WorkflowsService {
     const completedAt = status.closeTime ?? undefined;
     const workflowId = metadata?.workflowId ?? requestedRunId;
     const totalActions = metadata?.totalActions ?? 0;
-    const progress = totalActions > 0
-      ? {
-          completedActions: Math.min(completedActions, totalActions),
-          totalActions,
-        }
-      : undefined;
+    const progress =
+      totalActions > 0
+        ? {
+            completedActions: Math.min(completedActions, totalActions),
+            totalActions,
+          }
+        : undefined;
 
     return {
       runId: requestedRunId,

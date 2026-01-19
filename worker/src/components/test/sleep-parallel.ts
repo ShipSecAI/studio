@@ -1,26 +1,28 @@
 import { z } from 'zod';
-import { componentRegistry, defineComponent, inputs, outputs, parameters, port, param } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+} from '@shipsec/component-sdk';
 
 const inputSchema = inputs({});
 
 const parameterSchema = parameters({
-  delay: param(
-    z.number().int().nonnegative().describe('Artificial delay in milliseconds'),
-    {
-      label: 'Delay',
-      editor: 'number',
-      description: 'Artificial delay in milliseconds.',
-      min: 0,
-    },
-  ),
-  label: param(
-    z.string().describe('Label used for logs/emitted output'),
-    {
-      label: 'Label',
-      editor: 'text',
-      description: 'Label used for logs/emitted output.',
-    },
-  ),
+  delay: param(z.number().int().nonnegative().describe('Artificial delay in milliseconds'), {
+    label: 'Delay',
+    editor: 'number',
+    description: 'Artificial delay in milliseconds.',
+    min: 0,
+  }),
+  label: param(z.string().describe('Label used for logs/emitted output'), {
+    label: 'Label',
+    editor: 'text',
+    description: 'Label used for logs/emitted output.',
+  }),
 });
 
 const outputSchema = outputs({

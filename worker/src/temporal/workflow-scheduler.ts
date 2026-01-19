@@ -22,7 +22,10 @@ export interface WorkflowSchedulerRunContext {
 }
 
 export interface WorkflowSchedulerOptions {
-  run: (actionRef: string, context: WorkflowSchedulerRunContext) => Promise<{ activePorts?: string[] } | void>;
+  run: (
+    actionRef: string,
+    context: WorkflowSchedulerRunContext,
+  ) => Promise<{ activePorts?: string[] } | null>;
   onNodeSkipped?: (actionRef: string) => Promise<void>;
 }
 
@@ -51,7 +54,7 @@ export async function runWorkflowWithScheduler(
   // Map sourceRef -> List of Edges (preserving handle info)
   const successEdges = new Map<string, WorkflowEdge[]>();
   const failureDependents = new Map<string, string[]>();
-  
+
   const successParentsMap = new Map<string, Set<string>>();
   const failureParentsMap = new Map<string, Set<string>>();
 
@@ -121,7 +124,7 @@ export async function runWorkflowWithScheduler(
       // If pending > 0 and queue is empty, and we haven't failed, it's a deadlock or partial skip that didn't propagate?
       // With proper propagation, skipped nodes are removed from pending.
       // So if pending > 0, it means we are waiting for something.
-      
+
       throw new WorkflowSchedulerError(
         'Workflow scheduler deadlock: no ready actions while workflow still incomplete',
       );
@@ -137,7 +140,7 @@ export async function runWorkflowWithScheduler(
     });
 
     const batch = readyQueue.splice(0);
-    const executions: Array<{ ref: string; context: WorkflowSchedulerRunContext }> = [];
+    const executions: { ref: string; context: WorkflowSchedulerRunContext }[] = [];
 
     for (const item of batch) {
       if (!pending.has(item.ref)) {
@@ -178,7 +181,15 @@ export async function runWorkflowWithScheduler(
 
       if (outcome.status === 'fulfilled') {
         const activePorts = outcome.result?.activePorts;
-        await handleSuccess(ref, activePorts, readyQueue, pending, nodeStates, successEdges, onNodeSkipped);
+        await handleSuccess(
+          ref,
+          activePorts,
+          readyQueue,
+          pending,
+          nodeStates,
+          successEdges,
+          onNodeSkipped,
+        );
       } else {
         failedErrors.set(ref, outcome.reason);
         await handleFailure(
@@ -212,7 +223,7 @@ async function handleSuccess(
   onNodeSkipped?: (ref: string) => Promise<void>,
 ) {
   const edges = successEdges.get(ref) ?? [];
-  
+
   const triggeredChildren = new Set<string>();
   const skippedChildren = new Set<string>();
 
@@ -234,10 +245,10 @@ async function handleSuccess(
   // Only if ALL edges to the child are inactive (from this parent) do we consider it skipped from this parent's perspective.
   // Actually, we process edges. If Ref A -> Ref B via "Default" (active) AND via "Error" (inactive),
   // Ref B is triggered.
-  
+
   const finalTriggered = new Set(triggeredChildren);
   const finalSkipped = new Set<string>();
-  
+
   for (const child of skippedChildren) {
     if (!finalTriggered.has(child)) {
       finalSkipped.add(child);
@@ -245,11 +256,29 @@ async function handleSuccess(
   }
 
   for (const child of finalTriggered) {
-    await processChild(child, ref, 'fulfilled', readyQueue, pending, nodeStates, successEdges, onNodeSkipped);
+    await processChild(
+      child,
+      ref,
+      'fulfilled',
+      readyQueue,
+      pending,
+      nodeStates,
+      successEdges,
+      onNodeSkipped,
+    );
   }
 
   for (const child of finalSkipped) {
-    await processChild(child, ref, 'skipped', readyQueue, pending, nodeStates, successEdges, onNodeSkipped);
+    await processChild(
+      child,
+      ref,
+      'skipped',
+      readyQueue,
+      pending,
+      nodeStates,
+      successEdges,
+      onNodeSkipped,
+    );
   }
 }
 
@@ -270,13 +299,13 @@ async function processChild(
 
   if (state.successParents.has(parentRef)) {
     state.successParents.delete(parentRef);
-    
+
     if (type === 'skipped') {
       state.skippedParents.add(parentRef);
     }
   } else {
     // Already processed this parent
-    return; 
+    return;
   }
 
   if (state.strategy === 'all') {
@@ -316,7 +345,7 @@ async function handleSkip(
   onNodeSkipped?: (ref: string) => Promise<void>,
 ) {
   if (!pending.has(ref)) return;
-  
+
   pending.delete(ref);
   const state = nodeStates.get(ref);
   if (state) state.skipped = true;
@@ -326,10 +355,19 @@ async function handleSkip(
   }
 
   const edges = successEdges.get(ref) ?? [];
-  const children = new Set(edges.map(e => e.targetRef));
+  const children = new Set(edges.map((e) => e.targetRef));
 
   for (const child of children) {
-    await processChild(child, ref, 'skipped', readyQueue, pending, nodeStates, successEdges, onNodeSkipped);
+    await processChild(
+      child,
+      ref,
+      'skipped',
+      readyQueue,
+      pending,
+      nodeStates,
+      successEdges,
+      onNodeSkipped,
+    );
   }
 }
 
@@ -343,11 +381,11 @@ async function handleFailure(
   failureDependents: Map<string, string[]>,
   failedErrors: Map<string, unknown>,
 ) {
-  const queue: Array<{ ref: string; source: string }> = [{ ref, source: triggerSource }];
+  const queue: { ref: string; source: string }[] = [{ ref, source: triggerSource }];
   const seen = new Set<string>();
 
   while (queue.length > 0) {
-    const { ref: current, source } = queue.shift()!;
+    const { ref: current, source: _source } = queue.shift()!;
     if (seen.has(current)) {
       continue;
     }
@@ -386,7 +424,7 @@ async function handleFailure(
     // Reuse successEdges to find children
     const edges = successEdges.get(current) ?? [];
     // Distinct children
-    const children = new Set(edges.map(e => e.targetRef));
+    const children = new Set(edges.map((e) => e.targetRef));
 
     for (const child of children) {
       const childState = nodeStates.get(child);
@@ -402,8 +440,7 @@ async function handleFailure(
 
       const remainingParents = childState.successParents.size;
       const shouldCancel =
-        childState.strategy === 'all' ||
-        (remainingParents === 0 && !childState.triggeredBySuccess);
+        childState.strategy === 'all' || (remainingParents === 0 && !childState.triggeredBySuccess);
 
       if (!shouldCancel) {
         continue;

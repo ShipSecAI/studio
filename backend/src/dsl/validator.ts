@@ -15,10 +15,10 @@ import {
 import type { WorkflowGraphDto } from '../workflows/dto/workflow-graph.dto';
 import type { WorkflowAction, WorkflowDefinition } from './types';
 
-type ActionPortSnapshot = {
+interface ActionPortSnapshot {
   inputs: ComponentPortMetadata[];
   outputs: ComponentPortMetadata[];
-};
+}
 
 export interface ValidationError {
   node: string;
@@ -80,7 +80,10 @@ export function validateWorkflowGraph(
       const hasStaticValue =
         Object.prototype.hasOwnProperty.call(inputOverrides, inputPort.id) &&
         inputOverrides[inputPort.id] !== undefined;
-      const hasMapping = Object.prototype.hasOwnProperty.call(action.inputMappings ?? {}, inputPort.id);
+      const hasMapping = Object.prototype.hasOwnProperty.call(
+        action.inputMappings ?? {},
+        inputPort.id,
+      );
 
       if (!hasStaticValue && hasMapping) {
         const connectionType = getPortConnectionType(inputPort);
@@ -193,9 +196,10 @@ function validateSecretParameters(
   errors: ValidationError[],
   warnings: ValidationError[],
 ) {
-  const secretParams = componentRegistry
-    .getMetadata(action.componentId)
-    ?.parameters?.filter((p) => p.type === 'secret') ?? [];
+  const secretParams =
+    componentRegistry
+      .getMetadata(action.componentId)
+      ?.parameters?.filter((p) => p.type === 'secret') ?? [];
 
   for (const secretParam of secretParams) {
     const paramValue = action.params?.[secretParam.id];
@@ -250,7 +254,7 @@ function validateInputMappings(
   compiledDefinition: WorkflowDefinition,
   actionPorts: Map<string, ActionPortSnapshot>,
   errors: ValidationError[],
-  warnings: ValidationError[],
+  _warnings: ValidationError[],
 ) {
   const nodes = new Map(graph.nodes.map((n) => [n.id, n]));
 
@@ -259,8 +263,8 @@ function validateInputMappings(
 
     // Check if all required inputs have mappings or static values
     for (const input of componentInputs) {
-    const hasStaticValue = action.inputOverrides?.hasOwnProperty(input.id);
-    const hasMapping = action.inputMappings?.hasOwnProperty(input.id);
+      const hasStaticValue = Object.hasOwn(action.inputOverrides ?? {}, input.id);
+      const hasMapping = Object.hasOwn(action.inputMappings ?? {}, input.id);
 
       if (input.required && !hasStaticValue && !hasMapping) {
         errors.push({
@@ -275,7 +279,7 @@ function validateInputMappings(
     }
 
     // Validate edge mappings point to valid nodes
-    for (const [targetHandle, mapping] of Object.entries(action.inputMappings ?? {})) {
+    for (const [_targetHandle, mapping] of Object.entries(action.inputMappings ?? {})) {
       const sourceNode = nodes.get(mapping.sourceRef);
       if (!sourceNode) {
         errors.push({
@@ -289,20 +293,20 @@ function validateInputMappings(
     }
 
     // Check raw edges for multiple inputs to the same port
-    const edgesToThisNode = graph.edges.filter(e => e.target === action.ref);
+    const edgesToThisNode = graph.edges.filter((e) => e.target === action.ref);
     const portsSeen = new Map<string, number>();
     for (const edge of edgesToThisNode) {
       const targetHandle = edge.targetHandle ?? edge.sourceHandle;
       if (!targetHandle) continue;
-      
+
       portsSeen.set(targetHandle, (portsSeen.get(targetHandle) ?? 0) + 1);
     }
 
     for (const [portId, count] of portsSeen.entries()) {
       if (count > 1) {
-        const inputMetadata = actionPorts.get(action.ref)?.inputs.find(i => i.id === portId);
+        const inputMetadata = actionPorts.get(action.ref)?.inputs.find((i) => i.id === portId);
         const portLabel = inputMetadata?.label || portId;
-        
+
         errors.push({
           node: action.ref,
           field: 'inputMappings',
@@ -353,33 +357,35 @@ function validateEdgeCompatibility(
 
     const sourceHandle = edge.sourceHandle;
     const targetHandle = edge.targetHandle;
-    
+
     // Check for malformed data edges: if one handle is present but not the other
     const hasSourceHandle = !!sourceHandle;
     const hasTargetHandle = !!targetHandle;
-    
+
     if (hasSourceHandle && !hasTargetHandle) {
       errors.push({
         node: targetAction.ref,
         field: 'inputMappings',
         message: `Edge has sourceHandle "${sourceHandle}" but missing targetHandle. Data edges must specify both source and target handles.`,
         severity: 'error',
-        suggestion: 'Add targetHandle to specify which input port on the target node should receive the data',
+        suggestion:
+          'Add targetHandle to specify which input port on the target node should receive the data',
       });
       continue;
     }
-    
+
     if (!hasSourceHandle && hasTargetHandle) {
       errors.push({
         node: targetAction.ref,
         field: 'inputMappings',
         message: `Edge has targetHandle "${targetHandle}" but missing sourceHandle. Data edges must specify both source and target handles.`,
         severity: 'error',
-        suggestion: 'Add sourceHandle to specify which output port on the source node provides the data',
+        suggestion:
+          'Add sourceHandle to specify which output port on the source node provides the data',
       });
       continue;
     }
-    
+
     if (!hasSourceHandle && !hasTargetHandle) {
       // Control edge used for ordering only; skip type validation
       continue;
@@ -468,7 +474,7 @@ function validateEntryPointConfiguration(
   }
 
   for (const action of entryPointActions) {
-      const runtimeInputs = action.params?.runtimeInputs;
+    const runtimeInputs = action.params?.runtimeInputs;
 
     if (!Array.isArray(runtimeInputs)) {
       errors.push({
@@ -508,7 +514,7 @@ function validateEntryPointConfiguration(
  */
 function isValidSecretId(secretId: string): boolean {
   // Secret IDs should be reasonable-length identifiers, not raw secret values
-  
+
   // 1. Explicitly allow UUIDs (common format for internal IDs)
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidPattern.test(secretId)) {
@@ -534,10 +540,7 @@ function isValidSecretId(secretId: string): boolean {
   return secretId.length >= 1 && secretId.length <= 100;
 }
 
-function resolveActionPortSnapshot(
-  action: WorkflowAction,
-  component: any,
-): ActionPortSnapshot {
+function resolveActionPortSnapshot(action: WorkflowAction, component: any): ActionPortSnapshot {
   let inputs: ComponentPortMetadata[] = [];
   let outputs: ComponentPortMetadata[] = [];
 

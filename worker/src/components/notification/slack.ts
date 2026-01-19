@@ -27,11 +27,14 @@ const parameterSchema = parameters({
       { label: 'Incoming Webhook', value: 'webhook' },
     ],
   }),
-  variables: param(z.array(z.object({ name: z.string(), type: z.string().optional() })).default([]), {
-    label: 'Template Variables',
-    editor: 'variable-list',
-    description: 'Define variables to use as {{name}} in your message.',
-  }),
+  variables: param(
+    z.array(z.object({ name: z.string(), type: z.string().optional() })).default([]),
+    {
+      label: 'Template Variables',
+      editor: 'variable-list',
+      description: 'Define variables to use as {{name}} in your message.',
+    },
+  ),
 });
 
 const outputSchema = outputs({
@@ -55,7 +58,10 @@ function interpolate(template: string, vars: Record<string, any>): string {
   });
 }
 
-const mapTypeToSchema = (type: string, label: string): { schema: z.ZodTypeAny; meta?: PortMeta } => {
+const mapTypeToSchema = (
+  type: string,
+  label: string,
+): { schema: z.ZodTypeAny; meta?: PortMeta } => {
   switch (type) {
     case 'string':
       return { schema: z.string().optional(), meta: { label } };
@@ -95,11 +101,7 @@ const slackRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 2,
   maximumIntervalSeconds: 60,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'AuthenticationError',
-    'ConfigurationError',
-    'ValidationError',
-  ],
+  nonRetryableErrorTypes: ['AuthenticationError', 'ConfigurationError', 'ValidationError'],
 };
 
 const definition = defineComponent({
@@ -167,14 +169,10 @@ const definition = defineComponent({
     return { inputs: inputs(inputShape) };
   },
   async execute({ inputs, params }, context) {
-    const {
-        text,
-        blocks,
-        channel,
-        thread_ts,
-        slackToken,
-        webhookUrl,
-    } = inputs as Record<string, unknown>;
+    const { text, blocks, channel, thread_ts, slackToken, webhookUrl } = inputs as Record<
+      string,
+      unknown
+    >;
     const { authType } = params;
     const contextData = { ...params, ...inputs };
 
@@ -184,27 +182,29 @@ const definition = defineComponent({
     // 2. Interpolate and parse blocks if it's a template string
     let finalBlocks = blocks;
     if (typeof blocks === 'string') {
-        try {
-            const interpolated = interpolate(blocks, contextData);
-            finalBlocks = JSON.parse(interpolated);
-        } catch (e) {
-            context.logger.warn('[Slack] Failed to parse blocks JSON after interpolation, sending as raw string');
-            finalBlocks = undefined;
-        }
-    } else if (Array.isArray(blocks)) {
-        // If it's already an object, we'd need a deep interpolation,
-        // but typically users will pass a JSON string template for simplicity.
-        // For now, let's stringify and interpolate to support variables in objects too!
-        const str = JSON.stringify(blocks);
-        const interpolated = interpolate(str, contextData);
+      try {
+        const interpolated = interpolate(blocks, contextData);
         finalBlocks = JSON.parse(interpolated);
+      } catch (_e) {
+        context.logger.warn(
+          '[Slack] Failed to parse blocks JSON after interpolation, sending as raw string',
+        );
+        finalBlocks = undefined;
+      }
+    } else if (Array.isArray(blocks)) {
+      // If it's already an object, we'd need a deep interpolation,
+      // but typically users will pass a JSON string template for simplicity.
+      // For now, let's stringify and interpolate to support variables in objects too!
+      const str = JSON.stringify(blocks);
+      const interpolated = interpolate(str, contextData);
+      finalBlocks = JSON.parse(interpolated);
     }
 
     context.logger.info(`[Slack] Sending message to ${authType}...`);
 
     const body: any = {
-        text: finalText,
-        blocks: finalBlocks,
+      text: finalText,
+      blocks: finalBlocks,
     };
 
     if (authType === 'webhook') {
@@ -238,12 +238,12 @@ const definition = defineComponent({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(body),
       });
 
-      const result = await response.json() as any;
+      const result = (await response.json()) as any;
       if (!result.ok) {
         // Slack API returns ok: false with an error code
         // Check for common auth errors

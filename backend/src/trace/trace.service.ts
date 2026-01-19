@@ -137,9 +137,10 @@ export class TraceService {
     return result;
   }
 
-  private extractPayloadAndMetadata(
-    rawData: unknown,
-  ): { payload?: Record<string, unknown>; metadata?: TraceEventMetadata } {
+  private extractPayloadAndMetadata(rawData: unknown): {
+    payload?: Record<string, unknown>;
+    metadata?: TraceEventMetadata;
+  } {
     if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
       return { payload: this.toRecord(rawData) };
     }
@@ -171,19 +172,23 @@ export class TraceService {
 
     if (typeof error === 'object' && error !== null) {
       const errObj = error as Record<string, unknown>;
-      
+
       // Extract fieldErrors if present and valid
       let fieldErrors: Record<string, string[]> | undefined;
-      if ('fieldErrors' in errObj && errObj.fieldErrors !== null && typeof errObj.fieldErrors === 'object') {
+      if (
+        'fieldErrors' in errObj &&
+        errObj.fieldErrors !== null &&
+        typeof errObj.fieldErrors === 'object'
+      ) {
         const fieldErrorsObj = errObj.fieldErrors as Record<string, unknown>;
         const isValidFieldErrors = Object.values(fieldErrorsObj).every(
-          (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')
+          (value) => Array.isArray(value) && value.every((item) => typeof item === 'string'),
         );
         if (isValidFieldErrors) {
           fieldErrors = fieldErrorsObj as Record<string, string[]>;
         }
       }
-      
+
       return {
         message: typeof errObj.message === 'string' ? errObj.message : String(error),
         type: typeof errObj.type === 'string' ? errObj.type : undefined,

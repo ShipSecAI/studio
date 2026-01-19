@@ -17,7 +17,9 @@ const inputSchema = inputs({
     z
       .array(z.string().min(1, 'Message cannot be empty'))
       .min(1, 'Provide at least one message to send')
-      .describe('Messages to deliver through ProjectDiscovery notify. Each message is treated as a separate line.'),
+      .describe(
+        'Messages to deliver through ProjectDiscovery notify. Each message is treated as a separate line.',
+      ),
     {
       label: 'Messages',
       description: 'Messages to send through notify.',
@@ -29,7 +31,9 @@ const inputSchema = inputs({
       .string()
       .min(1, 'Provider configuration is required')
       .optional()
-      .describe('YAML provider configuration content used by notify to reach third-party services.'),
+      .describe(
+        'YAML provider configuration content used by notify to reach third-party services.',
+      ),
     {
       label: 'Provider Config',
       description: 'Provider configuration YAML content (base64-encoded when supplied as a file).',
@@ -41,7 +45,9 @@ const inputSchema = inputs({
       .trim()
       .min(1, 'Notify configuration cannot be empty')
       .optional()
-      .describe('Optional notify CLI configuration file (YAML) providing defaults such as delay or rate limit.'),
+      .describe(
+        'Optional notify CLI configuration file (YAML) providing defaults such as delay or rate limit.',
+      ),
     {
       label: 'Notify Config',
       description: 'Optional notify configuration YAML (base64-encoded when supplied as a file).',
@@ -51,7 +57,9 @@ const inputSchema = inputs({
     z
       .array(z.string().min(1, 'Recipient id cannot be empty'))
       .optional()
-      .describe('Restrict delivery to specific recipient identifiers defined under the providers configuration.'),
+      .describe(
+        'Restrict delivery to specific recipient identifiers defined under the providers configuration.',
+      ),
     {
       label: 'Recipient IDs',
       description: 'Optional recipient identifiers to target within configured providers.',
@@ -69,7 +77,8 @@ const parameterSchema = parameters({
     {
       label: 'Notification Providers',
       editor: 'multi-select',
-      description: 'Select which notification providers to use. Make sure they are configured in your provider config.',
+      description:
+        'Select which notification providers to use. Make sure they are configured in your provider config.',
       helpText: 'If not specified, all configured providers will be used.',
       options: [
         { label: 'Telegram', value: 'telegram' },
@@ -106,7 +115,11 @@ const parameterSchema = parameters({
     },
   ),
   silent: param(
-    z.boolean().optional().default(true).describe('Enable notify silent mode to suppress CLI output.'),
+    z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Enable notify silent mode to suppress CLI output.'),
     {
       label: 'Silent Mode',
       editor: 'boolean',
@@ -184,7 +197,6 @@ const outputSchema = outputs({
     description: 'Raw notify output for debugging.',
   }),
 });
-
 
 const dockerTimeoutSeconds = (() => {
   const raw = process.env.NOTIFY_TIMEOUT_SECONDS;
@@ -297,8 +309,10 @@ cat "$MESSAGE_FILE" | "$@"
     version: '1.0.0',
     type: 'output',
     category: 'security',
-    description: 'Deliver security findings to Slack, Teams, and other channels using ProjectDiscovery notify.',
-    documentation: 'Configure provider credentials via YAML then stream workflow output to notify for alerting.',
+    description:
+      'Deliver security findings to Slack, Teams, and other channels using ProjectDiscovery notify.',
+    documentation:
+      'Configure provider credentials via YAML then stream workflow output to notify for alerting.',
     documentationUrl: 'https://github.com/projectdiscovery/notify',
     icon: 'Bell',
     author: {
@@ -307,7 +321,8 @@ cat "$MESSAGE_FILE" | "$@"
     },
     isLatest: true,
     deprecated: false,
-    example: '`echo "Critical finding" | notify -bulk` — Broadcast a message to configured providers.',
+    example:
+      '`echo "Critical finding" | notify -bulk` — Broadcast a message to configured providers.',
     examples: [
       'Forward a consolidated reconnaissance summary to Slack and Telegram.',
       'Send high-priority vulnerability findings to multiple notification channels in bulk.',
@@ -379,9 +394,7 @@ cat "$MESSAGE_FILE" | "$@"
     const dockerPayload = {
       messages: Buffer.from(messages.join('\n'), 'utf8').toString('base64'),
       providerConfig: Buffer.from(providerConfig, 'utf8').toString('base64'),
-      notifyConfig: notifyConfig
-        ? Buffer.from(notifyConfig, 'utf8').toString('base64')
-        : '',
+      notifyConfig: notifyConfig ? Buffer.from(notifyConfig, 'utf8').toString('base64') : '',
       args, // TypeScript-built command arguments!
     };
 

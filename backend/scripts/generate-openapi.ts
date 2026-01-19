@@ -41,7 +41,9 @@ async function generateOpenApi() {
 }
 
 console.log('Script started');
-generateOpenApi().then(() => console.log('Script finished successfully')).catch((error) => {
-  console.error('Failed to generate OpenAPI spec', error);
-  process.exit(1);
-});
+generateOpenApi()
+  .then(() => console.log('Script finished successfully'))
+  .catch((error) => {
+    console.error('Failed to generate OpenAPI spec', error);
+    process.exit(1);
+  });

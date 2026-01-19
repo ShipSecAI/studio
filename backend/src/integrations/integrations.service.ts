@@ -5,9 +5,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import {
-  SecretEncryptionMaterial,
-} from '@shipsec/shared';
+import { SecretEncryptionMaterial } from '@shipsec/shared';
 import { randomBytes, createHash } from 'crypto';
 
 import {
@@ -95,7 +93,9 @@ export class IntegrationsService implements OnModuleInit {
   }
 
   listProviders(): IntegrationProviderSummary[] {
-    return Object.values(this.providers).map((config) => summarizeProvider(this.mergeProviderConfig(config)));
+    return Object.values(this.providers).map((config) =>
+      summarizeProvider(this.mergeProviderConfig(config)),
+    );
   }
 
   private async reloadProviderOverrides(): Promise<void> {
@@ -159,10 +159,13 @@ export class IntegrationsService implements OnModuleInit {
     };
   }
 
-  async upsertProviderConfiguration(providerId: string, input: {
-    clientId: string;
-    clientSecret?: string;
-  }): Promise<void> {
+  async upsertProviderConfiguration(
+    providerId: string,
+    input: {
+      clientId: string;
+      clientSecret?: string;
+    },
+  ): Promise<void> {
     this.requireProvider(providerId);
 
     const trimmedClientId = input.clientId.trim();
@@ -388,7 +391,7 @@ export class IntegrationsService implements OnModuleInit {
     const clientId = (override?.clientId ?? base.clientId ?? '').trim();
     const decryptedSecret = override
       ? await this.encryption.decrypt(override.clientSecret)
-      : base.clientSecret ?? '';
+      : (base.clientSecret ?? '');
     const clientSecret = decryptedSecret.trim();
 
     if (!clientId || !clientSecret) {
@@ -548,7 +551,7 @@ export class IntegrationsService implements OnModuleInit {
     const tokenType =
       typeof input.rawResponse.token_type === 'string'
         ? input.rawResponse.token_type
-        : input.previous?.tokenType ?? 'Bearer';
+        : (input.previous?.tokenType ?? 'Bearer');
 
     const expiresAt = this.resolveExpiry(input.rawResponse.expires_in, input.previous?.expiresAt);
     const grantedScopes = this.resolveScopes(
@@ -600,14 +603,11 @@ export class IntegrationsService implements OnModuleInit {
       scopes: record.scopes ?? provider.defaultScopes,
     });
 
-    const nextRefreshToken =
-      this.extractOptionalToken(payload.refresh_token) ?? refreshToken;
+    const nextRefreshToken = this.extractOptionalToken(payload.refresh_token) ?? refreshToken;
 
     const accessToken = this.extractToken(payload.access_token, 'access_token');
     const tokenType =
-      typeof payload.token_type === 'string'
-        ? payload.token_type
-        : record.tokenType ?? 'Bearer';
+      typeof payload.token_type === 'string' ? payload.token_type : (record.tokenType ?? 'Bearer');
     const expiresAt = this.resolveExpiry(payload.expires_in, record.expiresAt);
 
     const grantedScopes = this.resolveScopes(
@@ -653,16 +653,13 @@ export class IntegrationsService implements OnModuleInit {
     return null;
   }
 
-  private resolveExpiry(
-    expiresIn: unknown,
-    fallback?: Date | string | null,
-  ): Date | null {
+  private resolveExpiry(expiresIn: unknown, fallback?: Date | string | null): Date | null {
     const parsed =
       typeof expiresIn === 'number'
         ? expiresIn
         : typeof expiresIn === 'string'
-        ? Number(expiresIn)
-        : null;
+          ? Number(expiresIn)
+          : null;
 
     if (parsed && Number.isFinite(parsed)) {
       return new Date(Date.now() + parsed * 1000);
@@ -675,11 +672,7 @@ export class IntegrationsService implements OnModuleInit {
     return new Date(fallback);
   }
 
-  private resolveScopes(
-    scopeValue: unknown,
-    defaults: string[],
-    separator: string,
-  ): string[] {
+  private resolveScopes(scopeValue: unknown, defaults: string[], separator: string): string[] {
     if (typeof scopeValue !== 'string' || scopeValue.trim().length === 0) {
       return this.cleanScopes(defaults);
     }
@@ -692,10 +685,8 @@ export class IntegrationsService implements OnModuleInit {
     patch: Record<string, unknown>,
   ): Record<string, unknown> {
     return {
-      ...(this.coerceMetadata(existing)),
-      ...Object.fromEntries(
-        Object.entries(patch).filter(([, value]) => value !== undefined),
-      ),
+      ...this.coerceMetadata(existing),
+      ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
     };
   }
 

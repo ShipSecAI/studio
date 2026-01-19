@@ -1,58 +1,58 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, RefreshCw, Copy, ExternalLink } from 'lucide-react'
-import type { ArtifactMetadata } from '@shipsec/shared'
-import { useArtifactStore } from '@/store/artifactStore'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { getRemoteUploads } from '@/utils/artifacts'
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, RefreshCw, Copy, ExternalLink } from 'lucide-react';
+import type { ArtifactMetadata } from '@shipsec/shared';
+import { useArtifactStore } from '@/store/artifactStore';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { getRemoteUploads } from '@/utils/artifacts';
 
 const formatBytes = (bytes: number) => {
-  if (!Number.isFinite(bytes)) return '—'
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / Math.pow(1024, index)
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[index]}`
-}
+  if (!Number.isFinite(bytes)) return '—';
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, index);
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[index]}`;
+};
 
 const formatTimestamp = (value: string) => {
   try {
-    const date = new Date(value)
-    return date.toLocaleString()
+    const date = new Date(value);
+    return date.toLocaleString();
   } catch {
-    return value
+    return value;
   }
-}
+};
 
 interface RunArtifactsPanelProps {
-  runId: string | null
+  runId: string | null;
 }
 
 export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
-  const entry = useArtifactStore((state) => (runId ? state.runArtifacts[runId] : undefined))
-  const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts)
-  const downloadArtifact = useArtifactStore((state) => state.downloadArtifact)
-  const downloading = useArtifactStore((state) => state.downloading)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [copiedRemoteUri, setCopiedRemoteUri] = useState<string | null>(null)
+  const entry = useArtifactStore((state) => (runId ? state.runArtifacts[runId] : undefined));
+  const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts);
+  const downloadArtifact = useArtifactStore((state) => state.downloadArtifact);
+  const downloading = useArtifactStore((state) => state.downloading);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedRemoteUri, setCopiedRemoteUri] = useState<string | null>(null);
 
   const handleCopy = useCallback(async (artifactId: string) => {
     try {
-      await navigator.clipboard.writeText(artifactId)
-      setCopiedId(artifactId)
+      await navigator.clipboard.writeText(artifactId);
+      setCopiedId(artifactId);
       setTimeout(() => {
-        setCopiedId((current) => (current === artifactId ? null : current))
-      }, 2000)
+        setCopiedId((current) => (current === artifactId ? null : current));
+      }, 2000);
     } catch (error) {
-      console.error('Failed to copy artifact ID', error)
+      console.error('Failed to copy artifact ID', error);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (runId) {
-      void fetchRunArtifacts(runId)
+      void fetchRunArtifacts(runId);
     }
-  }, [runId, fetchRunArtifacts])
+  }, [runId, fetchRunArtifacts]);
 
   const content = useMemo(() => {
     if (!runId) {
@@ -60,7 +60,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
           Select a run to view its artifacts.
         </div>
-      )
+      );
     }
 
     if (!entry || entry.loading) {
@@ -68,7 +68,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
           Loading artifacts…
         </div>
-      )
+      );
     }
 
     if (entry.error) {
@@ -85,7 +85,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
             Retry
           </Button>
         </div>
-      )
+      );
     }
 
     if (entry.artifacts.length === 0) {
@@ -93,7 +93,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
           No artifacts were saved for this run.
         </div>
-      )
+      );
     }
 
     return (
@@ -118,13 +118,13 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
                 copied={copiedId === artifact.id}
                 onCopyRemoteUri={async (uri: string) => {
                   try {
-                    await navigator.clipboard.writeText(uri)
-                    setCopiedRemoteUri(uri)
+                    await navigator.clipboard.writeText(uri);
+                    setCopiedRemoteUri(uri);
                     setTimeout(() => {
-                      setCopiedRemoteUri((current) => (current === uri ? null : current))
-                    }, 2000)
+                      setCopiedRemoteUri((current) => (current === uri ? null : current));
+                    }, 2000);
                   } catch (error) {
-                    console.error('Failed to copy remote URI', error)
+                    console.error('Failed to copy remote URI', error);
                   }
                 }}
                 copiedRemoteUri={copiedRemoteUri}
@@ -134,8 +134,17 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
           </tbody>
         </table>
       </div>
-    )
-  }, [runId, entry, fetchRunArtifacts, downloadArtifact, downloading, handleCopy, copiedId, copiedRemoteUri])
+    );
+  }, [
+    runId,
+    entry,
+    fetchRunArtifacts,
+    downloadArtifact,
+    downloading,
+    handleCopy,
+    copiedId,
+    copiedRemoteUri,
+  ]);
 
   return (
     <div className="flex h-full flex-col">
@@ -162,7 +171,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
       </div>
       {content}
     </div>
-  )
+  );
 }
 
 function ArtifactRow({
@@ -174,15 +183,15 @@ function ArtifactRow({
   copiedRemoteUri,
   isDownloading,
 }: {
-  artifact: ArtifactMetadata
-  onDownload: () => void
-  onCopy: () => void
-  copied: boolean
-  onCopyRemoteUri: (uri: string) => void
-  copiedRemoteUri: string | null
-  isDownloading: boolean
+  artifact: ArtifactMetadata;
+  onDownload: () => void;
+  onCopy: () => void;
+  copied: boolean;
+  onCopyRemoteUri: (uri: string) => void;
+  copiedRemoteUri: string | null;
+  isDownloading: boolean;
 }) {
-  const remoteUploads = getRemoteUploads(artifact)
+  const remoteUploads = getRemoteUploads(artifact);
 
   return (
     <tr className="border-b last:border-none">
@@ -199,9 +208,7 @@ function ArtifactRow({
                 <Badge variant="outline" className="text-[10px] uppercase">
                   {remote.type}
                 </Badge>
-                <code className="max-w-[200px] truncate font-mono text-[11px]">
-                  {remote.uri}
-                </code>
+                <code className="max-w-[200px] truncate font-mono text-[11px]">{remote.uri}</code>
                 <Button
                   type="button"
                   variant="ghost"
@@ -228,22 +235,14 @@ function ArtifactRow({
           </div>
         )}
       </td>
-      <td className="px-4 py-3 align-top text-sm text-muted-foreground">
-        {artifact.componentRef}
-      </td>
+      <td className="px-4 py-3 align-top text-sm text-muted-foreground">{artifact.componentRef}</td>
       <td className="px-4 py-3 align-top text-sm">{formatBytes(artifact.size)}</td>
       <td className="px-4 py-3 align-top text-sm text-muted-foreground">
         {formatTimestamp(artifact.createdAt)}
       </td>
       <td className="px-4 py-3 align-top text-right">
         <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onCopy}
-            className="gap-2"
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={onCopy} className="gap-2">
             <Copy className="h-4 w-4" />
             {copied ? 'Copied' : 'Copy ID'}
           </Button>
@@ -261,5 +260,5 @@ function ArtifactRow({
         </div>
       </td>
     </tr>
-  )
+  );
 }

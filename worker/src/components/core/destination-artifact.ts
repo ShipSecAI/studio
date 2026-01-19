@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { componentRegistry, defineComponent, inputs, outputs, parameters, port, param } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+} from '@shipsec/component-sdk';
 import { destinationWriterSchema } from '@shipsec/contracts';
 import { type DestinationConfig } from '@shipsec/shared';
 
@@ -49,7 +57,7 @@ const definition = defineComponent({
     icon: 'HardDriveDownload',
   },
   async execute({ params }, context) {
-    const destinations: Array<'run' | 'library'> = [];
+    const destinations: ('run' | 'library')[] = [];
     if (params.saveToRunArtifacts) {
       destinations.push('run');
     }
@@ -60,7 +68,9 @@ const definition = defineComponent({
       destinations.push('run');
     }
 
-    context.logger.info(`[ArtifactDestination] Configured destinations: ${destinations.join(', ')}`);
+    context.logger.info(
+      `[ArtifactDestination] Configured destinations: ${destinations.join(', ')}`,
+    );
 
     const destination: DestinationConfig = {
       adapterId: 'artifact',

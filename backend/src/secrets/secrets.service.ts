@@ -96,14 +96,18 @@ export class SecretsService {
     const organizationId = this.assertOrganizationId(auth);
     const material = await this.encryption.encrypt(input.value);
 
-    return this.repository.rotateSecret(secretId, {
-      encryptedValue: material.ciphertext,
-      iv: material.iv,
-      authTag: material.authTag,
-      encryptionKeyId: material.keyId,
-      createdBy: input.createdBy ?? null,
-      organizationId,
-    }, { organizationId });
+    return this.repository.rotateSecret(
+      secretId,
+      {
+        encryptedValue: material.ciphertext,
+        iv: material.iv,
+        authTag: material.authTag,
+        encryptionKeyId: material.keyId,
+        createdBy: input.createdBy ?? null,
+        organizationId,
+      },
+      { organizationId },
+    );
   }
 
   async getSecretValue(
@@ -166,9 +170,7 @@ export class SecretsService {
       if (input.tags === null) {
         updates.tags = null;
       } else {
-        const normalizedTags = input.tags
-          .map((tag) => tag.trim())
-          .filter((tag) => tag.length > 0);
+        const normalizedTags = input.tags.map((tag) => tag.trim()).filter((tag) => tag.length > 0);
         updates.tags = normalizedTags.length > 0 ? normalizedTags : null;
       }
     }

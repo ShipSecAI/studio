@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Param,
-  Res,
-  StreamableFile,
-} from '@nestjs/common';
+import { Controller, Get, Query, Param, Res, StreamableFile } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
@@ -56,7 +49,10 @@ export class ArtifactsController {
     @Param(new ZodValidationPipe(ArtifactIdParamSchema)) params: ArtifactIdParamDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { artifact, buffer, file } = await this.artifactsService.downloadArtifact(auth, params.id);
+    const { artifact, buffer, file } = await this.artifactsService.downloadArtifact(
+      auth,
+      params.id,
+    );
 
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${artifact.name}"`);

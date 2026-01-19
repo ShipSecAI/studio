@@ -1,100 +1,95 @@
-import { useMemo, useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useComponentStore } from '@/store/componentStore'
-import { getNodeValidationWarnings } from '@/utils/connectionValidation'
-import type { Node, Edge } from 'reactflow'
-import type { NodeData, FrontendNodeData } from '@/schemas/node'
+import { useMemo, useState, useEffect } from 'react';
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useComponentStore } from '@/store/componentStore';
+import { getNodeValidationWarnings } from '@/utils/connectionValidation';
+import type { Node, Edge } from 'reactflow';
+import type { NodeData, FrontendNodeData } from '@/schemas/node';
 
 interface ValidationIssue {
-  nodeId: string
-  nodeLabel: string
-  message: string
+  nodeId: string;
+  nodeLabel: string;
+  message: string;
 }
 
 interface ValidationDockProps {
-  nodes: Node<NodeData>[]
-  edges: Edge[]
-  mode: string
-  onNodeClick: (nodeId: string) => void
+  nodes: Node<NodeData>[];
+  edges: Edge[];
+  mode: string;
+  onNodeClick: (nodeId: string) => void;
 }
 
-const COLLAPSE_THRESHOLD = 2 // Collapse when more than 2 issues
+const COLLAPSE_THRESHOLD = 2; // Collapse when more than 2 issues
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  )
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
+  );
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint)
-    }
+      setIsMobile(window.innerWidth < breakpoint);
+    };
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [breakpoint])
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [breakpoint]);
 
-  return isMobile
+  return isMobile;
 }
 
-export function ValidationDock({
-  nodes,
-  edges,
-  mode,
-  onNodeClick,
-}: ValidationDockProps) {
-  const { getComponent } = useComponentStore()
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
-  const isMobile = useIsMobile()
+export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDockProps) {
+  const { getComponent } = useComponentStore();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Only show validation in design mode
-  const isDesignMode = mode === 'design'
+  const isDesignMode = mode === 'design';
 
   const validationIssues = useMemo<ValidationIssue[]>(() => {
-    if (!isDesignMode) return []
+    if (!isDesignMode) return [];
 
-    const issues: ValidationIssue[] = []
+    const issues: ValidationIssue[] = [];
 
     nodes.forEach((node) => {
-      const nodeData = node.data as any
-      const componentRef = nodeData.componentId ?? nodeData.componentSlug
-      const component = getComponent(componentRef)
+      const nodeData = node.data as any;
+      const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+      const component = getComponent(componentRef);
 
-      if (!component) return
+      if (!component) return;
 
       // Get validation warnings using the existing utility
       // FrontendNodeData extends NodeData, so this cast is safe
-      const warnings = getNodeValidationWarnings(node as Node<FrontendNodeData>, edges, component)
+      const warnings = getNodeValidationWarnings(node as Node<FrontendNodeData>, edges, component);
 
       warnings.forEach((warning) => {
         issues.push({
           nodeId: node.id,
           nodeLabel: nodeData.label || component.name || node.id,
           message: warning,
-        })
-      })
-    })
+        });
+      });
+    });
 
-    return issues
-  }, [nodes, edges, getComponent, isDesignMode])
+    return issues;
+  }, [nodes, edges, getComponent, isDesignMode]);
 
-  const totalIssues = validationIssues.length
-  const hasIssues = totalIssues > 0
-  const shouldCollapse = totalIssues > COLLAPSE_THRESHOLD
+  const totalIssues = validationIssues.length;
+  const hasIssues = totalIssues > 0;
+  const shouldCollapse = totalIssues > COLLAPSE_THRESHOLD;
 
   // Don't show dock if not in design mode
   if (!isDesignMode) {
-    return null
+    return null;
   }
 
   // Handle node click in mobile view - close sheet after clicking
   const handleMobileNodeClick = (nodeId: string) => {
-    onNodeClick(nodeId)
-    setIsMobileSheetOpen(false)
-  }
+    onNodeClick(nodeId);
+    setIsMobileSheetOpen(false);
+  };
 
   // Mobile: Compact floating button + bottom sheet
   if (isMobile) {
@@ -111,7 +106,7 @@ export function ValidationDock({
             'transition-all duration-200 active:scale-95',
             hasIssues
               ? 'border-red-500/50 hover:border-red-500'
-              : 'border-green-500/50 hover:border-green-500'
+              : 'border-green-500/50 hover:border-green-500',
           )}
         >
           {hasIssues ? (
@@ -140,7 +135,7 @@ export function ValidationDock({
             'bg-background border-t rounded-t-2xl shadow-2xl',
             'transition-transform duration-300 ease-out',
             'max-h-[60vh] flex flex-col',
-            isMobileSheetOpen ? 'translate-y-0' : 'translate-y-full'
+            isMobileSheetOpen ? 'translate-y-0' : 'translate-y-full',
           )}
         >
           {/* Handle bar */}
@@ -183,17 +178,13 @@ export function ValidationDock({
                     className={cn(
                       'w-full text-left px-4 py-3 flex items-start gap-2',
                       'hover:bg-red-50/50 dark:hover:bg-red-950/30',
-                      'transition-colors cursor-pointer active:bg-muted'
+                      'transition-colors cursor-pointer active:bg-muted',
                     )}
                   >
                     <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground">
-                        {issue.nodeLabel}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {issue.message}
-                      </div>
+                      <div className="text-sm font-medium text-foreground">{issue.nodeLabel}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{issue.message}</div>
                     </div>
                   </button>
                 ))}
@@ -202,16 +193,14 @@ export function ValidationDock({
               <div className="flex items-center justify-center py-8">
                 <div className="text-center">
                   <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    No validation issues found
-                  </p>
+                  <p className="text-sm text-muted-foreground">No validation issues found</p>
                 </div>
               </div>
             )}
           </div>
         </div>
       </>
-    )
+    );
   }
 
   // Desktop: Original inline dock
@@ -222,7 +211,7 @@ export function ValidationDock({
         'bg-background/95 backdrop-blur-sm border rounded-md shadow-md',
         'max-w-lg w-auto',
         'transition-all duration-200',
-        hasIssues ? 'border-red-500/50' : 'border-green-500/50'
+        hasIssues ? 'border-red-500/50' : 'border-green-500/50',
       )}
       style={{
         left: '40%', // 50% - 10% = 40%
@@ -236,7 +225,7 @@ export function ValidationDock({
             onClick={() => shouldCollapse && setIsExpanded(!isExpanded)}
             className={cn(
               'w-full flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-border/50',
-              shouldCollapse && 'cursor-pointer hover:bg-muted/50 transition-colors'
+              shouldCollapse && 'cursor-pointer hover:bg-muted/50 transition-colors',
             )}
           >
             <div className="flex items-center gap-2">
@@ -260,7 +249,7 @@ export function ValidationDock({
             className={cn(
               'divide-y divide-border/50 overflow-hidden transition-all duration-200',
               shouldCollapse && !isExpanded && 'max-h-0',
-              (!shouldCollapse || isExpanded) && 'max-h-[300px] overflow-y-auto'
+              (!shouldCollapse || isExpanded) && 'max-h-[300px] overflow-y-auto',
             )}
           >
             {validationIssues.map((issue, index) => (
@@ -272,7 +261,7 @@ export function ValidationDock({
                   'w-full text-left px-2.5 py-1.5 flex items-center gap-1.5 text-[11px]',
                   'hover:bg-red-50/50 dark:hover:bg-red-950/30',
                   'transition-colors cursor-pointer',
-                  'group'
+                  'group',
                 )}
               >
                 <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
@@ -287,11 +276,9 @@ export function ValidationDock({
       ) : (
         <div className="flex items-center gap-2 px-2.5 py-1.5">
           <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
-          <span className="text-[11px] text-muted-foreground">
-            All validated
-          </span>
+          <span className="text-[11px] text-muted-foreground">All validated</span>
         </div>
       )}
     </div>
-  )
+  );
 }

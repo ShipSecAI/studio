@@ -36,13 +36,10 @@ const parameterSchema = parameters({
       editor: 'number',
     },
   ),
-  verbose: param(
-    coerceBooleanFromText().default(false).describe('Include verbose information.'),
-    {
-      label: 'Verbose',
-      editor: 'boolean',
-    },
-  ),
+  verbose: param(coerceBooleanFromText().default(false).describe('Include verbose information.'), {
+    label: 'Verbose',
+    editor: 'boolean',
+  }),
 });
 
 const outputSchema = outputs({
@@ -60,12 +57,9 @@ const outputSchema = outputs({
   isWhitelisted: port(z.boolean().optional(), {
     label: 'Whitelisted',
   }),
-  abuseConfidenceScore: port(
-    z.number().describe('The confidence score (0-100).'),
-    {
-      label: 'Confidence Score',
-    },
-  ),
+  abuseConfidenceScore: port(z.number().describe('The confidence score (0-100).'), {
+    label: 'Confidence Score',
+  }),
   countryCode: port(z.string().optional(), {
     label: 'Country',
   }),
@@ -102,15 +96,12 @@ const outputSchema = outputs({
     reason: 'Report entries vary by plan and API version.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
   }),
-  full_report: port(
-    z.record(z.string(), z.any()).describe('The full raw JSON response.'),
-    {
-      label: 'Full Report',
-      allowAny: true,
-      reason: 'Full AbuseIPDB response payload varies by plan and API version.',
-      connectionType: { kind: 'primitive', name: 'json' },
-    },
-  ),
+  full_report: port(z.record(z.string(), z.any()).describe('The full raw JSON response.'), {
+    label: 'Full Report',
+    allowAny: true,
+    reason: 'Full AbuseIPDB response payload varies by plan and API version.',
+    connectionType: { kind: 'primitive', name: 'json' },
+  }),
 });
 
 const abuseIPDBRetryPolicy: ComponentRetryPolicy = {
@@ -118,11 +109,7 @@ const abuseIPDBRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 2,
   maximumIntervalSeconds: 120,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'AuthenticationError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['AuthenticationError', 'ValidationError', 'ConfigurationError'],
 };
 
 const definition = defineComponent({
@@ -177,9 +164,9 @@ const definition = defineComponent({
     const response = await context.http.fetch(url, {
       method: 'GET',
       headers: {
-        'Key': apiKey,
-        'Accept': 'application/json'
-      }
+        Key: apiKey,
+        Accept: 'application/json',
+      },
     });
 
     if (response.status === 404) {
@@ -187,7 +174,7 @@ const definition = defineComponent({
       return {
         ipAddress,
         abuseConfidenceScore: 0,
-        full_report: { error: 'Not Found' }
+        full_report: { error: 'Not Found' },
       };
     }
 
@@ -196,7 +183,7 @@ const definition = defineComponent({
       throw fromHttpResponse(response, text);
     }
 
-    const data = await response.json() as Record<string, unknown>;
+    const data = (await response.json()) as Record<string, unknown>;
     const info = (data.data || {}) as Record<string, unknown>;
 
     context.logger.info(`[AbuseIPDB] Score for ${ipAddress}: ${info.abuseConfidenceScore}`);
@@ -224,6 +211,6 @@ const definition = defineComponent({
 componentRegistry.register(definition);
 
 export type AbuseIPDBInput = typeof inputSchema;
-export type AbuseIPDBOutput= typeof outputSchema;
+export type AbuseIPDBOutput = typeof outputSchema;
 
 export { definition };

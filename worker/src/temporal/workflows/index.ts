@@ -23,14 +23,18 @@ import type {
 } from '../types';
 
 const {
-  runComponentActivity,
+  runComponentActivity: _runComponentActivity,
   setRunMetadataActivity,
   finalizeRunActivity,
   createHumanInputRequestActivity,
   expireHumanInputRequestActivity,
 } = proxyActivities<{
   runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
-  setRunMetadataActivity(input: { runId: string; workflowId: string; organizationId?: string | null }): Promise<void>;
+  setRunMetadataActivity(input: {
+    runId: string;
+    workflowId: string;
+    organizationId?: string | null;
+  }): Promise<void>;
   finalizeRunActivity(input: { runId: string }): Promise<void>;
   createHumanInputRequestActivity(input: {
     runId: string;
@@ -54,9 +58,7 @@ const {
 });
 
 const { prepareRunPayloadActivity } = proxyActivities<{
-  prepareRunPayloadActivity(
-    input: PrepareRunPayloadActivityInput,
-  ): Promise<PreparedRunPayload>;
+  prepareRunPayloadActivity(input: PrepareRunPayloadActivityInput): Promise<PreparedRunPayload>;
 }>({
   startToCloseTimeout: '2 minutes',
 });
@@ -70,7 +72,9 @@ const { recordTraceEventActivity } = proxyActivities<{
 /**
  * Check if an output indicates a pending approval gate
  */
-function isApprovalPending(output: unknown): output is { pending: true; title: string; description?: string; timeoutAt?: string } {
+function isApprovalPending(
+  output: unknown,
+): output is { pending: true; title: string; description?: string; timeoutAt?: string } {
   return (
     typeof output === 'object' &&
     output !== null &&
@@ -84,8 +88,12 @@ function mapRetryPolicy(policy?: ComponentRetryPolicy) {
 
   return {
     maximumAttempts: policy.maxAttempts,
-    initialInterval: policy.initialIntervalSeconds ? policy.initialIntervalSeconds * 1000 : undefined,
-    maximumInterval: policy.maximumIntervalSeconds ? policy.maximumIntervalSeconds * 1000 : undefined,
+    initialInterval: policy.initialIntervalSeconds
+      ? policy.initialIntervalSeconds * 1000
+      : undefined,
+    maximumInterval: policy.maximumIntervalSeconds
+      ? policy.maximumIntervalSeconds * 1000
+      : undefined,
     backoffCoefficient: policy.backoffCoefficient,
     nonRetryableErrorTypes: policy.nonRetryableErrorTypes,
   };
@@ -100,12 +108,17 @@ export async function shipsecWorkflowRun(
   );
 
   // Track pending human inputs and their resolutions
-  const pendingHumanInputs = new Map<string, { nodeRef: string; resolve: (res: HumanInputResolution) => void }>();
+  const pendingHumanInputs = new Map<
+    string,
+    { nodeRef: string; resolve: (res: HumanInputResolution) => void }
+  >();
   const humanInputResolutions = new Map<string, HumanInputResolution>();
 
   // Set up signal handler for human input resolutions
   setHandler(resolveHumanInputSignal, (resolution: HumanInputResolution) => {
-    console.log(`[Workflow] Received human input signal for ${resolution.nodeRef}: approved=${resolution.approved}`);
+    console.log(
+      `[Workflow] Received human input signal for ${resolution.nodeRef}: approved=${resolution.approved}`,
+    );
     humanInputResolutions.set(resolution.nodeRef, resolution);
     const pending = pendingHumanInputs.get(resolution.nodeRef);
     if (pending) {
@@ -114,12 +127,16 @@ export async function shipsecWorkflowRun(
   });
 
   console.log(`[Workflow] Starting shipsec workflow run: ${input.runId}`);
-  console.log(`[Workflow] Definition actions:`, input.definition.actions.map(a => a.ref));
+  console.log(
+    `[Workflow] Definition actions:`,
+    input.definition.actions.map((a) => a.ref),
+  );
 
-  const callChain = Array.isArray(input.callChain) && input.callChain.length > 0
-    ? input.callChain
-    : [input.workflowId]
-  const depth = typeof input.depth === 'number' && Number.isFinite(input.depth) ? input.depth : 0
+  const callChain =
+    Array.isArray(input.callChain) && input.callChain.length > 0
+      ? input.callChain
+      : [input.workflowId];
+  const depth = typeof input.depth === 'number' && Number.isFinite(input.depth) ? input.depth : 0;
 
   await setRunMetadataActivity({
     runId: input.runId,
@@ -142,17 +159,14 @@ export async function shipsecWorkflowRun(
           },
         });
       },
-       run: async (actionRef, schedulerContext) => {
-         console.log(`[Workflow] Running action ${actionRef} with context:`, schedulerContext);
-         const action = actionsByRef.get(actionRef);
-         if (!action) {
-           throw ApplicationFailure.nonRetryable(
-             `Action not found: ${actionRef}`,
-             'NotFoundError',
-             [{ resourceType: 'action', resourceId: actionRef }],
-
-           )
-         }
+      run: async (actionRef, schedulerContext) => {
+        console.log(`[Workflow] Running action ${actionRef} with context:`, schedulerContext);
+        const action = actionsByRef.get(actionRef);
+        if (!action) {
+          throw ApplicationFailure.nonRetryable(`Action not found: ${actionRef}`, 'NotFoundError', [
+            { resourceType: 'action', resourceId: actionRef },
+          ]);
+        }
 
         const { inputs, params, warnings } = buildActionPayload(action, results);
         const mergedInputs: Record<string, unknown> = { ...inputs };
@@ -161,11 +175,11 @@ export async function shipsecWorkflowRun(
         // Only apply inputs to the actual entrypoint component, not just any node matching the entrypoint ref
         const isEntrypointRef = input.definition.entrypoint.ref === action.ref;
         const isEntrypointComponent = action.componentId === 'core.workflow.entrypoint';
-        
+
         if (isEntrypointRef && input.inputs) {
           if (isEntrypointComponent) {
             console.log(
-              `[Workflow] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`
+              `[Workflow] Applying inputs to entrypoint component '${action.ref}' (${action.componentId})`,
             );
             mergedInputs.__runtimeData = input.inputs;
           } else {
@@ -173,27 +187,27 @@ export async function shipsecWorkflowRun(
             // Log warning but don't apply inputs to wrong component
             console.error(
               `[Workflow] CRITICAL: Entrypoint ref '${input.definition.entrypoint.ref}' points to component '${action.componentId}' instead of 'core.workflow.entrypoint'. ` +
-              `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`
+                `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`,
             );
           }
         } else if (input.inputs && Object.keys(input.inputs).length > 0) {
           // Log when inputs exist but are not being applied (for debugging)
           if (isEntrypointRef && !isEntrypointComponent) {
             console.warn(
-              `[Workflow] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`
+              `[Workflow] Node '${action.ref}' matches entrypoint ref but is not an entrypoint component (${action.componentId}). Inputs skipped.`,
             );
           }
         }
 
         if (action.componentId === 'core.workflow.call') {
-          const MAX_SUBWORKFLOW_DEPTH = 10
+          const MAX_SUBWORKFLOW_DEPTH = 10;
 
           if (depth >= MAX_SUBWORKFLOW_DEPTH) {
             throw ApplicationFailure.nonRetryable(
               `Maximum sub-workflow nesting depth (${MAX_SUBWORKFLOW_DEPTH}) exceeded`,
               'SubWorkflowDepthError',
               [{ runId: input.runId, nodeRef: action.ref, depth }],
-            )
+            );
           }
 
           for (const warning of warnings) {
@@ -208,25 +222,25 @@ export async function shipsecWorkflowRun(
               context: {
                 activityId: 'workflow-orchestration',
               },
-            })
+            });
           }
 
           if (warnings.length > 0) {
-            const missing = warnings.map((warning) => `'${warning.target}'`).join(', ')
+            const missing = warnings.map((warning) => `'${warning.target}'`).join(', ');
             throw ApplicationFailure.nonRetryable(
               `Missing required inputs for ${action.ref}: ${missing}`,
               'ValidationError',
               [{ runId: input.runId, nodeRef: action.ref }],
-            )
+            );
           }
 
-          const childWorkflowId = mergedParams.workflowId
+          const childWorkflowId = mergedParams.workflowId;
           if (typeof childWorkflowId !== 'string' || childWorkflowId.trim().length === 0) {
             throw ApplicationFailure.nonRetryable(
               'core.workflow.call requires a workflowId parameter',
               'ValidationError',
               [{ runId: input.runId, nodeRef: action.ref }],
-            )
+            );
           }
 
           if (callChain.includes(childWorkflowId)) {
@@ -234,45 +248,49 @@ export async function shipsecWorkflowRun(
               `Circular sub-workflow call detected for workflow ${childWorkflowId}`,
               'SubWorkflowCycleError',
               [{ runId: input.runId, nodeRef: action.ref, callChain }],
-            )
+            );
           }
 
           const versionStrategy =
-            mergedParams.versionStrategy === 'specific' ? 'specific' : 'latest'
-          const versionIdRaw = mergedParams.versionId
+            mergedParams.versionStrategy === 'specific' ? 'specific' : 'latest';
+          const versionIdRaw = mergedParams.versionId;
           const versionId =
-            versionStrategy === 'specific' && typeof versionIdRaw === 'string' && versionIdRaw.trim().length > 0
+            versionStrategy === 'specific' &&
+            typeof versionIdRaw === 'string' &&
+            versionIdRaw.trim().length > 0
               ? versionIdRaw.trim()
-              : undefined
+              : undefined;
 
           if (versionStrategy === 'specific' && !versionId) {
             throw ApplicationFailure.nonRetryable(
               'versionId is required when versionStrategy is "specific"',
               'ValidationError',
               [{ runId: input.runId, nodeRef: action.ref }],
-            )
+            );
           }
 
-          const timeoutSecondsRaw = mergedParams.timeoutSeconds
+          const timeoutSecondsRaw = mergedParams.timeoutSeconds;
           const timeoutSeconds =
-            typeof timeoutSecondsRaw === 'number' && Number.isFinite(timeoutSecondsRaw) && timeoutSecondsRaw > 0
+            typeof timeoutSecondsRaw === 'number' &&
+            Number.isFinite(timeoutSecondsRaw) &&
+            timeoutSecondsRaw > 0
               ? Math.floor(timeoutSecondsRaw)
-              : 300
+              : 300;
 
-          const childRuntimeInputsRaw = mergedParams.childRuntimeInputs
+          const childRuntimeInputsRaw = mergedParams.childRuntimeInputs;
           const childRuntimeInputs = Array.isArray(childRuntimeInputsRaw)
             ? childRuntimeInputsRaw
-            : []
+            : [];
           const childInputIds = childRuntimeInputs
             .map((entry) => {
               if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-                return undefined
+                return undefined;
               }
-              const id = (entry as Record<string, unknown>).id
-              return typeof id === 'string' ? id : undefined
+              const id = (entry as Record<string, unknown>).id;
+              return typeof id === 'string' ? id : undefined;
             })
             .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-            .map((id) => id.trim())
+            .map((id) => id.trim());
 
           const reservedIds = new Set([
             'workflowId',
@@ -281,15 +299,15 @@ export async function shipsecWorkflowRun(
             'timeoutSeconds',
             'childRuntimeInputs',
             'childWorkflowName',
-          ])
+          ]);
 
-          const childInputs: Record<string, unknown> = {}
+          const childInputs: Record<string, unknown> = {};
           for (const id of childInputIds) {
-            if (reservedIds.has(id)) continue
-            childInputs[id] = mergedInputs[id]
+            if (reservedIds.has(id)) continue;
+            childInputs[id] = mergedInputs[id];
           }
 
-          const childRunId = `shipsec-run-${uuid4()}`
+          const childRunId = `shipsec-run-${uuid4()}`;
 
           await recordTraceEventActivity({
             type: 'NODE_STARTED',
@@ -301,9 +319,9 @@ export async function shipsecWorkflowRun(
               activityId: 'workflow-orchestration',
               childRunId,
             },
-          })
+          });
 
-          let prepared: PreparedRunPayload
+          let prepared: PreparedRunPayload;
           try {
             prepared = await prepareRunPayloadActivity({
               workflowId: childWorkflowId,
@@ -318,9 +336,9 @@ export async function shipsecWorkflowRun(
               runId: childRunId,
               parentRunId: input.runId,
               parentNodeRef: action.ref,
-            })
+            });
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error)
+            const message = error instanceof Error ? error.message : String(error);
             await recordTraceEventActivity({
               type: 'NODE_FAILED',
               runId: input.runId,
@@ -337,8 +355,8 @@ export async function shipsecWorkflowRun(
                 activityId: 'workflow-orchestration',
                 childRunId,
               },
-            })
-            throw error
+            });
+            throw error;
           }
 
           const child = await startChild(shipsecWorkflowRun, {
@@ -358,20 +376,22 @@ export async function shipsecWorkflowRun(
               },
             ],
             workflowId: prepared.runId,
-          })
+          });
 
-          const timeoutMs = timeoutSeconds * 1000
-          let outcome: { kind: 'result'; result: Awaited<ReturnType<typeof child.result>> } | { kind: 'timeout' }
+          const timeoutMs = timeoutSeconds * 1000;
+          let outcome:
+            | { kind: 'result'; result: Awaited<ReturnType<typeof child.result>> }
+            | { kind: 'timeout' };
           try {
             outcome = await Promise.race([
               child.result().then((result) => ({ kind: 'result' as const, result })),
               sleep(timeoutMs).then(() => ({ kind: 'timeout' as const })),
-            ])
+            ]);
           } catch (childError) {
             // child.result() rejects when the child workflow throws (shipsecWorkflowRun
             // always throws on failure rather than returning { success: false }).
             // Record NODE_FAILED so the UI shows the node as failed instead of stuck running.
-            const message = childError instanceof Error ? childError.message : String(childError)
+            const message = childError instanceof Error ? childError.message : String(childError);
             await recordTraceEventActivity({
               type: 'NODE_FAILED',
               runId: input.runId,
@@ -388,13 +408,13 @@ export async function shipsecWorkflowRun(
                 activityId: 'workflow-orchestration',
                 childRunId,
               },
-            })
-            throw childError
+            });
+            throw childError;
           }
 
           if (outcome.kind === 'timeout') {
-            const externalHandle = getExternalWorkflowHandle(child.workflowId)
-            await externalHandle.cancel()
+            const externalHandle = getExternalWorkflowHandle(child.workflowId);
+            await externalHandle.cancel();
 
             await recordTraceEventActivity({
               type: 'NODE_FAILED',
@@ -412,18 +432,18 @@ export async function shipsecWorkflowRun(
                 activityId: 'workflow-orchestration',
                 childRunId,
               },
-            })
+            });
 
             throw ApplicationFailure.nonRetryable(
               `Sub-workflow timed out after ${timeoutSeconds}s`,
               'TimeoutError',
               [{ runId: input.runId, nodeRef: action.ref, childRunId, timeoutSeconds }],
-            )
+            );
           }
 
-          const childResult = outcome.result
+          const childResult = outcome.result;
           if (!childResult.success) {
-            const message = childResult.error ?? 'Sub-workflow failed'
+            const message = childResult.error ?? 'Sub-workflow failed';
 
             await recordTraceEventActivity({
               type: 'NODE_FAILED',
@@ -441,21 +461,19 @@ export async function shipsecWorkflowRun(
                 activityId: 'workflow-orchestration',
                 childRunId,
               },
-            })
+            });
 
-            throw ApplicationFailure.nonRetryable(
-              message,
-              'SubWorkflowFailure',
-              [{ runId: input.runId, nodeRef: action.ref, childRunId }],
-            )
+            throw ApplicationFailure.nonRetryable(message, 'SubWorkflowFailure', [
+              { runId: input.runId, nodeRef: action.ref, childRunId },
+            ]);
           }
 
           const nodeOutput = {
             result: childResult.outputs,
             childRunId,
-          }
+          };
 
-          results.set(action.ref, nodeOutput)
+          results.set(action.ref, nodeOutput);
 
           await recordTraceEventActivity({
             type: 'NODE_COMPLETED',
@@ -468,9 +486,9 @@ export async function shipsecWorkflowRun(
               activityId: 'workflow-orchestration',
               childRunId,
             },
-          })
+          });
 
-          return {}
+          return {};
         }
 
         const nodeMetadata = input.definition.nodes?.[action.ref];
@@ -502,7 +520,9 @@ export async function shipsecWorkflowRun(
         const retryOptions = mapRetryPolicy(action.retryPolicy);
 
         const { runComponentActivity: runComponentWithRetry } = proxyActivities<{
-          runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
+          runComponentActivity(
+            input: RunComponentActivityInput,
+          ): Promise<RunComponentActivityOutput>;
         }>({
           startToCloseTimeout: '10 minutes',
           retry: retryOptions,
@@ -512,10 +532,12 @@ export async function shipsecWorkflowRun(
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
         if (isApprovalPending(output.output)) {
-          console.log(`[Workflow] Pending human input detected at ${action.ref} (type=${(output.output as any).inputType ?? 'approval'})`);
+          console.log(
+            `[Workflow] Pending human input detected at ${action.ref} (type=${(output.output as any).inputType ?? 'approval'})`,
+          );
 
           const pendingData = output.output as any;
-          
+
           // Create the human input request in the database
           const approvalResult = await createHumanInputRequestActivity({
             runId: input.runId,
@@ -524,13 +546,24 @@ export async function shipsecWorkflowRun(
             inputType: pendingData.inputType ?? 'approval',
             title: pendingData.title,
             description: pendingData.description,
-            context: pendingData.contextData ?? (mergedParams.data ? { data: mergedParams.data } : undefined),
-            inputSchema: pendingData.inputSchema ?? (pendingData.options ? { options: pendingData.options, multiple: pendingData.multiple } : undefined) ?? (pendingData.schema ? { schema: pendingData.schema } : undefined),
-            timeoutMs: pendingData.timeoutAt ? new Date(pendingData.timeoutAt).getTime() - Date.now() : undefined,
+            context:
+              pendingData.contextData ??
+              (mergedParams.data ? { data: mergedParams.data } : undefined),
+            inputSchema:
+              pendingData.inputSchema ??
+              (pendingData.options
+                ? { options: pendingData.options, multiple: pendingData.multiple }
+                : undefined) ??
+              (pendingData.schema ? { schema: pendingData.schema } : undefined),
+            timeoutMs: pendingData.timeoutAt
+              ? new Date(pendingData.timeoutAt).getTime() - Date.now()
+              : undefined,
             organizationId: input.organizationId ?? null,
           });
 
-          console.log(`[Workflow] Created human input request ${approvalResult.requestId} for ${action.ref}`);
+          console.log(
+            `[Workflow] Created human input request ${approvalResult.requestId} for ${action.ref}`,
+          );
 
           // Check if we already have a resolution (signal arrived before we started waiting)
           let resolution = humanInputResolutions.get(action.ref);
@@ -538,9 +571,9 @@ export async function shipsecWorkflowRun(
           if (!resolution) {
             // Wait for the human input signal
             console.log(`[Workflow] Waiting for human input signal for ${action.ref}...`);
-            
+
             // Calculate timeout duration
-            const timeoutMs = pendingData.timeoutAt 
+            const timeoutMs = pendingData.timeoutAt
               ? Math.max(0, new Date(pendingData.timeoutAt).getTime() - Date.now())
               : undefined;
 
@@ -549,7 +582,7 @@ export async function shipsecWorkflowRun(
             if (timeoutMs !== undefined) {
               signalReceived = await condition(
                 () => humanInputResolutions.has(action.ref),
-                timeoutMs
+                timeoutMs,
               );
             } else {
               // No timeout - wait indefinitely
@@ -571,7 +604,9 @@ export async function shipsecWorkflowRun(
             resolution = humanInputResolutions.get(action.ref)!;
           }
 
-          console.log(`[Workflow] Human input resolved for ${action.ref}: approved=${resolution.approved}`);
+          console.log(
+            `[Workflow] Human input resolved for ${action.ref}: approved=${resolution.approved}`,
+          );
 
           // Store the final result (merging in responseData for dynamic ports)
           // Include both 'approved' and 'rejected' fields so downstream nodes can consume either port's data
@@ -586,42 +621,37 @@ export async function shipsecWorkflowRun(
           });
 
           // Determine active ports based on resolution
-          const activePorts: string[] = [
-            'respondedBy',
-            'responseNote',
-            'respondedAt',
-            'requestId'
-          ];
+          const activePorts: string[] = ['respondedBy', 'responseNote', 'respondedAt', 'requestId'];
 
           const inputType = (pendingData.inputType ?? 'approval') as string;
-          
+
           if (inputType === 'approval' || inputType === 'review') {
-             // Standard approval gating
-             activePorts.push(resolution.approved ? 'approved' : 'rejected');
+            // Standard approval gating
+            activePorts.push(resolution.approved ? 'approved' : 'rejected');
           } else if (inputType === 'selection') {
-             // Activate ports for selected options
-             const selection = (resolution.responseData as any)?.selection;
-             if (selection !== undefined && selection !== null) {
-                activePorts.push('selection');
-                if (Array.isArray(selection)) {
-                  selection.forEach((val: string) => activePorts.push(`option:${val}`));
-                } else if (typeof selection === 'string') {
-                  activePorts.push(`option:${selection}`);
-                }
-             }
-             
-             if (resolution.approved) {
-                activePorts.push('approved');
-             } else {
-                activePorts.push('rejected');
-             }
+            // Activate ports for selected options
+            const selection = (resolution.responseData as any)?.selection;
+            if (selection !== undefined && selection !== null) {
+              activePorts.push('selection');
+              if (Array.isArray(selection)) {
+                selection.forEach((val: string) => activePorts.push(`option:${val}`));
+              } else if (typeof selection === 'string') {
+                activePorts.push(`option:${selection}`);
+              }
+            }
+
+            if (resolution.approved) {
+              activePorts.push('approved');
+            } else {
+              activePorts.push('rejected');
+            }
           } else {
-             // Fallback for form/acknowledge
-             if (resolution.approved) {
-                activePorts.push('approved');
-             } else {
-                activePorts.push('rejected');
-             }
+            // Fallback for form/acknowledge
+            if (resolution.approved) {
+              activePorts.push('approved');
+            } else {
+              activePorts.push('rejected');
+            }
           }
 
           // Explicitly mark the node as completed via trace (since we suppressed it earlier)
@@ -634,8 +664,8 @@ export async function shipsecWorkflowRun(
             data: { activatedPorts: activePorts },
             level: 'info',
             context: {
-                activityId: 'workflow-orchestration',
-            }
+              activityId: 'workflow-orchestration',
+            },
           });
 
           // Return active ports to scheduler for conditional execution
@@ -643,7 +673,7 @@ export async function shipsecWorkflowRun(
         } else {
           // Normal component - just store the result
           results.set(action.ref, output.output);
-          
+
           // Return any active ports returned by the component activity
           return { activePorts: output.activeOutputPorts };
         }
@@ -652,7 +682,7 @@ export async function shipsecWorkflowRun(
 
     // Check if any component returned a failure status
     const outputs = Object.fromEntries(results);
-    const failedComponents: Array<{ ref: string; error: string }> = [];
+    const failedComponents: { ref: string; error: string }[] = [];
 
     for (const [ref, output] of results.entries()) {
       if (isComponentFailure(output)) {
@@ -669,11 +699,9 @@ export async function shipsecWorkflowRun(
 
       console.error(`[Workflow] ${errorMessage}`);
 
-      throw ApplicationFailure.nonRetryable(
-        errorMessage,
-        'ComponentFailure',
-        [{ outputs, failedComponents }],
-      );
+      throw ApplicationFailure.nonRetryable(errorMessage, 'ComponentFailure', [
+        { outputs, failedComponents },
+      ]);
     }
 
     return {
@@ -683,7 +711,9 @@ export async function shipsecWorkflowRun(
   } catch (error) {
     const outputs = Object.fromEntries(results);
     const normalizedError =
-      error instanceof Error ? error : new Error(typeof error === 'string' ? error : JSON.stringify(error));
+      error instanceof Error
+        ? error
+        : new Error(typeof error === 'string' ? error : JSON.stringify(error));
 
     throw ApplicationFailure.nonRetryable(
       normalizedError.message,
@@ -744,7 +774,10 @@ export interface ScheduleTriggerWorkflowInput {
   scheduleId?: string;
   scheduleName?: string | null;
   runtimeInputs?: Record<string, unknown>;
-  nodeOverrides?: Record<string, { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }>;
+  nodeOverrides?: Record<
+    string,
+    { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+  >;
   trigger?: ExecutionTriggerMetadata;
 }
 

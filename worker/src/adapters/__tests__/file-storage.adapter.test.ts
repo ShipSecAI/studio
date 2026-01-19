@@ -28,8 +28,8 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
     });
 
     // Initialize PostgreSQL connection
-    const connectionString = process.env.DATABASE_URL || 
-      'postgresql://shipsec:shipsec@localhost:5433/shipsec';
+    const connectionString =
+      process.env.DATABASE_URL || 'postgresql://shipsec:shipsec@localhost:5433/shipsec';
     pool = new Pool({ connectionString });
     db = drizzle(pool, { schema });
 
@@ -70,13 +70,9 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
       const storageKey = `test-${fileId}.txt`;
 
       // Upload file to MinIO
-      await minioClient.putObject(
-        bucketName,
-        storageKey,
-        Buffer.from(content),
-        content.length,
-        { 'Content-Type': 'text/plain' }
-      );
+      await minioClient.putObject(bucketName, storageKey, Buffer.from(content), content.length, {
+        'Content-Type': 'text/plain',
+      });
 
       // Insert metadata into database
       await db.insert(schema.files).values({
@@ -107,13 +103,9 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
       const storageKey = `test-${fileId}.png`;
 
       // Upload binary file to MinIO
-      await minioClient.putObject(
-        bucketName,
-        storageKey,
-        binaryData,
-        binaryData.length,
-        { 'Content-Type': 'image/png' }
-      );
+      await minioClient.putObject(bucketName, storageKey, binaryData, binaryData.length, {
+        'Content-Type': 'image/png',
+      });
 
       // Insert metadata into database
       await db.insert(schema.files).values({
@@ -139,7 +131,7 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
       const nonExistentId = randomUUID();
 
       await expect(adapter.downloadFile(nonExistentId)).rejects.toThrow(
-        `File not found: ${nonExistentId}`
+        `File not found: ${nonExistentId}`,
       );
     });
 
@@ -168,13 +160,9 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
       const storageKey = `test-${fileId}.bin`;
 
       // Upload large file
-      await minioClient.putObject(
-        bucketName,
-        storageKey,
-        largeData,
-        largeData.length,
-        { 'Content-Type': 'application/octet-stream' }
-      );
+      await minioClient.putObject(bucketName, storageKey, largeData, largeData.length, {
+        'Content-Type': 'application/octet-stream',
+      });
 
       // Insert metadata
       await db.insert(schema.files).values({
@@ -227,7 +215,7 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
       const nonExistentId = randomUUID();
 
       await expect(adapter.getFileMetadata(nonExistentId)).rejects.toThrow(
-        `File not found: ${nonExistentId}`
+        `File not found: ${nonExistentId}`,
       );
     });
   });
@@ -243,10 +231,7 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
       await adapter.uploadFile(fileId, fileName, initialContent, mimeType);
       await adapter.uploadFile(fileId, fileName, updatedContent, mimeType);
 
-      const [record] = await db
-        .select()
-        .from(schema.files)
-        .where(eq(schema.files.id, fileId));
+      const [record] = await db.select().from(schema.files).where(eq(schema.files.id, fileId));
 
       expect(record).toBeTruthy();
       expect(record?.fileName).toBe(fileName);
@@ -281,7 +266,7 @@ fileStorageDescribe('FileStorageAdapter (Integration)', () => {
       });
 
       const downloadResult = await adapter.downloadFile(fileId);
-      
+
       // Verify downloadFile return type
       expect(downloadResult).toHaveProperty('buffer');
       expect(downloadResult).toHaveProperty('metadata');

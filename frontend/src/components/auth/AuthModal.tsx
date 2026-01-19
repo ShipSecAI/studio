@@ -44,7 +44,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={mode} onValueChange={(value) => handleModeChange(value as 'signin' | 'signup')}>
+        <Tabs
+          value={mode}
+          onValueChange={(value) => handleModeChange(value as 'signin' | 'signup')}
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="signin">Sign In</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -60,7 +63,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     Sign in is not available with the current auth provider
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Provider: <code className="bg-muted px-2 py-1 rounded">{authProvider.name}</code>
+                    Provider:{' '}
+                    <code className="bg-muted px-2 py-1 rounded">{authProvider.name}</code>
                   </p>
                 </div>
               )}
@@ -77,7 +81,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     Sign up is not available with the current auth provider
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Provider: <code className="bg-muted px-2 py-1 rounded">{authProvider.name}</code>
+                    Provider:{' '}
+                    <code className="bg-muted px-2 py-1 rounded">{authProvider.name}</code>
                   </p>
                 </div>
               )}
@@ -97,31 +102,3 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     </Dialog>
   );
 };
-
-// Hook to manage auth modal state
-export function useAuthModal() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-
-  const openSignIn = () => {
-    setMode('signin');
-    setIsOpen(true);
-  };
-
-  const openSignUp = () => {
-    setMode('signup');
-    setIsOpen(true);
-  };
-
-  const close = () => {
-    setIsOpen(false);
-  };
-
-  return {
-    isOpen,
-    mode,
-    openSignIn,
-    openSignUp,
-    close,
-  };
-}

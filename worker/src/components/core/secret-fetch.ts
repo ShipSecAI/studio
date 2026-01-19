@@ -27,19 +27,11 @@ const parameterSchema = parameters({
       description: 'Name or UUID of the secret from the platform store.',
     },
   ),
-  version: param(
-    z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe('Optional version override'),
-    {
-      label: 'Version',
-      editor: 'number',
-      description: 'Optional version pin. Defaults to the active version.',
-    },
-  ),
+  version: param(z.number().int().positive().optional().describe('Optional version override'), {
+    label: 'Version',
+    editor: 'number',
+    description: 'Optional version pin. Defaults to the active version.',
+  }),
   outputFormat: param(
     z.enum(['raw', 'json']).default('raw').describe('Format for the secret value'),
     {
@@ -53,15 +45,6 @@ const parameterSchema = parameters({
     },
   ),
 });
-
-type Output = {
-  secret: unknown;
-  metadata: {
-    secretId: string;
-    version: number;
-    format: 'raw' | 'json';
-  };
-};
 
 const outputSchema = outputs({
   secret: port(z.unknown(), {
@@ -111,10 +94,13 @@ const definition = defineComponent({
     });
 
     if (!resolved) {
-      throw new NotFoundError('Secret value unavailable. Verify the secret mapping and active version.', {
-        resourceType: 'Secret',
-        resourceId: params.secretId,
-      });
+      throw new NotFoundError(
+        'Secret value unavailable. Verify the secret mapping and active version.',
+        {
+          resourceType: 'Secret',
+          resourceId: params.secretId,
+        },
+      );
     }
 
     const format = params.outputFormat ?? 'raw';
@@ -124,14 +110,19 @@ const definition = defineComponent({
       try {
         secretOutput = JSON.parse(resolved.value);
       } catch (error) {
-        throw new ValidationError(`Failed to parse secret value as JSON: ${(error as Error).message}`, {
-          cause: error as Error,
-          fieldErrors: { outputFormat: ['Invalid JSON in secret value'] },
-        });
+        throw new ValidationError(
+          `Failed to parse secret value as JSON: ${(error as Error).message}`,
+          {
+            cause: error as Error,
+            fieldErrors: { outputFormat: ['Invalid JSON in secret value'] },
+          },
+        );
       }
     }
 
-    context.logger.info(`[SecretFetch] Retrieved secret ${params.secretId} (version ${resolved.version}).`);
+    context.logger.info(
+      `[SecretFetch] Retrieved secret ${params.secretId} (version ${resolved.version}).`,
+    );
 
     return {
       secret: secretOutput,
@@ -142,7 +133,6 @@ const definition = defineComponent({
       },
     };
   },
-
 });
 
 componentRegistry.register(definition);

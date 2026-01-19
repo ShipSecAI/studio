@@ -32,40 +32,49 @@ const inputSchema = inputs({
 });
 
 const parameterSchema = parameters({
-  method: param(z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']).default('GET'), {
-    label: 'HTTP Method',
-    editor: 'select',
-    options: [
-      { label: 'GET', value: 'GET' },
-      { label: 'POST', value: 'POST' },
-      { label: 'PUT', value: 'PUT' },
-      { label: 'PATCH', value: 'PATCH' },
-      { label: 'DELETE', value: 'DELETE' },
-      { label: 'HEAD', value: 'HEAD' },
-      { label: 'OPTIONS', value: 'OPTIONS' },
-    ],
-  }),
-  contentType: param(z.string().default('application/json').describe('Content-Type header shorthand'), {
-    label: 'Content Type',
-    editor: 'select',
-    options: [
-      { label: 'JSON (application/json)', value: 'application/json' },
-      { label: 'Form URL Encoded', value: 'application/x-www-form-urlencoded' },
-      { label: 'Text/Plain', value: 'text/plain' },
-      { label: 'Custom', value: 'custom' },
-    ],
-    description: 'Sets the Content-Type header automatically.',
-  }),
-  authType: param(z.enum(['none', 'bearer', 'basic', 'custom']).default('none').describe('Authentication method'), {
-    label: 'Authentication',
-    editor: 'select',
-    options: [
-      { label: 'None', value: 'none' },
-      { label: 'Bearer Token', value: 'bearer' },
-      { label: 'Basic Auth', value: 'basic' },
-      { label: 'Custom Header', value: 'custom' },
-    ],
-  }),
+  method: param(
+    z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']).default('GET'),
+    {
+      label: 'HTTP Method',
+      editor: 'select',
+      options: [
+        { label: 'GET', value: 'GET' },
+        { label: 'POST', value: 'POST' },
+        { label: 'PUT', value: 'PUT' },
+        { label: 'PATCH', value: 'PATCH' },
+        { label: 'DELETE', value: 'DELETE' },
+        { label: 'HEAD', value: 'HEAD' },
+        { label: 'OPTIONS', value: 'OPTIONS' },
+      ],
+    },
+  ),
+  contentType: param(
+    z.string().default('application/json').describe('Content-Type header shorthand'),
+    {
+      label: 'Content Type',
+      editor: 'select',
+      options: [
+        { label: 'JSON (application/json)', value: 'application/json' },
+        { label: 'Form URL Encoded', value: 'application/x-www-form-urlencoded' },
+        { label: 'Text/Plain', value: 'text/plain' },
+        { label: 'Custom', value: 'custom' },
+      ],
+      description: 'Sets the Content-Type header automatically.',
+    },
+  ),
+  authType: param(
+    z.enum(['none', 'bearer', 'basic', 'custom']).default('none').describe('Authentication method'),
+    {
+      label: 'Authentication',
+      editor: 'select',
+      options: [
+        { label: 'None', value: 'none' },
+        { label: 'Bearer Token', value: 'bearer' },
+        { label: 'Basic Auth', value: 'basic' },
+        { label: 'Custom Header', value: 'custom' },
+      ],
+    },
+  ),
   timeout: param(z.number().int().positive().default(30000).describe('Timeout in milliseconds'), {
     label: 'Timeout (ms)',
     editor: 'number',
@@ -75,7 +84,8 @@ const parameterSchema = parameters({
   failOnError: param(z.boolean().default(true).describe('Throw error on 4xx/5xx responses'), {
     label: 'Fail on Error',
     editor: 'boolean',
-    description: 'If true, workflow stops on 4xx/5xx errors. If false, returns status code for manual handling.',
+    description:
+      'If true, workflow stops on 4xx/5xx errors. If false, returns status code for manual handling.',
   }),
 });
 
@@ -208,13 +218,9 @@ const definition = defineComponent({
     const { url, body, headers = {} } = inputs;
     const dynamicInputs = inputs as Record<string, unknown>;
     const authHeaderNameValue =
-      typeof dynamicInputs.authHeaderName === 'string'
-        ? dynamicInputs.authHeaderName
-        : undefined;
+      typeof dynamicInputs.authHeaderName === 'string' ? dynamicInputs.authHeaderName : undefined;
     const authHeaderValueValue =
-      typeof dynamicInputs.authHeaderValue === 'string'
-        ? dynamicInputs.authHeaderValue
-        : undefined;
+      typeof dynamicInputs.authHeaderValue === 'string' ? dynamicInputs.authHeaderValue : undefined;
 
     context.logger.info(`[HTTP] ${method} ${url}`);
 
@@ -226,14 +232,9 @@ const definition = defineComponent({
 
     // Handle Auth
     if (authType === 'bearer' && dynamicInputs.bearerToken) {
-      finalHeaders.set(
-        'Authorization',
-        `Bearer ${dynamicInputs.bearerToken}`,
-      );
+      finalHeaders.set('Authorization', `Bearer ${dynamicInputs.bearerToken}`);
     } else if (authType === 'basic' && dynamicInputs.username && dynamicInputs.password) {
-      const b64 = btoa(
-        `${dynamicInputs.username}:${dynamicInputs.password}`,
-      );
+      const b64 = btoa(`${dynamicInputs.username}:${dynamicInputs.password}`);
       finalHeaders.set('Authorization', `Basic ${b64}`);
     } else if (authType === 'custom' && authHeaderNameValue && authHeaderValueValue) {
       finalHeaders.set(authHeaderNameValue, authHeaderValueValue);
@@ -249,12 +250,16 @@ const definition = defineComponent({
         ? Array.from(new Set([...DEFAULT_SENSITIVE_HEADERS, authHeaderNameValue]))
         : DEFAULT_SENSITIVE_HEADERS;
 
-      const response = await context.http.fetch(url, {
-        method: method,
-        headers: finalHeaders,
-        body: method !== 'GET' && method !== 'HEAD' ? body : undefined,
-        signal: controller.signal,
-      }, { sensitiveHeaders });
+      const response = await context.http.fetch(
+        url,
+        {
+          method: method,
+          headers: finalHeaders,
+          body: method !== 'GET' && method !== 'HEAD' ? body : undefined,
+          signal: controller.signal,
+        },
+        { sensitiveHeaders },
+      );
 
       clearTimeout(timeoutId);
 
@@ -263,7 +268,12 @@ const definition = defineComponent({
 
       // Try parsing JSON
       try {
-        if (rawText && (response.headers.get('content-type')?.includes('application/json') || rawText.startsWith('{') || rawText.startsWith('['))) {
+        if (
+          rawText &&
+          (response.headers.get('content-type')?.includes('application/json') ||
+            rawText.startsWith('{') ||
+            rawText.startsWith('['))
+        ) {
           parsedData = JSON.parse(rawText);
         }
       } catch {
@@ -288,15 +298,12 @@ const definition = defineComponent({
         headers: responseHeaders,
         rawBody: rawText,
       };
-
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
-        throw new TimeoutError(
-          `HTTP request timed out after ${timeout}ms`,
-          timeout,
-          { details: { url, method } }
-        );
+        throw new TimeoutError(`HTTP request timed out after ${timeout}ms`, timeout, {
+          details: { url, method },
+        });
       }
       // Wrap network errors appropriately
       if (

@@ -9,7 +9,7 @@ import { Connection, Client } from '@temporalio/client';
 import type { WorkflowDefinition } from '../src/temporal/types';
 import { shipsecWorkflowRun } from '../src/temporal/workflows';
 
-type ListEntry = {
+interface ListEntry {
   workflowId: string;
   runId: string;
   status: string;
@@ -18,7 +18,7 @@ type ListEntry = {
   inputs?: Record<string, unknown>;
   result?: unknown;
   error?: string;
-};
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -110,11 +110,17 @@ async function listRuns(
     const { workflowExecutionStartedEventAttributes } = startedEvent;
     const payloads = workflowExecutionStartedEventAttributes.input?.payloads ?? [];
     const args = await Promise.all(
-      payloads.map((payload) => client.options.loadedDataConverter.payloadConverter.fromPayload(payload)),
+      payloads.map((payload) =>
+        client.options.loadedDataConverter.payloadConverter.fromPayload(payload),
+      ),
     );
     const firstArg = args[0];
 
-    if (!firstArg || typeof firstArg !== 'object' || (firstArg as any).workflowId !== workflowRecordId) {
+    if (
+      !firstArg ||
+      typeof firstArg !== 'object' ||
+      (firstArg as any).workflowId !== workflowRecordId
+    ) {
       continue;
     }
 

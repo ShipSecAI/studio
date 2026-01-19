@@ -1,9 +1,9 @@
-import { describe, it, beforeEach, afterEach, expect } from 'bun:test'
-import { render, screen, cleanup } from '@testing-library/react'
-import { ReactFlowProvider } from 'reactflow'
-import { MemoryRouter } from 'react-router-dom'
-import { WorkflowNode } from '../WorkflowNode'
-import { useComponentStore } from '@/store/componentStore'
+import { describe, it, beforeEach, afterEach, expect } from 'bun:test';
+import { render, screen, cleanup } from '@testing-library/react';
+import { ReactFlowProvider } from 'reactflow';
+import { MemoryRouter } from 'react-router-dom';
+import { WorkflowNode } from '../WorkflowNode';
+import { useComponentStore } from '@/store/componentStore';
 
 const noopStorage = {
   getItem: () => null,
@@ -12,13 +12,13 @@ const noopStorage = {
   clear: () => {},
   key: () => null,
   length: 0,
-}
+};
 
 if (typeof globalThis.localStorage === 'undefined') {
   Object.defineProperty(globalThis, 'localStorage', {
     value: noopStorage,
     writable: true,
-  })
+  });
 }
 
 if (typeof globalThis.ResizeObserver === 'undefined') {
@@ -29,7 +29,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   }
   Object.defineProperty(globalThis, 'ResizeObserver', {
     value: ResizeObserverStub,
-  })
+  });
 }
 
 const textBlockMetadata = {
@@ -74,7 +74,7 @@ const textBlockMetadata = {
     },
   ],
   examples: [],
-}
+};
 
 describe('WorkflowNode – text block rendering', () => {
   beforeEach(() => {
@@ -83,12 +83,12 @@ describe('WorkflowNode – text block rendering', () => {
       slugIndex: { 'text-block': 'core.ui.text' },
       loading: false,
       error: null,
-    })
-  })
+    });
+  });
 
   afterEach(() => {
-    cleanup()
-  })
+    cleanup();
+  });
 
   it('renders configured content inside the node body', () => {
     const nodeData = {
@@ -104,7 +104,7 @@ describe('WorkflowNode – text block rendering', () => {
       componentVersion: '1.0.0',
       inputs: {},
       status: 'idle',
-    }
+    };
 
     render(
       <MemoryRouter>
@@ -121,14 +121,14 @@ describe('WorkflowNode – text block rendering', () => {
             dragging={false}
           />
         </ReactFlowProvider>
-      </MemoryRouter>
-    )
+      </MemoryRouter>,
+    );
 
-    expect(screen.getByText('Text')).toBeInTheDocument()
+    expect(screen.getByText('Text')).toBeInTheDocument();
     expect(screen.getByTestId('text-block-content')).toHaveTextContent(
-      'Review the execution summary before approval.'
-    )
-  })
+      'Review the execution summary before approval.',
+    );
+  });
 
   it('falls back to helper text when no content is provided', () => {
     const nodeData = {
@@ -144,7 +144,7 @@ describe('WorkflowNode – text block rendering', () => {
       componentVersion: '1.0.0',
       inputs: {},
       status: 'idle',
-    }
+    };
 
     render(
       <MemoryRouter>
@@ -161,12 +161,12 @@ describe('WorkflowNode – text block rendering', () => {
             dragging={false}
           />
         </ReactFlowProvider>
-      </MemoryRouter>
-    )
+      </MemoryRouter>,
+    );
 
-    expect(screen.getByText('Text')).toBeInTheDocument()
+    expect(screen.getByText('Text')).toBeInTheDocument();
     expect(screen.getByTestId('text-block-content')).toHaveTextContent(
-      'Add notes in the configuration panel to share context with teammates.'
-    )
-  })
-})
+      'Add notes in the configuration panel to share context with teammates.',
+    );
+  });
+});

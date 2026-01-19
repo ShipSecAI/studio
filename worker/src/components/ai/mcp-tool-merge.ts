@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { componentRegistry, defineComponent, inputs, outputs, parameters, port, param, withPortMeta } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+  withPortMeta,
+} from '@shipsec/component-sdk';
 import { McpToolDefinitionSchema } from '@shipsec/contracts';
 
 const inputSchema = inputs({});
@@ -89,13 +98,17 @@ const definition = defineComponent({
     }
 
     const tools = Object.values(merged);
-    context.logger.info(`[McpToolMerge] Merged ${tools.length} MCP tool${tools.length === 1 ? '' : 's'}.`);
+    context.logger.info(
+      `[McpToolMerge] Merged ${tools.length} MCP tool${tools.length === 1 ? '' : 's'}.`,
+    );
 
     return { tools };
   },
 });
 
-function normalizeSlots(slotsInput: z.infer<typeof parameterSchema>['slots']): Array<{ id: string; label: string }> {
+function normalizeSlots(
+  slotsInput: z.infer<typeof parameterSchema>['slots'],
+): { id: string; label: string }[] {
   const fallback = [
     { id: 'toolsA', label: 'Tools A' },
     { id: 'toolsB', label: 'Tools B' },

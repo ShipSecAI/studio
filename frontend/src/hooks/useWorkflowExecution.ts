@@ -1,13 +1,14 @@
-import { useExecutionStore } from '@/store/executionStore'
-import { useWorkflowStore } from '@/store/workflowStore'
+import { useExecutionStore } from '@/store/executionStore';
+import { useWorkflowStore } from '@/store/workflowStore';
 
 export function useWorkflowExecution(workflowId?: string | null) {
-  const { metadata } = useWorkflowStore()
-  const targetWorkflowId = workflowId ?? metadata.id
-  
-  const executionState = useExecutionStore()
-  const activeWorkflowId = executionState.workflowId ?? executionState.runStatus?.workflowId ?? null
-  const isCurrentExecution = activeWorkflowId === targetWorkflowId
+  const { metadata } = useWorkflowStore();
+  const targetWorkflowId = workflowId ?? metadata.id;
+
+  const executionState = useExecutionStore();
+  const activeWorkflowId =
+    executionState.workflowId ?? executionState.runStatus?.workflowId ?? null;
+  const isCurrentExecution = activeWorkflowId === targetWorkflowId;
 
   if (!isCurrentExecution) {
     return {
@@ -21,11 +22,11 @@ export function useWorkflowExecution(workflowId?: string | null) {
       startExecution: executionState.startExecution,
       stopExecution: executionState.stopExecution,
       reset: executionState.reset,
-    }
+    };
   }
 
   return {
     ...executionState,
     isCurrentExecution: true,
-  }
+  };
 }

@@ -1,12 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
 import { SecretsService } from '../secrets.service';
-import type {
-  SecretsRepository,
-  SecretSummary,
-  SecretUpdateData,
-  SecretValueRecord,
-} from '../secrets.repository';
+import type { SecretsRepository, SecretSummary, SecretValueRecord } from '../secrets.repository';
 import type { SecretsEncryptionService } from '../secrets.encryption';
 import type { AuthContext } from '../../auth/types';
 import { DEFAULT_ORGANIZATION_ID } from '../../auth/constants';

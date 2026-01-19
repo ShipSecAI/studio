@@ -1,265 +1,261 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { RunSelector } from '@/components/timeline/RunSelector'
-import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
-import { EventInspector } from '@/components/timeline/EventInspector'
-import { Button } from '@/components/ui/button'
-import { MessageModal } from '@/components/ui/MessageModal'
-import { StopCircle, RefreshCw, Link2, Globe } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { RunSelector } from '@/components/timeline/RunSelector';
+import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline';
+import { EventInspector } from '@/components/timeline/EventInspector';
+import { Button } from '@/components/ui/button';
+import { MessageModal } from '@/components/ui/MessageModal';
+import { StopCircle, RefreshCw, Link2, Globe } from 'lucide-react';
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  )
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
+  );
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint)
-    }
+      setIsMobile(window.innerWidth < breakpoint);
+    };
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [breakpoint])
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [breakpoint]);
 
-  return isMobile
+  return isMobile;
 }
-import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
-import { useExecutionStore } from '@/store/executionStore'
-import { useWorkflowExecution } from '@/hooks/useWorkflowExecution'
-import { useWorkflowUiStore } from '@/store/workflowUiStore'
-import { useWorkflowStore } from '@/store/workflowStore'
-import { useArtifactStore } from '@/store/artifactStore'
-import { useToast } from '@/components/ui/use-toast'
-import { useRunStore } from '@/store/runStore'
-import { cn } from '@/lib/utils'
-import type { ExecutionLog } from '@/schemas/execution'
-import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel'
-import { AgentTracePanel } from '@/components/timeline/AgentTracePanel'
-import { NodeIOInspector } from '@/components/timeline/NodeIOInspector'
-import { NetworkPanel } from '@/components/timeline/NetworkPanel'
-import { getTriggerDisplay } from '@/utils/triggerDisplay'
-import { RunInfoDisplay } from '@/components/timeline/RunInfoDisplay'
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
+import { useExecutionStore } from '@/store/executionStore';
+import { useWorkflowExecution } from '@/hooks/useWorkflowExecution';
+import { useWorkflowUiStore } from '@/store/workflowUiStore';
+import { useWorkflowStore } from '@/store/workflowStore';
+import { useArtifactStore } from '@/store/artifactStore';
+import { useToast } from '@/components/ui/use-toast';
+import { useRunStore } from '@/store/runStore';
+import { cn } from '@/lib/utils';
+import type { ExecutionLog } from '@/schemas/execution';
+import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel';
+import { AgentTracePanel } from '@/components/timeline/AgentTracePanel';
+import { NodeIOInspector } from '@/components/timeline/NodeIOInspector';
+import { NetworkPanel } from '@/components/timeline/NetworkPanel';
+import { getTriggerDisplay } from '@/utils/triggerDisplay';
+import { RunInfoDisplay } from '@/components/timeline/RunInfoDisplay';
 
 const formatTime = (timestamp: string) => {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString()
-}
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString();
+};
 
 const formatStructured = (value: Record<string, unknown>) => {
   try {
-    return JSON.stringify(value, null, 2)
+    return JSON.stringify(value, null, 2);
   } catch (error) {
-    console.error('Failed to stringify structured log data', error)
-    return String(value)
+    console.error('Failed to stringify structured log data', error);
+    return String(value);
   }
-}
+};
 
 const buildLogMessage = (log: ExecutionLog): string => {
-  const sections: string[] = []
+  const sections: string[] = [];
 
-  const primaryMessage = (log.message ?? log.error?.message)?.trim()
-  sections.push(primaryMessage && primaryMessage.length > 0 ? primaryMessage : log.type)
+  const primaryMessage = (log.message ?? log.error?.message)?.trim();
+  sections.push(primaryMessage && primaryMessage.length > 0 ? primaryMessage : log.type);
 
   if (log.outputSummary && Object.keys(log.outputSummary).length > 0) {
-    sections.push(`Output summary:\n${formatStructured(log.outputSummary)}`)
+    sections.push(`Output summary:\n${formatStructured(log.outputSummary)}`);
   }
 
   if (log.data && Object.keys(log.data).length > 0) {
-    sections.push(`Data:\n${formatStructured(log.data)}`)
+    sections.push(`Data:\n${formatStructured(log.data)}`);
   }
 
   if (log.error?.stack?.trim()) {
-    sections.push(`Stack trace:\n${log.error.stack.trim()}`)
+    sections.push(`Stack trace:\n${log.error.stack.trim()}`);
   }
 
-  return sections.join('\n\n').trim()
-}
+  return sections.join('\n\n').trim();
+};
 
-const LOG_LEVEL_OPTIONS = ['all', 'error', 'warn', 'info', 'debug'] as const
-type LogLevelFilter = (typeof LOG_LEVEL_OPTIONS)[number]
+const LOG_LEVEL_OPTIONS = ['all', 'error', 'warn', 'info', 'debug'] as const;
+type LogLevelFilter = (typeof LOG_LEVEL_OPTIONS)[number];
 const LOG_LEVEL_LABELS: Record<LogLevelFilter, string> = {
   all: 'All',
   error: 'Error',
   warn: 'Warn',
   info: 'Info',
   debug: 'Debug',
-}
+};
 const LOG_LEVEL_TONES: Record<string, { text: string; accent: string }> = {
   error: { text: 'text-red-300', accent: 'border-red-400/60 bg-red-400/10' },
   warn: { text: 'text-amber-200', accent: 'border-amber-300/60 bg-amber-300/10' },
   info: { text: 'text-sky-200', accent: 'border-sky-300/60 bg-sky-300/10' },
   debug: { text: 'text-slate-300', accent: 'border-slate-300/60 bg-slate-200/10' },
   default: { text: 'text-slate-200', accent: 'border-slate-400/40 bg-slate-700/20' },
-}
+};
 const LOG_LEVEL_ORDER: Record<Exclude<LogLevelFilter, 'all'>, number> = {
   error: 0,
   warn: 1,
   info: 2,
   debug: 3,
-}
-const normalizeLevel = (level?: string | null) => (level ?? '').toLowerCase()
+};
+const normalizeLevel = (level?: string | null) => (level ?? '').toLowerCase();
 const getLogLevelTone = (level?: string | null) => {
-  const normalized = normalizeLevel(level)
-  return LOG_LEVEL_TONES[normalized] ?? LOG_LEVEL_TONES.default
-}
+  const normalized = normalizeLevel(level);
+  return LOG_LEVEL_TONES[normalized] ?? LOG_LEVEL_TONES.default;
+};
 
 interface ExecutionInspectorProps {
-  onRerunRun?: (runId: string) => void
+  onRerunRun?: (runId: string) => void;
 }
 
-const MIN_TIMELINE_HEIGHT = 10
-const MAX_TIMELINE_HEIGHT = 320
-const DEFAULT_TIMELINE_HEIGHT = 320
+const MIN_TIMELINE_HEIGHT = 10;
+const MAX_TIMELINE_HEIGHT = 320;
+const DEFAULT_TIMELINE_HEIGHT = 320;
 
 export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {}) {
-  const {
-    selectedRunId,
-    playbackMode,
-    isPlaying,
-  } = useExecutionTimelineStore()
+  const { selectedRunId, playbackMode, isPlaying } = useExecutionTimelineStore();
   const { id: workflowId, currentVersion: currentWorkflowVersion } = useWorkflowStore(
-    (state) => state.metadata
-  )
-  const workflowCacheKey = workflowId ?? '__global__'
-  const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs)
-  const runs = scopedRuns ?? []
-  const { status, runStatus, stopExecution, runId: liveRunId } = useWorkflowExecution()
-  const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
-  const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts)
-  const { getDisplayLogs, setLogMode } = useExecutionStore()
+    (state) => state.metadata,
+  );
+  const workflowCacheKey = workflowId ?? '__global__';
+  const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs);
+  const runs = scopedRuns ?? [];
+  const { status, runStatus, stopExecution, runId: liveRunId } = useWorkflowExecution();
+  const { inspectorTab, setInspectorTab } = useWorkflowUiStore();
+  const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts);
+  const { getDisplayLogs, setLogMode } = useExecutionStore();
   const [logModal, setLogModal] = useState<{ open: boolean; message: string; title: string }>({
     open: false,
     message: '',
     title: '',
-  })
-  const [logLevelFilter, setLogLevelFilter] = useState<LogLevelFilter>('all')
-  const [timelineHeight, setTimelineHeight] = useState(DEFAULT_TIMELINE_HEIGHT)
-  const isResizingTimeline = useRef(false)
-  const timelineRef = useRef<HTMLDivElement>(null)
-  const rawLogs = getDisplayLogs()
+  });
+  const [logLevelFilter, setLogLevelFilter] = useState<LogLevelFilter>('all');
+  const [timelineHeight, setTimelineHeight] = useState(DEFAULT_TIMELINE_HEIGHT);
+  const isResizingTimeline = useRef(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const rawLogs = getDisplayLogs();
 
   // Vertical resize handlers for timeline section
   const handleTimelineResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    isResizingTimeline.current = true
-    document.body.style.cursor = 'row-resize'
-    document.body.style.userSelect = 'none'
-  }, [])
+    e.preventDefault();
+    isResizingTimeline.current = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   useEffect(() => {
     const handleMove = (clientY: number) => {
-      if (!isResizingTimeline.current || !timelineRef.current) return
-      const rect = timelineRef.current.getBoundingClientRect()
-      const newHeight = clientY - rect.top
-      const clampedHeight = Math.min(MAX_TIMELINE_HEIGHT, Math.max(MIN_TIMELINE_HEIGHT, newHeight))
-      setTimelineHeight(clampedHeight)
-    }
+      if (!isResizingTimeline.current || !timelineRef.current) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const newHeight = clientY - rect.top;
+      const clampedHeight = Math.min(MAX_TIMELINE_HEIGHT, Math.max(MIN_TIMELINE_HEIGHT, newHeight));
+      setTimelineHeight(clampedHeight);
+    };
 
     const handleMouseMove = (e: MouseEvent) => {
-      handleMove(e.clientY)
-    }
+      handleMove(e.clientY);
+    };
 
     const handleTouchMove = (e: TouchEvent) => {
-      const touch = e.touches[0]
-      if (touch) handleMove(touch.clientY)
-    }
+      const touch = e.touches[0];
+      if (touch) handleMove(touch.clientY);
+    };
 
     const handleEnd = () => {
-      isResizingTimeline.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
+      isResizingTimeline.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
 
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleEnd)
-    document.addEventListener('touchmove', handleTouchMove)
-    document.addEventListener('touchend', handleEnd)
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleEnd);
+    document.addEventListener('touchmove', handleTouchMove);
+    document.addEventListener('touchend', handleEnd);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleEnd)
-      document.removeEventListener('touchmove', handleTouchMove)
-      document.removeEventListener('touchend', handleEnd)
-    }
-  }, [])
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleEnd);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleEnd);
+    };
+  }, []);
   const filteredLogs = useMemo(() => {
     if (logLevelFilter === 'all') {
-      return rawLogs
+      return rawLogs;
     }
-    const threshold = LOG_LEVEL_ORDER[logLevelFilter]
+    const threshold = LOG_LEVEL_ORDER[logLevelFilter];
     return rawLogs.filter((log) => {
-      const normalized = normalizeLevel(log.level)
-      const value = LOG_LEVEL_ORDER[normalized as keyof typeof LOG_LEVEL_ORDER] ?? LOG_LEVEL_ORDER.debug
-      return value <= threshold
-    })
-  }, [rawLogs, logLevelFilter])
-  const { toast } = useToast()
+      const normalized = normalizeLevel(log.level);
+      const value =
+        LOG_LEVEL_ORDER[normalized as keyof typeof LOG_LEVEL_ORDER] ?? LOG_LEVEL_ORDER.debug;
+      return value <= threshold;
+    });
+  }, [rawLogs, logLevelFilter]);
+  const { toast } = useToast();
 
   const selectedRun = useMemo(
     () => runs.find((run) => run.id === selectedRunId),
     [runs, selectedRunId],
-  )
+  );
   const triggerDisplay = selectedRun
     ? getTriggerDisplay(selectedRun.triggerType, selectedRun.triggerLabel)
-    : null
+    : null;
 
   const handleCopyLink = useCallback(async () => {
-    if (!selectedRun) return
-    const basePath = `/workflows/${selectedRun.workflowId}/runs/${selectedRun.id}`
-    const absoluteUrl = typeof window !== 'undefined' ? `${window.location.origin}${basePath}` : basePath
+    if (!selectedRun) return;
+    const basePath = `/workflows/${selectedRun.workflowId}/runs/${selectedRun.id}`;
+    const absoluteUrl =
+      typeof window !== 'undefined' ? `${window.location.origin}${basePath}` : basePath;
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(absoluteUrl)
+        await navigator.clipboard.writeText(absoluteUrl);
         toast({
           title: 'Run link copied',
           description: 'Share this URL to open the execution directly.',
-        })
+        });
       } else {
-        throw new Error('Clipboard API is unavailable')
+        throw new Error('Clipboard API is unavailable');
       }
     } catch (error) {
-      console.error('Failed to copy run link:', error)
+      console.error('Failed to copy run link:', error);
       toast({
         variant: 'destructive',
         title: 'Unable to copy link automatically',
         description: absoluteUrl,
-      })
+      });
     }
-  }, [selectedRun, toast])
+  }, [selectedRun, toast]);
 
   useEffect(() => {
     if (selectedRunId && inspectorTab === 'artifacts') {
-      void fetchRunArtifacts(selectedRunId)
+      void fetchRunArtifacts(selectedRunId);
     }
-  }, [selectedRunId, inspectorTab, fetchRunArtifacts])
+  }, [selectedRunId, inspectorTab, fetchRunArtifacts]);
 
   useEffect(() => {
     // Switch log mode based on timeline playback mode
     if (playbackMode === 'live') {
-      setLogMode('live')
+      setLogMode('live');
     } else if (playbackMode === 'replay') {
       // For replay mode, use historical logs initially (scrubbing mode is only for timeline scrubbing)
-      setLogMode('historical')
+      setLogMode('historical');
     }
-  }, [playbackMode, setLogMode])
-
-
+  }, [playbackMode, setLogMode]);
 
   const openLogModal = (fullMessage: string, log: ExecutionLog) => {
     const titleParts = [
       'Log message',
       log.nodeId ? `Node ${log.nodeId}` : null,
       formatTime(log.timestamp),
-    ].filter(Boolean)
+    ].filter(Boolean);
 
     setLogModal({
       open: true,
       message: fullMessage,
       title: titleParts.join(' • '),
-    })
-  }
+    });
+  };
 
-  const isMobile = useIsMobile()
+  const isMobile = useIsMobile();
   return (
     <>
       <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
@@ -267,11 +263,13 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
         <div className="border-b px-3 py-2.5 flex items-center justify-between gap-2">
           <RunSelector onRerun={onRerunRun} />
           <div className="flex items-center gap-2">
-            {runStatus?.progress && selectedRunId === liveRunId && (status === 'running' || status === 'queued') && (
-              <span className="text-[11px] text-muted-foreground font-medium">
-                {runStatus.progress.completedActions}/{runStatus.progress.totalActions}
-              </span>
-            )}
+            {runStatus?.progress &&
+              selectedRunId === liveRunId &&
+              (status === 'running' || status === 'queued') && (
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  {runStatus.progress.completedActions}/{runStatus.progress.totalActions}
+                </span>
+              )}
             {selectedRunId === liveRunId && (status === 'running' || status === 'queued') && (
               <Button
                 onClick={() => stopExecution()}
@@ -444,8 +442,17 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                     </span>
                   )}
                 </div>
-                <span className={cn('font-medium', playbackMode === 'live' ? 'text-green-600' : 'text-blue-600')}>
-                  {playbackMode === 'live' ? (isPlaying ? 'Live (following)' : 'Live paused') : 'Execution playback'}
+                <span
+                  className={cn(
+                    'font-medium',
+                    playbackMode === 'live' ? 'text-green-600' : 'text-blue-600',
+                  )}
+                >
+                  {playbackMode === 'live'
+                    ? isPlaying
+                      ? 'Live (following)'
+                      : 'Live paused'
+                    : 'Execution playback'}
                 </span>
               </div>
               <div className="flex-1 overflow-auto bg-slate-950 text-slate-100 font-mono text-xs">
@@ -458,34 +465,34 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                 ) : (
                   <div className="p-2 space-y-0 min-w-max">
                     {filteredLogs.map((log) => {
-                      const executionLog = log as ExecutionLog
-                      const fullMessage = buildLogMessage(executionLog)
-                      const time = formatTime(log.timestamp)
-                      const level = (log.level ?? '').toUpperCase()
-                      const node = log.nodeId ? `[${log.nodeId}]` : ''
+                      const executionLog = log as ExecutionLog;
+                      const fullMessage = buildLogMessage(executionLog);
+                      const time = formatTime(log.timestamp);
+                      const level = (log.level ?? '').toUpperCase();
+                      const node = log.nodeId ? `[${log.nodeId}]` : '';
 
                       // Color coding for log levels
                       // Check for JSON and format nicely
-                      let displayMessage = fullMessage
-                      let isJson = false
+                      let displayMessage = fullMessage;
+                      let isJson = false;
                       try {
-                        const parsed = JSON.parse(fullMessage.trim())
+                        const parsed = JSON.parse(fullMessage.trim());
                         if (typeof parsed === 'object' && parsed !== null) {
-                          displayMessage = JSON.stringify(parsed, null, 2)
-                          isJson = true
+                          displayMessage = JSON.stringify(parsed, null, 2);
+                          isJson = true;
                         }
                       } catch {
                         // Not JSON, use as-is
                       }
 
                       // Truncate long messages
-                      const maxLength = 150
-                      const isTruncated = displayMessage.length > maxLength
+                      const maxLength = 150;
+                      const isTruncated = displayMessage.length > maxLength;
                       const truncatedMessage = isTruncated
                         ? displayMessage.substring(0, maxLength) + '...'
-                        : displayMessage
+                        : displayMessage;
 
-                      const tone = getLogLevelTone(log.level)
+                      const tone = getLogLevelTone(log.level);
 
                       return (
                         <div
@@ -493,19 +500,31 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                           className={cn(
                             'group cursor-pointer rounded border-l-2 px-2 py-1 leading-none transition-colors',
                             tone.accent,
-                            'hover:bg-white/5'
+                            'hover:bg-white/5',
                           )}
                           onClick={() => openLogModal(fullMessage, executionLog)}
                         >
                           <div className="flex items-start gap-1">
-                            <span className={cn('text-[10px] font-mono flex-shrink-0 w-12', tone.text)}>
+                            <span
+                              className={cn('text-[10px] font-mono flex-shrink-0 w-12', tone.text)}
+                            >
                               {time}
                             </span>
-                            <span className={cn('text-[10px] font-bold uppercase flex-shrink-0 w-12', tone.text)}>
+                            <span
+                              className={cn(
+                                'text-[10px] font-bold uppercase flex-shrink-0 w-12',
+                                tone.text,
+                              )}
+                            >
                               {level}
                             </span>
                             {node && (
-                              <span className={cn('text-[10px] flex-shrink-0 max-w-16 truncate', tone.text)}>
+                              <span
+                                className={cn(
+                                  'text-[10px] flex-shrink-0 max-w-16 truncate',
+                                  tone.text,
+                                )}
+                              >
                                 {node}
                               </span>
                             )}
@@ -515,7 +534,9 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                                   className={cn(
                                     'text-[11px] leading-tight flex-1',
                                     tone.text,
-                                    isJson ? 'whitespace-pre-wrap' : 'whitespace-nowrap overflow-hidden text-ellipsis'
+                                    isJson
+                                      ? 'whitespace-pre-wrap'
+                                      : 'whitespace-nowrap overflow-hidden text-ellipsis',
                                   )}
                                 >
                                   {truncatedMessage}
@@ -529,7 +550,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                             </div>
                           </div>
                         </div>
-                      )
+                      );
                     })}
                   </div>
                 )}
@@ -537,21 +558,13 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
             </div>
           )}
 
-          {inspectorTab === 'artifacts' && (
-            <RunArtifactsPanel runId={selectedRunId ?? null} />
-          )}
+          {inspectorTab === 'artifacts' && <RunArtifactsPanel runId={selectedRunId ?? null} />}
 
-          {inspectorTab === 'agent' && (
-            <AgentTracePanel runId={selectedRunId ?? null} />
-          )}
+          {inspectorTab === 'agent' && <AgentTracePanel runId={selectedRunId ?? null} />}
 
-          {inspectorTab === 'io' && (
-            <NodeIOInspector />
-          )}
+          {inspectorTab === 'io' && <NodeIOInspector />}
 
-          {inspectorTab === 'network' && (
-            <NetworkPanel />
-          )}
+          {inspectorTab === 'network' && <NetworkPanel />}
         </div>
       </aside>
       <MessageModal
@@ -561,5 +574,5 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
         message={logModal.message}
       />
     </>
-  )
+  );
 }

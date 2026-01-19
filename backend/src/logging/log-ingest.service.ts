@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Kafka, Consumer } from 'kafkajs';
 
 import { LogStreamRepository } from '../trace/log-stream.repository';
@@ -62,7 +57,7 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
           maxRetryTime: 30000,
         },
       });
-      this.consumer = kafka.consumer({ 
+      this.consumer = kafka.consumer({
         groupId: this.kafkaGroupId,
         sessionTimeout: 30000,
         heartbeatInterval: 3000,

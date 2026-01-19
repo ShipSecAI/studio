@@ -41,10 +41,7 @@ const parameterSchema = parameters({
     },
   ),
   bruteForce: param(
-    z
-      .boolean()
-      .default(false)
-      .describe('Enable DNS brute forcing after passive enumeration'),
+    z.boolean().default(false).describe('Enable DNS brute forcing after passive enumeration'),
     {
       label: 'DNS Brute Force',
       editor: 'boolean',
@@ -53,10 +50,7 @@ const parameterSchema = parameters({
     },
   ),
   enableAlterations: param(
-    z
-      .boolean()
-      .default(false)
-      .describe('Enable Amass alterations engine for mutated hostnames'),
+    z.boolean().default(false).describe('Enable Amass alterations engine for mutated hostnames'),
     {
       label: 'Enable Alterations',
       editor: 'boolean',
@@ -127,18 +121,15 @@ const parameterSchema = parameters({
     },
   ),
   customFlags: param(
-    z
-      .string()
-      .trim()
-      .optional()
-      .describe('Raw CLI flags to append to the Amass command'),
+    z.string().trim().optional().describe('Raw CLI flags to append to the Amass command'),
     {
       label: 'Custom CLI Flags',
       editor: 'textarea',
       rows: 3,
       placeholder: '--passive --config /work/config.yaml',
       description: 'Paste additional Amass CLI options exactly as you would on the command line.',
-      helpText: 'Flags are appended after the generated options; avoid duplicating -d domain arguments.',
+      helpText:
+        'Flags are appended after the generated options; avoid duplicating -d domain arguments.',
     },
   ),
   includeIps: param(
@@ -149,14 +140,11 @@ const parameterSchema = parameters({
       description: 'Return discovered IPs alongside hostnames in the raw output.',
     },
   ),
-  verbose: param(
-    z.boolean().default(false).describe('Emit verbose Amass logging output'),
-    {
-      label: 'Verbose Output',
-      editor: 'boolean',
-      description: 'Emit verbose Amass logs in the workflow output.',
-    },
-  ),
+  verbose: param(z.boolean().default(false).describe('Emit verbose Amass logging output'), {
+    label: 'Verbose Output',
+    editor: 'boolean',
+    description: 'Emit verbose Amass logs in the workflow output.',
+  }),
   demoMode: param(
     z.boolean().default(false).describe('Censor sensitive data in the Amass output (demo mode)'),
     {
@@ -202,24 +190,27 @@ const outputSchema = outputs({
     label: 'Subdomain Count',
     description: 'Number of unique subdomains discovered.',
   }),
-  options: port(z.object({
-    active: z.boolean(),
-    bruteForce: z.boolean(),
-    includeIps: z.boolean(),
-    enableAlterations: z.boolean(),
-    recursive: z.boolean(),
-    verbose: z.boolean(),
-    demoMode: z.boolean(),
-    timeoutMinutes: z.number().nullable(),
-    minForRecursive: z.number().nullable(),
-    maxDepth: z.number().nullable(),
-    dnsQueryRate: z.number().nullable(),
-    customFlags: z.string().nullable(),
-  }), {
-    label: 'Options',
-    description: 'Effective Amass options applied during the run.',
-    connectionType: { kind: 'primitive', name: 'json' },
-  }),
+  options: port(
+    z.object({
+      active: z.boolean(),
+      bruteForce: z.boolean(),
+      includeIps: z.boolean(),
+      enableAlterations: z.boolean(),
+      recursive: z.boolean(),
+      verbose: z.boolean(),
+      demoMode: z.boolean(),
+      timeoutMinutes: z.number().nullable(),
+      minForRecursive: z.number().nullable(),
+      maxDepth: z.number().nullable(),
+      dnsQueryRate: z.number().nullable(),
+      customFlags: z.string().nullable(),
+    }),
+    {
+      label: 'Options',
+      description: 'Effective Amass options applied during the run.',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
 });
 
 const dockerTimeoutSeconds = (() => {
@@ -470,8 +461,10 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
     version: '1.0.0',
     type: 'scan',
     category: 'security',
-    description: 'OWASP Amass powered subdomain enumeration with optional brute force, alterations, and recursion controls.',
-    documentation: 'OWASP Amass is a comprehensive attack surface mapping toolkit. Adjust enumeration depth, mutation behaviour, and DNS query rates to match your engagement.',
+    description:
+      'OWASP Amass powered subdomain enumeration with optional brute force, alterations, and recursion controls.',
+    documentation:
+      'OWASP Amass is a comprehensive attack surface mapping toolkit. Adjust enumeration depth, mutation behaviour, and DNS query rates to match your engagement.',
     documentationUrl: 'https://github.com/owasp-amass/amass',
     icon: 'Network',
     author: {
@@ -480,7 +473,8 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
     },
     isLatest: true,
     deprecated: false,
-    example: '`amass enum -d example.com -brute -alts` - Aggressively enumerates subdomains with brute force and alteration engines enabled.',
+    example:
+      '`amass enum -d example.com -brute -alts` - Aggressively enumerates subdomains with brute force and alteration engines enabled.',
     examples: [
       'Run full-depth enumeration with brute force and alterations on a scope domain.',
       'Perform quick passive reconnaissance using custom CLI flags like --passive.',
@@ -523,7 +517,8 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
       data: { domains: inputs.domains, options: optionsSummary },
     });
 
-    const normalizedInput: typeof inputSchema['__inferred'] & typeof parameterSchema['__inferred'] = {
+    const normalizedInput: (typeof inputSchema)['__inferred'] &
+      (typeof parameterSchema)['__inferred'] = {
       ...runnerPayload,
       customFlags: customFlags ?? undefined,
     };

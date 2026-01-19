@@ -37,17 +37,20 @@ describe('shuffledns-massdns component', () => {
       },
       params: {
         mode: 'bruteforce' as const,
-      }
+      },
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(
       'www.example.com\napi.example.com\napi.example.com\n',
     );
 
-    const result = await component.execute({
-      inputs: component.inputs.parse(executePayload.inputs),
-      params: component.parameters!.parse(executePayload.params),
-    }, context);
+    const result = await component.execute(
+      {
+        inputs: component.inputs.parse(executePayload.inputs),
+        params: component.parameters!.parse(executePayload.params),
+      },
+      context,
+    );
     expect(result.domainCount).toBe(1);
     // Deduped
     expect(result.subdomains).toEqual(['www.example.com', 'api.example.com']);

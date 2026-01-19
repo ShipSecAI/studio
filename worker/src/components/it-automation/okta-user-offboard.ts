@@ -23,18 +23,12 @@ const inputSchema = inputs({
     label: 'Okta Domain',
     description: 'Your Okta organization domain.',
   }),
-  apiToken: port(
-    z
-      .string()
-      .min(1, 'API token is required')
-      .describe('Resolved Okta API token'),
-    {
-      label: 'API Token',
-      description: 'Connect the Secret Loader output containing the Okta API token.',
-      editor: 'secret',
-      connectionType: { kind: 'primitive', name: 'secret' },
-    },
-  ),
+  apiToken: port(z.string().min(1, 'API token is required').describe('Resolved Okta API token'), {
+    label: 'API Token',
+    description: 'Connect the Secret Loader output containing the Okta API token.',
+    editor: 'secret',
+    connectionType: { kind: 'primitive', name: 'secret' },
+  }),
 });
 
 const parameterSchema = parameters({
@@ -78,16 +72,6 @@ interface AuditLog {
     userDeleted: boolean;
   };
 }
-
-type OktaUserOffboardResult = {
-  success: boolean;
-  audit: AuditLog;
-  error?: string;
-  userDeactivated: boolean;
-  userDeleted: boolean;
-  message: string;
-};
-
 
 const auditSchema = z.object({
   timestamp: z.string(),
@@ -169,10 +153,7 @@ function initializeOktaClient(oktaDomain: string, apiToken: string): Okta.Client
 /**
  * Get user details from Okta using SDK
  */
-async function getUserDetails(
-  userEmail: string,
-  client: Okta.Client
-): Promise<UserState> {
+async function getUserDetails(userEmail: string, client: Okta.Client): Promise<UserState> {
   try {
     const user: Okta.User = await client.userApi.getUser({ userId: userEmail });
 
@@ -203,10 +184,7 @@ async function getUserDetails(
 /**
  * Deactivate a user account using SDK
  */
-async function deactivateUser(
-  userId: string,
-  client: Okta.Client
-): Promise<void> {
+async function deactivateUser(userId: string, client: Okta.Client): Promise<void> {
   try {
     await client.userApi.deactivateUser({ userId });
   } catch (error: any) {
@@ -226,10 +204,7 @@ async function deactivateUser(
 /**
  * Delete a user account using SDK
  */
-async function deleteUser(
-  userId: string,
-  client: Okta.Client
-): Promise<void> {
+async function deleteUser(userId: string, client: Okta.Client): Promise<void> {
   try {
     await client.userApi.deleteUser({ userId });
   } catch (error: any) {
@@ -265,7 +240,8 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'output',
     category: 'it_ops',
-    description: 'Offboard users from Okta by deactivating or deleting their accounts to revoke all access.',
+    description:
+      'Offboard users from Okta by deactivating or deleting their accounts to revoke all access.',
     icon: 'Shield',
     author: {
       name: 'ShipSecAI',
@@ -280,11 +256,7 @@ const definition = defineComponent({
     ],
   },
   async execute({ inputs, params }, context) {
-    const {
-      user_email,
-      okta_domain,
-      apiToken,
-    } = inputs;
+    const { user_email, okta_domain, apiToken } = inputs;
     const { action = 'deactivate', dry_run = false } = params;
 
     context.logger.info(`[Okta] Starting user offboarding for ${user_email}`);
@@ -317,7 +289,9 @@ const definition = defineComponent({
       const userDetails = await getUserDetails(user_email, oktaClient);
       beforeState = userDetails;
 
-      context.logger.info(`[Okta] Found user: ${userDetails.email} (ID: ${userDetails.id}, Status: ${userDetails.status})`);
+      context.logger.info(
+        `[Okta] Found user: ${userDetails.email} (ID: ${userDetails.id}, Status: ${userDetails.status})`,
+      );
 
       // Check if user is already deactivated
       if (userDetails.status === 'DEPROVISIONED') {
@@ -417,7 +391,6 @@ const definition = defineComponent({
         ...result,
         result,
       };
-
     } catch (error: any) {
       context.logger.error(`[Okta] User offboarding failed: ${error.message}`);
       context.emitProgress('User offboarding failed');

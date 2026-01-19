@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { componentRegistry, defineComponent, inputs, outputs, parameters, port, param } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+} from '@shipsec/component-sdk';
 
 const inputSchema = inputs({});
 
@@ -93,7 +101,8 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'process',
     category: 'transform',
-    description: 'Diagnostic component that continuously emits progress events to exercise live trace streaming.',
+    description:
+      'Diagnostic component that continuously emits progress events to exercise live trace streaming.',
     author: {
       name: 'ShipSecAI',
       type: 'shipsecai',

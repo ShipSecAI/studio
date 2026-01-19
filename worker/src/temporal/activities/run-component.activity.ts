@@ -5,7 +5,6 @@ import * as crypto from 'node:crypto';
 import {
   componentRegistry,
   createExecutionContext,
-  runComponentWithRunner,
   NotFoundError,
   ValidationError,
   TEMPORAL_SPILL_THRESHOLD_BYTES,
@@ -15,10 +14,13 @@ import {
   type ITraceService,
   type INodeIOService,
   type AgentTracePublisher,
-  type SpilledDataMarker,
 } from '@shipsec/component-sdk';
 
-import { maskSecretInputs, maskSecretOutputs, createLightweightSummary } from '../utils/component-output';
+import {
+  maskSecretInputs,
+  maskSecretOutputs,
+  createLightweightSummary,
+} from '../utils/component-output';
 import { RedisTerminalStreamAdapter } from '../../adapters';
 import type {
   RunComponentActivityInput,
@@ -88,7 +90,7 @@ export async function runComponentActivity(
     runId: activityInfo.workflowExecution?.runId ?? 'unknown',
     componentId: action.componentId,
     ref: action.ref,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   console.log(`📋 Activity input details:`, {
@@ -98,7 +100,7 @@ export async function runComponentActivity(
     paramKeys: params ? Object.keys(params) : [],
     hasInputs: !!inputs,
     inputKeys: inputs ? Object.keys(inputs) : [],
-    warningsCount: warnings.length
+    warningsCount: warnings.length,
   });
 
   const component = componentRegistry.get(action.componentId);
@@ -120,13 +122,13 @@ export async function runComponentActivity(
 
   const scopedArtifacts = globalArtifacts
     ? globalArtifacts({
-      runId: input.runId,
-      workflowId: input.workflowId,
-      workflowVersionId: input.workflowVersionId ?? null,
-      componentId: action.componentId,
-      componentRef: action.ref,
-      organizationId: input.organizationId ?? null,
-    })
+        runId: input.runId,
+        workflowId: input.workflowId,
+        workflowVersionId: input.workflowVersionId ?? null,
+        componentId: action.componentId,
+        componentRef: action.ref,
+        organizationId: input.organizationId ?? null,
+      })
     : undefined;
 
   const allowSecrets = component.requiresSecrets === true;
@@ -149,30 +151,28 @@ export async function runComponentActivity(
     trace: globalTrace,
     logCollector: globalLogs
       ? (entry) => {
-        void globalLogs
-          ?.append({
-            runId: entry.runId,
-            nodeRef: entry.nodeRef,
-            stream: entry.stream,
-            level: entry.level,
-            message: entry.message,
-            timestamp: new Date(entry.timestamp),
-            metadata: entry.metadata,
-            organizationId: input.organizationId ?? null,
-          })
-          .catch((error) => {
-            console.error('[Logs] Failed to append log entry', error);
-          });
-      }
+          void globalLogs
+            ?.append({
+              runId: entry.runId,
+              nodeRef: entry.nodeRef,
+              stream: entry.stream,
+              level: entry.level,
+              message: entry.message,
+              timestamp: new Date(entry.timestamp),
+              metadata: entry.metadata,
+              organizationId: input.organizationId ?? null,
+            })
+            .catch((error) => {
+              console.error('[Logs] Failed to append log entry', error);
+            });
+        }
       : undefined,
     terminalCollector: globalTerminal
       ? (chunk) => {
-        void globalTerminal
-          ?.append(chunk)
-          .catch((error) => {
+          void globalTerminal?.append(chunk).catch((error) => {
             console.error('[Terminal] Failed to append chunk', error);
           });
-      }
+        }
       : undefined,
     agentTracePublisher: globalAgentTracePublisher,
   });
@@ -204,7 +204,9 @@ export async function runComponentActivity(
     for (const [key, value] of Object.entries(obj)) {
       if (isSpilledDataMarker(value)) {
         if (!globalStorage) {
-          console.warn(`[Activity] ${contextLabel} '${key}' is spilled but no storage service is available`);
+          console.warn(
+            `[Activity] ${contextLabel} '${key}' is spilled but no storage service is available`,
+          );
           continue;
         }
 
@@ -220,10 +222,16 @@ export async function runComponentActivity(
 
           const handle = (value as any).__spilled_handle__;
           if (handle && handle !== '__self__') {
-            if (fullData && typeof fullData === 'object' && Object.prototype.hasOwnProperty.call(fullData, handle)) {
+            if (
+              fullData &&
+              typeof fullData === 'object' &&
+              Object.prototype.hasOwnProperty.call(fullData, handle)
+            ) {
               obj[key] = fullData[handle];
             } else {
-              console.warn(`[Activity] Spilled handle '${handle}' not found in downloaded data for ${contextLabel.toLowerCase()} '${key}'`);
+              console.warn(
+                `[Activity] Spilled handle '${handle}' not found in downloaded data for ${contextLabel.toLowerCase()} '${key}'`,
+              );
               obj[key] = undefined;
               warningsToReport.push({
                 target: key,
@@ -235,10 +243,13 @@ export async function runComponentActivity(
             obj[key] = fullData;
           }
         } catch (err) {
-          console.error(`[Activity] Failed to resolve spilled ${contextLabel.toLowerCase()} '${key}':`, err);
+          console.error(
+            `[Activity] Failed to resolve spilled ${contextLabel.toLowerCase()} '${key}':`,
+            err,
+          );
           throw ApplicationFailure.retryable(
             `Failed to resolve spilled ${contextLabel.toLowerCase()} '${key}': ${err instanceof Error ? err.message : String(err)}`,
-            'SpillResolutionError'
+            'SpillResolutionError',
           );
         }
       }
@@ -262,7 +273,10 @@ export async function runComponentActivity(
     const missing = warningsToReport.map((warning) => `'${warning.target}'`).join(', ');
     throw new ValidationError(`Missing required inputs for ${action.ref}: ${missing}`, {
       fieldErrors: Object.fromEntries(
-        warningsToReport.map((w) => [w.target, [`mapped from ${w.sourceRef}.${w.sourceHandle} was undefined`]])
+        warningsToReport.map((w) => [
+          w.target,
+          [`mapped from ${w.sourceRef}.${w.sourceHandle} was undefined`],
+        ]),
       ),
       details: { actionRef: action.ref, componentId: action.componentId },
     });
@@ -270,14 +284,14 @@ export async function runComponentActivity(
 
   // For components with dynamic ports (resolvePorts), resolve the actual input/output schemas
   let inputsSchema = component.inputs;
-  let outputsSchema = component.outputs;
+  let _outputsSchema = component.outputs;
   if (typeof component.resolvePorts === 'function') {
     const resolved = component.resolvePorts(params);
     if (resolved?.inputs) {
       inputsSchema = resolved.inputs;
     }
     if (resolved?.outputs) {
-      outputsSchema = resolved.outputs;
+      _outputsSchema = resolved.outputs;
     }
   }
 
@@ -294,12 +308,17 @@ export async function runComponentActivity(
     let output = await component.execute({ inputs: parsedInputs, params: parsedParams }, context);
 
     // Check if component requested suspension (e.g. approval gate)
-    const isSuspended = output && typeof output === 'object' && 'pending' in output && (output as any).pending === true;
+    const isSuspended =
+      output &&
+      typeof output === 'object' &&
+      'pending' in output &&
+      (output as any).pending === true;
 
     // Extract activeOutputPorts if component returned them (for conditional execution)
-    const activeOutputPorts = output && typeof output === 'object' && 'activeOutputPorts' in output
-      ? (output as any).activeOutputPorts as string[]
-      : undefined;
+    const activeOutputPorts =
+      output && typeof output === 'object' && 'activeOutputPorts' in output
+        ? ((output as any).activeOutputPorts as string[])
+        : undefined;
 
     if (!isSuspended) {
       // 1. Check for payload size and spill if necessary
@@ -315,7 +334,7 @@ export async function runComponentActivity(
               fileId,
               'output.json',
               Buffer.from(outputStr),
-              'application/json'
+              'application/json',
             );
 
             // Replace output with standardized spilled marker
@@ -371,12 +390,19 @@ export async function runComponentActivity(
       }
 
       // Check if it's retryable
-      if ('retryable' in error && typeof (error as { retryable: unknown }).retryable === 'boolean') {
+      if (
+        'retryable' in error &&
+        typeof (error as { retryable: unknown }).retryable === 'boolean'
+      ) {
         isRetryable = (error as { retryable: boolean }).retryable;
       }
 
       // Extract details if present
-      if ('details' in error && typeof (error as { details: unknown }).details === 'object' && (error as { details: unknown }).details !== null) {
+      if (
+        'details' in error &&
+        typeof (error as { details: unknown }).details === 'object' &&
+        (error as { details: unknown }).details !== null
+      ) {
         errorDetails = (error as { details: Record<string, unknown> }).details;
       }
 

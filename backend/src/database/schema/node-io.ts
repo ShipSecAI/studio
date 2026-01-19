@@ -43,7 +43,10 @@ export const nodeIOTable = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     durationMs: integer('duration_ms'),
-    status: text('status').$type<'running' | 'completed' | 'failed' | 'skipped'>().notNull().default('running'),
+    status: text('status')
+      .$type<'running' | 'completed' | 'failed' | 'skipped'>()
+      .notNull()
+      .default('running'),
     errorMessage: text('error_message'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

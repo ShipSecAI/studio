@@ -61,7 +61,7 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      this.consumer = kafka.consumer({ 
+      this.consumer = kafka.consumer({
         groupId: this.kafkaGroupId,
         sessionTimeout: 30000,
         heartbeatInterval: 3000,
@@ -81,7 +81,9 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
               `Processing trace event: runId=${payload.runId}, type=${payload.type}, sequence=${payload.sequence}, offset=${messageOffset}`,
             );
             await this.persistEvent(payload);
-            this.logger.debug(`Successfully persisted trace event for run ${payload.runId}, sequence ${payload.sequence}`);
+            this.logger.debug(
+              `Successfully persisted trace event for run ${payload.runId}, sequence ${payload.sequence}`,
+            );
           } catch (error) {
             this.logger.error(
               `Failed to process trace event from Kafka (topic=${topic}, partition=${partition}, offset=${messageOffset})`,
@@ -109,7 +111,9 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
 
   private async persistEvent(event: KafkaTraceEventPayload): Promise<void> {
     if (!event.sequence || event.sequence < 1) {
-      this.logger.warn(`Dropping trace event with invalid sequence for run ${event.runId}, sequence=${event.sequence}`);
+      this.logger.warn(
+        `Dropping trace event with invalid sequence for run ${event.runId}, sequence=${event.sequence}`,
+      );
       return;
     }
 
@@ -129,6 +133,5 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
     };
 
     await this.traceRepository.append(mapped);
-
   }
 }

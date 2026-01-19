@@ -13,14 +13,18 @@ describe('trufflehog component', () => {
   });
 
   it('should be registered', () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     expect(component).toBeDefined();
     expect(component!.label).toBe('TruffleHog');
     expect(component!.category).toBe('security');
   });
 
   it('should use docker runner config', () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     expect(component.runner.kind).toBe('docker');
@@ -30,7 +34,9 @@ describe('trufflehog component', () => {
   });
 
   it('should parse input with default values', () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const inputValues = {
@@ -50,7 +56,9 @@ describe('trufflehog component', () => {
   });
 
   it('should handle JSON output with secrets', async () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -64,7 +72,7 @@ describe('trufflehog component', () => {
       },
       params: {
         scanType: 'git' as const,
-      }
+      },
     };
 
     const mockOutput = {
@@ -102,7 +110,9 @@ describe('trufflehog component', () => {
   });
 
   it('should handle no secrets found', async () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -116,7 +126,7 @@ describe('trufflehog component', () => {
       },
       params: {
         scanType: 'git' as const,
-      }
+      },
     };
 
     const mockOutput = {
@@ -138,7 +148,9 @@ describe('trufflehog component', () => {
   });
 
   it('should support different scan types', () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const gitParams = component.parameters!.parse({ scanType: 'git' });
@@ -155,7 +167,9 @@ describe('trufflehog component', () => {
   });
 
   it('should accept optional git parameters', () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const params = component.parameters!.parse({
@@ -169,7 +183,9 @@ describe('trufflehog component', () => {
   });
 
   it('should accept custom flags', () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const params = component.parameters!.parse({
@@ -181,7 +197,9 @@ describe('trufflehog component', () => {
   });
 
   it('should handle unverified secrets when onlyVerified is false', async () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -196,7 +214,7 @@ describe('trufflehog component', () => {
       params: {
         scanType: 'git' as const,
         onlyVerified: false,
-      }
+      },
     };
 
     const mockOutput = {
@@ -228,7 +246,9 @@ describe('trufflehog component', () => {
   });
 
   it('should handle parse errors gracefully', async () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -242,7 +262,7 @@ describe('trufflehog component', () => {
       },
       params: {
         scanType: 'git' as const,
-      }
+      },
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('invalid json output');
@@ -256,7 +276,9 @@ describe('trufflehog component', () => {
   });
 
   it('should accept filesystemContent parameter', () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const params = component.parameters!.parse({
@@ -273,7 +295,9 @@ describe('trufflehog component', () => {
   });
 
   it('should reject filesystemContent with non-filesystem scanType', async () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -290,16 +314,18 @@ describe('trufflehog component', () => {
         filesystemContent: {
           'file.txt': 'content',
         },
-      }
+      },
     };
 
     await expect(component.execute(executePayload, context)).rejects.toThrow(
-      'filesystemContent can only be used with scanType=filesystem'
+      'filesystemContent can only be used with scanType=filesystem',
     );
   });
 
   it('should propagate exit code 183 when secrets found with --fail flag', async () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -314,17 +340,21 @@ describe('trufflehog component', () => {
       params: {
         scanType: 'git' as const,
         customFlags: '--fail',
-      }
+      },
     };
 
     const error = new Error('Container exited with code 183');
     vi.spyOn(sdk, 'runComponentWithRunner').mockRejectedValue(error);
 
-    await expect(component.execute(executePayload, context)).rejects.toThrow('Container exited with code 183');
+    await expect(component.execute(executePayload, context)).rejects.toThrow(
+      'Container exited with code 183',
+    );
   });
 
   it('should propagate other error exit codes', async () => {
-    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>('shipsec.trufflehog.scan');
+    const component = componentRegistry.get<TruffleHogInput, TruffleHogOutput>(
+      'shipsec.trufflehog.scan',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -338,7 +368,7 @@ describe('trufflehog component', () => {
       },
       params: {
         scanType: 'git' as const,
-      }
+      },
     };
 
     const error = new Error('Container exited with code 1: auth failed');

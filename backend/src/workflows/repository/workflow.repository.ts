@@ -120,9 +120,7 @@ export class WorkflowRepository {
   }
 
   async delete(id: string, options: WorkflowRepositoryOptions = {}): Promise<void> {
-    await this.db
-      .delete(workflowsTable)
-      .where(this.buildIdFilter(id, options.organizationId));
+    await this.db.delete(workflowsTable).where(this.buildIdFilter(id, options.organizationId));
   }
 
   async list(options: WorkflowRepositoryOptions = {}): Promise<WorkflowRecord[]> {

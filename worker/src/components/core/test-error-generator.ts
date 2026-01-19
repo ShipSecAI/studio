@@ -37,13 +37,10 @@ const parameterSchema = parameters({
         'Type of error: NetworkError, RateLimitError, ServiceError, TimeoutError, AuthenticationError, NotFoundError, ValidationError, ConfigurationError',
     },
   ),
-  errorMessage: param(
-    z.string().default('Simulated tool failure').describe('Error message'),
-    {
-      label: 'Error Message',
-      editor: 'text',
-    },
-  ),
+  errorMessage: param(z.string().default('Simulated tool failure').describe('Error message'), {
+    label: 'Error Message',
+    editor: 'text',
+  }),
   failUntilAttempt: param(
     z
       .number()
@@ -79,11 +76,6 @@ const parameterSchema = parameters({
   ),
 });
 
-type Output = {
-  success: boolean;
-  attempt: number;
-};
-
 const outputSchema = outputs({
   result: port(z.unknown(), {
     label: 'Result',
@@ -113,7 +105,7 @@ async function executeErrorGenerator(
     alwaysFail: boolean;
     errorDetails?: Record<string, any>;
   },
-  context: any
+  context: any,
 ) {
   const currentAttempt = context.metadata.attempt ?? 1;
 
@@ -139,7 +131,7 @@ async function executeErrorGenerator(
       ...params.errorDetails,
       currentAttempt,
       targetAttempt: params.failUntilAttempt,
-      alwaysFail: params.alwaysFail
+      alwaysFail: params.alwaysFail,
     };
 
     context.logger.warn(`[Error Generator] Raising ${params.errorType}: ${msg}`);
@@ -162,9 +154,9 @@ async function executeErrorGenerator(
         throw new ValidationError(msg, {
           details,
           fieldErrors: params.errorDetails?.fieldErrors || {
-            'api_key': ['Invalid format', 'Must be at least 32 characters'],
-            'endpoint': ['Host unreachable']
-          }
+            api_key: ['Invalid format', 'Must be at least 32 characters'],
+            endpoint: ['Host unreachable'],
+          },
         });
       case 'ConfigurationError':
         throw new ConfigurationError(msg, { details });
@@ -195,7 +187,8 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'process',
     category: 'transform',
-    description: 'Generates programmed errors for E2E testing of the retry and error reporting system.',
+    description:
+      'Generates programmed errors for E2E testing of the retry and error reporting system.',
     icon: 'AlertTriangle',
     author: {
       name: 'ShipSecAI',

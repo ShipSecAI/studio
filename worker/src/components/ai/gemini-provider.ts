@@ -17,7 +17,8 @@ const DEFAULT_BASE_URL = process.env.GEMINI_BASE_URL ?? '';
 
 const inputSchema = inputs({
   apiKey: port(
-    z.string()
+    z
+      .string()
       .min(1, 'API key is required')
       .describe('Resolved Gemini API key supplied via a Secret Loader node.'),
     {
@@ -39,10 +40,7 @@ const outputSchema = outputs({
 
 const parameterSchema = parameters({
   model: param(
-    z
-      .string()
-      .default(DEFAULT_MODEL)
-      .describe('Gemini model identifier (e.g., gemini-2.5-flash).'),
+    z.string().default(DEFAULT_MODEL).describe('Gemini model identifier (e.g., gemini-2.5-flash).'),
     {
       label: 'Model',
       editor: 'select',
@@ -56,10 +54,7 @@ const parameterSchema = parameters({
     },
   ),
   apiBaseUrl: param(
-    z
-      .string()
-      .default(DEFAULT_BASE_URL)
-      .describe('Optional override for the Gemini API base URL.'),
+    z.string().default(DEFAULT_BASE_URL).describe('Optional override for the Gemini API base URL.'),
     {
       label: 'API Base URL',
       editor: 'text',
@@ -100,7 +95,8 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'process',
     category: 'ai',
-    description: 'Normalize Gemini credentials and model selection into a reusable provider config.',
+    description:
+      'Normalize Gemini credentials and model selection into a reusable provider config.',
     icon: 'Settings',
     author: {
       name: 'ShipSecAI',

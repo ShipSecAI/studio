@@ -19,10 +19,7 @@ export interface NodeIOData {
   errorMessage?: string;
 }
 
-import { 
-  KAFKA_SPILL_THRESHOLD_BYTES, 
-  createSpilledMarker 
-} from '@shipsec/component-sdk';
+import { KAFKA_SPILL_THRESHOLD_BYTES, createSpilledMarker } from '@shipsec/component-sdk';
 
 @Injectable()
 export class NodeIORepository {
@@ -50,7 +47,7 @@ export class NodeIORepository {
 
     // Favor provided spilled info from worker, fallback to local calculation
     const inputsSize = data.inputsSize ?? computedInputsSize;
-    const inputsSpilled = data.inputsSpilled ?? (inputsSize > KAFKA_SPILL_THRESHOLD_BYTES);
+    const inputsSpilled = data.inputsSpilled ?? inputsSize > KAFKA_SPILL_THRESHOLD_BYTES;
     // Use the storage ref provided by worker (UUID), or generate a path-based fallback
     const inputsStorageRef = data.inputsStorageRef ?? null;
 
@@ -60,8 +57,8 @@ export class NodeIORepository {
       workflowId: data.workflowId ?? null,
       organizationId: data.organizationId ?? null,
       componentId: data.componentId,
-      inputs: inputsSpilled 
-        ? createSpilledMarker(inputsStorageRef ?? 'unknown', inputsSize) 
+      inputs: inputsSpilled
+        ? createSpilledMarker(inputsStorageRef ?? 'unknown', inputsSize)
         : data.inputs,
       inputsSize,
       inputsSpilled,
@@ -70,19 +67,22 @@ export class NodeIORepository {
       status: 'running',
     };
 
-    await this.db.insert(nodeIOTable).values(insert).onConflictDoUpdate({
-      target: [nodeIOTable.runId, nodeIOTable.nodeRef],
-      set: {
-        ...insert,
-        // Only update status to 'running' if it's not already in a terminal state
-        status: sql`CASE 
+    await this.db
+      .insert(nodeIOTable)
+      .values(insert)
+      .onConflictDoUpdate({
+        target: [nodeIOTable.runId, nodeIOTable.nodeRef],
+        set: {
+          ...insert,
+          // Only update status to 'running' if it's not already in a terminal state
+          status: sql`CASE 
           WHEN ${nodeIOTable.status} IN ('completed', 'failed', 'skipped') 
           THEN ${nodeIOTable.status} 
           ELSE ${insert.status} 
         END`,
-        updatedAt: new Date(),
-      }
-    });
+          updatedAt: new Date(),
+        },
+      });
   }
 
   /**
@@ -104,7 +104,7 @@ export class NodeIORepository {
 
     // Favor provided spilled info from worker, fallback to local calculation
     const outputsSize = data.outputsSize ?? computedOutputsSize;
-    const outputsSpilled = data.outputsSpilled ?? (outputsSize > KAFKA_SPILL_THRESHOLD_BYTES);
+    const outputsSpilled = data.outputsSpilled ?? outputsSize > KAFKA_SPILL_THRESHOLD_BYTES;
     // Use the storage ref provided by worker (UUID), or generate a path-based fallback
     const outputsStorageRef = data.outputsStorageRef ?? null;
 
@@ -120,8 +120,8 @@ export class NodeIORepository {
       runId: data.runId,
       nodeRef: data.nodeRef,
       componentId: data.componentId || existing?.componentId || 'unknown',
-      outputs: outputsSpilled 
-        ? createSpilledMarker(outputsStorageRef ?? 'unknown', outputsSize) 
+      outputs: outputsSpilled
+        ? createSpilledMarker(outputsStorageRef ?? 'unknown', outputsSize)
         : data.outputs,
       outputsSize,
       outputsSpilled,
@@ -132,20 +132,23 @@ export class NodeIORepository {
       errorMessage: data.errorMessage ?? null,
     };
 
-    await this.db.insert(nodeIOTable).values(insert).onConflictDoUpdate({
-      target: [nodeIOTable.runId, nodeIOTable.nodeRef],
-      set: {
-        outputs: insert.outputs,
-        outputsSize: insert.outputsSize,
-        outputsSpilled: insert.outputsSpilled,
-        outputsStorageRef: insert.outputsStorageRef,
-        completedAt: insert.completedAt,
-        durationMs: insert.durationMs,
-        status: insert.status,
-        errorMessage: insert.errorMessage,
-        updatedAt: new Date(),
-      }
-    });
+    await this.db
+      .insert(nodeIOTable)
+      .values(insert)
+      .onConflictDoUpdate({
+        target: [nodeIOTable.runId, nodeIOTable.nodeRef],
+        set: {
+          outputs: insert.outputs,
+          outputsSize: insert.outputsSize,
+          outputsSpilled: insert.outputsSpilled,
+          outputsStorageRef: insert.outputsStorageRef,
+          completedAt: insert.completedAt,
+          durationMs: insert.durationMs,
+          status: insert.status,
+          errorMessage: insert.errorMessage,
+          updatedAt: new Date(),
+        },
+      });
   }
 
   /**
@@ -171,12 +174,7 @@ export class NodeIORepository {
     const [record] = await this.db
       .select()
       .from(nodeIOTable)
-      .where(
-        and(
-          eq(nodeIOTable.runId, runId),
-          eq(nodeIOTable.nodeRef, nodeRef),
-        ),
-      )
+      .where(and(eq(nodeIOTable.runId, runId), eq(nodeIOTable.nodeRef, nodeRef)))
       .limit(1);
 
     return record ?? null;

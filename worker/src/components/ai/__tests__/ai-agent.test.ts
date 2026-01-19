@@ -2,7 +2,15 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from 'bun:test';
 import '../../index';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sdk';
-import type { ToolLoopAgentClass, StepCountIsFn, ToolFn, CreateOpenAIFn, CreateGoogleGenerativeAIFn, GenerateObjectFn, GenerateTextFn } from '../ai-agent';
+import type {
+  ToolLoopAgentClass,
+  StepCountIsFn,
+  ToolFn,
+  CreateOpenAIFn,
+  CreateGoogleGenerativeAIFn,
+  GenerateObjectFn,
+  GenerateTextFn,
+} from '../ai-agent';
 
 const makeAgentResult = (overrides: Record<string, any> = {}) => ({
   text: 'Agent final answer',
@@ -84,10 +92,12 @@ const workflowContext: ExecutionContext = {
 };
 
 // Create mocks for the AI dependencies
-const createdTools: Array<Record<string, unknown>> = [];
+const createdTools: Record<string, unknown>[] = [];
 const stepCountIsMock = vi.fn((limit: number) => ({ type: 'step-count', limit }));
-type AgentGenerateArgs = { messages: Array<{ role: string; content: string }> };
-let agentGenerateMock = vi.fn((args: AgentGenerateArgs) => {});
+interface AgentGenerateArgs {
+  messages: { role: string; content: string }[];
+}
+let agentGenerateMock = vi.fn((_args: AgentGenerateArgs) => {});
 const toolLoopAgentConstructorMock = vi.fn((settings: any) => settings);
 let nextAgentResult = makeAgentResult();
 let toolLoopAgentGenerateImpl: ((instance: any, args: any) => Promise<any>) | null = null;
@@ -119,17 +129,21 @@ class MockToolLoopAgent {
   }
 }
 
-const openAiFactoryMock = vi.fn((options: { apiKey: string; baseURL?: string }) => (model: string) => ({
-  provider: 'openai',
-  modelId: model,
-  options,
-}));
+const openAiFactoryMock = vi.fn(
+  (options: { apiKey: string; baseURL?: string }) => (model: string) => ({
+    provider: 'openai',
+    modelId: model,
+    options,
+  }),
+);
 
-const googleFactoryMock = vi.fn((options: { apiKey?: string; baseURL?: string }) => (model: string) => ({
-  provider: 'gemini',
-  modelId: model,
-  options,
-}));
+const googleFactoryMock = vi.fn(
+  (options: { apiKey?: string; baseURL?: string }) => (model: string) => ({
+    provider: 'gemini',
+    modelId: model,
+    options,
+  }),
+);
 
 beforeAll(async () => {
   await import('../../index');
@@ -137,7 +151,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   createdTools.length = 0;
-  agentGenerateMock = vi.fn((args: AgentGenerateArgs) => {});
+  agentGenerateMock = vi.fn((_args: AgentGenerateArgs) => {});
   toolLoopAgentConstructorMock.mockReset();
   stepCountIsMock.mockReset();
   nextAgentResult = makeAgentResult();
@@ -171,12 +185,12 @@ describe('core.ai.agent component', () => {
         maxTokens: 256,
         memorySize: 8,
         stepLimit: 2,
-      }
+      },
     };
 
     const result = (await runComponentWithRunner(
       component!.runner,
-      (payload: any, context: any) => 
+      (payload: any, context: any) =>
         (component!.execute as any)(payload, context, {
           ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
           stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
@@ -224,7 +238,6 @@ describe('core.ai.agent component', () => {
     expect(result.agentRunId.length).toBeGreaterThan(0);
   });
 
-
   test('wires MCP tool output into reasoning trace for Gemini provider', async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(JSON.stringify({ answer: 'Evidence' }), {
@@ -243,7 +256,7 @@ describe('core.ai.agent component', () => {
     };
 
     toolLoopAgentGenerateImpl = async (instance) => {
-      const toolResult = await instance.settings.tools.call_mcp_tool.execute({
+      const _toolResult = await instance.settings.tools.call_mcp_tool.execute({
         toolName: 'lookup',
         arguments: { question: 'Lookup reference' },
       });
@@ -278,12 +291,12 @@ describe('core.ai.agent component', () => {
           maxTokens: 512,
           memorySize: 6,
           stepLimit: 3,
-        }
+        },
       };
 
-      const result = (await runComponentWithRunner(
+      const _result = (await runComponentWithRunner(
         component!.runner,
-        (payload: any, context: any) => 
+        (payload: any, context: any) =>
           (component!.execute as any)(payload, context, {
             ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
             stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
@@ -298,72 +311,76 @@ describe('core.ai.agent component', () => {
         workflowContext,
       )) as any;
 
-    const params = {
-      userInput: 'What does the MCP tool return?',
-      conversationState: undefined,
-      chatModel: {
-        provider: 'gemini',
-        modelId: 'gemini-2.5-flash',
-        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-      },
-      modelApiKey: 'gm-gemini-from-secret',
-      mcpTools: [
-        {
-          id: 'call-mcp',
-          title: 'Lookup',
-          endpoint: 'https://mcp.test/api',
-          metadata: {
-            toolName: 'call_mcp_tool',
-          },
-        },
-      ],
-      systemPrompt: '',
-      temperature: 0.6,
-      maxTokens: 512,
-      memorySize: 6,
-      stepLimit: 3,
-    };
-
-          const result2 = (await runComponentWithRunner(
-          component!.runner,
-          (params: any, context: any) => 
-            (component!.execute as any)(params, context, {
-              ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-              stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-              tool: ((definition: any) => {
-                createdTools.push(definition);
-                return definition;
-              }) as unknown as ToolFn,
-              createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-              createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-            }),
-          params,
-          contextWithMockFetch,
-        )) as any;
-    
-        expect(createdTools).toHaveLength(1);
-        expect(stepCountIsMock).toHaveBeenCalledWith(3);
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(result2.toolInvocations).toHaveLength(1);
-        expect(result2.toolInvocations[0]).toMatchObject({
-          toolName: 'call_mcp_tool',
-          result: { answer: 'Evidence' },
-        });
-        expect(result2.reasoningTrace[0]).toMatchObject({
-          thought: 'Consulting MCP',
-        });
-        const toolMessage = result2.conversationState.messages.find((msg: any) => msg.role === 'tool');
-        expect(toolMessage?.content).toMatchObject({
-          toolName: 'call_mcp_tool',
-          result: { answer: 'Evidence' },
-        });
-        const agentSettings = toolLoopAgentConstructorMock.mock.calls[0][0];
-        expect(agentSettings.model).toMatchObject({
+      const params = {
+        userInput: 'What does the MCP tool return?',
+        conversationState: undefined,
+        chatModel: {
           provider: 'gemini',
           modelId: 'gemini-2.5-flash',
-        });
-        expect(result2.responseText).toBe('Final resolved answer');
-        expect(result2.agentRunId).toBeTruthy();  }});
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        },
+        modelApiKey: 'gm-gemini-from-secret',
+        mcpTools: [
+          {
+            id: 'call-mcp',
+            title: 'Lookup',
+            endpoint: 'https://mcp.test/api',
+            metadata: {
+              toolName: 'call_mcp_tool',
+            },
+          },
+        ],
+        systemPrompt: '',
+        temperature: 0.6,
+        maxTokens: 512,
+        memorySize: 6,
+        stepLimit: 3,
+      };
+
+      const result2 = (await runComponentWithRunner(
+        component!.runner,
+        (params: any, context: any) =>
+          (component!.execute as any)(params, context, {
+            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
+            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
+            tool: ((definition: any) => {
+              createdTools.push(definition);
+              return definition;
+            }) as unknown as ToolFn,
+            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
+            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
+          }),
+        params,
+        contextWithMockFetch,
+      )) as any;
+
+      expect(createdTools).toHaveLength(1);
+      expect(stepCountIsMock).toHaveBeenCalledWith(3);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(result2.toolInvocations).toHaveLength(1);
+      expect(result2.toolInvocations[0]).toMatchObject({
+        toolName: 'call_mcp_tool',
+        result: { answer: 'Evidence' },
+      });
+      expect(result2.reasoningTrace[0]).toMatchObject({
+        thought: 'Consulting MCP',
+      });
+      const toolMessage = result2.conversationState.messages.find(
+        (msg: any) => msg.role === 'tool',
+      );
+      expect(toolMessage?.content).toMatchObject({
+        toolName: 'call_mcp_tool',
+        result: { answer: 'Evidence' },
+      });
+      const agentSettings = toolLoopAgentConstructorMock.mock.calls[0][0];
+      expect(agentSettings.model).toMatchObject({
+        provider: 'gemini',
+        modelId: 'gemini-2.5-flash',
+      });
+      expect(result2.responseText).toBe('Final resolved answer');
+      expect(result2.agentRunId).toBeTruthy();
+    };
+  });
 
   test('emits agent trace events via publisher and fallback progress stream', async () => {
     const component = componentRegistry.get('core.ai.agent');
@@ -409,7 +426,7 @@ describe('core.ai.agent component', () => {
         maxTokens: 256,
         memorySize: 5,
         stepLimit: 3,
-      }
+      },
     };
 
     const publishMock = vi.fn().mockResolvedValue(undefined);
@@ -470,8 +487,8 @@ describe('core.ai.agent component', () => {
     );
 
     expect(publishMock).not.toHaveBeenCalled();
-    const fallbackCall = emitProgressMock.mock.calls.find(
-      ([payload]) => payload?.message?.includes('[AgentTraceFallback]'),
+    const fallbackCall = emitProgressMock.mock.calls.find(([payload]) =>
+      payload?.message?.includes('[AgentTraceFallback]'),
     );
     expect(fallbackCall).toBeTruthy();
     expect(fallbackCall?.[0]?.data).toMatchObject({
@@ -519,7 +536,7 @@ describe('core.ai.agent component', () => {
           schemaType: 'json-example' as const,
           jsonExample: '{"name": "example", "age": 0}',
           autoFixFormat: false,
-        }
+        },
       };
 
       const result = (await runComponentWithRunner(
@@ -581,7 +598,7 @@ describe('core.ai.agent component', () => {
             required: ['title', 'count'],
           }),
           autoFixFormat: false,
-        }
+        },
       };
 
       const result = (await runComponentWithRunner(
@@ -634,7 +651,7 @@ describe('core.ai.agent component', () => {
           schemaType: 'json-example' as const,
           jsonExample: '{"name": "example", "age": 0}',
           autoFixFormat: true,
-        }
+        },
       };
 
       const result = (await runComponentWithRunner(
@@ -681,7 +698,7 @@ describe('core.ai.agent component', () => {
           memorySize: 8,
           stepLimit: 4,
           structuredOutputEnabled: false,
-        }
+        },
       };
 
       const result = (await runComponentWithRunner(
@@ -736,7 +753,7 @@ describe('core.ai.agent component', () => {
           schemaType: 'json-example' as const,
           jsonExample: '{"name": "example", "age": 0}',
           autoFixFormat: true,
-        }
+        },
       };
 
       await expect(

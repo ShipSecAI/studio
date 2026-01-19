@@ -6,18 +6,14 @@ let trace: ITraceService | undefined;
 /**
  * Initialize the trace activity with trace service
  */
-export function initializeTraceActivity(options: {
-  trace: ITraceService;
-}) {
+export function initializeTraceActivity(options: { trace: ITraceService }) {
   trace = options.trace;
 }
 
 /**
  * Activity to record a generic trace event
  */
-export async function recordTraceEventActivity(
-  event: TraceEvent
-): Promise<void> {
+export async function recordTraceEventActivity(event: TraceEvent): Promise<void> {
   if (!trace) {
     console.warn('[TraceActivity] Trace service not initialized, skipping event', event.type);
     return;

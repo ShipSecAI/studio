@@ -56,7 +56,7 @@ export class FilesRepository {
     return file ?? null;
   }
 
-  async list(limit: number = 100, options: FileQueryOptions = {}): Promise<File[]> {
+  async list(limit = 100, options: FileQueryOptions = {}): Promise<File[]> {
     const whereClause =
       options.organizationId !== undefined && options.organizationId !== null
         ? eq(files.organizationId, options.organizationId)

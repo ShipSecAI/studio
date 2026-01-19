@@ -1,5 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, mock, vi } from 'bun:test';
-import { componentRegistry, createExecutionContext, type IArtifactService } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  createExecutionContext,
+  type IArtifactService,
+} from '@shipsec/component-sdk';
 import type { FileWriterInput, FileWriterOutput } from '../file-writer';
 
 const s3SendMock = vi.fn();
@@ -62,7 +66,7 @@ describe('core.file.writer component', () => {
       },
       params: {
         fileName: 'output.txt',
-      }
+      },
     };
 
     const result = await component.execute(executePayload, context);
@@ -119,7 +123,7 @@ describe('core.file.writer component', () => {
       },
       params: {
         fileName: 'adapter.txt',
-      }
+      },
     };
 
     const result = await component.execute(executePayload, context);
@@ -158,7 +162,7 @@ describe('core.file.writer component', () => {
         fileName: 'report.json',
         mimeType: 'application/json',
         contentFormat: 'json' as const,
-      }
+      },
     };
 
     const result = await component.execute(executePayload, context);
@@ -167,7 +171,6 @@ describe('core.file.writer component', () => {
     const commandInput = (s3SendMock.mock.calls[0][0] as { input: Record<string, unknown> }).input;
     expect(commandInput.Bucket).toBe('shipsec-artifacts');
     expect(commandInput.Key).toBe('runs/demo/report.json');
-
 
     expect(result.remoteUploads).toHaveLength(1);
     expect(result.remoteUploads![0]).toMatchObject({

@@ -211,9 +211,7 @@ describe('AuthGuard', () => {
         return undefined;
       });
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(UnauthorizedException);
     });
 
     it('should return null when internal token not provided', async () => {
@@ -426,9 +424,7 @@ describe('AuthGuard', () => {
       (mockRequest.header as ReturnType<typeof vi.fn>).mockImplementation(() => undefined);
       mockAuthService.authenticate.mockRejectedValue(authError);
 
-      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(mockExecutionContext)).rejects.toThrow(UnauthorizedException);
       expect(mockRequest.auth).toBeUndefined();
     });
 
@@ -608,4 +604,3 @@ describe('AuthGuard', () => {
     });
   });
 });
-

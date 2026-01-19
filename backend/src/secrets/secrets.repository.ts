@@ -76,8 +76,8 @@ export class SecretsRepository {
       conditions.length === 0
         ? undefined
         : conditions.length === 1
-        ? conditions[0]
-        : and(...conditions);
+          ? conditions[0]
+          : and(...conditions);
 
     const rows = await (whereClause ? baseQuery.where(whereClause) : baseQuery).orderBy(
       secrets.name,
@@ -92,8 +92,7 @@ export class SecretsRepository {
       conditions.push(eq(secrets.organizationId, options.organizationId));
     }
 
-    const whereClause =
-      conditions.length === 1 ? conditions[0] : and(...conditions);
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
 
     const rows = await this.db
       .select({
@@ -130,8 +129,7 @@ export class SecretsRepository {
       conditions.push(eq(secrets.organizationId, options.organizationId));
     }
 
-    const whereClause =
-      conditions.length === 1 ? conditions[0] : and(...conditions);
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
 
     const rows = await this.db
       .select({
@@ -223,7 +221,8 @@ export class SecretsRepository {
             secretId: secret.id,
             version: newVersionNumber,
             isActive: true,
-            organizationId: versionData.organizationId ?? secret.organizationId ?? DEFAULT_ORGANIZATION_ID,
+            organizationId:
+              versionData.organizationId ?? secret.organizationId ?? DEFAULT_ORGANIZATION_ID,
           })
           .returning();
 
@@ -275,10 +274,7 @@ export class SecretsRepository {
         .select({ maxVersion: sql<number>`COALESCE(max(${secretVersions.version}), 0)` })
         .from(secretVersions)
         .where(
-          and(
-            eq(secretVersions.secretId, secretId),
-            eq(secretVersions.organizationId, orgId),
-          ),
+          and(eq(secretVersions.secretId, secretId), eq(secretVersions.organizationId, orgId)),
         );
 
       const newVersionNumber = (maxVersion ?? 0) + 1;
@@ -417,19 +413,17 @@ export class SecretsRepository {
     };
   }
 
-  private async ensureSecretExists(secretId: string, options: SecretQueryOptions = {}): Promise<void> {
+  private async ensureSecretExists(
+    secretId: string,
+    options: SecretQueryOptions = {},
+  ): Promise<void> {
     const conditions: SQL[] = [eq(secrets.id, secretId)];
     if (options.organizationId) {
       conditions.push(eq(secrets.organizationId, options.organizationId));
     }
-    const whereClause =
-      conditions.length === 1 ? conditions[0] : and(...conditions);
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
 
-    const rows = await this.db
-      .select({ id: secrets.id })
-      .from(secrets)
-      .where(whereClause)
-      .limit(1);
+    const rows = await this.db.select({ id: secrets.id }).from(secrets).where(whereClause).limit(1);
     if (rows.length === 0) {
       throw new NotFoundException(`Secret ${secretId} not found`);
     }

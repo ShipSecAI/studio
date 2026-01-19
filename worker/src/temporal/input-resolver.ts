@@ -13,7 +13,11 @@ export interface ManualOverride {
   target: string;
 }
 
-type CoercionResult = { ok: boolean; value?: unknown; error?: string };
+interface CoercionResult {
+  ok: boolean;
+  value?: unknown;
+  error?: string;
+}
 
 function coercePrimitiveValue(type: string | undefined, value: unknown): CoercionResult {
   if (value === undefined || value === null) {
@@ -104,7 +108,10 @@ function coerceValueForConnectionType(
     }
     const coerced: unknown[] = [];
     for (const item of value) {
-      const result = coerceValueForConnectionType(connectionType.element!, item);
+      if (!connectionType.element) {
+        return { ok: false, error: 'Connection type element is null for list item' };
+      }
+      const result = coerceValueForConnectionType(connectionType.element, item);
       if (!result.ok) {
         return { ok: false, error: result.error ?? 'Failed to coerce list item' };
       }
@@ -120,7 +127,10 @@ function coerceValueForConnectionType(
     const inputRecord = value as Record<string, unknown>;
     const coerced: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(inputRecord)) {
-      const result = coerceValueForConnectionType(connectionType.element!, entry);
+      if (!connectionType.element) {
+        return { ok: false, error: `Connection type element is null for key ${key}` };
+      }
+      const result = coerceValueForConnectionType(connectionType.element, entry);
       if (!result.ok) {
         return { ok: false, error: result.error ?? `Failed to coerce value for key ${key}` };
       }
@@ -143,9 +153,9 @@ export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): 
 
   if (typeof sourceOutput === 'object') {
     const record = sourceOutput as Record<string, unknown>;
-    
+
     // If it's a spilled marker, we return the marker itself along with the sourceHandle
-    // The activity will then be responsible for fetching the full data 
+    // The activity will then be responsible for fetching the full data
     // and extracting the specific handle.
     if (isSpilledDataMarker(sourceOutput)) {
       return {
@@ -154,26 +164,23 @@ export function resolveInputValue(sourceOutput: unknown, sourceHandle: string): 
       };
     }
 
-
     if (Object.prototype.hasOwnProperty.call(record, sourceHandle)) {
       return record[sourceHandle];
     }
   }
 
-
   return undefined;
 }
 
-
-type ComponentInputMetadata = {
+interface ComponentInputMetadata {
   id: string;
   valuePriority?: 'manual-first' | 'connection-first' | string;
   connectionType: ConnectionType;
-};
+}
 
-type ComponentMetadataSnapshot = {
+interface ComponentMetadataSnapshot {
   inputs?: ComponentInputMetadata[];
-};
+}
 
 export function buildActionPayload(
   action: WorkflowAction,
@@ -182,11 +189,11 @@ export function buildActionPayload(
     componentMetadata?: ComponentMetadataSnapshot;
   } = {},
 ): {
-    inputs: Record<string, unknown>;
-    params: Record<string, unknown>;
-    warnings: InputWarning[];
-    manualOverrides: ManualOverride[];
-  } {
+  inputs: Record<string, unknown>;
+  params: Record<string, unknown>;
+  warnings: InputWarning[];
+  manualOverrides: ManualOverride[];
+} {
   const params = { ...(action.params ?? {}) } as Record<string, unknown>;
   const inputs = { ...(action.inputOverrides ?? {}) } as Record<string, unknown>;
   const warnings: InputWarning[] = [];
@@ -229,7 +236,6 @@ export function buildActionPayload(
         inputs[targetKey] = resolved;
       }
     } else {
-
       warnings.push({
         target: targetKey,
         sourceRef: mapping.sourceRef,

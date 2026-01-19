@@ -17,7 +17,7 @@ import {
 } from '@shipsec/component-sdk';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
-import { awsCredentialSchema, awsCredentialContractName } from '@shipsec/contracts';
+import { awsCredentialSchema } from '@shipsec/contracts';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const recommendedFlagOptions = [
@@ -66,7 +66,14 @@ const recommendedFlagIdSchema = z.enum(
 const severityLevels = ['critical', 'high', 'medium', 'low', 'informational', 'unknown'] as const;
 type NormalisedSeverity = (typeof severityLevels)[number];
 
-const statusLevels = ['FAILED', 'PASSED', 'WARNING', 'NOT_APPLICABLE', 'NOT_AVAILABLE', 'UNKNOWN'] as const;
+const statusLevels = [
+  'FAILED',
+  'PASSED',
+  'WARNING',
+  'NOT_APPLICABLE',
+  'NOT_AVAILABLE',
+  'UNKNOWN',
+] as const;
 type NormalisedStatus = (typeof statusLevels)[number];
 
 const inputSchema = inputs({
@@ -84,18 +91,18 @@ const inputSchema = inputs({
   credentials: port(
     awsCredentialSchema()
       .optional()
-      .describe('AWS credentials emitted by the AWS Account component. Required for authenticated AWS scans.'),
+      .describe(
+        'AWS credentials emitted by the AWS Account component. Required for authenticated AWS scans.',
+      ),
     {
       label: 'AWS Credentials',
-      description: 'Structured credentials object (`{ accessKeyId, secretAccessKey, sessionToken? }`).',
+      description:
+        'Structured credentials object (`{ accessKeyId, secretAccessKey, sessionToken? }`).',
       connectionType: { kind: 'contract', name: 'core.credential.aws', credential: true },
     },
   ),
   regions: port(
-    z
-      .string()
-      .default('us-east-1')
-      .describe('Comma separated AWS regions (AWS mode only).'),
+    z.string().default('us-east-1').describe('Comma separated AWS regions (AWS mode only).'),
     {
       label: 'Regions',
       description: 'Comma separated AWS regions to cover when scan mode is AWS.',
@@ -109,7 +116,9 @@ const parameterSchema = parameters({
     z
       .enum(['aws', 'cloud'])
       .default('aws')
-      .describe('Run `prowler aws` for a specific account or `prowler cloud` for the multi-cloud overview.'),
+      .describe(
+        'Run `prowler aws` for a specific account or `prowler cloud` for the multi-cloud overview.',
+      ),
     {
       label: 'Scan Target',
       editor: 'select',
@@ -153,7 +162,6 @@ const parameterSchema = parameters({
     },
   ),
 });
-
 
 const prowlerFindingSchema = z
   .object({
@@ -245,17 +253,17 @@ const outputSchema = outputs({
   }),
   summary: port(
     z.object({
-    totalFindings: z.number(),
-    failed: z.number(),
-    passed: z.number(),
-    unknown: z.number(),
-    severityCounts: z.record(z.enum(severityLevels), z.number()),
-    generatedAt: z.string(),
-    regions: z.array(z.string()),
-    scanMode: z.enum(['aws', 'cloud']),
-    selectedFlagIds: z.array(recommendedFlagIdSchema),
-    customFlags: z.string().nullable(),
-  }),
+      totalFindings: z.number(),
+      failed: z.number(),
+      passed: z.number(),
+      unknown: z.number(),
+      severityCounts: z.record(z.enum(severityLevels), z.number()),
+      generatedAt: z.string(),
+      regions: z.array(z.string()),
+      scanMode: z.enum(['aws', 'cloud']),
+      selectedFlagIds: z.array(recommendedFlagIdSchema),
+      customFlags: z.string().nullable(),
+    }),
     {
       label: 'Summary',
       description: 'Aggregate counts, regions, selected flag metadata, and other run statistics.',
@@ -275,7 +283,6 @@ const outputSchema = outputs({
     description: 'Errors encountered during the scan.',
   }),
 });
-
 
 const recommendedFlagMap = new Map<RecommendedFlagId, string[]>(
   recommendedFlagOptions.map((option) => [option.id, [...option.args]]),
@@ -298,7 +305,6 @@ async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[
       '-c',
       'ls -1 /data',
     ]);
-
 
     let stdout = '';
     let stderr = '';
@@ -335,7 +341,11 @@ async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[
  * Prowler runs as user 'prowler' with UID 1000, so we need to chown
  * the output directory to allow Prowler to create subdirectories.
  */
-async function setVolumeOwnership(volume: IsolatedContainerVolume, uid = 1000, gid = 1000): Promise<void> {
+async function setVolumeOwnership(
+  volume: IsolatedContainerVolume,
+  uid = 1000,
+  gid = 1000,
+): Promise<void> {
   const volumeName = volume.getVolumeName();
   if (!volumeName) return;
 
@@ -352,7 +362,6 @@ async function setVolumeOwnership(volume: IsolatedContainerVolume, uid = 1000, g
       '-c',
       `chown -R ${uid}:${gid} /data && chmod -R 755 /data`,
     ]);
-
 
     let stderr = '';
 
@@ -397,8 +406,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs:
-    'Execute Prowler inside Docker using `prowlercloud/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
+  docs: 'Execute Prowler inside Docker using `prowlercloud/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
   ui: {
     slug: 'prowler-scan',
     version: '2.0.0',
@@ -469,8 +477,12 @@ const definition = defineComponent({
       .filter((region) => region.length > 0);
     const regions = parsedRegions.length > 0 ? parsedRegions : ['us-east-1'];
 
-    const selectedFlags = new Set<RecommendedFlagId>(parsedParams.recommendedFlags ?? defaultSelectedFlagIds);
-    const resolvedFlagArgs = Array.from(selectedFlags).flatMap((flagId) => recommendedFlagMap.get(flagId) ?? []);
+    const selectedFlags = new Set<RecommendedFlagId>(
+      parsedParams.recommendedFlags ?? defaultSelectedFlagIds,
+    );
+    const resolvedFlagArgs = Array.from(selectedFlags).flatMap(
+      (flagId) => recommendedFlagMap.get(flagId) ?? [],
+    );
 
     // Validate creds when running AWS scans
     if (parsedParams.scanMode === 'aws' && !parsedInputs.credentials) {
@@ -537,7 +549,14 @@ const definition = defineComponent({
       }
     }
 
-    cmd.push('--output-formats', 'json-asff', '--output-directory', '/output', '--output-filename', 'shipsec');
+    cmd.push(
+      '--output-formats',
+      'json-asff',
+      '--output-directory',
+      '/output',
+      '--output-filename',
+      'shipsec',
+    );
     context.logger.info(`[ProwlerScan] Command: ${cmd.join(' ')}`);
 
     // Prepare a one-off runner with dynamic command and volume
@@ -564,79 +583,88 @@ const definition = defineComponent({
 
     try {
       try {
-      // Initialize AWS credentials volume if provided
-      if (awsCredsVolume && parsedInputs.credentials) {
-        const credsLines = [
-          '[default]',
-          `aws_access_key_id = ${parsedInputs.credentials?.accessKeyId ?? ''}`,
-          `aws_secret_access_key = ${parsedInputs.credentials?.secretAccessKey ?? ''}`,
-        ];
-        if (parsedInputs.credentials?.sessionToken) {
-          credsLines.push(`aws_session_token = ${parsedInputs.credentials.sessionToken}`);
+        // Initialize AWS credentials volume if provided
+        if (awsCredsVolume && parsedInputs.credentials) {
+          const credsLines = [
+            '[default]',
+            `aws_access_key_id = ${parsedInputs.credentials?.accessKeyId ?? ''}`,
+            `aws_secret_access_key = ${parsedInputs.credentials?.secretAccessKey ?? ''}`,
+          ];
+          if (parsedInputs.credentials?.sessionToken) {
+            credsLines.push(`aws_session_token = ${parsedInputs.credentials.sessionToken}`);
+          }
+
+          const cfgRegion = regions[0] ?? 'us-east-1';
+          const cfgLines = ['[default]', `region = ${cfgRegion}`, 'output = json'];
+
+          await awsCredsVolume.initialize({
+            credentials: credsLines.join('\n'),
+            config: cfgLines.join('\n'),
+          });
+          awsVolumeInitialized = true;
+          context.logger.info(
+            `[ProwlerScan] Created isolated AWS creds volume: ${awsCredsVolume.getVolumeName()}`,
+          );
+
+          dockerRunner.volumes = [
+            ...(dockerRunner.volumes ?? []),
+            awsCredsVolume.getVolumeConfig('/home/prowler/.aws', true),
+          ];
         }
 
-        const cfgRegion = regions[0] ?? 'us-east-1';
-        const cfgLines = ['[default]', `region = ${cfgRegion}`, 'output = json'];
-
-        await awsCredsVolume.initialize({
-          credentials: credsLines.join('\n'),
-          config: cfgLines.join('\n'),
-        });
-        awsVolumeInitialized = true;
-        context.logger.info(`[ProwlerScan] Created isolated AWS creds volume: ${awsCredsVolume.getVolumeName()}`);
-
+        // Initialize output volume
+        await outputVolume.initialize({});
+        outputVolumeInitialized = true;
+        // Set ownership to prowler user (UID 1000) so Prowler can create subdirectories
+        await setVolumeOwnership(outputVolume, 1000, 1000);
+        context.logger.info(
+          `[ProwlerScan] Created isolated output volume: ${outputVolume.getVolumeName()}`,
+        );
         dockerRunner.volumes = [
           ...(dockerRunner.volumes ?? []),
-          awsCredsVolume.getVolumeConfig('/home/prowler/.aws', true),
+          outputVolume.getVolumeConfig('/output', false),
         ];
-      }
 
-      // Initialize output volume
-      await outputVolume.initialize({});
-      outputVolumeInitialized = true;
-      // Set ownership to prowler user (UID 1000) so Prowler can create subdirectories
-      await setVolumeOwnership(outputVolume, 1000, 1000);
-      context.logger.info(`[ProwlerScan] Created isolated output volume: ${outputVolume.getVolumeName()}`);
-      dockerRunner.volumes = [
-        ...(dockerRunner.volumes ?? []),
-        outputVolume.getVolumeConfig('/output', false),
-      ];
+        const raw = await runComponentWithRunner<Record<string, unknown>, unknown>(
+          dockerRunner,
+          async () => ({}) as unknown,
+          {},
+          context,
+        );
 
-      const raw = await runComponentWithRunner<Record<string, unknown>, unknown>(
-        dockerRunner,
-        async () => ({} as unknown),
-        {},
-        context,
-      );
-
-      // If the container returned our previous JSON payload shape, keep supporting it
-      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        const parsed = runnerPayloadSchema.safeParse(raw);
-        if (parsed.success) {
-          const result = parsed.data;
-          if (result.parse_error) {
-            throw new ValidationError(`Failed to parse custom CLI flags: ${result.parse_error}`, {
-              fieldErrors: { customFlags: ['Invalid CLI flag syntax'] },
-            });
+        // If the container returned our previous JSON payload shape, keep supporting it
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          const parsed = runnerPayloadSchema.safeParse(raw);
+          if (parsed.success) {
+            const result = parsed.data;
+            if (result.parse_error) {
+              throw new ValidationError(`Failed to parse custom CLI flags: ${result.parse_error}`, {
+                fieldErrors: { customFlags: ['Invalid CLI flag syntax'] },
+              });
+            }
+            if (result.returncode !== 0) {
+              const msg = result.stderr.trim();
+              throw new ServiceError(
+                msg.length > 0 ? msg : `prowler exited with status ${result.returncode}`,
+                {
+                  details: { returncode: result.returncode },
+                },
+              );
+            }
+            rawSegments = result.artifacts.length > 0 ? result.artifacts : [result.stdout];
+            commandForOutput = result.command;
+            stderrCombined = result.stderr;
           }
-          if (result.returncode !== 0) {
-            const msg = result.stderr.trim();
-            throw new ServiceError(msg.length > 0 ? msg : `prowler exited with status ${result.returncode}`, {
-              details: { returncode: result.returncode },
-            });
-          }
-          rawSegments = result.artifacts.length > 0 ? result.artifacts : [result.stdout];
-          commandForOutput = result.command;
-          stderrCombined = result.stderr;
         }
-      }
       } catch (err) {
         const msg = (err as Error)?.message ?? '';
         const isFindingsExit = /exit code\s*3/.test(msg);
         if (isFindingsExit) {
           // Prowler uses exit code 3 to indicate checks failed (findings present).
           // Treat this as a successful run for parsing purposes; keep stderr for summary.
-          context.logger.info('[ProwlerScan] Prowler exited with code 3 (findings present); continuing to parse output.');
+          context.logger.info(
+            '[ProwlerScan] Prowler exited with code 3 (findings present); continuing to parse output.',
+          );
           stderrCombined = msg;
           // Do not cleanup here; we still need to read the mounted output directory.
         } else {
@@ -648,76 +676,80 @@ const definition = defineComponent({
       if (rawSegments.length === 0) {
         try {
           const entries = await listVolumeFiles(outputVolume);
-        const jsonFiles = entries.filter((f) => f.toLowerCase().endsWith('.json'));
-        const contents: string[] = [];
-        for (const file of jsonFiles) {
-          try {
-            const fileMap = await outputVolume.readFiles([file]);
-            contents.push(fileMap[file]);
-          } catch {}
+          const jsonFiles = entries.filter((f) => f.toLowerCase().endsWith('.json'));
+          const contents: string[] = [];
+          for (const file of jsonFiles) {
+            try {
+              const fileMap = await outputVolume.readFiles([file]);
+              contents.push(fileMap[file]);
+            } catch {
+              // Skip files that can't be read
+            }
+          }
+          rawSegments = contents;
+        } catch {
+          // Fall through to check if rawSegments is empty
         }
-        rawSegments = contents;
-      } catch {}
-    }
-
-    if (rawSegments.length === 0) {
-      throw new ServiceError('Prowler did not produce any ASFF output files.', {
-        details: { volumeName: outputVolume.getVolumeName() },
-      });
-    }
-
-    const { findings, errors } = normaliseFindings(rawSegments, context.runId);
-
-    const generatedAt = new Date().toISOString();
-    const severityCounts: Record<NormalisedSeverity, number> = {
-      critical: 0,
-      high: 0,
-      medium: 0,
-      low: 0,
-      informational: 0,
-      unknown: 0,
-    };
-
-    let failed = 0;
-    let passed = 0;
-    let unknown = 0;
-
-    findings.forEach((finding) => {
-      severityCounts[finding.severity] = (severityCounts[finding.severity] ?? 0) + 1;
-      switch (finding.status) {
-        case 'FAILED':
-          failed += 1;
-          break;
-        case 'PASSED':
-          passed += 1;
-          break;
-        default:
-          unknown += 1;
       }
-    });
 
-    const scanId = buildScanId(parsedInputs.accountId, parsedParams.scanMode);
+      if (rawSegments.length === 0) {
+        throw new ServiceError('Prowler did not produce any ASFF output files.', {
+          details: { volumeName: outputVolume.getVolumeName() },
+        });
+      }
 
-    const output: Output = {
-      scanId,
-      findings,
-      rawOutput: rawSegments.join('\n'),
-      summary: {
-        totalFindings: findings.length,
-        failed,
-        passed,
-        unknown,
-        severityCounts,
-        generatedAt,
-        regions,
-        scanMode: parsedParams.scanMode,
-        selectedFlagIds: Array.from(selectedFlags),
-        customFlags: parsedParams.customFlags?.trim() || null,
-      },
-      command: commandForOutput,
-      stderr: stderrCombined,
-      errors: errors.length > 0 ? errors : undefined,
-    };
+      const { findings, errors } = normaliseFindings(rawSegments, context.runId);
+
+      const generatedAt = new Date().toISOString();
+      const severityCounts: Record<NormalisedSeverity, number> = {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        informational: 0,
+        unknown: 0,
+      };
+
+      let failed = 0;
+      let passed = 0;
+      let unknown = 0;
+
+      findings.forEach((finding) => {
+        severityCounts[finding.severity] = (severityCounts[finding.severity] ?? 0) + 1;
+        switch (finding.status) {
+          case 'FAILED':
+            failed += 1;
+            break;
+          case 'PASSED':
+            passed += 1;
+            break;
+          default:
+            unknown += 1;
+        }
+      });
+
+      const scanId = buildScanId(parsedInputs.accountId, parsedParams.scanMode);
+
+      const output: Output = {
+        scanId,
+        findings,
+        rawOutput: rawSegments.join('\n'),
+        summary: {
+          totalFindings: findings.length,
+          failed,
+          passed,
+          unknown,
+          severityCounts,
+          generatedAt,
+          regions,
+          scanMode: parsedParams.scanMode,
+          selectedFlagIds: Array.from(selectedFlags),
+          customFlags: parsedParams.customFlags?.trim() || null,
+        },
+        command: commandForOutput,
+        stderr: stderrCombined,
+        errors: errors.length > 0 ? errors : undefined,
+      };
 
       return outputSchema.parse(output);
     } finally {
@@ -734,12 +766,18 @@ const definition = defineComponent({
 });
 
 function buildScanId(accountId: string, scanMode: 'aws' | 'cloud'): string {
-  const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[^0-9]/g, '')
+    .slice(0, 14);
   const safeAccount = accountId.replace(/[^a-zA-Z0-9-]/g, '-').slice(0, 32);
   return `prowler-${scanMode}-${safeAccount}-${timestamp}`;
 }
 
-function normaliseFindings(rawSegments: string[], runId: string): {
+function normaliseFindings(
+  rawSegments: string[],
+  runId: string,
+): {
   findings: NormalisedFinding[];
   errors: string[];
 } {
@@ -751,7 +789,9 @@ function normaliseFindings(rawSegments: string[], runId: string): {
     candidates.forEach((candidate, candidateIndex) => {
       const parsed = prowlerFindingSchema.safeParse(candidate);
       if (!parsed.success) {
-        errors.push(`Segment ${segmentIndex + 1} item ${candidateIndex + 1}: ${parsed.error.message}`);
+        errors.push(
+          `Segment ${segmentIndex + 1} item ${candidateIndex + 1}: ${parsed.error.message}`,
+        );
         return;
       }
       findings.push(toNormalisedFinding(parsed.data, findings.length, runId));
@@ -782,7 +822,7 @@ function parseSegment(segment: string, segmentIndex: number, errors: string[]): 
       }
       return [parsed];
     }
-  } catch (error) {
+  } catch (_error) {
     // Fallback to NDJSON parsing
     const ndjsonResults: unknown[] = [];
     trimmed
@@ -809,12 +849,16 @@ function parseSegment(segment: string, segmentIndex: number, errors: string[]): 
   return [];
 }
 
-function toNormalisedFinding(finding: ProwlerFinding, index: number, runId: string): NormalisedFinding {
-  const primaryResource = Array.isArray(finding.Resources) && finding.Resources.length > 0 ? finding.Resources[0] : undefined;
-  const accountId =
-    finding.AwsAccountId ??
-    extractAccountId(primaryResource?.Id) ??
-    null;
+function toNormalisedFinding(
+  finding: ProwlerFinding,
+  index: number,
+  runId: string,
+): NormalisedFinding {
+  const primaryResource =
+    Array.isArray(finding.Resources) && finding.Resources.length > 0
+      ? finding.Resources[0]
+      : undefined;
+  const accountId = finding.AwsAccountId ?? extractAccountId(primaryResource?.Id) ?? null;
   const region = primaryResource?.Region ?? extractRegionFromArn(primaryResource?.Id) ?? null;
   const resourceId = primaryResource?.Id ?? null;
   const severity = normaliseSeverity(finding);
@@ -838,10 +882,7 @@ function toNormalisedFinding(finding: ProwlerFinding, index: number, runId: stri
 }
 
 function normaliseSeverity(finding: ProwlerFinding): NormalisedSeverity {
-  const label =
-    finding.Severity?.Label ??
-    finding.Severity?.Original ??
-    '';
+  const label = finding.Severity?.Label ?? finding.Severity?.Original ?? '';
 
   if (typeof label === 'string' && label.trim().length > 0) {
     const lowered = label.trim().toLowerCase();
@@ -901,7 +942,7 @@ function extractRegionFromArn(resourceId?: string): string | null {
 componentRegistry.register(definition);
 
 // Create local type aliases for backward compatibility
-type Input = typeof inputSchema['__inferred'];
-type Output = typeof outputSchema['__inferred'];
+type Input = (typeof inputSchema)['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
 
 export type { Input as ProwlerScanInput, Output as ProwlerScanOutput };

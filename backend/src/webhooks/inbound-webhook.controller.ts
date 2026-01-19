@@ -23,7 +23,8 @@ export class InboundWebhookController {
   @Post(':path')
   @ApiOperation({
     summary: 'Receive inbound webhook',
-    description: 'Public endpoint for receiving webhook deliveries. No authentication required - security relies on the unguessable webhook path.',
+    description:
+      'Public endpoint for receiving webhook deliveries. No authentication required - security relies on the unguessable webhook path.',
   })
   @ApiResponse({
     status: 200,

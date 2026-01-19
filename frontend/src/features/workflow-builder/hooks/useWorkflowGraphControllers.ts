@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react';
 import {
   useNodesState,
   useEdgesState,
@@ -6,44 +6,50 @@ import {
   type EdgeChange,
   type Node as ReactFlowNode,
   type Edge as ReactFlowEdge,
-} from 'reactflow'
-import type { FrontendNodeData } from '@/schemas/node'
+} from 'reactflow';
+import type { FrontendNodeData } from '@/schemas/node';
 
-export const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
-export const ENTRY_COMPONENT_SLUG = 'entry-point'
+export const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
+export const ENTRY_COMPONENT_SLUG = 'entry-point';
 
 export interface GraphSnapshot {
-  nodes: ReactFlowNode<FrontendNodeData>[]
-  edges: ReactFlowEdge[]
+  nodes: ReactFlowNode<FrontendNodeData>[];
+  edges: ReactFlowEdge[];
 }
 
 export interface GraphController {
-  nodes: ReactFlowNode<FrontendNodeData>[]
-  edges: ReactFlowEdge[]
-  setNodes: ReturnType<typeof useNodesState<FrontendNodeData>>[1]
-  setEdges: ReturnType<typeof useEdgesState>[1]
-  onNodesChange: (changes: NodeChange[]) => void
-  onEdgesChange: (changes: EdgeChange[]) => void
-  nodesRef: React.MutableRefObject<ReactFlowNode<FrontendNodeData>[]>
-  edgesRef: React.MutableRefObject<ReactFlowEdge[]>
-  preservedStateRef: React.MutableRefObject<GraphSnapshot | null>
-  savedSnapshotRef: React.MutableRefObject<GraphSnapshot | null>
+  nodes: ReactFlowNode<FrontendNodeData>[];
+  edges: ReactFlowEdge[];
+  setNodes: ReturnType<typeof useNodesState<FrontendNodeData>>[1];
+  setEdges: ReturnType<typeof useEdgesState>[1];
+  onNodesChange: (changes: NodeChange[]) => void;
+  onEdgesChange: (changes: EdgeChange[]) => void;
+  nodesRef: React.MutableRefObject<ReactFlowNode<FrontendNodeData>[]>;
+  edgesRef: React.MutableRefObject<ReactFlowEdge[]>;
+  preservedStateRef: React.MutableRefObject<GraphSnapshot | null>;
+  savedSnapshotRef: React.MutableRefObject<GraphSnapshot | null>;
 }
 
 export interface WorkflowGraphControllers {
-  design: GraphController
-  execution: GraphController
+  design: GraphController;
+  execution: GraphController;
 }
 
-type ToastFn = (params: { title: string; description?: string; variant?: 'default' | 'destructive' | 'warning' | 'success' }) => void
+type ToastFn = (params: {
+  title: string;
+  description?: string;
+  variant?: 'default' | 'destructive' | 'warning' | 'success';
+}) => void;
 
 const isEntryPointNode = (node?: ReactFlowNode<FrontendNodeData>) => {
-  if (!node) return false
-  const componentRef = node.data?.componentId ?? node.data?.componentSlug
-  return componentRef === ENTRY_COMPONENT_ID || componentRef === ENTRY_COMPONENT_SLUG
-}
+  if (!node) return false;
+  const componentRef = node.data?.componentId ?? node.data?.componentSlug;
+  return componentRef === ENTRY_COMPONENT_ID || componentRef === ENTRY_COMPONENT_SLUG;
+};
 
-export const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
+export const cloneNodes = (
+  nodes: ReactFlowNode<FrontendNodeData>[],
+): ReactFlowNode<FrontendNodeData>[] =>
   nodes.map((node) => ({
     ...node,
     position: { ...node.position },
@@ -52,112 +58,117 @@ export const cloneNodes = (nodes: ReactFlowNode<FrontendNodeData>[]) =>
       config: node.data?.config ? { ...node.data.config } : { params: {}, inputOverrides: {} },
       inputs: node.data?.inputs ? { ...node.data.inputs } : {},
     },
-  }))
+  }));
 
-export const cloneEdges = (edges: ReactFlowEdge[]) => edges.map((edge) => ({ ...edge }))
+export const cloneEdges = (edges: ReactFlowEdge[]) => edges.map((edge) => ({ ...edge }));
 
-const createNodesChangeHandler = ({
-  nodesRef,
-  onNodesChangeBase,
-  toast,
-  shouldMarkDirty,
-}: {
-  nodesRef: React.MutableRefObject<ReactFlowNode<FrontendNodeData>[]>
-  onNodesChangeBase: (changes: NodeChange[]) => void
-  toast: ToastFn
-  shouldMarkDirty?: () => void
-}) =>
+const createNodesChangeHandler =
+  ({
+    nodesRef,
+    onNodesChangeBase,
+    toast,
+    shouldMarkDirty,
+  }: {
+    nodesRef: React.MutableRefObject<ReactFlowNode<FrontendNodeData>[]>;
+    onNodesChangeBase: (changes: NodeChange[]) => void;
+    toast: ToastFn;
+    shouldMarkDirty?: () => void;
+  }) =>
   (changes: NodeChange[]) => {
     if (changes.length === 0) {
-      return
+      return;
     }
 
-    const currentNodes = nodesRef.current
-    const totalEntryNodes = currentNodes.filter(isEntryPointNode).length
+    const currentNodes = nodesRef.current;
+    const totalEntryNodes = currentNodes.filter(isEntryPointNode).length;
     const removingLastEntry = changes.some((change) => {
-      if (change.type !== 'remove') return false
-      const node = currentNodes.find((n) => n.id === change.id)
-      return isEntryPointNode(node) && totalEntryNodes <= 1
-    })
+      if (change.type !== 'remove') return false;
+      const node = currentNodes.find((n) => n.id === change.id);
+      return isEntryPointNode(node) && totalEntryNodes <= 1;
+    });
 
     if (removingLastEntry) {
       toast({
         variant: 'destructive',
         title: 'Entry Point required',
         description: 'Each workflow must keep one Entry Point node.',
-      })
-      return
+      });
+      return;
     }
 
     const filteredChanges = changes.filter((change) => {
       if (change.type === 'add' && 'item' in change) {
-        const node = (change as any).item as ReactFlowNode<FrontendNodeData>
+        const node = (change as any).item as ReactFlowNode<FrontendNodeData>;
         if (isEntryPointNode(node) && currentNodes.some(isEntryPointNode)) {
           toast({
             variant: 'destructive',
             title: 'Entry Point already exists',
             description: 'Each workflow can only have one Entry Point.',
-          })
-          return false
+          });
+          return false;
         }
       }
-      return true
-    })
+      return true;
+    });
 
     if (filteredChanges.length === 0) {
-      return
+      return;
     }
 
-    onNodesChangeBase(filteredChanges)
-    shouldMarkDirty?.()
-  }
+    onNodesChangeBase(filteredChanges);
+    shouldMarkDirty?.();
+  };
 
-const createEdgesChangeHandler = ({
-  onEdgesChangeBase,
-  shouldMarkDirty,
-}: {
-  onEdgesChangeBase: (changes: EdgeChange[]) => void
-  shouldMarkDirty?: () => void
-}) =>
+const createEdgesChangeHandler =
+  ({
+    onEdgesChangeBase,
+    shouldMarkDirty,
+  }: {
+    onEdgesChangeBase: (changes: EdgeChange[]) => void;
+    shouldMarkDirty?: () => void;
+  }) =>
   (changes: EdgeChange[]) => {
-    onEdgesChangeBase(changes)
+    onEdgesChangeBase(changes);
     if (changes.length > 0) {
-      shouldMarkDirty?.()
+      shouldMarkDirty?.();
     }
-  }
+  };
 
 export const useWorkflowGraphControllers = ({
   toast,
   onDesignGraphDirty,
 }: {
-  toast: ToastFn
-  onDesignGraphDirty?: () => void
+  toast: ToastFn;
+  onDesignGraphDirty?: () => void;
 }): WorkflowGraphControllers => {
-  const [designNodes, setDesignNodes, onDesignNodesChangeBase] = useNodesState<FrontendNodeData>([])
-  const [designEdges, setDesignEdges, onDesignEdgesChangeBase] = useEdgesState([])
-  const [executionNodes, setExecutionNodes, onExecutionNodesChangeBase] = useNodesState<FrontendNodeData>([])
-  const [executionEdges, setExecutionEdges, onExecutionEdgesChangeBase] = useEdgesState([])
+  const [designNodes, setDesignNodes, onDesignNodesChangeBase] = useNodesState<FrontendNodeData>(
+    [],
+  );
+  const [designEdges, setDesignEdges, onDesignEdgesChangeBase] = useEdgesState([]);
+  const [executionNodes, setExecutionNodes, onExecutionNodesChangeBase] =
+    useNodesState<FrontendNodeData>([]);
+  const [executionEdges, setExecutionEdges, onExecutionEdgesChangeBase] = useEdgesState([]);
 
-  const designNodesRef = useRef(designNodes)
-  const designEdgesRef = useRef(designEdges)
-  const executionNodesRef = useRef(executionNodes)
-  const executionEdgesRef = useRef(executionEdges)
-
-  useEffect(() => {
-    designNodesRef.current = designNodes
-  }, [designNodes])
-
-  useEffect(() => {
-    designEdgesRef.current = designEdges
-  }, [designEdges])
+  const designNodesRef = useRef(designNodes);
+  const designEdgesRef = useRef(designEdges);
+  const executionNodesRef = useRef(executionNodes);
+  const executionEdgesRef = useRef(executionEdges);
 
   useEffect(() => {
-    executionNodesRef.current = executionNodes
-  }, [executionNodes])
+    designNodesRef.current = designNodes;
+  }, [designNodes]);
 
   useEffect(() => {
-    executionEdgesRef.current = executionEdges
-  }, [executionEdges])
+    designEdgesRef.current = designEdges;
+  }, [designEdges]);
+
+  useEffect(() => {
+    executionNodesRef.current = executionNodes;
+  }, [executionNodes]);
+
+  useEffect(() => {
+    executionEdgesRef.current = executionEdges;
+  }, [executionEdges]);
 
   const designNodesChange = useMemo(
     () =>
@@ -168,7 +179,7 @@ export const useWorkflowGraphControllers = ({
         shouldMarkDirty: onDesignGraphDirty,
       }),
     [onDesignNodesChangeBase, toast, onDesignGraphDirty],
-  )
+  );
 
   const executionNodesChange = useMemo(
     () =>
@@ -178,7 +189,7 @@ export const useWorkflowGraphControllers = ({
         toast,
       }),
     [onExecutionNodesChangeBase, toast],
-  )
+  );
 
   const designEdgesChange = useMemo(
     () =>
@@ -187,7 +198,7 @@ export const useWorkflowGraphControllers = ({
         shouldMarkDirty: onDesignGraphDirty,
       }),
     [onDesignEdgesChangeBase, onDesignGraphDirty],
-  )
+  );
 
   const executionEdgesChange = useMemo(
     () =>
@@ -195,12 +206,12 @@ export const useWorkflowGraphControllers = ({
         onEdgesChangeBase: onExecutionEdgesChangeBase,
       }),
     [onExecutionEdgesChangeBase],
-  )
+  );
 
-  const designPreservedRef = useRef<GraphSnapshot | null>(null)
-  const designSavedSnapshotRef = useRef<GraphSnapshot | null>(null)
-  const executionPreservedRef = useRef<GraphSnapshot | null>(null)
-  const executionSavedSnapshotRef = useRef<GraphSnapshot | null>(null)
+  const designPreservedRef = useRef<GraphSnapshot | null>(null);
+  const designSavedSnapshotRef = useRef<GraphSnapshot | null>(null);
+  const executionPreservedRef = useRef<GraphSnapshot | null>(null);
+  const executionSavedSnapshotRef = useRef<GraphSnapshot | null>(null);
 
   return {
     design: {
@@ -227,5 +238,5 @@ export const useWorkflowGraphControllers = ({
       preservedStateRef: executionPreservedRef,
       savedSnapshotRef: executionSavedSnapshotRef,
     },
-  }
-}
+  };
+};

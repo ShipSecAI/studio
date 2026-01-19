@@ -23,12 +23,8 @@ describe('naabu component', () => {
     const component = componentRegistry.get<NaabuInput, NaabuOutput>('shipsec.naabu.scan');
     if (!component) throw new Error('Component not registered');
 
-    const inputValues = {
-      targets: ['scanme.sh'],
-    };
     const paramValues = {};
 
-    const parsedInputs = component.inputs.parse(inputValues);
     const parsedParams = component.parameters!.parse(paramValues);
 
     expect(parsedParams.retries).toBe(1);
@@ -51,7 +47,7 @@ describe('naabu component', () => {
       params: {
         ports: '80,443',
         enablePing: true,
-      }
+      },
     };
 
     const rawOutput = [
@@ -86,19 +82,20 @@ describe('naabu component', () => {
       inputs: {
         targets: ['scanme.sh'],
       },
-      params: {}
+      params: {},
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue('scanme.sh:22\n');
 
-    const result = await component.execute({
-      inputs: component.inputs.parse(executePayload.inputs),
-      params: component.parameters!.parse(executePayload.params),
-    }, context);
+    const result = await component.execute(
+      {
+        inputs: component.inputs.parse(executePayload.inputs),
+        params: component.parameters!.parse(executePayload.params),
+      },
+      context,
+    );
 
-    expect(result.findings).toEqual([
-      { host: 'scanme.sh', ip: null, port: 22, protocol: 'tcp' },
-    ]);
+    expect(result.findings).toEqual([{ host: 'scanme.sh', ip: null, port: 22, protocol: 'tcp' }]);
     expect(result.openPortCount).toBe(1);
   });
 

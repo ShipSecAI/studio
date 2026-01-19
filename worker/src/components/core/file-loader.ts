@@ -35,11 +35,7 @@ const fileLoaderRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 1,
   maximumIntervalSeconds: 10,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'NotFoundError',
-    'ConfigurationError',
-    'ValidationError',
-  ],
+  nonRetryableErrorTypes: ['NotFoundError', 'ConfigurationError', 'ValidationError'],
 };
 
 const definition = defineComponent({
@@ -74,11 +70,11 @@ const definition = defineComponent({
 
     // Use storage interface (not concrete implementation!)
     const storage = context.storage;
-    
+
     if (!storage) {
       throw new ConfigurationError(
         'Storage service not available in execution context. Worker must provide IFileStorageService adapter.',
-        { configKey: 'storage' }
+        { configKey: 'storage' },
       );
     }
 
@@ -95,7 +91,7 @@ const definition = defineComponent({
 
     // Convert to base64 for downstream components
     const content = buffer.toString('base64');
-    
+
     // Also provide decoded text content
     const textContent = buffer.toString('utf-8');
 

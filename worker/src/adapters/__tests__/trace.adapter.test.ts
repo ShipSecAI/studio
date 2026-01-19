@@ -13,7 +13,7 @@ describe('TraceAdapter', () => {
   };
 
   class FakeDb {
-    public inserts: Array<{ table: unknown; input: unknown }> = [];
+    public inserts: { table: unknown; input: unknown }[] = [];
 
     insert(table: unknown) {
       return {
@@ -119,17 +119,20 @@ describe('TraceAdapter', () => {
         timestamps.map(
           (timestamp, index) =>
             new Promise<void>((resolve) => {
-              setTimeout(() => {
-                adapter.record({
-                  type: index % 2 === 0 ? 'NODE_PROGRESS' : 'NODE_COMPLETED',
-                  runId,
-                  nodeRef: `node-${index % 5}`,
-                  timestamp,
-                  level: 'info',
-                  message: `event-${index}`,
-                });
-                resolve();
-              }, Math.floor(Math.random() * 5));
+              setTimeout(
+                () => {
+                  adapter.record({
+                    type: index % 2 === 0 ? 'NODE_PROGRESS' : 'NODE_COMPLETED',
+                    runId,
+                    nodeRef: `node-${index % 5}`,
+                    timestamp,
+                    level: 'info',
+                    message: `event-${index}`,
+                  });
+                  resolve();
+                },
+                Math.floor(Math.random() * 5),
+              );
             }),
         ),
       );

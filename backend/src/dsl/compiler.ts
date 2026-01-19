@@ -12,7 +12,7 @@ import {
 } from './types';
 import { validateWorkflowGraph } from './validator';
 
-function topoSort(nodes: string[], edges: Array<{ source: string; target: string }>): string[] {
+function topoSort(nodes: string[], edges: { source: string; target: string }[]): string[] {
   const incoming = new Map<string, number>();
   const adjacency = new Map<string, string[]>();
 
@@ -77,7 +77,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
 
   const orderedIds = topoSort(nodeIds, graph.edges);
   const incomingEdges = new Map<string, Set<string>>();
-  type GraphEdge = typeof graph.edges[number];
+  type GraphEdge = (typeof graph.edges)[number];
   const edgesByTarget = new Map<string, GraphEdge[]>();
   for (const nodeId of nodeIds) {
     incomingEdges.set(nodeId, new Set());
@@ -105,8 +105,10 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       ref: node.id,
       label: node.data?.label,
       joinStrategy,
-      streamId: typeof streamIdValue === 'string' && streamIdValue.length > 0 ? streamIdValue : undefined,
-      groupId: typeof groupIdValue === 'string' && groupIdValue.length > 0 ? groupIdValue : undefined,
+      streamId:
+        typeof streamIdValue === 'string' && streamIdValue.length > 0 ? streamIdValue : undefined,
+      groupId:
+        typeof groupIdValue === 'string' && groupIdValue.length > 0 ? groupIdValue : undefined,
       maxConcurrency:
         typeof maxConcurrencyValue === 'number' && Number.isFinite(maxConcurrencyValue)
           ? maxConcurrencyValue
@@ -166,7 +168,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       const metadata = inputMetadata.get(targetKey);
       const prefersManual = metadata?.valuePriority === 'manual-first';
       if (!prefersManual) {
-        delete inputOverrides[targetKey];
+        Reflect.deleteProperty(inputOverrides, targetKey);
       }
     }
 
@@ -224,11 +226,14 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
 
   // Verify the entrypoint ref points to an entrypoint component
   const entrypointActionVerify = actions.find((action) => action.ref === entryNode);
-  if (!entrypointActionVerify || entrypointActionVerify.componentId !== 'core.workflow.entrypoint') {
+  if (
+    !entrypointActionVerify ||
+    entrypointActionVerify.componentId !== 'core.workflow.entrypoint'
+  ) {
     throw new Error(
       `Workflow compilation error: Entrypoint ref '${entryNode}' does not point to an Entry Point component. ` +
-      `Found component: ${entrypointActionVerify?.componentId ?? 'none'}. ` +
-      `This indicates a workflow configuration error.`
+        `Found component: ${entrypointActionVerify?.componentId ?? 'none'}. ` +
+        `This indicates a workflow configuration error.`,
     );
   }
 
@@ -247,7 +252,10 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
   // Validate the workflow before returning
   const validationResult = validateWorkflowGraph(graph, definition);
   if (!validationResult.isValid) {
-    const errorMessages = validationResult.errors.map(e => `[${e.node}] ${e.field}: ${e.message}${e.suggestion ? ' (Suggestion: ' + e.suggestion + ')' : ''}`);
+    const errorMessages = validationResult.errors.map(
+      (e) =>
+        `[${e.node}] ${e.field}: ${e.message}${e.suggestion ? ' (Suggestion: ' + e.suggestion + ')' : ''}`,
+    );
     const errorMessage = `Workflow validation failed:\n${errorMessages.join('\n')}`;
     throw new Error(errorMessage);
   }
@@ -255,8 +263,10 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
   // Log warnings for user information
   if (validationResult.warnings.length > 0) {
     console.warn(`Workflow validation warnings for ${graph.name}:`);
-    validationResult.warnings.forEach(w => {
-      console.warn(`  [${w.node}] ${w.field}: ${w.message}${w.suggestion ? ' (Suggestion: ' + w.suggestion + ')' : ''}`);
+    validationResult.warnings.forEach((w) => {
+      console.warn(
+        `  [${w.node}] ${w.field}: ${w.message}${w.suggestion ? ' (Suggestion: ' + w.suggestion + ')' : ''}`,
+      );
     });
   }
 

@@ -63,12 +63,16 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    examples: ['Use this before GitHub removal steps to consistently reuse the same OAuth connection.'],
+    examples: [
+      'Use this before GitHub removal steps to consistently reuse the same OAuth connection.',
+    ],
   },
   async execute({ params }, context) {
     const trimmedConnectionId = params.connectionId.trim();
 
-    context.logger.info(`[GitHub] Providing connection ${trimmedConnectionId} to downstream nodes.`);
+    context.logger.info(
+      `[GitHub] Providing connection ${trimmedConnectionId} to downstream nodes.`,
+    );
     context.emitProgress(`Selected GitHub connection ${trimmedConnectionId}.`);
 
     return outputSchema.parse({

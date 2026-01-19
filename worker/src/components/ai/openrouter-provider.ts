@@ -19,7 +19,8 @@ const DEFAULT_APP_TITLE = process.env.OPENROUTER_APP_TITLE ?? 'ShipSec Studio';
 
 const inputSchema = inputs({
   apiKey: port(
-    z.string()
+    z
+      .string()
       .min(1, 'API key is required')
       .describe('Resolved OpenRouter API key supplied via a Secret Loader node.'),
     {
@@ -36,7 +37,9 @@ const parameterSchema = parameters({
     z
       .string()
       .default(DEFAULT_MODEL)
-      .describe('OpenRouter model identifier (e.g., openrouter/auto, anthropic/claude-3.5-sonnet).'),
+      .describe(
+        'OpenRouter model identifier (e.g., openrouter/auto, anthropic/claude-3.5-sonnet).',
+      ),
     {
       label: 'Model',
       editor: 'text',
@@ -51,7 +54,8 @@ const parameterSchema = parameters({
     {
       label: 'API Base URL',
       editor: 'text',
-      description: 'Override for the OpenRouter API base URL (leave blank for the default provider URL).',
+      description:
+        'Override for the OpenRouter API base URL (leave blank for the default provider URL).',
     },
   ),
   httpReferer: param(
@@ -107,7 +111,8 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'process',
     category: 'ai',
-    description: 'Normalize OpenRouter credentials, headers, and model selection into a reusable provider config.',
+    description:
+      'Normalize OpenRouter credentials, headers, and model selection into a reusable provider config.',
     icon: 'Settings',
     author: {
       name: 'ShipSecAI',

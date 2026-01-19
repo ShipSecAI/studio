@@ -291,6 +291,8 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
 
     expect(savedDefinition).not.toBeNull();
     expect(savedDefinition!.actions.length).toBe(4);
-    expect(definition.actions.find((action) => action.componentId === 'core.ai.agent')).toBeDefined();
+    expect(
+      definition.actions.find((action) => action.componentId === 'core.ai.agent'),
+    ).toBeDefined();
   });
 });

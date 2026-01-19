@@ -6,7 +6,9 @@ import { DEFAULT_ROLES, type AuthContext } from '../types';
 import type { AuthProviderStrategy } from './auth-provider.interface';
 import { DEFAULT_ORGANIZATION_ID } from '../constants';
 
-function extractBasicAuth(headerValue: string | undefined): { username: string; password: string } | null {
+function extractBasicAuth(
+  headerValue: string | undefined,
+): { username: string; password: string } | null {
   if (!headerValue || !headerValue.startsWith('Basic ')) {
     return null;
   }
@@ -22,7 +24,6 @@ function extractBasicAuth(headerValue: string | undefined): { username: string; 
     return null;
   }
 }
-
 
 @Injectable()
 export class LocalAuthProvider implements AuthProviderStrategy {
@@ -41,7 +42,7 @@ export class LocalAuthProvider implements AuthProviderStrategy {
 
     const authHeader = request.headers.authorization;
     const basicAuth = extractBasicAuth(authHeader);
-    
+
     if (!basicAuth) {
       throw new UnauthorizedException('Missing Basic Auth credentials');
     }

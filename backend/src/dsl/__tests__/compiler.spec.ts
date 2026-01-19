@@ -19,9 +19,7 @@ describe('compileWorkflowGraph', () => {
             label: 'Trigger',
             config: {
               params: {
-                runtimeInputs: [
-                  { id: 'fileId', label: 'File ID', type: 'file', required: true },
-                ],
+                runtimeInputs: [{ id: 'fileId', label: 'File ID', type: 'file', required: true }],
               },
               inputOverrides: {},
             },
@@ -60,8 +58,20 @@ describe('compileWorkflowGraph', () => {
         },
       ],
       edges: [
-        { id: 'e1', source: 'trigger', target: 'loader', sourceHandle: 'fileId', targetHandle: 'fileId' },
-        { id: 'e2', source: 'loader', target: 'webhook', sourceHandle: 'textContent', targetHandle: 'body' },
+        {
+          id: 'e1',
+          source: 'trigger',
+          target: 'loader',
+          sourceHandle: 'fileId',
+          targetHandle: 'fileId',
+        },
+        {
+          id: 'e2',
+          source: 'loader',
+          target: 'webhook',
+          sourceHandle: 'textContent',
+          targetHandle: 'body',
+        },
       ],
       viewport: { x: 0, y: 0, zoom: 1 },
     };
@@ -148,9 +158,7 @@ describe('compileWorkflowGraph', () => {
             label: 'A',
             config: {
               params: {
-                runtimeInputs: [
-                  { id: 'inputA', label: 'Input A', type: 'text', required: false },
-                ],
+                runtimeInputs: [{ id: 'inputA', label: 'Input A', type: 'text', required: false }],
               },
               inputOverrides: {},
             },
@@ -164,9 +172,7 @@ describe('compileWorkflowGraph', () => {
             label: 'B',
             config: {
               params: {
-                runtimeInputs: [
-                  { id: 'inputB', label: 'Input B', type: 'text', required: false },
-                ],
+                runtimeInputs: [{ id: 'inputB', label: 'Input B', type: 'text', required: false }],
               },
               inputOverrides: {},
             },
@@ -180,9 +186,7 @@ describe('compileWorkflowGraph', () => {
       viewport: { x: 0, y: 0, zoom: 1 },
     };
 
-    expect(() => compileWorkflowGraph(graph)).toThrow(
-      'Workflow graph contains a cycle',
-    );
+    expect(() => compileWorkflowGraph(graph)).toThrow('Workflow graph contains a cycle');
   });
 
   it('always marks the Entry Point component as the workflow entrypoint', () => {
@@ -212,9 +216,7 @@ describe('compileWorkflowGraph', () => {
             label: 'Entry Point',
             config: {
               params: {
-                runtimeInputs: [
-                  { id: 'inputA', label: 'Input A', type: 'text', required: true },
-                ],
+                runtimeInputs: [{ id: 'inputA', label: 'Input A', type: 'text', required: true }],
               },
               inputOverrides: {},
             },
@@ -242,9 +244,7 @@ describe('compileWorkflowGraph', () => {
             label: 'Start',
             config: {
               params: {
-                runtimeInputs: [
-                  { id: 'branchSeed', label: 'Seed', type: 'text', required: false },
-                ],
+                runtimeInputs: [{ id: 'branchSeed', label: 'Seed', type: 'text', required: false }],
               },
               inputOverrides: {},
             },

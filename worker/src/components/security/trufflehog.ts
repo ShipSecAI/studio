@@ -15,15 +15,7 @@ import {
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const scanTypeSchema = z.enum([
-  'git',
-  'github',
-  'gitlab',
-  's3',
-  'gcs',
-  'filesystem',
-  'docker',
-]);
+const scanTypeSchema = z.enum(['git', 'github', 'gitlab', 's3', 'gcs', 'filesystem', 'docker']);
 
 const inputSchema = inputs({
   scanTarget: port(
@@ -59,12 +51,15 @@ const parameterSchema = parameters({
     z
       .record(z.string(), z.string())
       .optional()
-      .describe('Files to write to isolated volume for filesystem scanning (filename -> content map)'),
+      .describe(
+        'Files to write to isolated volume for filesystem scanning (filename -> content map)',
+      ),
     {
       label: 'Filesystem Files',
       editor: 'json',
       description: 'JSON map of filename to content for filesystem scanning (optional).',
-      helpText: 'Only use with scanType=filesystem. Files are written to an isolated Docker volume.',
+      helpText:
+        'Only use with scanType=filesystem. Files are written to an isolated Docker volume.',
     },
   ),
   onlyVerified: param(z.boolean().default(true).describe('Show only verified secrets'), {
@@ -104,7 +99,7 @@ const parameterSchema = parameters({
       editor: 'text',
       placeholder: 'main',
       description: 'Scan commits since this reference (git only).',
-      helpText: 'For PR scans: set this to the base branch (e.g. \"main\").',
+      helpText: 'For PR scans: set this to the base branch (e.g. "main").',
     },
   ),
   includeIssueComments: param(
@@ -140,8 +135,7 @@ const parameterSchema = parameters({
   ),
 });
 
-
-type Secret = {
+interface Secret {
   DetectorType?: string;
   DetectorName?: string;
   DecoderName?: string;
@@ -166,7 +160,7 @@ type Secret = {
     };
   };
   StructuredData?: Record<string, any>;
-};
+}
 
 const outputSchema = outputs({
   secrets: port(z.array(z.any()), {
@@ -195,7 +189,9 @@ const outputSchema = outputs({
 });
 
 // Helper function to build TruffleHog command arguments
-function buildTruffleHogCommand(input: typeof inputSchema['__inferred'] & typeof parameterSchema['__inferred']): string[] {
+function buildTruffleHogCommand(
+  input: (typeof inputSchema)['__inferred'] & (typeof parameterSchema)['__inferred'],
+): string[] {
   const args: string[] = [input.scanType];
 
   // Add scan target based on scan type
@@ -245,7 +241,7 @@ function buildTruffleHogCommand(input: typeof inputSchema['__inferred'] & typeof
 
   // Add custom flags if provided
   if (input.customFlags) {
-    args.push(...input.customFlags.split(' ').filter(f => f.trim().length > 0));
+    args.push(...input.customFlags.split(' ').filter((f) => f.trim().length > 0));
   }
 
   return args;
@@ -275,7 +271,7 @@ function parseRawOutput(rawOutput: string): Output {
   }
 
   // TruffleHog outputs one JSON object per line for each secret found (NDJSON format)
-  const lines = rawOutput.split('\n').filter(line => line.trim().length > 0);
+  const lines = rawOutput.split('\n').filter((line) => line.trim().length > 0);
   const secrets: Secret[] = [];
   let verifiedCount = 0;
 
@@ -286,7 +282,7 @@ function parseRawOutput(rawOutput: string): Output {
       if (secret.Verified === true) {
         verifiedCount++;
       }
-    } catch (error) {
+    } catch (_error) {
       // Skip non-JSON lines (like status messages)
       continue;
     }
@@ -332,8 +328,10 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'scan',
     category: 'security',
-    description: 'Find, verify, and analyze leaked credentials across repositories, filesystems, and cloud storage using TruffleHog.',
-    documentation: 'TruffleHog discovers and verifies secrets across 800+ credential types. Scan Git history, filesystems, S3 buckets, Docker images, and more.',
+    description:
+      'Find, verify, and analyze leaked credentials across repositories, filesystems, and cloud storage using TruffleHog.',
+    documentation:
+      'TruffleHog discovers and verifies secrets across 800+ credential types. Scan Git history, filesystems, S3 buckets, Docker images, and more.',
     documentationUrl: 'https://github.com/trufflesecurity/trufflehog',
     icon: 'Key',
     author: {
@@ -342,7 +340,8 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    example: '`trufflehog git https://github.com/org/repo --results=verified --json` - Scans a Git repository for verified secrets and outputs results in JSON format.',
+    example:
+      '`trufflehog git https://github.com/org/repo --results=verified --json` - Scans a Git repository for verified secrets and outputs results in JSON format.',
     examples: [
       'Scan a Git repository for verified secrets before deployment.',
       'Audit filesystem directories for accidentally committed credentials.',
@@ -390,7 +389,10 @@ const definition = defineComponent({
 
     try {
       // If filesystemContent is provided, use isolated volume
-      if (runnerPayload.filesystemContent && Object.keys(runnerPayload.filesystemContent).length > 0) {
+      if (
+        runnerPayload.filesystemContent &&
+        Object.keys(runnerPayload.filesystemContent).length > 0
+      ) {
         if (runnerPayload.scanType !== 'filesystem') {
           throw new ValidationError('filesystemContent can only be used with scanType=filesystem', {
             fieldErrors: { scanType: ['Must be "filesystem" when using filesystemContent'] },
@@ -440,7 +442,10 @@ const definition = defineComponent({
 
         // If it's exit code 183, this means secrets were found (not an error)
         // We should still parse and return the output
-        if (errorMessage.includes('exit code 183') || errorMessage.includes('exited with code 183')) {
+        if (
+          errorMessage.includes('exit code 183') ||
+          errorMessage.includes('exited with code 183')
+        ) {
           context.logger.info('[TruffleHog] Exit code 183: secrets found (--fail flag)');
 
           // Try to extract output from error if available
@@ -455,9 +460,8 @@ const definition = defineComponent({
       }
 
       // Parse the raw output
-      const output = typeof rawResult === 'string'
-        ? parseRawOutput(rawResult)
-        : (rawResult as Output);
+      const output =
+        typeof rawResult === 'string' ? parseRawOutput(rawResult) : (rawResult as Output);
 
       // Log and emit progress
       context.logger.info(
@@ -470,7 +474,7 @@ const definition = defineComponent({
           level: 'warn',
           data: {
             secretCount: output.secretCount,
-            verifiedCount: output.verifiedCount
+            verifiedCount: output.verifiedCount,
           },
         });
       } else if (output.secretCount > 0) {

@@ -31,7 +31,8 @@ const fileLoaderFileSchema = z.object({
 
 const inputSchema = inputs({
   text: port(
-    z.union([z.string(), manualTriggerFileSchema, fileLoaderFileSchema])
+    z
+      .union([z.string(), manualTriggerFileSchema, fileLoaderFileSchema])
       .describe('Text content to split (string or file object)'),
     {
       label: 'Text Input',
@@ -41,11 +42,6 @@ const inputSchema = inputs({
     },
   ),
 });
-
-type Output = {
-  items: string[];
-  count: number;
-};
 
 const outputSchema = outputs({
   items: port(z.array(z.string()), {
@@ -109,19 +105,26 @@ const definition = defineComponent({
     if (typeof inputs.text === 'string') {
       // Case 1: Direct text input
       textContent = inputs.text;
-      context.logger.info(`[TextSplitter] Processing direct text input (${textContent.length} characters)`);
+      context.logger.info(
+        `[TextSplitter] Processing direct text input (${textContent.length} characters)`,
+      );
     } else if ('content' in inputs.text) {
       // Case 2: File object from file-loader (has base64 content)
       const base64Content = inputs.text.content;
       textContent = Buffer.from(base64Content, 'base64').toString('utf-8');
-      context.logger.info(`[TextSplitter] Processing file-loader input: ${inputs.text.name} (${textContent.length} characters)`);
+      context.logger.info(
+        `[TextSplitter] Processing file-loader input: ${inputs.text.name} (${textContent.length} characters)`,
+      );
     } else {
       // Case 3: File object from entry point (only metadata, no content)
-      throw new ValidationError(`File object from entry point has no content. File ID: ${inputs.text.id}, Name: ${inputs.text.fileName}.
+      throw new ValidationError(
+        `File object from entry point has no content. File ID: ${inputs.text.id}, Name: ${inputs.text.fileName}.
 Please use a File Loader component to extract file content before passing to Text Splitter.
-Expected workflow: Entry Point → File Loader → Text Splitter`, {
-        fieldErrors: { text: ['File content is required - use File Loader first'] },
-      });
+Expected workflow: Entry Point → File Loader → Text Splitter`,
+        {
+          fieldErrors: { text: ['File content is required - use File Loader first'] },
+        },
+      );
     }
 
     // Split the text

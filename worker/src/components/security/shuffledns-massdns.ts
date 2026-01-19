@@ -25,7 +25,10 @@ const inputSchema = inputs({
         z
           .string()
           .min(1)
-          .regex(/^[\w.-]+$/, 'Domains may only include letters, numbers, dots, underscores, and hyphens.'),
+          .regex(
+            /^[\w.-]+$/,
+            'Domains may only include letters, numbers, dots, underscores, and hyphens.',
+          ),
       )
       .min(1, 'Provide at least one domain.'),
     {
@@ -35,34 +38,28 @@ const inputSchema = inputs({
     },
   ),
   words: port(
-    z
-      .array(z.string().min(1))
-      .optional()
-      .describe('Wordlist entries for bruteforce mode'),
+    z.array(z.string().min(1)).optional().describe('Wordlist entries for bruteforce mode'),
     {
       label: 'Wordlist',
       description: 'Wordlist entries for bruteforce mode.',
       connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
     },
   ),
-  seeds: port(
-    z
-      .array(z.string().min(1))
-      .optional()
-      .describe('Seed subdomains for resolve mode'),
-    {
-      label: 'Seeds',
-      description: 'Seed subdomains for resolve mode.',
-      connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
-    },
-  ),
+  seeds: port(z.array(z.string().min(1)).optional().describe('Seed subdomains for resolve mode'), {
+    label: 'Seeds',
+    description: 'Seed subdomains for resolve mode.',
+    connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
+  }),
   resolvers: port(
     z
       .array(
         z
           .string()
           .min(1)
-          .regex(/^[\w.:+-]+$/, 'Resolver should be a hostname/IP, optionally with port (e.g. 1.1.1.1).'),
+          .regex(
+            /^[\w.:+-]+$/,
+            'Resolver should be a hostname/IP, optionally with port (e.g. 1.1.1.1).',
+          ),
       )
       .default([...DEFAULT_RESOLVERS]),
     {
@@ -77,7 +74,10 @@ const inputSchema = inputs({
         z
           .string()
           .min(1)
-          .regex(/^[\w.:+-]+$/, 'Resolver should be a hostname/IP, optionally with port (e.g. 1.1.1.1).'),
+          .regex(
+            /^[\w.:+-]+$/,
+            'Resolver should be a hostname/IP, optionally with port (e.g. 1.1.1.1).',
+          ),
       )
       .default([]),
     {
@@ -114,24 +114,21 @@ const parameterSchema = parameters({
       max: 20000,
     },
   ),
-  retries: param(z.number().int().min(1).max(20).default(5).describe('Retries for DNS enumeration'), {
-    label: 'Retries',
-    editor: 'number',
-    min: 1,
-    max: 20,
-  }),
+  retries: param(
+    z.number().int().min(1).max(20).default(5).describe('Retries for DNS enumeration'),
+    {
+      label: 'Retries',
+      editor: 'number',
+      min: 1,
+      max: 20,
+    },
+  ),
   wildcardStrict: param(z.boolean().default(false).describe('Strict wildcard checking (-sw)'), {
     label: 'Strict Wildcard (-sw)',
     editor: 'boolean',
   }),
   wildcardThreads: param(
-    z
-      .number()
-      .int()
-      .positive()
-      .max(2000)
-      .optional()
-      .describe('Concurrent wildcard checks (-wt)'),
+    z.number().int().positive().max(2000).optional().describe('Concurrent wildcard checks (-wt)'),
     {
       label: 'Wildcard Threads (-wt)',
       editor: 'number',
@@ -140,17 +137,13 @@ const parameterSchema = parameters({
     },
   ),
   massdnsCmd: param(
-    z
-      .string()
-      .optional()
-      .describe("Optional massdns commands passed via '-mcmd' (e.g. '-i 10')"),
+    z.string().optional().describe("Optional massdns commands passed via '-mcmd' (e.g. '-i 10')"),
     {
       label: 'MassDNS Extra Cmd (-mcmd)',
       editor: 'text',
     },
   ),
 });
-
 
 const outputSchema = outputs({
   subdomains: port(z.array(z.string()), {
@@ -188,8 +181,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs:
-    'Bruteforce or resolve subdomains using Shuffledns with MassDNS. Supports resolvers, trusted resolvers, thread control, retries, and wildcard handling.',
+  docs: 'Bruteforce or resolve subdomains using Shuffledns with MassDNS. Supports resolvers, trusted resolvers, thread control, retries, and wildcard handling.',
   retryPolicy: {
     maxAttempts: 2,
     initialIntervalSeconds: 5,
@@ -204,7 +196,8 @@ const definition = defineComponent({
     category: 'security',
     description:
       'High-performance subdomain bruteforce/resolve powered by Shuffledns and MassDNS. Accepts inline wordlists or seed lists and optional resolver tuning.',
-    documentation: 'ProjectDiscovery shuffledns with MassDNS backend. See https://github.com/projectdiscovery/shuffledns',
+    documentation:
+      'ProjectDiscovery shuffledns with MassDNS backend. See https://github.com/projectdiscovery/shuffledns',
     icon: 'Shuffle',
     author: {
       name: 'ShipSecAI',
@@ -243,7 +236,13 @@ const definition = defineComponent({
     const env: Record<string, string> = {};
     const mkB64 = (lines?: string[]) =>
       Array.isArray(lines) && lines.length > 0
-        ? Buffer.from(lines.map((s) => s.trim()).filter(Boolean).join('\n'), 'utf8').toString('base64')
+        ? Buffer.from(
+            lines
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .join('\n'),
+            'utf8',
+          ).toString('base64')
         : '';
 
     // Always specify execution mode explicitly for the image
@@ -289,7 +288,13 @@ const definition = defineComponent({
 
     const writeIfAny = (values: string[] | undefined, filename: string) => {
       if (Array.isArray(values) && values.length > 0) {
-        return { filename, contents: values.map((s) => s.trim()).filter(Boolean).join('\n') };
+        return {
+          filename,
+          contents: values
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .join('\n'),
+        };
       }
       return null;
     };
@@ -339,9 +344,7 @@ const definition = defineComponent({
       // Run the binary directly; pass flags as the command args
       entrypoint: 'shuffledns',
       command: flags,
-      volumes: [
-        volume.getVolumeConfig('/input', true),
-      ],
+      volumes: [volume.getVolumeConfig('/input', true)],
     };
 
     let resultUnknown: unknown;
@@ -349,7 +352,7 @@ const definition = defineComponent({
       const runnerPayload = { ...params, ...inputs };
       resultUnknown = (await runComponentWithRunner(
         runnerConfig,
-        async () => ({} as Output),
+        async () => ({}) as Output,
         runnerPayload,
         context,
       )) as unknown;
@@ -383,15 +386,16 @@ const definition = defineComponent({
         return parsed.data;
       }
 
-      const maybeRaw = 'rawOutput' in (resultUnknown as any) ? String((resultUnknown as any).rawOutput ?? '') : '';
+      const maybeRaw =
+        'rawOutput' in (resultUnknown as any) ? String((resultUnknown as any).rawOutput ?? '') : '';
       const subdomainsValue = Array.isArray((resultUnknown as any).subdomains)
         ? ((resultUnknown as any).subdomains as unknown[])
-          .map((v) => (typeof v === 'string' ? v.trim() : String(v)))
-          .filter((v) => v.length > 0)
+            .map((v) => (typeof v === 'string' ? v.trim() : String(v)))
+            .filter((v) => v.length > 0)
         : maybeRaw
-          .split(/\r?\n/g)
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0);
+            .split(/\r?\n/g)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
 
       return outputSchema.parse({
         subdomains: Array.from(new Set(subdomainsValue)),
@@ -414,8 +418,8 @@ const definition = defineComponent({
 componentRegistry.register(definition);
 
 // Create local type aliases for internal use (inferred types)
-type Input = typeof inputSchema['__inferred'];
-type Output = typeof outputSchema['__inferred'];
+type Input = (typeof inputSchema)['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
 
 export type ShufflednsMassdnsInput = typeof inputSchema;
 export type ShufflednsMassdnsOutput = typeof outputSchema;

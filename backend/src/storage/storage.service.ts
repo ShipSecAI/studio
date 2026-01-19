@@ -40,7 +40,7 @@ export class StorageService {
     };
   }
 
-  async downloadFilePreview(storageKey: string, length: number = 1024): Promise<Buffer> {
+  async downloadFilePreview(storageKey: string, length = 1024): Promise<Buffer> {
     const client = this.minioConfig.getClient();
     const bucket = this.minioConfig.getBucketName();
 
@@ -116,4 +116,3 @@ export class StorageService {
     });
   }
 }
-

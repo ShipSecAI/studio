@@ -102,7 +102,11 @@ describe('WorkflowsController contract coverage', () => {
   });
 
   it('returns status payload matching the shared contract', async () => {
-    const result = await controller.status('shipsec-run-123', { temporalRunId: undefined }, authContext as any);
+    const result = await controller.status(
+      'shipsec-run-123',
+      { temporalRunId: undefined },
+      authContext as any,
+    );
     const parsed = WorkflowRunStatusSchema.parse(result);
     expect(parsed.runId).toBe(sampleStatus.runId);
     expect(parsed.workflowId).toBe(sampleStatus.workflowId);

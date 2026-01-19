@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
 import '../../index';
-import { ExecutionContext } from '@shipsec/component-sdk';
 import { createMockExecutionContext } from '../../../testing/test-utils';
 
 // Mock the Okta SDK
@@ -25,7 +24,9 @@ import '../okta-user-offboard';
 import { componentRegistry } from '@shipsec/component-sdk';
 import { OktaUserOffboardInput, OktaUserOffboardOutput } from '../okta-user-offboard';
 
-const definition = componentRegistry.get<OktaUserOffboardInput, OktaUserOffboardOutput>('it-automation.okta.user-offboard');
+const definition = componentRegistry.get<OktaUserOffboardInput, OktaUserOffboardOutput>(
+  'it-automation.okta.user-offboard',
+);
 
 if (!definition) {
   throw new Error('Component definition not found');
@@ -76,7 +77,7 @@ describe('okta-user-offboard', () => {
       params: {
         action: baseParams.action,
         dry_run: baseParams.dry_run,
-      }
+      },
     };
     const result = await definition.execute(executePayload, context);
 
@@ -87,7 +88,9 @@ describe('okta-user-offboard', () => {
     expect(mockUserApi.getUser).toHaveBeenCalledWith({ userId: 'test@example.com' });
     expect(mockUserApi.deactivateUser).toHaveBeenCalledWith({ userId: '12345' });
     expect(mockUserApi.deleteUser).not.toHaveBeenCalled();
-    expect(context.logger.info).toHaveBeenCalledWith('[Okta] Successfully deactivated user account: test@example.com');
+    expect(context.logger.info).toHaveBeenCalledWith(
+      '[Okta] Successfully deactivated user account: test@example.com',
+    );
   });
 
   it('deactivates and deletes when action=delete', async () => {
@@ -115,7 +118,7 @@ describe('okta-user-offboard', () => {
       params: {
         action: 'delete' as const,
         dry_run: false,
-      }
+      },
     };
     const result = await definition.execute(executePayload, context);
 
@@ -149,7 +152,7 @@ describe('okta-user-offboard', () => {
       params: {
         dry_run: true,
         action: 'delete' as const,
-      }
+      },
     };
     const result = await definition.execute(executePayload, context);
 
@@ -158,7 +161,9 @@ describe('okta-user-offboard', () => {
     expect(result.userDeleted).toBe(true);
     expect(mockUserApi.deactivateUser).not.toHaveBeenCalled();
     expect(mockUserApi.deleteUser).not.toHaveBeenCalled();
-    expect(context.logger.info).toHaveBeenCalledWith('[Okta] Running in DRY RUN mode - no changes will be made');
+    expect(context.logger.info).toHaveBeenCalledWith(
+      '[Okta] Running in DRY RUN mode - no changes will be made',
+    );
   });
 
   it('returns structured failure when user is not found', async () => {
@@ -176,7 +181,7 @@ describe('okta-user-offboard', () => {
       params: {
         action: baseParams.action,
         dry_run: baseParams.dry_run,
-      }
+      },
     };
     const result = await definition.execute(executePayload, context);
 
@@ -211,7 +216,7 @@ describe('okta-user-offboard', () => {
       params: {
         action: baseParams.action,
         dry_run: baseParams.dry_run,
-      }
+      },
     };
     const result = await definition.execute(executePayload, context);
 
@@ -245,7 +250,7 @@ describe('okta-user-offboard', () => {
       params: {
         action: 'delete' as const,
         dry_run: false,
-      }
+      },
     };
     const result = await definition.execute(executePayload, context);
 

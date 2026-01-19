@@ -162,7 +162,9 @@ class InMemoryWebhookRepository implements Partial<WebhookRepository> {
     }
   }
 
-  async list(filters: { workflowId?: string; status?: string; organizationId?: string | null } = {}) {
+  async list(
+    filters: { workflowId?: string; status?: string; organizationId?: string | null } = {},
+  ) {
     return Array.from(this.records.values()).filter((record) => {
       if (filters.workflowId && record.workflowId !== filters.workflowId) {
         return false;
@@ -200,7 +202,10 @@ class InMemoryWebhookDeliveryRepository implements Partial<WebhookDeliveryReposi
     return record;
   }
 
-  async update(id: string, values: Partial<WebhookDeliveryRecord>): Promise<WebhookDeliveryRecord | undefined> {
+  async update(
+    id: string,
+    values: Partial<WebhookDeliveryRecord>,
+  ): Promise<WebhookDeliveryRecord | undefined> {
     const existing = this.records.get(id);
     if (!existing) {
       return undefined;
@@ -266,7 +271,10 @@ describe('WebhooksService', () => {
       definition: workflowDefinition,
       inputs: { prTitle: 'Test PR', prNumber: 42 },
       trigger: { type: 'webhook', sourceId: 'webhook-1', label: 'GitHub PR Webhook' },
-      inputPreview: { runtimeInputs: {}, nodeOverrides: { testNode: { params: {}, inputOverrides: {} } } },
+      inputPreview: {
+        runtimeInputs: {},
+        nodeOverrides: { testNode: { params: {}, inputOverrides: {} } },
+      },
     };
   };
 

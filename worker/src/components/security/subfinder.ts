@@ -26,7 +26,8 @@ const inputSchema = inputs({
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
   }),
   providerConfig: port(
-    z.string()
+    z
+      .string()
       .optional()
       .describe('Resolved provider-config.yaml content (connect via Secret Loader)'),
     {
@@ -47,7 +48,6 @@ const parameterSchema = parameters({
     visibleWhen: { __legacy: true },
   }),
 });
-
 
 const outputSchema = outputs({
   subdomains: port(z.array(z.string()), {
@@ -76,11 +76,7 @@ const subfinderRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 5,
   maximumIntervalSeconds: 30,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'ContainerError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
 };
 
 const definition = defineComponent({
@@ -110,7 +106,7 @@ fi
 # See docs/component-development.md "Output Format Selection" for details
 subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
 `,
-      ],
+    ],
     timeoutSeconds: SUBFINDER_TIMEOUT_SECONDS,
     env: {
       HOME: '/root',
@@ -126,7 +122,8 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
     type: 'scan',
     category: 'security',
     description: 'Discover subdomains for a target domain using ProjectDiscovery subfinder.',
-    documentation: 'ProjectDiscovery Subfinder documentation details configuration, data sources, and usage examples.',
+    documentation:
+      'ProjectDiscovery Subfinder documentation details configuration, data sources, and usage examples.',
     documentationUrl: 'https://github.com/projectdiscovery/subfinder',
     icon: 'Radar',
     author: {
@@ -135,7 +132,8 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
     },
     isLatest: true,
     deprecated: false,
-    example: '`subfinder -d example.com -silent` - Passively gathers subdomains before chaining into deeper discovery tools.',
+    example:
+      '`subfinder -d example.com -silent` - Passively gathers subdomains before chaining into deeper discovery tools.',
     examples: [
       'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
       'Quick passive discovery during scope triage workflows.',
@@ -209,7 +207,9 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
           SUBFINDER_PROVIDER_CONFIG_B64: encoded,
         };
 
-        context.logger.info('[Subfinder] Provider configuration secret injected into runner environment.');
+        context.logger.info(
+          '[Subfinder] Provider configuration secret injected into runner environment.',
+        );
       }
 
       const result = await runComponentWithRunner(
@@ -225,8 +225,8 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
           new Set(
             rawOutput
               .split('\n')
-              .map(line => line.trim())
-              .filter(line => line.length > 0),
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0),
           ),
         );
 
@@ -248,22 +248,24 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
         const maybeRaw = 'rawOutput' in result ? String((result as any).rawOutput ?? '') : '';
         const subdomainsValue = Array.isArray((result as any).subdomains)
           ? ((result as any).subdomains as unknown[])
-              .map(value => (typeof value === 'string' ? value.trim() : String(value)))
-              .filter(value => value.length > 0)
+              .map((value) => (typeof value === 'string' ? value.trim() : String(value)))
+              .filter((value) => value.length > 0)
           : maybeRaw
               .split('\n')
-              .map(line => line.trim())
-              .filter(line => line.length > 0);
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0);
 
         const output: Output = {
           subdomains: subdomainsValue,
           rawOutput: maybeRaw || subdomainsValue.join('\n'),
-          domainCount: typeof (result as any).domainCount === 'number'
-            ? (result as any).domainCount
-            : domains.length,
-          subdomainCount: typeof (result as any).subdomainCount === 'number'
-            ? (result as any).subdomainCount
-            : subdomainsValue.length,
+          domainCount:
+            typeof (result as any).domainCount === 'number'
+              ? (result as any).domainCount
+              : domains.length,
+          subdomainCount:
+            typeof (result as any).subdomainCount === 'number'
+              ? (result as any).subdomainCount
+              : subdomainsValue.length,
         };
 
         return output;
@@ -284,9 +286,7 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
 
 componentRegistry.register(definition);
 
-// Create local type aliases for backward compatibility
-type Input = typeof inputSchema['__inferred'];
-type Output = typeof outputSchema['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
 
 type SubfinderInput = typeof inputSchema;
 type SubfinderOutput = typeof outputSchema;

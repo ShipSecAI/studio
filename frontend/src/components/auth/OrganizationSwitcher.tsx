@@ -10,7 +10,7 @@ interface OrganizationSwitcherProps {
 
 /**
  * Organization Switcher Component
- * 
+ *
  * For Clerk: Uses Clerk's OrganizationSwitcher component
  * For other providers: Shows organization info or placeholder
  */
@@ -58,4 +58,3 @@ export const OrganizationSwitcher: React.FC<OrganizationSwitcherProps> = ({
 
   return null;
 };
-

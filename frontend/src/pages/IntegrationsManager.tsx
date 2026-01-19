@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,10 +9,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useToast } from '@/components/ui/use-toast'
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import {
   AlertCircle,
   Check,
@@ -23,20 +23,20 @@ import {
   Plug,
   RefreshCcw,
   Trash2,
-} from 'lucide-react'
+} from 'lucide-react';
 
-import type { components } from '@shipsec/backend-client'
-import { useIntegrationStore } from '@/store/integrationStore'
-import { getCurrentUserId } from '@/lib/currentUser'
-import { api } from '@/services/api'
-import { env } from '@/config/env'
+import type { components } from '@shipsec/backend-client';
+import { useIntegrationStore } from '@/store/integrationStore';
+import { getCurrentUserId } from '@/lib/currentUser';
+import { api } from '@/services/api';
+import { env } from '@/config/env';
 
-type IntegrationProvider = components['schemas']['IntegrationProviderResponse']
-type IntegrationConnection = components['schemas']['IntegrationConnectionResponse']
+type IntegrationProvider = components['schemas']['IntegrationProviderResponse'];
+type IntegrationConnection = components['schemas']['IntegrationConnectionResponse'];
 
 function formatTimestamp(iso: string | null | undefined): string {
   if (!iso) {
-    return '—'
+    return '—';
   }
 
   try {
@@ -46,10 +46,10 @@ function formatTimestamp(iso: string | null | undefined): string {
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(new Date(iso))
+    }).format(new Date(iso));
   } catch (error) {
-    console.error('Failed to format timestamp', error)
-    return iso
+    console.error('Failed to format timestamp', error);
+    return iso;
   }
 }
 
@@ -57,13 +57,13 @@ function getProviderConnection(
   providerId: string,
   connectionMap: Map<string, IntegrationConnection>,
 ): IntegrationConnection | undefined {
-  return connectionMap.get(providerId)
+  return connectionMap.get(providerId);
 }
 
 export function IntegrationsManager() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const userId = getCurrentUserId()
+  const navigate = useNavigate();
+  const location = useLocation();
+  const userId = getCurrentUserId();
   const {
     providers,
     connections,
@@ -76,201 +76,205 @@ export function IntegrationsManager() {
     resetError,
     loadingProviders,
     loadingConnections,
-  } = useIntegrationStore()
-  const { toast } = useToast()
+  } = useIntegrationStore();
+  const { toast } = useToast();
 
-  const [configProvider, setConfigProvider] = useState<IntegrationProvider | null>(null)
-  const [connectingProvider, setConnectingProvider] = useState<string | null>(null)
-  const [refreshingConnectionId, setRefreshingConnectionId] = useState<string | null>(null)
-  const [deletingConnectionId, setDeletingConnectionId] = useState<string | null>(null)
-  const [customScopes, setCustomScopes] = useState<Record<string, string>>({})
+  const [configProvider, setConfigProvider] = useState<IntegrationProvider | null>(null);
+  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+  const [refreshingConnectionId, setRefreshingConnectionId] = useState<string | null>(null);
+  const [deletingConnectionId, setDeletingConnectionId] = useState<string | null>(null);
+  const [customScopes, setCustomScopes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchProviders().catch((err) => {
-      console.error('Failed to load providers', err)
-    })
-  }, [fetchProviders])
+      console.error('Failed to load providers', err);
+    });
+  }, [fetchProviders]);
 
   useEffect(() => {
     fetchConnections(userId).catch((err) => {
-      console.error('Failed to load integrations', err)
-    })
-  }, [fetchConnections, userId])
+      console.error('Failed to load integrations', err);
+    });
+  }, [fetchConnections, userId]);
 
   useEffect(() => {
     if (!error) {
-      return
+      return;
     }
 
     toast({
       title: 'Integration error',
       description: error,
       variant: 'destructive',
-    })
-  }, [error, toast])
+    });
+  }, [error, toast]);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const connectedProvider = params.get('connected')
+    const params = new URLSearchParams(location.search);
+    const connectedProvider = params.get('connected');
     if (connectedProvider) {
       toast({
         title: 'Connection established',
         description: `Successfully connected to ${connectedProvider}.`,
-      })
-      params.delete('connected')  
-      navigate({ pathname: location.pathname, search: params.toString() }, { replace: true })
+      });
+      params.delete('connected');
+      navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     }
-  }, [location.pathname, location.search, navigate, toast])
+  }, [location.pathname, location.search, navigate, toast]);
 
   const connectionByProvider = useMemo(() => {
-    return new Map(connections.map((connection) => [connection.provider, connection]))
-  }, [connections])
+    return new Map(connections.map((connection) => [connection.provider, connection]));
+  }, [connections]);
 
-const parseAdditionalScopes = (input: string | undefined): string[] => {
-  if (!input) {
-    return []
-  }
-  return Array.from(
-    new Set(
-      input
-        .split(/[\s,]+/)
-        .map((scope) => scope.trim())
-        .filter(Boolean),
-    ),
-  )
-}
+  const parseAdditionalScopes = (input: string | undefined): string[] => {
+    if (!input) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        input
+          .split(/[\s,]+/)
+          .map((scope) => scope.trim())
+          .filter(Boolean),
+      ),
+    );
+  };
 
-const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
-  const baseScopes = provider.defaultScopes ?? []
-  const extraScopes = parseAdditionalScopes(customScopes[provider.id])
-  return Array.from(new Set([...baseScopes, ...extraScopes]))
-}
+  const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
+    const baseScopes = provider.defaultScopes ?? [];
+    const extraScopes = parseAdditionalScopes(customScopes[provider.id]);
+    return Array.from(new Set([...baseScopes, ...extraScopes]));
+  };
 
   const handleConnect = async (provider: IntegrationProvider) => {
-    resetError()
+    resetError();
 
     if (!provider.isConfigured) {
-      setConfigProvider(provider)
-      return
+      setConfigProvider(provider);
+      return;
     }
 
-    setConnectingProvider(provider.id)
+    setConnectingProvider(provider.id);
     try {
-      const redirectUri = `${window.location.origin}/integrations/callback/${provider.id}`
+      const redirectUri = `${window.location.origin}/integrations/callback/${provider.id}`;
       const response = await api.integrations.startOAuth(provider.id, {
         userId,
         redirectUri,
         scopes: buildRequestedScopes(provider),
-      })
-      window.location.href = response.authorizationUrl
+      });
+      window.location.href = response.authorizationUrl;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to start OAuth session'
+      const message = err instanceof Error ? err.message : 'Failed to start OAuth session';
       toast({
         title: 'Could not start OAuth flow',
         description: message,
         variant: 'destructive',
-      })
+      });
     } finally {
-      setConnectingProvider(null)
+      setConnectingProvider(null);
     }
-  }
+  };
 
   const handleConfigureProvider = (provider: IntegrationProvider) => {
-    resetError()
-    setConfigProvider(provider)
-  }
+    resetError();
+    setConfigProvider(provider);
+  };
 
   const handleRefresh = async (connection: IntegrationConnection) => {
-    resetError()
-    setRefreshingConnectionId(connection.id)
+    resetError();
+    setRefreshingConnectionId(connection.id);
     try {
-      await refreshConnection(connection.id, userId)
+      await refreshConnection(connection.id, userId);
       toast({
         title: 'Token refreshed',
         description: `${connection.providerName} token has been refreshed.`,
-      })
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to refresh token'
+      const message = err instanceof Error ? err.message : 'Failed to refresh token';
       toast({
         title: 'Refresh failed',
         description: message,
         variant: 'destructive',
-      })
+      });
     } finally {
-      setRefreshingConnectionId(null)
+      setRefreshingConnectionId(null);
     }
-  }
+  };
 
   const handleDisconnect = async (connection: IntegrationConnection) => {
-    resetError()
-    setDeletingConnectionId(connection.id)
+    resetError();
+    setDeletingConnectionId(connection.id);
     try {
-      await disconnect(connection.id, userId)
+      await disconnect(connection.id, userId);
       toast({
         title: 'Connection removed',
         description: `${connection.providerName} credentials have been deleted.`,
-      })
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to disconnect'
+      const message = err instanceof Error ? err.message : 'Failed to disconnect';
       toast({
         title: 'Disconnect failed',
         description: message,
         variant: 'destructive',
-      })
+      });
     } finally {
-      setDeletingConnectionId(null)
+      setDeletingConnectionId(null);
     }
-  }
+  };
 
   const handleManualReconnect = (connection: IntegrationConnection) => {
-    const provider = providers.find((item) => item.id === connection.provider)
+    const provider = providers.find((item) => item.id === connection.provider);
     if (!provider) {
       toast({
         title: 'Provider unavailable',
         description: 'The provider is no longer configured.',
         variant: 'destructive',
-      })
-      return
+      });
+      return;
     }
-    handleConnect(provider)
-  }
+    handleConnect(provider);
+  };
 
-  const handleProviderConfigCompleted = (action: 'saved' | 'deleted', provider: IntegrationProvider) => {
-    setConfigProvider(null)
+  const handleProviderConfigCompleted = (
+    action: 'saved' | 'deleted',
+    provider: IntegrationProvider,
+  ) => {
+    setConfigProvider(null);
 
     fetchProviders().catch((err) => {
-      console.error('Failed to refresh providers', err)
-    })
+      console.error('Failed to refresh providers', err);
+    });
 
     const title =
       action === 'saved'
         ? `${provider.name} credentials saved`
-        : `${provider.name} credentials removed`
+        : `${provider.name} credentials removed`;
     const description =
       action === 'saved'
         ? 'You can now start a new OAuth flow for this provider.'
-        : 'The provider will now rely on environment credentials if available.'
+        : 'The provider will now rely on environment credentials if available.';
 
     toast({
       title,
       description,
-    })
-  }
+    });
+  };
 
   const handleConnectionComplete = (connection: IntegrationConnection) => {
-    upsertConnection(connection)
+    upsertConnection(connection);
     toast({
       title: `${connection.providerName} connected`,
       description: 'Credentials stored successfully.',
-    })
-  }
+    });
+  };
 
   return (
     <div className="flex-1 bg-background">
       <div className="container mx-auto py-8 px-4">
         <div className="mb-8">
           <p className="text-muted-foreground">
-            Manage OAuth tokens for external providers. Connections are encrypted and can be refreshed or revoked at any time.
+            Manage OAuth tokens for external providers. Connections are encrypted and can be
+            refreshed or revoked at any time.
           </p>
         </div>
 
@@ -279,7 +283,8 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
             <div>
               <h2 className="text-lg font-semibold">Active connections</h2>
               <p className="text-sm text-muted-foreground">
-                Tokens are refreshed automatically when possible. You can also refresh or disconnect manually.
+                Tokens are refreshed automatically when possible. You can also refresh or disconnect
+                manually.
               </p>
             </div>
           </div>
@@ -297,19 +302,29 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
               <table className="min-w-full divide-y divide-border text-sm">
                 <thead className="bg-muted/40">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Provider</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Scopes</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Expires</th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      Provider
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      Scopes
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      Expires
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {connections.map((connection) => {
-                    const isRefreshing = refreshingConnectionId === connection.id
-                    const isDeleting = deletingConnectionId === connection.id
-                    const provider = providers.find((item) => item.id === connection.provider)
-                    const canRefresh = connection.supportsRefresh && connection.hasRefreshToken
+                    const isRefreshing = refreshingConnectionId === connection.id;
+                    const isDeleting = deletingConnectionId === connection.id;
+                    const provider = providers.find((item) => item.id === connection.provider);
+                    const canRefresh = connection.supportsRefresh && connection.hasRefreshToken;
 
                     return (
                       <tr key={connection.id} className="bg-background">
@@ -367,7 +382,10 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                               size="sm"
                               className="gap-2"
                               onClick={() => handleManualReconnect(connection)}
-                              disabled={connectingProvider === connection.provider || !provider?.isConfigured}
+                              disabled={
+                                connectingProvider === connection.provider ||
+                                !provider?.isConfigured
+                              }
                             >
                               <Plug className="h-4 w-4" />
                               Reconnect
@@ -375,7 +393,7 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                           </div>
                         </td>
                       </tr>
-                    )
+                    );
                   })}
                 </tbody>
               </table>
@@ -395,15 +413,15 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {providers.map((provider) => {
-              const connection = getProviderConnection(provider.id, connectionByProvider)
-              const isConnecting = connectingProvider === provider.id
-              const requestedScopes = buildRequestedScopes(provider)
-              const additionalScopesValue = customScopes[provider.id] ?? ''
+              const connection = getProviderConnection(provider.id, connectionByProvider);
+              const isConnecting = connectingProvider === provider.id;
+              const requestedScopes = buildRequestedScopes(provider);
+              const additionalScopesValue = customScopes[provider.id] ?? '';
               const configuredBadge = provider.isConfigured ? (
                 <Badge variant="secondary">Configured</Badge>
               ) : (
                 <Badge variant="outline">Setup required</Badge>
-              )
+              );
 
               // Get colored logo URL using Logo.dev (recommended alternative to Clearbit Logo API)
               // Reference: https://clearbit.com/blog/the-future-of-clearbits-free-tools
@@ -413,17 +431,17 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                   github: 'github.com',
                   zoom: 'zoom.us',
                   // Add more providers as needed: 'provider-id': 'domain.com'
-                }
-                
-                const domain = domainMap[providerId.toLowerCase()]
-                if (!domain) return null
-                
+                };
+
+                const domain = domainMap[providerId.toLowerCase()];
+                if (!domain) return null;
+
                 // Logo.dev provides colored brand logos via CDN (free alternative to Clearbit)
                 // Read public key from environment variable
-                return `https://img.logo.dev/${domain}?token=${env.VITE_LOGO_DEV_PUBLIC_KEY}`
-              }
+                return `https://img.logo.dev/${domain}?token=${env.VITE_LOGO_DEV_PUBLIC_KEY}`;
+              };
 
-              const logoUrl = getLogoUrl(provider.id)
+              const logoUrl = getLogoUrl(provider.id);
 
               return (
                 <div
@@ -440,7 +458,7 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                             className="h-full w-full object-contain rounded-full"
                             onError={(e) => {
                               // Hide logo container if image fails to load
-                              e.currentTarget.parentElement!.style.display = 'none'
+                              e.currentTarget.parentElement!.style.display = 'none';
                             }}
                           />
                         </div>
@@ -462,7 +480,10 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor={`additional-scopes-${provider.id}`} className="text-xs font-medium">
+                    <Label
+                      htmlFor={`additional-scopes-${provider.id}`}
+                      className="text-xs font-medium"
+                    >
                       Additional scopes
                     </Label>
                     <Input
@@ -471,17 +492,17 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                       placeholder="repo delete_repo"
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') {
-                          event.preventDefault()
-                          const normalized = parseAdditionalScopes(additionalScopesValue)
+                          event.preventDefault();
+                          const normalized = parseAdditionalScopes(additionalScopesValue);
                           if (normalized.length > 0) {
                             setCustomScopes((prev) => ({
                               ...prev,
                               [provider.id]: normalized.join(' '),
-                            }))
+                            }));
                             toast({
                               title: 'Scopes added',
                               description: `Queued ${normalized.join(', ')} for next connection attempt.`,
-                            })
+                            });
                           }
                         }
                       }}
@@ -493,7 +514,8 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                       }
                     />
                     <p className="text-xs text-muted-foreground">
-                      Separate scopes with spaces or commas. Press Enter to normalize them. Default scopes stay included automatically.
+                      Separate scopes with spaces or commas. Press Enter to normalize them. Default
+                      scopes stay included automatically.
                     </p>
                   </div>
 
@@ -527,7 +549,7 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                       Manage credentials
                     </Button>
                   </div>
-                  
+
                   {/* Docs button - absolute bottom right */}
                   {provider.docsUrl && (
                     <Button
@@ -541,7 +563,7 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
                     </Button>
                   )}
                 </div>
-              )
+              );
             })}
           </div>
 
@@ -561,163 +583,161 @@ const buildRequestedScopes = (provider: IntegrationProvider): string[] => {
       {/* Hidden portal slot to inject new connections from callback */}
       <IntegrationCallbackBridge onConnected={handleConnectionComplete} />
     </div>
-  )
+  );
 }
 
 interface ProviderConfigDialogProps {
-  provider: IntegrationProvider | null
-  open: boolean
-  onClose: () => void
-  onCompleted: (action: 'saved' | 'deleted', provider: IntegrationProvider) => void
+  provider: IntegrationProvider | null;
+  open: boolean;
+  onClose: () => void;
+  onCompleted: (action: 'saved' | 'deleted', provider: IntegrationProvider) => void;
 }
 
-function ProviderConfigDialog({
-  provider,
-  open,
-  onClose,
-  onCompleted,
-}: ProviderConfigDialogProps) {
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
-  const [hasStoredSecret, setHasStoredSecret] = useState(false)
-  const [configuredBy, setConfiguredBy] = useState<'environment' | 'user'>('user')
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [copiedRedirect, setCopiedRedirect] = useState(false)
+function ProviderConfigDialog({ provider, open, onClose, onCompleted }: ProviderConfigDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [hasStoredSecret, setHasStoredSecret] = useState(false);
+  const [configuredBy, setConfiguredBy] = useState<'environment' | 'user'>('user');
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedRedirect, setCopiedRedirect] = useState(false);
 
-  const callbackUrl = provider ? `${window.location.origin}/integrations/callback/${provider.id}` : ''
+  const callbackUrl = provider
+    ? `${window.location.origin}/integrations/callback/${provider.id}`
+    : '';
 
   useEffect(() => {
     if (!open) {
-      setClientSecret('')
-      setError(null)
-      setCopiedRedirect(false)
-      return
+      setClientSecret('');
+      setError(null);
+      setCopiedRedirect(false);
+      return;
     }
 
     if (!provider) {
-      return
+      return;
     }
 
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    setClientId('')
-    setClientSecret('')
-    setHasStoredSecret(false)
-    setConfiguredBy('user')
-    setUpdatedAt(null)
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setClientId('');
+    setClientSecret('');
+    setHasStoredSecret(false);
+    setConfiguredBy('user');
+    setUpdatedAt(null);
 
     api.integrations
       .getProviderConfig(provider.id)
       .then((config) => {
         if (cancelled) {
-          return
+          return;
         }
-        setClientId(config.clientId ?? '')
-        setHasStoredSecret(config.hasClientSecret)
-        setConfiguredBy(config.configuredBy)
-        setUpdatedAt(config.updatedAt ?? null)
+        setClientId(config.clientId ?? '');
+        setHasStoredSecret(config.hasClientSecret);
+        setConfiguredBy(config.configuredBy);
+        setUpdatedAt(config.updatedAt ?? null);
       })
       .catch((err) => {
         if (cancelled) {
-          return
+          return;
         }
-        const message = err instanceof Error ? err.message : 'Failed to load provider configuration.'
-        setError(message)
+        const message =
+          err instanceof Error ? err.message : 'Failed to load provider configuration.';
+        setError(message);
       })
       .finally(() => {
         if (!cancelled) {
-          setLoading(false)
+          setLoading(false);
         }
-      })
+      });
 
     return () => {
-      cancelled = true
-    }
-  }, [open, provider?.id])
+      cancelled = true;
+    };
+  }, [open, provider?.id]);
 
   useEffect(() => {
-    setCopiedRedirect(false)
-  }, [callbackUrl])
+    setCopiedRedirect(false);
+  }, [callbackUrl]);
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
-      onClose()
+      onClose();
     }
-  }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+    event.preventDefault();
     if (!provider) {
-      return
+      return;
     }
 
-    const trimmedClientId = clientId.trim()
-    const trimmedSecret = clientSecret.trim()
+    const trimmedClientId = clientId.trim();
+    const trimmedSecret = clientSecret.trim();
 
     if (trimmedClientId.length === 0) {
-      setError('Client ID is required.')
-      return
+      setError('Client ID is required.');
+      return;
     }
 
     if (!hasStoredSecret && trimmedSecret.length === 0) {
-      setError('Client secret is required.')
-      return
+      setError('Client secret is required.');
+      return;
     }
 
-    setSaving(true)
-    setError(null)
+    setSaving(true);
+    setError(null);
     try {
       await api.integrations.upsertProviderConfig(provider.id, {
         clientId: trimmedClientId,
         ...(trimmedSecret.length > 0 ? { clientSecret: trimmedSecret } : {}),
-      })
-      onCompleted('saved', provider)
+      });
+      onCompleted('saved', provider);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save provider credentials.'
-      setError(message)
+      const message = err instanceof Error ? err.message : 'Failed to save provider credentials.';
+      setError(message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleRemove = async () => {
     if (!provider) {
-      return
+      return;
     }
 
-    setSaving(true)
-    setError(null)
+    setSaving(true);
+    setError(null);
     try {
-      await api.integrations.deleteProviderConfig(provider.id)
-      onCompleted('deleted', provider)
+      await api.integrations.deleteProviderConfig(provider.id);
+      onCompleted('deleted', provider);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to remove stored credentials.'
-      setError(message)
-      setSaving(false)
+      const message = err instanceof Error ? err.message : 'Failed to remove stored credentials.';
+      setError(message);
+      setSaving(false);
     }
-  }
+  };
 
-  const canRemove = configuredBy === 'user' && hasStoredSecret
-  const isBusy = loading || saving
+  const canRemove = configuredBy === 'user' && hasStoredSecret;
+  const isBusy = loading || saving;
 
   const handleCopyRedirect = async () => {
     if (!callbackUrl) {
-      return
+      return;
     }
 
     try {
-      await navigator.clipboard.writeText(callbackUrl)
-      setCopiedRedirect(true)
-      setTimeout(() => setCopiedRedirect(false), 2000)
+      await navigator.clipboard.writeText(callbackUrl);
+      setCopiedRedirect(true);
+      setTimeout(() => setCopiedRedirect(false), 2000);
     } catch (err) {
-      console.error('Failed to copy redirect URL', err)
-      setError('Unable to copy redirect URL. Please copy it manually.')
+      console.error('Failed to copy redirect URL', err);
+      setError('Unable to copy redirect URL. Please copy it manually.');
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -727,14 +747,16 @@ function ProviderConfigDialog({
             {provider ? `Configure ${provider.name}` : 'Configure provider'}
           </DialogTitle>
           <DialogDescription>
-            Provide the OAuth client credentials required to start authorization flows for this provider.
+            Provide the OAuth client credentials required to start authorization flows for this
+            provider.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {configuredBy === 'environment' && (
             <p className="text-xs text-muted-foreground">
-              This provider currently uses credentials from the server environment. Saving values here will override them for ShipSec Studio.
+              This provider currently uses credentials from the server environment. Saving values
+              here will override them for ShipSec Studio.
             </p>
           )}
 
@@ -769,7 +791,9 @@ function ProviderConfigDialog({
               id="provider-client-secret"
               value={clientSecret}
               onChange={(event) => setClientSecret(event.target.value)}
-              placeholder={hasStoredSecret ? 'Leave blank to keep existing secret' : 'Enter new client secret'}
+              placeholder={
+                hasStoredSecret ? 'Leave blank to keep existing secret' : 'Enter new client secret'
+              }
               type="password"
               autoComplete="off"
               disabled={isBusy}
@@ -797,7 +821,8 @@ function ProviderConfigDialog({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Add this exact URL to the provider&apos;s allowed redirect list to avoid callback warnings.
+                Add this exact URL to the provider&apos;s allowed redirect list to avoid callback
+                warnings.
               </p>
             </div>
           )}
@@ -836,27 +861,27 @@ function ProviderConfigDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 interface IntegrationCallbackBridgeProps {
-  onConnected: (connection: IntegrationConnection) => void
+  onConnected: (connection: IntegrationConnection) => void;
 }
 
 function IntegrationCallbackBridge({ onConnected }: IntegrationCallbackBridgeProps) {
   useEffect(() => {
     const listener = (event: Event) => {
-      const detail = (event as CustomEvent<IntegrationConnection>).detail
+      const detail = (event as CustomEvent<IntegrationConnection>).detail;
       if (detail) {
-        onConnected(detail)
+        onConnected(detail);
       }
-    }
+    };
 
-    window.addEventListener('integration:connected', listener)
+    window.addEventListener('integration:connected', listener);
     return () => {
-      window.removeEventListener('integration:connected', listener)
-    }
-  }, [onConnected])
+      window.removeEventListener('integration:connected', listener);
+    };
+  }, [onConnected]);
 
-  return null
+  return null;
 }

@@ -34,7 +34,7 @@ export interface CreateHumanInputRequestResult {
 // Service instances will be injected at runtime
 let db: NodePgDatabase<typeof schema> | undefined;
 let trace: ITraceService | undefined;
-let baseUrl: string = 'http://localhost:3211';
+let baseUrl = 'http://localhost:3211';
 
 /**
  * Initialize the human input activity with database connection and trace service
@@ -63,21 +63,22 @@ function generateToken(): string {
  * This is called from the workflow when a human-input component is executed
  */
 export async function createHumanInputRequestActivity(
-  input: CreateHumanInputRequestInput
+  input: CreateHumanInputRequestInput,
 ): Promise<CreateHumanInputRequestResult> {
   if (!db) {
-    throw new ConfigurationError('Human input activity not initialized - database connection missing', {
-      configKey: 'database',
-    });
+    throw new ConfigurationError(
+      'Human input activity not initialized - database connection missing',
+      {
+        configKey: 'database',
+      },
+    );
   }
 
   const requestId = randomUUID();
   const resolveToken = generateToken();
 
   // Calculate timeout timestamp if provided
-  const timeoutAt = input.timeoutMs 
-    ? new Date(Date.now() + input.timeoutMs)
-    : null;
+  const timeoutAt = input.timeoutMs ? new Date(Date.now() + input.timeoutMs) : null;
 
   // Insert into database
   await db.insert(schema.humanInputRequestsTable).values({
@@ -96,7 +97,9 @@ export async function createHumanInputRequestActivity(
     organizationId: input.organizationId ?? null,
   });
 
-  console.log(`[HumanInputActivity] Created ${input.inputType} request ${requestId} for run ${input.runId}, node ${input.nodeRef}`);
+  console.log(
+    `[HumanInputActivity] Created ${input.inputType} request ${requestId} for run ${input.runId}, node ${input.nodeRef}`,
+  );
 
   // Emit AWAITING_INPUT trace event so the UI shows the node as awaiting input
   trace?.record({
@@ -131,9 +134,7 @@ export async function createHumanInputRequestActivity(
 /**
  * Activity to cancel a pending human input request
  */
-export async function cancelHumanInputRequestActivity(
-  requestId: string
-): Promise<void> {
+export async function cancelHumanInputRequestActivity(requestId: string): Promise<void> {
   if (!db) {
     console.warn('[HumanInputActivity] Database not initialized, skipping cancellation');
     return;
@@ -153,9 +154,7 @@ export async function cancelHumanInputRequestActivity(
 /**
  * Activity to expire a pending human input request (due to timeout)
  */
-export async function expireHumanInputRequestActivity(
-  requestId: string
-): Promise<void> {
+export async function expireHumanInputRequestActivity(requestId: string): Promise<void> {
   if (!db) {
     console.warn('[HumanInputActivity] Database not initialized, skipping expiration');
     return;

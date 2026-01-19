@@ -38,7 +38,7 @@ export async function runWorkflowActivity(
   console.log(`📋 Run ID: ${input.runId}`);
   console.log(`📋 Workflow ID: ${input.workflowId}`);
   console.log(`📋 Actions count: ${input.definition.actions.length}`);
-  console.log(`📋 Action refs: ${input.definition.actions.map(a => a.ref).join(', ')}`);
+  console.log(`📋 Action refs: ${input.definition.actions.map((a) => a.ref).join(', ')}`);
   console.log(`📋 Inputs keys: ${Object.keys(input.inputs || {}).join(', ')}`);
   console.log(`╚══════════════════════════════════════════════════════════════════════════════╝`);
   const startTime = Date.now();
@@ -71,15 +71,23 @@ export async function runWorkflowActivity(
       },
     );
     const duration = Date.now() - startTime;
-    console.log(`✅ [ACTIVITY DONE] runWorkflow completed for run: ${input.runId} in ${duration}ms`);
+    console.log(
+      `✅ [ACTIVITY DONE] runWorkflow completed for run: ${input.runId} in ${duration}ms`,
+    );
     console.log(`📊 [ACTIVITY] Result keys: ${Object.keys(result || {}).join(', ')}`);
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`❌ [ACTIVITY FAIL] runWorkflow FAILED for run: ${input.runId} after ${duration}ms`);
+    console.error(
+      `❌ [ACTIVITY FAIL] runWorkflow FAILED for run: ${input.runId} after ${duration}ms`,
+    );
     console.error(`❌ [ACTIVITY] Error type: ${error?.constructor?.name}`);
-    console.error(`❌ [ACTIVITY] Error message: ${error instanceof Error ? error.message : String(error)}`);
-    console.error(`❌ [ACTIVITY] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`);
+    console.error(
+      `❌ [ACTIVITY] Error message: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    console.error(
+      `❌ [ACTIVITY] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`,
+    );
     throw error;
   } finally {
     if (isTraceMetadataAware(globalTrace) && typeof globalTrace.finalizeRun === 'function') {

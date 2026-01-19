@@ -32,7 +32,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   docs: 'Test component that echoes input using Docker (alpine)',
-  async execute(params, context) {
+  async execute(_params, _context) {
     // This should never be called when using Docker runner
     // The Docker runner intercepts and runs the container directly
     throw new ContainerError('This component should run in Docker, not inline', {

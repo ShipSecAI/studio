@@ -33,7 +33,7 @@ const parameterSchema = parameters({
       .trim()
       .min(1, 'Ports value cannot be empty')
       .optional()
-      .describe('Comma-separated list of ports to probe (e.g. \"80,443,8080\")'),
+      .describe('Comma-separated list of ports to probe (e.g. "80,443,8080")'),
     {
       label: 'Ports',
       editor: 'text',
@@ -47,7 +47,7 @@ const parameterSchema = parameters({
       .trim()
       .min(1, 'Status codes cannot be empty')
       .optional()
-      .describe('Comma-separated list of acceptable HTTP status codes (e.g. \"200,301,302\")'),
+      .describe('Comma-separated list of acceptable HTTP status codes (e.g. "200,301,302")'),
     {
       label: 'Status Codes',
       editor: 'text',
@@ -113,7 +113,7 @@ const parameterSchema = parameters({
       .trim()
       .min(1, 'Path cannot be empty')
       .optional()
-      .describe('Specific path to append to each target during probing (e.g. \"/admin\")'),
+      .describe('Specific path to append to each target during probing (e.g. "/admin")'),
     {
       label: 'Path',
       editor: 'text',
@@ -122,7 +122,6 @@ const parameterSchema = parameters({
     },
   ),
 });
-
 
 const findingSchema = z.object({
   url: z.string(),
@@ -163,21 +162,23 @@ const outputSchema = outputs({
     label: 'Result Count',
     description: 'Number of responsive endpoints returned.',
   }),
-  options: port(z.object({
-    followRedirects: z.boolean(),
-    tlsProbe: z.boolean(),
-    preferHttps: z.boolean(),
-    ports: z.string().nullable(),
-    statusCodes: z.string().nullable(),
-    threads: z.number().nullable(),
-    path: z.string().nullable(),
-  }), {
-    label: 'Options',
-    description: 'Effective httpx options applied during the run.',
-    connectionType: { kind: 'primitive', name: 'json' },
-  }),
+  options: port(
+    z.object({
+      followRedirects: z.boolean(),
+      tlsProbe: z.boolean(),
+      preferHttps: z.boolean(),
+      ports: z.string().nullable(),
+      statusCodes: z.string().nullable(),
+      threads: z.number().nullable(),
+      path: z.string().nullable(),
+    }),
+    {
+      label: 'Options',
+      description: 'Effective httpx options applied during the run.',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
 });
-
 
 const httpxRunnerOutputSchema = z.object({
   results: z.array(z.unknown()).optional().default([]),
@@ -226,8 +227,10 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'scan',
     category: 'security',
-    description: 'Identify live HTTP endpoints and collect response metadata using ProjectDiscovery httpx.',
-    documentation: 'ProjectDiscovery httpx documentation details CLI flags for probing hosts, extracting metadata, and filtering responses.',
+    description:
+      'Identify live HTTP endpoints and collect response metadata using ProjectDiscovery httpx.',
+    documentation:
+      'ProjectDiscovery httpx documentation details CLI flags for probing hosts, extracting metadata, and filtering responses.',
     documentationUrl: 'https://github.com/projectdiscovery/httpx',
     icon: 'Globe',
     author: {
@@ -236,7 +239,8 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    example: '`httpx -l targets.txt -json -status-code 200,301` - Probe discovered hosts and capture responsive endpoints with matching status codes.',
+    example:
+      '`httpx -l targets.txt -json -status-code 200,301` - Probe discovered hosts and capture responsive endpoints with matching status codes.',
     examples: [
       'Validate Subfinder or Amass discoveries by probing for live web services.',
       'Filter Naabu results to identify hosts exposing HTTP/S services on uncommon ports.',
@@ -253,7 +257,8 @@ const definition = defineComponent({
       ...parsedParams,
       targets: inputs.targets,
       ports: trimmedPorts && trimmedPorts.length > 0 ? trimmedPorts : undefined,
-      statusCodes: trimmedStatusCodes && trimmedStatusCodes.length > 0 ? trimmedStatusCodes : undefined,
+      statusCodes:
+        trimmedStatusCodes && trimmedStatusCodes.length > 0 ? trimmedStatusCodes : undefined,
       path: trimmedPath && trimmedPath.length > 0 ? trimmedPath : undefined,
       followRedirects: parsedParams.followRedirects ?? false,
       tlsProbe: parsedParams.tlsProbe ?? false,
@@ -297,9 +302,7 @@ const definition = defineComponent({
     try {
       const targets = Array.from(
         new Set(
-          runnerParams.targets
-            .map(target => target.trim())
-            .filter(target => target.length > 0),
+          runnerParams.targets.map((target) => target.trim()).filter((target) => target.length > 0),
         ),
       );
 
@@ -419,8 +422,8 @@ function parseHttpxOutput(raw: string): Finding[] {
 
   const lines = raw
     .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0);
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 
   const findings: Finding[] = [];
 
@@ -460,7 +463,9 @@ function parseHttpxOutput(raw: string): Finding[] {
     }
 
     const technologies = Array.isArray(payload.tech)
-      ? payload.tech.filter((item: unknown): item is string => typeof item === 'string' && item.length > 0)
+      ? payload.tech.filter(
+          (item: unknown): item is string => typeof item === 'string' && item.length > 0,
+        )
       : [];
 
     const chainStatus = Array.isArray(payload['chain-status'])
@@ -532,8 +537,8 @@ function normaliseString(value: unknown): string | null {
 componentRegistry.register(definition);
 
 // Create local type aliases for backward compatibility
-type Input = typeof inputSchema['__inferred'];
-type Output = typeof outputSchema['__inferred'];
+type Input = (typeof inputSchema)['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
 
 export type InputShape = typeof inputSchema;
 export type OutputShape = typeof outputSchema;

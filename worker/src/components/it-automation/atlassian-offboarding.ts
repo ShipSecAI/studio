@@ -27,15 +27,15 @@ const inputSchema = inputs({
   }),
   emailUsernames: port(
     z
-      .preprocess(value => {
+      .preprocess((value) => {
         if (Array.isArray(value)) {
           return value;
         }
         if (typeof value === 'string') {
           return value
             .split(/[\r\n,]+/)
-            .map(item => item.trim())
-            .filter(item => item.length > 0);
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0);
         }
         return value;
       }, emailUsernameArraySchema)
@@ -55,7 +55,8 @@ const inputSchema = inputs({
       .describe('Resolved Atlassian admin API bearer token (connect via Secret Loader).'),
     {
       label: 'Access Token',
-      description: 'Bearer token with admin scope (connect from Secret Fetch to keep credentials masked).',
+      description:
+        'Bearer token with admin scope (connect from Secret Fetch to keep credentials masked).',
       connectionType: { kind: 'primitive', name: 'secret' },
       editor: 'secret',
       valuePriority: 'connection-first',
@@ -91,7 +92,6 @@ const resultSchema = z.object({
 
 type Result = z.infer<typeof resultSchema>;
 
-
 const outputSchema = outputs({
   orgId: port(z.string(), {
     label: 'Org ID',
@@ -106,16 +106,19 @@ const outputSchema = outputs({
     description: 'Status of each requested user offboarding attempt.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
   }),
-  summary: port(z.object({
-    requested: z.number(),
-    found: z.number(),
-    deleted: z.number(),
-    failed: z.number(),
-  }), {
-    label: 'Summary',
-    description: 'Aggregate statistics for the run.',
-    connectionType: { kind: 'primitive', name: 'json' },
-  }),
+  summary: port(
+    z.object({
+      requested: z.number(),
+      found: z.number(),
+      deleted: z.number(),
+      failed: z.number(),
+    }),
+    {
+      label: 'Summary',
+      description: 'Aggregate statistics for the run.',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
   searchRaw: port(z.unknown().optional(), {
     label: 'Raw Search Response',
     description: 'Unmodified search API payload for debugging.',
@@ -191,13 +194,15 @@ async function readResponseBody(response: Response): Promise<string> {
   }
 }
 
-function getSearchResults(payload: unknown): Array<Record<string, unknown>> {
+function getSearchResults(payload: unknown): Record<string, unknown>[] {
   if (!payload || typeof payload !== 'object') {
     return [];
   }
 
   if (Array.isArray(payload)) {
-    return payload.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
+    return payload.filter(
+      (item): item is Record<string, unknown> => typeof item === 'object' && item !== null,
+    );
   }
 
   const objectPayload = payload as Record<string, unknown>;
@@ -206,7 +211,9 @@ function getSearchResults(payload: unknown): Array<Record<string, unknown>> {
   for (const key of keys) {
     const value = objectPayload[key];
     if (Array.isArray(value)) {
-      return value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
+      return value.filter(
+        (item): item is Record<string, unknown> => typeof item === 'object' && item !== null,
+      );
     }
   }
 
@@ -221,8 +228,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs:
-    'Search for Atlassian accounts by email username and remove them from an organization using the Atlassian Admin API. Typical workflow: Secret Fetch → Atlassian Offboarding → Console Log / Notify.\n\nPrerequisites:\n- Atlassian organization ID (UUID) with admin API access.\n- Admin API bearer token delivered via Secret Fetch (connect the secret output to the accessToken input).\n\nInputs:\n- emailUsernames: comma/newline separated list or array of email usernames (portion before @).\n- orgId: Atlassian organization identifier.\n- accessToken: bearer token supplied via a secret/credential port.\n\nOutputs:\n- results: entry for each requested username including accountId, status, and message.\n- summary: aggregate counts (requested/found/deleted/failed).\n- searchRaw: raw API response for audit/debug.\n\nSee docs/atlassian-offboarding.md for end-to-end workflow guidance.',
+  docs: 'Search for Atlassian accounts by email username and remove them from an organization using the Atlassian Admin API. Typical workflow: Secret Fetch → Atlassian Offboarding → Console Log / Notify.\n\nPrerequisites:\n- Atlassian organization ID (UUID) with admin API access.\n- Admin API bearer token delivered via Secret Fetch (connect the secret output to the accessToken input).\n\nInputs:\n- emailUsernames: comma/newline separated list or array of email usernames (portion before @).\n- orgId: Atlassian organization identifier.\n- accessToken: bearer token supplied via a secret/credential port.\n\nOutputs:\n- results: entry for each requested username including accountId, status, and message.\n- summary: aggregate counts (requested/found/deleted/failed).\n- searchRaw: raw API response for audit/debug.\n\nSee docs/atlassian-offboarding.md for end-to-end workflow guidance.',
   retryPolicy: {
     maxAttempts: 3,
     initialIntervalSeconds: 2,
@@ -277,7 +283,9 @@ const definition = defineComponent({
     }
     context.logger.info('[AtlassianOffboarding] Using access token provided via secret input.');
 
-    context.emitProgress(`Searching Atlassian for ${requestedUsernames.length} user(s) to offboard...`);
+    context.emitProgress(
+      `Searching Atlassian for ${requestedUsernames.length} user(s) to offboard...`,
+    );
     context.logger.info(
       `[AtlassianOffboarding] Initiating search in org ${orgId} for usernames: ${requestedUsernames.join(', ')}`,
     );
@@ -295,18 +303,19 @@ const definition = defineComponent({
     let searchResponse: Response;
     const searchStartedAt = Date.now();
     try {
-      searchResponse = await context.http.fetch(`https://api.atlassian.com/admin/v1/orgs/${orgId}/users/search`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
+      searchResponse = await context.http.fetch(
+        `https://api.atlassian.com/admin/v1/orgs/${orgId}/users/search`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(searchPayload),
         },
-        body: JSON.stringify(searchPayload),
-      });
-      context.logger.info(
-      `[AtlassianOffboarding] Output of ${searchResponse}`,
-    );
+      );
+      context.logger.info(`[AtlassianOffboarding] Output of ${searchResponse}`);
     } catch (error) {
       const message = (error as Error).message ?? 'Unknown error';
       context.logger.error(`[AtlassianOffboarding] Search request failed: ${message}`);
@@ -331,12 +340,14 @@ const definition = defineComponent({
     let searchPayloadJson: unknown;
     try {
       searchPayloadJson = await searchResponse.json();
-       context.logger.info(
-      `[AtlassianOffboarding] Search API responded with json ${searchPayloadJson}`,
-    );
+      context.logger.info(
+        `[AtlassianOffboarding] Search API responded with json ${searchPayloadJson}`,
+      );
     } catch (error) {
       const message = (error as Error).message ?? 'Unknown error';
-      context.logger.error(`[AtlassianOffboarding] Failed to parse search response JSON: ${message}`);
+      context.logger.error(
+        `[AtlassianOffboarding] Failed to parse search response JSON: ${message}`,
+      );
       throw new ValidationError(`Unable to parse Atlassian search response JSON: ${message}`, {
         cause: error as Error,
         details: { operation: 'parseSearchResponse' },
@@ -412,7 +423,9 @@ const definition = defineComponent({
         continue;
       }
 
-      context.emitProgress(`Removing Atlassian user ${emailUsername} (${accountId}) from organization...`);
+      context.emitProgress(
+        `Removing Atlassian user ${emailUsername} (${accountId}) from organization...`,
+      );
       context.logger.info(
         `[AtlassianOffboarding] Attempting to delete user ${emailUsername} with accountId ${accountId}`,
       );
@@ -471,9 +484,9 @@ const definition = defineComponent({
 
     const summary = {
       requested: requestedUsernames.length,
-      found: results.filter(result => result.accountId !== null).length,
-      deleted: results.filter(result => result.status === 'deleted').length,
-      failed: results.filter(result => result.status === 'error').length,
+      found: results.filter((result) => result.accountId !== null).length,
+      deleted: results.filter((result) => result.status === 'deleted').length,
+      failed: results.filter((result) => result.status === 'error').length,
     };
 
     if (summary.failed > 0) {

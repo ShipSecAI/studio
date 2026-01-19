@@ -39,8 +39,7 @@ const coreModules = [
   HumanInputsModule,
 ];
 
-const testingModules =
-  process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
+const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
 
 @Module({
   imports: [

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 export const EdgeSchema = z.object({
   id: z.string(),
@@ -9,6 +9,6 @@ export const EdgeSchema = z.object({
   type: z.enum(['default', 'smoothstep', 'step', 'straight']).default('default'),
   animated: z.boolean().optional(),
   label: z.string().optional(),
-})
+});
 
-export type Edge = z.infer<typeof EdgeSchema>
+export type Edge = z.infer<typeof EdgeSchema>;

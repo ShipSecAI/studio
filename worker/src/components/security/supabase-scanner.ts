@@ -110,7 +110,6 @@ const parameterSchema = parameters({
   }),
 });
 
-
 const scannerReportSchema = z
   .object({
     project_ref: z.string().optional(),
@@ -196,8 +195,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs:
-    'Runs the official Supabase Security Scanner inside Docker with a generated config. Produces a JSON report.',
+  docs: 'Runs the official Supabase Security Scanner inside Docker with a generated config. Produces a JSON report.',
   ui: {
     slug: 'supabase-scanner',
     version: '1.0.0',
@@ -222,8 +220,9 @@ const definition = defineComponent({
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
-    const databaseConnectionString =
-      (parsedInputs.databaseConnectionString ?? parsedParams.databaseUrl)?.trim();
+    const databaseConnectionString = (
+      parsedInputs.databaseConnectionString ?? parsedParams.databaseUrl
+    )?.trim();
     const projectRef = parsedInputs.projectRef ?? inferProjectRef(parsedInputs.supabaseUrl);
 
     if (!databaseConnectionString) {
@@ -276,7 +275,9 @@ const definition = defineComponent({
     } else {
       configYamlLines.push('  minimum_score: 0');
     }
-    configYamlLines.push(`  fail_on_critical: ${parsedParams.failOnCritical === true ? 'true' : 'false'}`);
+    configYamlLines.push(
+      `  fail_on_critical: ${parsedParams.failOnCritical === true ? 'true' : 'false'}`,
+    );
 
     const configYaml = configYamlLines.join('\n') + '\n';
     let stdoutCombined = '';
@@ -310,7 +311,12 @@ const definition = defineComponent({
       runner.volumes = [volume.getVolumeConfig(mountPath, false)];
 
       try {
-        const result = await runComponentWithRunner(runner, async () => ({}), runnerPayload, context);
+        const result = await runComponentWithRunner(
+          runner,
+          async () => ({}),
+          runnerPayload,
+          context,
+        );
         if (typeof result === 'string') {
           stdoutCombined = result;
         } else if (result && typeof result === 'object') {
@@ -340,11 +346,11 @@ const definition = defineComponent({
             issues = Array.isArray(safe.data.issues) ? (safe.data.issues as unknown[]) : undefined;
           }
           stdoutCombined = text.trim();
-        } catch (e) {
+        } catch (_e) {
           report = { raw: text };
           stdoutCombined = text.trim();
         }
-      } catch (e) {
+      } catch (_e) {
         context.logger.error('[SupabaseScanner] Output JSON file not found or unreadable.');
         errors.push('Scanner output file not found.');
       }
@@ -376,7 +382,7 @@ const definition = defineComponent({
 componentRegistry.register(definition);
 
 // Create local type aliases for backward compatibility
-type Input = typeof inputSchema['__inferred'];
-type Output = typeof outputSchema['__inferred'];
+type Input = (typeof inputSchema)['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
 
 export type { Input as SupabaseScannerInput, Output as SupabaseScannerOutput };

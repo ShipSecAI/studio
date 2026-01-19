@@ -1,13 +1,13 @@
-import type { NodeStatus } from '@/schemas/node'
+import type { NodeStatus } from '@/schemas/node';
 
 /**
  * Node state styling configuration
  */
 export interface NodeStateStyle {
-  border: string
-  bg: string
-  icon: string | null
-  iconClass?: string
+  border: string;
+  bg: string;
+  icon: string | null;
+  iconClass?: string;
 }
 
 /**
@@ -56,7 +56,7 @@ export function getNodeStyle(state: NodeStatus): NodeStateStyle {
       icon: 'Ban',
       iconClass: 'text-slate-500 dark:text-slate-400',
     },
-  }
+  };
 
-  return styles[state]
+  return styles[state];
 }

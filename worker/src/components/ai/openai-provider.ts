@@ -17,7 +17,8 @@ const DEFAULT_BASE_URL = process.env.OPENAI_BASE_URL ?? '';
 
 const inputSchema = inputs({
   apiKey: port(
-    z.string()
+    z
+      .string()
       .min(1, 'API key is required')
       .describe('Resolved OpenAI-compatible API key supplied via a Secret Loader node.'),
     {
@@ -30,18 +31,21 @@ const inputSchema = inputs({
 });
 
 const parameterSchema = parameters({
-  model: param(z.string().default(DEFAULT_MODEL).describe('OpenAI compatible chat model identifier.'), {
-    label: 'Model',
-    editor: 'select',
-    options: [
-      { label: 'GPT-5.2', value: 'gpt-5.2' },
-      { label: 'GPT-5.2 Pro', value: 'gpt-5.2-pro' },
-      { label: 'GPT-5.1', value: 'gpt-5.1' },
-      { label: 'GPT-5', value: 'gpt-5' },
-      { label: 'GPT-5 Mini', value: 'gpt-5-mini' },
-    ],
-    description: 'OpenAI compatible chat model to emit.',
-  }),
+  model: param(
+    z.string().default(DEFAULT_MODEL).describe('OpenAI compatible chat model identifier.'),
+    {
+      label: 'Model',
+      editor: 'select',
+      options: [
+        { label: 'GPT-5.2', value: 'gpt-5.2' },
+        { label: 'GPT-5.2 Pro', value: 'gpt-5.2-pro' },
+        { label: 'GPT-5.1', value: 'gpt-5.1' },
+        { label: 'GPT-5', value: 'gpt-5' },
+        { label: 'GPT-5 Mini', value: 'gpt-5-mini' },
+      ],
+      description: 'OpenAI compatible chat model to emit.',
+    },
+  ),
   apiBaseUrl: param(
     z
       .string()
@@ -96,7 +100,8 @@ const definition = defineComponent({
     version: '1.1.0',
     type: 'process',
     category: 'ai',
-    description: 'Normalize OpenAI credentials, base URL, and model selection into a portable provider config.',
+    description:
+      'Normalize OpenAI credentials, base URL, and model selection into a portable provider config.',
     icon: 'Settings',
     author: {
       name: 'ShipSecAI',

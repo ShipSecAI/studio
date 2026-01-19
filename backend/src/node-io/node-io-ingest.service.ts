@@ -49,7 +49,9 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     if (this.kafkaBrokers.length === 0) {
-      this.logger.warn('No Kafka brokers configured, skipping node I/O ingest service initialization');
+      this.logger.warn(
+        'No Kafka brokers configured, skipping node I/O ingest service initialization',
+      );
       return;
     }
 
@@ -65,7 +67,7 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      this.consumer = kafka.consumer({ 
+      this.consumer = kafka.consumer({
         groupId: this.kafkaGroupId,
         sessionTimeout: 30000,
         heartbeatInterval: 3000,

@@ -1,17 +1,17 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
-import { cn } from '@/lib/utils'
+} from '@/components/ui/dropdown-menu';
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
+import { cn } from '@/lib/utils';
 
-const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const PLAYBACK_SPEEDS = [
   { label: '0.1x', value: 0.1 },
@@ -20,7 +20,7 @@ const PLAYBACK_SPEEDS = [
   { label: '2x', value: 2 },
   { label: '5x', value: 5 },
   { label: '10x', value: 10 },
-]
+];
 
 const EVENT_COLORS: Record<string, string> = {
   STARTED: 'bg-blue-500',
@@ -31,197 +31,197 @@ const EVENT_COLORS: Record<string, string> = {
   HTTP_RESPONSE_RECEIVED: 'bg-teal-500',
   HTTP_REQUEST_ERROR: 'bg-red-500',
   default: 'bg-gray-400 dark:bg-gray-500',
-}
+};
 
 const formatTime = (ms: number): string => {
-  if (ms < 1000) return `0:${String(Math.floor(ms / 100)).padStart(2, '0')}`
-  const seconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
-}
+  if (ms < 1000) return `0:${String(Math.floor(ms / 100)).padStart(2, '0')}`;
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+};
 
 const formatTimestamp = (timestamp: string): string => {
-  const date = new Date(timestamp)
+  const date = new Date(timestamp);
   const base = date.toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-  })
-  return `${base}.${String(date.getMilliseconds()).padStart(3, '0')}`
-}
+  });
+  return `${base}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+};
 
 export function ExecutionTimeline() {
-  const [timelineStart, setTimelineStart] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const timelineRef = useRef<HTMLDivElement>(null)
+  const [timelineStart, setTimelineStart] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
-  const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId)
-  const events = useExecutionTimelineStore((state) => state.events)
-  const totalDuration = useExecutionTimelineStore((state) => state.totalDuration)
-  const eventDuration = useExecutionTimelineStore((state) => state.eventDuration)
-  const currentTime = useExecutionTimelineStore((state) => state.currentTime)
-  const playbackMode = useExecutionTimelineStore((state) => state.playbackMode)
-  const isPlaying = useExecutionTimelineStore((state) => state.isPlaying)
-  const playbackSpeed = useExecutionTimelineStore((state) => state.playbackSpeed)
-  const isSeeking = useExecutionTimelineStore((state) => state.isSeeking)
-  const nodeStates = useExecutionTimelineStore((state) => state.nodeStates)
-  const showTimeline = useExecutionTimelineStore((state) => state.showTimeline)
-  const timelineZoom = useExecutionTimelineStore((state) => state.timelineZoom)
-  const play = useExecutionTimelineStore((state) => state.play)
-  const pause = useExecutionTimelineStore((state) => state.pause)
-  const seek = useExecutionTimelineStore((state) => state.seek)
-  const setPlaybackSpeed = useExecutionTimelineStore((state) => state.setPlaybackSpeed)
-  const stepForward = useExecutionTimelineStore((state) => state.stepForward)
-  const stepBackward = useExecutionTimelineStore((state) => state.stepBackward)
-  const setTimelineZoom = useExecutionTimelineStore((state) => state.setTimelineZoom)
-  const isLiveFollowing = useExecutionTimelineStore((state) => state.isLiveFollowing)
-  const goLive = useExecutionTimelineStore((state) => state.goLive)
-  const tickLiveClock = useExecutionTimelineStore((state) => state.tickLiveClock)
-  const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime)
-  const agentMarkersRunId = useExecutionTimelineStore((state) => state.agentMarkersRunId)
-  const agentMarkers = useExecutionTimelineStore((state) => state.agentMarkers)
+  const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId);
+  const events = useExecutionTimelineStore((state) => state.events);
+  const totalDuration = useExecutionTimelineStore((state) => state.totalDuration);
+  const eventDuration = useExecutionTimelineStore((state) => state.eventDuration);
+  const currentTime = useExecutionTimelineStore((state) => state.currentTime);
+  const playbackMode = useExecutionTimelineStore((state) => state.playbackMode);
+  const isPlaying = useExecutionTimelineStore((state) => state.isPlaying);
+  const playbackSpeed = useExecutionTimelineStore((state) => state.playbackSpeed);
+  const isSeeking = useExecutionTimelineStore((state) => state.isSeeking);
+  const nodeStates = useExecutionTimelineStore((state) => state.nodeStates);
+  const showTimeline = useExecutionTimelineStore((state) => state.showTimeline);
+  const timelineZoom = useExecutionTimelineStore((state) => state.timelineZoom);
+  const play = useExecutionTimelineStore((state) => state.play);
+  const pause = useExecutionTimelineStore((state) => state.pause);
+  const seek = useExecutionTimelineStore((state) => state.seek);
+  const setPlaybackSpeed = useExecutionTimelineStore((state) => state.setPlaybackSpeed);
+  const stepForward = useExecutionTimelineStore((state) => state.stepForward);
+  const stepBackward = useExecutionTimelineStore((state) => state.stepBackward);
+  const setTimelineZoom = useExecutionTimelineStore((state) => state.setTimelineZoom);
+  const isLiveFollowing = useExecutionTimelineStore((state) => state.isLiveFollowing);
+  const goLive = useExecutionTimelineStore((state) => state.goLive);
+  const tickLiveClock = useExecutionTimelineStore((state) => state.tickLiveClock);
+  const timelineStartTime = useExecutionTimelineStore((state) => state.timelineStartTime);
+  const agentMarkersRunId = useExecutionTimelineStore((state) => state.agentMarkersRunId);
+  const agentMarkers = useExecutionTimelineStore((state) => state.agentMarkers);
 
-  const isLiveMode = playbackMode === 'live'
-  const overviewDuration = Math.max(eventDuration, totalDuration)
-  const safeDuration = Math.max(totalDuration, 1)
-  const normalizedProgress = clampValue(currentTime / safeDuration, 0, 1)
-  const viewportWidth = 1 / timelineZoom
-  const maxStart = Math.max(0, 1 - viewportWidth)
-  const clampedStart = clampValue(timelineStart, 0, maxStart)
+  const isLiveMode = playbackMode === 'live';
+  const overviewDuration = Math.max(eventDuration, totalDuration);
+  const safeDuration = Math.max(totalDuration, 1);
+  const normalizedProgress = clampValue(currentTime / safeDuration, 0, 1);
+  const viewportWidth = 1 / timelineZoom;
+  const maxStart = Math.max(0, 1 - viewportWidth);
+  const clampedStart = clampValue(timelineStart, 0, maxStart);
   const visibleProgress = clampValue(
     viewportWidth >= 1 ? normalizedProgress : (normalizedProgress - clampedStart) / viewportWidth,
     0,
     1,
-  )
-  const viewportStartMs = clampedStart * safeDuration
-  const viewportEndMs = Math.min(safeDuration, (clampedStart + viewportWidth) * safeDuration)
+  );
+  const viewportStartMs = clampedStart * safeDuration;
+  const viewportEndMs = Math.min(safeDuration, (clampedStart + viewportWidth) * safeDuration);
 
   useEffect(() => {
-    if (!selectedRunId) return
-    setTimelineStart(0)
-    setTimelineZoom(1)
-  }, [selectedRunId, setTimelineZoom])
+    if (!selectedRunId) return;
+    setTimelineStart(0);
+    setTimelineZoom(1);
+  }, [selectedRunId, setTimelineZoom]);
 
   useEffect(() => {
-    setTimelineStart((prev) => clampValue(prev, 0, maxStart))
-  }, [maxStart])
+    setTimelineStart((prev) => clampValue(prev, 0, maxStart));
+  }, [maxStart]);
 
   useEffect(() => {
     // Always advance the live clock so overall duration keeps moving even when user scrubs away from follow mode.
-    if (!isLiveMode) return
-    let frame: number
+    if (!isLiveMode) return;
+    let frame: number;
     const pump = () => {
-      tickLiveClock()
-      frame = requestAnimationFrame(pump)
-    }
-    frame = requestAnimationFrame(pump)
-    return () => cancelAnimationFrame(frame)
-  }, [isLiveMode, tickLiveClock])
+      tickLiveClock();
+      frame = requestAnimationFrame(pump);
+    };
+    frame = requestAnimationFrame(pump);
+    return () => cancelAnimationFrame(frame);
+  }, [isLiveMode, tickLiveClock]);
 
   useEffect(() => {
-    const guard = viewportWidth >= 1 ? 0 : viewportWidth * 0.15
-    const lowerBound = clampedStart + guard
-    const upperBound = clampedStart + viewportWidth - guard
+    const guard = viewportWidth >= 1 ? 0 : viewportWidth * 0.15;
+    const lowerBound = clampedStart + guard;
+    const upperBound = clampedStart + viewportWidth - guard;
     if (normalizedProgress < lowerBound) {
-      setTimelineStart(clampValue(normalizedProgress - guard, 0, maxStart))
+      setTimelineStart(clampValue(normalizedProgress - guard, 0, maxStart));
     } else if (normalizedProgress > upperBound) {
-      setTimelineStart(clampValue(normalizedProgress - (viewportWidth - guard), 0, maxStart))
+      setTimelineStart(clampValue(normalizedProgress - (viewportWidth - guard), 0, maxStart));
     }
-  }, [normalizedProgress, viewportWidth, clampedStart, maxStart])
+  }, [normalizedProgress, viewportWidth, clampedStart, maxStart]);
 
   const getTimeFromClientX = useCallback(
     (clientX: number) => {
-      const rect = timelineRef.current?.getBoundingClientRect()
-      if (!rect || rect.width === 0) return null
-      const relative = clampValue((clientX - rect.left) / rect.width, 0, 1)
-      const normalized = clampValue(clampedStart + relative * viewportWidth, 0, 1)
-      return normalized * safeDuration
+      const rect = timelineRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0) return null;
+      const relative = clampValue((clientX - rect.left) / rect.width, 0, 1);
+      const normalized = clampValue(clampedStart + relative * viewportWidth, 0, 1);
+      return normalized * safeDuration;
     },
     [clampedStart, viewportWidth, safeDuration],
-  )
+  );
 
   const seekFromClientX = useCallback(
     (clientX: number) => {
-      const next = getTimeFromClientX(clientX)
-      if (next == null) return
-      seek(next)
+      const next = getTimeFromClientX(clientX);
+      if (next == null) return;
+      seek(next);
     },
     [getTimeFromClientX, seek],
-  )
+  );
 
   const handleTrackMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return
-      event.preventDefault()
-      setIsDragging(true)
-      seekFromClientX(event.clientX)
+      if (event.button !== 0) return;
+      event.preventDefault();
+      setIsDragging(true);
+      seekFromClientX(event.clientX);
     },
     [seekFromClientX],
-  )
+  );
 
   useEffect(() => {
-    if (!isDragging) return
+    if (!isDragging) return;
     const onMove = (event: MouseEvent) => {
-      seekFromClientX(event.clientX)
-    }
-    const onUp = () => setIsDragging(false)
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+      seekFromClientX(event.clientX);
+    };
+    const onUp = () => setIsDragging(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [isDragging, seekFromClientX])
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [isDragging, seekFromClientX]);
 
   const handleWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
-      if (!timelineRef.current) return
+      if (!timelineRef.current) return;
       if (event.ctrlKey || event.metaKey) {
-        event.preventDefault()
-        const rect = timelineRef.current.getBoundingClientRect()
-        const pivotRatio = clampValue((event.clientX - rect.left) / rect.width, 0, 1)
-        const pivotPoint = clampedStart + pivotRatio * viewportWidth
-        const delta = event.deltaY > 0 ? -0.5 : 0.5
-        const nextZoom = clampValue(timelineZoom + delta, 1, 100)
-        if (nextZoom === timelineZoom) return
-        const nextViewportWidth = 1 / nextZoom
-        const nextMaxStart = Math.max(0, 1 - nextViewportWidth)
-        const nextStart = clampValue(pivotPoint - nextViewportWidth * pivotRatio, 0, nextMaxStart)
-        setTimelineZoom(nextZoom)
-        setTimelineStart(nextStart)
+        event.preventDefault();
+        const rect = timelineRef.current.getBoundingClientRect();
+        const pivotRatio = clampValue((event.clientX - rect.left) / rect.width, 0, 1);
+        const pivotPoint = clampedStart + pivotRatio * viewportWidth;
+        const delta = event.deltaY > 0 ? -0.5 : 0.5;
+        const nextZoom = clampValue(timelineZoom + delta, 1, 100);
+        if (nextZoom === timelineZoom) return;
+        const nextViewportWidth = 1 / nextZoom;
+        const nextMaxStart = Math.max(0, 1 - nextViewportWidth);
+        const nextStart = clampValue(pivotPoint - nextViewportWidth * pivotRatio, 0, nextMaxStart);
+        setTimelineZoom(nextZoom);
+        setTimelineStart(nextStart);
       } else if (timelineZoom > 1) {
-        event.preventDefault()
-        const delta = (event.deltaY / 500) * viewportWidth
-        setTimelineStart((prev) => clampValue(prev + delta, 0, maxStart))
+        event.preventDefault();
+        const delta = (event.deltaY / 500) * viewportWidth;
+        setTimelineStart((prev) => clampValue(prev + delta, 0, maxStart));
       }
     },
     [timelineZoom, viewportWidth, clampedStart, maxStart, setTimelineZoom],
-  )
+  );
 
   const handlePlayPause = useCallback(() => {
-    if (playbackMode === 'live') return
+    if (playbackMode === 'live') return;
     if (isPlaying) {
-      pause()
+      pause();
     } else {
-      play()
+      play();
     }
-  }, [isPlaying, play, pause, playbackMode])
+  }, [isPlaying, play, pause, playbackMode]);
 
   const handleSpeedChange = useCallback(
     (speed: number) => {
-      setPlaybackSpeed(speed)
+      setPlaybackSpeed(speed);
     },
     [setPlaybackSpeed],
-  )
+  );
 
   const markerData = useMemo(() => {
-    if (events.length === 0) return []
+    if (events.length === 0) return [];
     return events.map((event) => {
-      const normalized = clampValue(event.offsetMs / safeDuration, 0, 1)
+      const normalized = clampValue(event.offsetMs / safeDuration, 0, 1);
       const viewportPosition =
-        viewportWidth >= 1 ? normalized : (normalized - clampedStart) / viewportWidth
+        viewportWidth >= 1 ? normalized : (normalized - clampedStart) / viewportWidth;
       return {
         id: event.id,
         type: event.type,
@@ -229,28 +229,27 @@ export function ExecutionTimeline() {
         viewportPosition,
         normalizedPosition: normalized,
         visible: viewportPosition >= 0 && viewportPosition <= 1,
-      }
-    })
-  }, [events, safeDuration, clampedStart, viewportWidth])
+      };
+    });
+  }, [events, safeDuration, clampedStart, viewportWidth]);
 
-  const visibleMarkers = markerData.filter((marker) => marker.visible)
+  const visibleMarkers = markerData.filter((marker) => marker.visible);
   const baseTimelineStart =
-    timelineStartTime ??
-    (events.length > 0 ? new Date(events[0].timestamp).getTime() : null)
+    timelineStartTime ?? (events.length > 0 ? new Date(events[0].timestamp).getTime() : null);
   const agentMarkerData = useMemo(() => {
     if (!baseTimelineStart) {
-      return []
+      return [];
     }
     if (!selectedRunId || agentMarkersRunId !== selectedRunId) {
-      return []
+      return [];
     }
-    const flatMarkers = Object.values(agentMarkers).flat()
+    const flatMarkers = Object.values(agentMarkers).flat();
     return flatMarkers.map((marker) => {
-      const markerTime = new Date(marker.timestamp).getTime()
-      const offsetMs = markerTime - baseTimelineStart
-      const normalized = clampValue(offsetMs / safeDuration, 0, 1)
+      const markerTime = new Date(marker.timestamp).getTime();
+      const offsetMs = markerTime - baseTimelineStart;
+      const normalized = clampValue(offsetMs / safeDuration, 0, 1);
       const viewportPosition =
-        viewportWidth >= 1 ? normalized : (normalized - clampedStart) / viewportWidth
+        viewportWidth >= 1 ? normalized : (normalized - clampedStart) / viewportWidth;
       return {
         id: marker.id,
         label: marker.label,
@@ -258,8 +257,8 @@ export function ExecutionTimeline() {
         viewportPosition,
         normalizedPosition: normalized,
         visible: viewportPosition >= 0 && viewportPosition <= 1,
-      }
-    })
+      };
+    });
   }, [
     agentMarkers,
     agentMarkersRunId,
@@ -268,41 +267,41 @@ export function ExecutionTimeline() {
     safeDuration,
     selectedRunId,
     viewportWidth,
-  ])
-  const visibleAgentMarkers = agentMarkerData.filter((marker) => marker.visible)
+  ]);
+  const visibleAgentMarkers = agentMarkerData.filter((marker) => marker.visible);
 
   const handlePreviewPointer = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      const rect = event.currentTarget.getBoundingClientRect()
-      if (!rect.width) return
-      const ratio = clampValue((event.clientX - rect.left) / rect.width, 0, 1)
-      const nextStart = clampValue(ratio - viewportWidth / 2, 0, maxStart)
-      setTimelineStart(nextStart)
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (!rect.width) return;
+      const ratio = clampValue((event.clientX - rect.left) / rect.width, 0, 1);
+      const nextStart = clampValue(ratio - viewportWidth / 2, 0, maxStart);
+      setTimelineStart(nextStart);
     },
     [viewportWidth, maxStart],
-  )
+  );
 
   useEffect(() => {
-    if (!isPlaying || playbackMode !== 'replay') return
-    let frame: number
+    if (!isPlaying || playbackMode !== 'replay') return;
+    let frame: number;
     const step = () => {
-      const state = useExecutionTimelineStore.getState()
-      const delta = 16.67 * state.playbackSpeed
-      const nextTime = Math.min(state.totalDuration, state.currentTime + delta)
+      const state = useExecutionTimelineStore.getState();
+      const delta = 16.67 * state.playbackSpeed;
+      const nextTime = Math.min(state.totalDuration, state.currentTime + delta);
       if (nextTime >= state.totalDuration) {
-        pause()
-        seek(state.totalDuration)
-        return
+        pause();
+        seek(state.totalDuration);
+        return;
       }
-      seek(nextTime)
-      frame = requestAnimationFrame(step)
-    }
-    frame = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(frame)
-  }, [isPlaying, playbackMode, pause, seek])
+      seek(nextTime);
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [isPlaying, playbackMode, pause, seek]);
 
   if (!selectedRunId || !showTimeline) {
-    return null
+    return null;
   }
 
   return (
@@ -377,7 +376,11 @@ export function ExecutionTimeline() {
                 <Badge variant="outline" className="text-red-500 border-red-400 bg-red-50">
                   Behind live
                 </Badge>
-                <Button size="sm" onClick={goLive} className="bg-red-500 text-white hover:bg-red-600">
+                <Button
+                  size="sm"
+                  onClick={goLive}
+                  className="bg-red-500 text-white hover:bg-red-600"
+                >
                   Go Live
                 </Button>
               </div>
@@ -454,10 +457,10 @@ export function ExecutionTimeline() {
                   isLiveMode ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600',
                 )}
                 onMouseDown={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  setIsDragging(true)
-                  seekFromClientX(event.clientX)
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setIsDragging(true);
+                  seekFromClientX(event.clientX);
                 }}
               >
                 {formatTime(currentTime)}
@@ -485,7 +488,7 @@ export function ExecutionTimeline() {
             onMouseDown={handlePreviewPointer}
             onMouseMove={(event) => {
               if (event.buttons & 1) {
-                handlePreviewPointer(event)
+                handlePreviewPointer(event);
               }
             }}
             title="Click or drag to reposition view"
@@ -505,10 +508,7 @@ export function ExecutionTimeline() {
               style={{ left: `${clampedStart * 100}%`, width: `${viewportWidth * 100}%` }}
             />
           </div>
-          <div
-            className="relative h-3 pointer-events-none"
-            aria-hidden="true"
-          >
+          <div className="relative h-3 pointer-events-none" aria-hidden="true">
             <div
               className="absolute"
               style={{
@@ -549,5 +549,5 @@ export function ExecutionTimeline() {
         </div>
       </div>
     </div>
-  )
+  );
 }

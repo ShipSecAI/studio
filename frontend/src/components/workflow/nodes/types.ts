@@ -1,11 +1,11 @@
-import { ComponentMetadata } from '@/schemas/component'
+import { ComponentMetadata } from '@/schemas/component';
 
 /**
  * Component type display configuration
  */
 export interface TypeConfig {
-  label: string
-  color: string
+  label: string;
+  color: string;
 }
 
 export const TYPE_CONFIGS: Record<ComponentMetadata['type'], TypeConfig> = {
@@ -29,4 +29,4 @@ export const TYPE_CONFIGS: Record<ComponentMetadata['type'], TypeConfig> = {
     label: 'Output',
     color: 'text-orange-600',
   },
-}
+};

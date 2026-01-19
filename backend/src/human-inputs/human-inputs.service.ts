@@ -1,14 +1,14 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import * as schema from '../database/schema';
-import { humanInputRequests, humanInputRequests as humanInputRequestsTable } from '../database/schema';
+import { humanInputRequests as humanInputRequestsTable } from '../database/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { 
-  ResolveHumanInputDto, 
+import {
+  ResolveHumanInputDto,
   ListHumanInputsQueryDto,
   HumanInputResponseDto,
-  PublicResolveResultDto
+  PublicResolveResultDto,
 } from './dto/human-inputs.dto';
 import { TemporalService } from '../temporal/temporal.service';
 
@@ -23,11 +23,11 @@ export class HumanInputsService {
 
   async list(query?: ListHumanInputsQueryDto): Promise<HumanInputResponseDto[]> {
     const conditions = [];
-    
+
     if (query?.status) {
       conditions.push(eq(humanInputRequestsTable.status, query.status));
     }
-    
+
     if (query?.inputType) {
       conditions.push(eq(humanInputRequestsTable.inputType, query.inputType));
     }
@@ -96,7 +96,11 @@ export class HumanInputsService {
   }
 
   // Public resolution using token
-  async resolveByToken(token: string, action: 'approve' | 'reject' | 'resolve', data?: Record<string, unknown>): Promise<PublicResolveResultDto> {
+  async resolveByToken(
+    token: string,
+    action: 'approve' | 'reject' | 'resolve',
+    data?: Record<string, unknown>,
+  ): Promise<PublicResolveResultDto> {
     const request = await this.db.query.humanInputRequests.findFirst({
       where: eq(humanInputRequestsTable.resolveToken, token),
     });
@@ -110,13 +114,13 @@ export class HumanInputsService {
           title: '',
           inputType: 'approval',
           status: 'expired',
-          respondedAt: null
-        }
+          respondedAt: null,
+        },
       };
     }
 
     if (request.status !== 'pending') {
-         return {
+      return {
         success: false,
         message: `Request is already ${request.status}`,
         input: {
@@ -124,15 +128,15 @@ export class HumanInputsService {
           title: request.title,
           inputType: request.inputType,
           status: request.status,
-          respondedAt: request.respondedAt?.toISOString() ?? null
-        }
+          respondedAt: request.respondedAt?.toISOString() ?? null,
+        },
       };
     }
 
     const isApproved = action !== 'reject';
     let responseData = data || {};
     responseData = { ...responseData, status: isApproved ? 'approved' : 'rejected' };
-    
+
     // Update DB
     const [updated] = await this.db
       .update(humanInputRequestsTable)
@@ -165,12 +169,12 @@ export class HumanInputsService {
       success: true,
       message: 'Input received successfully',
       input: {
-          id: updated.id,
-          title: updated.title,
-          inputType: updated.inputType,
-          status: updated.status,
-          respondedAt: updated.respondedAt?.toISOString() ?? null
-      }
+        id: updated.id,
+        title: updated.title,
+        inputType: updated.inputType,
+        status: updated.status,
+        respondedAt: updated.respondedAt?.toISOString() ?? null,
+      },
     };
   }
 }

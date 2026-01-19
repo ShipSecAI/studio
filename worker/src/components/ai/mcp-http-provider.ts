@@ -8,10 +8,7 @@ import {
   port,
   param,
 } from '@shipsec/component-sdk';
-import {
-  McpToolArgumentSchema,
-  McpToolDefinitionSchema,
-} from '@shipsec/contracts';
+import { McpToolArgumentSchema, McpToolDefinitionSchema } from '@shipsec/contracts';
 
 const toolEntrySchema = z.object({
   id: z.string().min(1),
@@ -25,7 +22,8 @@ const inputSchema = inputs({});
 
 const parameterSchema = parameters({
   endpoint: param(
-    z.string()
+    z
+      .string()
       .min(1, 'MCP endpoint is required')
       .describe('HTTP endpoint that implements the MCP tool invocation contract.'),
     {
@@ -77,7 +75,8 @@ const definition = defineComponent({
     version: '0.1.0',
     type: 'process',
     category: 'ai',
-    description: 'Package multiple tools served by an HTTP MCP endpoint for consumption by the AI agent.',
+    description:
+      'Package multiple tools served by an HTTP MCP endpoint for consumption by the AI agent.',
     icon: 'Globe',
     author: {
       name: 'ShipSecAI',

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, type SQL } from 'drizzle-orm';
+import { and, desc, eq, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../../database/database.module';
@@ -25,10 +25,7 @@ export class WebhookRepository {
   async create(
     values: Omit<WebhookConfigurationInsert, 'id'>,
   ): Promise<WebhookConfigurationRecord> {
-    const [record] = await this.db
-      .insert(webhookConfigurationsTable)
-      .values(values)
-      .returning();
+    const [record] = await this.db.insert(webhookConfigurationsTable).values(values).returning();
     return record;
   }
 
@@ -60,9 +57,7 @@ export class WebhookRepository {
     return record;
   }
 
-  async findByPath(
-    path: string,
-  ): Promise<WebhookConfigurationRecord | undefined> {
+  async findByPath(path: string): Promise<WebhookConfigurationRecord | undefined> {
     const [record] = await this.db
       .select()
       .from(webhookConfigurationsTable)
@@ -71,10 +66,7 @@ export class WebhookRepository {
     return record;
   }
 
-  async delete(
-    id: string,
-    options: { organizationId?: string | null } = {},
-  ): Promise<void> {
+  async delete(id: string, options: { organizationId?: string | null } = {}): Promise<void> {
     await this.db
       .delete(webhookConfigurationsTable)
       .where(this.buildIdFilter(id, options.organizationId));
@@ -88,7 +80,9 @@ export class WebhookRepository {
     }
 
     if (filters.status) {
-      conditions.push(eq(webhookConfigurationsTable.status, filters.status as 'active' | 'inactive'));
+      conditions.push(
+        eq(webhookConfigurationsTable.status, filters.status as 'active' | 'inactive'),
+      );
     }
 
     if (filters.organizationId) {

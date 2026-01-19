@@ -1,15 +1,15 @@
-import { api } from '@/services/api'
-import type { SecretSummary } from '@/schemas/secret'
-export type { SecretSummary } from '@/schemas/secret'
+import { api } from '@/services/api';
+import type { SecretSummary } from '@/schemas/secret';
+export type { SecretSummary } from '@/schemas/secret';
 
 export interface Secret {
-  id: string
-  name?: string
-  description?: string
-  version: number
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
+  id: string;
+  name?: string;
+  description?: string;
+  version: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -17,10 +17,10 @@ export interface Secret {
  */
 export async function fetchSecrets(): Promise<SecretSummary[]> {
   try {
-    return await api.secrets.list()
+    return await api.secrets.list();
   } catch (error) {
-    console.error('Failed to fetch secrets:', error)
-    return []
+    console.error('Failed to fetch secrets:', error);
+    return [];
   }
 }
 
@@ -30,11 +30,11 @@ export async function fetchSecrets(): Promise<SecretSummary[]> {
 export async function fetchSecret(id: string): Promise<SecretSummary | null> {
   try {
     // Find the secret in the list since there's no direct get endpoint
-    const secrets = await api.secrets.list()
-    return secrets.find(secret => secret.id === id) || null
+    const secrets = await api.secrets.list();
+    return secrets.find((secret) => secret.id === id) || null;
   } catch (error) {
-    console.error(`Failed to fetch secret ${id}:`, error)
-    return null
+    console.error(`Failed to fetch secret ${id}:`, error);
+    return null;
   }
 }
 
@@ -42,12 +42,12 @@ export async function fetchSecret(id: string): Promise<SecretSummary | null> {
  * Get human-readable secret label for dropdown display
  */
 export function getSecretLabel(secret: SecretSummary): string {
-  return secret.name || secret.id
+  return secret.name || secret.id;
 }
 
 /**
  * Get secret description for dropdown subtitle
  */
 export function getSecretDescription(secret: SecretSummary): string {
-  return secret.description || `ID: ${secret.id}`
+  return secret.description || `ID: ${secret.id}`;
 }

@@ -16,8 +16,6 @@ import {
   parameters,
   port,
   param,
-  withPortMeta,
-  type ExecutionContext,
   createExecutionContext,
 } from '@shipsec/component-sdk';
 
@@ -73,35 +71,35 @@ describe('Dynamic Port Resolution', () => {
     });
 
     // Test 1: Execute with matching input
-    const result1 = await (component as any).execute(
+    const result1 = (await (component as any).execute(
       {
         inputs: { customInput: 'test-value' },
         params: { inputName: 'customInput' },
       } as any,
-      context
-    ) as any;
+      context,
+    )) as any;
 
     expect(result1).toEqual({ customInput: 'test-value' });
 
     // Test 2: Execute with different parameter (different schema)
-    const result2 = await (component as any).execute(
+    const result2 = (await (component as any).execute(
       {
         inputs: { alternativeInput: 'alt-value' },
         params: { inputName: 'alternativeInput' },
       } as any,
-      context
-    ) as any;
+      context,
+    )) as any;
 
     expect(result2).toEqual({ alternativeInput: 'alt-value' });
 
     // Test 3: Execute with wrong input name (should use default)
-    const result3 = await (component as any).execute(
+    const result3 = (await (component as any).execute(
       {
         inputs: { wrongInput: 'ignored' },
         params: { inputName: 'defaultInput' },
       } as any,
-      context
-    ) as any;
+      context,
+    )) as any;
 
     expect(result3).toEqual({ defaultInput: 'no-value' });
   });

@@ -34,7 +34,7 @@ if (!definition) {
   throw new Error('Component definition not found');
 }
 
-const execute = definition.execute as (
+const execute = definition.execute as unknown as (
   params: any,
   context: ExecutionContext,
 ) => Promise<GoogleWorkspaceUserDeleteOutput>;
@@ -73,7 +73,10 @@ describe('google-workspace-user-delete', () => {
     const context = createMockExecutionContext();
 
     // 4. Execute the component
-    const result: GoogleWorkspaceUserDeleteOutput = await execute({ inputs: inputValues, params: paramValues }, context);
+    const result: GoogleWorkspaceUserDeleteOutput = await execute(
+      { inputs: inputValues, params: paramValues },
+      context,
+    );
 
     // 5. Assert the results
     expect(result.success).toBe(true);
@@ -81,7 +84,9 @@ describe('google-workspace-user-delete', () => {
     expect(result.message).toContain('Successfully deleted user');
     expect(mockAdminClient.users.get).toHaveBeenCalledWith({ userKey: 'test@example.com' });
     expect(mockAdminClient.users.delete).toHaveBeenCalledWith({ userKey: 'test@example.com' });
-    expect(context.logger.info).toHaveBeenCalledWith('[GoogleWorkspace] Successfully deleted user account: test@example.com');
+    expect(context.logger.info).toHaveBeenCalledWith(
+      '[GoogleWorkspace] Successfully deleted user account: test@example.com',
+    );
   });
 
   it('should simulate deletion in dry run mode', async () => {
@@ -102,14 +107,19 @@ describe('google-workspace-user-delete', () => {
     const context = createMockExecutionContext();
 
     // 4. Execute the component
-    const result: GoogleWorkspaceUserDeleteOutput = await execute({ inputs: inputValues, params: paramValues }, context);
+    const result: GoogleWorkspaceUserDeleteOutput = await execute(
+      { inputs: inputValues, params: paramValues },
+      context,
+    );
 
     // 5. Assert the results
     expect(result.success).toBe(true);
     expect(result.userDeleted).toBe(true);
     expect(result.message).toContain('DRY RUN: Would delete user');
     expect(mockAdminClient.users.delete).not.toHaveBeenCalled();
-    expect(context.logger.info).toHaveBeenCalledWith('[GoogleWorkspace] Running in DRY RUN mode - no changes will be made');
+    expect(context.logger.info).toHaveBeenCalledWith(
+      '[GoogleWorkspace] Running in DRY RUN mode - no changes will be made',
+    );
   });
 
   it('should fail gracefully if user is not found', async () => {
@@ -126,7 +136,10 @@ describe('google-workspace-user-delete', () => {
     const context = createMockExecutionContext();
 
     // 4. Execute the component
-    const result: GoogleWorkspaceUserDeleteOutput = await execute({ inputs: inputValues, params: {} }, context);
+    const result: GoogleWorkspaceUserDeleteOutput = await execute(
+      { inputs: inputValues, params: {} },
+      context,
+    );
 
     // 5. Assert the results
     expect(result.success).toBe(false);
@@ -147,7 +160,10 @@ describe('google-workspace-user-delete', () => {
     const context = createMockExecutionContext();
 
     // 4. Execute the component
-    const result: GoogleWorkspaceUserDeleteOutput = await execute({ inputs: inputValues, params: {} }, context);
+    const result: GoogleWorkspaceUserDeleteOutput = await execute(
+      { inputs: inputValues, params: {} },
+      context,
+    );
 
     // 5. Assert the results
     expect(result.success).toBe(false);

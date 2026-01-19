@@ -29,14 +29,24 @@ export class IsolatedContainerVolume {
   ) {
     // Validate tenant ID to prevent injection attacks
     if (!/^[a-zA-Z0-9_-]+$/.test(tenantId)) {
-      throw new ValidationError('Invalid tenant ID: must contain only alphanumeric characters, hyphens, and underscores', {
-        fieldErrors: { tenantId: ['must contain only alphanumeric characters, hyphens, and underscores'] },
-      });
+      throw new ValidationError(
+        'Invalid tenant ID: must contain only alphanumeric characters, hyphens, and underscores',
+        {
+          fieldErrors: {
+            tenantId: ['must contain only alphanumeric characters, hyphens, and underscores'],
+          },
+        },
+      );
     }
     if (!/^[a-zA-Z0-9_-]+$/.test(runId)) {
-      throw new ValidationError('Invalid run ID: must contain only alphanumeric characters, hyphens, and underscores', {
-        fieldErrors: { runId: ['must contain only alphanumeric characters, hyphens, and underscores'] },
-      });
+      throw new ValidationError(
+        'Invalid run ID: must contain only alphanumeric characters, hyphens, and underscores',
+        {
+          fieldErrors: {
+            runId: ['must contain only alphanumeric characters, hyphens, and underscores'],
+          },
+        },
+      );
     }
   }
 
@@ -69,10 +79,14 @@ export class IsolatedContainerVolume {
     try {
       // Create the volume with labels for tracking
       await this.executeDockerCommand('volume', 'create', [
-        '--label', `studio.tenant=${this.tenantId}`,
-        '--label', `studio.run=${this.runId}`,
-        '--label', `studio.created=${new Date().toISOString()}`,
-        '--label', 'studio.managed=true',
+        '--label',
+        `studio.tenant=${this.tenantId}`,
+        '--label',
+        `studio.run=${this.runId}`,
+        '--label',
+        `studio.created=${new Date().toISOString()}`,
+        '--label',
+        'studio.managed=true',
         this.volumeName,
       ]);
 
@@ -156,9 +170,7 @@ export class IsolatedContainerVolume {
       // Strict validation to prevent path traversal and shell injection
       this.validateFilename(filename);
 
-      const contentString = typeof content === 'string'
-        ? content
-        : content.toString('utf-8');
+      const contentString = typeof content === 'string' ? content : content.toString('utf-8');
 
       // Use docker run with stdin to write the file
       await this.writeFileToVolume(filename, contentString);
@@ -184,10 +196,13 @@ export class IsolatedContainerVolume {
       const proc = spawn('docker', [
         'run',
         '--rm',
-        '-v', `${this.volumeName}:/data`,
-        '--entrypoint', 'sh',
+        '-v',
+        `${this.volumeName}:/data`,
+        '--entrypoint',
+        'sh',
         'alpine:latest',
-        '-c', 'chmod -R 777 /data',
+        '-c',
+        'chmod -R 777 /data',
       ]);
 
       let stderr = '';
@@ -202,7 +217,9 @@ export class IsolatedContainerVolume {
 
       proc.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error(`Failed to set volume permissions: exit code ${code}, stderr: ${stderr}`));
+          reject(
+            new Error(`Failed to set volume permissions: exit code ${code}, stderr: ${stderr}`),
+          );
         } else {
           resolve();
         }
@@ -230,10 +247,13 @@ export class IsolatedContainerVolume {
         'run',
         '--rm',
         '-i', // Interactive to accept stdin
-        '-v', `${this.volumeName}:/data`,
-        '--entrypoint', 'sh',
+        '-v',
+        `${this.volumeName}:/data`,
+        '--entrypoint',
+        'sh',
         'alpine:latest',
-        '-c', `cat > '/data/${safeFilename}'`,  // Single quotes prevent shell injection
+        '-c',
+        `cat > '/data/${safeFilename}'`, // Single quotes prevent shell injection
       ]);
 
       let stderr = '';
@@ -248,7 +268,9 @@ export class IsolatedContainerVolume {
 
       proc.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error(`Failed to write file ${filename}: exit code ${code}, stderr: ${stderr}`));
+          reject(
+            new Error(`Failed to write file ${filename}: exit code ${code}, stderr: ${stderr}`),
+          );
         } else {
           resolve();
         }
@@ -290,7 +312,9 @@ export class IsolatedContainerVolume {
         results[filename] = content;
       } catch (error) {
         // File might not exist, which is okay
-        console.warn(`Could not read file ${filename}: ${error instanceof Error ? error.message : String(error)}`);
+        console.warn(
+          `Could not read file ${filename}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -314,10 +338,12 @@ export class IsolatedContainerVolume {
       const proc = spawn('docker', [
         'run',
         '--rm',
-        '-v', `${this.volumeName}:/data:ro`,
-        '--entrypoint', 'cat',
+        '-v',
+        `${this.volumeName}:/data:ro`,
+        '--entrypoint',
+        'cat',
         'alpine:latest',
-        `/data/${filename}`,  // Safe: passed to cat, not shell
+        `/data/${filename}`, // Safe: passed to cat, not shell
       ]);
 
       let stdout = '';
@@ -337,7 +363,9 @@ export class IsolatedContainerVolume {
 
       proc.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error(`Failed to read file ${filename}: exit code ${code}, stderr: ${stderr}`));
+          reject(
+            new Error(`Failed to read file ${filename}: exit code ${code}, stderr: ${stderr}`),
+          );
         } else {
           resolve(stdout);
         }
@@ -358,7 +386,7 @@ export class IsolatedContainerVolume {
    * // Returns: "tenant-foo-run-bar-123456:/inputs:ro"
    * ```
    */
-  getBindMount(containerPath: string = '/inputs', readOnly: boolean = true): string {
+  getBindMount(containerPath = '/inputs', readOnly = true): string {
     if (!this.volumeName) {
       throw new ConfigurationError('Volume not initialized', {
         details: { tenantId: this.tenantId, runId: this.runId },
@@ -376,7 +404,7 @@ export class IsolatedContainerVolume {
    * @param readOnly - Whether to mount as read-only
    * @returns Volume configuration object
    */
-  getVolumeConfig(containerPath: string = '/inputs', readOnly: boolean = true) {
+  getVolumeConfig(containerPath = '/inputs', readOnly = true) {
     if (!this.volumeName) {
       throw new ConfigurationError('Volume not initialized', {
         details: { tenantId: this.tenantId, runId: this.runId },
@@ -445,7 +473,9 @@ export class IsolatedContainerVolume {
 
       proc.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error(`Docker ${subcommand} ${action} failed with exit code ${code}: ${stderr}`));
+          reject(
+            new Error(`Docker ${subcommand} ${action} failed with exit code ${code}: ${stderr}`),
+          );
         } else {
           resolve();
         }
@@ -473,7 +503,7 @@ export class IsolatedContainerVolume {
  * await cleanupOrphanedVolumes(24);
  * ```
  */
-export async function cleanupOrphanedVolumes(olderThanHours: number = 24): Promise<number> {
+export async function cleanupOrphanedVolumes(olderThanHours = 24): Promise<number> {
   try {
     const { stdout } = await exec(
       'docker volume ls --filter "label=studio.managed=true" --format "{{.Name}}|||{{.CreatedAt}}"',

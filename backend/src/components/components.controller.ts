@@ -3,7 +3,11 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 // Ensure all worker components are registered before accessing the registry
 import '@shipsec/studio-worker/components';
-import { componentRegistry, extractPorts, type CachedComponentMetadata } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  extractPorts,
+  type CachedComponentMetadata,
+} from '@shipsec/component-sdk';
 import { categorizeComponent, getCategoryConfig } from './utils/categorization';
 
 function serializeComponent(entry: CachedComponentMetadata) {
@@ -66,7 +70,10 @@ export class ComponentsController {
             properties: {
               label: { type: 'string', example: 'Input' },
               color: { type: 'string', example: 'text-blue-600' },
-              description: { type: 'string', example: 'Data sources, triggers, and credential access' },
+              description: {
+                type: 'string',
+                example: 'Data sources, triggers, and credential access',
+              },
               emoji: { type: 'string', example: '📥' },
               icon: { type: 'string', example: 'Download' },
             },
@@ -124,12 +131,25 @@ export class ComponentsController {
                 },
                 editor: {
                   type: 'string',
-                  enum: ['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'json', 'secret'],
+                  enum: [
+                    'text',
+                    'textarea',
+                    'number',
+                    'boolean',
+                    'select',
+                    'multi-select',
+                    'json',
+                    'secret',
+                  ],
                   nullable: true,
                 },
                 required: { type: 'boolean' },
                 description: { type: 'string', nullable: true },
-                valuePriority: { type: 'string', enum: ['manual-first', 'connection-first'], nullable: true },
+                valuePriority: {
+                  type: 'string',
+                  enum: ['manual-first', 'connection-first'],
+                  nullable: true,
+                },
               },
             },
           },
@@ -268,12 +288,25 @@ export class ComponentsController {
               },
               editor: {
                 type: 'string',
-                enum: ['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'json', 'secret'],
+                enum: [
+                  'text',
+                  'textarea',
+                  'number',
+                  'boolean',
+                  'select',
+                  'multi-select',
+                  'json',
+                  'secret',
+                ],
                 nullable: true,
               },
               required: { type: 'boolean' },
               description: { type: 'string', nullable: true },
-              valuePriority: { type: 'string', enum: ['manual-first', 'connection-first'], nullable: true },
+              valuePriority: {
+                type: 'string',
+                enum: ['manual-first', 'connection-first'],
+                nullable: true,
+              },
             },
           },
         },
@@ -347,12 +380,12 @@ export class ComponentsController {
         outputs: resolved.outputs ? extractPorts(resolved.outputs) : baseOutputs,
       };
     } catch (error: any) {
-        // Fallback to static on error
-        console.error(`Error resolving ports for ${id}:`, error);
-         return {
-            inputs: baseInputs,
-            outputs: baseOutputs,
-          };
+      // Fallback to static on error
+      console.error(`Error resolving ports for ${id}:`, error);
+      return {
+        inputs: baseInputs,
+        outputs: baseOutputs,
+      };
     }
   }
 }

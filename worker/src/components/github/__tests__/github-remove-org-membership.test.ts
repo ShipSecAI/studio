@@ -69,7 +69,7 @@ describe('github.org.membership.remove component', () => {
         userIdentifier: 'octocat',
         connectionId: 'connection-123',
       },
-      params: {}
+      params: {},
     };
 
     const result = await component.execute(executePayload, context);
@@ -146,7 +146,7 @@ describe('github.org.membership.remove component', () => {
         userIdentifier: 'octocat@example.com',
         connectionId: 'connection-999',
       },
-      params: {}
+      params: {},
     };
 
     const result = await component.execute(executePayload, context);
@@ -204,7 +204,7 @@ describe('github.org.membership.remove component', () => {
         userIdentifier: 'octocat',
         connectionId: 'connection-321',
       },
-      params: {}
+      params: {},
     };
 
     const result = await component.execute(executePayload, context);
@@ -224,7 +224,9 @@ describe('github.org.membership.remove component', () => {
       expect(headers['X-Internal-Token']).toBeUndefined();
       expect(headers['Content-Type']).toBe('application/json');
     }
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3211/api/v1/integrations/connections/connection-321/token');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://localhost:3211/api/v1/integrations/connections/connection-321/token',
+    );
   });
 
   it('throws when team removal fails', async () => {
@@ -267,7 +269,7 @@ describe('github.org.membership.remove component', () => {
         userIdentifier: 'octocat',
         connectionId: 'connection-456',
       },
-      params: {}
+      params: {},
     };
 
     await expect(component.execute(executePayload, context)).rejects.toThrow(

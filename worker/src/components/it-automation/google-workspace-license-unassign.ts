@@ -61,13 +61,13 @@ interface AuditLog {
   };
 }
 
-type GoogleWorkspaceUserDeleteResult = {
+interface GoogleWorkspaceUserDeleteResult {
   success: boolean;
   audit: AuditLog;
   error?: string;
   userDeleted: boolean;
   message: string;
-};
+}
 
 export type GoogleWorkspaceUserDeleteOutput = GoogleWorkspaceUserDeleteResult & {
   result: GoogleWorkspaceUserDeleteResult;
@@ -139,9 +139,7 @@ async function initializeGoogleClient(serviceAccountKey: string) {
 
   const auth = new googleAdminAuth.GoogleAuth({
     credentials,
-    scopes: [
-      'https://www.googleapis.com/auth/admin.directory.user'
-    ],
+    scopes: ['https://www.googleapis.com/auth/admin.directory.user'],
   });
 
   const adminClient = admin({
@@ -155,10 +153,7 @@ async function initializeGoogleClient(serviceAccountKey: string) {
 /**
  * Get user details from Google Admin SDK
  */
-async function getUserDetails(
-  userEmail: string,
-  adminClient: any,
-): Promise<UserState> {
+async function getUserDetails(userEmail: string, adminClient: any): Promise<UserState> {
   try {
     const response = await adminClient.users.get({
       userKey: userEmail,
@@ -191,10 +186,7 @@ async function getUserDetails(
 /**
  * Delete a user account
  */
-async function deleteUser(
-  userEmail: string,
-  adminClient: any,
-): Promise<void> {
+async function deleteUser(userEmail: string, adminClient: any): Promise<void> {
   try {
     await adminClient.users.delete({
       userKey: userEmail,
@@ -265,7 +257,8 @@ const definition = defineComponent({
     version: '2.0.0',
     type: 'output',
     category: 'it_ops',
-    description: 'Delete Google Workspace user accounts to automatically release all licenses and complete offboarding.',
+    description:
+      'Delete Google Workspace user accounts to automatically release all licenses and complete offboarding.',
     documentation: componentDocumentation,
     icon: 'Building',
     author: {
@@ -281,10 +274,7 @@ const definition = defineComponent({
     ],
   },
   async execute({ inputs, params }, context) {
-    const {
-      primary_email,
-      service_account_secret,
-    } = inputs;
+    const { primary_email, service_account_secret } = inputs;
     const { dry_run = false } = params;
 
     context.logger.info(`[GoogleWorkspace] Starting user deletion for ${primary_email}`);
@@ -296,7 +286,7 @@ const definition = defineComponent({
     }
 
     let beforeState: UserState | undefined;
-    let userDeleted = false;
+    let _userDeleted = false;
 
     try {
       // Validate secret input
@@ -310,9 +300,10 @@ const definition = defineComponent({
       // Parse service account key from the input (could be string or object)
       let serviceKey: string;
       try {
-        serviceKey = typeof service_account_secret === 'string'
-          ? service_account_secret
-          : JSON.stringify(service_account_secret);
+        serviceKey =
+          typeof service_account_secret === 'string'
+            ? service_account_secret
+            : JSON.stringify(service_account_secret);
       } catch (error) {
         throw new ConfigurationError(
           `Failed to parse service account secret: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -332,17 +323,21 @@ const definition = defineComponent({
       const userDetails = await getUserDetails(primary_email, adminClient);
       beforeState = userDetails;
 
-      context.logger.info(`[GoogleWorkspace] Found user: ${userDetails.email} (ID: ${userDetails.id})`);
+      context.logger.info(
+        `[GoogleWorkspace] Found user: ${userDetails.email} (ID: ${userDetails.id})`,
+      );
 
       // Delete user (if not dry run)
       if (!dry_run) {
         context.emitProgress('Deleting user account');
         await deleteUser(primary_email, adminClient);
-        userDeleted = true;
-        context.logger.info(`[GoogleWorkspace] Successfully deleted user account: ${primary_email}`);
+        _userDeleted = true;
+        context.logger.info(
+          `[GoogleWorkspace] Successfully deleted user account: ${primary_email}`,
+        );
       } else {
         context.emitProgress('DRY RUN: Would delete user account');
-        userDeleted = true; // Simulate successful deletion
+        _userDeleted = true; // Simulate successful deletion
       }
 
       const auditLog: AuditLog = {
@@ -374,7 +369,6 @@ const definition = defineComponent({
         ...result,
         result,
       };
-
     } catch (error: any) {
       context.logger.error(`[GoogleWorkspace] User deletion failed: ${error.message}`);
       context.emitProgress('User deletion failed');

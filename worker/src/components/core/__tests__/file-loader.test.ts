@@ -54,7 +54,7 @@ describe('file-loader component', () => {
       inputs: {
         fileId: testFileId,
       },
-      params: {}
+      params: {},
     };
 
     const result = await component.execute(executePayload, context);
@@ -81,7 +81,7 @@ describe('file-loader component', () => {
       inputs: {
         fileId: '223e4567-e89b-12d3-a456-426614174001',
       },
-      params: {}
+      params: {},
     };
 
     await expect(component.execute(executePayload, context)).rejects.toThrow(
@@ -124,7 +124,7 @@ describe('file-loader component', () => {
       inputs: {
         fileId: imageFileId,
       },
-      params: {}
+      params: {},
     };
 
     const result = await component.execute(executePayload, context);

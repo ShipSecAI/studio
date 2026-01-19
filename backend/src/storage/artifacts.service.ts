@@ -26,7 +26,10 @@ export class ArtifactsService {
     private readonly filesService: FilesService,
   ) {}
 
-  async listRunArtifacts(auth: AuthContext | null, runId: string): Promise<RunArtifactsResponseDto> {
+  async listRunArtifacts(
+    auth: AuthContext | null,
+    runId: string,
+  ): Promise<RunArtifactsResponseDto> {
     const organizationId = this.requireOrganizationId(auth);
     const artifacts = await this.repository.listByRun(runId, { organizationId });
     return {

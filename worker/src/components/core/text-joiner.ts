@@ -34,20 +34,17 @@ const arrayInputSchema = z.array(z.string());
 
 const inputSchema = inputs({
   items: port(
-    z.union([arrayInputSchema, z.string(), manualTriggerFileSchema, fileLoaderFileSchema])
+    z
+      .union([arrayInputSchema, z.string(), manualTriggerFileSchema, fileLoaderFileSchema])
       .describe('Array of strings to join (or single string)'),
     {
       label: 'Items',
-      description: 'Array of strings to join. Accepts array output from text-splitter or direct text input.',
+      description:
+        'Array of strings to join. Accepts array output from text-splitter or direct text input.',
       connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
     },
   ),
 });
-
-type Output = {
-  text: string;
-  count: number;
-};
 
 const outputSchema = outputs({
   text: port(z.string(), {
@@ -73,7 +70,7 @@ const parameterSchema = parameters({
     editor: 'text',
     placeholder: '',
     description: 'Text to add before each item.',
-    helpText: 'Useful for bullet points: \"- \", numbers: \"1. \", etc.',
+    helpText: 'Useful for bullet points: "- ", numbers: "1. ", etc.',
   }),
   suffix: param(z.string().default('').describe('Suffix to add to each item'), {
     label: 'Suffix',
@@ -125,8 +122,8 @@ const definition = defineComponent({
       // Case 2: String input - split by common separators
       itemsArray = inputs.items
         .split(/[\n,\r,;|]+/)
-        .map(item => item.trim())
-        .filter(item => item.length > 0);
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
       context.logger.info(`[TextJoiner] Split string input into ${itemsArray.length} items`);
     } else if ('content' in inputs.items) {
       // Case 3: File object from file-loader
@@ -134,16 +131,21 @@ const definition = defineComponent({
       const textContent = Buffer.from(base64Content, 'base64').toString('utf-8');
       itemsArray = textContent
         .split(/[\n,\r,;|]+/)
-        .map(item => item.trim())
-        .filter(item => item.length > 0);
-      context.logger.info(`[TextJoiner] Processing file input: ${inputs.items.name} (${itemsArray.length} items)`);
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+      context.logger.info(
+        `[TextJoiner] Processing file input: ${inputs.items.name} (${itemsArray.length} items)`,
+      );
     } else {
       // Case 4: File object from entry point (no content)
-      throw new ValidationError(`File object from entry point has no content. File ID: ${inputs.items.id}, Name: ${inputs.items.fileName}.
+      throw new ValidationError(
+        `File object from entry point has no content. File ID: ${inputs.items.id}, Name: ${inputs.items.fileName}.
 Please use a File Loader component to extract file content before passing to Text Joiner.
-Expected workflow: Entry Point → File Loader → Text Joiner`, {
-        fieldErrors: { items: ['File content is required - use File Loader first'] },
-      });
+Expected workflow: Entry Point → File Loader → Text Joiner`,
+        {
+          fieldErrors: { items: ['File content is required - use File Loader first'] },
+        },
+      );
     }
 
     // Handle escape sequences
@@ -156,11 +158,11 @@ Expected workflow: Entry Point → File Loader → Text Joiner`, {
     const suffix = params.suffix ?? '';
 
     // Join items with prefix/suffix and separator
-    const joinedText = itemsArray
-      .map(item => `${prefix}${item}${suffix}`)
-      .join(separator);
+    const joinedText = itemsArray.map((item) => `${prefix}${item}${suffix}`).join(separator);
 
-    context.logger.info(`[TextJoiner] Joined ${itemsArray.length} items into ${joinedText.length} characters`);
+    context.logger.info(
+      `[TextJoiner] Joined ${itemsArray.length} items into ${joinedText.length} characters`,
+    );
 
     return {
       text: joinedText,

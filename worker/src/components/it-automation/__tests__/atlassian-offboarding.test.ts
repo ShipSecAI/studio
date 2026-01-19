@@ -3,7 +3,6 @@ import { createExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import { AtlassianOffboardingInput, AtlassianOffboardingOutput } from '../atlassian-offboarding';
 
-
 describe('atlassian offboarding component', () => {
   const originalFetch = globalThis.fetch;
 
@@ -18,7 +17,9 @@ describe('atlassian offboarding component', () => {
   });
 
   const getComponent = () => {
-    const component = componentRegistry.get<AtlassianOffboardingInput, AtlassianOffboardingOutput>('shipsec.atlassian.offboarding');
+    const component = componentRegistry.get<AtlassianOffboardingInput, AtlassianOffboardingOutput>(
+      'shipsec.atlassian.offboarding',
+    );
     if (!component) {
       throw new Error('Component not registered');
     }
@@ -102,7 +103,7 @@ describe('atlassian offboarding component', () => {
         accessToken: 'direct-token',
         emailUsernames: ['Alice@example.com', 'alias@example.com', 'bob'],
       },
-      params: {}
+      params: {},
     };
 
     const result = await component.execute(executePayload, context);
@@ -184,9 +185,9 @@ describe('atlassian offboarding component', () => {
   it('propagates network errors from the search request', async () => {
     const component = getComponent();
 
-    const fetchMock = vi.fn<(url: unknown, init?: any) => Promise<Response>>().mockRejectedValueOnce(
-      new Error('network down'),
-    );
+    const fetchMock = vi
+      .fn<(url: unknown, init?: any) => Promise<Response>>()
+      .mockRejectedValueOnce(new Error('network down'));
 
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
@@ -209,13 +210,15 @@ describe('atlassian offboarding component', () => {
   it('throws when search API responds with non-2xx status', async () => {
     const component = getComponent();
 
-    const fetchMock = vi.fn<(url: unknown, init?: any) => Promise<Response>>().mockResolvedValueOnce(
-      new Response('{"error":"bad request"}', {
-        status: 400,
-        statusText: 'Bad Request',
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    const fetchMock = vi
+      .fn<(url: unknown, init?: any) => Promise<Response>>()
+      .mockResolvedValueOnce(
+        new Response('{"error":"bad request"}', {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
 
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 

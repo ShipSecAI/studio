@@ -1,8 +1,8 @@
-import { useNavigate } from 'react-router-dom'
-import { useEffect, useState, useRef, useCallback } from 'react'
-import type { MouseEvent } from 'react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import type { MouseEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -18,188 +18,180 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Workflow, AlertCircle, Trash2, Loader2, Info } from 'lucide-react'
-import { api } from '@/services/api'
-import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles'
-import {
-  WorkflowMetadataSchema,
-  type WorkflowMetadataNormalized,
-} from '@/schemas/workflow'
-import { useAuthStore } from '@/store/authStore'
-import { hasAdminRole } from '@/utils/auth'
-import { track, Events } from '@/features/analytics/events'
-import { useAuth } from '@/auth/auth-context'
-import { useRunStore } from '@/store/runStore'
+} from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Workflow, AlertCircle, Trash2, Loader2, Info } from 'lucide-react';
+import { api } from '@/services/api';
+import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
+import { WorkflowMetadataSchema, type WorkflowMetadataNormalized } from '@/schemas/workflow';
+import { useAuthStore } from '@/store/authStore';
+import { hasAdminRole } from '@/utils/auth';
+import { track, Events } from '@/features/analytics/events';
+import { useAuth } from '@/auth/auth-context';
+import { useRunStore } from '@/store/runStore';
 
 export function WorkflowList() {
-  const navigate = useNavigate()
-  const [workflows, setWorkflows] = useState<WorkflowMetadataNormalized[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
-  const retryCountRef = useRef(0) // Use ref to track actual count
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const roles = useAuthStore((state) => state.roles)
-  const canManageWorkflows = hasAdminRole(roles)
-  const isReadOnly = !canManageWorkflows
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [workflowToDelete, setWorkflowToDelete] = useState<WorkflowMetadataNormalized | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const token = useAuthStore((state) => state.token)
-  const adminUsername = useAuthStore((state) => state.adminUsername)
+  const navigate = useNavigate();
+  const [workflows, setWorkflows] = useState<WorkflowMetadataNormalized[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const retryCountRef = useRef(0); // Use ref to track actual count
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const roles = useAuthStore((state) => state.roles);
+  const canManageWorkflows = hasAdminRole(roles);
+  const isReadOnly = !canManageWorkflows;
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [workflowToDelete, setWorkflowToDelete] = useState<WorkflowMetadataNormalized | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const token = useAuthStore((state) => state.token);
+  const adminUsername = useAuthStore((state) => state.adminUsername);
 
-  const MAX_RETRY_ATTEMPTS = 30 // Try for ~60 seconds (30 attempts × 2s)
-  const RETRY_INTERVAL_MS = 2000 // 2 seconds between retries
+  const MAX_RETRY_ATTEMPTS = 30; // Try for ~60 seconds (30 attempts × 2s)
+  const RETRY_INTERVAL_MS = 2000; // 2 seconds between retries
 
   useEffect(() => {
     // Wait for auth to be ready before loading workflows
     if (authLoading) {
-      return
+      return;
     }
 
     // Check if we have authentication (either token or admin credentials)
-    const hasAuth = isAuthenticated || token || adminUsername
+    const hasAuth = isAuthenticated || token || adminUsername;
 
     if (hasAuth) {
-      loadWorkflows()
+      loadWorkflows();
     } else {
-      setIsLoading(false)
-      setError('Please log in to view workflows')
+      setIsLoading(false);
+      setError('Please log in to view workflows');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, authLoading, token, adminUsername])
+  }, [isAuthenticated, authLoading, token, adminUsername]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current)
+        clearTimeout(retryTimeoutRef.current);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   const loadWorkflows = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
     try {
-      const data = await api.workflows.list()
-      const normalized = data.map((workflow) => WorkflowMetadataSchema.parse(workflow))
-      setWorkflows(normalized)
-      setRetryCount(0)
-      retryCountRef.current = 0 // Reset on success
-      setIsLoading(false)
+      const data = await api.workflows.list();
+      const normalized = data.map((workflow) => WorkflowMetadataSchema.parse(workflow));
+      setWorkflows(normalized);
+      setRetryCount(0);
+      retryCountRef.current = 0; // Reset on success
+      setIsLoading(false);
       // Clear any pending retry timeout
       if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current)
-        retryTimeoutRef.current = null
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
-      track(Events.WorkflowListViewed, { workflows_count: normalized.length })
+      track(Events.WorkflowListViewed, { workflows_count: normalized.length });
     } catch (err) {
-      console.error('Failed to load workflows:', err)
+      console.error('Failed to load workflows:', err);
 
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load workflows'
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load workflows';
 
       // Check if it's a connection error (backend not ready)
       const isConnectionError =
         errorMessage.includes('ERR_CONNECTION_REFUSED') ||
         errorMessage.includes('Failed to fetch') ||
-        errorMessage.includes('fetch')
+        errorMessage.includes('fetch');
 
       // Use ref for accurate count check to prevent going beyond max attempts
       if (isConnectionError && retryCountRef.current < MAX_RETRY_ATTEMPTS) {
         // Increment both ref and state
-        retryCountRef.current += 1
-        setRetryCount(retryCountRef.current)
+        retryCountRef.current += 1;
+        setRetryCount(retryCountRef.current);
 
         // Schedule retry - keep loading spinner visible
         retryTimeoutRef.current = setTimeout(() => {
-          loadWorkflows()
-        }, RETRY_INTERVAL_MS)
+          loadWorkflows();
+        }, RETRY_INTERVAL_MS);
       } else {
         // Max retries exhausted or non-connection error
-        setError(errorMessage)
-        setIsLoading(false)
+        setError(errorMessage);
+        setIsLoading(false);
       }
     }
-  }, [MAX_RETRY_ATTEMPTS, RETRY_INTERVAL_MS])
+  }, [MAX_RETRY_ATTEMPTS, RETRY_INTERVAL_MS]);
 
   const handleTryAgain = () => {
-    setRetryCount(0)
-    retryCountRef.current = 0
-    loadWorkflows()
-  }
+    setRetryCount(0);
+    retryCountRef.current = 0;
+    loadWorkflows();
+  };
 
   const handleDeleteClick = (event: MouseEvent, workflow: WorkflowMetadataNormalized) => {
-    event.stopPropagation()
+    event.stopPropagation();
     if (!canManageWorkflows) {
-      return
+      return;
     }
-    setWorkflowToDelete(workflow)
-    setDeleteError(null)
-    setIsDeleteDialogOpen(true)
-  }
+    setWorkflowToDelete(workflow);
+    setDeleteError(null);
+    setIsDeleteDialogOpen(true);
+  };
 
   const handleDeleteDialogChange = (open: boolean) => {
-    setIsDeleteDialogOpen(open)
+    setIsDeleteDialogOpen(open);
     if (!open) {
-      setWorkflowToDelete(null)
-      setDeleteError(null)
+      setWorkflowToDelete(null);
+      setDeleteError(null);
     }
-  }
+  };
 
   const handleConfirmDelete = async () => {
-    if (!workflowToDelete || !canManageWorkflows) return
+    if (!workflowToDelete || !canManageWorkflows) return;
 
-    setIsDeleting(true)
-    setDeleteError(null)
+    setIsDeleting(true);
+    setDeleteError(null);
 
     try {
-      await api.workflows.delete(workflowToDelete.id)
-      setWorkflows((prev) => prev.filter((workflow) => workflow.id !== workflowToDelete.id))
-      handleDeleteDialogChange(false)
+      await api.workflows.delete(workflowToDelete.id);
+      setWorkflows((prev) => prev.filter((workflow) => workflow.id !== workflowToDelete.id));
+      handleDeleteDialogChange(false);
     } catch (err) {
-      console.error('Failed to delete workflow:', err)
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete workflow')
+      console.error('Failed to delete workflow:', err);
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete workflow');
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
+    const date = new Date(dateString);
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: 'numeric',
       timeZoneName: 'short',
-    }).format(date)
-  }
+    }).format(date);
+  };
 
   const handleCreateWorkflow = () => {
     if (!canManageWorkflows) {
-      return
+      return;
     }
-    track(Events.WorkflowCreateClicked, {})
-    navigate('/workflows/new')
-  }
+    track(Events.WorkflowCreateClicked, {});
+    navigate('/workflows/new');
+  };
 
   return (
     <div className="flex-1 bg-background">
       <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
         {isReadOnly && (
           <div className="mb-4 md:mb-6 rounded-md border border-border/60 bg-muted/30 px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm text-muted-foreground">
-            You are viewing workflows with read-only access. Administrators can create and edit workflows.
+            You are viewing workflows with read-only access. Administrators can create and edit
+            workflows.
           </div>
         )}
 
@@ -235,72 +227,72 @@ export function WorkflowList() {
               </div>
             )}
             <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Nodes</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="flex items-center gap-1 cursor-help">
-                            Last Run
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Times shown in your local timezone</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  <TableHead>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="flex items-center gap-1 cursor-help">
-                            Last Updated
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Times shown in your local timezone</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Array.from({ length: 5 }).map((_, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-[220px] bg-muted" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-[80px] bg-muted" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-[80px] bg-muted" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-[160px] bg-muted" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-[160px] bg-muted" />
-                    </TableCell>
-                    {canManageWorkflows && (
-                      <TableCell className="text-right">
-                        <Skeleton className="h-8 w-8 ml-auto rounded-md bg-muted" />
-                      </TableCell>
-                    )}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Nodes</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center gap-1 cursor-help">
+                              Last Run
+                              <Info className="h-3 w-3 text-muted-foreground" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Times shown in your local timezone</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
+                    <TableHead>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center gap-1 cursor-help">
+                              Last Updated
+                              <Info className="h-3 w-3 text-muted-foreground" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Times shown in your local timezone</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
+                    {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 5 }).map((_, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-[220px] bg-muted" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-5 w-[80px] bg-muted" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-5 w-[80px] bg-muted" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-[160px] bg-muted" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-[160px] bg-muted" />
+                      </TableCell>
+                      {canManageWorkflows && (
+                        <TableCell className="text-right">
+                          <Skeleton className="h-8 w-8 ml-auto rounded-md bg-muted" />
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
         ) : error ? (
@@ -362,7 +354,9 @@ export function WorkflowList() {
                         </Tooltip>
                       </TooltipProvider>
                     </TableHead>
-                    {canManageWorkflows && <TableHead className="text-right min-w-[60px]">Actions</TableHead>}
+                    {canManageWorkflows && (
+                      <TableHead className="text-right min-w-[60px]">Actions</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -391,13 +385,13 @@ export function WorkflowList() {
             <DialogHeader>
               <DialogTitle>Delete workflow</DialogTitle>
               <DialogDescription>
-                This action permanently removes the workflow and its configuration. Runs and logs remain available for auditing purposes.
+                This action permanently removes the workflow and its configuration. Runs and logs
+                remain available for auditing purposes.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div className="text-sm">
-                <span className="font-medium">Workflow:</span>{' '}
-                <span>{workflowToDelete?.name}</span>
+                <span className="font-medium">Workflow:</span> <span>{workflowToDelete?.name}</span>
               </div>
               <div className="text-xs text-muted-foreground">
                 ID: <span className="font-mono">{workflowToDelete?.id}</span>
@@ -413,11 +407,7 @@ export function WorkflowList() {
               >
                 Cancel
               </Button>
-              <Button
-                variant="destructive"
-                onClick={handleConfirmDelete}
-                disabled={isDeleting}
-              >
+              <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
                 {isDeleting ? 'Deleting…' : 'Delete workflow'}
               </Button>
             </DialogFooter>
@@ -425,17 +415,17 @@ export function WorkflowList() {
         </Dialog>
       )}
     </div>
-  )
+  );
 }
 
-type WorkflowRowItemProps = {
-  workflow: WorkflowMetadataNormalized
-  canManageWorkflows: boolean
-  isDeleting: boolean
-  isLoading: boolean
-  formatDate: (dateString: string) => string
-  onRowClick: () => void
-  onDeleteClick: (event: MouseEvent, workflow: WorkflowMetadataNormalized) => void
+interface WorkflowRowItemProps {
+  workflow: WorkflowMetadataNormalized;
+  canManageWorkflows: boolean;
+  isDeleting: boolean;
+  isLoading: boolean;
+  formatDate: (dateString: string) => string;
+  onRowClick: () => void;
+  onDeleteClick: (event: MouseEvent, workflow: WorkflowMetadataNormalized) => void;
 }
 
 function WorkflowRowItem({
@@ -447,27 +437,24 @@ function WorkflowRowItem({
   onRowClick,
   onDeleteClick,
 }: WorkflowRowItemProps) {
-  const fetchRuns = useRunStore((state) => state.fetchRuns)
-  const latestRun = useRunStore((state) => state.getLatestRun(workflow.id))
+  const fetchRuns = useRunStore((state) => state.fetchRuns);
+  const latestRun = useRunStore((state) => state.getLatestRun(workflow.id));
 
   useEffect(() => {
-    fetchRuns({ workflowId: workflow.id }).catch(() => undefined)
-  }, [workflow.id, fetchRuns])
+    fetchRuns({ workflowId: workflow.id }).catch(() => undefined);
+  }, [workflow.id, fetchRuns]);
 
-  const nodeCount = workflow.nodes.length
+  const nodeCount = workflow.nodes.length;
 
   const statusBadge = latestRun ? (
-    <Badge
-      variant="outline"
-      className={getStatusBadgeClassFromStatus(latestRun.status, 'text-xs')}
-    >
+    <Badge variant="outline" className={getStatusBadgeClassFromStatus(latestRun.status, 'text-xs')}>
       {latestRun.status}
     </Badge>
   ) : (
     <Badge variant="outline" className={getStatusBadgeClassFromStatus('NONE', 'text-xs')}>
       NOT TRIGGERED
     </Badge>
-  )
+  );
 
   return (
     <TableRow
@@ -481,11 +468,11 @@ function WorkflowRowItem({
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant="secondary" className="text-xs">{nodeCount}</Badge>
+        <Badge variant="secondary" className="text-xs">
+          {nodeCount}
+        </Badge>
       </TableCell>
-      <TableCell>
-        {statusBadge}
-      </TableCell>
+      <TableCell>{statusBadge}</TableCell>
       <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
         {workflow.lastRun ? formatDate(workflow.lastRun) : 'N/A'}
       </TableCell>
@@ -507,6 +494,5 @@ function WorkflowRowItem({
         </TableCell>
       )}
     </TableRow>
-  )
+  );
 }
-

@@ -1,41 +1,17 @@
-import { useCallback, useState } from 'react'
-import { Loader2, Plus, ExternalLink, X, Pause, Play, Zap, Pencil, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import type { WorkflowSchedule } from '@shipsec/shared'
-
-export const formatScheduleTimestamp = (value?: string | null) => {
-  if (!value) return 'Not scheduled'
-  try {
-    const date = new Date(value)
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      timeZoneName: 'short',
-    }).format(date)
-  } catch {
-    return value
-  }
-}
-
-export const scheduleStatusVariant: Record<
-  WorkflowSchedule['status'],
-  'default' | 'secondary' | 'destructive'
-> = {
-  active: 'default',
-  paused: 'secondary',
-  error: 'destructive',
-}
+import { useCallback, useState } from 'react';
+import { Loader2, Plus, ExternalLink, X, Pause, Play, Zap, Pencil, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import type { WorkflowSchedule } from '@shipsec/shared';
+import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
 
 export interface WorkflowSchedulesSummaryBarProps {
-  schedules: WorkflowSchedule[]
-  isLoading: boolean
-  error?: string | null
-  onCreate: () => void
-  onExpand: () => void
-  onViewAll: () => void
+  schedules: WorkflowSchedule[];
+  isLoading: boolean;
+  error?: string | null;
+  onCreate: () => void;
+  onExpand: () => void;
+  onViewAll: () => void;
 }
 
 export function WorkflowSchedulesSummaryBar({
@@ -46,16 +22,26 @@ export function WorkflowSchedulesSummaryBar({
   onExpand,
   onViewAll,
 }: WorkflowSchedulesSummaryBarProps) {
-  const countActive = schedules.filter((s) => s.status === 'active').length
-  const countPaused = schedules.filter((s) => s.status === 'paused').length
-  const countError = schedules.filter((s) => s.status === 'error').length
+  const countActive = schedules.filter((s) => s.status === 'active').length;
+  const countPaused = schedules.filter((s) => s.status === 'paused').length;
+  const countError = schedules.filter((s) => s.status === 'error').length;
 
   return (
     <div className="pointer-events-auto flex items-center gap-2 md:gap-3 rounded-xl border bg-background/95 px-2 md:px-4 py-1.5 md:py-2 ring-1 ring-border/60 shadow-sm">
       <div className="flex items-center gap-2 md:gap-3">
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-          <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="h-4 w-4 text-primary"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         </div>
         <div className="space-y-0 hidden sm:block">
@@ -85,7 +71,12 @@ export function WorkflowSchedulesSummaryBar({
         </div>
       </div>
       <div className="flex items-center gap-1 md:gap-2">
-        <Button type="button" size="sm" className="h-7 md:h-8 px-2 md:px-3 text-xs" onClick={onCreate}>
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 md:h-8 px-2 md:px-3 text-xs"
+          onClick={onCreate}
+        >
           <Plus className="h-3.5 w-3.5 md:mr-1" />
           <span className="hidden md:inline">New</span>
         </Button>
@@ -116,19 +107,22 @@ export function WorkflowSchedulesSummaryBar({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export interface WorkflowSchedulesSidebarProps {
-  schedules: WorkflowSchedule[]
-  isLoading: boolean
-  error?: string | null
-  onClose: () => void
-  onCreate: () => void
-  onManage: () => void
-  onEdit: (schedule: WorkflowSchedule) => void
-  onAction: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
-  onDelete: (schedule: WorkflowSchedule) => Promise<void> | void
+  schedules: WorkflowSchedule[];
+  isLoading: boolean;
+  error?: string | null;
+  onClose: () => void;
+  onCreate: () => void;
+  onManage: () => void;
+  onEdit: (schedule: WorkflowSchedule) => void;
+  onAction: (
+    schedule: WorkflowSchedule,
+    action: 'pause' | 'resume' | 'run',
+  ) => Promise<void> | void;
+  onDelete: (schedule: WorkflowSchedule) => Promise<void> | void;
 }
 
 export function WorkflowSchedulesSidebar({
@@ -142,23 +136,22 @@ export function WorkflowSchedulesSidebar({
   onAction,
   onDelete,
 }: WorkflowSchedulesSidebarProps) {
-  const [actionState, setActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
+  const [actionState, setActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({});
 
   const handleAction = useCallback(
     async (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => {
-      setActionState((state) => ({ ...state, [schedule.id]: action }))
+      setActionState((state) => ({ ...state, [schedule.id]: action }));
       try {
-        await onAction(schedule, action)
+        await onAction(schedule, action);
       } finally {
         setActionState((state) => {
-          const next = { ...state }
-          delete next[schedule.id]
-          return next
-        })
+          const { [schedule.id]: _removed, ...rest } = state;
+          return rest;
+        });
       }
     },
     [onAction],
-  )
+  );
 
   return (
     <div className="flex h-full flex-col border-l bg-background">
@@ -199,10 +192,10 @@ export function WorkflowSchedulesSidebar({
           </div>
         ) : (
           schedules.map((schedule) => {
-            const isActive = schedule.status === 'active'
-            const actionLabel = isActive ? 'Pause' : 'Resume'
-            const actionKey = isActive ? 'pause' : 'resume'
-            const pendingAction = actionState[schedule.id]
+            const isActive = schedule.status === 'active';
+            const actionLabel = isActive ? 'Pause' : 'Resume';
+            const actionKey = isActive ? 'pause' : 'resume';
+            const pendingAction = actionState[schedule.id];
             return (
               <div key={schedule.id} className="space-y-2 rounded-lg border bg-muted/30 px-3 py-2">
                 <div className="flex items-start justify-between gap-2">
@@ -285,10 +278,10 @@ export function WorkflowSchedulesSidebar({
                   <p className="text-xs text-muted-foreground">{schedule.description}</p>
                 )}
               </div>
-            )
+            );
           })
         )}
       </div>
     </div>
-  )
+  );
 }

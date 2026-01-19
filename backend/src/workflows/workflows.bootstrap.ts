@@ -61,9 +61,7 @@ export class WorkflowsBootstrapService implements OnModuleInit {
             config: {
               params: {},
               inputOverrides: {
-                runtimeInputs: [
-                  { id: 'fileId', label: 'File ID', type: 'file', required: true },
-                ],
+                runtimeInputs: [{ id: 'fileId', label: 'File ID', type: 'file', required: true }],
               },
             },
           },

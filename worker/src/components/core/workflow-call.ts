@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 import {
   componentRegistry,
   defineComponent,
@@ -10,8 +10,8 @@ import {
   parameters,
   port,
   param,
-} from '@shipsec/component-sdk'
-import type { PortMeta } from '@shipsec/component-sdk/port-meta'
+} from '@shipsec/component-sdk';
+import type { PortMeta } from '@shipsec/component-sdk/port-meta';
 
 const runtimeInputDefinitionSchema = z
   .object({
@@ -21,9 +21,9 @@ const runtimeInputDefinitionSchema = z
     required: z.boolean().optional(),
     description: z.string().optional(),
   })
-  .strip()
+  .strip();
 
-const inputSchema = inputs({})
+const inputSchema = inputs({});
 
 const parameterSchema = parameters({
   workflowId: param(z.string().uuid(), {
@@ -57,7 +57,7 @@ const parameterSchema = parameters({
     description: 'Internal configuration for child runtime input definitions.',
     visibleWhen: { __internal: true },
   }),
-})
+});
 
 const outputSchema = outputs({
   result: port(z.record(z.string(), z.unknown()), {
@@ -69,7 +69,7 @@ const outputSchema = outputs({
   childRunId: port(z.string(), {
     label: 'Child Run ID',
   }),
-})
+});
 
 const definition = defineComponent({
   id: 'core.workflow.call',
@@ -90,13 +90,11 @@ const definition = defineComponent({
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
-    examples: [
-      'Use a reusable enrichment workflow inside a larger pipeline.',
-    ],
+    examples: ['Use a reusable enrichment workflow inside a larger pipeline.'],
   },
   resolvePorts(params: z.infer<typeof parameterSchema>) {
-    const parsed = parameterSchema.safeParse(params)
-    const childRuntimeInputs = parsed.success ? parsed.data.childRuntimeInputs ?? [] : []
+    const parsed = parameterSchema.safeParse(params);
+    const childRuntimeInputs = parsed.success ? (parsed.data.childRuntimeInputs ?? []) : [];
     const reservedIds = new Set([
       'workflowId',
       'versionStrategy',
@@ -104,55 +102,55 @@ const definition = defineComponent({
       'timeoutSeconds',
       'childRuntimeInputs',
       'childWorkflowName',
-    ])
+    ]);
 
-    const inputShape: Record<string, z.ZodTypeAny> = {}
+    const inputShape: Record<string, z.ZodTypeAny> = {};
     for (const runtimeInput of childRuntimeInputs) {
-      const id = runtimeInput.id.trim()
+      const id = runtimeInput.id.trim();
       if (!id || reservedIds.has(id)) {
-        continue
+        continue;
       }
 
-      const label = runtimeInput.label?.trim() || id
-      const runtimeType = (runtimeInput.type ?? 'text').toLowerCase()
-      const required = runtimeInput.required ?? true
-      const { schema, meta } = runtimeInputTypeToSchema(runtimeType)
-      const schemaWithRequirement = required ? schema : schema.optional()
+      const label = runtimeInput.label?.trim() || id;
+      const runtimeType = (runtimeInput.type ?? 'text').toLowerCase();
+      const required = runtimeInput.required ?? true;
+      const { schema, meta } = runtimeInputTypeToSchema(runtimeType);
+      const schemaWithRequirement = required ? schema : schema.optional();
       inputShape[id] = withPortMeta(schemaWithRequirement, {
         ...(meta ?? {}),
         label,
         description: runtimeInput.description,
-      })
+      });
     }
 
     return {
       inputs: inputs(inputShape),
       outputs: outputSchema,
-    }
+    };
   },
   async execute() {
     throw new Error(
       'core.workflow.call must be executed by the Temporal workflow orchestrator (shipsecWorkflowRun)',
-    )
+    );
   },
-})
+});
 
-componentRegistry.register(definition)
+componentRegistry.register(definition);
 
 function runtimeInputTypeToSchema(type: string): { schema: z.ZodTypeAny; meta?: PortMeta } {
   switch (type) {
     case 'string':
     case 'text':
-      return { schema: z.string() }
+      return { schema: z.string() };
     case 'number':
-      return { schema: coerceNumberFromText() }
+      return { schema: coerceNumberFromText() };
     case 'boolean':
-      return { schema: coerceBooleanFromText() }
+      return { schema: coerceBooleanFromText() };
     case 'file':
       return {
         schema: z.string(),
         meta: { connectionType: { kind: 'primitive', name: 'file' } },
-      }
+      };
     case 'json':
       return {
         schema: z.unknown(),
@@ -161,9 +159,9 @@ function runtimeInputTypeToSchema(type: string): { schema: z.ZodTypeAny; meta?: 
           reason: 'Child workflow runtime inputs can be arbitrary JSON.',
           connectionType: { kind: 'primitive', name: 'json' },
         },
-      }
+      };
     case 'array':
-      return { schema: z.array(z.string()) }
+      return { schema: z.array(z.string()) };
     default:
       return {
         schema: z.unknown(),
@@ -172,6 +170,6 @@ function runtimeInputTypeToSchema(type: string): { schema: z.ZodTypeAny; meta?: 
           reason: 'Child workflow runtime inputs can be arbitrary JSON.',
           connectionType: { kind: 'any' },
         },
-      }
+      };
   }
 }

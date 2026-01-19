@@ -16,13 +16,8 @@ export class WebhookDeliveryRepository {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async create(
-    values: Omit<WebhookDeliveryInsert, 'id'>,
-  ): Promise<WebhookDeliveryRecord> {
-    const [record] = await this.db
-      .insert(webhookDeliveriesTable)
-      .values(values)
-      .returning();
+  async create(values: Omit<WebhookDeliveryInsert, 'id'>): Promise<WebhookDeliveryRecord> {
+    const [record] = await this.db.insert(webhookDeliveriesTable).values(values).returning();
     return record;
   }
 
@@ -56,10 +51,7 @@ export class WebhookDeliveryRepository {
     return record;
   }
 
-  async listByWebhookId(
-    webhookId: string,
-    limit = 100,
-  ): Promise<WebhookDeliveryRecord[]> {
+  async listByWebhookId(webhookId: string, limit = 100): Promise<WebhookDeliveryRecord[]> {
     return this.db
       .select()
       .from(webhookDeliveriesTable)

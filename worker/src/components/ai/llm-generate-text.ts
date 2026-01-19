@@ -17,7 +17,8 @@ import { LLMProviderSchema, type LlmProviderConfig } from '@shipsec/contracts';
 
 const inputSchema = inputs({
   userPrompt: port(
-    z.string()
+    z
+      .string()
       .min(1, 'User prompt cannot be empty')
       .describe('Primary user prompt sent to the model.'),
     {
@@ -30,9 +31,12 @@ const inputSchema = inputs({
     description: 'Connect an OpenAI/Gemini/OpenRouter provider component output.',
   }),
   modelApiKey: port(
-    z.string()
+    z
+      .string()
       .optional()
-      .describe('Optional API key override (connect Secret Loader) to supersede the provider config.'),
+      .describe(
+        'Optional API key override (connect Secret Loader) to supersede the provider config.',
+      ),
     {
       label: 'API Key Override',
       description: 'Optional override API key to supersede the provider config.',
@@ -105,11 +109,11 @@ const outputSchema = outputs({
   }),
 });
 
-type Dependencies = {
+interface Dependencies {
   generateText?: typeof generateTextImpl;
   createOpenAI?: typeof createOpenAIImpl;
   createGoogleGenerativeAI?: typeof createGoogleGenerativeAIImpl;
-};
+}
 
 // Retry policy for LLM generation - handle transient API errors
 const llmGenerateTextRetryPolicy: ComponentRetryPolicy = {
@@ -117,11 +121,7 @@ const llmGenerateTextRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 2,
   maximumIntervalSeconds: 30,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'AuthenticationError',
-    'ConfigurationError',
-    'ValidationError',
-  ],
+  nonRetryableErrorTypes: ['AuthenticationError', 'ConfigurationError', 'ValidationError'],
 };
 
 const definition = defineComponent({
@@ -160,7 +160,7 @@ const definition = defineComponent({
     if (!resolvedApiKey) {
       throw new ConfigurationError(
         'No API key available. Provide a key via the provider component or connect an override.',
-        { configKey: 'apiKey' }
+        { configKey: 'apiKey' },
       );
     }
 
@@ -170,7 +170,9 @@ const definition = defineComponent({
       createGoogleGenerativeAI,
     });
 
-    context.logger.info(`[AIGenerateText] Calling ${chatModel.provider} model ${chatModel.modelId}`);
+    context.logger.info(
+      `[AIGenerateText] Calling ${chatModel.provider} model ${chatModel.modelId}`,
+    );
 
     const result = await generateText({
       model,

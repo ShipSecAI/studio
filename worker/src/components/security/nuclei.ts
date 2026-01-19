@@ -40,10 +40,7 @@ const inputSchema = inputs({
     },
   ),
   customTemplateYaml: port(
-    z
-      .string()
-      .optional()
-      .describe('Raw YAML content for a single template (for quick testing)'),
+    z.string().optional().describe('Raw YAML content for a single template (for quick testing)'),
     {
       label: 'Template YAML (Single)',
       description: 'Raw YAML content for quick template testing (paste directly or connect).',
@@ -54,7 +51,9 @@ const inputSchema = inputs({
     z
       .array(z.string())
       .optional()
-      .describe('Specific template IDs to run (e.g., ["CVE-2024-1234", "http-missing-security-headers"])'),
+      .describe(
+        'Specific template IDs to run (e.g., ["CVE-2024-1234", "http-missing-security-headers"])',
+      ),
     {
       label: 'Template IDs',
       description:
@@ -66,7 +65,9 @@ const inputSchema = inputs({
     z
       .array(z.string())
       .optional()
-      .describe('Specific built-in template paths to include (e.g., ["cves/2024/", "http/exposures/"])'),
+      .describe(
+        'Specific built-in template paths to include (e.g., ["cves/2024/", "http/exposures/"])',
+      ),
     {
       label: 'Template Paths',
       description: 'Specific built-in template paths to include in the scan.',
@@ -77,13 +78,7 @@ const inputSchema = inputs({
 
 const parameterSchema = parameters({
   rateLimit: param(
-    z
-      .number()
-      .int()
-      .positive()
-      .max(1000)
-      .default(150)
-      .describe('Maximum requests per second'),
+    z.number().int().positive().max(1000).default(150).describe('Maximum requests per second'),
     {
       label: 'Rate Limit (req/sec)',
       editor: 'number',
@@ -109,13 +104,7 @@ const parameterSchema = parameters({
     },
   ),
   timeout: param(
-    z
-      .number()
-      .int()
-      .positive()
-      .max(300)
-      .default(10)
-      .describe('Timeout per request in seconds'),
+    z.number().int().positive().max(300).default(10).describe('Timeout per request in seconds'),
     {
       label: 'Timeout (seconds)',
       editor: 'number',
@@ -125,13 +114,7 @@ const parameterSchema = parameters({
     },
   ),
   retries: param(
-    z
-      .number()
-      .int()
-      .min(0)
-      .max(5)
-      .default(1)
-      .describe('Number of retries for failed requests'),
+    z.number().int().min(0).max(5).default(1).describe('Number of retries for failed requests'),
     {
       label: 'Retries',
       editor: 'number',
@@ -165,7 +148,10 @@ const parameterSchema = parameters({
     },
   ),
   disableHttpx: param(
-    z.boolean().default(true).describe('Disable automatic HTTP probing with httpx (faster scans for known URLs)'),
+    z
+      .boolean()
+      .default(true)
+      .describe('Disable automatic HTTP probing with httpx (faster scans for known URLs)'),
     {
       label: 'Disable HTTP Probing',
       editor: 'boolean',
@@ -173,7 +159,6 @@ const parameterSchema = parameters({
     },
   ),
 });
-
 
 // Output schema (unchanged)
 const findingSchema = z.object({
@@ -212,17 +197,19 @@ const outputSchema = outputs({
     label: 'Finding Count',
     description: 'Total number of vulnerabilities detected.',
   }),
-  stats: port(z.object({
-    templatesLoaded: z.number(),
-    requestsSent: z.number(),
-    duration: z.number(),
-  }), {
-    label: 'Stats',
-    description: 'Aggregate scan statistics for the run.',
-    connectionType: { kind: 'primitive', name: 'json' },
-  }),
+  stats: port(
+    z.object({
+      templatesLoaded: z.number(),
+      requestsSent: z.number(),
+      duration: z.number(),
+    }),
+    {
+      label: 'Stats',
+      description: 'Aggregate scan statistics for the run.',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
 });
-
 
 // Runner output schema
 const nucleiRunnerOutputSchema = z.object({
@@ -246,11 +233,7 @@ const nucleiRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 10,
   maximumIntervalSeconds: 60,
   backoffCoefficient: 1.5,
-  nonRetryableErrorTypes: [
-    'ContainerError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
 };
 
 const definition = defineComponent({
@@ -312,9 +295,7 @@ const definition = defineComponent({
     const parsedInputs = inputSchema.parse(inputs);
     const parsedParams = parameterSchema.parse(params);
 
-    context.logger.info(
-      `[Nuclei] Starting scan for ${parsedInputs.targets.length} target(s)`,
-    );
+    context.logger.info(`[Nuclei] Starting scan for ${parsedInputs.targets.length} target(s)`);
 
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     let volume: IsolatedContainerVolume | null = null;
@@ -323,8 +304,8 @@ const definition = defineComponent({
       const hasCustomArchive = !!parsedInputs.customTemplateArchive;
       const hasCustomYaml = !!parsedInputs.customTemplateYaml;
       const hasBuiltInFilters = !!(
-        (parsedInputs.templateIds && parsedInputs.templateIds.length > 0)
-        || (parsedInputs.templatePaths && parsedInputs.templatePaths.length > 0)
+        (parsedInputs.templateIds && parsedInputs.templateIds.length > 0) ||
+        (parsedInputs.templatePaths && parsedInputs.templatePaths.length > 0)
       );
 
       if (!hasCustomArchive && !hasCustomYaml && !hasBuiltInFilters) {
@@ -335,11 +316,12 @@ const definition = defineComponent({
 
       // ===== TypeScript: Build nuclei command args =====
       const args: string[] = [
-        '-duc',            // Disable update check (templates pre-installed in image)
-        '-jsonl',          // JSONL output format (nuclei v3.6.0+)
-        '-stream',         // Stream mode: prevents buffering, required for PTY compatibility
-        '-verbose',        // Show findings in terminal (overrides silent mode)
-        '-l', '/inputs/targets.txt',  // Targets file
+        '-duc', // Disable update check (templates pre-installed in image)
+        '-jsonl', // JSONL output format (nuclei v3.6.0+)
+        '-stream', // Stream mode: prevents buffering, required for PTY compatibility
+        '-verbose', // Show findings in terminal (overrides silent mode)
+        '-l',
+        '/inputs/targets.txt', // Targets file
       ];
 
       // Conditionally disable httpx probing
@@ -391,7 +373,7 @@ const definition = defineComponent({
           if (sizeMB > 10) {
             throw new ValidationError(
               `Template archive too large: ${sizeMB.toFixed(2)}MB (max 10MB)`,
-              { details: { sizeMB, maxSizeMB: 10 } }
+              { details: { sizeMB, maxSizeMB: 10 } },
             );
           }
 
@@ -428,7 +410,9 @@ const definition = defineComponent({
       if (parsedInputs.templateIds && parsedInputs.templateIds.length > 0) {
         files['template-ids.txt'] = parsedInputs.templateIds.join('\n');
         args.push('-id', '/inputs/template-ids.txt');
-        context.logger.info(`[Nuclei] Using ${parsedInputs.templateIds.length} template IDs from file`);
+        context.logger.info(
+          `[Nuclei] Using ${parsedInputs.templateIds.length} template IDs from file`,
+        );
       }
 
       // Initialize volume with all files (targets + templates + template IDs)
@@ -438,7 +422,7 @@ const definition = defineComponent({
       );
 
       if (parsedInputs.templatePaths) {
-        parsedInputs.templatePaths.forEach(path => {
+        parsedInputs.templatePaths.forEach((path) => {
           args.push('-t', path);
         });
       }
@@ -447,7 +431,8 @@ const definition = defineComponent({
       const templateSources: string[] = [];
       if (parsedInputs.customTemplateArchive) templateSources.push('archive');
       if (parsedInputs.customTemplateYaml) templateSources.push('yaml');
-      if (parsedInputs.templateIds) templateSources.push(`ids:${parsedInputs.templateIds.join(',')}`);
+      if (parsedInputs.templateIds)
+        templateSources.push(`ids:${parsedInputs.templateIds.join(',')}`);
       if (parsedInputs.templatePaths)
         templateSources.push(`paths:${parsedInputs.templatePaths.join(',')}`);
 
@@ -508,10 +493,8 @@ const definition = defineComponent({
         // Nuclei exits with 0 even when findings exist
         if (exitCode !== 0 && !stderr.includes('No results found')) {
           throw new ServiceError(
-            stderr
-              ? `Nuclei scan failed: ${stderr}`
-              : `Nuclei exited with code ${exitCode}`,
-            { details: { exitCode, stderr: stderr?.slice(0, 500) } }
+            stderr ? `Nuclei scan failed: ${stderr}` : `Nuclei exited with code ${exitCode}`,
+            { details: { exitCode, stderr: stderr?.slice(0, 500) } },
           );
         }
       } else if (typeof rawRunnerResult === 'string') {
@@ -532,7 +515,7 @@ const definition = defineComponent({
         `[Nuclei] Scan complete: ${findings.length} finding(s) from ${parsedInputs.targets.length} target(s)`,
       );
 
-      const output: Output = {
+      const output = {
         findings,
         rawOutput: stdout,
         targetCount: parsedInputs.targets.length,
@@ -643,9 +626,7 @@ async function extractAndValidateZip(
       }
 
       if (entry.entryName.includes('..') || entry.entryName.startsWith('/')) {
-        context.logger.warn(
-          `[Nuclei] Skipping file with invalid path: ${entry.entryName}`,
-        );
+        context.logger.warn(`[Nuclei] Skipping file with invalid path: ${entry.entryName}`);
         continue;
       }
 
@@ -735,8 +716,11 @@ function parseNucleiOutput(raw: string, context: any): Finding[] {
     const findingCandidate: Finding = {
       templateId: payload['template-id'] || payload['template'] || 'unknown',
       name: payload.info?.name || payload.name || 'Unknown',
-      severity:
-        (payload.info?.severity || payload.severity || 'info').toLowerCase() as Finding['severity'],
+      severity: (
+        payload.info?.severity ||
+        payload.severity ||
+        'info'
+      ).toLowerCase() as Finding['severity'],
       tags: Array.isArray(payload.info?.tags)
         ? payload.info.tags
         : Array.isArray(payload.tags)
@@ -762,12 +746,14 @@ function parseNucleiOutput(raw: string, context: any): Finding[] {
       context.logger.warn(
         `[Nuclei Parser] Failed to validate finding: ${parsedFinding.error.message}`,
       );
-      context.logger.warn(`[Nuclei Parser] Invalid finding data: ${JSON.stringify(findingCandidate).substring(0, 200)}`);
+      context.logger.warn(
+        `[Nuclei Parser] Invalid finding data: ${JSON.stringify(findingCandidate).substring(0, 200)}`,
+      );
     }
   }
 
   context.logger.info(
-    `[Nuclei Parser] Summary: ${findings.length} findings, ${jsonLineCount} JSON lines, ${skippedStats} stats skipped, ${skippedNonJson} non-JSON skipped`
+    `[Nuclei Parser] Summary: ${findings.length} findings, ${jsonLineCount} JSON lines, ${skippedStats} stats skipped, ${skippedNonJson} non-JSON skipped`,
   );
 
   return findings;
@@ -775,7 +761,7 @@ function parseNucleiOutput(raw: string, context: any): Finding[] {
 
 function extractStats(
   stderr: string,
-  output: string,
+  _output: string,
 ): { templatesLoaded: number; requestsSent: number; duration: number } {
   const stats = {
     templatesLoaded: 0,
@@ -804,7 +790,7 @@ function extractStats(
 componentRegistry.register(definition);
 
 // Create local type aliases for backward compatibility
-type Input = typeof inputSchema['__inferred'];
-type Output = typeof outputSchema['__inferred'];
+type Input = typeof inputSchema;
+type Output = typeof outputSchema;
 
 export type { Input as NucleiInput, Output as NucleiOutput };

@@ -108,10 +108,7 @@ export class WorkflowVersionRepository {
     return record;
   }
 
-  private buildWorkflowFilter(
-    workflowId: string,
-    organizationId?: string | null,
-  ) {
+  private buildWorkflowFilter(workflowId: string, organizationId?: string | null) {
     const base = eq(workflowVersionsTable.workflowId, workflowId);
     if (!organizationId) {
       return base;

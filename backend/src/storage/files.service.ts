@@ -32,11 +32,7 @@ export class FilesService {
   ): Promise<UploadedFile> {
     const organizationId = this.requireOrganizationId(auth);
     // Upload to MinIO
-    const { storageKey, size } = await this.storageService.uploadFile(
-      fileName,
-      buffer,
-      mimeType,
-    );
+    const { storageKey, size } = await this.storageService.uploadFile(fileName, buffer, mimeType);
 
     // Save metadata to database
     const file = await this.filesRepository.create({
@@ -84,10 +80,7 @@ export class FilesService {
     return { buffer, file };
   }
 
-  async listFiles(
-    auth: AuthContext | null,
-    limit: number = 100,
-  ): Promise<UploadedFile[]> {
+  async listFiles(auth: AuthContext | null, limit = 100): Promise<UploadedFile[]> {
     const organizationId = this.requireOrganizationId(auth);
     const files = await this.filesRepository.list(limit, { organizationId });
     return files.map((f) => ({

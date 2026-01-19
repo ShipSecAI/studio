@@ -1,65 +1,62 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { MutableRefObject } from 'react'
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow'
-import type { FrontendNodeData } from '@/schemas/node'
-import { api, API_BASE_URL } from '@/services/api'
-import {
-  serializeWorkflowForCreate,
-  serializeWorkflowForUpdate,
-} from '@/utils/workflowSerializer'
-import { cloneNodes, cloneEdges, type GraphSnapshot } from './useWorkflowGraphControllers'
-import { track, Events } from '@/features/analytics/events'
+import { useCallback, useEffect, useState } from 'react';
+import type { MutableRefObject } from 'react';
+import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow';
+import type { FrontendNodeData } from '@/schemas/node';
+import { api, API_BASE_URL } from '@/services/api';
+import { serializeWorkflowForCreate, serializeWorkflowForUpdate } from '@/utils/workflowSerializer';
+import { cloneNodes, cloneEdges, type GraphSnapshot } from './useWorkflowGraphControllers';
+import { track, Events } from '@/features/analytics/events';
 
-type WorkflowMetadataShape = {
-  id: string | null
-  name: string
-  description: string
-  currentVersionId: string | null
-  currentVersion: number | null
+interface WorkflowMetadataShape {
+  id: string | null;
+  name: string;
+  description: string;
+  currentVersionId: string | null;
+  currentVersion: number | null;
 }
 
-type SavedMetadata = {
-  name: string
-  description: string
+interface SavedMetadata {
+  name: string;
+  description: string;
 }
 
 type ToastFn = (params: {
-  title: string
-  description?: string
-  variant?: 'default' | 'destructive' | 'warning' | 'success'
-}) => void
+  title: string;
+  description?: string;
+  variant?: 'default' | 'destructive' | 'warning' | 'success';
+}) => void;
 
 interface UseDesignWorkflowPersistenceOptions {
-  canManageWorkflows: boolean
-  isDirty: boolean
-  isNewWorkflow: boolean
-  metadata: WorkflowMetadataShape
-  designNodes: ReactFlowNode<FrontendNodeData>[]
-  designEdges: ReactFlowEdge[]
-  designNodesRef: MutableRefObject<ReactFlowNode<FrontendNodeData>[]>
-  designEdgesRef: MutableRefObject<ReactFlowEdge[]>
-  designSavedSnapshotRef: MutableRefObject<GraphSnapshot | null>
-  markDirty: () => void
-  markClean: () => void
-  setWorkflowId: (id: string) => void
-  setMetadata: (metadata: Partial<WorkflowMetadataShape>) => void
-  navigate: (path: string, options?: { replace?: boolean }) => void
-  toast: ToastFn
+  canManageWorkflows: boolean;
+  isDirty: boolean;
+  isNewWorkflow: boolean;
+  metadata: WorkflowMetadataShape;
+  designNodes: ReactFlowNode<FrontendNodeData>[];
+  designEdges: ReactFlowEdge[];
+  designNodesRef: MutableRefObject<ReactFlowNode<FrontendNodeData>[]>;
+  designEdgesRef: MutableRefObject<ReactFlowEdge[]>;
+  designSavedSnapshotRef: MutableRefObject<GraphSnapshot | null>;
+  markDirty: () => void;
+  markClean: () => void;
+  setWorkflowId: (id: string) => void;
+  setMetadata: (metadata: Partial<WorkflowMetadataShape>) => void;
+  navigate: (path: string, options?: { replace?: boolean }) => void;
+  toast: ToastFn;
   computeGraphSignature: (
     nodesSnapshot: ReactFlowNode<FrontendNodeData>[] | null,
     edgesSnapshot: ReactFlowEdge[] | null,
-  ) => string
-  workflowRoutePrefix?: string
+  ) => string;
+  workflowRoutePrefix?: string;
 }
 
 interface UseDesignWorkflowPersistenceResult {
-  handleSave: (showToast?: boolean) => Promise<void>
-  lastSavedGraphSignature: string | null
-  setLastSavedGraphSignature: (value: string | null) => void
-  lastSavedMetadata: SavedMetadata | null
-  setLastSavedMetadata: (value: SavedMetadata | null) => void
-  hasGraphChanges: boolean
-  hasMetadataChanges: boolean
+  handleSave: (showToast?: boolean) => Promise<void>;
+  lastSavedGraphSignature: string | null;
+  setLastSavedGraphSignature: (value: string | null) => void;
+  lastSavedMetadata: SavedMetadata | null;
+  setLastSavedMetadata: (value: SavedMetadata | null) => void;
+  hasGraphChanges: boolean;
+  hasMetadataChanges: boolean;
 }
 
 export function useDesignWorkflowPersistence({
@@ -81,61 +78,61 @@ export function useDesignWorkflowPersistence({
   computeGraphSignature,
   workflowRoutePrefix = '/workflows',
 }: UseDesignWorkflowPersistenceOptions): UseDesignWorkflowPersistenceResult {
-  const [lastSavedGraphSignature, setLastSavedGraphSignature] = useState<string | null>(null)
-  const [lastSavedMetadata, setLastSavedMetadata] = useState<SavedMetadata | null>(null)
-  const [hasGraphChanges, setHasGraphChanges] = useState(false)
-  const [hasMetadataChanges, setHasMetadataChanges] = useState(false)
+  const [lastSavedGraphSignature, setLastSavedGraphSignature] = useState<string | null>(null);
+  const [lastSavedMetadata, setLastSavedMetadata] = useState<SavedMetadata | null>(null);
+  const [hasGraphChanges, setHasGraphChanges] = useState(false);
+  const [hasMetadataChanges, setHasMetadataChanges] = useState(false);
 
   useEffect(() => {
-    const currentSignature = computeGraphSignature(designNodes, designEdges)
+    const currentSignature = computeGraphSignature(designNodes, designEdges);
 
     if (lastSavedGraphSignature === null) {
-      setLastSavedGraphSignature(currentSignature)
-      setHasGraphChanges(false)
-      return
+      setLastSavedGraphSignature(currentSignature);
+      setHasGraphChanges(false);
+      return;
     }
 
-    setHasGraphChanges(currentSignature !== lastSavedGraphSignature)
-  }, [designNodes, designEdges, computeGraphSignature, lastSavedGraphSignature])
+    setHasGraphChanges(currentSignature !== lastSavedGraphSignature);
+  }, [designNodes, designEdges, computeGraphSignature, lastSavedGraphSignature]);
 
   useEffect(() => {
     const normalizedMetadata: SavedMetadata = {
       name: metadata.name,
       description: metadata.description ?? '',
-    }
+    };
 
     if (lastSavedMetadata === null) {
-      setLastSavedMetadata(normalizedMetadata)
-      setHasMetadataChanges(false)
-      return
+      setLastSavedMetadata(normalizedMetadata);
+      setHasMetadataChanges(false);
+      return;
     }
 
     const changed =
       normalizedMetadata.name !== lastSavedMetadata.name ||
-      normalizedMetadata.description !== lastSavedMetadata.description
-    setHasMetadataChanges(changed)
-  }, [metadata.name, metadata.description, lastSavedMetadata])
+      normalizedMetadata.description !== lastSavedMetadata.description;
+    setHasMetadataChanges(changed);
+  }, [metadata.name, metadata.description, lastSavedMetadata]);
 
   useEffect(() => {
-    const shouldBeDirty = hasGraphChanges || hasMetadataChanges
+    const shouldBeDirty = hasGraphChanges || hasMetadataChanges;
     if (shouldBeDirty && !isDirty) {
-      markDirty()
+      markDirty();
     } else if (!shouldBeDirty && isDirty) {
-      markClean()
+      markClean();
     }
-  }, [hasGraphChanges, hasMetadataChanges, isDirty, markDirty, markClean])
+  }, [hasGraphChanges, hasMetadataChanges, isDirty, markDirty, markClean]);
 
   const handleSave = useCallback(
-    async (showToast: boolean = true) => {
+    async (showToast = true) => {
       if (!canManageWorkflows) {
         if (showToast) {
           toast({
             variant: 'destructive',
             title: 'Insufficient permissions',
             description: 'Only administrators can save workflow changes.',
-          })
+          });
         }
-        return
+        return;
       }
 
       if (!isDirty) {
@@ -143,9 +140,9 @@ export function useDesignWorkflowPersistence({
           toast({
             title: 'No changes to save',
             description: 'Your workflow matches the last saved version.',
-          })
+          });
         }
-        return
+        return;
       }
 
       try {
@@ -155,9 +152,9 @@ export function useDesignWorkflowPersistence({
               variant: 'destructive',
               title: 'Cannot save workflow',
               description: 'Invalid workflow nodes data.',
-            })
+            });
           }
-          return
+          return;
         }
 
         if (!designEdges || !Array.isArray(designEdges)) {
@@ -166,19 +163,19 @@ export function useDesignWorkflowPersistence({
               variant: 'destructive',
               title: 'Cannot save workflow',
               description: 'Invalid workflow edges data.',
-            })
+            });
           }
-          return
+          return;
         }
 
-        const workflowId = metadata.id
-        const metadataChangesOnly = hasMetadataChanges && !hasGraphChanges
+        const workflowId = metadata.id;
+        const metadataChangesOnly = hasMetadataChanges && !hasGraphChanges;
 
         if (metadataChangesOnly && workflowId && !isNewWorkflow) {
           const updatedMetadata = await api.workflows.updateMetadata(workflowId, {
             name: metadata.name,
             description: metadata.description ?? '',
-          })
+          });
 
           setMetadata({
             id: updatedMetadata.id,
@@ -186,23 +183,23 @@ export function useDesignWorkflowPersistence({
             description: updatedMetadata.description ?? '',
             currentVersionId: updatedMetadata.currentVersionId ?? null,
             currentVersion: updatedMetadata.currentVersion ?? null,
-          })
+          });
 
           setLastSavedMetadata({
             name: updatedMetadata.name,
             description: updatedMetadata.description ?? '',
-          })
-          setHasMetadataChanges(false)
-          markClean()
+          });
+          setHasMetadataChanges(false);
+          markClean();
 
           if (showToast) {
             toast({
               variant: 'success',
               title: 'Workflow details updated',
               description: 'Name and description have been synced.',
-            })
+            });
           }
-          return
+          return;
         }
 
         if (!workflowId || isNewWorkflow) {
@@ -212,9 +209,9 @@ export function useDesignWorkflowPersistence({
                 variant: 'destructive',
                 title: 'Cannot save workflow',
                 description: 'Add at least one component before saving.',
-              })
+              });
             }
-            return
+            return;
           }
 
           const payload = serializeWorkflowForCreate(
@@ -222,47 +219,50 @@ export function useDesignWorkflowPersistence({
             metadata.description || undefined,
             designNodes,
             designEdges,
-          )
+          );
 
-          const savedWorkflow = await api.workflows.create(payload)
+          const savedWorkflow = await api.workflows.create(payload);
 
-          setWorkflowId(savedWorkflow.id)
+          setWorkflowId(savedWorkflow.id);
           setMetadata({
             id: savedWorkflow.id,
             name: savedWorkflow.name,
             description: savedWorkflow.description ?? '',
             currentVersionId: savedWorkflow.currentVersionId ?? null,
             currentVersion: savedWorkflow.currentVersion ?? null,
-          })
-          markClean()
-          const newSignature = computeGraphSignature(designNodesRef.current, designEdgesRef.current)
-          setLastSavedGraphSignature(newSignature)
+          });
+          markClean();
+          const newSignature = computeGraphSignature(
+            designNodesRef.current,
+            designEdgesRef.current,
+          );
+          setLastSavedGraphSignature(newSignature);
           setLastSavedMetadata({
             name: savedWorkflow.name,
             description: savedWorkflow.description ?? '',
-          })
-          setHasGraphChanges(false)
-          setHasMetadataChanges(false)
+          });
+          setHasGraphChanges(false);
+          setHasMetadataChanges(false);
 
           designSavedSnapshotRef.current = {
             nodes: cloneNodes(designNodesRef.current),
             edges: cloneEdges(designEdgesRef.current),
-          }
+          };
 
-          navigate(`${workflowRoutePrefix}/${savedWorkflow.id}`, { replace: true })
+          navigate(`${workflowRoutePrefix}/${savedWorkflow.id}`, { replace: true });
 
           track(Events.WorkflowCreated, {
             workflow_id: savedWorkflow.id,
             node_count: designNodes.length,
             edge_count: designEdges.length,
-          })
+          });
 
           if (showToast) {
             toast({
               variant: 'success',
               title: 'Workflow created',
               description: 'Your workflow has been saved and is ready to run.',
-            })
+            });
           }
         } else {
           const payload = serializeWorkflowForUpdate(
@@ -271,51 +271,54 @@ export function useDesignWorkflowPersistence({
             metadata.description || undefined,
             designNodes,
             designEdges,
-          )
+          );
 
-          const updatedWorkflow = await api.workflows.update(workflowId, payload)
+          const updatedWorkflow = await api.workflows.update(workflowId, payload);
           setMetadata({
             id: updatedWorkflow.id,
             name: updatedWorkflow.name,
             description: updatedWorkflow.description ?? '',
             currentVersionId: updatedWorkflow.currentVersionId ?? null,
             currentVersion: updatedWorkflow.currentVersion ?? null,
-          })
-          markClean()
-          const newSignature = computeGraphSignature(designNodesRef.current, designEdgesRef.current)
-          setLastSavedGraphSignature(newSignature)
+          });
+          markClean();
+          const newSignature = computeGraphSignature(
+            designNodesRef.current,
+            designEdgesRef.current,
+          );
+          setLastSavedGraphSignature(newSignature);
           setLastSavedMetadata({
             name: updatedWorkflow.name,
             description: updatedWorkflow.description ?? '',
-          })
-          setHasGraphChanges(false)
-          setHasMetadataChanges(false)
+          });
+          setHasGraphChanges(false);
+          setHasMetadataChanges(false);
 
           designSavedSnapshotRef.current = {
             nodes: cloneNodes(designNodesRef.current),
             edges: cloneEdges(designEdgesRef.current),
-          }
+          };
 
           track(Events.WorkflowSaved, {
             workflow_id: updatedWorkflow.id,
             node_count: designNodes.length,
             edge_count: designEdges.length,
-          })
+          });
 
           if (showToast) {
             toast({
               variant: 'success',
               title: 'Workflow saved',
               description: 'All changes have been saved.',
-            })
+            });
           }
         }
       } catch (error) {
-        console.error('Failed to save workflow:', error)
+        console.error('Failed to save workflow:', error);
 
         const isNetworkError =
           error instanceof Error &&
-          (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'))
+          (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED'));
 
         if (isNetworkError) {
           if (showToast) {
@@ -323,7 +326,7 @@ export function useDesignWorkflowPersistence({
               variant: 'destructive',
               title: 'Cannot connect to backend',
               description: `Ensure the backend is running at ${API_BASE_URL}. Your workflow remains available locally.`,
-            })
+            });
           }
         } else {
           if (showToast) {
@@ -331,7 +334,7 @@ export function useDesignWorkflowPersistence({
               variant: 'destructive',
               title: 'Failed to save workflow',
               description: error instanceof Error ? error.message : 'Unknown error',
-            })
+            });
           }
         }
       }
@@ -359,7 +362,7 @@ export function useDesignWorkflowPersistence({
       hasMetadataChanges,
       workflowRoutePrefix,
     ],
-  )
+  );
 
   return {
     handleSave,
@@ -369,5 +372,5 @@ export function useDesignWorkflowPersistence({
     setLastSavedMetadata,
     hasGraphChanges,
     hasMetadataChanges,
-  }
+  };
 }

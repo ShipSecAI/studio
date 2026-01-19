@@ -1,11 +1,11 @@
-import { type NodeProps } from 'reactflow'
-import { NodeTerminalPanel } from '../terminal/NodeTerminalPanel'
+import { type NodeProps } from 'reactflow';
+import { NodeTerminalPanel } from '../terminal/NodeTerminalPanel';
 
 interface TerminalNodeData {
-  parentNodeId: string
-  runId: string | null
-  timelineSync: boolean
-  onClose: () => void
+  parentNodeId: string;
+  runId: string | null;
+  timelineSync: boolean;
+  onClose: () => void;
 }
 
 export function TerminalNode({ data }: NodeProps<TerminalNodeData>) {
@@ -18,6 +18,5 @@ export function TerminalNode({ data }: NodeProps<TerminalNodeData>) {
         timelineSync={data.timelineSync}
       />
     </div>
-  )
+  );
 }
-

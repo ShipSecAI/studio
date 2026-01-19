@@ -9,14 +9,18 @@ describe('entry-point component', () => {
   });
 
   it('should be registered', () => {
-    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>(
+      'core.workflow.entrypoint',
+    );
     expect(component).toBeDefined();
     expect(component!.label).toBe('Entry Point');
     expect(component!.category).toBe('input');
   });
 
   it('should map runtime inputs to outputs', async () => {
-    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>(
+      'core.workflow.entrypoint',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({
@@ -38,10 +42,10 @@ describe('entry-point component', () => {
           { id: 'action', label: 'Action', type: 'text', required: true },
           { id: 'metadata', label: 'Metadata', type: 'json', required: false },
         ],
-      }
+      },
     };
 
-    const result = await component.execute(executePayload, context) as Record<string, unknown>;
+    const result = (await component.execute(executePayload, context)) as Record<string, unknown>;
 
     expect(result).toEqual({
       user: 'alice',
@@ -66,13 +70,11 @@ describe('entry-point component', () => {
         },
       },
       params: {
-        runtimeInputs: [
-          { id: 'legacy', label: 'Legacy Text', type: 'string', required: true },
-        ],
-      }
+        runtimeInputs: [{ id: 'legacy', label: 'Legacy Text', type: 'string', required: true }],
+      },
     };
 
-    const result = await component.execute(executePayload, context) as any;
+    const result = (await component.execute(executePayload, context)) as any;
 
     expect(result).toEqual({
       legacy: 'hello',
@@ -80,7 +82,9 @@ describe('entry-point component', () => {
   });
 
   it('should handle empty runtime input configuration', async () => {
-    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>(
+      'core.workflow.entrypoint',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({
@@ -90,7 +94,7 @@ describe('entry-point component', () => {
 
     const executePayload = {
       inputs: {},
-      params: {}
+      params: {},
     };
 
     const result = await component.execute(executePayload, context);
@@ -99,7 +103,9 @@ describe('entry-point component', () => {
   });
 
   it('should throw when required runtime input is missing', async () => {
-    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>(
+      'core.workflow.entrypoint',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({
@@ -112,10 +118,8 @@ describe('entry-point component', () => {
         __runtimeData: {},
       },
       params: {
-        runtimeInputs: [
-          { id: 'user', label: 'User', type: 'text', required: true },
-        ],
-      }
+        runtimeInputs: [{ id: 'user', label: 'User', type: 'text', required: true }],
+      },
     };
 
     await expect(component.execute(executePayload, context)).rejects.toThrow(
@@ -124,7 +128,9 @@ describe('entry-point component', () => {
   });
 
   it('should handle secret runtime inputs', async () => {
-    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>(
+      'core.workflow.entrypoint',
+    );
     if (!component) throw new Error('Component not registered');
 
     const context = createExecutionContext({
@@ -142,10 +148,13 @@ describe('entry-point component', () => {
       token: 'optional-token',
     };
 
-    const result = await component.execute({
-      inputs: { __runtimeData },
-      params: { runtimeInputs },
-    }, context) as Record<string, unknown>;
+    const result = (await component.execute(
+      {
+        inputs: { __runtimeData },
+        params: { runtimeInputs },
+      },
+      context,
+    )) as Record<string, unknown>;
 
     expect(result).toEqual({
       apiKey: 'super-secret-key',
@@ -154,18 +163,18 @@ describe('entry-point component', () => {
   });
 
   it('should resolve secret ports correctly', () => {
-    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>('core.workflow.entrypoint');
+    const component = componentRegistry.get<EntryPointInput, EntryPointOutput>(
+      'core.workflow.entrypoint',
+    );
     if (!component) throw new Error('Component not registered');
 
     const params = {
-      runtimeInputs: [
-        { id: 'apiKey', label: 'API Key', type: 'secret', required: true },
-      ],
+      runtimeInputs: [{ id: 'apiKey', label: 'API Key', type: 'secret', required: true }],
     };
 
     const resolved = component.resolvePorts?.(params as any);
     expect(resolved).toBeDefined();
-    
+
     const outputSchema = (resolved as any).outputs;
     const ports = extractPorts(outputSchema);
 

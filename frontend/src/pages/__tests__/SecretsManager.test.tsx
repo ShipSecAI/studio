@@ -1,18 +1,18 @@
-import { describe, it, beforeEach, afterEach, expect, mock } from 'bun:test'
-import { fireEvent, render, screen, within, cleanup } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import type { SecretSummary } from '@/schemas/secret'
+import { describe, it, beforeEach, afterEach, expect, mock } from 'bun:test';
+import { fireEvent, render, screen, within, cleanup } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { SecretSummary } from '@/schemas/secret';
 
 mock.module('@/components/ui/dialog', () => {
-  const Dialog = ({ open, children }: any) => (open ? <>{children}</> : null)
+  const Dialog = ({ open, children }: any) => (open ? <>{children}</> : null);
   const DialogContent = ({ children, ...props }: any) => (
     <div role="dialog" {...props}>
       {children}
     </div>
-  )
-  const passthrough = ({ children, ...props }: any) => <div {...props}>{children}</div>
-  const passthroughInline = ({ children, ...props }: any) => <span {...props}>{children}</span>
-  const FragmentWrapper = ({ children }: any) => <>{children}</>
+  );
+  const passthrough = ({ children, ...props }: any) => <div {...props}>{children}</div>;
+  const passthroughInline = ({ children, ...props }: any) => <span {...props}>{children}</span>;
+  const FragmentWrapper = ({ children }: any) => <>{children}</>;
 
   return {
     Dialog,
@@ -25,8 +25,8 @@ mock.module('@/components/ui/dialog', () => {
     DialogOverlay: FragmentWrapper,
     DialogTrigger: FragmentWrapper,
     DialogClose: FragmentWrapper,
-  }
-})
+  };
+});
 
 mock.module('@/store/secretStore', () => {
   const createMockState = () => ({
@@ -41,55 +41,55 @@ mock.module('@/store/secretStore', () => {
     deleteSecret: mock(),
     getSecretById: mock(),
     refresh: mock().mockResolvedValue(undefined),
-  })
+  });
 
-  const store = createMockState()
+  const store = createMockState();
 
   const useSecretStore = mock((selector?: (state: typeof store) => unknown) => {
     if (selector) {
-      return selector(store)
+      return selector(store);
     }
-    return store
-  }) as any
+    return store;
+  }) as any;
 
   useSecretStore.__setState = (partial: Partial<typeof store>) => {
-    Object.assign(store, partial)
-  }
+    Object.assign(store, partial);
+  };
 
   useSecretStore.__reset = () => {
-    const fresh = createMockState()
-    Object.assign(store, fresh)
-  }
+    const fresh = createMockState();
+    Object.assign(store, fresh);
+  };
 
-  useSecretStore.__getState = () => store
+  useSecretStore.__getState = () => store;
 
-  return { useSecretStore }
-})
+  return { useSecretStore };
+});
 
-import { SecretsManager } from '@/pages/SecretsManager'
-import { useSecretStore } from '@/store/secretStore'
-import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore'
+import { SecretsManager } from '@/pages/SecretsManager';
+import { useSecretStore } from '@/store/secretStore';
+import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 
-type MockStoreState = {
-  secrets: SecretSummary[]
-  loading: boolean
-  error: string | null
-  initialized: boolean
-  fetchSecrets: (...args: any[]) => Promise<void>
-  createSecret: (...args: any[]) => Promise<SecretSummary>
-  rotateSecret: (...args: any[]) => Promise<SecretSummary>
-  updateSecret: (...args: any[]) => Promise<SecretSummary>
-  deleteSecret: (...args: any[]) => Promise<void>
-  getSecretById: (...args: any[]) => SecretSummary | undefined
-  refresh: (...args: any[]) => Promise<void>
+interface MockStoreState {
+  secrets: SecretSummary[];
+  loading: boolean;
+  error: string | null;
+  initialized: boolean;
+  fetchSecrets: (...args: any[]) => Promise<void>;
+  createSecret: (...args: any[]) => Promise<SecretSummary>;
+  rotateSecret: (...args: any[]) => Promise<SecretSummary>;
+  updateSecret: (...args: any[]) => Promise<SecretSummary>;
+  deleteSecret: (...args: any[]) => Promise<void>;
+  getSecretById: (...args: any[]) => SecretSummary | undefined;
+  refresh: (...args: any[]) => Promise<void>;
 }
 
-const useSecretStoreMock = useSecretStore as any
+const useSecretStoreMock = useSecretStore as any;
 
 async function resetAuthStore() {
-  const persist = (useAuthStore as typeof useAuthStore & { persist?: any }).persist
+  const persist = (useAuthStore as typeof useAuthStore & { persist?: any }).persist;
   if (persist?.clearStorage) {
-    await persist.clearStorage()
+    await persist.clearStorage();
   }
   useAuthStore.setState({
     token: null,
@@ -97,10 +97,10 @@ async function resetAuthStore() {
     organizationId: DEFAULT_ORG_ID,
     roles: ['ADMIN'],
     provider: 'local',
-  })
+  });
 }
 
-const ISO = '2024-01-01T00:00:00.000Z'
+const ISO = '2024-01-01T00:00:00.000Z';
 
 const baseSecret: SecretSummary = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -115,18 +115,18 @@ const baseSecret: SecretSummary = {
     createdAt: ISO,
     createdBy: 'tester',
   },
-}
+};
 
 const renderSecretsManager = () =>
   render(
     <MemoryRouter>
       <SecretsManager />
-    </MemoryRouter>
-  )
+    </MemoryRouter>,
+  );
 
 const setupStore = (overrides: Partial<MockStoreState> = {}) => {
-  useSecretStoreMock.__reset()
-  useSecretStoreMock.mockClear()
+  useSecretStoreMock.__reset();
+  useSecretStoreMock.mockClear();
 
   const state: MockStoreState = {
     secrets: [baseSecret],
@@ -140,174 +140,174 @@ const setupStore = (overrides: Partial<MockStoreState> = {}) => {
     deleteSecret: overrides.deleteSecret ?? mock().mockResolvedValue(undefined),
     getSecretById: overrides.getSecretById ?? mock(),
     refresh: overrides.refresh ?? mock().mockResolvedValue(undefined),
-  }
+  };
 
-  useSecretStoreMock.__setState(state)
+  useSecretStoreMock.__setState(state);
 
-  return state
-}
+  return state;
+};
 
 const openEditDialog = async () => {
-  const rows = await screen.findAllByRole('row')
-  const rowElement = rows.find((row) => within(row).queryByText(baseSecret.name))
+  const rows = await screen.findAllByRole('row');
+  const rowElement = rows.find((row) => within(row).queryByText(baseSecret.name));
   if (!rowElement) {
-    throw new Error('Unable to locate secret row for edit action')
+    throw new Error('Unable to locate secret row for edit action');
   }
-  const editButton = within(rowElement).getByRole('button', { name: 'Edit' })
-  fireEvent.click(editButton)
-  return await screen.findByRole('dialog')
-}
+  const editButton = within(rowElement).getByRole('button', { name: 'Edit' });
+  fireEvent.click(editButton);
+  return await screen.findByRole('dialog');
+};
 
 describe('SecretsManager edit dialog', () => {
   beforeEach(async () => {
-    cleanup()
-    setupStore()
-    await resetAuthStore()
-  })
+    cleanup();
+    setupStore();
+    await resetAuthStore();
+  });
 
   afterEach(() => {
-    cleanup()
-  })
+    cleanup();
+  });
 
   it('updates metadata without rotating when only metadata changes', async () => {
     // Ensure admin role is set for edit operations
-    useAuthStore.setState({ roles: ['ADMIN'] })
-    
+    useAuthStore.setState({ roles: ['ADMIN'] });
+
     const updateSecret = mock().mockResolvedValue({
       ...baseSecret,
       name: 'Updated Secret',
-    })
-    const rotateSecret = mock().mockResolvedValue(baseSecret)
+    });
+    const rotateSecret = mock().mockResolvedValue(baseSecret);
 
-    setupStore({ updateSecret, rotateSecret })
+    setupStore({ updateSecret, rotateSecret });
 
-    renderSecretsManager()
+    renderSecretsManager();
 
-    const dialog = await openEditDialog()
-    const nameInput = within(dialog).getByLabelText('Secret name')
+    const dialog = await openEditDialog();
+    const nameInput = within(dialog).getByLabelText('Secret name');
 
-    fireEvent.change(nameInput, { target: { value: 'Updated Secret' } })
+    fireEvent.change(nameInput, { target: { value: 'Updated Secret' } });
 
-    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' })
-    fireEvent.click(saveButton)
+    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' });
+    fireEvent.click(saveButton);
 
-    await screen.findByText('Secret "Updated Secret" updated successfully.')
+    await screen.findByText('Secret "Updated Secret" updated successfully.');
 
-    expect(updateSecret).toHaveBeenCalledTimes(1)
+    expect(updateSecret).toHaveBeenCalledTimes(1);
     expect(updateSecret).toHaveBeenCalledWith(baseSecret.id, {
       name: 'Updated Secret',
       description: 'Original secret',
       tags: ['prod', 'api'],
-    })
-    expect(rotateSecret).not.toHaveBeenCalled()
-  })
+    });
+    expect(rotateSecret).not.toHaveBeenCalled();
+  });
 
   it('rotates secret value without updating metadata when only new value is provided', async () => {
     // Ensure admin role is set for edit operations
-    useAuthStore.setState({ roles: ['ADMIN'] })
-    
-    const rotateSecret = mock().mockResolvedValue(baseSecret)
-    const updateSecret = mock().mockResolvedValue(baseSecret)
+    useAuthStore.setState({ roles: ['ADMIN'] });
 
-    setupStore({ rotateSecret, updateSecret })
+    const rotateSecret = mock().mockResolvedValue(baseSecret);
+    const updateSecret = mock().mockResolvedValue(baseSecret);
 
-    renderSecretsManager()
+    setupStore({ rotateSecret, updateSecret });
 
-    const dialog = await openEditDialog()
-    const valueInput = within(dialog).getByLabelText(/New secret value/)
+    renderSecretsManager();
 
-    fireEvent.change(valueInput, { target: { value: '  rotated-value  ' } })
+    const dialog = await openEditDialog();
+    const valueInput = within(dialog).getByLabelText(/New secret value/);
 
-    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' })
-    fireEvent.click(saveButton)
+    fireEvent.change(valueInput, { target: { value: '  rotated-value  ' } });
 
-    await screen.findByText('Secret "Prod API Key" rotated successfully.')
+    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' });
+    fireEvent.click(saveButton);
 
-    expect(rotateSecret).toHaveBeenCalledTimes(1)
-    expect(rotateSecret).toHaveBeenCalledWith(baseSecret.id, { value: 'rotated-value' })
-    expect(updateSecret).not.toHaveBeenCalled()
-  })
+    await screen.findByText('Secret "Prod API Key" rotated successfully.');
+
+    expect(rotateSecret).toHaveBeenCalledTimes(1);
+    expect(rotateSecret).toHaveBeenCalledWith(baseSecret.id, { value: 'rotated-value' });
+    expect(updateSecret).not.toHaveBeenCalled();
+  });
 
   it('updates metadata and rotates secret value when both are provided', async () => {
     // Ensure admin role is set for edit operations
-    useAuthStore.setState({ roles: ['ADMIN'] })
-    
+    useAuthStore.setState({ roles: ['ADMIN'] });
+
     const updatedSecret = {
       ...baseSecret,
       name: 'Prod API Key v2',
       updatedAt: '2024-02-01T00:00:00.000Z',
-    }
-    const updateSecret = mock().mockResolvedValue(updatedSecret)
-    const rotateSecret = mock().mockResolvedValue(updatedSecret)
+    };
+    const updateSecret = mock().mockResolvedValue(updatedSecret);
+    const rotateSecret = mock().mockResolvedValue(updatedSecret);
 
-    setupStore({ updateSecret, rotateSecret })
+    setupStore({ updateSecret, rotateSecret });
 
-    renderSecretsManager()
+    renderSecretsManager();
 
-    const dialog = await openEditDialog()
-    const nameInput = within(dialog).getByLabelText('Secret name')
-    const valueInput = within(dialog).getByLabelText(/New secret value/)
+    const dialog = await openEditDialog();
+    const nameInput = within(dialog).getByLabelText('Secret name');
+    const valueInput = within(dialog).getByLabelText(/New secret value/);
 
-    fireEvent.change(nameInput, { target: { value: 'Prod API Key v2' } })
-    fireEvent.change(valueInput, { target: { value: 'next-secret' } })
+    fireEvent.change(nameInput, { target: { value: 'Prod API Key v2' } });
+    fireEvent.change(valueInput, { target: { value: 'next-secret' } });
 
-    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' })
-    fireEvent.click(saveButton)
+    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' });
+    fireEvent.click(saveButton);
 
-    await screen.findByText('Secret "Prod API Key v2" updated and rotated successfully.')
+    await screen.findByText('Secret "Prod API Key v2" updated and rotated successfully.');
 
     expect(updateSecret).toHaveBeenCalledWith(baseSecret.id, {
       name: 'Prod API Key v2',
       description: 'Original secret',
       tags: ['prod', 'api'],
-    })
-    expect(rotateSecret).toHaveBeenCalledWith(baseSecret.id, { value: 'next-secret' })
-  })
+    });
+    expect(rotateSecret).toHaveBeenCalledWith(baseSecret.id, { value: 'next-secret' });
+  });
 
   it('does not call update or rotate when no changes are submitted', async () => {
     // Ensure admin role is set for edit operations
-    useAuthStore.setState({ roles: ['ADMIN'] })
-    
-    const updateSecret = mock().mockResolvedValue(baseSecret)
-    const rotateSecret = mock().mockResolvedValue(baseSecret)
+    useAuthStore.setState({ roles: ['ADMIN'] });
 
-    setupStore({ updateSecret, rotateSecret })
+    const updateSecret = mock().mockResolvedValue(baseSecret);
+    const rotateSecret = mock().mockResolvedValue(baseSecret);
 
-    renderSecretsManager()
+    setupStore({ updateSecret, rotateSecret });
 
-    const dialog = await openEditDialog()
+    renderSecretsManager();
 
-    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' })
-    fireEvent.click(saveButton)
+    const dialog = await openEditDialog();
 
-    await screen.findByText('Secret "Prod API Key" unchanged.')
+    const saveButton = within(dialog).getByRole('button', { name: 'Save changes' });
+    fireEvent.click(saveButton);
 
-    expect(updateSecret).not.toHaveBeenCalled()
-    expect(rotateSecret).not.toHaveBeenCalled()
-  })
-})
+    await screen.findByText('Secret "Prod API Key" unchanged.');
+
+    expect(updateSecret).not.toHaveBeenCalled();
+    expect(rotateSecret).not.toHaveBeenCalled();
+  });
+});
 
 describe('SecretsManager role gating', () => {
   beforeEach(async () => {
-    cleanup()
-    setupStore()
-    await resetAuthStore()
-  })
+    cleanup();
+    setupStore();
+    await resetAuthStore();
+  });
 
   afterEach(() => {
-    cleanup()
-  })
+    cleanup();
+  });
 
   it('disables create actions for members', async () => {
-    useAuthStore.setState({ roles: ['MEMBER'] })
-    renderSecretsManager()
+    useAuthStore.setState({ roles: ['MEMBER'] });
+    renderSecretsManager();
 
     // Use getAllByText to handle potential multiple renders in CI, then check the first one
-    const banners = await screen.findAllByText(/read-only access/i)
-    expect(banners.length).toBeGreaterThan(0)
-    expect(banners[0]).toBeInTheDocument()
+    const banners = await screen.findAllByText(/read-only access/i);
+    expect(banners.length).toBeGreaterThan(0);
+    expect(banners[0]).toBeInTheDocument();
 
-    const createButton = await screen.findByRole('button', { name: /create secret/i })
-    expect(createButton).toBeDisabled()
-  })
-})
+    const createButton = await screen.findByRole('button', { name: /create secret/i });
+    expect(createButton).toBeDisabled();
+  });
+});

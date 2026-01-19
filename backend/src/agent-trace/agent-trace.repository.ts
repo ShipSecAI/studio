@@ -54,7 +54,9 @@ export class AgentTraceRepository {
       .orderBy(asc(agentTraceEventsTable.sequence));
   }
 
-  async getRunMetadata(agentRunId: string): Promise<{ workflowRunId: string; nodeRef: string } | null> {
+  async getRunMetadata(
+    agentRunId: string,
+  ): Promise<{ workflowRunId: string; nodeRef: string } | null> {
     const rows = await this.db
       .select({
         workflowRunId: agentTraceEventsTable.workflowRunId,

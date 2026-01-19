@@ -47,7 +47,8 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'process',
     category: 'output',
-    description: 'Bundle AWS access key, secret key, and optional session token into a single credential object.',
+    description:
+      'Bundle AWS access key, secret key, and optional session token into a single credential object.',
     icon: 'KeySquare',
   },
   async execute({ inputs }, context) {

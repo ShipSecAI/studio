@@ -53,7 +53,8 @@ describe('Okta User Offboard - Temporal Activity Integration', () => {
   };
 
   async function initServices() {
-    const { initializeComponentActivityServices } = await import('../../../temporal/activities/run-component.activity');
+    const { initializeComponentActivityServices } =
+      await import('../../../temporal/activities/run-component.activity');
     initializeComponentActivityServices({
       storage: undefined as any,
       secrets: undefined,

@@ -84,7 +84,9 @@ export class LogStreamService {
     if (options.level) selectorLabels.level = options.level;
 
     const selector = this.buildSelector(selectorLabels);
-    console.log(`[LogStreamService] Fetching logs for runId: ${runId}, selector: ${selector}, limit: ${limit}`);
+    console.log(
+      `[LogStreamService] Fetching logs for runId: ${runId}, selector: ${selector}, limit: ${limit}`,
+    );
 
     // Query Loki - use time range if provided (for timeline scrubbing), otherwise use pagination
     const entries =
@@ -109,7 +111,10 @@ export class LogStreamService {
       logs,
       totalCount: logs.length,
       hasMore: !options.startTime && !options.endTime && logs.length === limit, // Only paginate when not using time range
-      nextCursor: (!options.startTime && !options.endTime && logs.length > 0) ? logs[logs.length - 1].timestamp : undefined,
+      nextCursor:
+        !options.startTime && !options.endTime && logs.length > 0
+          ? logs[logs.length - 1].timestamp
+          : undefined,
     };
   }
 
@@ -118,7 +123,7 @@ export class LogStreamService {
     organizationId?: string | null,
     lastCursor?: string | null,
   ): Promise<{
-    logs: Array<{
+    logs: {
       id: string;
       runId: string;
       nodeId: string;
@@ -126,7 +131,7 @@ export class LogStreamService {
       message: string;
       timestamp: string;
       sequence: number;
-    }>;
+    }[];
     cursor: string | null;
   }> {
     const selector = this.buildSelector({ run_id: runId });
@@ -156,9 +161,7 @@ export class LogStreamService {
     const logs = filtered.map((entry, index) => {
       const timestampValue = Date.parse(entry.timestamp);
       const sequence =
-        Number.isNaN(timestampValue) || timestampValue < 0
-          ? (Date.now() + index)
-          : timestampValue;
+        Number.isNaN(timestampValue) || timestampValue < 0 ? Date.now() + index : timestampValue;
       return {
         id: `${runId}-${sequence}-${index}`,
         runId,
@@ -203,7 +206,7 @@ export class LogStreamService {
     }
 
     const payload = (await response.json()) as {
-      data?: { result?: Array<{ values?: [string, string][] }> };
+      data?: { result?: { values?: [string, string][] }[] };
     };
 
     const entries: LokiEntry[] = [];
@@ -220,7 +223,12 @@ export class LogStreamService {
     return entries;
   }
 
-  private async queryLokiTimeRange(selector: string, startTime: string, endTime: string, limit: number): Promise<LokiEntry[]> {
+  private async queryLokiTimeRange(
+    selector: string,
+    startTime: string,
+    endTime: string,
+    limit: number,
+  ): Promise<LokiEntry[]> {
     const params = new URLSearchParams({
       query: selector,
       direction: 'forward',
@@ -243,10 +251,10 @@ export class LogStreamService {
 
     const payload = (await response.json()) as {
       data?: {
-        result?: Array<{
+        result?: {
           stream?: Record<string, string>;
           values?: [string, string][];
-        }>;
+        }[];
       };
     };
 
@@ -270,7 +278,11 @@ export class LogStreamService {
     return entries;
   }
 
-  private async queryLokiRange(selector: string, limit: number, cursor?: string): Promise<LokiEntry[]> {
+  private async queryLokiRange(
+    selector: string,
+    limit: number,
+    cursor?: string,
+  ): Promise<LokiEntry[]> {
     const params = new URLSearchParams({
       query: selector,
       direction: 'backward', // Most recent first
@@ -292,7 +304,9 @@ export class LogStreamService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[LogStreamService] Loki query failed: ${response.status} ${response.statusText} - ${errorText}`);
+      console.error(
+        `[LogStreamService] Loki query failed: ${response.status} ${response.statusText} - ${errorText}`,
+      );
       throw new ServiceUnavailableException(
         `Loki query failed: ${response.status} ${response.statusText} - ${errorText}`,
       );
@@ -300,17 +314,20 @@ export class LogStreamService {
 
     const payload = (await response.json()) as {
       data?: {
-        result?: Array<{
+        result?: {
           stream?: Record<string, string>;
           values?: [string, string][];
-        }>;
+        }[];
       };
     };
 
-    console.log(`[LogStreamService] Loki response: ${JSON.stringify({ 
-      resultCount: payload.data?.result?.length ?? 0,
-      totalValues: payload.data?.result?.reduce((sum, r) => sum + (r.values?.length ?? 0), 0) ?? 0
-    })}`);
+    console.log(
+      `[LogStreamService] Loki response: ${JSON.stringify({
+        resultCount: payload.data?.result?.length ?? 0,
+        totalValues:
+          payload.data?.result?.reduce((sum, r) => sum + (r.values?.length ?? 0), 0) ?? 0,
+      })}`,
+    );
 
     const entries: LokiEntry[] = [];
     const results = payload.data?.result ?? [];
@@ -371,8 +388,8 @@ export class LogStreamService {
   }
 
   private buildSelector(labels: Record<string, string>): string {
-    const parts = Object.entries(labels).map(([key, value]) =>
-      `${key}="${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`,
+    const parts = Object.entries(labels).map(
+      ([key, value]) => `${key}="${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`,
     );
     return `{${parts.join(',')}}`;
   }
@@ -382,8 +399,9 @@ export class LogStreamService {
       return {};
     }
 
-    const entries = Object.entries(input as Record<string, unknown>)
-      .filter(([, value]) => typeof value === 'string') as Array<[string, string]>;
+    const entries = Object.entries(input as Record<string, unknown>).filter(
+      ([, value]) => typeof value === 'string',
+    ) as [string, string][];
 
     return Object.fromEntries(entries);
   }

@@ -25,16 +25,19 @@ const inputSchema = inputs({
 });
 
 const parameterSchema = parameters({
-  type: param(z.enum(['ip', 'domain', 'file', 'url']).default('ip').describe('The type of indicator.'), {
-    label: 'Indicator Type',
-    editor: 'select',
-    options: [
-      { label: 'IP Address', value: 'ip' },
-      { label: 'Domain', value: 'domain' },
-      { label: 'File Hash (MD5/SHA1/SHA256)', value: 'file' },
-      { label: 'URL', value: 'url' },
-    ],
-  }),
+  type: param(
+    z.enum(['ip', 'domain', 'file', 'url']).default('ip').describe('The type of indicator.'),
+    {
+      label: 'Indicator Type',
+      editor: 'select',
+      options: [
+        { label: 'IP Address', value: 'ip' },
+        { label: 'Domain', value: 'domain' },
+        { label: 'File Hash (MD5/SHA1/SHA256)', value: 'file' },
+        { label: 'URL', value: 'url' },
+      ],
+    },
+  ),
 });
 
 const outputSchema = outputs({
@@ -63,18 +66,13 @@ const outputSchema = outputs({
   ),
 });
 
-
 // Retry policy for VirusTotal API - handles rate limits and transient failures
 const virusTotalRetryPolicy: ComponentRetryPolicy = {
   maxAttempts: 4,
   initialIntervalSeconds: 2,
   maximumIntervalSeconds: 120,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'AuthenticationError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['AuthenticationError', 'ValidationError', 'ConfigurationError'],
 };
 
 const definition = defineComponent({
@@ -90,7 +88,7 @@ const definition = defineComponent({
   ui: {
     slug: 'virustotal-lookup',
     version: '1.0.0',
-    type: 'scan', 
+    type: 'scan',
     category: 'security',
     description: 'Get threat intelligence reports for IOCs from VirusTotal.',
     icon: 'Shield', // We can update this if there's a better one, or generic Shield
@@ -114,7 +112,7 @@ const definition = defineComponent({
     }
 
     let endpoint = '';
-    
+
     // API v3 Base URL
     const baseUrl = 'https://www.virustotal.com/api/v3';
 
@@ -129,25 +127,30 @@ const definition = defineComponent({
       case 'file':
         endpoint = `${baseUrl}/files/${indicator}`;
         break;
-      case 'url':
+      case 'url': {
         // URL endpoints usually require the URL to be base64 encoded without padding
-        const b64Url = Buffer.from(indicator).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+        const b64Url = Buffer.from(indicator)
+          .toString('base64')
+          .replace(/=/g, '')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_');
         endpoint = `${baseUrl}/urls/${b64Url}`;
         break;
+      }
     }
 
     context.logger.info(`[VirusTotal] Checking ${type}: ${indicator}`);
 
-    // If type is URL, we might need to "scan" it first if it hasn't been seen, 
-    // but typically "lookup" implies retrieving existing info. 
+    // If type is URL, we might need to "scan" it first if it hasn't been seen,
+    // but typically "lookup" implies retrieving existing info.
     // The GET endpoint retrieves the last analysis.
 
     const response = await context.http.fetch(endpoint, {
       method: 'GET',
       headers: {
         'x-apikey': apiKey,
-        'Accept': 'application/json'
-      }
+        Accept: 'application/json',
+      },
     });
 
     if (response.status === 404) {
@@ -159,16 +162,16 @@ const definition = defineComponent({
         suspicious: 0,
         harmless: 0,
         tags: [],
-        full_report: { error: 'Not Found in VirusTotal' }
+        full_report: { error: 'Not Found in VirusTotal' },
       };
     }
 
     if (!response.ok) {
-       const text = await response.text();
-       throw fromHttpResponse(response, text);
+      const text = await response.text();
+      throw fromHttpResponse(response, text);
     }
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     const attrs = data.data?.attributes || {};
     const stats = attrs.last_analysis_stats || {};
 
@@ -178,7 +181,9 @@ const definition = defineComponent({
     const tags = attrs.tags || [];
     const reputation = attrs.reputation || 0;
 
-    context.logger.info(`[VirusTotal] Results for ${indicator}: ${malicious} malicious, ${suspicious} suspicious.`);
+    context.logger.info(
+      `[VirusTotal] Results for ${indicator}: ${malicious} malicious, ${suspicious} suspicious.`,
+    );
 
     return {
       malicious,

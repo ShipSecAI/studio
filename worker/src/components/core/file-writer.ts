@@ -17,7 +17,8 @@ const contentFormatSchema = z.enum(['text', 'json', 'base64']);
 
 const inputSchema = inputs({
   content: port(
-    z.any()
+    z
+      .any()
       .optional()
       .describe('Payload to store. Accepts strings, JSON objects, arrays, or base64 text.'),
     {
@@ -48,14 +49,11 @@ const parameterSchema = parameters({
       description: 'Name for the generated artifact.',
     },
   ),
-  mimeType: param(
-    z.string().default('text/plain').describe('MIME type for the stored file.'),
-    {
-      label: 'MIME Type',
-      editor: 'text',
-      description: 'Content MIME type (text/plain, application/json, etc).',
-    },
-  ),
+  mimeType: param(z.string().default('text/plain').describe('MIME type for the stored file.'), {
+    label: 'MIME Type',
+    editor: 'text',
+    description: 'Content MIME type (text/plain, application/json, etc).',
+  }),
   contentFormat: param(
     contentFormatSchema
       .default('text')
@@ -159,8 +157,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs:
-    'Persists structured or binary output to the Artifact Library and/or S3. Use it to promote scanner reports, JSON payloads, or logs into durable storage.',
+  docs: 'Persists structured or binary output to the Artifact Library and/or S3. Use it to promote scanner reports, JSON payloads, or logs into durable storage.',
   ui: {
     slug: 'file-writer',
     version: '1.0.0',
@@ -175,9 +172,12 @@ const definition = defineComponent({
   },
   async execute({ inputs, params }, context) {
     if (inputs.content === undefined || inputs.content === null) {
-      throw new ValidationError('No content provided. Connect an upstream node or set the Content input.', {
-        fieldErrors: { content: ['Content is required'] },
-      });
+      throw new ValidationError(
+        'No content provided. Connect an upstream node or set the Content input.',
+        {
+          fieldErrors: { content: ['Content is required'] },
+        },
+      );
     }
 
     const buffer = buildBufferFromContent(inputs.content, params.contentFormat);

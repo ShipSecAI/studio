@@ -49,13 +49,13 @@ export class KafkaLogAdapter implements WorkflowLogSink {
 
     // Chunk message if it's too large to prevent Kafka/Loki size limit errors.
     const messages: string[] = [];
-    
+
     if (entry.message.length <= LOG_CHUNK_SIZE_CHARS) {
       messages.push(entry.message);
     } else {
       const totalChars = entry.message.length;
       const totalChunks = Math.ceil(totalChars / LOG_CHUNK_SIZE_CHARS);
-      
+
       for (let i = 0; i < totalChunks; i++) {
         const start = i * LOG_CHUNK_SIZE_CHARS;
         const chunk = entry.message.substring(start, start + LOG_CHUNK_SIZE_CHARS);
@@ -68,7 +68,7 @@ export class KafkaLogAdapter implements WorkflowLogSink {
 
     try {
       await this.connectPromise;
-      
+
       // Send all chunks
       for (const msg of messages) {
         const payload: SerializedLogEntry = {

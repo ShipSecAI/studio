@@ -8,12 +8,12 @@ const mockContext: ExecutionContext = {
   runId: 'test-run',
   componentRef: 'test-node',
   logger: {
-    info: () => { },
-    warn: () => { },
-    error: () => { },
-    debug: () => { },
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
   },
-  emitProgress: () => { },
+  emitProgress: () => {},
   metadata: {
     runId: 'test-run',
     componentRef: 'test-node',
@@ -24,7 +24,6 @@ const mockContext: ExecutionContext = {
   },
 };
 
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -32,14 +31,17 @@ afterEach(() => {
 describe('Logic/Script Component', () => {
   it('executes simple JavaScript math', async () => {
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue({ sum: 3 });
-    const result = await definition.execute({
-      inputs: {},
-      params: {
-        code: 'export async function script() { return { sum: 1 + 2 }; }',
-        variables: [],
-        returns: [{ name: 'sum', type: 'number' }],
+    const result = await definition.execute(
+      {
+        inputs: {},
+        params: {
+          code: 'export async function script() { return { sum: 1 + 2 }; }',
+          variables: [],
+          returns: [{ name: 'sum', type: 'number' }],
+        },
       },
-    }, mockContext);
+      mockContext,
+    );
 
     expect(result).toEqual({ sum: 3 });
   });
@@ -57,27 +59,31 @@ describe('Logic/Script Component', () => {
       }
     `;
 
-    const result = await definition.execute({
-      inputs: {},
-      params: {
-        code: tsCode,
-        variables: [],
-        returns: [{ name: 'msg', type: 'string' }],
+    const result = await definition.execute(
+      {
+        inputs: {},
+        params: {
+          code: tsCode,
+          variables: [],
+          returns: [{ name: 'msg', type: 'string' }],
+        },
       },
-    }, mockContext);
+      mockContext,
+    );
 
     expect(result).toEqual({ msg: 'Value is 10' });
   });
 
   it('accepts input variables and returns outputs', async () => {
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue({ diff: 6, product: 40 });
-    const result = await definition.execute({
-      inputs: {
-        x: 10,
-        y: 4,
-      },
-      params: {
-        code: `
+    const result = await definition.execute(
+      {
+        inputs: {
+          x: 10,
+          y: 4,
+        },
+        params: {
+          code: `
           export async function script(input) {
             return {
               diff: input.x - input.y,
@@ -85,16 +91,18 @@ describe('Logic/Script Component', () => {
             };
           }
         `,
-        variables: [
-          { name: 'x', type: 'number' },
-          { name: 'y', type: 'number' },
-        ],
-        returns: [
-          { name: 'diff', type: 'number' },
-          { name: 'product', type: 'number' },
-        ],
-      },
-    } as any, mockContext);
+          variables: [
+            { name: 'x', type: 'number' },
+            { name: 'y', type: 'number' },
+          ],
+          returns: [
+            { name: 'diff', type: 'number' },
+            { name: 'product', type: 'number' },
+          ],
+        },
+      } as any,
+      mockContext,
+    );
 
     expect(result).toEqual({ diff: 6, product: 40 });
   });
@@ -108,14 +116,17 @@ describe('Logic/Script Component', () => {
       }
     `;
 
-    const result = await definition.execute({
-      inputs: {},
-      params: {
-        code,
-        variables: [],
-        returns: [{ name: 'status', type: 'number' }],
+    const result = await definition.execute(
+      {
+        inputs: {},
+        params: {
+          code,
+          variables: [],
+          returns: [{ name: 'status', type: 'number' }],
+        },
       },
-    }, mockContext);
+      mockContext,
+    );
 
     expect(result.status).toBe(200);
   });
@@ -139,5 +150,4 @@ describe('Logic/Script Component', () => {
     expect(outputPorts[0].id).toBe('out1');
     expect(outputPorts[0].connectionType).toEqual({ kind: 'primitive', name: 'boolean' });
   });
-
 });

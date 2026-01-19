@@ -10,18 +10,18 @@ describe('Nuclei Component', () => {
 
   beforeEach(() => {
     // Get the registered component
-    nucleiComponent = componentRegistry.get('shipsec.nuclei.scan');
+    nucleiComponent = componentRegistry.get<NucleiInput, NucleiOutput>('shipsec.nuclei.scan');
 
     // Mock execution context
     mockContext = {
       runId: 'test-run-123',
       componentRef: 'node-1',
       logger: {
-        info: mock(() => { }),
-        error: mock(() => { }),
-        warn: mock(() => { }),
+        info: mock(() => {}),
+        error: mock(() => {}),
+        warn: mock(() => {}),
       },
-      emitProgress: mock(() => { }),
+      emitProgress: mock(() => {}),
       metadata: {
         runId: 'test-run-123',
         componentRef: 'node-1',
@@ -104,6 +104,7 @@ describe('Nuclei Component', () => {
       const parsedInputs = nucleiComponent.inputs.parse(input);
       const parsedParams = nucleiComponent.parameters.parse(params);
 
+      expect(parsedInputs.targets).toEqual(['https://example.com']);
       expect(parsedParams.rateLimit).toBe(150);
       expect(parsedParams.concurrency).toBe(25);
       expect(parsedParams.timeout).toBe(10);
@@ -334,7 +335,6 @@ not-valid-json
     });
 
     test('should return zeros for missing stats', () => {
-      const stderr = '';
       const stats = {
         templatesLoaded: 0,
         requestsSent: 0,
@@ -400,7 +400,7 @@ describe('Nuclei Security Validations', () => {
 
 describe('Nuclei Integration', () => {
   test('should be registered in component registry', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan')!;
+    const component = componentRegistry.get<NucleiInput, NucleiOutput>('shipsec.nuclei.scan')!;
     expect(component).toBeDefined();
     expect(component.id).toBe('shipsec.nuclei.scan');
     expect(component.label).toBe('Nuclei Vulnerability Scanner');
@@ -408,7 +408,7 @@ describe('Nuclei Integration', () => {
   });
 
   test('should have correct metadata', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan')!;
+    const component = componentRegistry.get<NucleiInput, NucleiOutput>('shipsec.nuclei.scan')!;
     expect(component.ui!.slug).toBe('nuclei');
     expect(component.ui!.version).toBe('1.0.0');
     expect(component.ui!.type).toBe('scan');
@@ -421,7 +421,6 @@ describe('Nuclei Integration', () => {
     if (component!.runner.kind === 'docker') {
       expect(component!.runner.image).toBe('ghcr.io/shipsecai/nuclei:latest');
       expect(component!.runner.entrypoint).toBe('nuclei');
-
     }
   });
 

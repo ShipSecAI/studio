@@ -1,49 +1,68 @@
-import * as LucideIcons from 'lucide-react'
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { X, ExternalLink, Loader2, Trash2, ChevronDown, ChevronRight, Circle, CheckCircle2, AlertCircle, Pencil, Check, Globe } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { MarkdownView } from '@/components/ui/markdown'
+import * as LucideIcons from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  X,
+  ExternalLink,
+  Loader2,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  CheckCircle2,
+  AlertCircle,
+  Pencil,
+  Check,
+  Globe,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { MarkdownView } from '@/components/ui/markdown';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
-import { useComponentStore } from '@/store/componentStore'
-import { ParameterFieldWrapper } from './ParameterField'
-import { WebhookDetails } from './WebhookDetails'
-import { SecretSelect } from '@/components/inputs/SecretSelect'
-import type { Node } from 'reactflow'
-import type { FrontendNodeData } from '@/schemas/node'
-import type { ComponentType, KeyboardEvent } from 'react'
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { useComponentStore } from '@/store/componentStore';
+import { ParameterFieldWrapper } from './ParameterField';
+import { WebhookDetails } from './WebhookDetails';
+import { SecretSelect } from '@/components/inputs/SecretSelect';
+import type { Node } from 'reactflow';
+import type { FrontendNodeData } from '@/schemas/node';
+import type { ComponentType, KeyboardEvent } from 'react';
 import {
   describePortType,
   inputSupportsManualValue,
   isListOfTextPort,
   resolvePortType,
-} from '@/utils/portUtils'
-import { API_BASE_URL, api } from '@/services/api'
-import { useWorkflowStore } from '@/store/workflowStore'
-import { useApiKeyStore } from '@/store/apiKeyStore'
-import type { WorkflowSchedule } from '@shipsec/shared'
-import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/WorkflowSchedulesContext'
+} from '@/utils/portUtils';
+import { API_BASE_URL, api } from '@/services/api';
+import { useWorkflowStore } from '@/store/workflowStore';
+import { useApiKeyStore } from '@/store/apiKeyStore';
+import type { WorkflowSchedule } from '@shipsec/shared';
+import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
+import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
 
-const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
+const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
 
 interface CollapsibleSectionProps {
-  title: string
-  count?: number
-  defaultOpen?: boolean
-  children: React.ReactNode
+  title: string;
+  count?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
 }
 
-function CollapsibleSection({ title, count, defaultOpen = true, children }: CollapsibleSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+function CollapsibleSection({
+  title,
+  count,
+  defaultOpen = true,
+  children,
+}: CollapsibleSectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
     <div className="rounded-lg border overflow-hidden">
@@ -61,119 +80,95 @@ function CollapsibleSection({ title, count, defaultOpen = true, children }: Coll
           <span className="text-sm font-medium">{title}</span>
         </div>
         {count !== undefined && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            {count}
+          </Badge>
         )}
       </button>
-      {isOpen && (
-        <div className="px-3 pb-3 pt-2 border-t">
-          {children}
-        </div>
-      )}
+      {isOpen && <div className="px-3 pb-3 pt-2 border-t">{children}</div>}
     </div>
-  )
+  );
 }
 
 interface ConfigPanelProps {
-  selectedNode: Node<FrontendNodeData> | null
-  onClose: () => void
-  onUpdateNode?: (id: string, data: Partial<FrontendNodeData>) => void
-  initialWidth?: number
-  onWidthChange?: (width: number) => void
-  workflowId?: string | null
-  workflowSchedules?: WorkflowSchedule[]
-  schedulesLoading?: boolean
-  scheduleError?: string | null
-  onScheduleCreate?: () => void
-  onScheduleEdit?: (schedule: WorkflowSchedule) => void
-  onScheduleAction?: (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => Promise<void> | void
-  onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void
-  onViewSchedules?: () => void
+  selectedNode: Node<FrontendNodeData> | null;
+  onClose: () => void;
+  onUpdateNode?: (id: string, data: Partial<FrontendNodeData>) => void;
+  initialWidth?: number;
+  onWidthChange?: (width: number) => void;
+  workflowId?: string | null;
+  workflowSchedules?: WorkflowSchedule[];
+  schedulesLoading?: boolean;
+  scheduleError?: string | null;
+  onScheduleCreate?: () => void;
+  onScheduleEdit?: (schedule: WorkflowSchedule) => void;
+  onScheduleAction?: (
+    schedule: WorkflowSchedule,
+    action: 'pause' | 'resume' | 'run',
+  ) => Promise<void> | void;
+  onScheduleDelete?: (schedule: WorkflowSchedule) => Promise<void> | void;
+  onViewSchedules?: () => void;
 }
 
-const MIN_PANEL_WIDTH = 280
-const MAX_PANEL_WIDTH = 600
-const DEFAULT_PANEL_WIDTH = 432
+const MIN_PANEL_WIDTH = 280;
+const MAX_PANEL_WIDTH = 600;
+const DEFAULT_PANEL_WIDTH = 432;
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  )
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
+  );
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint)
-    }
+      setIsMobile(window.innerWidth < breakpoint);
+    };
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [breakpoint])
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [breakpoint]);
 
-  return isMobile
+  return isMobile;
 }
 
 const buildSampleValueForRuntimeInput = (type?: string, id?: string) => {
   switch (type) {
     case 'number':
-      return 0
+      return 0;
     case 'json':
-      return { example: true }
+      return { example: true };
     case 'array':
-      return ['value-1']
+      return ['value-1'];
     case 'file':
-      return 'upload-file-id'
+      return 'upload-file-id';
     case 'text':
     default:
-      return id ? `${id}-value` : 'value'
+      return id ? `${id}-value` : 'value';
   }
-}
+};
 
 const normalizeRuntimeInputs = (value: unknown) => {
   if (Array.isArray(value)) {
-    return value
+    return value;
   }
   if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return []
+      return [];
     }
   }
-  return []
-}
-
-const formatScheduleTimestamp = (value?: string | null) => {
-  if (!value) return 'Not scheduled'
-  try {
-    const date = new Date(value)
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      timeZoneName: 'short',
-    }).format(date)
-  } catch {
-    return value
-  }
-}
-
-const scheduleStatusVariant: Record<
-  WorkflowSchedule['status'],
-  'default' | 'secondary' | 'destructive'
-> = {
-  active: 'default',
-  paused: 'secondary',
-  error: 'destructive',
-}
+  return [];
+};
 
 interface ManualListChipsInputProps {
-  inputId: string
-  manualValue: unknown
-  disabled: boolean
-  placeholder: string
-  onChange: (value: string[] | undefined) => void
+  inputId: string;
+  manualValue: unknown;
+  disabled: boolean;
+  placeholder: string;
+  onChange: (value: string[] | undefined) => void;
 }
 
 function ManualListChipsInput({
@@ -185,44 +180,44 @@ function ManualListChipsInput({
 }: ManualListChipsInputProps) {
   const listItems = Array.isArray(manualValue)
     ? manualValue.filter((item): item is string => typeof item === 'string')
-    : []
-  const [draftValue, setDraftValue] = useState('')
+    : [];
+  const [draftValue, setDraftValue] = useState('');
 
   useEffect(() => {
-    setDraftValue('')
-  }, [manualValue])
+    setDraftValue('');
+  }, [manualValue]);
 
   const handleAdd = () => {
-    const nextValue = draftValue.trim()
+    const nextValue = draftValue.trim();
     if (!nextValue) {
-      return
+      return;
     }
-    onChange([...listItems, nextValue])
-    setDraftValue('')
-  }
+    onChange([...listItems, nextValue]);
+    setDraftValue('');
+  };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
-      event.preventDefault()
+      event.preventDefault();
       if (!disabled) {
-        handleAdd()
+        handleAdd();
       }
     }
-  }
+  };
 
   const handleRemove = (index: number) => {
-    if (disabled) return
-    const remaining = [...listItems]
-    remaining.splice(index, 1)
-    onChange(remaining.length > 0 ? remaining : undefined)
-  }
+    if (disabled) return;
+    const remaining = [...listItems];
+    remaining.splice(index, 1);
+    onChange(remaining.length > 0 ? remaining : undefined);
+  };
 
   const handleClear = () => {
-    if (disabled) return
-    onChange(undefined)
-  }
+    if (disabled) return;
+    onChange(undefined);
+  };
 
-  const canAdd = draftValue.trim().length > 0
+  const canAdd = draftValue.trim().length > 0;
 
   return (
     <div className="space-y-2">
@@ -251,11 +246,7 @@ function ManualListChipsInput({
       {listItems.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {listItems.map((item, index) => (
-            <Badge
-              key={`${inputId}-chip-${index}`}
-              variant="outline"
-              className="gap-1 pr-1"
-            >
+            <Badge key={`${inputId}-chip-${index}`} variant="outline" className="gap-1 pr-1">
               <span className="max-w-[160px] truncate">{item}</span>
               {!disabled && (
                 <button
@@ -283,7 +274,7 @@ function ManualListChipsInput({
         </Button>
       )}
     </div>
-  )
+  );
 }
 
 /**
@@ -307,80 +298,84 @@ export function ConfigPanel({
   onScheduleDelete,
   onViewSchedules,
 }: ConfigPanelProps) {
-  const isMobile = useIsMobile()
-  const { getComponent, loading } = useComponentStore()
-  const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id)
-  const workflowId = workflowIdProp ?? fallbackWorkflowId
-  const navigate = useNavigate()
-  const schedulesContext = useOptionalWorkflowSchedulesContext()
+  const isMobile = useIsMobile();
+  const { getComponent, loading } = useComponentStore();
+  const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id);
+  const workflowId = workflowIdProp ?? fallbackWorkflowId;
+  const navigate = useNavigate();
+  const schedulesContext = useOptionalWorkflowSchedulesContext();
 
   // Get API key for curl command
 
-  const lastCreatedKey = useApiKeyStore((state) => state.lastCreatedKey)
-  const fetchApiKeys = useApiKeyStore((state) => state.fetchApiKeys)
+  const lastCreatedKey = useApiKeyStore((state) => state.lastCreatedKey);
+  const fetchApiKeys = useApiKeyStore((state) => state.fetchApiKeys);
 
   // Fetch API keys on mount if not already loaded
   useEffect(() => {
-    fetchApiKeys().catch(console.error)
-  }, [fetchApiKeys])
+    fetchApiKeys().catch(console.error);
+  }, [fetchApiKeys]);
 
   // Use lastCreatedKey (full key) if available, otherwise null (will show placeholder)
-  const activeApiKey = lastCreatedKey || null
+  const activeApiKey = lastCreatedKey || null;
 
-  const [panelWidth, setPanelWidth] = useState(initialWidth)
-  const isResizing = useRef(false)
-  const resizeRef = useRef<HTMLDivElement>(null)
+  const [panelWidth, setPanelWidth] = useState(initialWidth);
+  const isResizing = useRef(false);
+  const resizeRef = useRef<HTMLDivElement>(null);
 
   // Actual width to use - full width on mobile
-  const effectiveWidth = isMobile ? '100%' : panelWidth
+  const effectiveWidth = isMobile ? '100%' : panelWidth;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Disable resizing on mobile
-    if (isMobile) return
-    e.preventDefault()
-    isResizing.current = true
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }, [isMobile])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Disable resizing on mobile
+      if (isMobile) return;
+      e.preventDefault();
+      isResizing.current = true;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [isMobile],
+  );
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing.current) return
-      const newWidth = window.innerWidth - e.clientX
-      const clampedWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, newWidth))
-      setPanelWidth(clampedWidth)
-      onWidthChange?.(clampedWidth)
-    }
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      const clampedWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, newWidth));
+      setPanelWidth(clampedWidth);
+      onWidthChange?.(clampedWidth);
+    };
 
     const handleMouseUp = () => {
-      isResizing.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
 
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [onWidthChange])
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [onWidthChange]);
 
   const handleParamValueChange = (paramId: string, value: any) => {
-    if (!selectedNode || !onUpdateNode) return
+    if (!selectedNode || !onUpdateNode) return;
 
-    const nodeData: FrontendNodeData = selectedNode.data
-    const config = nodeData.config || { params: {}, inputOverrides: {} }
+    const nodeData: FrontendNodeData = selectedNode.data;
+    const config = nodeData.config || { params: {}, inputOverrides: {} };
 
-    const updatedParams = {
+    let updatedParams = {
       ...(config.params ?? {}),
-    }
+    };
 
     if (value === undefined) {
-      delete updatedParams[paramId]
+      const { [paramId]: _removed, ...rest } = updatedParams;
+      updatedParams = rest;
     } else {
-      updatedParams[paramId] = value
+      updatedParams[paramId] = value;
     }
 
     onUpdateNode(selectedNode.id, {
@@ -388,23 +383,24 @@ export function ConfigPanel({
         ...config,
         params: updatedParams,
       },
-    })
-  }
+    });
+  };
 
   const handleInputOverrideChange = (inputId: string, value: any) => {
-    if (!selectedNode || !onUpdateNode) return
+    if (!selectedNode || !onUpdateNode) return;
 
-    const nodeData: FrontendNodeData = selectedNode.data
-    const config = nodeData.config || { params: {}, inputOverrides: {} }
+    const nodeData: FrontendNodeData = selectedNode.data;
+    const config = nodeData.config || { params: {}, inputOverrides: {} };
 
-    const updatedOverrides = {
+    let updatedOverrides = {
       ...(config.inputOverrides ?? {}),
-    }
+    };
 
     if (value === undefined) {
-      delete updatedOverrides[inputId]
+      const { [inputId]: _removed, ...rest } = updatedOverrides;
+      updatedOverrides = rest;
     } else {
-      updatedOverrides[inputId] = value
+      updatedOverrides[inputId] = value;
     }
 
     onUpdateNode(selectedNode.id, {
@@ -412,21 +408,24 @@ export function ConfigPanel({
         ...config,
         inputOverrides: updatedOverrides,
       },
-    })
-  }
+    });
+  };
 
   if (!selectedNode) {
-    return null
+    return null;
   }
 
-  const nodeData: FrontendNodeData = selectedNode.data
-  const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug
-  const component = getComponent(componentRef)
+  const nodeData: FrontendNodeData = selectedNode.data;
+  const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug;
+  const component = getComponent(componentRef);
 
   if (!component) {
     if (loading) {
       return (
-        <div className="config-panel border-l bg-background flex flex-col h-full relative" style={{ width: effectiveWidth }}>
+        <div
+          className="config-panel border-l bg-background flex flex-col h-full relative"
+          style={{ width: effectiveWidth }}
+        >
           {/* Resize handle - hidden on mobile */}
           {!isMobile && (
             <div
@@ -437,20 +436,26 @@ export function ConfigPanel({
           )}
           <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
             <h3 className="font-medium text-sm">Configuration</h3>
-            <Button variant="ghost" size="icon" className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted" onClick={onClose}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted"
+              onClick={onClose}
+            >
               <X className="h-5 w-5 md:h-4 md:w-4" />
             </Button>
           </div>
           <div className="flex-1 flex items-center justify-center p-6">
-            <div className="text-sm text-muted-foreground animate-pulse">
-              Loading…
-            </div>
+            <div className="text-sm text-muted-foreground animate-pulse">Loading…</div>
           </div>
         </div>
-      )
+      );
     }
     return (
-      <div className="config-panel border-l bg-background flex flex-col h-full relative" style={{ width: effectiveWidth }}>
+      <div
+        className="config-panel border-l bg-background flex flex-col h-full relative"
+        style={{ width: effectiveWidth }}
+      >
         {/* Resize handle - hidden on mobile */}
         {!isMobile && (
           <div
@@ -461,7 +466,12 @@ export function ConfigPanel({
         )}
         <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
           <h3 className="font-medium text-sm">Configuration</h3>
-          <Button variant="ghost" size="icon" className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted"
+            onClick={onClose}
+          >
             <X className="h-5 w-5 md:h-4 md:w-4" />
           </Button>
         </div>
@@ -471,152 +481,160 @@ export function ConfigPanel({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box'
-  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{ className?: string }>
+  const iconName = component.icon && component.icon in LucideIcons ? component.icon : 'Box';
+  const IconComponent = LucideIcons[iconName as keyof typeof LucideIcons] as ComponentType<{
+    className?: string;
+  }>;
 
-  const manualParameters = (nodeData.config?.params ?? {}) as Record<string, unknown>
-  const inputOverrides = (nodeData.config?.inputOverrides ?? {}) as Record<string, unknown>
+  const manualParameters = (nodeData.config?.params ?? {}) as Record<string, unknown>;
+  const inputOverrides = (nodeData.config?.inputOverrides ?? {}) as Record<string, unknown>;
 
   // Dynamic Ports Resolution
-  const [dynamicInputs, setDynamicInputs] = useState<any[] | null>(null)
-  const [dynamicOutputs, setDynamicOutputs] = useState<any[] | null>(null)
+  const [dynamicInputs, setDynamicInputs] = useState<any[] | null>(null);
+  const [dynamicOutputs, setDynamicOutputs] = useState<any[] | null>(null);
 
   // Node name editing state
-  const [isEditingNodeName, setIsEditingNodeName] = useState(false)
-  const [editingNodeName, setEditingNodeName] = useState('')
+  const [isEditingNodeName, setIsEditingNodeName] = useState(false);
+  const [editingNodeName, setEditingNodeName] = useState('');
 
   const handleSaveNodeName = useCallback(() => {
-    const trimmedName = editingNodeName.trim()
+    const trimmedName = editingNodeName.trim();
     if (trimmedName && trimmedName !== nodeData.label) {
-      onUpdateNode?.(selectedNode.id, { label: trimmedName })
+      onUpdateNode?.(selectedNode.id, { label: trimmedName });
     }
-    setIsEditingNodeName(false)
-  }, [editingNodeName, nodeData.label, onUpdateNode, selectedNode.id])
+    setIsEditingNodeName(false);
+  }, [editingNodeName, nodeData.label, onUpdateNode, selectedNode.id]);
 
   // Debounce ref
-  const assertPortResolution = useRef<NodeJS.Timeout | null>(null)
+  const assertPortResolution = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // If component doesn't have resolvePorts capability, skip
     // We assume all might have it for now, or check metadata if available
 
     // reset if component changes
-    if (!component) return
+    if (!component) return;
 
     // Debounce the API call
     if (assertPortResolution.current) {
-      clearTimeout(assertPortResolution.current)
+      clearTimeout(assertPortResolution.current);
     }
 
     assertPortResolution.current = setTimeout(async () => {
       try {
         // Only call if we have parameters
         // combine params and overrides for resolvePorts as it might need both
-        const result = await api.components.resolvePorts(component.id, { ...manualParameters, ...inputOverrides })
+        const result = await api.components.resolvePorts(component.id, {
+          ...manualParameters,
+          ...inputOverrides,
+        });
         if (result) {
           if (result.inputs) {
-            setDynamicInputs(result.inputs)
-            const currentDynamic = selectedNode?.data?.dynamicInputs
+            setDynamicInputs(result.inputs);
+            const currentDynamic = selectedNode?.data?.dynamicInputs;
             if (JSON.stringify(currentDynamic) !== JSON.stringify(result.inputs)) {
-              onUpdateNode?.(selectedNode!.id, { dynamicInputs: result.inputs })
+              onUpdateNode?.(selectedNode!.id, { dynamicInputs: result.inputs });
             }
           }
           if (result.outputs) {
-            setDynamicOutputs(result.outputs)
-            const currentDynamicOutputs = selectedNode?.data?.dynamicOutputs
+            setDynamicOutputs(result.outputs);
+            const currentDynamicOutputs = selectedNode?.data?.dynamicOutputs;
             if (JSON.stringify(currentDynamicOutputs) !== JSON.stringify(result.outputs)) {
-              onUpdateNode?.(selectedNode!.id, { dynamicOutputs: result.outputs })
+              onUpdateNode?.(selectedNode!.id, { dynamicOutputs: result.outputs });
             }
           }
         }
       } catch (e) {
-        console.error('Failed to resolve dynamic ports', e)
+        console.error('Failed to resolve dynamic ports', e);
       }
-    }, 500) // 500ms debounce
+    }, 500); // 500ms debounce
 
     return () => {
       if (assertPortResolution.current) {
-        clearTimeout(assertPortResolution.current)
+        clearTimeout(assertPortResolution.current);
       }
-    }
-  }, [component?.id, JSON.stringify(manualParameters), JSON.stringify(inputOverrides)]) // Deep compare parameters and overrides
+    };
+  }, [component?.id, JSON.stringify(manualParameters), JSON.stringify(inputOverrides)]); // Deep compare parameters and overrides
 
-  const componentInputs = dynamicInputs ?? component.inputs ?? []
-  const componentOutputs = dynamicOutputs ?? component.outputs ?? []
-  const componentParameters = component.parameters ?? []
-  const exampleItems = [
-    component.example,
-    ...(component.examples ?? []),
-  ].filter((value): value is string => Boolean(value && value.trim().length > 0))
-  const [scheduleActionState, setScheduleActionState] = useState<Record<string, 'pause' | 'resume' | 'run'>>({})
+  const componentInputs = dynamicInputs ?? component.inputs ?? [];
+  const componentOutputs = dynamicOutputs ?? component.outputs ?? [];
+  const componentParameters = component.parameters ?? [];
+  const exampleItems = [component.example, ...(component.examples ?? [])].filter(
+    (value): value is string => Boolean(value && value.trim().length > 0),
+  );
+  const [scheduleActionState, setScheduleActionState] = useState<
+    Record<string, 'pause' | 'resume' | 'run'>
+  >({});
   const handleNavigateSchedules = useCallback(() => {
     if (!workflowId) {
-      navigate('/schedules')
-      return
+      navigate('/schedules');
+      return;
     }
-    navigate(`/schedules?workflowId=${workflowId}`)
-  }, [navigate, workflowId])
-  const viewSchedules = onViewSchedules ?? handleNavigateSchedules
-  const schedulesDisabled = !workflowId
+    navigate(`/schedules?workflowId=${workflowId}`);
+  }, [navigate, workflowId]);
+  const viewSchedules = onViewSchedules ?? handleNavigateSchedules;
+  const schedulesDisabled = !workflowId;
   const handleCreateSchedule = useCallback(() => {
     if (schedulesDisabled) {
-      viewSchedules()
-      return
+      viewSchedules();
+      return;
     }
     if (onScheduleCreate) {
-      onScheduleCreate()
+      onScheduleCreate();
     } else {
-      viewSchedules()
+      viewSchedules();
     }
-  }, [onScheduleCreate, schedulesDisabled, viewSchedules])
+  }, [onScheduleCreate, schedulesDisabled, viewSchedules]);
   const handleEditSchedule = useCallback(
     (schedule: WorkflowSchedule) => {
       if (onScheduleEdit) {
-        onScheduleEdit(schedule)
+        onScheduleEdit(schedule);
       } else {
-        viewSchedules()
+        viewSchedules();
       }
     },
     [onScheduleEdit, viewSchedules],
-  )
+  );
   const handleScheduleActionClick = useCallback(
     async (schedule: WorkflowSchedule, action: 'pause' | 'resume' | 'run') => {
       if (!onScheduleAction) {
-        viewSchedules()
-        return
+        viewSchedules();
+        return;
       }
-      setScheduleActionState((state) => ({ ...state, [schedule.id]: action }))
+      setScheduleActionState((state) => ({ ...state, [schedule.id]: action }));
       try {
-        await onScheduleAction(schedule, action)
+        await onScheduleAction(schedule, action);
       } finally {
         setScheduleActionState((state) => {
-          const next = { ...state }
-          delete next[schedule.id]
-          return next
-        })
+          const { [schedule.id]: _removed, ...rest } = state;
+          return rest;
+        });
       }
     },
     [onScheduleAction, viewSchedules],
-  )
-  const isEntryPointComponent = component.id === ENTRY_COMPONENT_ID
-  const runtimeInputDefinitions = normalizeRuntimeInputs(manualParameters.runtimeInputs)
+  );
+  const isEntryPointComponent = component.id === ENTRY_COMPONENT_ID;
+  const runtimeInputDefinitions = normalizeRuntimeInputs(manualParameters.runtimeInputs);
   const entryPointPayload = {
     inputs: runtimeInputDefinitions.reduce<Record<string, unknown>>((acc, input: any) => {
       if (input?.id) {
-        acc[input.id] = buildSampleValueForRuntimeInput(input.type, input.id)
+        acc[input.id] = buildSampleValueForRuntimeInput(input.type, input.id);
       }
-      return acc
+      return acc;
     }, {}),
-  }
+  };
   const workflowInvokeUrl = workflowId
     ? `${API_BASE_URL}/workflows/${workflowId}/run`
-    : `${API_BASE_URL}/workflows/{workflowId}/run`
+    : `${API_BASE_URL}/workflows/{workflowId}/run`;
 
   return (
-    <div className="config-panel border-l bg-background flex flex-col h-full overflow-hidden relative" style={{ width: effectiveWidth }}>
+    <div
+      className="config-panel border-l bg-background flex flex-col h-full overflow-hidden relative"
+      style={{ width: effectiveWidth }}
+    >
       {/* Resize Handle - hidden on mobile */}
       {!isMobile && (
         <div
@@ -628,7 +646,12 @@ export function ConfigPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
         <h3 className="font-medium text-sm">Configuration</h3>
-        <Button variant="ghost" size="icon" className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 md:h-7 md:w-7 hover:bg-muted"
+          onClick={onClose}
+        >
           <X className="h-5 w-5 md:h-4 md:w-4" />
         </Button>
       </div>
@@ -644,15 +667,12 @@ export function ConfigPanel({
                 className="h-6 w-6 object-contain"
                 onError={(e) => {
                   // Fallback to icon if image fails to load
-                  e.currentTarget.style.display = 'none'
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
                 }}
               />
             ) : null}
-            <IconComponent className={cn(
-              "h-6 w-6 text-primary",
-              component.logo && "hidden"
-            )} />
+            <IconComponent className={cn('h-6 w-6 text-primary', component.logo && 'hidden')} />
           </div>
           <div className="flex-1 min-w-0">
             {/* Node Name - editable for non-entry-point nodes */}
@@ -664,10 +684,10 @@ export function ConfigPanel({
                   onChange={(e) => setEditingNodeName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleSaveNodeName()
+                      e.preventDefault();
+                      handleSaveNodeName();
                     } else if (e.key === 'Escape') {
-                      setIsEditingNodeName(false)
+                      setIsEditingNodeName(false);
                     }
                   }}
                   onBlur={handleSaveNodeName}
@@ -686,17 +706,15 @@ export function ConfigPanel({
               </div>
             ) : (
               <div className="flex items-center gap-1 group">
-                <h4 className="font-medium text-sm truncate">
-                  {nodeData.label || component.name}
-                </h4>
+                <h4 className="font-medium text-sm truncate">{nodeData.label || component.name}</h4>
                 {!isEntryPointComponent && (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-5 w-5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => {
-                      setEditingNodeName(nodeData.label || component.name)
-                      setIsEditingNodeName(true)
+                      setEditingNodeName(nodeData.label || component.name);
+                      setIsEditingNodeName(true);
                     }}
                     title="Rename node"
                   >
@@ -707,9 +725,7 @@ export function ConfigPanel({
             )}
             {/* Show component name as subscript if custom name is set */}
             {nodeData.label && nodeData.label !== component.name && (
-              <span className="text-[10px] text-muted-foreground opacity-70">
-                {component.name}
-              </span>
+              <span className="text-[10px] text-muted-foreground opacity-70">{component.name}</span>
             )}
             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
               {component.description}
@@ -726,10 +742,9 @@ export function ConfigPanel({
             <CollapsibleSection title="Documentation" defaultOpen={false}>
               <div className="space-y-0 mt-2">
                 {component.documentationUrl && (
-                  <div className={cn(
-                    "py-3",
-                    component.documentation && "border-b border-border pb-3"
-                  )}>
+                  <div
+                    className={cn('py-3', component.documentation && 'border-b border-border pb-3')}
+                  >
                     <a
                       href={component.documentationUrl}
                       target="_blank"
@@ -756,7 +771,7 @@ export function ConfigPanel({
                         'prose-code:text-xs prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded',
                         'prose-pre:bg-muted prose-pre:text-xs',
                         'prose-ul:text-xs prose-ol:text-xs',
-                        'prose-li:text-muted-foreground'
+                        'prose-li:text-muted-foreground',
                       )}
                     />
                   </div>
@@ -770,35 +785,31 @@ export function ConfigPanel({
             <CollapsibleSection title="Inputs" count={componentInputs.length} defaultOpen={true}>
               <div className="space-y-0 mt-2">
                 {componentInputs.map((input, index) => {
-                  const connection = nodeData.inputs?.[input.id]
-                  const hasConnection = Boolean(connection)
-                  const manualValue = inputOverrides[input.id]
-                  const manualOverridesPort = input.valuePriority === 'manual-first'
-                  const allowsManualInput = inputSupportsManualValue(input) || manualOverridesPort
+                  const connection = nodeData.inputs?.[input.id];
+                  const hasConnection = Boolean(connection);
+                  const manualValue = inputOverrides[input.id];
+                  const manualOverridesPort = input.valuePriority === 'manual-first';
+                  const allowsManualInput = inputSupportsManualValue(input) || manualOverridesPort;
                   const manualValueProvided =
                     allowsManualInput &&
                     (!hasConnection || manualOverridesPort) &&
                     manualValue !== undefined &&
                     manualValue !== null &&
-                    (typeof manualValue === 'string'
-                      ? manualValue.trim().length > 0
-                      : true)
-                  const manualLocked = hasConnection && !manualOverridesPort
-                  const portType = resolvePortType(input)
-                  const primitiveName =
-                    portType?.kind === 'primitive' ? portType.name : null
-                  const isNumberInput = primitiveName === 'number'
-                  const isBooleanInput = primitiveName === 'boolean'
-                  const isListOfTextInput = isListOfTextPort(portType)
+                    (typeof manualValue === 'string' ? manualValue.trim().length > 0 : true);
+                  const manualLocked = hasConnection && !manualOverridesPort;
+                  const portType = resolvePortType(input);
+                  const primitiveName = portType?.kind === 'primitive' ? portType.name : null;
+                  const isNumberInput = primitiveName === 'number';
+                  const isBooleanInput = primitiveName === 'boolean';
+                  const isListOfTextInput = isListOfTextPort(portType);
                   const manualInputValue =
                     manualValue === undefined || manualValue === null
                       ? ''
                       : typeof manualValue === 'string'
                         ? manualValue
-                        : String(manualValue)
-                  const isSecretInput =
-                    input.editor === 'secret' || primitiveName === 'secret'
-                  const useSecretSelect = isSecretInput
+                        : String(manualValue);
+                  const isSecretInput = input.editor === 'secret' || primitiveName === 'secret';
+                  const useSecretSelect = isSecretInput;
                   const manualPlaceholder = useSecretSelect
                     ? 'Select a secret...'
                     : input.id === 'supabaseUrl'
@@ -807,16 +818,13 @@ export function ConfigPanel({
                         ? 'Enter a number to use without a connection'
                         : isListOfTextInput
                           ? 'Add entries or press Add to provide a list'
-                          : 'Enter text to use without a connection'
-                  const typeLabel = describePortType(portType)
+                          : 'Enter text to use without a connection';
+                  const typeLabel = describePortType(portType);
 
                   return (
                     <div
                       key={input.id}
-                      className={cn(
-                        "py-3",
-                        index > 0 && "border-t border-border"
-                      )}
+                      className={cn('py-3', index > 0 && 'border-t border-border')}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-1.5">
@@ -848,9 +856,9 @@ export function ConfigPanel({
                               value={typeof manualValue === 'string' ? manualValue : ''}
                               onChange={(value) => {
                                 if (value === '') {
-                                  handleInputOverrideChange(input.id, undefined)
+                                  handleInputOverrideChange(input.id, undefined);
                                 } else {
-                                  handleInputOverrideChange(input.id, value)
+                                  handleInputOverrideChange(input.id, value);
                                 }
                               }}
                               placeholder={manualPlaceholder}
@@ -870,9 +878,9 @@ export function ConfigPanel({
                                 }
                                 onValueChange={(value) => {
                                   if (value === 'true') {
-                                    handleInputOverrideChange(input.id, true)
+                                    handleInputOverrideChange(input.id, true);
                                   } else if (value === 'false') {
-                                    handleInputOverrideChange(input.id, false)
+                                    handleInputOverrideChange(input.id, false);
                                   }
                                 }}
                                 disabled={manualLocked}
@@ -911,19 +919,19 @@ export function ConfigPanel({
                               type={isNumberInput ? 'number' : 'text'}
                               value={manualInputValue}
                               onChange={(e) => {
-                                const nextValue = e.target.value
+                                const nextValue = e.target.value;
                                 if (nextValue === '') {
-                                  handleInputOverrideChange(input.id, undefined)
-                                  return
+                                  handleInputOverrideChange(input.id, undefined);
+                                  return;
                                 }
                                 if (isNumberInput) {
-                                  const parsed = Number(nextValue)
+                                  const parsed = Number(nextValue);
                                   if (Number.isNaN(parsed)) {
-                                    return
+                                    return;
                                   }
-                                  handleInputOverrideChange(input.id, parsed)
+                                  handleInputOverrideChange(input.id, parsed);
                                 } else {
-                                  handleInputOverrideChange(input.id, nextValue)
+                                  handleInputOverrideChange(input.id, nextValue);
                                 }
                               }}
                               placeholder={manualPlaceholder}
@@ -969,7 +977,7 @@ export function ConfigPanel({
                         )}
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             </CollapsibleSection>
@@ -982,10 +990,7 @@ export function ConfigPanel({
                 {componentOutputs.map((output, index) => (
                   <div
                     key={output.id}
-                    className={cn(
-                      "py-3",
-                      index > 0 && "border-t border-border"
-                    )}
+                    className={cn('py-3', index > 0 && 'border-t border-border')}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium">{output.label}</span>
@@ -1015,18 +1020,13 @@ export function ConfigPanel({
                 {/* Render parameters in component definition order to preserve hierarchy */}
                 {componentParameters.map((param, index) => {
                   // Only show border between top-level parameters (not nested ones)
-                  const isTopLevel = !param.visibleWhen
-                  const prevParam = index > 0 ? componentParameters[index - 1] : null
-                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false
-                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel
+                  const isTopLevel = !param.visibleWhen;
+                  const prevParam = index > 0 ? componentParameters[index - 1] : null;
+                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false;
+                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel;
 
                   return (
-                    <div
-                      key={param.id}
-                      className={cn(
-                        showBorder && "border-t border-border pt-3"
-                      )}
-                    >
+                    <div key={param.id} className={cn(showBorder && 'border-t border-border pt-3')}>
                       <ParameterFieldWrapper
                         parameter={param}
                         value={manualParameters[param.id]}
@@ -1038,7 +1038,7 @@ export function ConfigPanel({
                         allComponentParameters={componentParameters}
                       />
                     </div>
-                  )
+                  );
                 })}
               </div>
             </CollapsibleSection>
@@ -1051,9 +1051,7 @@ export function ConfigPanel({
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Globe className="h-4 w-4 text-primary" />
-                      <h5 className="text-sm font-semibold text-foreground">
-                        Webhooks
-                      </h5>
+                      <h5 className="text-sm font-semibold text-foreground">Webhooks</h5>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1106,9 +1104,7 @@ export function ConfigPanel({
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h5 className="text-sm font-semibold text-foreground">
-                      Schedules
-                    </h5>
+                    <h5 className="text-sm font-semibold text-foreground">Schedules</h5>
                     <p className="text-xs text-muted-foreground">
                       {workflowId
                         ? 'Create recurring runs and manage Temporal schedules for this workflow.'
@@ -1124,12 +1120,7 @@ export function ConfigPanel({
                     >
                       Create schedule
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={viewSchedules}
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={viewSchedules}>
                       View all
                     </Button>
                   </div>
@@ -1150,11 +1141,9 @@ export function ConfigPanel({
                 ) : workflowSchedules && workflowSchedules.length > 0 ? (
                   <div className="space-y-3">
                     {workflowSchedules.map((schedule) => {
-                      const actionLabel =
-                        schedule.status === 'active' ? 'Pause' : 'Resume'
-                      const actionKey =
-                        schedule.status === 'active' ? 'pause' : 'resume'
-                      const pendingAction = scheduleActionState[schedule.id]
+                      const actionLabel = schedule.status === 'active' ? 'Pause' : 'Resume';
+                      const actionKey = schedule.status === 'active' ? 'pause' : 'resume';
+                      const pendingAction = scheduleActionState[schedule.id];
                       return (
                         <div
                           key={schedule.id}
@@ -1163,9 +1152,7 @@ export function ConfigPanel({
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold">
-                                  {schedule.name}
-                                </span>
+                                <span className="text-sm font-semibold">{schedule.name}</span>
                                 <Badge
                                   variant={scheduleStatusVariant[schedule.status]}
                                   className="text-[11px] capitalize"
@@ -1190,8 +1177,7 @@ export function ConfigPanel({
                                   )
                                 }
                               >
-                                {pendingAction === 'pause' ||
-                                  pendingAction === 'resume' ? (
+                                {pendingAction === 'pause' || pendingAction === 'resume' ? (
                                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                                 ) : null}
                                 {actionLabel}
@@ -1201,9 +1187,7 @@ export function ConfigPanel({
                                 size="sm"
                                 variant="outline"
                                 disabled={Boolean(pendingAction)}
-                                onClick={() =>
-                                  handleScheduleActionClick(schedule, 'run')
-                                }
+                                onClick={() => handleScheduleActionClick(schedule, 'run')}
                               >
                                 Run now
                               </Button>
@@ -1222,8 +1206,12 @@ export function ConfigPanel({
                                   variant="ghost"
                                   className="text-destructive hover:text-destructive"
                                   onClick={() => {
-                                    if (confirm(`Are you sure you want to delete "${schedule.name}"? This action cannot be undone.`)) {
-                                      onScheduleDelete(schedule)
+                                    if (
+                                      confirm(
+                                        `Are you sure you want to delete "${schedule.name}"? This action cannot be undone.`,
+                                      )
+                                    ) {
+                                      onScheduleDelete(schedule);
                                     }
                                   }}
                                 >
@@ -1233,12 +1221,10 @@ export function ConfigPanel({
                             </div>
                           </div>
                           {schedule.description && (
-                            <p className="text-xs text-muted-foreground">
-                              {schedule.description}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{schedule.description}</p>
                           )}
                         </div>
-                      )
+                      );
                     })}
                   </div>
                 ) : (
@@ -1255,22 +1241,19 @@ export function ConfigPanel({
             <CollapsibleSection title="Examples" count={exampleItems.length} defaultOpen={false}>
               <div className="space-y-0 mt-2">
                 {exampleItems.map((exampleText, index) => {
-                  const commandMatch = exampleText.match(/`([^`]+)`/)
-                  const command = commandMatch?.[1]?.trim()
+                  const commandMatch = exampleText.match(/`([^`]+)`/);
+                  const command = commandMatch?.[1]?.trim();
                   const description = commandMatch
                     ? exampleText
-                      .replace(commandMatch[0], '')
-                      .replace(/^[\s\u2013\u2014-]+/, '')
-                      .trim()
-                    : exampleText.trim()
+                        .replace(commandMatch[0], '')
+                        .replace(/^[\s\u2013\u2014-]+/, '')
+                        .trim()
+                    : exampleText.trim();
 
                   return (
                     <div
                       key={`${exampleText}-${index}`}
-                      className={cn(
-                        "py-3",
-                        index > 0 && "border-t border-border"
-                      )}
+                      className={cn('py-3', index > 0 && 'border-t border-border')}
                     >
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] font-medium text-muted-foreground mt-0.5">
@@ -1290,7 +1273,7 @@ export function ConfigPanel({
                         </div>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             </CollapsibleSection>
@@ -1308,5 +1291,5 @@ export function ConfigPanel({
         </div>
       </div>
     </div>
-  )
+  );
 }

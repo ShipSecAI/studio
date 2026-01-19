@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  defineComponent,
   ValidationError,
+  defineComponent,
   inputs,
   outputs,
   parameters,
@@ -11,27 +11,31 @@ import {
   withPortMeta,
 } from '@shipsec/component-sdk';
 import type { PortMeta } from '@shipsec/component-sdk/port-meta';
-import type { ComponentDefinition } from '@shipsec/component-sdk';
 
 // Runtime input definition schema
-const runtimeInputDefinitionSchema = z.preprocess((value) => {
-  if (typeof value === 'object' && value !== null && 'type' in value) {
-    const typed = value as Record<string, unknown>;
-    if (typed.type === 'string') {
-      return {
-        ...typed,
-        type: 'text',
-      };
+const runtimeInputDefinitionSchema = z.preprocess(
+  (value) => {
+    if (typeof value === 'object' && value !== null && 'type' in value) {
+      const typed = value as Record<string, unknown>;
+      if (typed.type === 'string') {
+        return {
+          ...typed,
+          type: 'text',
+        };
+      }
     }
-  }
-  return value;
-}, z.object({
-  id: z.string().describe('Unique identifier for this input'),
-  label: z.string().describe('Display label for the input field'),
-  type: z.enum(['file', 'text', 'number', 'json', 'array', 'secret']).describe('Type of input data'),
-  required: z.boolean().default(true).describe('Whether this input is required'),
-  description: z.string().optional().describe('Help text for the input'),
-}));
+    return value;
+  },
+  z.object({
+    id: z.string().describe('Unique identifier for this input'),
+    label: z.string().describe('Display label for the input field'),
+    type: z
+      .enum(['file', 'text', 'number', 'json', 'array', 'secret'])
+      .describe('Type of input data'),
+    required: z.boolean().default(true).describe('Whether this input is required'),
+    description: z.string().optional().describe('Help text for the input'),
+  }),
+);
 
 const inputSchema = inputs({
   // Runtime data will be injected at execution time.
@@ -48,12 +52,15 @@ const outputSchema = outputs({});
 
 const parameterSchema = parameters({
   runtimeInputs: param(
-    z.array(runtimeInputDefinitionSchema).default([]).describe('Define inputs to collect when workflow is triggered'),
+    z
+      .array(runtimeInputDefinitionSchema)
+      .default([])
+      .describe('Define inputs to collect when workflow is triggered'),
     {
       label: 'Runtime Inputs',
       editor: 'json',
       description: 'Define what data to collect when the workflow is triggered',
-      placeholder: '[{\"id\":\"myInput\",\"label\":\"My Input\",\"type\":\"text\",\"required\":true}]',
+      placeholder: '[{"id":"myInput","label":"My Input","type":"text","required":true}]',
       helpText: 'Each input creates a corresponding output.',
     },
   ),
@@ -73,7 +80,8 @@ const definition = defineComponent({
     version: '2.0.0',
     type: 'trigger',
     category: 'input',
-    description: 'Starts a workflow and captures runtime inputs from manual/API/scheduled invocations.',
+    description:
+      'Starts a workflow and captures runtime inputs from manual/API/scheduled invocations.',
     icon: 'Play',
     author: {
       name: 'ShipSecAI',
@@ -88,9 +96,7 @@ const definition = defineComponent({
     ],
   },
   resolvePorts(params: z.infer<typeof parameterSchema>) {
-    const runtimeInputs = Array.isArray(params.runtimeInputs)
-      ? params.runtimeInputs
-      : [];
+    const runtimeInputs = Array.isArray(params.runtimeInputs) ? params.runtimeInputs : [];
 
     const outputShape: Record<string, z.ZodTypeAny> = {};
     for (const input of runtimeInputs) {
@@ -122,8 +128,10 @@ const definition = defineComponent({
     const runtimeInputs = params.runtimeInputs ?? [];
     const __runtimeData = inputs.__runtimeData;
 
-    context.logger.info(`[EntryPoint] Executing with runtime inputs: ${JSON.stringify(runtimeInputs)}`);
-    
+    context.logger.info(
+      `[EntryPoint] Executing with runtime inputs: ${JSON.stringify(runtimeInputs)}`,
+    );
+
     // If no runtime inputs defined, return empty object
     if (!runtimeInputs || runtimeInputs.length === 0) {
       context.logger.info('[EntryPoint] No runtime inputs configured, returning empty output');
@@ -132,18 +140,26 @@ const definition = defineComponent({
 
     // Map runtime data to outputs based on runtimeInputs configuration
     const outputs: Record<string, unknown> = {};
-    
+
     for (const inputDef of runtimeInputs) {
       const value = __runtimeData?.[inputDef.id];
-      
+
       if (inputDef.required && (value === undefined || value === null)) {
-        throw new ValidationError(`Required runtime input '${inputDef.label}' (${inputDef.id}) was not provided`, {
-          fieldErrors: { [inputDef.id]: ['This field is required'] },
-        });
+        throw new ValidationError(
+          `Required runtime input '${inputDef.label}' (${inputDef.id}) was not provided`,
+          {
+            fieldErrors: { [inputDef.id]: ['This field is required'] },
+          },
+        );
       }
       outputs[inputDef.id] = value;
       // Mask secret values in logs
-      const logValue = inputDef.type === 'secret' ? '***' : (typeof value === 'object' ? JSON.stringify(value) : value);
+      const logValue =
+        inputDef.type === 'secret'
+          ? '***'
+          : typeof value === 'object'
+            ? JSON.stringify(value)
+            : value;
       context.logger.info(`[EntryPoint] Output '${inputDef.id}' = ${logValue}`);
     }
 

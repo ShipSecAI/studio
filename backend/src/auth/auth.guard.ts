@@ -94,9 +94,7 @@ export class AuthGuard implements CanActivate {
     }
 
     const organizationId =
-      request.header('x-organization-id') ??
-      request.header('x-org-id') ??
-      DEFAULT_ORGANIZATION_ID;
+      request.header('x-organization-id') ?? request.header('x-org-id') ?? DEFAULT_ORGANIZATION_ID;
 
     return {
       userId: 'internal-service',
@@ -106,7 +104,6 @@ export class AuthGuard implements CanActivate {
       provider: 'internal',
     };
   }
-
 
   private async tryApiKeyAuth(request: Request): Promise<AuthContext | null> {
     const authHeader = request.header('authorization');

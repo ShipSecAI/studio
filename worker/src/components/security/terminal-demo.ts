@@ -28,13 +28,7 @@ const parameterSchema = parameters({
     },
   ),
   durationSeconds: param(
-    z
-      .number()
-      .int()
-      .min(5)
-      .max(60)
-      .default(20)
-      .describe('Total duration of the demo in seconds.'),
+    z.number().int().min(5).max(60).default(20).describe('Total duration of the demo in seconds.'),
     {
       label: 'Duration (seconds)',
       editor: 'number',
@@ -68,7 +62,6 @@ export type TerminalDemoOutput = z.infer<typeof outputSchema>;
 
 export type TerminalDemoInputZod = typeof inputSchema;
 export type TerminalDemoOutputZod = typeof outputSchema;
-
 
 // Simple Node.js script that shows a progress bar
 // Note: We don't read from stdin to avoid JSON input appearing in terminal
@@ -227,9 +220,12 @@ const definition = defineComponent({
         } else {
           parsedOutput.rawOutput = raw.trim();
         }
-      } catch (e) {
+      } catch (_e) {
         // If parsing fails, use the raw string as output (but filter out any JSON input that leaked)
-        const cleaned = raw.replace(/\{"target".*?\}/g, '').replace(/\{"message".*?\}/g, '').trim();
+        const cleaned = raw
+          .replace(/\{"target".*?\}/g, '')
+          .replace(/\{"message".*?\}/g, '')
+          .trim();
         parsedOutput.rawOutput = cleaned || 'Demo completed';
       }
     } else if (raw && typeof raw === 'object') {

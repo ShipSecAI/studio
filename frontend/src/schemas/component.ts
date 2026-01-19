@@ -1,32 +1,41 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 export const ComponentRunnerSchema = z
   .object({
     kind: z.enum(['inline', 'docker', 'remote']),
   })
-  .passthrough()
+  .passthrough();
 
-const PrimitivePortTypes = ['any', 'text', 'secret', 'number', 'boolean', 'file', 'json'] as const
+const PrimitivePortTypes = ['any', 'text', 'secret', 'number', 'boolean', 'file', 'json'] as const;
 
-export const PrimitivePortTypeEnum = z.enum(PrimitivePortTypes)
+export const PrimitivePortTypeEnum = z.enum(PrimitivePortTypes);
 
-const PortEditorTypes = ['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'json', 'secret'] as const
-export const PortEditorTypeEnum = z.enum(PortEditorTypes)
+const PortEditorTypes = [
+  'text',
+  'textarea',
+  'number',
+  'boolean',
+  'select',
+  'multi-select',
+  'json',
+  'secret',
+] as const;
+export const PortEditorTypeEnum = z.enum(PortEditorTypes);
 
 const ConnectionPrimitiveSchema = z.object({
   kind: z.literal('primitive'),
   name: PrimitivePortTypeEnum,
-})
+});
 
 const ConnectionContractSchema = z.object({
   kind: z.literal('contract'),
   name: z.string().min(1),
   credential: z.boolean().optional(),
-})
+});
 
 const ConnectionAnySchema = z.object({
   kind: z.literal('any'),
-})
+});
 
 export const ConnectionTypeSchema: z.ZodType<any> = z.lazy(() =>
   z.union([
@@ -42,9 +51,9 @@ export const ConnectionTypeSchema: z.ZodType<any> = z.lazy(() =>
       element: ConnectionTypeSchema,
     }),
   ]),
-)
+);
 
-export type ConnectionType = z.infer<typeof ConnectionTypeSchema>
+export type ConnectionType = z.infer<typeof ConnectionTypeSchema>;
 
 /**
  * Defines input ports for a component
@@ -52,7 +61,7 @@ export type ConnectionType = z.infer<typeof ConnectionTypeSchema>
 const DEFAULT_TEXT_CONNECTION = {
   kind: 'primitive',
   name: 'text',
-} as const
+} as const;
 
 export const InputPortSchema = z.object({
   id: z.string(),
@@ -62,9 +71,9 @@ export const InputPortSchema = z.object({
   required: z.boolean().optional(),
   description: z.string().optional(),
   valuePriority: z.enum(['manual-first', 'connection-first']).optional(),
-})
+});
 
-export type InputPort = z.infer<typeof InputPortSchema>
+export type InputPort = z.infer<typeof InputPortSchema>;
 
 /**
  * Defines output ports for a component
@@ -76,9 +85,9 @@ export const OutputPortSchema = z.object({
   description: z.string().optional(),
   isBranching: z.boolean().optional(), // True if this port controls conditional execution
   branchColor: z.enum(['green', 'red', 'amber', 'blue', 'purple', 'slate']).optional(), // Custom color for branching ports
-})
+});
 
-export type OutputPort = z.infer<typeof OutputPortSchema>
+export type OutputPort = z.infer<typeof OutputPortSchema>;
 
 /**
  * Defines configurable parameters for a component
@@ -86,7 +95,21 @@ export type OutputPort = z.infer<typeof OutputPortSchema>
 export const ParameterSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'multi-select', 'file', 'json', 'secret', 'artifact', 'variable-list', 'form-fields', 'selection-options']),
+  type: z.enum([
+    'text',
+    'textarea',
+    'number',
+    'boolean',
+    'select',
+    'multi-select',
+    'file',
+    'json',
+    'secret',
+    'artifact',
+    'variable-list',
+    'form-fields',
+    'selection-options',
+  ]),
   required: z.boolean().optional(),
   default: z.any().optional(),
   options: z
@@ -105,9 +128,9 @@ export const ParameterSchema = z.object({
   helpText: z.string().optional(),
   /** Conditional visibility: parameter is shown only when all conditions are met */
   visibleWhen: z.record(z.string(), z.any()).optional(),
-})
+});
 
-export type Parameter = z.infer<typeof ParameterSchema>
+export type Parameter = z.infer<typeof ParameterSchema>;
 
 /**
  * Component author information
@@ -116,28 +139,31 @@ export const ComponentAuthorSchema = z.object({
   name: z.string(),
   type: z.enum(['shipsecai', 'community']),
   url: z.string().url().optional(),
-})
+});
 
-export type ComponentAuthor = z.infer<typeof ComponentAuthorSchema>
+export type ComponentAuthor = z.infer<typeof ComponentAuthorSchema>;
 
 /**
  * Component category configuration
  */
-export const ComponentCategoryConfigSchema = z.object({
-  label: z.string(),
-  color: z.string(),
-  description: z.string(),
-  emoji: z.string(),
-  icon: z.string().optional(),
-}).partial().default({
-  label: 'Uncategorized',
-  color: 'text-muted-foreground',
-  description: '',
-  emoji: '🧩',
-  icon: 'Box',
-})
+export const ComponentCategoryConfigSchema = z
+  .object({
+    label: z.string(),
+    color: z.string(),
+    description: z.string(),
+    emoji: z.string(),
+    icon: z.string().optional(),
+  })
+  .partial()
+  .default({
+    label: 'Uncategorized',
+    color: 'text-muted-foreground',
+    description: '',
+    emoji: '🧩',
+    icon: 'Box',
+  });
 
-export type ComponentCategoryConfig = z.infer<typeof ComponentCategoryConfigSchema>
+export type ComponentCategoryConfig = z.infer<typeof ComponentCategoryConfigSchema>;
 
 /**
  * Complete component metadata definition
@@ -148,7 +174,16 @@ export const ComponentMetadataSchema = z.object({
   name: z.string().min(1),
   version: z.string().default('1.0.0'),
   type: z.enum(['trigger', 'input', 'scan', 'process', 'output']),
-  category: z.enum(['input', 'transform', 'ai', 'security', 'it_ops', 'notification', 'manual_action', 'output']),
+  category: z.enum([
+    'input',
+    'transform',
+    'ai',
+    'security',
+    'it_ops',
+    'notification',
+    'manual_action',
+    'output',
+  ]),
   categoryConfig: ComponentCategoryConfigSchema.optional().default({
     label: 'Uncategorized',
     color: 'text-muted-foreground',
@@ -170,6 +205,6 @@ export const ComponentMetadataSchema = z.object({
   outputs: z.array(OutputPortSchema).default([]),
   parameters: z.array(ParameterSchema).default([]),
   examples: z.array(z.string()).optional().default([]),
-})
+});
 
-export type ComponentMetadata = z.infer<typeof ComponentMetadataSchema>
+export type ComponentMetadata = z.infer<typeof ComponentMetadataSchema>;

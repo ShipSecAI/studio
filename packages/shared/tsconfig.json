@@ -2,7 +2,10 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "moduleResolution": "NodeNext",
     "strict": true,
     "esModuleInterop": true,
@@ -12,7 +15,12 @@
     "declaration": true,
     "declarationMap": false,
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "incremental": true,
+    "composite": true,
+    "emitDeclarationOnly": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ]
 }

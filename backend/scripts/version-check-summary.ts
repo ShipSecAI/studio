@@ -20,6 +20,7 @@ const emojiRegex = /\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu;
 
 function getDisplayWidth(str: string): number {
   // Remove ANSI codes first
+  // eslint-disable-next-line no-control-regex
   const plain = str.replace(/\x1b\[[0-9;]*m/g, '');
   // Count emojis (each takes 2 columns but counts as 1-2 chars)
   const emojis = plain.match(emojiRegex) || [];
@@ -67,7 +68,9 @@ async function main() {
       ];
       if (result.response.upgrade_url) {
         lines.push('');
-        lines.push(`${colors.cyan}${colors.bold}Upgrade:${colors.reset} ${result.response.upgrade_url}`);
+        lines.push(
+          `${colors.cyan}${colors.bold}Upgrade:${colors.reset} ${result.response.upgrade_url}`,
+        );
       }
       printBox(lines, colors.red);
       return;
@@ -84,7 +87,9 @@ async function main() {
       ];
       if (result.response.upgrade_url) {
         lines.push('');
-        lines.push(`${colors.cyan}${colors.bold}Upgrade:${colors.reset} ${result.response.upgrade_url}`);
+        lines.push(
+          `${colors.cyan}${colors.bold}Upgrade:${colors.reset} ${result.response.upgrade_url}`,
+        );
       }
       printBox(lines, colors.yellow);
       return;

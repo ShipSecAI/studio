@@ -1,7 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthContext } from '../auth/types';
 import { DEFAULT_ROLES } from '../auth/types';
-import { TerminalStreamService, type TerminalFetchResult, type TerminalChunk } from '../terminal/terminal-stream.service';
+import {
+  TerminalStreamService,
+  type TerminalFetchResult,
+  type TerminalChunk,
+} from '../terminal/terminal-stream.service';
 import { FilesService } from '../storage/files.service';
 import { TerminalRecordRepository } from './repository/terminal-record.repository';
 import type { WorkflowTerminalRecord } from '../database/schema';
@@ -40,13 +44,10 @@ export class TerminalArchiveService {
         const normalizedStream: 'stdout' | 'stderr' | 'pty' =
           stream === 'stdout' || stream === 'stderr' || stream === 'pty' ? stream : 'pty';
         try {
-          const result = await this.archiveWithContext(
-            auth,
-            run,
-            organizationId,
-            runId,
-            { nodeRef, stream: normalizedStream },
-          );
+          const result = await this.archiveWithContext(auth, run, organizationId, runId, {
+            nodeRef,
+            stream: normalizedStream,
+          });
           results.push(result);
           archivedKeys.add(dedupeKey);
         } catch (error) {
@@ -78,11 +79,7 @@ export class TerminalArchiveService {
     return this.archiveWithContext(auth, run, organizationId, runId, input);
   }
 
-  async download(
-    auth: AuthContext | null,
-    runId: string,
-    recordId: number,
-  ) {
+  async download(auth: AuthContext | null, runId: string, recordId: number) {
     const { organizationId } = await this.workflowsService.resolveRunForAccess(runId, auth);
     const record = await this.terminalRecordRepository.findById(recordId, {
       runId,
@@ -136,14 +133,15 @@ export class TerminalArchiveService {
   }
 
   private buildCastFile(
-    chunks: Array<{ payload: string; deltaMs: number; stream: string; recordedAt?: string }>,
+    chunks: { payload: string; deltaMs: number; stream: string; recordedAt?: string }[],
     options: { width: number; height: number },
   ): Buffer {
     // Use first chunk's recordedAt as workflow start time (Unix epoch seconds)
     // If no chunks or no recordedAt, fall back to current time
-    const workflowStartTime = chunks.length > 0 && chunks[0].recordedAt
-      ? Math.floor(new Date(chunks[0].recordedAt).getTime() / 1000)
-      : Math.floor(Date.now() / 1000);
+    const workflowStartTime =
+      chunks.length > 0 && chunks[0].recordedAt
+        ? Math.floor(new Date(chunks[0].recordedAt).getTime() / 1000)
+        : Math.floor(Date.now() / 1000);
 
     const header = {
       version: 2,
@@ -184,7 +182,12 @@ export class TerminalArchiveService {
 
     let workflowStartTime: number;
     try {
-      const header = JSON.parse(headerLine) as { version: number; timestamp?: number; width?: number; height?: number };
+      const header = JSON.parse(headerLine) as {
+        version: number;
+        timestamp?: number;
+        width?: number;
+        height?: number;
+      };
       // Cast file timestamp is Unix epoch seconds, convert to milliseconds
       workflowStartTime = header.timestamp ? header.timestamp * 1000 : record.createdAt.getTime();
     } catch {
@@ -216,11 +219,11 @@ export class TerminalArchiveService {
         }
         const deltaSeconds = timeSeconds - previousTime;
         previousTime = timeSeconds;
-        
+
         // Reconstruct absolute timestamp: workflow start + elapsed time
         const elapsedMs = Math.round(timeSeconds * 1000);
         const absoluteTimestamp = workflowStartTime + elapsedMs;
-        
+
         const resolvedStream: TerminalChunk['stream'] =
           streamSymbol === 'e' ? 'stderr' : recordStream;
         chunks.push({
@@ -250,7 +253,9 @@ export class TerminalArchiveService {
           offset: parsed.archive.offset ?? 0,
         };
       }
-    } catch {}
+    } catch {
+      // Ignore parse errors and return null
+    }
     return null;
   }
 
@@ -322,9 +327,9 @@ export class TerminalArchiveService {
     });
   }
 
-  private normalizeChunkTimings<
-    T extends { recordedAt?: string | null; deltaMs?: number }
-  >(chunks: T[]): Array<T & { deltaMs: number }> {
+  private normalizeChunkTimings<T extends { recordedAt?: string | null; deltaMs?: number }>(
+    chunks: T[],
+  ): (T & { deltaMs: number })[] {
     let previousRecordedAt: number | null = null;
     return chunks.map((chunk, index) => {
       const recordedAtMs =

@@ -11,16 +11,19 @@ import {
 
 const inputSchema = inputs({
   items: port(
-    z.array(z.string()).min(1, 'Provide at least one item').describe('Array of text values to pick from'),
+    z
+      .array(z.string())
+      .min(1, 'Provide at least one item')
+      .describe('Array of text values to pick from'),
     {
       label: 'Items',
       description: 'Array of strings to select from.',
     },
   ),
   index: port(
-    coerceNumberFromText(
-      z.number().int().min(0, 'Index must be zero or greater'),
-    ).describe('Zero-based index of the item to select'),
+    coerceNumberFromText(z.number().int().min(0, 'Index must be zero or greater')).describe(
+      'Zero-based index of the item to select',
+    ),
     {
       label: 'Index',
       description: 'Zero-based index of the item to select.',
@@ -57,7 +60,8 @@ const definition = defineComponent({
     version: '1.0.0',
     type: 'process',
     category: 'transform',
-    description: 'Pick a specific item from an array produced by Text Splitter or other components.',
+    description:
+      'Pick a specific item from an array produced by Text Splitter or other components.',
     icon: 'MousePointerSquare',
     author: {
       name: 'ShipSecAI',

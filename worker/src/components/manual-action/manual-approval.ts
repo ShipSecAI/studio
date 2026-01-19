@@ -12,10 +12,10 @@ import {
 
 /**
  * Manual Approval Component
- * 
+ *
  * This component creates a human-in-the-loop gate that pauses workflow execution
  * until a human approves or rejects the request.
- * 
+ *
  * It supports dynamic description templates using context variables.
  */
 
@@ -37,16 +37,19 @@ const parameterSchema = parameters({
     description: 'Detailed description (Markdown supported)',
     helpText: 'Provide context about what needs to be approved. Supports interpolation.',
   }),
-  variables: param(z.array(z.object({ name: z.string(), type: z.string().optional() })).default([]), {
-    label: 'Context Variables',
-    editor: 'variable-list',
-    description: 'Define variables to use as {{name}} in your description.',
-  }),
+  variables: param(
+    z.array(z.object({ name: z.string(), type: z.string().optional() })).default([]),
+    {
+      label: 'Context Variables',
+      editor: 'variable-list',
+      description: 'Define variables to use as {{name}} in your description.',
+    },
+  ),
   timeout: param(z.string().optional(), {
     label: 'Timeout',
     editor: 'text',
     placeholder: '24h',
-    description: 'How long to wait for approval (e.g., \"1h\", \"24h\", \"7d\")',
+    description: 'How long to wait for approval (e.g., "1h", "24h", "7d")',
   }),
 });
 
@@ -60,9 +63,7 @@ function interpolate(template: string, vars: Record<string, any>): string {
   });
 }
 
-const mapTypeToSchema = (
-  type: string,
-): { schema: z.ZodTypeAny; meta?: PortMeta } => {
+const mapTypeToSchema = (type: string): { schema: z.ZodTypeAny; meta?: PortMeta } => {
   switch (type) {
     case 'string':
       return { schema: z.string() };
@@ -111,13 +112,10 @@ const outputSchema = outputs({
     label: 'Responded By',
     description: 'The user who resolved this request',
   }),
-  responseNote: port(
-    z.string().optional().describe('Note provided by the responder'),
-    {
-      label: 'Response Note',
-      description: 'The comment left by the responder',
-    },
-  ),
+  responseNote: port(z.string().optional().describe('Note provided by the responder'), {
+    label: 'Response Note',
+    description: 'The comment left by the responder',
+  }),
   respondedAt: port(z.string().describe('When the request was resolved'), {
     label: 'Responded At',
     description: 'Timestamp when the request was resolved.',
@@ -142,7 +140,8 @@ const definition = defineComponent({
     version: '1.2.0',
     type: 'process',
     category: 'manual_action',
-    description: 'Pause and wait for manual approval. Supports dynamic templates for providing context to the reviewer.',
+    description:
+      'Pause and wait for manual approval. Supports dynamic templates for providing context to the reviewer.',
     icon: 'ShieldCheck',
     author: {
       name: 'ShipSecAI',
@@ -154,14 +153,14 @@ const definition = defineComponent({
   resolvePorts(params: z.infer<typeof parameterSchema>) {
     const inputShape: Record<string, z.ZodTypeAny> = {};
     if (params.variables && Array.isArray(params.variables)) {
-        for (const v of params.variables) {
-            if (!v || !v.name) continue;
-            const { schema, meta } = mapTypeToSchema(v.type || 'json');
-            inputShape[v.name] = port(schema.optional(), {
-              ...(meta ?? {}),
-              label: v.name,
-            });
-        }
+      for (const v of params.variables) {
+        if (!v || !v.name) continue;
+        const { schema, meta } = mapTypeToSchema(v.type || 'json');
+        inputShape[v.name] = port(schema.optional(), {
+          ...(meta ?? {}),
+          label: v.name,
+        });
+      }
     }
     return {
       inputs: inputs(inputShape),
@@ -209,10 +208,14 @@ function parseTimeout(timeout: string): number | null {
   const value = parseInt(match[1], 10);
   const unit = match[2];
   switch (unit) {
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 60 * 60 * 1000;
-    case 'd': return value * 24 * 60 * 60 * 1000;
-    default: return null;
+    case 'm':
+      return value * 60 * 1000;
+    case 'h':
+      return value * 60 * 60 * 1000;
+    case 'd':
+      return value * 24 * 60 * 60 * 1000;
+    default:
+      return null;
   }
 }
 

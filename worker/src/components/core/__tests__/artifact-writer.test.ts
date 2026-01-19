@@ -1,16 +1,18 @@
 import { beforeAll, describe, expect, it, vi } from 'bun:test';
 import { createExecutionContext, type IArtifactService } from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
-import type { z } from 'zod';
-import type { ComponentDefinition } from '@shipsec/component-sdk';
 import type { ArtifactWriterInput, ArtifactWriterOutput } from '../artifact-writer';
 
 describe('core.artifact.writer component', () => {
-  let component: ReturnType<typeof componentRegistry.get<ArtifactWriterInput, ArtifactWriterOutput>>;
+  let component: ReturnType<
+    typeof componentRegistry.get<ArtifactWriterInput, ArtifactWriterOutput>
+  >;
 
   beforeAll(async () => {
     await import('../../index');
-    component = componentRegistry.get<ArtifactWriterInput, ArtifactWriterOutput>('core.artifact.writer');
+    component = componentRegistry.get<ArtifactWriterInput, ArtifactWriterOutput>(
+      'core.artifact.writer',
+    );
   });
 
   it('should be registered with expected metadata', () => {
@@ -49,7 +51,7 @@ describe('core.artifact.writer component', () => {
         mimeType: 'text/plain',
         saveToRunArtifacts: true,
         publishToArtifactLibrary: true,
-      }
+      },
     };
 
     const result = await component.execute(executePayload, context);
@@ -87,7 +89,7 @@ describe('core.artifact.writer component', () => {
         fileName: 'noop.txt',
         saveToRunArtifacts: false,
         publishToArtifactLibrary: false,
-      }
+      },
     };
 
     const result = await component.execute(executePayload, context);
@@ -113,7 +115,7 @@ describe('core.artifact.writer component', () => {
       params: {
         saveToRunArtifacts: true,
         publishToArtifactLibrary: false,
-      }
+      },
     };
 
     await expect(component.execute(executePayload, context)).rejects.toThrow(

@@ -4,7 +4,6 @@ import {
   ContainerError,
   runComponentWithRunner,
   type DockerRunnerConfig,
-  ValidationError,
   withPortMeta,
   coerceBooleanFromText,
   coerceNumberFromText,
@@ -14,22 +13,23 @@ import {
   parameters,
   param,
 } from '@shipsec/component-sdk';
-import type { ComponentDefinition } from '@shipsec/component-sdk';
 
 const variableConfigSchema = z.object({
   name: z.string().min(1),
-  type: z.enum([
-    'string',
-    'number',
-    'boolean',
-    'json',
-    'secret',
-    'list',
-    'list-text',
-    'list-number',
-    'list-boolean',
-    'list-json',
-  ]).default('json'),
+  type: z
+    .enum([
+      'string',
+      'number',
+      'boolean',
+      'json',
+      'secret',
+      'list',
+      'list-text',
+      'list-number',
+      'list-boolean',
+      'list-json',
+    ])
+    .default('json'),
 });
 
 const parameterSchema = parameters({
@@ -61,9 +61,6 @@ const parameterSchema = parameters({
 // For dynamic outputs, we create a base schema and catchall is added in resolvePorts
 const inputSchema = inputs({});
 const baseOutputSchema = outputs({});
-
-// Type for dynamic outputs
-type DynamicOutput = Record<string, unknown>;
 
 const mapTypeToSchema = (type: string, label: string) => {
   switch (type) {
@@ -256,12 +253,14 @@ const definition = defineComponent({
       }
     });
 
-
     // 2. Process user code - ensure it has 'export' keyword
     let processedUserCode = code;
     const exportRegex = /^(?!\s*export\s+)(.*?\s*(?:async\s+)?function\s+script\b)/m;
     if (exportRegex.test(processedUserCode)) {
-      processedUserCode = processedUserCode.replace(exportRegex, (match) => `export ${match.trimStart()}`);
+      processedUserCode = processedUserCode.replace(
+        exportRegex,
+        (match) => `export ${match.trimStart()}`,
+      );
     }
 
     // 3. Build the shell command that sets up base harness files
@@ -291,7 +290,10 @@ const definition = defineComponent({
     // 5. Execute using the Docker runner
     // We pass enriched payload containing the processed code to runComponentWithRunner
     // They will be written to the mounted input.json file in the container
-    const runnerPayload = { ...params, ...inputs, code: processedUserCode } as Record<string, unknown>;
+    const runnerPayload = { ...params, ...inputs, code: processedUserCode } as Record<
+      string,
+      unknown
+    >;
     const result = await runComponentWithRunner<typeof runnerPayload, Record<string, unknown>>(
       runnerConfig,
       async () => {
@@ -302,8 +304,6 @@ const definition = defineComponent({
       runnerPayload,
       context,
     );
-
-
 
     // 7. Map results to declared outputs
     const finalOutput: Record<string, unknown> = {};
