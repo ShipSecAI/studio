@@ -6,8 +6,8 @@ import type {
   ComponentDefinition,
   ComponentPortMetadata,
   PortBindingType,
-  AgentToolConfig,
 } from './types';
+import { extractPorts } from './zod-ports';
 
 /**
  * JSON Schema type for MCP tool input schema
@@ -36,11 +36,11 @@ export interface ToolMetadata {
  * Check if a component is configured as an agent-callable tool.
  */
 export function isAgentCallable(component: ComponentDefinition): boolean {
-  return component.metadata?.agentTool?.enabled === true;
+  return component.ui?.agentTool?.enabled === true;
 }
 
 /**
- * Infer the binding type for a port based on its data type.
+ * Infer the binding type for a port based on its connection type.
  * - secret, contract with credential flag → 'credential'
  * - everything else → 'action'
  */
@@ -50,15 +50,15 @@ export function inferBindingType(port: ComponentPortMetadata): PortBindingType {
     return port.bindingType;
   }
 
-  const dataType = port.dataType;
+  const connectionType = port.connectionType;
 
   // Secret ports are always credentials
-  if (dataType.kind === 'primitive' && dataType.name === 'secret') {
+  if (connectionType.kind === 'primitive' && connectionType.name === 'secret') {
     return 'credential';
   }
 
   // Contract ports with credential flag are credentials
-  if (dataType.kind === 'contract' && dataType.credential) {
+  if (connectionType.kind === 'contract' && connectionType.credential) {
     return 'credential';
   }
 
@@ -71,7 +71,7 @@ export function inferBindingType(port: ComponentPortMetadata): PortBindingType {
  * These are inputs that should be pre-bound from the workflow, not exposed to the agent.
  */
 export function getCredentialInputIds(component: ComponentDefinition): string[] {
-  const inputs = component.metadata?.inputs ?? [];
+  const inputs = extractPorts(component.inputs);
   return inputs
     .filter(input => inferBindingType(input) === 'credential')
     .map(input => input.id);
@@ -82,20 +82,20 @@ export function getCredentialInputIds(component: ComponentDefinition): string[] 
  * These are inputs that the agent provides at runtime.
  */
 export function getActionInputIds(component: ComponentDefinition): string[] {
-  const inputs = component.metadata?.inputs ?? [];
+  const inputs = extractPorts(component.inputs);
   return inputs
     .filter(input => inferBindingType(input) === 'action')
     .map(input => input.id);
 }
 
 /**
- * Convert a port data type to a JSON Schema type string.
+ * Convert a port connection type to a JSON Schema type string.
  */
 function portTypeToJsonSchemaType(port: ComponentPortMetadata): string {
-  const dataType = port.dataType;
+  const connectionType = port.connectionType;
 
-  if (dataType.kind === 'primitive') {
-    switch (dataType.name) {
+  if (connectionType.kind === 'primitive') {
+    switch (connectionType.name) {
       case 'text':
       case 'secret':
         return 'string';
@@ -113,15 +113,15 @@ function portTypeToJsonSchemaType(port: ComponentPortMetadata): string {
     }
   }
 
-  if (dataType.kind === 'list') {
+  if (connectionType.kind === 'list') {
     return 'array';
   }
 
-  if (dataType.kind === 'map') {
+  if (connectionType.kind === 'map') {
     return 'object';
   }
 
-  if (dataType.kind === 'contract') {
+  if (connectionType.kind === 'contract') {
     return 'object';
   }
 
@@ -133,7 +133,7 @@ function portTypeToJsonSchemaType(port: ComponentPortMetadata): string {
  * This is used for the MCP tools/list inputSchema field.
  */
 export function getToolSchema(component: ComponentDefinition): ToolInputSchema {
-  const inputs = component.metadata?.inputs ?? [];
+  const inputs = extractPorts(component.inputs);
   const actionInputs = inputs.filter(input => inferBindingType(input) === 'action');
 
   const properties: ToolInputSchema['properties'] = {};
@@ -162,12 +162,12 @@ export function getToolSchema(component: ComponentDefinition): ToolInputSchema {
  * Uses agentTool.toolName if specified, otherwise derives from component slug.
  */
 export function getToolName(component: ComponentDefinition): string {
-  if (component.metadata?.agentTool?.toolName) {
-    return component.metadata.agentTool.toolName;
+  if (component.ui?.agentTool?.toolName) {
+    return component.ui.agentTool.toolName;
   }
 
   // Derive from slug: 'abuseipdb-lookup' → 'abuseipdb_lookup'
-  const slug = component.metadata?.slug ?? component.id;
+  const slug = component.ui?.slug ?? component.id;
   return slug.replace(/-/g, '_').replace(/\./g, '_');
 }
 
@@ -176,11 +176,11 @@ export function getToolName(component: ComponentDefinition): string {
  * Uses agentTool.toolDescription if specified, otherwise uses component docs/description.
  */
 export function getToolDescription(component: ComponentDefinition): string {
-  if (component.metadata?.agentTool?.toolDescription) {
-    return component.metadata.agentTool.toolDescription;
+  if (component.ui?.agentTool?.toolDescription) {
+    return component.ui.agentTool.toolDescription;
   }
 
-  return component.metadata?.description ?? component.docs ?? component.label;
+  return component.ui?.description ?? component.docs ?? component.label;
 }
 
 /**

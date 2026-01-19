@@ -10,20 +10,21 @@ import {
   getToolDescription,
   getToolMetadata,
 } from '../tool-helpers';
-import { port } from '../ports';
+import { inputs, outputs, port } from '../schema-builders';
+import { extractPorts } from '../zod-ports';
 import type { ComponentDefinition, ComponentPortMetadata } from '../types';
 
 // Helper to create a minimal component definition
 function createComponent(
-  overrides: Partial<ComponentDefinition> = {}
-): ComponentDefinition {
+  overrides: Partial<ComponentDefinition<any, any, any>> = {}
+): ComponentDefinition<any, any, any> {
   return {
     id: 'test.component',
     label: 'Test Component',
     category: 'security',
     runner: { kind: 'inline' },
-    inputSchema: z.object({}),
-    outputSchema: z.object({}),
+    inputs: inputs({}),
+    outputs: outputs({}),
     docs: 'Test component documentation',
     execute: async () => ({}),
     ...overrides,
@@ -39,7 +40,7 @@ describe('tool-helpers', () => {
 
     it('returns false when agentTool.enabled is false', () => {
       const component = createComponent({
-        metadata: {
+        ui: {
           slug: 'test',
           version: '1.0.0',
           type: 'process',
@@ -52,7 +53,7 @@ describe('tool-helpers', () => {
 
     it('returns true when agentTool.enabled is true', () => {
       const component = createComponent({
-        metadata: {
+        ui: {
           slug: 'test',
           version: '1.0.0',
           type: 'process',
@@ -69,7 +70,7 @@ describe('tool-helpers', () => {
       const portWithExplicit: ComponentPortMetadata = {
         id: 'test',
         label: 'Test',
-        dataType: port.text(),
+        connectionType: { kind: 'primitive', name: 'text' },
         bindingType: 'config',
       };
       expect(inferBindingType(portWithExplicit)).toBe('config');
@@ -79,7 +80,7 @@ describe('tool-helpers', () => {
       const secretPort: ComponentPortMetadata = {
         id: 'apiKey',
         label: 'API Key',
-        dataType: port.secret(),
+        connectionType: { kind: 'primitive', name: 'secret' },
       };
       expect(inferBindingType(secretPort)).toBe('credential');
     });
@@ -88,7 +89,7 @@ describe('tool-helpers', () => {
       const contractPort: ComponentPortMetadata = {
         id: 'awsCreds',
         label: 'AWS Credentials',
-        dataType: port.credential('aws'),
+        connectionType: { kind: 'contract', name: 'aws', credential: true },
       };
       expect(inferBindingType(contractPort)).toBe('credential');
     });
@@ -97,7 +98,7 @@ describe('tool-helpers', () => {
       const textPort: ComponentPortMetadata = {
         id: 'target',
         label: 'Target',
-        dataType: port.text(),
+        connectionType: { kind: 'primitive', name: 'text' },
       };
       expect(inferBindingType(textPort)).toBe('action');
     });
@@ -106,7 +107,7 @@ describe('tool-helpers', () => {
       const numberPort: ComponentPortMetadata = {
         id: 'count',
         label: 'Count',
-        dataType: port.number(),
+        connectionType: { kind: 'primitive', name: 'number' },
       };
       expect(inferBindingType(numberPort)).toBe('action');
     });
@@ -115,36 +116,25 @@ describe('tool-helpers', () => {
   describe('getCredentialInputIds', () => {
     it('returns IDs of credential inputs', () => {
       const component = createComponent({
-        metadata: {
-          slug: 'test',
-          version: '1.0.0',
-          type: 'process',
-          category: 'security',
-          inputs: [
-            { id: 'apiKey', label: 'API Key', dataType: port.secret() },
-            { id: 'target', label: 'Target', dataType: port.text() },
-            { id: 'awsCreds', label: 'AWS', dataType: port.credential('aws') },
-          ],
-        },
+        inputs: inputs({
+          apiKey: port(z.string(), { label: 'API Key', editor: 'secret' }),
+          target: port(z.string(), { label: 'Target' }),
+          awsCreds: port(z.any(), { label: 'AWS', isCredential: true, schemaName: 'aws', allowAny: true }),
+        }),
       });
-      expect(getCredentialInputIds(component)).toEqual(['apiKey', 'awsCreds']);
+      const credIds = getCredentialInputIds(component);
+      expect(credIds).toEqual(['apiKey', 'awsCreds']);
     });
   });
 
   describe('getActionInputIds', () => {
     it('returns IDs of action inputs', () => {
       const component = createComponent({
-        metadata: {
-          slug: 'test',
-          version: '1.0.0',
-          type: 'process',
-          category: 'security',
-          inputs: [
-            { id: 'apiKey', label: 'API Key', dataType: port.secret() },
-            { id: 'target', label: 'Target', dataType: port.text() },
-            { id: 'count', label: 'Count', dataType: port.number() },
-          ],
-        },
+        inputs: inputs({
+          apiKey: port(z.string(), { label: 'API Key', editor: 'secret' }),
+          target: port(z.string(), { label: 'Target' }),
+          count: port(z.number(), { label: 'Count' }),
+        }),
       });
       expect(getActionInputIds(component)).toEqual(['target', 'count']);
     });
@@ -153,17 +143,11 @@ describe('tool-helpers', () => {
   describe('getToolSchema', () => {
     it('returns schema with action inputs only', () => {
       const component = createComponent({
-        metadata: {
-          slug: 'test',
-          version: '1.0.0',
-          type: 'process',
-          category: 'security',
-          inputs: [
-            { id: 'apiKey', label: 'API Key', dataType: port.secret() },
-            { id: 'ipAddress', label: 'IP Address', dataType: port.text(), required: true, description: 'IP to check' },
-            { id: 'verbose', label: 'Verbose', dataType: port.boolean() },
-          ],
-        },
+        inputs: inputs({
+          apiKey: port(z.string(), { label: 'API Key', editor: 'secret' }),
+          ipAddress: port(z.string(), { label: 'IP Address', description: 'IP to check' }),
+          verbose: port(z.boolean().default(false), { label: 'Verbose' }),
+        }),
       });
 
       const schema = getToolSchema(component);
@@ -185,7 +169,7 @@ describe('tool-helpers', () => {
   describe('getToolName', () => {
     it('uses agentTool.toolName when specified', () => {
       const component = createComponent({
-        metadata: {
+        ui: {
           slug: 'abuseipdb-lookup',
           version: '1.0.0',
           type: 'process',
@@ -201,7 +185,7 @@ describe('tool-helpers', () => {
 
     it('derives from slug when toolName not specified', () => {
       const component = createComponent({
-        metadata: {
+        ui: {
           slug: 'abuseipdb-lookup',
           version: '1.0.0',
           type: 'process',
@@ -216,7 +200,7 @@ describe('tool-helpers', () => {
   describe('getToolMetadata', () => {
     it('returns complete tool metadata for MCP', () => {
       const component = createComponent({
-        metadata: {
+        ui: {
           slug: 'abuseipdb-lookup',
           version: '1.0.0',
           type: 'process',
@@ -227,11 +211,11 @@ describe('tool-helpers', () => {
             toolName: 'check_ip_reputation',
             toolDescription: 'Check if an IP address is malicious',
           },
-          inputs: [
-            { id: 'apiKey', label: 'API Key', dataType: port.secret() },
-            { id: 'ipAddress', label: 'IP Address', dataType: port.text(), required: true },
-          ],
         },
+        inputs: inputs({
+          apiKey: port(z.string(), { label: 'API Key', editor: 'secret' }),
+          ipAddress: port(z.string(), { label: 'IP Address' }),
+        }),
       });
 
       const metadata = getToolMetadata(component);
