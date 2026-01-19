@@ -1,7 +1,7 @@
 import { WorkflowGraphDto, WorkflowNodeDto } from '../workflows/dto/workflow-graph.dto';
 // Ensure all worker components are registered before accessing the registry
 import '../../../worker/src/components';
-import { componentRegistry } from '@shipsec/component-sdk';
+import { componentRegistry, type ComponentPortMetadata } from '@shipsec/component-sdk';
 import { extractPorts } from '@shipsec/component-sdk/zod-ports';
 import {
   WorkflowAction,
@@ -101,8 +101,12 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     const groupIdValue = config.groupId;
     const maxConcurrencyValue = config.maxConcurrency;
 
+    const mode = (config.mode as WorkflowNodeMetadata['mode']) ?? 'normal';
+    const toolConfig = config.toolConfig as WorkflowNodeMetadata['toolConfig'];
+
     nodesMetadata[node.id] = {
       ref: node.id,
+      mode,
       label: node.data?.label,
       joinStrategy,
       streamId:
@@ -113,6 +117,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
         typeof maxConcurrencyValue === 'number' && Number.isFinite(maxConcurrencyValue)
           ? maxConcurrencyValue
           : undefined,
+      toolConfig,
     };
   }
 
@@ -148,7 +153,8 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     const params: Record<string, unknown> = { ...rawParams };
     const inputOverrides: Record<string, unknown> = { ...rawInputOverrides };
 
-    let inputs = componentRegistry.getMetadata(node.type)?.inputs ?? [];
+    let inputs: ComponentPortMetadata[] =
+      (componentRegistry.getMetadata(node.type)?.inputs as ComponentPortMetadata[]) ?? [];
     if (component?.resolvePorts) {
       try {
         const resolved = component.resolvePorts(params);
