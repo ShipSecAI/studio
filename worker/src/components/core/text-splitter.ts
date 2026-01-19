@@ -43,11 +43,6 @@ const inputSchema = inputs({
   ),
 });
 
-interface Output {
-  items: string[];
-  count: number;
-}
-
 const outputSchema = outputs({
   items: port(z.array(z.string()), {
     label: 'Items',

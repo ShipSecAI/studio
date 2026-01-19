@@ -2,7 +2,6 @@ import { z } from 'zod';
 import {
   componentRegistry,
   ContainerError,
-  ValidationError,
   runComponentWithRunner,
   type DockerRunnerConfig,
   withPortMeta,

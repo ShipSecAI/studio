@@ -46,15 +46,6 @@ const parameterSchema = parameters({
   ),
 });
 
-interface Output {
-  secret: unknown;
-  metadata: {
-    secretId: string;
-    version: number;
-    format: 'raw' | 'json';
-  };
-}
-
 const outputSchema = outputs({
   secret: port(z.unknown(), {
     label: 'Secret Value',

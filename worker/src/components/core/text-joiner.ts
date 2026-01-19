@@ -46,11 +46,6 @@ const inputSchema = inputs({
   ),
 });
 
-interface Output {
-  text: string;
-  count: number;
-}
-
 const outputSchema = outputs({
   text: port(z.string(), {
     label: 'Joined Text',
