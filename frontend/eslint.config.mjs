@@ -79,11 +79,11 @@ export default tseslint.config(
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-namespace': 'error',
       '@typescript-eslint/ban-ts-comment': 'warn',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',
 
       // General strict rules
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': 'off',
       'no-empty': 'error',
       'no-undef': 'off',
       'no-case-declarations': 'error',

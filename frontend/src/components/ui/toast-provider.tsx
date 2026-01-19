@@ -1,34 +1,15 @@
-import {
-  createContext,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-
-export type ToastVariant = 'default' | 'success' | 'warning' | 'destructive';
-
-export interface ToastOptions {
-  id?: string;
-  title: string;
-  description?: ReactNode;
-  duration?: number;
-  variant?: ToastVariant;
-}
+import {
+  ToastContext,
+  type ToastContextValue,
+  type ToastOptions,
+  type ToastVariant,
+} from './toast-context';
 
 interface ToastEntry extends ToastOptions {
   id: string;
 }
-
-export interface ToastContextValue {
-  toast: (options: ToastOptions) => { id: string };
-  dismiss: (id: string) => void;
-}
-
-export const ToastContext = createContext<ToastContextValue | null>(null);
 
 const DEFAULT_DURATION = 5000;
 

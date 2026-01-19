@@ -6,7 +6,7 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useComponentStore } from '@/store/componentStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
-import { mobilePlacementState } from '@/components/layout/Sidebar';
+import { mobilePlacementState } from '@/components/layout/sidebar-state';
 import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
 import {

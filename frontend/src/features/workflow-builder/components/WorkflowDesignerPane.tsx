@@ -9,7 +9,7 @@ import {
 } from '@/components/workflow/WorkflowSchedulesPanel';
 import { WorkflowWebhooksSidebar } from '@/components/workflow/WorkflowWebhooksPanel';
 import type { FrontendNodeData } from '@/schemas/node';
-import { WorkflowSchedulesProvider } from '@/features/workflow-builder/contexts/WorkflowSchedulesContext';
+import { WorkflowSchedulesProvider } from '@/features/workflow-builder/contexts/WorkflowSchedulesProvider';
 import { useWorkflowSchedules } from '@/features/workflow-builder/hooks/useWorkflowSchedules';
 import { ScheduleEditorDrawer } from '@/components/schedules/ScheduleEditorDrawer';
 import { useToast } from '@/components/ui/use-toast';

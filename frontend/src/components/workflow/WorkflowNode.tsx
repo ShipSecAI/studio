@@ -47,7 +47,7 @@ import { WebhookDetails } from './WebhookDetails';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import { API_BASE_URL } from '@/services/api';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useEntryPointActions } from './Canvas';
+import { useEntryPointActions } from './entry-point-context';
 import { ShieldAlert } from 'lucide-react';
 
 const STATUS_ICONS = {
@@ -513,7 +513,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Entry Point Helper Data
   // Get workflowId from store first, then from node data (passed from Canvas), then from route params
-  // @ts-ignore - FIXME: Check actual store structure, temporarily bypassing to fix build
+  // @ts-expect-error - FIXME: Check actual store structure, temporarily bypassing to fix build
   const workflowIdFromStore = useWorkflowStore((state) => state.workflow?.id);
   // Try to get workflowId from the node data if available (passed from Canvas)
   const workflowIdFromNode = (nodeData as any)?.workflowId as string | undefined;

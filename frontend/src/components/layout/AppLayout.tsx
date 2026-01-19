@@ -32,28 +32,14 @@ import { useAuth, useAuthProvider } from '@/auth/auth-context';
 import { env } from '@/config/env';
 import { useThemeStore } from '@/store/themeStore';
 import { cn } from '@/lib/utils';
-import { setMobilePlacementSidebarClose } from '@/components/layout/Sidebar';
+import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-state';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-interface SidebarContextValue {
-  isOpen: boolean;
-  isMobile: boolean;
-  toggle: () => void;
-}
-
-export const SidebarContext = React.createContext<SidebarContextValue | undefined>(undefined);
-
-export function useSidebar() {
-  const context = React.useContext(SidebarContext);
-  if (context === undefined) {
-    throw new Error('useSidebar must be used within an AppLayout');
-  }
-  return context;
-}
+import { SidebarContext } from './sidebar-context';
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {

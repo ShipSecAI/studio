@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/auth/auth-context';
-import { useAuthModal } from './AuthModal';
+import { useAuthModal } from './useAuthModal';
 import { UserButton } from './UserButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

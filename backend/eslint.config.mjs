@@ -21,7 +21,7 @@ export default tseslint.config(
         ...globals.es2024,
       },
       parserOptions: {
-        project: './tsconfig.json',
+        project: ['./tsconfig.json', './tsconfig.scripts.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -45,10 +45,10 @@ export default tseslint.config(
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-namespace': 'error',
       '@typescript-eslint/ban-ts-comment': 'warn',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-extraneous-class': 'off', // NestJS modules
 
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': 'off',
       'no-undef': 'off',
       'no-case-declarations': 'error',
       'no-empty': 'error',

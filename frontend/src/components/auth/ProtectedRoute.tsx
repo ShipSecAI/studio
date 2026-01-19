@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useAuth, useAuthProvider } from '../../auth/auth-context';
-import { AuthModal, useAuthModal } from './AuthModal';
+import { useAuth, useAuthProvider } from '../../auth/useAuth';
+import { AuthModal } from './AuthModal';
+import { useAuthModal } from './useAuthModal';
 import { AdminLoginForm } from './AdminLoginForm';
 import { Button } from '../ui/button';
 import { Shield, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { useAuthStore } from '../../store/authStore';
 
-interface ProtectedRouteProps {
+export interface ProtectedRouteProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
   requireAuth?: boolean;
@@ -215,58 +216,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // All checks passed - render children
   return <>{children}</>;
 };
-
-// Higher-order component for protecting routes
-export function withAuth<P extends object>(
-  Component: React.ComponentType<P>,
-  options: Omit<ProtectedRouteProps, 'children'> = {},
-) {
-  const WrappedComponent = (props: P) => (
-    <ProtectedRoute {...options}>
-      <Component {...props} />
-    </ProtectedRoute>
-  );
-
-  WrappedComponent.displayName = `withAuth(${Component.displayName || Component.name})`;
-  return WrappedComponent;
-}
-
-// Hook to check if current user has required permissions
-export function usePermissions() {
-  const { user, isAuthenticated } = useAuth();
-
-  const hasRole = (requiredRoles: string[]) => {
-    if (!isAuthenticated || !user) return false;
-
-    const userRole = user.organizationRole?.toUpperCase();
-    return requiredRoles.some((role) => userRole === role.toUpperCase() || role === '*');
-  };
-
-  const hasOrg = () => {
-    return isAuthenticated && user && !!user.organizationId;
-  };
-
-  const canAccess = (
-    options: {
-      requireAuth?: boolean;
-      requireOrg?: boolean;
-      roles?: string[];
-    } = {},
-  ) => {
-    const { requireAuth = true, requireOrg = false, roles = [] } = options;
-
-    if (requireAuth && !isAuthenticated) return false;
-    if (requireOrg && !hasOrg()) return false;
-    if (roles.length > 0 && !hasRole(roles)) return false;
-
-    return true;
-  };
-
-  return {
-    user,
-    isAuthenticated,
-    hasRole,
-    hasOrg,
-    canAccess,
-  };
-}

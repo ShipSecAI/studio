@@ -44,7 +44,8 @@ import { API_BASE_URL, api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import type { WorkflowSchedule } from '@shipsec/shared';
-import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/WorkflowSchedulesContext';
+import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
+import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
 
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
 
@@ -160,31 +161,6 @@ const normalizeRuntimeInputs = (value: unknown) => {
     }
   }
   return [];
-};
-
-const formatScheduleTimestamp = (value?: string | null) => {
-  if (!value) return 'Not scheduled';
-  try {
-    const date = new Date(value);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      timeZoneName: 'short',
-    }).format(date);
-  } catch {
-    return value;
-  }
-};
-
-const scheduleStatusVariant: Record<
-  WorkflowSchedule['status'],
-  'default' | 'secondary' | 'destructive'
-> = {
-  active: 'default',
-  paused: 'secondary',
-  error: 'destructive',
 };
 
 interface ManualListChipsInputProps {

@@ -4,8 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  createContext,
-  useContext,
   type Dispatch,
   type SetStateAction,
 } from 'react';
@@ -42,8 +40,9 @@ import type { NodeData } from '@/schemas/node';
 import { useToast } from '@/components/ui/use-toast';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
-import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/WorkflowSchedulesContext';
-import { mobilePlacementState, clearMobilePlacement } from '@/components/layout/Sidebar';
+import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
+import { mobilePlacementState, clearMobilePlacement } from '@/components/layout/sidebar-state';
+import { EntryPointActionsContext } from './entry-point-context';
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
@@ -62,16 +61,6 @@ function useIsMobile(breakpoint = 768) {
 
   return isMobile;
 }
-
-// Context for entry point actions
-interface EntryPointActionsContextValue {
-  onOpenScheduleSidebar?: () => void;
-  onOpenWebhooksSidebar?: () => void;
-  onScheduleCreate?: () => void;
-}
-
-const EntryPointActionsContext = createContext<EntryPointActionsContextValue>({});
-export const useEntryPointActions = () => useContext(EntryPointActionsContext);
 
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
 const ENTRY_COMPONENT_SLUG = 'entry-point';
