@@ -28,7 +28,12 @@
     "typecheck": "tsc --build",
     "test": "bun test",
     "test:e2e": "RUN_E2E=true bun test e2e-tests",
-    "dev:docs": "cd docs && mint dev"
+    "dev:docs": "cd docs && mint dev",
+    "lint": "bun run lint:frontend && bun run lint:backend && bun run lint:worker",
+    "lint:frontend": "bun --cwd=frontend run lint",
+    "lint:backend": "bun --cwd=backend run lint",
+    "lint:worker": "bun --cwd=worker run lint",
+    "lint:fix": "bun run lint:frontend --fix && bun run lint:backend --fix && bun run lint:worker --fix"
   },
   "devDependencies": {
     "@types/bun": "^1.3.5",
