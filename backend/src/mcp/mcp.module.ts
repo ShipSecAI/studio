@@ -1,11 +1,15 @@
 import { Global, Module } from '@nestjs/common';
 import Redis from 'ioredis';
 import { ToolRegistryService, TOOL_REGISTRY_REDIS } from './tool-registry.service';
+import { McpGatewayService } from './mcp-gateway.service';
+import { McpGatewayController } from './mcp-gateway.controller';
 import { SecretsModule } from '../secrets/secrets.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Global()
 @Module({
-  imports: [SecretsModule],
+  imports: [SecretsModule, WorkflowsModule],
+  controllers: [McpGatewayController],
   providers: [
     {
       provide: TOOL_REGISTRY_REDIS,
@@ -19,7 +23,8 @@ import { SecretsModule } from '../secrets/secrets.module';
       },
     },
     ToolRegistryService,
+    McpGatewayService,
   ],
-  exports: [ToolRegistryService],
+  exports: [ToolRegistryService, McpGatewayService],
 })
 export class McpModule {}
