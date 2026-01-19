@@ -25,6 +25,7 @@ import {
 } from '../activities/human-input.activity';
 import { prepareRunPayloadActivity } from '../activities/run-dispatcher.activity';
 import { recordTraceEventActivity, initializeTraceActivity } from '../activities/trace.activity';
+import { registerToolActivity } from '../activities/mcp.activity';
 
 // ... (existing imports)
 
@@ -243,6 +244,7 @@ async function main() {
       cancelHumanInputRequestActivity,
       expireHumanInputRequestActivity,
       recordTraceEventActivity,
+      registerToolActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

@@ -15,6 +15,21 @@ export const CallToolRequestSchema = z.object({
 
 export class CallToolRequestDto extends createZodDto(CallToolRequestSchema) {}
 
+export const RegisterToolRequestSchema = z.object({
+  runId: z.string(),
+  nodeId: z.string(),
+  toolName: z.string(),
+  componentId: z.string(),
+  description: z.string(),
+  inputSchema: z.record(z.string(), z.unknown()),
+  credentials: z.record(z.string(), z.unknown()),
+  type: z.enum(['component', 'remote-mcp', 'local-mcp']),
+  endpoint: z.string().optional(),
+  containerId: z.string().optional(),
+});
+
+export class RegisterToolRequestDto extends createZodDto(RegisterToolRequestSchema) {}
+
 export interface McpToolResponse {
   tools: {
     name: string;

@@ -34,3 +34,19 @@ export interface PendingHumanInput {
   title: string;
   createdAt: string;
 }
+
+/**
+ * Signal for notifying that a tool call has completed (triggered via MCP gateway)
+ */
+export interface ToolCallResolution {
+  nodeRef: string;
+  toolName: string;
+  output: unknown;
+  status: 'completed' | 'failed';
+  errorMessage?: string;
+}
+
+/**
+ * Signal to notify that a tool call has completed
+ */
+export const toolCallCompletedSignal = defineSignal<[ToolCallResolution]>('toolCallCompleted');

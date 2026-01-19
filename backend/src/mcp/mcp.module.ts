@@ -3,13 +3,14 @@ import Redis from 'ioredis';
 import { ToolRegistryService, TOOL_REGISTRY_REDIS } from './tool-registry.service';
 import { McpGatewayService } from './mcp-gateway.service';
 import { McpGatewayController } from './mcp-gateway.controller';
+import { InternalMcpController } from './internal-mcp.controller';
 import { SecretsModule } from '../secrets/secrets.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
 
 @Global()
 @Module({
   imports: [SecretsModule, WorkflowsModule],
-  controllers: [McpGatewayController],
+  controllers: [McpGatewayController, InternalMcpController],
   providers: [
     {
       provide: TOOL_REGISTRY_REDIS,

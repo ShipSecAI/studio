@@ -40,6 +40,11 @@ export interface WorkflowNodeMetadata {
   maxConcurrency?: number;
   groupId?: string;
   streamId?: string;
+  mode?: 'normal' | 'tool';
+  toolConfig?: {
+    boundInputIds: string[];
+    exposedInputIds: string[];
+  };
 }
 
 export interface WorkflowFailureMetadata {
@@ -172,4 +177,17 @@ export interface PrepareRunPayloadActivityInput {
   organizationId?: string | null;
   parentRunId?: string;
   parentNodeRef?: string;
+}
+
+export interface RegisterToolActivityInput {
+  runId: string;
+  nodeRef: string;
+  componentId: string;
+  toolName: string;
+  description: string;
+  inputSchema: any;
+  credentials: Record<string, unknown>;
+  type: 'component' | 'remote-mcp' | 'local-mcp';
+  endpoint?: string;
+  containerId?: string;
 }
