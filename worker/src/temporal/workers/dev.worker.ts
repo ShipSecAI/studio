@@ -25,6 +25,12 @@ import {
 } from '../activities/human-input.activity';
 import { prepareRunPayloadActivity } from '../activities/run-dispatcher.activity';
 import { recordTraceEventActivity, initializeTraceActivity } from '../activities/trace.activity';
+import {
+  registerComponentToolActivity,
+  registerLocalMcpActivity,
+  registerRemoteMcpActivity,
+  prepareAndRegisterToolActivity,
+} from '../activities/mcp.activity';
 
 // ... (existing imports)
 
@@ -211,6 +217,9 @@ async function main() {
       createHumanInputRequestActivity,
       cancelHumanInputRequestActivity,
       recordTraceEventActivity,
+      registerComponentToolActivity,
+      registerLocalMcpActivity,
+      registerRemoteMcpActivity,
     }).join(', ')}`,
   );
 
@@ -243,6 +252,10 @@ async function main() {
       cancelHumanInputRequestActivity,
       expireHumanInputRequestActivity,
       recordTraceEventActivity,
+      registerComponentToolActivity,
+      registerLocalMcpActivity,
+      registerRemoteMcpActivity,
+      prepareAndRegisterToolActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

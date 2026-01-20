@@ -40,6 +40,11 @@ export interface WorkflowNodeMetadata {
   maxConcurrency?: number;
   groupId?: string;
   streamId?: string;
+  mode?: 'normal' | 'tool';
+  toolConfig?: {
+    boundInputIds: string[];
+    exposedInputIds: string[];
+  };
 }
 
 export interface WorkflowFailureMetadata {
@@ -172,4 +177,49 @@ export interface PrepareRunPayloadActivityInput {
   organizationId?: string | null;
   parentRunId?: string;
   parentNodeRef?: string;
+}
+
+// MCP Activity types
+
+export interface RegisterComponentToolActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  componentId: string;
+  description: string;
+  inputSchema: any;
+  credentials: Record<string, unknown>;
+}
+
+export interface RegisterRemoteMcpActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  description: string;
+  inputSchema: any;
+  endpoint: string;
+  authToken?: string;
+}
+
+export interface RegisterLocalMcpActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  description: string;
+  inputSchema: any;
+  image: string;
+  command?: string;
+  args?: string;
+  env?: Record<string, string>;
+  port: number;
+  endpoint: string;
+  containerId: string;
+}
+
+export interface PrepareAndRegisterToolActivityInput {
+  runId: string;
+  nodeId: string;
+  componentId: string;
+  inputs: Record<string, unknown>;
+  params: Record<string, unknown>;
 }

@@ -14,7 +14,7 @@ export interface ValidationResult {
   error?: string;
 }
 
-type ZodDef = { type?: string; typeName?: string; [key: string]: any };
+type ZodDef = { type?: string; typeName?: string;[key: string]: any };
 
 const LEGACY_TYPE_MAP: Record<string, string> = {
   ZodString: 'string',
@@ -131,6 +131,7 @@ export function extractPorts(
       valuePriority: metadata.valuePriority,
       isBranching: metadata.isBranching,
       branchColor: metadata.branchColor,
+      hidden: metadata.hidden,
     });
   }
 

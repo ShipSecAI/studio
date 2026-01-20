@@ -36,6 +36,8 @@ export interface DockerRunnerConfig {
   }>; // Optional volume mounts
   timeoutSeconds?: number;
   stdinJson?: boolean; // Whether to write params as JSON to container's stdin (default: true)
+  detached?: boolean; // If true, start container and return immediately without waiting for exit
+  ports?: Record<number, number>; // Port mapping host -> container
 }
 
 
@@ -251,6 +253,8 @@ export interface ComponentPortMetadata {
   isBranching?: boolean;
   /** Custom color for branching ports: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate' */
   branchColor?: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate';
+  /** True if this port should be hidden from the UI */
+  hidden?: boolean;
 }
 
 export type ComponentParameterType =

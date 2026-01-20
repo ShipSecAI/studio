@@ -2,10 +2,12 @@ import { Global, Module } from '@nestjs/common';
 import Redis from 'ioredis';
 import { ToolRegistryService, TOOL_REGISTRY_REDIS } from './tool-registry.service';
 import { SecretsModule } from '../secrets/secrets.module';
+import { InternalMcpController } from './internal-mcp.controller';
 
 @Global()
 @Module({
   imports: [SecretsModule],
+  controllers: [InternalMcpController],
   providers: [
     {
       provide: TOOL_REGISTRY_REDIS,

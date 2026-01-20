@@ -20,6 +20,10 @@ import type {
   RunWorkflowActivityOutput,
   WorkflowAction,
   PrepareRunPayloadActivityInput,
+  RegisterComponentToolActivityInput,
+  RegisterLocalMcpActivityInput,
+  RegisterRemoteMcpActivityInput,
+  PrepareAndRegisterToolActivityInput,
 } from '../types';
 
 const {
@@ -28,6 +32,9 @@ const {
   finalizeRunActivity,
   createHumanInputRequestActivity,
   expireHumanInputRequestActivity,
+  registerLocalMcpActivity,
+  registerRemoteMcpActivity,
+  prepareAndRegisterToolActivity,
 } = proxyActivities<{
   runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
   setRunMetadataActivity(input: {
@@ -53,6 +60,10 @@ const {
     resolveUrl: string;
   }>;
   expireHumanInputRequestActivity(requestId: string): Promise<void>;
+  registerComponentToolActivity(input: RegisterComponentToolActivityInput): Promise<void>;
+  registerLocalMcpActivity(input: RegisterLocalMcpActivityInput): Promise<void>;
+  registerRemoteMcpActivity(input: RegisterRemoteMcpActivityInput): Promise<void>;
+  prepareAndRegisterToolActivity(input: PrepareAndRegisterToolActivityInput): Promise<void>;
 }>({
   startToCloseTimeout: '10 minutes',
 });
@@ -518,6 +529,62 @@ export async function shipsecWorkflowRun(
         };
 
         const retryOptions = mapRetryPolicy(action.retryPolicy);
+
+        const isToolMode = nodeMetadata?.mode === 'tool';
+
+        if (isToolMode) {
+          if (action.componentId === 'core.mcp.server') {
+            const { runComponentActivity: runMcp } = proxyActivities<{
+              runComponentActivity(
+                input: RunComponentActivityInput,
+              ): Promise<RunComponentActivityOutput>;
+            }>({
+              startToCloseTimeout: '10 minutes',
+              retry: retryOptions,
+            });
+
+            const mcpOutput = await runMcp(activityInput);
+            const output = mcpOutput.output as any;
+            const endpoint = output.endpoint;
+            const containerId = output.containerId;
+
+            if (mergedParams.type === 'docker' || mergedParams.image) {
+              await registerLocalMcpActivity({
+                runId: input.runId,
+                nodeId: action.ref,
+                toolName:
+                  (mergedParams.image as string)?.split('/').pop()?.split(':')[0] || 'mcp_server',
+                description: `Local MCP Server (${mergedParams.image})`,
+                inputSchema: {},
+                image: mergedParams.image as string,
+                port: (mergedParams.port as number) || 8080,
+                endpoint,
+                containerId,
+              });
+            } else {
+              await registerRemoteMcpActivity({
+                runId: input.runId,
+                nodeId: action.ref,
+                toolName: 'remote_mcp',
+                description: `Remote MCP Server (${endpoint})`,
+                inputSchema: {},
+                endpoint: endpoint as string,
+                authToken: mergedParams.authToken as string,
+              });
+            }
+          } else {
+            await prepareAndRegisterToolActivity({
+              runId: input.runId,
+              nodeId: action.ref,
+              componentId: action.componentId,
+              inputs: mergedInputs,
+              params: mergedParams,
+            });
+          }
+
+          // Tool registration is successful, proceed as a successful node execution
+          return { activePorts: ['default'] };
+        }
 
         const { runComponentActivity: runComponentWithRetry } = proxyActivities<{
           runComponentActivity(
