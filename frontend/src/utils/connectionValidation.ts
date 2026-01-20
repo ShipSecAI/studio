@@ -179,6 +179,7 @@ export function getNodeValidationWarnings(
   node: Node<FrontendNodeData>,
   edges: Edge[],
   component: ComponentMetadata,
+  secrets?: { id: string; name: string }[],
 ): string[] {
   const warnings: string[] = [];
 
@@ -217,6 +218,42 @@ export function getNodeValidationWarnings(
       }
     }
   });
+
+  // Check for missing secrets if secrets catalog is provided
+  if (secrets) {
+    const secretIds = secrets.map((s) => s.id);
+    const secretNames = secrets.map((s) => s.name);
+
+    // 1. Check params
+    component.parameters.forEach((param) => {
+      if (param.type === 'secret') {
+        const val = manualParameters[param.id];
+        if (
+          val &&
+          typeof val === 'string' &&
+          !secretIds.includes(val) &&
+          !secretNames.includes(val)
+        ) {
+          warnings.push(`Parameter "${param.label}" refers to a missing secret`);
+        }
+      }
+    });
+
+    // 2. Check inputOverrides
+    component.inputs.forEach((input) => {
+      if (input.editor === 'secret') {
+        const val = inputOverrides[input.id];
+        if (
+          val &&
+          typeof val === 'string' &&
+          !secretIds.includes(val) &&
+          !secretNames.includes(val)
+        ) {
+          warnings.push(`Input "${input.label}" refers to a missing secret`);
+        }
+      }
+    });
+  }
 
   return warnings;
 }

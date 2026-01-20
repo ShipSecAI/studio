@@ -48,7 +48,9 @@ import { useApiKeyStore } from '@/store/apiKeyStore';
 import { API_BASE_URL } from '@/services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEntryPointActions } from './entry-point-context';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, KeyRound } from 'lucide-react';
+import { useSecretStore } from '@/store/secretStore';
+import { getSecretLabel } from '@/api/secrets';
 
 const STATUS_ICONS = {
   running: Loader2,
@@ -352,10 +354,13 @@ function ParametersDisplay({
   nodeParameters,
   position = 'bottom',
 }: ParametersDisplayProps) {
+  const secrets = useSecretStore((state) => state.secrets);
+
   // Show required parameters and important select parameters (like mode)
   // Exclude nested parameters (those with visibleWhen) like schemaType
   const selectParams = componentParameters.filter(
-    (param) => param.type === 'select' && !param.required && !param.visibleWhen,
+    (param) =>
+      (param.type === 'select' || param.type === 'secret') && !param.required && !param.visibleWhen,
   );
   const paramsToShow = [...requiredParams, ...selectParams];
 
@@ -377,11 +382,18 @@ function ParametersDisplay({
             effectiveValue !== undefined && effectiveValue !== null && effectiveValue !== '';
           const isDefault = value === undefined && param.default !== undefined;
 
-          // For select parameters, show the label instead of value
+          // For select/secret parameters, show the label instead of value
           let displayValue = hasValue ? effectiveValue : '';
+          const isSecret = param.type === 'secret';
+
           if (param.type === 'select' && hasValue && param.options) {
             const option = param.options.find((opt: any) => opt.value === effectiveValue);
             displayValue = option?.label || effectiveValue;
+          } else if (isSecret && hasValue) {
+            const secret = secrets.find(
+              (s) => s.id === effectiveValue || s.name === effectiveValue,
+            );
+            displayValue = secret ? getSecretLabel(secret) : effectiveValue;
           }
 
           return (
@@ -397,12 +409,15 @@ function ParametersDisplay({
                       'font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[80px]',
                       isDefault
                         ? 'text-muted-foreground bg-muted/50 italic'
-                        : param.type === 'select'
-                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 font-semibold'
-                          : 'text-foreground bg-muted',
+                        : isSecret
+                          ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 font-semibold flex items-center gap-1'
+                          : param.type === 'select'
+                            ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 font-semibold'
+                            : 'text-foreground bg-muted',
                     )}
                     title={isDefault ? `Default: ${String(displayValue)}` : String(displayValue)}
                   >
+                    {isSecret && <KeyRound className="h-2.5 w-2.5" />}
                     {String(displayValue)}
                   </span>
                 ) : param.required ? (
@@ -422,6 +437,7 @@ function ParametersDisplay({
  */
 export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const { getComponent, loading } = useComponentStore();
+  const secrets = useSecretStore((state) => state.secrets);
   const { getNodes, getEdges, setNodes, deleteElements } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode, isLiveFollowing } =
@@ -1435,12 +1451,26 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 }
               }
 
-              const manualDisplay =
+              const manualDisplayVal =
                 manualValueProvided &&
                 inputSupportsManualValue(input) &&
                 typeof manualCandidate === 'string'
                   ? manualCandidate.trim()
                   : '';
+
+              let manualDisplay = manualDisplayVal;
+              const isSecretInput =
+                input.editor === 'secret' ||
+                (input.connectionType?.kind === 'primitive' &&
+                  input.connectionType.name === 'secret');
+
+              if (isSecretInput && manualDisplayVal) {
+                const secret = secrets.find(
+                  (s) => s.id === manualDisplayVal || s.name === manualDisplayVal,
+                );
+                manualDisplay = secret ? getSecretLabel(secret) : manualDisplayVal;
+              }
+
               const previewText =
                 manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
               const handleClassName = cn(
@@ -1465,12 +1495,20 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       <span className="text-red-500 text-[10px]">*required</span>
                     )}
                     {manualValueProvided && manualDisplay && (
-                      <span
-                        className="text-muted-foreground text-[10px] italic"
-                        title={manualDisplay}
-                      >
-                        Manual: {previewText}
-                      </span>
+                      <div className="mt-0.5">
+                        <span
+                          className={cn(
+                            'font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[120px] inline-flex items-center gap-1',
+                            isSecretInput
+                              ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 font-semibold'
+                              : 'text-foreground bg-muted',
+                          )}
+                          title={manualDisplay}
+                        >
+                          {isSecretInput && <KeyRound className="h-2.5 w-2.5" />}
+                          {previewText}
+                        </span>
+                      </div>
                     )}
                     {manualValueProvided && !manualDisplay && (
                       <span className="text-muted-foreground text-[10px] italic">Manual value</span>

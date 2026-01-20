@@ -864,7 +864,6 @@ export function ConfigPanel({
                               placeholder={manualPlaceholder}
                               className="text-sm"
                               disabled={manualLocked}
-                              allowManualEntry={!manualLocked}
                             />
                           ) : isBooleanInput ? (
                             <div className="space-y-2">

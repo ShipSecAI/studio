@@ -10,6 +10,8 @@ import { SimpleVariableListEditor } from './SimpleVariableListEditor';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
 import { FormFieldsEditor } from './FormFieldsEditor';
 import { SelectionOptionsEditor } from './SelectionOptionsEditor';
+import { SecretSelect } from '@/components/inputs/SecretSelect';
+import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
 import type { InputMapping } from '@/schemas/node';
 import { useSecretStore } from '@/store/secretStore';
@@ -57,7 +59,6 @@ export function ParameterField({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const secrets = useSecretStore((state) => state.secrets);
-  const secretsLoading = useSecretStore((state) => state.loading);
   const secretsError = useSecretStore((state) => state.error);
   const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
   const refreshSecrets = useSecretStore((state) => state.refresh);
@@ -537,30 +538,27 @@ export function ParameterField({
     case 'select': {
       const isAuthModeField = isRemoveGithubComponent && parameter.id === 'authMode';
 
+      const options: SelectOption[] =
+        parameter.options?.map((o) => ({
+          label: o.label,
+          value: o.value,
+        })) || [];
+
       return (
-        <select
-          id={parameter.id}
-          value={currentValue || ''}
-          onChange={(e) => {
-            const nextValue = e.target.value;
+        <LeanSelect
+          value={currentValue}
+          options={options}
+          onChange={(nextValue) => {
             onChange(nextValue);
 
             if (isAuthModeField && nextValue === 'manual') {
               onUpdateParameter?.('connectionId', undefined);
             }
           }}
-          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
           disabled={isReceivingInput && !isAuthModeField}
-        >
-          {!parameter.required && !parameter.default && (
-            <option value="">Select an option...</option>
-          )}
-          {parameter.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          placeholder={parameter.required ? 'Select an option...' : 'Select an option (optional)'}
+          clearable={!parameter.required}
+        />
       );
     }
 
@@ -642,9 +640,6 @@ export function ParameterField({
       );
 
     case 'secret': {
-      const hasSecrets = secrets.length > 0;
-      // Find secret by ID (new format) or name (legacy format for migration)
-      const activeSecret = secrets.find((s) => s.id === currentValue || s.name === currentValue);
       const disableForGithubConnection =
         isRemoveGithubComponent && parameter.id === 'clientSecret' && isGithubConnectionMode;
 
@@ -670,64 +665,18 @@ export function ParameterField({
 
           {secretsError && <p className="text-xs text-destructive">{secretsError}</p>}
 
-          {hasSecrets ? (
-            <>
-              <select
-                value={activeSecret?.id ?? ''}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  // Store secret.id for runtime resolution
-                  updateSecretValue(nextValue === '' ? undefined : nextValue);
-                }}
-                className="w-full px-3 py-2 text-sm border rounded-md bg-background"
-                disabled={isReceivingInput || disableForGithubConnection}
-              >
-                <option value="">Select a secret…</option>
-                {secrets.map((secret) => (
-                  <option key={secret.id} value={secret.id}>
-                    {secret.name}
-                  </option>
-                ))}
-              </select>
+          <SecretSelect
+            value={typeof currentValue === 'string' ? currentValue : ''}
+            onChange={(nextValue) => {
+              updateSecretValue(nextValue === '' ? undefined : nextValue);
+            }}
+            disabled={isReceivingInput || disableForGithubConnection}
+            onRefresh={() => {
+              void refreshSecrets();
+            }}
+          />
 
-              {activeSecret && (
-                <p className="text-xs text-muted-foreground">
-                  Selected: <span className="font-mono">{activeSecret.name}</span>
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              No stored secrets yet. Create one in the Secret Manager.
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                refreshSecrets().catch((error) => {
-                  console.error('Failed to refresh secrets', error);
-                });
-              }}
-              disabled={secretsLoading || isReceivingInput || disableForGithubConnection}
-            >
-              {secretsLoading ? 'Refreshing…' : 'Refresh'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => navigate('/secrets')}
-              disabled={isReceivingInput || disableForGithubConnection}
-            >
-              Manage secrets
-            </Button>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground opacity-70">
             Secrets are resolved at runtime. Only the secret reference is stored in the workflow.
           </p>
         </div>
