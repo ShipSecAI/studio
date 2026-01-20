@@ -17,6 +17,9 @@ async function bootstrap() {
   // Set global prefix for all routes
   app.setGlobalPrefix('api/v1');
 
+  // Enable graceful shutdown hooks
+  app.enableShutdownHooks();
+
   const httpAdapter = app.getHttpAdapter().getInstance();
   if (httpAdapter?.set) {
     httpAdapter.set('etag', false);

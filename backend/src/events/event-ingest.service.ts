@@ -49,13 +49,19 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    this.connectToKafka().catch((error) => {
+      this.logger.error('Failed to initialize Kafka e vent ingestion', error as Error);
+    });
+  }
+
+  private async connectToKafka(): Promise<void> {
     try {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
         requestTimeout: 30000,
         retry: {
-          retries: 1,
+          retries: 10,
           initialRetryTime: 100,
           maxRetryTime: 30000,
         },
@@ -63,8 +69,8 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
 
       this.consumer = kafka.consumer({
         groupId: this.kafkaGroupId,
-        sessionTimeout: 30000,
-        heartbeatInterval: 3000,
+        sessionTimeout: 6000,
+        heartbeatInterval: 2000,
       });
       await this.consumer.connect();
       await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
@@ -96,16 +102,18 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
         `Kafka event ingestion connected (${this.kafkaBrokers.join(', ')}) topic=${this.kafkaTopic}`,
       );
     } catch (error) {
-      this.logger.error('Failed to initialize Kafka event ingestion', error as Error);
-      throw error;
+      this.logger.error('Failed to connect to Kafka event ingestion', error as Error);
+      // We don't throw here to ensure the backend stays up even if ingestion fails initially
     }
   }
 
   async onModuleDestroy(): Promise<void> {
     if (this.consumer) {
+      this.logger.log('Disconnecting Kafka consumer...');
       await this.consumer.disconnect().catch((error) => {
         this.logger.error('Failed to disconnect Kafka consumer', error as Error);
       });
+      this.logger.log('Kafka consumer disconnected');
     }
   }
 

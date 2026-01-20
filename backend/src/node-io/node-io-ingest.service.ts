@@ -55,13 +55,19 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    this.connectToKafka().catch((error) => {
+      this.logger.error('Failed to initialize Kafka node I/O ingestion', error as Error);
+    });
+  }
+
+  private async connectToKafka(): Promise<void> {
     try {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
         requestTimeout: 30000,
         retry: {
-          retries: 5,
+          retries: 10,
           initialRetryTime: 100,
           maxRetryTime: 30000,
         },
@@ -99,16 +105,18 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
         `Kafka node I/O ingestion connected (${this.kafkaBrokers.join(', ')}) topic=${this.kafkaTopic}`,
       );
     } catch (error) {
-      this.logger.error('Failed to initialize Kafka node I/O ingestion', error as Error);
+      this.logger.error('Failed to connect to Kafka node I/O ingestion', error as Error);
       // Don't throw here to avoid crashing the whole backend if Kafka is just temporarily down
     }
   }
 
   async onModuleDestroy(): Promise<void> {
     if (this.consumer) {
+      this.logger.log('Disconnecting Kafka consumer...');
       await this.consumer.disconnect().catch((error) => {
         this.logger.error('Failed to disconnect Kafka consumer', error as Error);
       });
+      this.logger.log('Kafka consumer disconnected');
     }
   }
 

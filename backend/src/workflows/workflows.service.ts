@@ -174,7 +174,7 @@ export class WorkflowsService {
     const organizationId = this.requireOrganizationId(auth);
     const workflow = await this.repository.findById(workflowId, { organizationId });
     if (!workflow) {
-      throw new NotFoundException(`Workflow ${workflowId} not found`);
+      throw new NotFoundException(`Workflo w ${workflowId} not found`);
     }
     const version = await this.resolveWorkflowVersion(workflowId, request, organizationId);
     const definition = await this.ensureDefinitionForVersion(workflow, version, organizationId);
