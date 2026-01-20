@@ -13,6 +13,11 @@ import { Injectable, Logger, Inject, OnModuleDestroy } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { type ToolInputSchema } from '@shipsec/component-sdk';
 import { SecretsEncryptionService } from '../secrets/secrets.encryption';
+import {
+  RegisterComponentToolInput,
+  RegisterLocalMcpInput,
+  RegisterRemoteMcpInput,
+} from './dto/mcp.dto';
 
 export const TOOL_REGISTRY_REDIS = Symbol('TOOL_REGISTRY_REDIS');
 
@@ -65,45 +70,6 @@ export interface RegisteredTool {
 
   /** Timestamp when tool was registered */
   registeredAt: string;
-}
-
-/**
- * Input for registering a component tool
- */
-export interface RegisterComponentToolInput {
-  runId: string;
-  nodeId: string;
-  toolName: string;
-  componentId: string;
-  description: string;
-  inputSchema: ToolInputSchema;
-  credentials: Record<string, unknown>;
-}
-
-/**
- * Input for registering a remote MCP
- */
-export interface RegisterRemoteMcpInput {
-  runId: string;
-  nodeId: string;
-  toolName: string;
-  description: string;
-  inputSchema: ToolInputSchema;
-  endpoint: string;
-  authToken?: string;
-}
-
-/**
- * Input for registering a local MCP (stdio container)
- */
-export interface RegisterLocalMcpInput {
-  runId: string;
-  nodeId: string;
-  toolName: string;
-  description: string;
-  inputSchema: ToolInputSchema;
-  endpoint: string;
-  containerId: string;
 }
 
 const REGISTRY_TTL_SECONDS = 60 * 60; // 1 hour
