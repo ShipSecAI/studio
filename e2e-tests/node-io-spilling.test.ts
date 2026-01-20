@@ -32,7 +32,7 @@ const servicesAvailableSync = (() => {
 async function checkServicesAvailable(): Promise<boolean> {
   if (!runE2E) return false;
   try {
-    const healthRes = await fetch(`${API_BASE}/health`, { 
+    const healthRes = await fetch(`${API_BASE}/health`, {
       headers: HEADERS,
       signal: AbortSignal.timeout(2000),
     });
@@ -63,13 +63,13 @@ function e2eTest(
   }
 }
 
-async function pollRunStatus(runId: string, timeoutMs = 180000): Promise<{status: string}> {
+async function pollRunStatus(runId: string, timeoutMs = 180000): Promise<{ status: string }> {
   const startTime = Date.now();
   console.log(`  [Debug] Polling status for ${runId}...`);
   while (Date.now() - startTime < timeoutMs) {
     const res = await fetch(`${API_BASE}/workflows/runs/${runId}/status`, { headers: HEADERS });
     const s = await res.json();
-    console.log(`  [Debug] Current status: ${s.status} (${Math.round((Date.now() - startTime)/1000)}s)`);
+    console.log(`  [Debug] Current status: ${s.status} (${Math.round((Date.now() - startTime) / 1000)}s)`);
     if (['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED'].includes(s.status)) {
       return s;
     }
@@ -107,7 +107,7 @@ export async function script(input: any) {
         id: 'start',
         type: 'core.workflow.entrypoint',
         position: { x: 0, y: 0 },
-        data: { label: 'Start', config: { runtimeInputs: [] } },
+        data: { label: 'Start', config: { params: { runtimeInputs: [] } } },
       },
       {
         id: 'large-gen',
@@ -116,9 +116,11 @@ export async function script(input: any) {
         data: {
           label: 'Generate Large Output',
           config: {
-            code: scriptCode,
-            variables: [],
-            returns: [{ name: 'results', type: 'json' }]
+            params: {
+              code: scriptCode,
+              variables: [],
+              returns: [{ name: 'results', type: 'json' }]
+            },
           },
         },
       },
@@ -161,7 +163,7 @@ e2eDescribe('Node I/O Spilling E2E Tests', () => {
 
     // Fetch Node I/O for the generator node (explicitly requesting full output)
     const nodeIO = await fetchNodeIO(runId, 'large-gen', true);
-    
+
     console.log(`  Inputs Spilled: ${nodeIO.inputsSpilled} (${nodeIO.inputsSize} bytes)`);
     console.log(`  Outputs Spilled: ${nodeIO.outputsSpilled} (${nodeIO.outputsSize} bytes)`);
 
@@ -175,7 +177,7 @@ e2eDescribe('Node I/O Spilling E2E Tests', () => {
     expect(Array.isArray(nodeIO.outputs.results)).toBe(true);
     expect(nodeIO.outputs.results.length).toBe(50000);
     expect(nodeIO.outputs.results[0].message).toContain('bloat message');
-    
+
     console.log(`  ✅ Successfully retrieved ${nodeIO.outputs.results.length} items from spilled storage`);
   });
 });

@@ -1237,8 +1237,8 @@ export class WorkflowsService {
         const baseInputs = entry.inputs ?? extractPorts(component.inputs);
         const baseOutputs = entry.outputs ?? extractPorts(component.outputs);
 
-        // Get parameters from node data (they may be stored in config, parameters, or at data level)
-        const params = nodeData.parameters || nodeData.config || {};
+        // Get parameters from node data (they may be stored in config.params, parameters, or at data level)
+        const params = nodeData.parameters || nodeData.config?.params || nodeData.config || {};
 
         // Resolve ports using the component's resolvePorts function if available
         if (typeof component.resolvePorts === 'function') {

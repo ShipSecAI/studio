@@ -46,7 +46,7 @@ async function checkServicesAvailable(): Promise<boolean> {
     return false;
   }
   try {
-    const healthRes = await fetch(`${API_BASE}/health`, { 
+    const healthRes = await fetch(`${API_BASE}/health`, {
       headers: HEADERS,
       signal: AbortSignal.timeout(2000),
     });
@@ -78,7 +78,7 @@ function e2eTest(
 }
 
 // Helper function to poll workflow run status
-async function pollRunStatus(runId: string, timeoutMs = 120000): Promise<{status: string}> {
+async function pollRunStatus(runId: string, timeoutMs = 120000): Promise<{ status: string }> {
   const startTime = Date.now();
   const pollInterval = 1000;
 
@@ -147,7 +147,7 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
           id: 'start',
           type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
-          data: { label: 'Start', config: { runtimeInputs: [] } },
+          data: { label: 'Start', config: { params: { runtimeInputs: [] } } },
         },
         {
           id: 'http-call',
@@ -156,12 +156,16 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
           data: {
             label: 'HTTP Request',
             config: {
-              url: 'https://httpbin.org/get?test=http-observability',
-              method: 'GET',
-              authType: 'none',
-              contentType: 'application/json',
-              timeout: 30000,
-              failOnError: false,
+              params: {
+                method: 'GET',
+                authType: 'none',
+                contentType: 'application/json',
+                timeout: 30000,
+                failOnError: false,
+              },
+              inputOverrides: {
+                url: 'https://httpbin.org/get?test=http-observability',
+              },
             },
           },
         },
@@ -170,10 +174,10 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
     };
 
     // Create the workflow
-    const res = await fetch(`${API_BASE}/workflows`, { 
-      method: 'POST', 
-      headers: HEADERS, 
-      body: JSON.stringify(wf) 
+    const res = await fetch(`${API_BASE}/workflows`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(wf)
     });
     if (!res.ok) {
       const error = await res.text();
@@ -183,10 +187,10 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
     console.log(`  Workflow ID: ${id}`);
 
     // Run the workflow
-    const runRes = await fetch(`${API_BASE}/workflows/${id}/run`, { 
-      method: 'POST', 
-      headers: HEADERS, 
-      body: JSON.stringify({ inputs: {} }) 
+    const runRes = await fetch(`${API_BASE}/workflows/${id}/run`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ inputs: {} })
     });
     if (!runRes.ok) {
       const error = await runRes.text();
@@ -202,7 +206,7 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
 
     // Fetch trace events and look for HTTP events
     const events = await fetchTraceEvents(runId);
-    
+
     // Find HTTP_REQUEST_SENT events
     const httpRequestSentEvents = events.filter((e: any) => e.type === 'HTTP_REQUEST_SENT');
     console.log(`  HTTP_REQUEST_SENT events: ${httpRequestSentEvents.length}`);
@@ -271,7 +275,7 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
           id: 'start',
           type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
-          data: { label: 'Start', config: { runtimeInputs: [] } },
+          data: { label: 'Start', config: { params: { runtimeInputs: [] } } },
         },
         {
           id: 'http-call',
@@ -280,12 +284,16 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
           data: {
             label: 'HTTP Request',
             config: {
-              url: 'https://httpbin.org/status/404',
-              method: 'GET',
-              authType: 'none',
-              contentType: 'application/json',
-              timeout: 30000,
-              failOnError: false, // Don't fail the workflow, just capture the 404
+              params: {
+                method: 'GET',
+                authType: 'none',
+                contentType: 'application/json',
+                timeout: 30000,
+                failOnError: false,
+              },
+              inputOverrides: {
+                url: 'https://httpbin.org/status/404',
+              },
             },
           },
         },
@@ -293,19 +301,22 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
       edges: [{ id: 'e1', source: 'start', target: 'http-call' }],
     };
 
-    const res = await fetch(`${API_BASE}/workflows`, { 
-      method: 'POST', 
-      headers: HEADERS, 
-      body: JSON.stringify(wf) 
+    const res = await fetch(`${API_BASE}/workflows`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(wf)
     });
-    if (!res.ok) throw new Error(`Workflow creation failed: ${res.status}`);
+    if (!res.ok) {
+      const errorBody = await res.text();
+      throw new Error(`Workflow creation failed: ${res.status} - ${errorBody}`);
+    }
     const { id } = await res.json();
     console.log(`  Workflow ID: ${id}`);
 
-    const runRes = await fetch(`${API_BASE}/workflows/${id}/run`, { 
-      method: 'POST', 
-      headers: HEADERS, 
-      body: JSON.stringify({ inputs: {} }) 
+    const runRes = await fetch(`${API_BASE}/workflows/${id}/run`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ inputs: {} })
     });
     if (!runRes.ok) throw new Error(`Workflow run failed: ${runRes.status}`);
     const { runId } = await runRes.json();
@@ -316,7 +327,7 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
     expect(result.status).toBe('COMPLETED'); // Should complete because failOnError is false
 
     const events = await fetchTraceEvents(runId);
-    
+
     const httpResponseEvents = events.filter((e: any) => e.type === 'HTTP_RESPONSE_RECEIVED');
     expect(httpResponseEvents.length).toBeGreaterThanOrEqual(1);
 
@@ -340,7 +351,7 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
           id: 'start',
           type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
-          data: { label: 'Start', config: { runtimeInputs: [] } },
+          data: { label: 'Start', config: { params: { runtimeInputs: [] } } },
         },
         {
           id: 'http-1',
@@ -349,12 +360,16 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
           data: {
             label: 'HTTP Request 1',
             config: {
-              url: 'https://httpbin.org/get?request=1',
-              method: 'GET',
-              authType: 'none',
-              contentType: 'application/json',
-              timeout: 30000,
-              failOnError: false,
+              params: {
+                method: 'GET',
+                authType: 'none',
+                contentType: 'application/json',
+                timeout: 30000,
+                failOnError: false,
+              },
+              inputOverrides: {
+                url: 'https://httpbin.org/get?request=1',
+              },
             },
           },
         },
@@ -365,13 +380,17 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
           data: {
             label: 'HTTP Request 2',
             config: {
-              url: 'https://httpbin.org/post',
-              method: 'POST',
-              authType: 'none',
-              contentType: 'application/json',
-              timeout: 30000,
-              failOnError: false,
-              body: '{"message": "hello from test"}',
+              params: {
+                method: 'POST',
+                authType: 'none',
+                contentType: 'application/json',
+                timeout: 30000,
+                failOnError: false,
+              },
+              inputOverrides: {
+                url: 'https://httpbin.org/post',
+                body: '{"message": "hello from test"}',
+              },
             },
           },
         },
@@ -382,19 +401,22 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
       ],
     };
 
-    const res = await fetch(`${API_BASE}/workflows`, { 
-      method: 'POST', 
-      headers: HEADERS, 
-      body: JSON.stringify(wf) 
+    const res = await fetch(`${API_BASE}/workflows`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify(wf)
     });
-    if (!res.ok) throw new Error(`Workflow creation failed: ${res.status}`);
+    if (!res.ok) {
+      const errorBody = await res.text();
+      throw new Error(`Workflow creation failed: ${res.status} - ${errorBody}`);
+    }
     const { id } = await res.json();
     console.log(`  Workflow ID: ${id}`);
 
-    const runRes = await fetch(`${API_BASE}/workflows/${id}/run`, { 
-      method: 'POST', 
-      headers: HEADERS, 
-      body: JSON.stringify({ inputs: {} }) 
+    const runRes = await fetch(`${API_BASE}/workflows/${id}/run`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ inputs: {} })
     });
     if (!runRes.ok) throw new Error(`Workflow run failed: ${runRes.status}`);
     const { runId } = await runRes.json();
@@ -405,7 +427,7 @@ e2eDescribe('HTTP Observability E2E Tests', () => {
     expect(result.status).toBe('COMPLETED');
 
     const events = await fetchTraceEvents(runId);
-    
+
     const httpRequestEvents = events.filter((e: any) => e.type === 'HTTP_REQUEST_SENT');
     const httpResponseEvents = events.filter((e: any) => e.type === 'HTTP_RESPONSE_RECEIVED');
 

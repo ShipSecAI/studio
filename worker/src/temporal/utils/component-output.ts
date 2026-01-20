@@ -150,24 +150,48 @@ export function createLightweightSummary(
   component: RegisteredComponent,
   output: unknown,
 ): Record<string, unknown> {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) {
+    return { _value: output } as any;
+  }
+
+  const obj = output as Record<string, unknown>;
   const summary: Record<string, unknown> = {};
+  let hasTruncatedContent = false;
 
-  if (output && typeof output === 'object' && !Array.isArray(output)) {
-    const obj = output as Record<string, unknown>;
+  // Copy summary field if it exists
+  if (obj.summary) {
+    summary.summary = obj.summary;
+  }
 
-    // Copy summary field if it exists
-    if (obj.summary) {
-      summary.summary = obj.summary;
-    }
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip internal fields
+    if (key.startsWith('__')) continue;
+    if (key === 'summary') continue;
 
-    // Capture array lengths (common for findings)
-    for (const [key, value] of Object.entries(obj)) {
-      if (Array.isArray(value)) {
-        summary[`${key}Count`] = value.length;
+    if (Array.isArray(value)) {
+      summary[`${key}Count`] = value.length;
+      hasTruncatedContent = true;
+    } else if (value !== null && typeof value === 'object') {
+      // Nested objects are summarized if they have a summary, otherwise just marked as truncated
+      if ((value as any).summary) {
+        summary[key] = { summary: (value as any).summary, _truncated: true };
       }
+      hasTruncatedContent = true;
+    } else {
+      // Primitives (string, number, boolean, null)
+      summary[key] = value;
     }
+  }
 
-    // Add explicit truncated flag
+  // If output was already a spilled marker, preserve its metadata
+  if (obj.__spilled__) {
+    summary.__spilled__ = true;
+    summary.storageRef = obj.storageRef;
+    summary.originalSize = obj.originalSize;
+    hasTruncatedContent = true;
+  }
+
+  if (hasTruncatedContent) {
     summary._truncated = true;
   }
 
