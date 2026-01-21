@@ -335,18 +335,18 @@ export function Canvas({
         nextNodes = nodes.map((node) =>
           node.id === params.target
             ? {
-              ...node,
-              data: {
-                ...node.data,
-                inputs: {
-                  ...(node.data.inputs as Record<string, unknown>),
-                  [targetHandle]: {
-                    source: params.source,
-                    output: params.sourceHandle,
-                  },
-                } as Record<string, unknown>,
-              },
-            }
+                ...node,
+                data: {
+                  ...node.data,
+                  inputs: {
+                    ...(node.data.inputs as Record<string, unknown>),
+                    [targetHandle]: {
+                      source: params.source,
+                      output: params.sourceHandle,
+                    },
+                  } as Record<string, unknown>,
+                },
+              }
             : node,
         );
         setNodes(nextNodes);
@@ -746,18 +746,21 @@ export function Canvas({
           const incomingRemovedEdges = edgesToRemove.filter((e) => e.target === node.id);
           if (incomingRemovedEdges.length === 0) return node;
 
-          const inputs = { ...((node.data.inputs as Record<string, unknown>) || {}) };
-          let changed = false;
+          const originalInputs = (node.data.inputs as Record<string, unknown>) || {};
+          const keysToRemove = new Set(
+            incomingRemovedEdges
+              .filter((e) => e.targetHandle && originalInputs[e.targetHandle])
+              .map((e) => e.targetHandle as string),
+          );
 
-          incomingRemovedEdges.forEach((e) => {
-            if (e.targetHandle && inputs[e.targetHandle]) {
-              // Remove the input mapping because the source port no longer exists
-              delete inputs[e.targetHandle];
-              changed = true;
-            }
-          });
+          if (keysToRemove.size === 0) return node;
 
-          if (!changed) return node;
+          // Build new inputs object excluding the keys to remove
+          const inputs = Object.fromEntries(
+            Object.entries(originalInputs).filter(([key]) => !keysToRemove.has(key)),
+          );
+
+          if (Object.keys(inputs).length === Object.keys(originalInputs).length) return node;
 
           return {
             ...node,
@@ -1104,7 +1107,7 @@ export function Canvas({
                     onScheduleAction={resolvedOnScheduleAction}
                     onScheduleDelete={resolvedOnScheduleDelete}
                     onViewSchedules={resolvedOnViewSchedules}
-                    onWidthChange={() => { }} // Not resizable on mobile
+                    onWidthChange={() => {}} // Not resizable on mobile
                   />
                 </div>,
                 document.getElementById('mobile-bottom-sheet-portal') || document.body,
