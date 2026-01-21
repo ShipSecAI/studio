@@ -204,9 +204,7 @@ export async function shipsecWorkflowRun(
       };
 
       toolCallResults.set(request.callId, result);
-      console.log(
-        `[Workflow] Tool call failed: callId=${request.callId}, error=${errorMessage}`,
-      );
+      console.log(`[Workflow] Tool call failed: callId=${request.callId}, error=${errorMessage}`);
 
       const pending = pendingToolCalls.get(request.callId);
       if (pending) {
@@ -284,7 +282,7 @@ export async function shipsecWorkflowRun(
             // Log warning but don't apply inputs to wrong component
             console.error(
               `[Workflow] CRITICAL: Entrypoint ref '${input.definition.entrypoint.ref}' points to component '${action.componentId}' instead of 'core.workflow.entrypoint'. ` +
-              `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`,
+                `Inputs will NOT be applied to this component. This indicates a workflow compilation error.`,
             );
           }
         } else if (input.inputs && Object.keys(input.inputs).length > 0) {
@@ -353,8 +351,8 @@ export async function shipsecWorkflowRun(
           const versionIdRaw = mergedParams.versionId;
           const versionId =
             versionStrategy === 'specific' &&
-              typeof versionIdRaw === 'string' &&
-              versionIdRaw.trim().length > 0
+            typeof versionIdRaw === 'string' &&
+            versionIdRaw.trim().length > 0
               ? versionIdRaw.trim()
               : undefined;
 
@@ -369,8 +367,8 @@ export async function shipsecWorkflowRun(
           const timeoutSecondsRaw = mergedParams.timeoutSeconds;
           const timeoutSeconds =
             typeof timeoutSecondsRaw === 'number' &&
-              Number.isFinite(timeoutSecondsRaw) &&
-              timeoutSecondsRaw > 0
+            Number.isFinite(timeoutSecondsRaw) &&
+            timeoutSecondsRaw > 0
               ? Math.floor(timeoutSecondsRaw)
               : 300;
 

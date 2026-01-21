@@ -1,4 +1,10 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -6,6 +12,9 @@ import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 
 import { ToolRegistryService, RegisteredTool } from './tool-registry.service';
 import { TemporalService } from '../temporal/temporal.service';
+import { WorkflowRunRepository } from '../workflows/repository/workflow-run.repository';
+import { TraceRepository } from '../trace/trace.repository';
+import type { TraceEventType } from '../trace/types';
 
 @Injectable()
 export class McpGatewayService {
@@ -17,12 +26,21 @@ export class McpGatewayService {
   constructor(
     private readonly toolRegistry: ToolRegistryService,
     private readonly temporalService: TemporalService,
-  ) { }
+    private readonly workflowRunRepository: WorkflowRunRepository,
+    private readonly traceRepository: TraceRepository,
+  ) {}
 
   /**
    * Get or create an MCP Server instance for a specific workflow run
    */
-  async getServerForRun(runId: string): Promise<McpServer> {
+  async getServerForRun(
+    runId: string,
+    organizationId?: string | null,
+    allowedTools?: string[],
+  ): Promise<McpServer> {
+    // 1. Validate Access
+    await this.validateRunAccess(runId, organizationId);
+
     const existing = this.servers.get(runId);
     if (existing) {
       return existing;
@@ -33,21 +51,78 @@ export class McpGatewayService {
       version: '1.0.0',
     });
 
-    await this.registerTools(server, runId);
+    await this.registerTools(server, runId, allowedTools);
     this.servers.set(runId, server);
 
     return server;
   }
 
+  private async validateRunAccess(runId: string, organizationId?: string | null) {
+    const run = await this.workflowRunRepository.findByRunId(runId);
+    if (!run) {
+      throw new NotFoundException(`Workflow run ${runId} not found`);
+    }
+
+    if (organizationId && run.organizationId !== organizationId) {
+      throw new ForbiddenException(`You do not have access to workflow run ${runId}`);
+    }
+  }
+
+  private async logToolCall(
+    runId: string,
+    toolName: string,
+    status: 'STARTED' | 'COMPLETED' | 'FAILED',
+    nodeRef: string,
+    details: { duration?: number; error?: any; output?: any } = {},
+  ) {
+    try {
+      const lastSeq = await this.traceRepository.getLastSequence(runId);
+      const sequence = lastSeq + 1;
+
+      const type: TraceEventType = 'NODE_PROGRESS';
+      // Map status to approximate node events for visualization,
+      // though 'NODE_PROGRESS' is safer if we don't want to mess up graph state.
+      // But ticket asks for logging.
+      // 'NODE_PROGRESS' with message is good.
+
+      await this.traceRepository.append({
+        runId,
+        type,
+        nodeRef,
+        timestamp: new Date().toISOString(),
+        sequence,
+        level: status === 'FAILED' ? 'error' : 'info',
+        message: `Tool ${status}: ${toolName}`,
+        error: details.error,
+        outputSummary: details.output,
+        data: details.duration ? { duration: details.duration, toolName } : { toolName },
+      });
+    } catch (err) {
+      this.logger.error(`Failed to log tool call: ${err}`);
+    }
+  }
+
   /**
    * Register all available tools (internal and external) for this run
    */
-  private async registerTools(server: McpServer, runId: string) {
+  private async registerTools(server: McpServer, runId: string, allowedTools?: string[]) {
     const allRegistered = await this.toolRegistry.getToolsForRun(runId);
+
+    // Filter by allowed tools if specified
+    if (allowedTools && allowedTools.length > 0) {
+      // Note: For external tools, we need to check the proxied name, so we can't filter sources yet.
+      // We filter individual tools below.
+      // For component tools, we can filter here.
+      // But let's simplify and just filter inside the loops.
+    }
 
     // 1. Register Internal Tools
     const internalTools = allRegistered.filter((t) => t.type === 'component');
     for (const tool of internalTools) {
+      if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(tool.toolName)) {
+        continue;
+      }
+
       server.registerTool(
         tool.toolName,
         {
@@ -55,8 +130,16 @@ export class McpGatewayService {
           _meta: { inputSchema: tool.inputSchema },
         },
         async (args: any) => {
+          const startTime = Date.now();
+          await this.logToolCall(runId, tool.toolName, 'STARTED', tool.nodeId);
+
           try {
             const result = await this.callComponentTool(tool, runId, args ?? {});
+
+            await this.logToolCall(runId, tool.toolName, 'COMPLETED', tool.nodeId, {
+              duration: Date.now() - startTime,
+              output: result,
+            });
 
             // Signal Temporal that the tool call is completed
             await this.temporalService.signalWorkflow({
@@ -80,6 +163,11 @@ export class McpGatewayService {
             };
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
+
+            await this.logToolCall(runId, tool.toolName, 'FAILED', tool.nodeId, {
+              duration: Date.now() - startTime,
+              error: errorMessage,
+            });
 
             // Signal Temporal that the tool call failed
             await this.temporalService.signalWorkflow({
@@ -117,6 +205,11 @@ export class McpGatewayService {
 
         for (const t of tools) {
           const proxiedName = `${prefix}__${t.name}`;
+
+          if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(proxiedName)) {
+            continue;
+          }
+
           server.registerTool(
             proxiedName,
             {
@@ -124,7 +217,25 @@ export class McpGatewayService {
               _meta: { inputSchema: t.inputSchema },
             },
             async (args: any) => {
-              return this.proxyCallToExternal(source, t.name, args);
+              const startTime = Date.now();
+              const nodeRef = `mcp:${proxiedName}`;
+              await this.logToolCall(runId, proxiedName, 'STARTED', nodeRef);
+
+              try {
+                const result = await this.proxyCallToExternal(source, t.name, args);
+
+                await this.logToolCall(runId, proxiedName, 'COMPLETED', nodeRef, {
+                  duration: Date.now() - startTime,
+                  output: result,
+                });
+                return result;
+              } catch (err) {
+                await this.logToolCall(runId, proxiedName, 'FAILED', nodeRef, {
+                  duration: Date.now() - startTime,
+                  error: err,
+                });
+                throw err;
+              }
             },
           );
         }
@@ -170,21 +281,47 @@ export class McpGatewayService {
       );
     }
 
-    const transport = new StreamableHTTPClientTransport(new URL(source.endpoint));
-    const client = new Client(
-      { name: 'shipsec-gateway-client', version: '1.0.0' },
-      { capabilities: {} },
-    );
+    const MAX_RETRIES = 3;
+    const TIMEOUT_MS = 30000;
 
-    await client.connect(transport);
-    try {
-      return await client.callTool({
-        name: toolName,
-        arguments: args,
-      });
-    } finally {
-      await client.close();
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint));
+      const client = new Client(
+        { name: 'shipsec-gateway-client', version: '1.0.0' },
+        { capabilities: {} },
+      );
+
+      try {
+        await client.connect(transport);
+
+        const result = await Promise.race([
+          client.callTool({
+            name: toolName,
+            arguments: args,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`Tool call timed out after ${TIMEOUT_MS}ms`)),
+              TIMEOUT_MS,
+            ),
+          ),
+        ]);
+
+        return result;
+      } catch (error) {
+        lastError = error;
+        this.logger.warn(`External tool call attempt ${attempt} failed: ${error}`);
+        if (attempt < MAX_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+        }
+      } finally {
+        await client.close().catch(() => {});
+      }
     }
+
+    throw lastError;
   }
 
   /**

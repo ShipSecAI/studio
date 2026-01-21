@@ -1,9 +1,9 @@
 import { Controller, Get, Post, Query, UseGuards, Req, Res, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
-import { AuthGuard } from '../auth/auth.guard';
+import { AuthGuard, type RequestWithAuthContext } from '../auth/auth.guard';
 import { McpGatewayService } from './mcp-gateway.service';
 
 @ApiTags('mcp')
@@ -19,31 +19,50 @@ export class McpGatewayController {
   @Get('sse')
   @ApiOperation({ summary: 'Establish an MCP SSE connection' })
   @UseGuards(AuthGuard)
-  async establishSse(@Query('runId') runId: string, @Req() req: Request, @Res() res: Response) {
+  async establishSse(
+    @Query('runId') runId: string,
+    @Req() req: RequestWithAuthContext,
+    @Res() res: Response,
+  ) {
     if (!runId) {
       return res.status(400).send('runId is required');
     }
 
     this.logger.log(`Establishing MCP Streamable HTTP connection for run: ${runId}`);
 
+    const organizationId = req.auth?.organizationId;
+    const allowedToolsHeader = req.headers['x-allowed-tools'];
+    const allowedTools =
+      typeof allowedToolsHeader === 'string'
+        ? allowedToolsHeader.split(',').map((t) => t.trim())
+        : undefined;
+
     // Create a new transport for this specific run
     const transport = new StreamableHTTPServerTransport();
     this.transports.set(runId, transport);
 
-    const server = await this.mcpGateway.getServerForRun(runId);
+    try {
+      const server = await this.mcpGateway.getServerForRun(runId, organizationId, allowedTools);
 
-    // Connect the server to this transport.
-    await server.connect(transport);
+      // Connect the server to this transport.
+      await server.connect(transport);
 
-    // Handle the initial GET request to start the SSE stream
-    await transport.handleRequest(req, res);
+      // Handle the initial GET request to start the SSE stream
+      await transport.handleRequest(req, res);
 
-    // Clean up when the client disconnects
-    res.on('close', async () => {
-      this.logger.log(`MCP connection closed for run: ${runId}`);
+      // Clean up when the client disconnects
+      res.on('close', async () => {
+        this.logger.log(`MCP connection closed for run: ${runId}`);
+        this.transports.delete(runId);
+        await this.mcpGateway.cleanupRun(runId);
+      });
+    } catch (error) {
+      this.logger.error(`Failed to establish SSE connection: ${error}`);
       this.transports.delete(runId);
-      await this.mcpGateway.cleanupRun(runId);
-    });
+      if (!res.headersSent) {
+        res.status(403).send(error instanceof Error ? error.message : 'Access denied');
+      }
+    }
   }
 
   @Post('messages')

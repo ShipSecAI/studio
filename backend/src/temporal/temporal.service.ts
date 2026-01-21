@@ -245,7 +245,8 @@ export class TemporalService implements OnModuleDestroy {
       } catch (error) {
         this.clientPromise = undefined;
         this.logger.error(
-          `Failed to connect to Temporal: ${error instanceof Error ? error.message : String(error)
+          `Failed to connect to Temporal: ${
+            error instanceof Error ? error.message : String(error)
           }`,
         );
         throw error;
@@ -263,7 +264,8 @@ export class TemporalService implements OnModuleDestroy {
     } catch (error) {
       if (!this.isNotFoundError(error)) {
         this.logger.error(
-          `Failed to describe Temporal namespace ${this.namespace}: ${error instanceof Error ? error.message : String(error)
+          `Failed to describe Temporal namespace ${this.namespace}: ${
+            error instanceof Error ? error.message : String(error)
           }`,
         );
         throw error;
