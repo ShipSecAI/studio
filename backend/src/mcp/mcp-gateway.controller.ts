@@ -20,12 +20,22 @@ export class McpGatewayController {
   @ApiOperation({ summary: 'Establish an MCP SSE connection' })
   @UseGuards(AuthGuard)
   async establishSse(
-    @Query('runId') runId: string,
+    @Query('runId') queryRunId: string,
     @Req() req: RequestWithAuthContext,
     @Res() res: Response,
   ) {
+    const runId = queryRunId || (req.headers['x-run-id'] as string);
+
     if (!runId) {
-      return res.status(400).send('runId is required');
+      return res.status(400).send('runId is required (via query or X-Run-Id header)');
+    }
+
+    // Validate MCP Protocol Version if provided
+    const protocolVersion = req.headers['mcp-protocol-version'];
+    if (protocolVersion && protocolVersion !== '2025-06-18') {
+      this.logger.warn(`Unsupported MCP protocol version: ${protocolVersion}`);
+      // We don't necessarily want to block, but we should log it.
+      // Some clients might use different dates.
     }
 
     this.logger.log(`Establishing MCP Streamable HTTP connection for run: ${runId}`);
@@ -48,7 +58,7 @@ export class McpGatewayController {
       await server.connect(transport);
 
       // Handle the initial GET request to start the SSE stream
-      await transport.handleRequest(req, res);
+      await transport.handleRequest(req as any, res);
 
       // Clean up when the client disconnects
       res.on('close', async () => {
@@ -60,7 +70,8 @@ export class McpGatewayController {
       this.logger.error(`Failed to establish SSE connection: ${error}`);
       this.transports.delete(runId);
       if (!res.headersSent) {
-        res.status(403).send(error instanceof Error ? error.message : 'Access denied');
+        const statusCode = error instanceof Error && error.name === 'NotFoundException' ? 404 : 403;
+        res.status(statusCode).send(error instanceof Error ? error.message : 'Access denied');
       }
     }
   }
@@ -75,6 +86,6 @@ export class McpGatewayController {
     }
 
     // Process the POST message via the transport
-    await transport.handleRequest(req, res);
+    await transport.handleRequest(req as any, res);
   }
 }
