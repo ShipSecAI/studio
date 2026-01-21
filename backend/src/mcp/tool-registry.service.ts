@@ -50,6 +50,9 @@ export interface RegisteredTool {
   /** Component ID (for component tools) */
   componentId?: string;
 
+  /** Additional parameters for the component */
+  parameters?: Record<string, unknown>;
+
   /** JSON Schema for action inputs */
   inputSchema: ToolInputSchema;
 
@@ -100,7 +103,16 @@ export class ToolRegistryService implements OnModuleDestroy {
       return;
     }
 
-    const { runId, nodeId, toolName, componentId, description, inputSchema, credentials } = input;
+    const {
+      runId,
+      nodeId,
+      toolName,
+      componentId,
+      description,
+      inputSchema,
+      credentials,
+      parameters,
+    } = input;
 
     // Encrypt credentials
     const credentialsJson = JSON.stringify(credentials);
@@ -113,6 +125,7 @@ export class ToolRegistryService implements OnModuleDestroy {
       type: 'component',
       status: 'ready',
       componentId,
+      parameters,
       description,
       inputSchema,
       encryptedCredentials,

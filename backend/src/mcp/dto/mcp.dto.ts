@@ -11,6 +11,7 @@ export class RegisterComponentToolInput {
   description!: string;
   inputSchema!: ToolInputSchema;
   credentials!: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
 }
 
 /**

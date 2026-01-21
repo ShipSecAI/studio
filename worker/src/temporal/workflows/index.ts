@@ -1,6 +1,7 @@
 import {
   ApplicationFailure,
   condition,
+  defineQuery,
   getExternalWorkflowHandle,
   proxyActivities,
   setHandler,
@@ -11,7 +12,13 @@ import {
 import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
 import { runWorkflowWithScheduler } from '../workflow-scheduler';
 import { buildActionPayload } from '../input-resolver';
-import { resolveHumanInputSignal, type HumanInputResolution } from '../signals';
+import {
+  resolveHumanInputSignal,
+  executeToolCallSignal,
+  type HumanInputResolution,
+  type ToolCallRequest,
+  type ToolCallResult,
+} from '../signals';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
@@ -136,6 +143,83 @@ export async function shipsecWorkflowRun(
       pending.resolve(resolution);
     }
   });
+
+  // Track pending tool calls and their results (for MCP gateway)
+  const pendingToolCalls = new Map<
+    string,
+    { request: ToolCallRequest; resolve: (result: ToolCallResult) => void }
+  >();
+  const toolCallResults = new Map<string, ToolCallResult>();
+
+  // Set up signal handler for tool call execution requests
+  setHandler(executeToolCallSignal, async (request: ToolCallRequest) => {
+    console.log(
+      `[Workflow] Received tool call signal: callId=${request.callId}, componentId=${request.componentId}`,
+    );
+
+    // Execute the component via runComponentActivity
+    try {
+      const activityOutput = await _runComponentActivity({
+        runId: input.runId,
+        workflowId: input.workflowId,
+        workflowVersionId: input.workflowVersionId,
+        organizationId: input.organizationId,
+        action: {
+          ref: `tool-call:${request.callId}`,
+          componentId: request.componentId,
+        },
+        // Merge credentials (pre-bound) with agent-provided arguments
+        inputs: {
+          ...(request.credentials ?? {}),
+          ...request.arguments,
+        },
+        params: request.parameters ?? {},
+        metadata: {
+          streamId: request.callId,
+        },
+      });
+
+      const result: ToolCallResult = {
+        callId: request.callId,
+        success: true,
+        output: activityOutput.output,
+        completedAt: new Date().toISOString(),
+      };
+
+      toolCallResults.set(request.callId, result);
+      console.log(`[Workflow] Tool call completed: callId=${request.callId}, success=true`);
+
+      // Resolve any pending waiters
+      const pending = pendingToolCalls.get(request.callId);
+      if (pending) {
+        pending.resolve(result);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const result: ToolCallResult = {
+        callId: request.callId,
+        success: false,
+        error: errorMessage,
+        completedAt: new Date().toISOString(),
+      };
+
+      toolCallResults.set(request.callId, result);
+      console.log(`[Workflow] Tool call failed: callId=${request.callId}, error=${errorMessage}`);
+
+      const pending = pendingToolCalls.get(request.callId);
+      if (pending) {
+        pending.resolve(result);
+      }
+    }
+  });
+
+  // Set up query handler for tool call results
+  setHandler(
+    defineQuery<ToolCallResult | null, [string]>('getToolCallResult'),
+    (callId: string) => {
+      return toolCallResults.get(callId) ?? null;
+    },
+  );
 
   console.log(`[Workflow] Starting shipsec workflow run: ${input.runId}`);
   console.log(
