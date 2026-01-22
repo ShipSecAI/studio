@@ -147,7 +147,7 @@ async function runComponentInDocker<I, O>(
 
     const useTerminal = Boolean(context.terminalCollector);
     let capturedStdout = '';
-    
+
     if (useTerminal) {
       // Remove -i flag for PTY mode (stdin not needed with TTY)
       const argsWithoutStdin = dockerArgs.filter(arg => arg !== '-i');
@@ -180,7 +180,7 @@ async function runComponentInDocker<I, O>(
  * @param context Execution context for logging
  */
 async function readOutputFromFile<O>(
-  filePath: string, 
+  filePath: string,
   stdout: string,
   context: ExecutionContext
 ): Promise<O> {
@@ -208,7 +208,7 @@ async function readOutputFromFile<O>(
   // This allows components that just write to stdout to continue working.
   if (stdout.trim().length > 0) {
     context.logger.info(`[Docker] No output file found, using stdout fallback (${stdout.length} bytes)`);
-    
+
     // Try to parse stdout as JSON
     try {
       const output = JSON.parse(stdout.trim());
@@ -263,7 +263,7 @@ async function runDockerWithStandardIO<I, O>(
       stdoutEmitter(data);
       const chunk = data.toString();
       stdout += chunk; // Capture for fallback
-      
+
       // Send to log collector (which has chunking support)
       const logEntry = {
         runId: context.runId,
@@ -274,7 +274,7 @@ async function runDockerWithStandardIO<I, O>(
         timestamp: new Date().toISOString(),
       };
       context.logCollector?.(logEntry);
-      
+
       // NOTE: We intentionally do NOT emit stdout as trace progress events.
       // Output data is written to /shipsec-output/result.json by the container.
       // Stdout should only contain logs and progress messages from the component.
@@ -337,7 +337,7 @@ async function runDockerWithStandardIO<I, O>(
 
       context.logger.info(`[Docker] Completed successfully`);
       context.emitProgress('Docker container completed');
-      
+
       // Return captured stdout for fallback processing
       resolve(stdout);
     });
@@ -377,8 +377,12 @@ async function runDockerWithPty<I, O>(
   const spawnPty = await loadPtySpawn();
   if (!spawnPty) {
     context.logger.warn('[Docker][PTY] node-pty unavailable; falling back to standard IO');
-    // Remove -t flag before falling back to standard IO (stdin is not a TTY)
-    const argsWithoutTty = dockerArgs.filter(arg => arg !== '-t');
+    // Remove Docker's -t flag before falling back to standard IO (stdin is not a TTY)
+    // Only remove the first occurrence of -t (Docker flag), not command arguments
+    const ttyFlagIndex = dockerArgs.indexOf('-t');
+    const argsWithoutTty = ttyFlagIndex !== -1 && ttyFlagIndex < 10
+      ? [...dockerArgs.slice(0, ttyFlagIndex), ...dockerArgs.slice(ttyFlagIndex + 1)]
+      : dockerArgs;
     return runDockerWithStandardIO(argsWithoutTty, params, context, timeoutSeconds);
   }
 
@@ -411,15 +415,19 @@ async function runDockerWithPty<I, O>(
           code: error.code,
         } : String(error)
       };
-      
+
       console.log('diag', diag);
       context.logger.warn(
         `[Docker][PTY] Failed to spawn PTY: ${error instanceof Error ? error.message : String(error)}. Diagnostic: ${JSON.stringify(diag)}`,
       );
       context.logger.warn('[Docker][PTY] Falling back to standard IO due to PTY spawn failure');
 
-      // Remove -t flag and restore -i flag for standard IO (it was removed for PTY mode)
-      const argsForStandardIO = dockerArgs.filter((arg) => arg !== '-t');
+      // Remove Docker's -t flag and restore -i flag for standard IO (it was removed for PTY mode)
+      // Only remove the first occurrence of -t (Docker flag), not command arguments
+      const ttyFlagIndex = dockerArgs.indexOf('-t');
+      const argsForStandardIO = ttyFlagIndex !== -1 && ttyFlagIndex < 10
+        ? [...dockerArgs.slice(0, ttyFlagIndex), ...dockerArgs.slice(ttyFlagIndex + 1)]
+        : [...dockerArgs];
       if (!argsForStandardIO.includes('-i')) {
         argsForStandardIO.splice(2, 0, '-i');
       }
