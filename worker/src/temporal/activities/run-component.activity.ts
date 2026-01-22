@@ -118,6 +118,7 @@ export async function runComponentActivity(
   const joinStrategy = nodeMetadata.joinStrategy;
   const triggeredBy = nodeMetadata.triggeredBy;
   const failure = nodeMetadata.failure;
+  const connectedToolNodeIds = nodeMetadata.connectedToolNodeIds;
   const correlationId = `${input.runId}:${action.ref}:${activityInfo.activityId}`;
 
   const scopedArtifacts = globalArtifacts
@@ -144,6 +145,8 @@ export async function runComponentActivity(
       joinStrategy,
       triggeredBy,
       failure,
+      connectedToolNodeIds,
+      organizationId: input.organizationId ?? undefined,
     },
     storage: globalStorage,
     secrets: allowSecrets ? globalSecrets : undefined,
