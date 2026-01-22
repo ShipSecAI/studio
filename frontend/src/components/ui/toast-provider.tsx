@@ -12,8 +12,9 @@ interface ToastEntry extends ToastOptions {
   id: string;
 }
 
-const DEFAULT_DURATION = 5000;
-const MAX_VISIBLE_STACK = 3; // How many toasts show in the stack visually
+const DEFAULT_DURATION = 10000;
+const ERROR_DURATION = 20000;
+const MAX_VISIBLE_STACK = 5; // How many toasts show in the stack visually
 
 const generateId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -66,11 +67,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const addToast = useCallback(
     (options: ToastOptions) => {
       const id = options.id ?? generateId();
+      const variant = options.variant ?? 'default';
+      const defaultDuration = variant === 'destructive' ? ERROR_DURATION : DEFAULT_DURATION;
+
       const entry: ToastEntry = {
         ...options,
         id,
-        variant: options.variant ?? 'default',
-        duration: options.duration ?? DEFAULT_DURATION,
+        variant,
+        duration: options.duration ?? defaultDuration,
       };
 
       setToasts((current) => [...current, entry]);
