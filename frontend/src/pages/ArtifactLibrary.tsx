@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Download, RefreshCw, Search, Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { Download, RefreshCw, Search, Copy, ExternalLink } from 'lucide-react';
 import { useArtifactStore } from '@/store/artifactStore';
 import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ const formatTimestamp = (value: string) => {
 
 export function ArtifactLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { library, libraryLoading, libraryError, fetchLibrary, downloadArtifact,  downloading } =
+  const { library, libraryLoading, libraryError, fetchLibrary, downloadArtifact, downloading } =
     useArtifactStore();
   const [copiedRemoteUri, setCopiedRemoteUri] = useState<string | null>(null);
   const [workflows, setWorkflows] = useState<Record<string, string>>({});
@@ -144,9 +144,7 @@ export function ArtifactLibrary() {
                   <th className="px-3 md:px-4 py-3 font-medium min-w-[100px] hidden lg:table-cell">
                     Created
                   </th>
-                  <th className="px-3 md:px-4 py-3 font-medium min-w-[120px] text-left">
-                    Actions
-                  </th>
+                  <th className="px-3 md:px-4 py-3 font-medium min-w-[120px] text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>

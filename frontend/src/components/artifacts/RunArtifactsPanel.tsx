@@ -196,8 +196,6 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
 function ArtifactRow({
   artifact,
   onDownload,
-  onCopy,
-  copied,
   onCopyRemoteUri,
   copiedRemoteUri,
   isDownloading,
