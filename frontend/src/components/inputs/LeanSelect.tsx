@@ -101,8 +101,13 @@ export function LeanSelect({
             {clearable && value && !disabled && (
               <button
                 type="button"
+                onMouseDown={(e) => {
+                  // Prevent focus shift which can cause issues
+                  e.preventDefault();
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   handleSelect(undefined);
                 }}
                 className="p-1 hover:bg-muted rounded-full text-muted-foreground hover:text-destructive transition-colors focus:outline-none focus:ring-2 focus:ring-destructive/20"
@@ -155,7 +160,11 @@ export function LeanSelect({
                   {clearable && value && (
                     <button
                       type="button"
-                      onClick={() => handleSelect(undefined)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleSelect(undefined);
+                      }}
                       className="w-full px-3 py-2 text-xs text-left text-muted-foreground hover:bg-destructive/5 hover:text-destructive transition-colors border-b border-muted/20"
                     >
                       Clear Selection

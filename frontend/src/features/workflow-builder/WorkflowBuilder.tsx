@@ -798,6 +798,14 @@ function WorkflowBuilderContent() {
 
       const key = event.key?.toLowerCase();
 
+      // Check if the active element is a text input (input, textarea, or contenteditable)
+      // If so, skip intercepting undo/redo to allow native browser behavior
+      const activeElement = document.activeElement;
+      const isTextInput =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.getAttribute('contenteditable') === 'true';
+
       // Save shortcut: Ctrl/Cmd + S
       const isSaveCombo = (event.metaKey || event.ctrlKey) && key === 's';
       if (isSaveCombo && mode === 'design') {
@@ -813,8 +821,9 @@ function WorkflowBuilderContent() {
       }
 
       // Undo shortcut: Ctrl/Cmd + Z (without Shift)
+      // Skip if user is typing in a text input to allow native undo
       const isUndoCombo = (event.metaKey || event.ctrlKey) && key === 'z' && !event.shiftKey;
-      if (isUndoCombo && mode === 'design') {
+      if (isUndoCombo && mode === 'design' && !isTextInput) {
         event.preventDefault();
         event.stopPropagation();
         if (canUndo) {
@@ -824,10 +833,11 @@ function WorkflowBuilderContent() {
       }
 
       // Redo shortcut: Ctrl/Cmd + Shift + Z OR Ctrl/Cmd + Y
+      // Skip if user is typing in a text input to allow native redo
       const isRedoCombo =
         ((event.metaKey || event.ctrlKey) && event.shiftKey && key === 'z') ||
         ((event.metaKey || event.ctrlKey) && key === 'y');
-      if (isRedoCombo && mode === 'design') {
+      if (isRedoCombo && mode === 'design' && !isTextInput) {
         event.preventDefault();
         event.stopPropagation();
         if (canRedo) {

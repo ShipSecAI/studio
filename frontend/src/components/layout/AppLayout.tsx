@@ -138,6 +138,33 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
+  // Close sidebar when window loses focus (e.g., CMD+click opens new tab)
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      // Only collapse if it was expanded due to hover (not explicitly opened)
+      if (!isMobile && !wasExplicitlyOpened && sidebarOpen) {
+        setSidebarOpen(false);
+        setIsHovered(false);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      // When tab becomes hidden (e.g., user switched tabs), collapse hover-opened sidebar
+      if (document.hidden && !isMobile && !wasExplicitlyOpened && sidebarOpen) {
+        setSidebarOpen(false);
+        setIsHovered(false);
+      }
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isMobile, wasExplicitlyOpened, sidebarOpen]);
+
   const handleToggle = useCallback(() => {
     const newState = !sidebarOpen;
     setSidebarOpen(newState);
@@ -376,7 +403,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.href}
                     to={item.href}
-                    onClick={() => {
+                    onClick={(e) => {
+                      // If modifier key is held (CMD+click, Ctrl+click), link opens in new tab
+                      // Don't update sidebar state in this case
+                      if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                        return;
+                      }
                       // Close sidebar on mobile after navigation
                       if (isMobile) {
                         setSidebarOpen(false);

@@ -271,7 +271,7 @@ export function TopBar({
       </Button>
 
       <div className="flex-1 min-w-0">
-        <div className="flex w-full gap-2 md:gap-4 items-center relative">
+        <div className="flex w-full gap-2 md:gap-4 items-center">
           {/* Workflow name - always visible, truncated on mobile, tappable to edit */}
           <div className="flex items-center justify-start gap-2 min-w-0 flex-shrink">
             <div
@@ -323,11 +323,12 @@ export function TopBar({
               </span>
             )}
           </div>
-          {/* Mode toggle - absolutely positioned to stay centered */}
-          <div className="absolute left-1/2 -translate-x-1/2 z-10">{modeToggle}</div>
-          {/* Spacer to push actions to the right */}
-          <div className="flex-1" />
-          <div className="flex items-center justify-end gap-1 md:gap-2 shrink-0">
+          {/* Mode toggle - flex-centered, won't overlap with other elements */}
+          <div className="flex-1 flex justify-center min-w-0">
+            <div className="flex-shrink-0">{modeToggle}</div>
+          </div>
+          {/* Actions on the right */}
+          <div className="flex items-center justify-end gap-1 md:gap-2 flex-shrink-0">
             <div className="flex items-center gap-1 md:gap-2">
               {mode === 'design' && (
                 <>
