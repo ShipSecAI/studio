@@ -303,7 +303,7 @@ function validateInputMappings(
     }
 
     for (const [portId, count] of portsSeen.entries()) {
-      if (count > 1) {
+      if (count > 1 && portId !== 'tools') {
         const inputMetadata = actionPorts.get(action.ref)?.inputs.find((i) => i.id === portId);
         const portLabel = inputMetadata?.label || portId;
 
@@ -395,14 +395,19 @@ function validateEdgeCompatibility(
     const targetPort = targetPorts.inputs.find((port) => port.id === targetHandle);
 
     if (!sourcePort) {
-      errors.push({
-        node: targetAction.ref,
-        field: 'inputMappings',
-        message: `Source port '${sourceHandle}' not found on ${edge.sourceRef}`,
-        severity: 'error',
-        suggestion: 'Confirm the source component exposes this output port',
-      });
-      continue;
+      const sourceNodeMetadata = compiledDefinition.nodes[sourceAction.ref];
+      if (sourceHandle === 'tools' && sourceNodeMetadata?.mode === 'tool') {
+        
+      } else {
+        errors.push({
+          node: targetAction.ref,
+          field: 'inputMappings',
+          message: `Source port '${sourceHandle}' not found on ${edge.sourceRef}`,
+          severity: 'error',
+          suggestion: 'Confirm the source component exposes this output port',
+        });
+        continue;
+      }
     }
 
     if (!targetPort) {
@@ -416,7 +421,7 @@ function validateEdgeCompatibility(
       continue;
     }
 
-    const sourceType = getPortConnectionType(sourcePort);
+    const sourceType = sourcePort ? getPortConnectionType(sourcePort) : { kind: 'any' as const };
     const targetType = getPortConnectionType(targetPort);
 
     if (!sourceType || !targetType) {

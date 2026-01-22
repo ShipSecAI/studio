@@ -323,4 +323,74 @@ describe('compileWorkflowGraph', () => {
       kind: 'success',
     });
   });
+
+  it('populates connectedToolNodeIds for nodes with incoming edges to the tools port', () => {
+    const graph: WorkflowGraphDto = {
+      name: 'Agent Tool workflow',
+      nodes: [
+        {
+          id: 'start',
+          type: 'core.workflow.entrypoint',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Start',
+            config: { params: { runtimeInputs: [] }, inputOverrides: {} },
+          },
+        },
+        {
+          id: 'tool1',
+          type: 'core.http.request',
+          position: { x: 0, y: 100 },
+          data: {
+            label: 'Tool 1',
+            config: {
+              mode: 'tool',
+              params: {},
+              inputOverrides: { url: 'https://tool1.com' },
+            },
+          },
+        },
+        {
+          id: 'tool2',
+          type: 'core.http.request',
+          position: { x: 100, y: 100 },
+          data: {
+            label: 'Tool 2',
+            config: {
+              mode: 'tool',
+              params: {},
+              inputOverrides: { url: 'https://tool2.com' },
+            },
+          },
+        },
+        {
+          id: 'agent',
+          type: 'core.ai.agent',
+          position: { x: 50, y: 200 },
+          data: {
+            label: 'Agent',
+            config: {
+              params: {},
+              inputOverrides: { userInput: 'Hello' },
+            },
+          },
+        },
+      ],
+      edges: [
+        { id: 'e1', source: 'start', target: 'tool1' },
+        { id: 'e2', source: 'start', target: 'tool2' },
+        { id: 't1', source: 'tool1', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
+        { id: 't2', source: 'tool2', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    };
+
+    const definition = compileWorkflowGraph(graph);
+
+    expect(definition.nodes.agent.connectedToolNodeIds).toHaveLength(2);
+    expect(definition.nodes.agent.connectedToolNodeIds).toContain('tool1');
+    expect(definition.nodes.agent.connectedToolNodeIds).toContain('tool2');
+    expect(definition.nodes.tool1.mode).toBe('tool');
+    expect(definition.nodes.tool2.mode).toBe('tool');
+  });
 });

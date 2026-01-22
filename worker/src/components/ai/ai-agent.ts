@@ -168,7 +168,7 @@ const inputSchema = inputs({
     },
   ),
   tools: port(
-    z.array(z.any()).optional().describe('Direct tool connections from tool-mode nodes.'),
+    z.array(z.string()).optional().describe('Direct tool connections from tool-mode nodes.'),
     {
       label: 'Connected Tools',
       description: 'Connect tool-mode nodes directly to this agent.',

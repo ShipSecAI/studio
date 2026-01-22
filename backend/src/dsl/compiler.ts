@@ -104,6 +104,11 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     const mode = (config.mode as WorkflowNodeMetadata['mode']) ?? 'normal';
     const toolConfig = config.toolConfig as WorkflowNodeMetadata['toolConfig'];
 
+    const connectedToolNodeIds = edgesByTarget
+      .get(node.id)
+      ?.filter((edge) => edge.targetHandle === 'tools')
+      .map((edge) => edge.source);
+
     nodesMetadata[node.id] = {
       ref: node.id,
       mode,
@@ -118,6 +123,10 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
           ? maxConcurrencyValue
           : undefined,
       toolConfig,
+      connectedToolNodeIds:
+        connectedToolNodeIds && connectedToolNodeIds.length > 0
+          ? connectedToolNodeIds
+          : undefined,
     };
   }
 
