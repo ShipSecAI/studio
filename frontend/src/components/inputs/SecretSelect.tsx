@@ -12,7 +12,7 @@ import { LeanSelect, type SelectOption } from './LeanSelect';
 
 interface SecretSelectProps {
   value?: string;
-  onChange: (value: string) => void;
+  onChange: (value: string | undefined) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;

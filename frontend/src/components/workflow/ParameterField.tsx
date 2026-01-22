@@ -247,15 +247,19 @@ export function ParameterField({
       return;
     }
 
-    // Auto-select first secret if current value is not a valid secret ID
+    // Only auto-migrate if current value is a non-empty string that doesn't match any secret ID
+    // Do NOT auto-select if value is undefined/null/empty (user intentionally cleared it)
     if (
+      typeof currentValue === 'string' &&
+      currentValue.trim().length > 0 &&
       secrets.length > 0 &&
-      (typeof currentValue !== 'string' || !secrets.some((secret) => secret.id === currentValue))
+      !secrets.some((secret) => secret.id === currentValue)
     ) {
-      const firstSecret = secrets[0];
-      if (firstSecret) {
-        // Store secret.id (not name) for runtime resolution
-        onChange(firstSecret.id);
+      // The value looks like a legacy name-based reference, try to find matching secret
+      const matchingSecret = secrets.find((secret) => secret.name === currentValue);
+      if (matchingSecret) {
+        // Migrate to ID-based reference
+        onChange(matchingSecret.id);
       }
     }
   }, [parameter.type, secrets, currentValue, onChange, isReceivingInput]);
@@ -668,7 +672,12 @@ export function ParameterField({
           <SecretSelect
             value={typeof currentValue === 'string' ? currentValue : ''}
             onChange={(nextValue) => {
-              updateSecretValue(nextValue === '' ? undefined : nextValue);
+              // Handle both undefined (from clear button) and empty string
+              const valueToSet =
+                nextValue === undefined || nextValue === '' || nextValue === null
+                  ? undefined
+                  : nextValue;
+              updateSecretValue(valueToSet);
             }}
             disabled={isReceivingInput || disableForGithubConnection}
             onRefresh={() => {

@@ -855,7 +855,8 @@ export function ConfigPanel({
                             <SecretSelect
                               value={typeof manualValue === 'string' ? manualValue : ''}
                               onChange={(value) => {
-                                if (value === '') {
+                                // Handle both undefined (from clear button) and empty string
+                                if (value === undefined || value === '' || value === null) {
                                   handleInputOverrideChange(input.id, undefined);
                                 } else {
                                   handleInputOverrideChange(input.id, value);
