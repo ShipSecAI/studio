@@ -147,7 +147,7 @@ export async function runComponentActivity(
       failure,
       connectedToolNodeIds,
       organizationId: input.organizationId ?? undefined,
-    },
+    } as any,
     storage: globalStorage,
     secrets: allowSecrets ? globalSecrets : undefined,
     artifacts: scopedArtifacts,

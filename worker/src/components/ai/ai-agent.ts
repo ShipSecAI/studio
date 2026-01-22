@@ -11,6 +11,8 @@ import {
 } from 'ai';
 import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {
   componentRegistry,
   ComponentRetryPolicy,
@@ -56,6 +58,14 @@ const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_MAX_TOKENS = 1024;
 const DEFAULT_MEMORY_SIZE = 8;
 const DEFAULT_STEP_LIMIT = 4;
+
+const DEFAULT_API_BASE_URL =
+  process.env.STUDIO_API_BASE_URL ??
+  process.env.SHIPSEC_API_BASE_URL ??
+  process.env.API_BASE_URL ??
+  'http://localhost:3211';
+
+const DEFAULT_GATEWAY_URL = `${DEFAULT_API_BASE_URL}/api/v1/mcp/gateway`;
 
 const agentMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant', 'tool']),
@@ -655,6 +665,104 @@ interface RegisterMcpToolParams {
   };
 }
 
+async function getGatewaySessionToken(
+  runId: string,
+  organizationId: string | null,
+  connectedToolNodeIds?: string[],
+): Promise<string> {
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!internalToken) {
+    throw new ConfigurationError(
+      'INTERNAL_SERVICE_TOKEN env var must be set for agent tool discovery',
+      { configKey: 'INTERNAL_SERVICE_TOKEN' },
+    );
+  }
+
+  const response = await fetch(`${DEFAULT_API_BASE_URL}/internal/mcp/generate-token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Token': internalToken,
+    },
+    body: JSON.stringify({
+      runId,
+      organizationId,
+      allowedNodeIds: connectedToolNodeIds,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to generate gateway session token: ${await response.text()}`);
+  }
+
+  const { token } = (await response.json()) as { token: string };
+  return token;
+}
+
+interface RegisterGatewayToolsParams {
+  gatewayUrl: string;
+  sessionToken: string;
+  toolFactory: ToolFn;
+  agentStream: AgentStreamRecorder;
+}
+
+async function registerGatewayTools({
+  gatewayUrl,
+  sessionToken,
+  toolFactory,
+  agentStream,
+}: RegisterGatewayToolsParams): Promise<RegisteredMcpTool[]> {
+  const transport = new StreamableHTTPClientTransport(new URL(gatewayUrl), {
+    requestInit: {
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    },
+  });
+  const client = new Client({ name: 'shipsec-agent', version: '1.0.0' }, { capabilities: {} });
+  await client.connect(transport);
+
+  const { tools } = await client.listTools();
+  const registered: RegisteredMcpTool[] = [];
+
+  for (const tool of tools) {
+    const toolName = tool.name;
+
+    const registeredTool = toolFactory<Record<string, unknown>, unknown>({
+      type: 'dynamic',
+      description: tool.description ?? `Invoke ${tool.name}`,
+      inputSchema: tool.inputSchema as any,
+      execute: async (args: Record<string, unknown>) => {
+        const invocationId = `${tool.name}-${randomUUID()}`;
+        agentStream.emitToolInput(invocationId, toolName, args);
+        try {
+          const result = await client.callTool({ name: tool.name, arguments: args });
+          agentStream.emitToolOutput(invocationId, toolName, result.content);
+          return result.content;
+        } catch (error) {
+          agentStream.emitToolError(
+            invocationId,
+            toolName,
+            error instanceof Error ? error.message : String(error),
+          );
+          throw error;
+        }
+      },
+    });
+
+    registered.push({
+      name: toolName,
+      tool: registeredTool,
+      metadata: {
+        toolId: tool.name,
+        title: tool.name,
+        description: tool.description,
+        endpoint: gatewayUrl,
+      },
+    });
+  }
+
+  return registered;
+}
+
 function registerMcpTools({
   tools,
   sessionId,
@@ -1023,7 +1131,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
       generateText?: GenerateTextFn;
     },
   ) {
-    const { userInput, conversationState, chatModel, mcpTools, modelApiKey } = inputs;
+    const { userInput, conversationState, chatModel, mcpTools, modelApiKey, tools: _graphTools } = inputs;
     const {
       systemPrompt,
       temperature,
@@ -1041,6 +1149,28 @@ Loop the Conversation State output back into the next agent invocation to keep m
       context.logger.debug(`[AIAgent Debug] ${args.join(' ')}`);
     const agentRunId = `${context.runId}:${context.componentRef}:${randomUUID()}`;
     const agentStream = new AgentStreamRecorder(context as ExecutionContext, agentRunId);
+
+    const connectedToolNodeIds = (context.metadata as any).connectedToolNodeIds as string[] | undefined;
+    let discoveredTools: RegisteredMcpTool[] = [];
+    if (connectedToolNodeIds && connectedToolNodeIds.length > 0) {
+      context.logger.info(`Discovering tools from gateway for nodes: ${connectedToolNodeIds.join(', ')}`);
+      try {
+        const sessionToken = await getGatewaySessionToken(
+          context.runId,
+          (context.metadata as any).organizationId ?? null,
+          connectedToolNodeIds,
+        );
+        discoveredTools = await registerGatewayTools({
+          gatewayUrl: DEFAULT_GATEWAY_URL,
+          sessionToken,
+          toolFactory: dependencies?.tool ?? toolImpl,
+          agentStream,
+        });
+      } catch (error) {
+        context.logger.error(`Failed to discover tools from gateway: ${error}`);
+      }
+    }
+
     agentStream.emitMessageStart();
     context.emitProgress({
       level: 'info',
@@ -1132,7 +1262,12 @@ Loop the Conversation State output back into the next agent invocation to keep m
     const toolMetadataByName = new Map<string, RegisteredToolMetadata>();
     const registeredTools: Record<string, Tool<any, any>> = {};
 
-    const registeredMcpTools = registerMcpTools({
+    for (const entry of discoveredTools) {
+      registeredTools[entry.name] = entry.tool;
+      toolMetadataByName.set(entry.name, entry.metadata);
+    }
+
+    const manualMcpTools = registerMcpTools({
       tools: mcpTools,
       sessionId,
       toolFactory: toolFn,
@@ -1140,9 +1275,13 @@ Loop the Conversation State output back into the next agent invocation to keep m
       fetcher: context.http.fetch,
       logger: context.logger,
     });
-    for (const entry of registeredMcpTools) {
-      registeredTools[entry.name] = entry.tool;
-      toolMetadataByName.set(entry.name, entry.metadata);
+    for (const entry of manualMcpTools) {
+      let finalName = entry.name;
+      if (registeredTools[finalName]) {
+        finalName = `${finalName}_manual`;
+      }
+      registeredTools[finalName] = entry.tool;
+      toolMetadataByName.set(finalName, entry.metadata);
     }
 
     const availableToolsCount = Object.keys(registeredTools).length;
