@@ -79,7 +79,28 @@ const mapTypeToSchema = (type: string, label: string) => {
         connectionType: { kind: 'primitive', name: 'secret' },
       });
     case 'list':
-      return withPortMeta(z.array(z.string()), { label });
+    case 'list-text':
+      return withPortMeta(z.array(z.string()), {
+        label,
+        connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
+      });
+    case 'list-number':
+      return withPortMeta(z.array(z.number()), {
+        label,
+        connectionType: { kind: 'list', element: { kind: 'primitive', name: 'number' } },
+      });
+    case 'list-boolean':
+      return withPortMeta(z.array(z.boolean()), {
+        label,
+        connectionType: { kind: 'list', element: { kind: 'primitive', name: 'boolean' } },
+      });
+    case 'list-json':
+      return withPortMeta(z.array(z.unknown()), {
+        label,
+        allowAny: true,
+        reason: 'Script inputs can accept arrays of arbitrary JSON objects.',
+        connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+      });
     default:
       return withPortMeta(z.unknown(), {
         label,
