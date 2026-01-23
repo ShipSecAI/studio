@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { z, ZodTypeAny } from 'zod';
+import { DebugLogger } from '../../utils/debug-logger';
 import {
   ToolLoopAgent as ToolLoopAgentImpl,
   stepCountIs as stepCountIsImpl,
@@ -664,13 +665,13 @@ async function getGatewaySessionToken(
   organizationId: string | null,
   connectedToolNodeIds?: string[],
 ): Promise<string> {
-  console.log(`[AIAgent::getGatewaySessionToken] START - runId=${runId}, orgId=${organizationId}, nodeIds=${JSON.stringify(connectedToolNodeIds)}`);
+  const dbg = new DebugLogger('agent:gateway-token');
+  dbg.info('START', { runId, organizationId, nodeIds: connectedToolNodeIds });
 
   const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
-  console.log(`[AIAgent::getGatewaySessionToken] INTERNAL_SERVICE_TOKEN present: ${!!internalToken}`);
 
   if (!internalToken) {
-    console.error(`[AIAgent::getGatewaySessionToken] ERROR - Missing INTERNAL_SERVICE_TOKEN`);
+    dbg.error('Missing INTERNAL_SERVICE_TOKEN');
     throw new ConfigurationError(
       'INTERNAL_SERVICE_TOKEN env var must be set for agent tool discovery',
       { configKey: 'INTERNAL_SERVICE_TOKEN' },
@@ -679,7 +680,7 @@ async function getGatewaySessionToken(
 
   const url = `${DEFAULT_API_BASE_URL}/internal/mcp/generate-token`;
   const body = { runId, organizationId, allowedNodeIds: connectedToolNodeIds };
-  console.log(`[AIAgent::getGatewaySessionToken] Calling ${url} with body:`, JSON.stringify(body));
+  dbg.debug('Calling', { url, body });
 
   const response = await fetch(url, {
     method: 'POST',
@@ -690,16 +691,16 @@ async function getGatewaySessionToken(
     body: JSON.stringify(body),
   });
 
-  console.log(`[AIAgent::getGatewaySessionToken] Response status: ${response.status}`);
+  dbg.debug('Response received', { status: response.status });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`[AIAgent::getGatewaySessionToken] ERROR - ${errorText}`);
+    dbg.error('Failed to fetch token', { status: response.status, error: errorText });
     throw new Error(`Failed to generate gateway session token: ${errorText}`);
   }
 
   const result = (await response.json()) as { token: string };
-  console.log(`[AIAgent::getGatewaySessionToken] SUCCESS - Token received (length=${result.token?.length || 0})`);
+  dbg.info('Token received', { tokenLength: result.token?.length || 0 });
   return result.token;
 }
 
@@ -712,11 +713,11 @@ async function registerGatewayTools({
   gatewayUrl,
   sessionToken,
 }: RegisterGatewayToolsParams): Promise<{ tools: RegisteredMcpTool[]; close: () => Promise<void> }> {
-  console.log(`[AIAgent::registerGatewayTools] START - gatewayUrl=${gatewayUrl}`);
-  console.log(`[AIAgent::registerGatewayTools] Session token length: ${sessionToken?.length || 0}`);
+  const dbg = new DebugLogger('agent:gateway-tools');
+  dbg.info('START', { gatewayUrl, tokenLength: sessionToken?.length });
 
   try {
-    console.log(`[AIAgent::registerGatewayTools] Creating MCP client with StreamableHTTPClientTransport...`);
+    dbg.debug('Creating MCP client...');
     const transport = new StreamableHTTPClientTransport(new URL(gatewayUrl), {
       requestInit: {
         headers: { Authorization: `Bearer ${sessionToken}` },
@@ -724,17 +725,17 @@ async function registerGatewayTools({
     });
     const client = new Client({ name: 'shipsec-agent', version: '1.0.0' }, { capabilities: {} });
     await client.connect(transport);
-    console.log(`[AIAgent::registerGatewayTools] MCP client connected successfully`);
+    dbg.debug('MCP client connected');
 
-    console.log(`[AIAgent::registerGatewayTools] Fetching tools from gateway...`);
+    dbg.debug('Fetching tools from gateway...');
     const { tools } = await client.listTools();
-    console.log(`[AIAgent::registerGatewayTools] Discovered ${tools.length} tool(s): ${tools.map(t => t.name).join(', ')}`);
+    dbg.info('Tools discovered', { count: tools.length, names: tools.map(t => t.name) });
 
     const registered: RegisteredMcpTool[] = [];
 
     for (const tool of tools) {
       const toolName = tool.name;
-      console.log(`[AIAgent::registerGatewayTools] Registering tool: ${toolName}`);
+      dbg.debug(`Registering tool`, { toolName });
 
       const registeredTool = toolImpl<Record<string, unknown>, string>({
         type: 'dynamic',
@@ -780,7 +781,7 @@ async function registerGatewayTools({
       });
     }
 
-    console.log(`[AIAgent::registerGatewayTools] SUCCESS - Registered ${registered.length} tools`);
+    dbg.info('SUCCESS', { registeredCount: registered.length });
     return { 
       tools: registered, 
       close: async () => {
@@ -788,7 +789,7 @@ async function registerGatewayTools({
       },
     };
   } catch (error) {
-    console.error(`[AIAgent::registerGatewayTools] ERROR:`, error);
+    dbg.error('ERROR', { error: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 }
