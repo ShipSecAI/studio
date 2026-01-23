@@ -735,6 +735,8 @@ async function registerGatewayTools({
 
     for (const tool of tools) {
       const toolName = tool.name;
+      const toolDbg = new DebugLogger(`agent:tool:${toolName}`);
+      toolDbg.debug(`Registering tool`);
       dbg.debug(`Registering tool`, { toolName });
 
       const registeredTool = toolImpl<Record<string, unknown>, string>({
@@ -743,8 +745,17 @@ async function registerGatewayTools({
         inputSchema: buildMcpToolSchema(tool.inputSchema),
         execute: async (args: Record<string, unknown>): Promise<string> => {
           const invocationId = `${tool.name}-${randomUUID()}`;
+          const execDbg = new DebugLogger(`agent:tool-exec:${toolName}`);
           try {
+            execDbg.debug('Calling tool', { args });
             const result = await client.callTool({ name: tool.name, arguments: args });
+            execDbg.debug('Tool result received', { 
+              resultType: typeof result.content, 
+              isArray: Array.isArray(result.content), 
+              contentLength: Array.isArray(result.content) ? result.content.length : 'N/A',
+              content: result.content 
+            });
+            
             // MCP returns content as an array, extract text content and ensure it's a string
             let content: string;
             if (Array.isArray(result.content)) {
@@ -762,8 +773,18 @@ async function registerGatewayTools({
             } else {
               content = String(result.content);
             }
+            
+            execDbg.debug('Tool execution result', { 
+              contentType: typeof content, 
+              contentLength: content.length,
+              contentPreview: content.substring(0, 500)
+            });
             return content;
           } catch (error) {
+            execDbg.error('Tool execution failed', { 
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack?.substring(0, 1000) : undefined
+            });
             throw error;
           }
         },
