@@ -5,13 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/services/api';
 import type { WebhookConfiguration } from '@shipsec/shared';
-import { env } from '@/config/env';
 import { WebhookDetails } from './WebhookDetails';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import type { Node as ReactFlowNode } from 'reactflow';
 import type { FrontendNodeData } from '@/schemas/node';
 
-const WEBHOOK_BASE_URL = env.VITE_API_URL || 'https://api.shipsec.ai';
+import { API_V1_URL } from '@/services/api';
 
 // State passed when navigating to webhook editor from workflow
 export interface WebhookNavigationState {
@@ -220,7 +219,7 @@ export function WorkflowWebhooksSidebar({
         {!isLoading &&
           !error &&
           webhooks.map((webhook) => {
-            const webhookUrl = `${WEBHOOK_BASE_URL}/webhooks/inbound/${webhook.webhookPath}`;
+            const webhookUrl = `${API_V1_URL}/webhooks/inbound/${webhook.webhookPath}`;
 
             // Generate a sample payload that combines expectedInputs with generic fields
             // to show it can accept "whatever payload"

@@ -15,7 +15,7 @@ import { ScheduleEditorDrawer } from '@/components/schedules/ScheduleEditorDrawe
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
-import { API_BASE_URL } from '@/services/api';
+import { API_V1_URL } from '@/services/api';
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
@@ -93,7 +93,7 @@ export function WorkflowDesignerPane({
   const [webhooksPanelExpanded, setWebhooksPanelExpanded] = useState(false);
 
   // Default webhook URL for direct workflow invocation
-  const defaultWebhookUrl = workflowId ? `${API_BASE_URL}/workflows/${workflowId}/run` : '';
+  const defaultWebhookUrl = workflowId ? `${API_V1_URL}/workflows/${workflowId}/run` : '';
 
   // Auto-open webhooks sidebar if navigated back with query param
   useEffect(() => {

@@ -40,7 +40,7 @@ import {
   isListOfTextPort,
   resolvePortType,
 } from '@/utils/portUtils';
-import { API_BASE_URL, api } from '@/services/api';
+import { API_V1_URL, api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import type { WorkflowSchedule } from '@shipsec/shared';
@@ -627,8 +627,8 @@ export function ConfigPanel({
     }, {}),
   };
   const workflowInvokeUrl = workflowId
-    ? `${API_BASE_URL}/workflows/${workflowId}/run`
-    : `${API_BASE_URL}/workflows/{workflowId}/run`;
+    ? `${API_V1_URL}/workflows/${workflowId}/run`
+    : `${API_V1_URL}/workflows/{workflowId}/run`;
 
   return (
     <div

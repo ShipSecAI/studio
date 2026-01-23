@@ -45,7 +45,7 @@ import {
 import { inputSupportsManualValue, runtimeInputTypeToConnectionType } from '@/utils/portUtils';
 import { WebhookDetails } from './WebhookDetails';
 import { useApiKeyStore } from '@/store/apiKeyStore';
-import { API_BASE_URL } from '@/services/api';
+import { API_V1_URL } from '@/services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEntryPointActions } from './entry-point-context';
 import { ShieldAlert, KeyRound } from 'lucide-react';
@@ -538,8 +538,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const workflowIdFromRoute = params?.id && params.id !== 'new' ? params.id : undefined;
   const workflowId = workflowIdFromStore || workflowIdFromNode || workflowIdFromRoute;
   const workflowInvokeUrl = workflowId
-    ? `${API_BASE_URL}/workflows/${workflowId}/run`
-    : `${API_BASE_URL}/workflows/{workflowId}/run`;
+    ? `${API_V1_URL}/workflows/${workflowId}/run`
+    : `${API_V1_URL}/workflows/{workflowId}/run`;
 
   // Get schedule and webhook sidebar callbacks from Canvas context
   const { onOpenScheduleSidebar, onOpenWebhooksSidebar } = useEntryPointActions();

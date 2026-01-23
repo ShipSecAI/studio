@@ -87,6 +87,7 @@ function resolveApiBaseUrl() {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
 // Helper function to get auth headers (reused by middleware and file operations)
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -278,7 +279,7 @@ export const api = {
 
     resolvePorts: async (id: string, params: Record<string, unknown>) => {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/api/v1/components/${id}/resolve-ports`, {
+      const response = await fetch(`${API_V1_URL}/components/${id}/resolve-ports`, {
         method: 'POST',
         headers: {
           ...headers,
@@ -582,7 +583,7 @@ export const api = {
       },
     ): Promise<TerminalChunkResponse> => {
       const headers = await getAuthHeaders();
-      const url = new URL(`${API_BASE_URL}/api/v1/workflows/runs/${executionId}/terminal`);
+      const url = new URL(`${API_V1_URL}/workflows/runs/${executionId}/terminal`);
       if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
       if (params?.stream) url.searchParams.set('stream', params.stream);
       if (params?.cursor) url.searchParams.set('cursor', params.cursor);
@@ -647,7 +648,7 @@ export const api = {
       if (options?.terminalCursor) params.set('terminalCursor', options.terminalCursor);
       if (options?.logCursor) params.set('logCursor', options.logCursor);
       const query = params.toString();
-      const url = `${API_BASE_URL}/api/v1/workflows/runs/${executionId}/stream${query ? `?${query}` : ''}`;
+      const url = `${API_V1_URL}/workflows/runs/${executionId}/stream${query ? `?${query}` : ''}`;
 
       // Build auth headers
       const headers: Record<string, string> = {};
@@ -794,7 +795,7 @@ export const api = {
 
     download: async (id: string): Promise<Blob> => {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/api/v1/artifacts/${id}/download`, {
+      const response = await fetch(`${API_V1_URL}/artifacts/${id}/download`, {
         headers,
       });
       if (!response.ok) {
@@ -898,10 +899,6 @@ export const api = {
 
 export async function getApiAuthHeaders(): Promise<Record<string, string>> {
   return getAuthHeaders();
-}
-
-export function buildApiUrl(path: string): string {
-  return apiClient.buildUrl(path);
 }
 
 export default api;

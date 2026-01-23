@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useRunStore } from '@/store/runStore';
-import { api, buildApiUrl, getApiAuthHeaders } from '@/services/api';
+import { api, API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { cn } from '@/lib/utils';
 import type {
   AgentNodeOutput,
@@ -755,7 +755,7 @@ function useAgentTranscript(agentRunId: string | null): AgentTranscriptState {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       try {
         const headers = await getApiAuthHeaders();
-        const response = await fetch(buildApiUrl(`/api/v1/agents/${agentRunId}/parts`), {
+        const response = await fetch(`${API_V1_URL}/agents/${agentRunId}/parts`, {
           headers,
         });
         if (!response.ok) {
@@ -835,7 +835,7 @@ function useAgentChatTransport(agentRunId: string | null) {
       prepareSendMessagesRequest: async ({ body, headers }) => {
         const authHeaders = await getApiAuthHeaders();
         return {
-          api: buildApiUrl(`/api/v1/agents/${agentRunId}/chat`),
+          api: `${API_V1_URL}/agents/${agentRunId}/chat`,
           body: body ?? {},
           headers: {
             ...headersInitToRecord(headers),
@@ -846,7 +846,7 @@ function useAgentChatTransport(agentRunId: string | null) {
       prepareReconnectToStreamRequest: async ({ headers }) => {
         const authHeaders = await getApiAuthHeaders();
         return {
-          api: buildApiUrl(`/api/v1/agents/${agentRunId}/chat`),
+          api: `${API_V1_URL}/agents/${agentRunId}/chat`,
           headers: {
             ...headersInitToRecord(headers),
             ...authHeaders,

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { WebhookConfiguration, WebhookDelivery } from '@shipsec/shared';
-import { API_BASE_URL } from '@/services/api';
+import { API_V1_URL } from '@/services/api';
 
 type WebhookStatusFilter = 'all' | 'active' | 'inactive';
 
@@ -93,7 +93,7 @@ export const useWebhookStore = create<WebhookStore>((set, get) => ({
     }
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/webhooks/configurations`);
+      const response = await fetchWithHeaders(`${API_V1_URL}/webhooks/configurations`);
       if (!response.ok) {
         throw new Error('Failed to fetch webhooks');
       }
@@ -124,12 +124,9 @@ export const useWebhookStore = create<WebhookStore>((set, get) => ({
   },
 
   deleteWebhook: async (id: string) => {
-    const response = await fetchWithHeaders(
-      `${API_BASE_URL}/api/v1/webhooks/configurations/${id}`,
-      {
-        method: 'DELETE',
-      },
-    );
+    const response = await fetchWithHeaders(`${API_V1_URL}/webhooks/configurations/${id}`, {
+      method: 'DELETE',
+    });
     if (!response.ok) {
       throw new Error('Failed to delete webhook');
     }
@@ -152,7 +149,7 @@ export const useWebhookStore = create<WebhookStore>((set, get) => ({
 
   regeneratePath: async (id: string) => {
     const response = await fetchWithHeaders(
-      `${API_BASE_URL}/api/v1/webhooks/configurations/${id}/regenerate-path`,
+      `${API_V1_URL}/webhooks/configurations/${id}/regenerate-path`,
       {
         method: 'POST',
       },
@@ -173,13 +170,10 @@ export const useWebhookStore = create<WebhookStore>((set, get) => ({
   },
 
   testScript: async (dto) => {
-    const response = await fetchWithHeaders(
-      `${API_BASE_URL}/api/v1/webhooks/configurations/test-script`,
-      {
-        method: 'POST',
-        body: JSON.stringify(dto),
-      },
-    );
+    const response = await fetchWithHeaders(`${API_V1_URL}/webhooks/configurations/test-script`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
     if (!response.ok) {
       throw new Error('Failed to test parsing script');
     }
@@ -193,7 +187,7 @@ export const useWebhookStore = create<WebhookStore>((set, get) => ({
 
     try {
       const response = await fetchWithHeaders(
-        `${API_BASE_URL}/api/v1/webhooks/configurations/${webhookId}/deliveries`,
+        `${API_V1_URL}/webhooks/configurations/${webhookId}/deliveries`,
       );
       if (!response.ok) {
         throw new Error('Failed to fetch deliveries');
