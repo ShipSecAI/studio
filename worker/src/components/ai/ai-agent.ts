@@ -736,25 +736,32 @@ async function registerGatewayTools({
       const toolName = tool.name;
       console.log(`[AIAgent::registerGatewayTools] Registering tool: ${toolName}`);
 
-      const registeredTool = toolImpl<Record<string, unknown>, unknown>({
+      const registeredTool = toolImpl<Record<string, unknown>, string>({
         type: 'dynamic',
         description: tool.description ?? `Invoke ${tool.name}`,
         inputSchema: buildMcpToolSchema(tool.inputSchema),
-        execute: async (args: Record<string, unknown>) => {
+        execute: async (args: Record<string, unknown>): Promise<string> => {
           const invocationId = `${tool.name}-${randomUUID()}`;
           try {
             const result = await client.callTool({ name: tool.name, arguments: args });
-            // MCP returns content as an array, extract text content
+            // MCP returns content as an array, extract text content and ensure it's a string
+            let content: string;
             if (Array.isArray(result.content)) {
-              return result.content
+              content = result.content
                 .map(c => {
                   if (typeof c === 'string') return c;
                   if (c && typeof c === 'object' && 'text' in c) return (c as any).text;
                   return JSON.stringify(c);
                 })
                 .join('\n');
+            } else if (typeof result.content === 'string') {
+              content = result.content;
+            } else if (result.content && typeof result.content === 'object') {
+              content = JSON.stringify(result.content);
+            } else {
+              content = String(result.content);
             }
-            return result.content;
+            return content;
           } catch (error) {
             throw error;
           }

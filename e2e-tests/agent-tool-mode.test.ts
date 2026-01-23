@@ -125,7 +125,7 @@ e2eDescribe('Agent Tool Mode Orchestration E2E', () => {
                                 method: 'GET',
                             },
                             inputOverrides: {
-                                url: 'https://ifconfig.me/ip',
+                                url: 'https://httpbin.org/ip',
                             }
                         },
                     },
