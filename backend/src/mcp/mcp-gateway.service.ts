@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { componentRegistry, getToolInputShape } from '@shipsec/component-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -136,10 +137,14 @@ export class McpGatewayService {
         continue;
       }
 
+      const component = tool.componentId ? componentRegistry.get(tool.componentId) : null;
+      const inputShape = component ? getToolInputShape(component) : undefined;
+
       server.registerTool(
         tool.toolName,
         {
           description: tool.description,
+          inputSchema: inputShape,
           _meta: { inputSchema: tool.inputSchema },
         },
         async (args: any) => {

@@ -44,6 +44,7 @@ const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_MAX_TOKENS = 1024;
 const DEFAULT_MEMORY_SIZE = 8;
 const DEFAULT_STEP_LIMIT = 4;
+const LOG_TRUNCATE_LIMIT = 2000;
 
 const DEFAULT_API_BASE_URL =
   process.env.STUDIO_API_BASE_URL ??
@@ -316,6 +317,22 @@ function normalizeMessageContent(content: unknown): string {
   return JSON.stringify(content ?? '');
 }
 
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  const remaining = value.length - maxLength;
+  return `${value.slice(0, maxLength)}...(+${remaining} chars)`;
+}
+
+function safeStringify(value: unknown, maxLength: number): string {
+  try {
+    return truncateText(JSON.stringify(value), maxLength);
+  } catch {
+    return truncateText(String(value), maxLength);
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -386,6 +403,101 @@ function toToolResultPart(content: unknown): ToolResultPart {
     toolName,
     output: toToolResultOutput(rawOutput),
   };
+}
+
+function summarizeContent(content: unknown): Record<string, unknown> {
+  if (typeof content === 'string') {
+    return {
+      kind: 'string',
+      length: content.length,
+      preview: truncateText(content, 160),
+    };
+  }
+
+  if (Array.isArray(content)) {
+    const sample = content.slice(0, 5).map((item) => {
+      if (isRecord(item)) {
+        return {
+          kind: 'object',
+          type: typeof item.type === 'string' ? item.type : undefined,
+          toolName: typeof item.toolName === 'string' ? item.toolName : undefined,
+          toolCallId: typeof item.toolCallId === 'string' ? item.toolCallId : undefined,
+          keys: Object.keys(item).slice(0, 8),
+        };
+      }
+      return { kind: Array.isArray(item) ? 'array' : typeof item };
+    });
+
+    return {
+      kind: 'array',
+      length: content.length,
+      sample,
+    };
+  }
+
+  if (isRecord(content)) {
+    return {
+      kind: 'object',
+      keys: Object.keys(content).slice(0, 12),
+    };
+  }
+
+  return { kind: typeof content };
+}
+
+function summarizeModelMessages(messages: ModelMessage[]): Array<Record<string, unknown>> {
+  return messages.map((message, index) => ({
+    index,
+    role: message.role,
+    content: summarizeContent(message.content),
+  }));
+}
+
+function summarizeToolConfig(tools: ToolSet): Record<string, Record<string, unknown>> {
+  const summary: Record<string, Record<string, unknown>> = {};
+
+  for (const [name, tool] of Object.entries(tools)) {
+    if (typeof tool === 'function') {
+      summary[name] = { kind: 'function' };
+      continue;
+    }
+
+    if (isRecord(tool)) {
+      summary[name] = {
+        kind: 'object',
+        keys: Object.keys(tool).slice(0, 10),
+        description: typeof tool.description === 'string' ? truncateText(tool.description, 120) : undefined,
+      };
+      continue;
+    }
+
+    summary[name] = { kind: typeof tool };
+  }
+
+  return summary;
+}
+
+function formatErrorForLog(error: unknown, maxLength: number): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: truncateText(error.message, maxLength),
+      stack: error.stack ? truncateText(error.stack, maxLength) : undefined,
+      cause: 'cause' in error ? safeStringify((error as { cause?: unknown }).cause, maxLength) : undefined,
+    };
+  }
+
+  if (isRecord(error)) {
+    const message =
+      typeof error.message === 'string' ? error.message : safeStringify(error, maxLength);
+    return {
+      name: typeof error.name === 'string' ? error.name : undefined,
+      message: truncateText(message, maxLength),
+      keys: Object.keys(error).slice(0, 12),
+    };
+  }
+
+  return { message: truncateText(String(error), maxLength) };
 }
 
 function getToolInput(entity: { input?: unknown } | null | undefined): unknown {
@@ -496,7 +608,7 @@ async function registerGatewayTools({
     dbg.debug('Creating MCP client via AI SDK HTTP transport...');
     const mcpClient = await createMCPClient({
       transport: {
-        type: 'sse',
+        type: 'http',
         url: gatewayUrl,
         headers: { Authorization: `Bearer ${sessionToken}` },
       },
@@ -718,6 +830,9 @@ Loop the Conversation State output back into the next agent invocation to keep m
         availableToolsCount,
         toolsConfigKeys: toolsConfig ? Object.keys(toolsConfig) : [],
       });
+      if (toolsConfig) {
+        debugLog('Tools configuration details', summarizeToolConfig(toolsConfig));
+      }
 
       const systemMessageEntry = historyWithUser.find((message) => message.role === 'system');
       const resolvedSystemPrompt = systemPrompt?.trim()?.length
@@ -730,7 +845,11 @@ Loop the Conversation State output back into the next agent invocation to keep m
       debugLog('Resolved system prompt', resolvedSystemPrompt);
 
       const messagesForModel = toModelMessages(historyWithUser);
-      debugLog('Messages for model', messagesForModel);
+      debugLog('Messages for model (summary)', summarizeModelMessages(messagesForModel));
+      debugLog(
+        'Messages for model (truncated)',
+        safeStringify(messagesForModel, LOG_TRUNCATE_LIMIT),
+      );
 
       const openAIOptions = {
         apiKey: effectiveApiKey,
@@ -739,16 +858,26 @@ Loop the Conversation State output back into the next agent invocation to keep m
           ? { headers: sanitizedHeaders }
           : {}),
       };
+      const isOpenRouter =
+        effectiveProvider === 'openrouter' ||
+        (typeof baseUrl === 'string' && baseUrl.includes('openrouter.ai'));
+      const openAIProvider = createOpenAI({
+        ...openAIOptions,
+        ...(isOpenRouter ? { name: 'openrouter' } : {}),
+      });
       const model =
         effectiveProvider === 'gemini'
           ? createGoogleGenerativeAI({
               apiKey: effectiveApiKey,
               ...(baseUrl ? { baseURL: baseUrl } : {}),
             })(effectiveModel)
-          : createOpenAI(openAIOptions)(effectiveModel);
+          : isOpenRouter
+            ? openAIProvider.chat(effectiveModel)
+            : openAIProvider(effectiveModel);
       debugLog('Model factory created', {
         provider: effectiveProvider,
         modelId: effectiveModel,
+        modelMode: isOpenRouter ? 'chat' : 'responses',
         baseUrl,
         headers: sanitizedHeaders,
         temperature,
@@ -779,6 +908,11 @@ Loop the Conversation State output back into the next agent invocation to keep m
               toolName: call.toolName,
               input,
             });
+            console.log('[AIAgent::execute] Tool call issued (truncated)', {
+              toolCallId: call.toolCallId,
+              toolName: call.toolName,
+              inputPreview: safeStringify(input, 600),
+            });
           }
 
           for (const result of stepResult.toolResults) {
@@ -788,6 +922,11 @@ Loop the Conversation State output back into the next agent invocation to keep m
               toolCallId: result.toolCallId,
               toolName: result.toolName,
               output,
+            });
+            console.log('[AIAgent::execute] Tool call result (truncated)', {
+              toolCallId: result.toolCallId,
+              toolName: result.toolName,
+              outputPreview: safeStringify(output, 600),
             });
           }
         },
@@ -817,6 +956,21 @@ Loop the Conversation State output back into the next agent invocation to keep m
       console.log(
         `[AIAgent::execute] Calling agent.generate() with ${messagesForModel.length} messages...`,
       );
+      console.log(
+        `[AIAgent::execute] agent.generate payload: ${safeStringify(
+          {
+            model: effectiveModel,
+            provider: effectiveProvider,
+            modelMode: isOpenRouter ? 'chat' : 'responses',
+            temperature,
+            maxTokens,
+            stepLimit,
+            messages: messagesForModel,
+            tools: toolsConfig ? summarizeToolConfig(toolsConfig) : undefined,
+          },
+          LOG_TRUNCATE_LIMIT,
+        )}`,
+      );
       let generationResult: AgentGenerationResult;
       try {
         generationResult = await agent.generate({
@@ -831,7 +985,14 @@ Loop the Conversation State output back into the next agent invocation to keep m
           `[AIAgent::execute] Result steps count: ${generationResult?.steps?.length || 0}`,
         );
       } catch (genError) {
-        console.error(`[AIAgent::execute] agent.generate() FAILED:`, genError);
+        const errorSummary = formatErrorForLog(genError, LOG_TRUNCATE_LIMIT);
+        console.error(`[AIAgent::execute] agent.generate() FAILED (truncated)`, errorSummary);
+        context.logger.error(
+          `[AIAgent] agent.generate() FAILED (truncated): ${safeStringify(
+            errorSummary,
+            LOG_TRUNCATE_LIMIT,
+          )}`,
+        );
         throw genError;
       }
 

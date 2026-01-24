@@ -5,6 +5,7 @@ import {
   inferBindingType,
   getCredentialInputIds,
   getActionInputIds,
+  getToolInputShape,
   getToolSchema,
   getToolName,
   getToolDescription,
@@ -167,6 +168,26 @@ describe('tool-helpers', () => {
       // Note: Zod's toJSONSchema marks fields with defaults as required
       // (the default is applied at runtime, not by JSON Schema)
       expect(schema.required).toEqual(['ipAddress', 'verbose']);
+    });
+  });
+
+  describe('getToolInputShape', () => {
+    it('returns Zod shape with action inputs only', () => {
+      const component = createComponent({
+        inputs: inputs({
+          apiKey: port(z.string(), { label: 'API Key', editor: 'secret' }),
+          url: port(z.string(), { label: 'URL' }),
+          count: port(z.number().optional(), { label: 'Count' }),
+        }),
+      });
+
+      const shape = getToolInputShape(component);
+      const shapeKeys = Object.keys(shape);
+
+      expect(shapeKeys).toEqual(['url', 'count']);
+
+      const parsed = z.object(shape).safeParse({ url: 'https://example.com' });
+      expect(parsed.success).toBe(true);
     });
   });
 

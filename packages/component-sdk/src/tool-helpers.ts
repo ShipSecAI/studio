@@ -6,6 +6,7 @@
  */
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
   ComponentDefinition,
   ComponentPortMetadata,
@@ -17,7 +18,14 @@ import { extractPorts } from './zod-ports';
  * Tool input schema - matches the MCP SDK's Tool.inputSchema type.
  * This is a JSON Schema object with type: 'object'.
  */
+// export type ToolInputSchema = Tool['inputSchema'];
 export type ToolInputSchema = Tool['inputSchema'];
+
+/**
+ * Tool input shape for MCP server registration.
+ * This is a Zod raw shape (record of schemas).
+ */
+export type ToolInputShape = ZodRawShapeCompat;
 
 /**
  * Metadata for an agent-callable tool, suitable for MCP tools/list response.
@@ -108,6 +116,50 @@ function pick<T extends Record<string, unknown>, K extends string>(
     }
   }
   return result;
+}
+
+type ZodObjectLike = {
+  shape?: Record<string, AnySchema> | (() => Record<string, AnySchema>);
+  _def?: {
+    shape?: Record<string, AnySchema> | (() => Record<string, AnySchema>);
+  };
+};
+
+function getObjectShape(schema: unknown): Record<string, AnySchema> | null {
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+
+  const objectSchema = schema as ZodObjectLike;
+  const shape = objectSchema.shape ?? objectSchema._def?.shape;
+  if (!shape) {
+    return null;
+  }
+
+  return typeof shape === 'function' ? shape() : shape;
+}
+
+/**
+ * Get the Zod raw shape for the action inputs only (inputs exposed to the agent).
+ * This is used to register tools with the MCP server for input validation.
+ */
+export function getToolInputShape(component: ComponentDefinition): ToolInputShape {
+  const shape = getObjectShape(component.inputs);
+  if (!shape) {
+    return {};
+  }
+
+  const actionInputIds = getActionInputIds(component);
+  const filtered: ToolInputShape = {};
+
+  for (const id of actionInputIds) {
+    const schema = shape[id];
+    if (schema) {
+      filtered[id] = schema;
+    }
+  }
+
+  return filtered;
 }
 
 /**
