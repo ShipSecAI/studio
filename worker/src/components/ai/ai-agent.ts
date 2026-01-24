@@ -886,3 +886,15 @@ Loop the Conversation State output back into the next agent invocation to keep m
 });
 
 componentRegistry.register(definition);
+
+// Create local type aliases for internal use (inferred types)
+type Input = (typeof inputSchema)['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
+type Params = (typeof parameterSchema)['__inferred'];
+
+// Export schema types for the registry
+export type AiAgentInput = typeof inputSchema;
+export type AiAgentOutput = typeof outputSchema;
+export type AiAgentParams = typeof parameterSchema;
+
+export type { Input as AiAgentInputData, Output as AiAgentOutputData, Params as AiAgentParamsData };

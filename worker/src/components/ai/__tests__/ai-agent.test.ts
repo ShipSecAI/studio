@@ -1,7 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, test, vi } from 'bun:test';
-import type { GenerateTextResult, ToolSet } from 'ai';
+import type { GenerateTextResult, LanguageModelUsage, Output as AIOutput, ToolSet } from 'ai';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sdk';
+import type { AiAgentInput, AiAgentOutput } from '../ai-agent';
 
 const stepCountIsMock = vi.fn((limit: number) => ({ type: 'step-count', limit }));
 const createOpenAIMock = vi.fn(
@@ -14,7 +15,7 @@ const createMCPClientMock = vi.fn();
 
 let toolLoopAgentSettings: unknown;
 let lastGenerateMessages: unknown;
-type GenerationResult = GenerateTextResult<ToolSet, never>;
+type GenerationResult = GenerateTextResult<ToolSet, ReturnType<typeof AIOutput.text>>;
 let nextGenerateResult = createGenerationResult();
 
 class MockToolLoopAgent {
@@ -65,7 +66,26 @@ const baseContext: ExecutionContext = {
   },
 };
 
+function createUsage(overrides: Partial<LanguageModelUsage> = {}): LanguageModelUsage {
+  return {
+    inputTokens: 1,
+    inputTokenDetails: {
+      noCacheTokens: undefined,
+      cacheReadTokens: undefined,
+      cacheWriteTokens: undefined,
+    },
+    outputTokens: 1,
+    outputTokenDetails: {
+      textTokens: undefined,
+      reasoningTokens: undefined,
+    },
+    totalTokens: 2,
+    ...overrides,
+  };
+}
+
 function createGenerationResult(overrides: Partial<GenerationResult> = {}): GenerationResult {
+  const usage = createUsage();
   return {
     content: [],
     text: 'Agent final answer',
@@ -81,7 +101,8 @@ function createGenerationResult(overrides: Partial<GenerationResult> = {}): Gene
     dynamicToolResults: [],
     finishReason: 'stop',
     rawFinishReason: 'stop',
-    usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    usage,
+    totalUsage: usage,
     warnings: undefined,
     request: {},
     response: {
@@ -91,6 +112,9 @@ function createGenerationResult(overrides: Partial<GenerationResult> = {}): Gene
       messages: [],
     },
     providerMetadata: undefined,
+    steps: [],
+    experimental_output: '',
+    output: '',
     ...overrides,
   };
 }
@@ -124,7 +148,7 @@ beforeAll(async () => {
 
 describe('core.ai.agent (refactor)', () => {
   test('runs without tool discovery when no connected tools', async () => {
-    const component = componentRegistry.get('core.ai.agent');
+    const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
     nextGenerateResult = createGenerationResult({ text: 'Hello agent' });
@@ -169,17 +193,20 @@ describe('core.ai.agent (refactor)', () => {
   });
 
   test('discovers gateway tools and passes them to the agent', async () => {
-    const component = componentRegistry.get('core.ai.agent');
+    const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ token: 'gateway-token' }), {
+    let fetchCalls = 0;
+    const originalFetch = globalThis.fetch;
+    const fetchMock: typeof fetch = async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ token: 'gateway-token' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal('fetch', fetchMock);
+      });
+    };
+    fetchMock.preconnect = () => {};
+    globalThis.fetch = fetchMock;
 
     const mockTools = {
       ping: {
@@ -227,7 +254,7 @@ describe('core.ai.agent (refactor)', () => {
       );
 
       expect(result.responseText).toBe('Agent final answer');
-      expect(fetchMock).toHaveBeenCalled();
+      expect(fetchCalls).toBeGreaterThan(0);
       expect(createMCPClientMock).toHaveBeenCalledWith(
         expect.objectContaining({
           transport: {
@@ -247,7 +274,7 @@ describe('core.ai.agent (refactor)', () => {
   });
 
   test('stores tool outputs in conversation state', async () => {
-    const component = componentRegistry.get('core.ai.agent');
+    const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
     nextGenerateResult = createGenerationResult({
