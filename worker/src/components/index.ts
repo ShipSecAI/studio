@@ -59,6 +59,9 @@ import './security/findomain';
 import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
+import './security/nmap';
+import './security/sqlmap';
+import './security/katana';
 
 // GitHub components
 import './github/connection-provider';
