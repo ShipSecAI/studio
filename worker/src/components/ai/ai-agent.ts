@@ -17,7 +17,6 @@ import { createMCPClient } from '@ai-sdk/mcp';
 import {
   componentRegistry,
   ComponentRetryPolicy,
-  type ExecutionContext,
   ConfigurationError,
   ValidationError,
   defineComponent,
@@ -122,8 +121,7 @@ const inputSchema = inputs({
       .describe('Anchor port for tool-mode nodes; data is not consumed by the agent.'),
     {
       label: 'Connected Tools',
-      description:
-        'Connect tool-mode nodes here to scope gateway tool discovery for this agent.',
+      description: 'Connect tool-mode nodes here to scope gateway tool discovery for this agent.',
       allowAny: true,
       reason: 'Tool-mode port acts as a graph anchor; payloads are not consumed by the agent.',
       connectionType: { kind: 'primitive', name: 'json' },
@@ -364,14 +362,9 @@ function isToolResultOutput(value: unknown): value is ToolResultOutput {
   if (typeof typeValue !== 'string') {
     return false;
   }
-  return [
-    'text',
-    'json',
-    'execution-denied',
-    'error-text',
-    'error-json',
-    'content',
-  ].includes(typeValue);
+  return ['text', 'json', 'execution-denied', 'error-text', 'error-json', 'content'].includes(
+    typeValue,
+  );
 }
 
 function toToolResultOutput(value: unknown): ToolResultOutput {
@@ -404,85 +397,16 @@ function toToolResultPart(content: unknown): ToolResultPart {
   };
 }
 
-function summarizeContent(content: unknown): Record<string, unknown> {
-  if (typeof content === 'string') {
-    return {
-      kind: 'string',
-      length: content.length,
-      preview: truncateText(content, 160),
-    };
-  }
-
-  if (Array.isArray(content)) {
-    const sample = content.slice(0, 5).map((item) => {
-      if (isRecord(item)) {
-        return {
-          kind: 'object',
-          type: typeof item.type === 'string' ? item.type : undefined,
-          toolName: typeof item.toolName === 'string' ? item.toolName : undefined,
-          toolCallId: typeof item.toolCallId === 'string' ? item.toolCallId : undefined,
-          keys: Object.keys(item).slice(0, 8),
-        };
-      }
-      return { kind: Array.isArray(item) ? 'array' : typeof item };
-    });
-
-    return {
-      kind: 'array',
-      length: content.length,
-      sample,
-    };
-  }
-
-  if (isRecord(content)) {
-    return {
-      kind: 'object',
-      keys: Object.keys(content).slice(0, 12),
-    };
-  }
-
-  return { kind: typeof content };
-}
-
-function summarizeModelMessages(messages: ModelMessage[]): Array<Record<string, unknown>> {
-  return messages.map((message, index) => ({
-    index,
-    role: message.role,
-    content: summarizeContent(message.content),
-  }));
-}
-
-function summarizeToolConfig(tools: ToolSet): Record<string, Record<string, unknown>> {
-  const summary: Record<string, Record<string, unknown>> = {};
-
-  for (const [name, tool] of Object.entries(tools)) {
-    if (typeof tool === 'function') {
-      summary[name] = { kind: 'function' };
-      continue;
-    }
-
-    if (isRecord(tool)) {
-      summary[name] = {
-        kind: 'object',
-        keys: Object.keys(tool).slice(0, 10),
-        description: typeof tool.description === 'string' ? truncateText(tool.description, 120) : undefined,
-      };
-      continue;
-    }
-
-    summary[name] = { kind: typeof tool };
-  }
-
-  return summary;
-}
-
 function formatErrorForLog(error: unknown, maxLength: number): Record<string, unknown> {
   if (error instanceof Error) {
     return {
       name: error.name,
       message: truncateText(error.message, maxLength),
       stack: error.stack ? truncateText(error.stack, maxLength) : undefined,
-      cause: 'cause' in error ? safeStringify((error as { cause?: unknown }).cause, maxLength) : undefined,
+      cause:
+        'cause' in error
+          ? safeStringify((error as { cause?: unknown }).cause, maxLength)
+          : undefined,
     };
   }
 
@@ -590,26 +514,21 @@ async function registerGatewayTools({
   tools: ToolSet;
   close: () => Promise<void>;
 }> {
-  try {
-    const mcpClient = await createMCPClient({
-      transport: {
-        type: 'http',
-        url: gatewayUrl,
-        headers: { Authorization: `Bearer ${sessionToken}` },
-      },
-    });
+  const mcpClient = await createMCPClient({
+    transport: {
+      type: 'http',
+      url: gatewayUrl,
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    },
+  });
 
-    const tools = await mcpClient.tools();
-    const toolNames = Object.keys(tools);
-    return {
-      tools,
-      close: async () => {
-        await mcpClient.close();
-      },
-    };
-  } catch (error) {
-    throw error;
-  }
+  const tools = await mcpClient.tools();
+  return {
+    tools,
+    close: async () => {
+      await mcpClient.close();
+    },
+  };
 }
 
 const definition = defineComponent({
@@ -653,7 +572,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
     },
   },
   async execute({ inputs, params }, context) {
-    const { userInput, conversationState, chatModel, modelApiKey, tools: toolsAnchor } = inputs;
+    const { userInput, conversationState, chatModel, modelApiKey } = inputs;
     const { systemPrompt, temperature, maxTokens, memorySize, stepLimit } = params;
 
     const agentRunId = `${context.runId}:${context.componentRef}:${randomUUID()}`;

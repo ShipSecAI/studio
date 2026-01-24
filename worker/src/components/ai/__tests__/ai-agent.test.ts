@@ -5,12 +5,11 @@ import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sd
 import type { AiAgentInput, AiAgentOutput } from '../ai-agent';
 
 const stepCountIsMock = vi.fn((limit: number) => ({ type: 'step-count', limit }));
-const createOpenAIMock = vi.fn(
-  () => (modelId: string) => ({ provider: 'openai', modelId }),
-);
-const createGoogleGenerativeAIMock = vi.fn(
-  () => (modelId: string) => ({ provider: 'gemini', modelId }),
-);
+const createOpenAIMock = vi.fn(() => (modelId: string) => ({ provider: 'openai', modelId }));
+const createGoogleGenerativeAIMock = vi.fn(() => (modelId: string) => ({
+  provider: 'gemini',
+  modelId,
+}));
 const createMCPClientMock = vi.fn();
 
 let toolLoopAgentSettings: unknown;
@@ -140,7 +139,6 @@ beforeEach(() => {
   createMCPClientMock.mockClear();
   process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
 });
-
 
 beforeAll(async () => {
   await import('../../index');

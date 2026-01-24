@@ -55,9 +55,7 @@ export class McpGatewayController {
     // Initialization if transport doesn't exist
     if (!transport) {
       if (!isInitRequest) {
-        return res
-          .status(400)
-          .send('Bad Request: No valid session ID provided');
+        return res.status(400).send('Bad Request: No valid session ID provided');
       }
 
       this.logger.log(

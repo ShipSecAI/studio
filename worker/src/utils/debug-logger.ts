@@ -34,7 +34,7 @@ export class DebugLogger {
   private writeLog(level: string, message: string, data?: unknown) {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
-      level: level as any,
+      level: level as 'debug' | 'info' | 'warn' | 'error',
       context: this.context,
       message,
       data,
@@ -44,7 +44,7 @@ export class DebugLogger {
     try {
       const logLine = JSON.stringify(entry);
       fs.appendFileSync(DEBUG_LOG_FILE, logLine + '\n');
-    } catch (err) {
+    } catch (_err) {
       // Silently fail if we can't write
     }
 
@@ -82,7 +82,7 @@ export function logHeartbeat(taskQueue: string) {
 
   try {
     fs.appendFileSync(HEARTBEAT_LOG_FILE, JSON.stringify(entry) + '\n');
-  } catch (err) {
+  } catch (_err) {
     // Silently fail
   }
 }
