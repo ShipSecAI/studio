@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { componentRegistry, getToolInputShape } from '@shipsec/component-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -32,16 +33,24 @@ export class McpGatewayService {
 
   /**
    * Get or create an MCP Server instance for a specific workflow run
+   * Key includes both runId and allowedNodeIds to support multiple agents with different tool scopes
    */
   async getServerForRun(
     runId: string,
     organizationId?: string | null,
     allowedTools?: string[],
+    allowedNodeIds?: string[],
   ): Promise<McpServer> {
     // 1. Validate Access
     await this.validateRunAccess(runId, organizationId);
 
-    const existing = this.servers.get(runId);
+    // Cache key includes allowedNodeIds so different agents with different tool scopes get different servers
+    const cacheKey =
+      allowedNodeIds && allowedNodeIds.length > 0
+        ? `${runId}:${allowedNodeIds.sort().join(',')}`
+        : runId;
+
+    const existing = this.servers.get(cacheKey);
     if (existing) {
       return existing;
     }
@@ -51,8 +60,8 @@ export class McpGatewayService {
       version: '1.0.0',
     });
 
-    await this.registerTools(server, runId, allowedTools);
-    this.servers.set(runId, server);
+    await this.registerTools(server, runId, allowedTools, allowedNodeIds);
+    this.servers.set(cacheKey, server);
 
     return server;
   }
@@ -105,8 +114,13 @@ export class McpGatewayService {
   /**
    * Register all available tools (internal and external) for this run
    */
-  private async registerTools(server: McpServer, runId: string, allowedTools?: string[]) {
-    const allRegistered = await this.toolRegistry.getToolsForRun(runId);
+  private async registerTools(
+    server: McpServer,
+    runId: string,
+    allowedTools?: string[],
+    allowedNodeIds?: string[],
+  ) {
+    const allRegistered = await this.toolRegistry.getToolsForRun(runId, allowedNodeIds);
 
     // Filter by allowed tools if specified
     if (allowedTools && allowedTools.length > 0) {
@@ -123,10 +137,14 @@ export class McpGatewayService {
         continue;
       }
 
+      const component = tool.componentId ? componentRegistry.get(tool.componentId) : null;
+      const inputShape = component ? getToolInputShape(component) : undefined;
+
       server.registerTool(
         tool.toolName,
         {
           description: tool.description,
+          inputSchema: inputShape,
           _meta: { inputSchema: tool.inputSchema },
         },
         async (args: any) => {

@@ -609,6 +609,7 @@ export async function shipsecWorkflowRun(
             groupId: nodeMetadata?.groupId,
             triggeredBy,
             failure,
+            connectedToolNodeIds: nodeMetadata?.connectedToolNodeIds,
           },
         };
 
@@ -617,6 +618,7 @@ export async function shipsecWorkflowRun(
         const isToolMode = nodeMetadata?.mode === 'tool';
 
         if (isToolMode) {
+          console.log(`[Workflow] Node ${action.ref} is in tool mode, registering...`);
           if (action.componentId === 'core.mcp.server') {
             const { runComponentActivity: runMcp } = proxyActivities<{
               runComponentActivity(
@@ -666,8 +668,20 @@ export async function shipsecWorkflowRun(
             });
           }
 
-          // Tool registration is successful, proceed as a successful node execution
-          return { activePorts: ['default'] };
+          console.log(`[Workflow] Node ${action.ref} registered as tool, setting results.`);
+          const toolResult = { mode: 'tool', status: 'ready', tools: [] };
+          results.set(action.ref, toolResult);
+
+          await recordTraceEventActivity({
+            type: 'NODE_COMPLETED',
+            runId: input.runId,
+            nodeRef: action.ref,
+            timestamp: new Date().toISOString(),
+            outputSummary: toolResult,
+            level: 'info',
+          });
+
+          return { activePorts: ['default', 'tools'] };
         }
 
         const { runComponentActivity: runComponentWithRetry } = proxyActivities<{

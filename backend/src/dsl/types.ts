@@ -62,6 +62,7 @@ export const WorkflowNodeMetadataSchema = z.object({
       exposedInputIds: z.array(z.string()).default([]),
     })
     .optional(),
+  connectedToolNodeIds: z.array(z.string()).optional(),
 });
 
 export type WorkflowNodeMetadata = z.infer<typeof WorkflowNodeMetadataSchema>;

@@ -141,6 +141,8 @@ export interface ExecutionContextMetadata {
   joinStrategy?: 'all' | 'any' | 'first';
   triggeredBy?: string;
   failure?: ExecutionFailureMetadata;
+  connectedToolNodeIds?: string[];
+  organizationId?: string | null;
 }
 
 export interface TraceEventData {

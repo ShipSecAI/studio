@@ -107,7 +107,7 @@ export async function prepareAndRegisterToolActivity(input: {
   await callInternalApi('register-component', {
     runId: input.runId,
     nodeId: input.nodeId,
-    toolName: metadata.name,
+    toolName: input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
     componentId: input.componentId,
     description: metadata.description,
     inputSchema: metadata.inputSchema,

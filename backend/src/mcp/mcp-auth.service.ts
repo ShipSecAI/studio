@@ -8,6 +8,7 @@ export interface McpSessionMetadata {
   runId: string;
   organizationId: string | null;
   agentId?: string;
+  allowedNodeIds?: string[];
   expiresAt: number;
 }
 
@@ -25,6 +26,7 @@ export class McpAuthService {
     runId: string,
     organizationId: string | null,
     agentId = 'agent',
+    allowedNodeIds?: string[],
     ttlSeconds = 3600, // 1 hour default
   ): Promise<string> {
     const token = `mcp_sk_${uuid4().replace(/-/g, '')}`;
@@ -34,6 +36,7 @@ export class McpAuthService {
       runId,
       organizationId,
       agentId,
+      allowedNodeIds,
       expiresAt,
     };
 
@@ -68,6 +71,7 @@ export class McpAuthService {
         extra: {
           runId: metadata.runId,
           organizationId: metadata.organizationId,
+          allowedNodeIds: metadata.allowedNodeIds,
         },
       };
     } catch (err) {

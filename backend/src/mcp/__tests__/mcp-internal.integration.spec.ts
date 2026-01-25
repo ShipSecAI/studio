@@ -1,14 +1,26 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { ForbiddenException, INestApplication } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
-import { McpModule } from '../mcp.module';
-import { TOOL_REGISTRY_REDIS } from '../tool-registry.service';
+import { AuthService } from '../../auth/auth.service';
+import { AuthGuard } from '../../auth/auth.guard';
+import { ApiKeysService } from '../../api-keys/api-keys.service';
+import { AnalyticsService } from '../../analytics/analytics.service';
+import { AgentTraceIngestService } from '../../agent-trace/agent-trace-ingest.service';
+import { EventIngestService } from '../../events/event-ingest.service';
+import { LogIngestService } from '../../logging/log-ingest.service';
+import { NodeIOIngestService } from '../../node-io/node-io-ingest.service';
+import { SecretsEncryptionService } from '../../secrets/secrets.encryption';
+import { InternalMcpController } from '../internal-mcp.controller';
+import { ToolRegistryService, TOOL_REGISTRY_REDIS } from '../tool-registry.service';
 import { Pool } from 'pg';
 
 // Simple Mock Redis
 class MockRedis {
   data = new Map<string, Map<string, string>>();
+  kv = new Map<string, string>();
   async hset(key: string, field: string, value: string) {
     if (!this.data.has(key)) this.data.set(key, new Map());
     this.data.get(key)!.set(field, value);
@@ -16,6 +28,19 @@ class MockRedis {
   }
   async hget(key: string, field: string) {
     return this.data.get(key)?.get(field) || null;
+  }
+  async expire() {
+    return 1;
+  }
+  async get(key: string) {
+    return this.kv.get(key) ?? null;
+  }
+  async set(key: string, value: string) {
+    this.kv.set(key, value);
+    return 'OK';
+  }
+  async del(key: string) {
+    return this.kv.delete(key) ? 1 : 0;
   }
   async quit() {}
 }
@@ -31,9 +56,55 @@ describe('MCP Internal API (Integration)', () => {
     process.env.SKIP_INGEST_SERVICES = 'true';
     process.env.SHIPSEC_SKIP_MIGRATION_CHECK = 'true';
 
+    const { McpModule } = await import('../mcp.module');
+    const mockRedis = new MockRedis();
+    const encryption = new SecretsEncryptionService();
+    const toolRegistryService = new ToolRegistryService(mockRedis as unknown as any, encryption);
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [McpModule],
+      imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), McpModule],
     })
+      .overrideProvider(NodeIOIngestService)
+      .useValue({
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
+      })
+      .overrideProvider(LogIngestService)
+      .useValue({
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
+      })
+      .overrideProvider(EventIngestService)
+      .useValue({
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
+      })
+      .overrideProvider(AgentTraceIngestService)
+      .useValue({
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
+      })
+      .overrideProvider(ToolRegistryService)
+      .useValue(toolRegistryService)
+      .overrideProvider(ApiKeysService)
+      .useValue({
+        validateKey: async () => null,
+      })
+      .overrideProvider(AnalyticsService)
+      .useValue({
+        isEnabled: () => false,
+        track: () => {},
+        trackWorkflowStarted: () => {},
+        trackWorkflowCompleted: () => {},
+        trackApiCall: () => {},
+        trackComponentExecuted: () => {},
+      })
+      .overrideProvider(AuthService)
+      .useValue({
+        authenticate: async () => {
+          throw new ForbiddenException('Unauthorized');
+        },
+        providerName: 'local',
+      })
       .overrideProvider(Pool)
       .useValue({
         connect: async () => ({
@@ -43,17 +114,26 @@ describe('MCP Internal API (Integration)', () => {
         on: () => {},
       })
       .overrideProvider(TOOL_REGISTRY_REDIS)
-      .useValue(new MockRedis())
+      .useValue(mockRedis)
       .compile();
 
     app = moduleFixture.createNestApplication();
+    const authService = moduleFixture.get(AuthService);
+    const apiKeysService = moduleFixture.get(ApiKeysService);
+    const reflector = moduleFixture.get(Reflector);
+    app.useGlobalGuards(new AuthGuard(authService, apiKeysService, reflector));
     await app.init();
 
     redis = moduleFixture.get(TOOL_REGISTRY_REDIS);
+    const controller = moduleFixture.get(InternalMcpController);
+    (controller as unknown as { toolRegistry: ToolRegistryService }).toolRegistry =
+      toolRegistryService;
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('registers a component tool via internal API', async () => {

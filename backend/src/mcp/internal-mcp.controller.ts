@@ -16,12 +16,19 @@ export class InternalMcpController {
 
   @Post('generate-token')
   async generateToken(
-    @Body() body: { runId: string; organizationId?: string | null; agentId?: string },
+    @Body()
+    body: {
+      runId: string;
+      organizationId?: string | null;
+      agentId?: string;
+      allowedNodeIds?: string[];
+    },
   ) {
     const token = await this.mcpAuthService.generateSessionToken(
       body.runId,
       body.organizationId ?? null,
       body.agentId,
+      body.allowedNodeIds,
     );
     return { token };
   }

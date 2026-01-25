@@ -46,6 +46,7 @@ import {
 } from '../../adapters';
 import { ConfigurationError } from '@shipsec/component-sdk';
 import * as schema from '../../adapters/schema';
+import { logHeartbeat } from '../../utils/debug-logger';
 
 // Load environment variables from .env file
 config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../..', '.env') });
@@ -336,20 +337,10 @@ async function main() {
 
   console.log(`⏳ Worker is now running and waiting for tasks...`);
 
-  // Set up periodic status logging
+  // Set up periodic heartbeat logging (file-based only)
   setInterval(() => {
-    console.log(
-      `💓 Worker heartbeat - Still polling on queue: ${taskQueue} (${new Date().toISOString()})`,
-    );
-
-    // Log worker stats to see if we're receiving any tasks
-    console.log(`📊 Worker stats check:`, {
-      taskQueue,
-      namespace,
-      timestamp: new Date().toISOString(),
-      workerBuildId: worker.options.buildId || 'default',
-    });
-  }, 15000); // Log every 15 seconds for better debugging
+    logHeartbeat(taskQueue);
+  }, 15000);
 
   console.log(`🚀 Starting worker.run() - this will block and listen for tasks...`);
   await worker.run();

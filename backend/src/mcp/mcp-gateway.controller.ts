@@ -2,6 +2,7 @@ import { Controller, All, UseGuards, Req, Res, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { Public } from '../auth/public.decorator';
 import { McpAuthGuard, type McpGatewayRequest } from './mcp-auth.guard';
@@ -29,16 +30,37 @@ export class McpGatewayController {
 
     const runId = auth.extra.runId as string;
     const organizationId = auth.extra.organizationId as string | null;
+    const allowedNodeIds = auth.extra.allowedNodeIds as string[] | undefined;
 
     if (!runId) {
       return res.status(400).send('runId missing in session token');
     }
 
-    let transport = this.transports.get(runId);
+    // Cache key includes allowedNodeIds to support multiple agents with different tool scopes
+    const cacheKey =
+      allowedNodeIds && allowedNodeIds.length > 0
+        ? `${runId}:${allowedNodeIds.sort().join(',')}`
+        : runId;
+
+    let transport = this.transports.get(cacheKey);
+    const body = req.body as unknown;
+    const isPost = req.method === 'POST';
+    const isGet = req.method === 'GET';
+    const isDelete = req.method === 'DELETE';
+    const isInitRequest =
+      isPost &&
+      (isInitializeRequest(body) ||
+        (Array.isArray(body) && body.some((item) => isInitializeRequest(item))));
 
     // Initialization if transport doesn't exist
     if (!transport) {
-      this.logger.log(`Initializing new MCP transport for run: ${runId}`);
+      if (!isInitRequest) {
+        return res.status(400).send('Bad Request: No valid session ID provided');
+      }
+
+      this.logger.log(
+        `Initializing new MCP transport for run: ${runId} with allowedNodeIds: ${allowedNodeIds?.join(',') ?? 'none'}`,
+      );
 
       const allowedToolsHeader = req.headers['x-allowed-tools'];
       const allowedTools =
@@ -47,29 +69,41 @@ export class McpGatewayController {
           : undefined;
 
       transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => runId,
+        sessionIdGenerator: () => cacheKey,
+        enableJsonResponse: true,
       });
-      this.transports.set(runId, transport);
+      this.transports.set(cacheKey, transport);
 
       try {
-        const server = await this.mcpGateway.getServerForRun(runId, organizationId, allowedTools);
+        const server = await this.mcpGateway.getServerForRun(
+          runId,
+          organizationId,
+          allowedTools,
+          allowedNodeIds,
+        );
         await server.connect(transport);
       } catch (error) {
         this.logger.error(`Failed to initialize MCP server for run ${runId}: ${error}`);
-        this.transports.delete(runId);
+        this.transports.delete(cacheKey);
         return res
           .status(error instanceof Error && error.name === 'NotFoundException' ? 404 : 403)
           .send(error instanceof Error ? error.message : 'Access denied');
       }
     }
 
-    if (req.method === 'GET') {
+    if ((isGet || isDelete) && !transport.sessionId) {
+      return res.status(400).send('Bad Request: Server not initialized');
+    }
+
+    if (isGet) {
       // Cleanup on client disconnect (specifically for the SSE stream)
       res.on('close', async () => {
-        this.logger.log(`MCP SSE connection closed for run: ${runId}`);
+        this.logger.log(
+          `MCP SSE connection closed for run: ${runId} with allowedNodeIds: ${allowedNodeIds?.join(',') ?? 'none'}`,
+        );
         // We don't necessarily want to delete the transport here if POSTs are still allowed,
         // but for ShipSec run-bounded sessions, closing SSE usually means the agent is done.
-        this.transports.delete(runId);
+        this.transports.delete(cacheKey);
         await this.mcpGateway.cleanupRun(runId);
       });
 

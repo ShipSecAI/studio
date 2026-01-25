@@ -7,10 +7,11 @@ import { McpGatewayController } from './mcp-gateway.controller';
 import { SecretsModule } from '../secrets/secrets.module';
 import { InternalMcpController } from './internal-mcp.controller';
 import { WorkflowsModule } from '../workflows/workflows.module';
+import { ApiKeysModule } from '../api-keys/api-keys.module';
 
 @Global()
 @Module({
-  imports: [SecretsModule, WorkflowsModule],
+  imports: [SecretsModule, WorkflowsModule, ApiKeysModule],
   controllers: [McpGatewayController, InternalMcpController],
   providers: [
     {

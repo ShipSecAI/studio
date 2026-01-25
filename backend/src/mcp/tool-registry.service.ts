@@ -209,10 +209,7 @@ export class ToolRegistryService implements OnModuleDestroy {
     );
   }
 
-  /**
-   * Get all registered tools for a workflow run
-   */
-  async getToolsForRun(runId: string): Promise<RegisteredTool[]> {
+  async getToolsForRun(runId: string, nodeIds?: string[]): Promise<RegisteredTool[]> {
     if (!this.redis) {
       return [];
     }
@@ -220,7 +217,17 @@ export class ToolRegistryService implements OnModuleDestroy {
     const key = this.getRegistryKey(runId);
     const toolsHash = await this.redis.hgetall(key);
 
-    return Object.values(toolsHash).map((json) => JSON.parse(json) as RegisteredTool);
+    let tools = Object.values(toolsHash).map((json) => JSON.parse(json) as RegisteredTool);
+
+    this.logger.debug(`Found ${tools.length} tool(s) for run ${runId}`);
+
+    if (nodeIds && nodeIds.length > 0) {
+      this.logger.debug(`Filtering tools by nodeIds: ${nodeIds.join(', ')}`);
+      tools = tools.filter((t) => nodeIds.includes(t.nodeId));
+      this.logger.debug(`Filtered down to ${tools.length} tool(s)`);
+    }
+
+    return tools;
   }
 
   /**

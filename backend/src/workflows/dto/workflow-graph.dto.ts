@@ -18,6 +18,14 @@ export const WorkflowNodeDataSchema = z.object({
       streamId: z.string().optional(),
       groupId: z.string().optional(),
       maxConcurrency: z.number().int().positive().optional(),
+      mode: z.enum(['normal', 'tool']).optional(),
+      toolConfig: z
+        .object({
+          boundInputIds: z.array(z.string()).default([]),
+          exposedInputIds: z.array(z.string()).default([]),
+        })
+        .optional(),
+      connectedToolNodeIds: z.array(z.string()).optional(),
     })
     .default({ params: {}, inputOverrides: {} }),
   // Dynamic ports resolved from component's resolvePorts function
