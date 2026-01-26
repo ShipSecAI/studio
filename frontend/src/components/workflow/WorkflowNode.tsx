@@ -21,6 +21,7 @@ import {
   Trash2,
   ChevronDown,
   ExternalLink,
+  Hammer,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -527,6 +528,30 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Get schedule and webhook sidebar callbacks from Canvas context
   const { onOpenScheduleSidebar, onOpenWebhooksSidebar } = useEntryPointActions();
+
+  // Tool Mode State
+  const isToolMode = (nodeData.config as any)?.isToolMode || false;
+
+  const toggleToolMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== id) return n;
+        const currentConfig = (n.data as any).config || {};
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            config: {
+              ...currentConfig,
+              isToolMode: !isToolMode,
+            },
+          },
+        };
+      }),
+    );
+    markDirty();
+  };
 
   const entryPointPayload = (() => {
     const params = nodeData.config?.params || {};
@@ -1049,7 +1074,33 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                   </div>
                 )}
               </div>
+
+              {/* Tool Mode Badge */}
+              {isToolMode && (
+                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 ml-1">
+                  <Hammer className="h-2.5 w-2.5" />
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Tool</span>
+                </div>
+              )}
+
               <div className="flex items-center gap-1">
+                {/* Tool Mode Toggle (Design Mode only) */}
+                {mode === 'design' && !isEntryPoint && (
+                  <button
+                    type="button"
+                    onClick={toggleToolMode}
+                    className={cn(
+                      'p-1 rounded transition-all',
+                      isToolMode
+                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60'
+                        : 'text-muted-foreground/40 hover:text-foreground hover:bg-muted',
+                      isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                    )}
+                    title={isToolMode ? 'Disable Tool Mode' : 'Enable Tool Mode'}
+                  >
+                    <Hammer className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {/* Delete button (Design Mode only, not Entry Point) */}
 
                 {/* Embedded Webhook Dialog (Controlled) */}
@@ -1392,6 +1443,22 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               )}
             </div>
           </div>
+        ) : isToolMode ? (
+          /* Tool Mode - Special Export Handle */
+          <div className="flex items-center justify-end gap-2 text-xs mt-1">
+            <div className="flex-1 text-right">
+              <div className="text-purple-600 dark:text-purple-400 font-medium italic">
+                Tool Export
+              </div>
+            </div>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="tool-export"
+              className="!w-[10px] !h-[10px] !border-2 !border-purple-500 !bg-purple-500 !rounded-full"
+              style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+            />
+          </div>
         ) : null}
 
         {/* Parameters Display - Shown above ports for non-entry-point nodes */}
@@ -1448,6 +1515,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 input.required
                   ? '!bg-blue-500 !border-blue-500'
                   : '!bg-background !border-blue-500',
+                input.id === 'tools' &&
+                  '!bg-purple-100 !border-purple-500 !rounded-sm !w-[12px] !h-[12px]',
               );
 
               return (
@@ -1491,29 +1560,32 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         )}
 
         {/* Output Ports - Regular only (not shown for entry points - they're in the split layout) */}
-        {!isEntryPoint && effectiveOutputs.filter((o: any) => !o.isBranching).length > 0 && (
-          <div className="space-y-1.5">
-            {effectiveOutputs
-              .filter((o: any) => !o.isBranching)
-              .map((output: any) => (
-                <div
-                  key={output.id}
-                  className="relative flex items-center justify-end gap-2 text-xs"
-                >
-                  <div className="flex-1 text-right">
-                    <div className="text-muted-foreground font-medium">{output.label}</div>
+        {/* Also not shown in Tool Mode (replaced by special handle) */}
+        {!isEntryPoint &&
+          !isToolMode &&
+          effectiveOutputs.filter((o: any) => !o.isBranching).length > 0 && (
+            <div className="space-y-1.5">
+              {effectiveOutputs
+                .filter((o: any) => !o.isBranching)
+                .map((output: any) => (
+                  <div
+                    key={output.id}
+                    className="relative flex items-center justify-end gap-2 text-xs"
+                  >
+                    <div className="flex-1 text-right">
+                      <div className="text-muted-foreground font-medium">{output.label}</div>
+                    </div>
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={output.id}
+                      className="!w-[10px] !h-[10px] !border-2 !border-green-500 !bg-green-500 !rounded-full"
+                      style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+                    />
                   </div>
-                  <Handle
-                    type="source"
-                    position={Position.Right}
-                    id={output.id}
-                    className="!w-[10px] !h-[10px] !border-2 !border-green-500 !bg-green-500 !rounded-full"
-                    style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
-                  />
-                </div>
-              ))}
-          </div>
-        )}
+                ))}
+            </div>
+          )}
 
         {/* Branching Outputs - Compact horizontal section */}
         {!isEntryPoint &&

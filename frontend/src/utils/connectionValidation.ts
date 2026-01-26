@@ -65,6 +65,19 @@ export function validateConnection(
   // 1. DYNAMIC OUTPUTS from source
   let sourceOutputs = (sourceNode.data as any).dynamicOutputs || sourceComponent.outputs || [];
 
+  // Special case: Tool Mode virtual port
+  if ((sourceNode.data.config as any)?.isToolMode) {
+    sourceOutputs = [
+      ...sourceOutputs,
+      {
+        id: 'tool-export',
+        label: 'Tool Export',
+        connectionType: { kind: 'contract' as const, name: 'mcp.tool' },
+        description: 'Exposes this node as a tool for Agents',
+      },
+    ];
+  }
+
   // Special case: Entry Point legacy support if dynamicOutputs is missing
   if (
     sourceComponent.id === 'core.workflow.entrypoint' &&
@@ -81,16 +94,19 @@ export function validateConnection(
             : runtimeInputsParam;
 
         if (Array.isArray(runtimeInputs) && runtimeInputs.length > 0) {
-          sourceOutputs = runtimeInputs.map((input: any) => {
-            const runtimeType = (input.type || 'text') as string;
-            const connectionType = runtimeInputTypeToConnectionType(runtimeType);
-            return {
-              id: input.id,
-              label: input.label,
-              connectionType,
-              description: input.description || `Runtime input: ${input.label}`,
-            };
-          });
+          sourceOutputs = [
+            ...sourceOutputs,
+            ...runtimeInputs.map((input: any) => {
+              const runtimeType = (input.type || 'text') as string;
+              const connectionType = runtimeInputTypeToConnectionType(runtimeType);
+              return {
+                id: input.id,
+                label: input.label,
+                connectionType,
+                description: input.description || `Runtime input: ${input.label}`,
+              };
+            }),
+          ];
         }
       } catch (error) {
         console.error('Failed to parse runtimeInputs for validation:', error);
@@ -134,7 +150,10 @@ export function validateConnection(
   const existingConnection = edges.find(
     (edge) => edge.target === target && edge.targetHandle === targetHandle,
   );
-  if (existingConnection) {
+
+  // Special case: 'mcp.tool' contract allows many-to-one connections (e.g., many tools to one agent port)
+  const isToolContract = targetType.kind === 'contract' && targetType.name === 'mcp.tool';
+  if (existingConnection && !isToolContract) {
     return {
       isValid: false,
       error: `Input "${targetPort.label}" already has a connection`,

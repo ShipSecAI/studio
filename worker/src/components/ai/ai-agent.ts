@@ -118,7 +118,7 @@ const inputSchema = inputs({
       description: 'Connect tool-mode nodes here to scope gateway tool discovery for this agent.',
       allowAny: true,
       reason: 'Tool-mode port acts as a graph anchor; payloads are not consumed by the agent.',
-      connectionType: { kind: 'primitive', name: 'json' },
+      connectionType: { kind: 'contract', name: 'mcp.tool' },
     },
   ),
 });
