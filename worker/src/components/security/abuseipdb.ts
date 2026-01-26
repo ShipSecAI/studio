@@ -132,6 +132,10 @@ const definition = defineComponent({
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
+    agentTool: {
+      enabled: true,
+      toolDescription: 'IP reputation and abuse report lookup (AbuseIPDB).',
+    },
   },
   async execute({ inputs, params }, context) {
     const { ipAddress, apiKey } = inputs;

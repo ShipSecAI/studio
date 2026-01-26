@@ -290,6 +290,11 @@ const definition = defineComponent({
       'Bulk custom scan: Upload zip archive via Entry Point → File Loader → Nuclei',
       'Comprehensive scan: Combine custom archive + built-in templates for complete coverage',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription:
+        'Fast vulnerability scanner for CVEs, misconfigurations, and exposures using YAML templates.',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);

@@ -301,6 +301,10 @@ eval "$CMD"
       'Scan Amass or Subfinder discoveries to identify exposed services.',
       'Target a custom list of IPs with tuned rate and retries for stealth scans.',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Fast TCP port scanner (Naabu).',
+    },
   },
   async execute({ inputs, params }, context) {
     const trimmedPorts = params.ports?.trim();

@@ -138,6 +138,10 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
       'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
       'Quick passive discovery during scope triage workflows.',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Passive subdomain enumeration tool (Subfinder).',
+    },
   },
   async execute({ inputs, params }, context) {
     const baseRunner = definition.runner;

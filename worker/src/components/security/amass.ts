@@ -473,6 +473,10 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
     },
     isLatest: true,
     deprecated: false,
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Deep subdomain enumeration and attack surface mapping tool (Amass).',
+    },
     example:
       '`amass enum -d example.com -brute -alts` - Aggressively enumerates subdomains with brute force and alteration engines enabled.',
     examples: [

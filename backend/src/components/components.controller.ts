@@ -45,6 +45,7 @@ function serializeComponent(entry: CachedComponentMetadata) {
     outputs: entry.outputs ?? [],
     parameters: entry.parameters ?? [],
     examples: metadata.examples ?? [],
+    agentTool: metadata.agentTool ?? null,
   };
 }
 
@@ -221,6 +222,15 @@ export class ComponentsController {
             type: 'array',
             items: { type: 'string' },
           },
+          agentTool: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              enabled: { type: 'boolean' },
+              toolName: { type: 'string', nullable: true },
+              toolDescription: { type: 'string', nullable: true },
+            },
+          },
         },
       },
     },
@@ -334,9 +344,17 @@ export class ComponentsController {
         },
         parameters: { type: 'array' },
         examples: { type: 'array' },
-        isLatest: { type: 'boolean', nullable: true },
         deprecated: { type: 'boolean', nullable: true },
         example: { type: 'string', nullable: true },
+        agentTool: {
+          type: 'object',
+          nullable: true,
+          properties: {
+            enabled: { type: 'boolean' },
+            toolName: { type: 'string', nullable: true },
+            toolDescription: { type: 'string', nullable: true },
+          },
+        },
       },
     },
   })
