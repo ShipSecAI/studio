@@ -508,6 +508,10 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
+    agentTool: {
+      enabled: true,
+      toolDescription: 'DNS resolution and record lookup tool (dnsx).',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);

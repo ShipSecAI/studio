@@ -43,7 +43,11 @@ import {
   getCategorySeparatorColor,
   getCategoryHeaderBackgroundColor,
 } from '@/utils/categoryColors';
-import { inputSupportsManualValue, runtimeInputTypeToConnectionType } from '@/utils/portUtils';
+import {
+  inputSupportsManualValue,
+  runtimeInputTypeToConnectionType,
+  resolvePortType,
+} from '@/utils/portUtils';
 import { WebhookDetails } from './WebhookDetails';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import { API_BASE_URL } from '@/services/api';
@@ -60,24 +64,6 @@ const STATUS_ICONS = {
   skipped: LucideIcons.Ban,
   idle: null,
 } as const;
-
-// Custom hook to detect mobile viewport
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
-  );
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [breakpoint]);
-
-  return isMobile;
-}
 
 /**
  * Terminal button with portal-based panel rendering.
@@ -210,7 +196,7 @@ function TerminalButton({
           const needsDataUpdate =
             terminalNode.data.runId !== selectedRunId ||
             terminalNode.data.timelineSync !==
-              (mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing));
+            (mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing));
 
           // Update terminal node position to follow parent node if parent moved or resized
           const lastPosition = parentPositionRef.current;
@@ -227,17 +213,17 @@ function TerminalButton({
               nds.map((n) =>
                 n.id === terminalNodeId
                   ? {
-                      ...n,
-                      position: needsPositionUpdate ? expectedPosition : n.position,
-                      data: needsDataUpdate
-                        ? {
-                            ...n.data,
-                            runId: selectedRunId,
-                            timelineSync:
-                              mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
-                          }
-                        : n.data,
-                    }
+                    ...n,
+                    position: needsPositionUpdate ? expectedPosition : n.position,
+                    data: needsDataUpdate
+                      ? {
+                        ...n.data,
+                        runId: selectedRunId,
+                        timelineSync:
+                          mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
+                      }
+                      : n.data,
+                  }
                   : n,
               ),
             );
@@ -291,9 +277,9 @@ function TerminalButton({
             nds.map((n) =>
               n.id === terminalNodeId
                 ? {
-                    ...n,
-                    position: expectedPosition,
-                  }
+                  ...n,
+                  position: expectedPosition,
+                }
                 : n,
             ),
           );
@@ -451,7 +437,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Get API key for webhook details if this is an entry point
   const { lastCreatedKey } = useApiKeyStore();
-  const isMobile = useIsMobile();
   // Use last created key if available (from just-created flow), otherwise null (will show placeholder)
   const activeApiKey = lastCreatedKey;
 
@@ -615,18 +600,18 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
       nodes.map((node) =>
         node.id === id
           ? {
-              ...node,
-              data: {
-                ...(node.data as any),
-                ui: {
-                  ...(node.data as any).ui,
-                  size: {
-                    width: clampedWidth,
-                    height: clampedHeight,
-                  },
+            ...node,
+            data: {
+              ...(node.data as any),
+              ui: {
+                ...(node.data as any).ui,
+                size: {
+                  width: clampedWidth,
+                  height: clampedHeight,
                 },
               },
-            }
+            },
+          }
           : node,
       ),
     );
@@ -949,23 +934,23 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
         // Timeline active states for entry point (when it has active execution status)
         isEntryPoint &&
-          isTimelineActive &&
-          effectiveStatus === 'running' &&
-          !isPlaying &&
-          'border-dashed',
+        isTimelineActive &&
+        effectiveStatus === 'running' &&
+        !isPlaying &&
+        'border-dashed',
 
         // Enhanced border styling for timeline (non-entry-point nodes only)
         !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
         !isEntryPoint &&
-          isTimelineActive &&
-          effectiveStatus === 'running' &&
-          !isPlaying &&
-          'border-dashed',
+        isTimelineActive &&
+        effectiveStatus === 'running' &&
+        !isPlaying &&
+        'border-dashed',
         !isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400',
 
         // Node status states (non-entry-point nodes only)
         !isEntryPoint &&
-          (effectiveStatus !== 'idle' || isTimelineActive) && [nodeStyle.bg, nodeStyle.border],
+        (effectiveStatus !== 'idle' || isTimelineActive) && [nodeStyle.bg, nodeStyle.border],
 
         // Default state (all nodes when idle) - white/grey background
         (!nodeData.status || nodeData.status === 'idle') && !isTimelineActive && ['border-border'],
@@ -974,10 +959,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         selected && 'shadow-[0_0_15px_rgba(59,130,246,0.4),0_0_30px_rgba(59,130,246,0.3)]',
         selected && 'hover:shadow-[0_0_25px_rgba(59,130,246,0.6),0_0_45px_rgba(59,130,246,0.4)]',
 
-        // Validation styling removed - now shown in ValidationDock
+        // Tool Mode styling - Stronger purple vibe
+        isToolMode && 'border-purple-500/60 dark:border-purple-400/50 shadow-purple-500/10 dark:shadow-purple-400/5',
+        isToolMode && !selected && 'hover:shadow-purple-500/20',
 
         // Interactive states - use CSS hover to avoid re-renders
-        !selected && 'hover:shadow-xl',
+        !selected && !isToolMode && 'hover:shadow-xl',
         'hover:scale-[1.02]',
         selectedRunId && 'cursor-pointer',
       )}
@@ -987,9 +974,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         // Text block and entry point sizing
         ...(isTextBlock
           ? {
-              width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
-              minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
-            }
+            width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
+            minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
+          }
           : isEntryPoint
             ? { width: 160, minHeight: 160 }
             : {}),
@@ -1017,7 +1004,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           isEntryPoint ? 'rounded-t-[1.5rem]' : 'rounded-t-lg',
         )}
         style={{
-          borderColor: separatorColor || 'hsl(var(--border) / 0.5)',
+          borderColor: isToolMode ? 'rgb(168 85 247 / 0.4)' : (separatorColor || 'hsl(var(--border) / 0.5)'),
           backgroundColor: headerBackgroundColor || undefined,
         }}
       >
@@ -1075,30 +1062,24 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 )}
               </div>
 
-              {/* Tool Mode Badge */}
-              {isToolMode && (
-                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800 ml-1">
-                  <Hammer className="h-2.5 w-2.5" />
-                  <span className="text-[10px] font-medium uppercase tracking-wider">Tool</span>
-                </div>
-              )}
-
               <div className="flex items-center gap-1">
                 {/* Tool Mode Toggle (Design Mode only) */}
-                {mode === 'design' && !isEntryPoint && (
+                {mode === 'design' && !isEntryPoint && component?.agentTool?.enabled && (
                   <button
                     type="button"
                     onClick={toggleToolMode}
                     className={cn(
-                      'p-1 rounded transition-all',
+                      'flex items-center gap-1.5 px-2 py-1 rounded transition-all border',
                       isToolMode
-                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60'
-                        : 'text-muted-foreground/40 hover:text-foreground hover:bg-muted',
-                      isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                        ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
+                        : 'bg-background text-muted-foreground/60 border-border hover:border-purple-400 hover:text-purple-600',
                     )}
                     title={isToolMode ? 'Disable Tool Mode' : 'Enable Tool Mode'}
                   >
-                    <Hammer className="h-3.5 w-3.5" />
+                    <Hammer className={cn('h-3.5 w-3.5', isToolMode ? 'text-white' : 'text-current')} />
+                    <span className="text-[10px] font-bold uppercase tracking-tight">
+                      {isToolMode ? 'Tool' : 'Mode'}
+                    </span>
                   </button>
                 )}
                 {/* Delete button (Design Mode only, not Entry Point) */}
@@ -1129,9 +1110,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                         'h-4 w-4 flex-shrink-0',
                         nodeStyle.iconClass,
                         isTimelineActive &&
-                          effectiveStatus === 'running' &&
-                          isPlaying &&
-                          'animate-spin',
+                        effectiveStatus === 'running' &&
+                        isPlaying &&
+                        'animate-spin',
                         isTimelineActive && effectiveStatus === 'error' && 'animate-bounce',
                       )}
                     />
@@ -1158,14 +1139,13 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                   <button
                     type="button"
                     className={cn(
-                      'p-1 rounded hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive transition-all',
-                      isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                      'p-1.5 rounded border border-transparent transition-all hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive hover:border-destructive/20',
                     )}
                     title="Delete node"
                     aria-label="Delete node"
                     onClick={handleDelete}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 )}
               </div>
@@ -1445,11 +1425,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           </div>
         ) : isToolMode ? (
           /* Tool Mode - Special Export Handle */
-          <div className="flex items-center justify-end gap-2 text-xs mt-1">
-            <div className="flex-1 text-right">
-              <div className="text-purple-600 dark:text-purple-400 font-medium italic">
-                Tool Export
-              </div>
+          <div className="relative flex items-center justify-end gap-2 text-xs">
+            <div className="flex-1 text-right text-purple-600 dark:text-purple-400 font-medium italic">
+              Tool Export
             </div>
             <Handle
               type="source"
@@ -1472,92 +1450,131 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         )}
 
         {/* Input Ports (not shown for entry points) */}
-        {!isEntryPoint && componentInputs.length > 0 && (
-          <div className="space-y-1.5">
-            {componentInputs.map((input) => {
-              // Check if this input has a connection
-              const edges = getEdges();
-              const connection = edges.find(
-                (edge) => edge.target === id && edge.targetHandle === input.id,
-              );
-              const hasConnection = Boolean(connection);
-
-              // Get source node and output info if connected
-              const manualCandidate = inputOverrides[input.id];
-              const manualValueProvided = manualValueProvidedForInput(input, hasConnection);
-
-              let sourceInfo: string | null = null;
-              if (!manualValueProvided && connection) {
-                const sourceNode = getNodes().find((n) => n.id === connection.source);
-                if (sourceNode) {
-                  const sourceComponent = getComponent(
-                    (sourceNode.data as any).componentId ?? (sourceNode.data as any).componentSlug,
-                  );
-                  if (sourceComponent) {
-                    const sourceOutput = sourceComponent.outputs.find(
-                      (o) => o.id === connection.sourceHandle,
-                    );
-                    sourceInfo = sourceOutput?.label || 'Connected';
-                  }
-                }
-              }
-
-              const manualDisplay =
-                manualValueProvided &&
-                inputSupportsManualValue(input) &&
-                typeof manualCandidate === 'string'
-                  ? manualCandidate.trim()
-                  : '';
-              const previewText =
-                manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
-              const handleClassName = cn(
-                '!w-[10px] !h-[10px] !border-2 !rounded-full',
-                input.required
-                  ? '!bg-blue-500 !border-blue-500'
-                  : '!bg-background !border-blue-500',
-                input.id === 'tools' &&
-                  '!bg-purple-100 !border-purple-500 !rounded-sm !w-[12px] !h-[12px]',
-              );
-
+        {!isEntryPoint &&
+          componentInputs.length > 0 &&
+          (() => {
+            const configInputs = componentInputs.filter((input) => {
+              const resolved = resolvePortType(input);
               return (
-                <div key={input.id} className="relative flex items-center gap-2 text-xs">
-                  <Handle
-                    type="target"
-                    position={Position.Left}
-                    id={input.id}
-                    className={handleClassName}
-                    style={{ top: '50%', left: '-18px', transform: 'translateY(-50%)' }}
-                  />
-                  <div className="flex-1">
-                    <div className="text-muted-foreground font-medium">{input.label}</div>
-                    {input.required && !sourceInfo && !manualValueProvided && (
-                      <span className="text-red-500 text-[10px]">*required</span>
-                    )}
-                    {manualValueProvided && manualDisplay && (
-                      <span
-                        className="text-muted-foreground text-[10px] italic"
-                        title={manualDisplay}
-                      >
-                        Manual: {previewText}
-                      </span>
-                    )}
-                    {manualValueProvided && !manualDisplay && (
-                      <span className="text-muted-foreground text-[10px] italic">Manual value</span>
-                    )}
-                    {!manualValueProvided && sourceInfo && (
-                      <span
-                        className="text-muted-foreground text-[10px] italic"
-                        title={`Connected to: ${sourceInfo}`}
-                      >
-                        {sourceInfo}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                (resolved.kind === 'contract' && resolved.credential) ||
+                input.editor === 'secret' ||
+                input.id === 'connection'
               );
-            })}
-          </div>
-        )}
+            });
+
+            const visibleInputs = isToolMode ? configInputs : componentInputs;
+
+            if (visibleInputs.length === 0 && !isToolMode) return null;
+
+            return (
+              <div className="space-y-3">
+                {/* Configuration Section Header (Tool Mode only) */}
+                {isToolMode && configInputs.length > 0 && (
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="h-[1px] flex-1 bg-purple-500/40" />
+                    <div className="text-[10px] uppercase font-black tracking-widest text-purple-600/90 dark:text-purple-400/90">
+                      Configuration
+                    </div>
+                    <div className="h-[1px] flex-1 bg-purple-500/40" />
+                  </div>
+                )}
+
+                <div className="space-y-1.5 px-0">
+                  {visibleInputs.map((input) => {
+                    // Check if this input has a connection
+                    const edges = getEdges();
+                    const connection = edges.find(
+                      (edge) => edge.target === id && edge.targetHandle === input.id,
+                    );
+                    const hasConnection = Boolean(connection);
+
+                    // Get source node and output info if connected
+                    const manualCandidate = inputOverrides[input.id];
+                    const manualValueProvided = manualValueProvidedForInput(input, hasConnection);
+
+                    let sourceInfo: string | null = null;
+                    if (!manualValueProvided && connection) {
+                      const sourceNode = getNodes().find((n) => n.id === connection.source);
+                      if (sourceNode) {
+                        const sourceComponent = getComponent(
+                          (sourceNode.data as any).componentId ??
+                          (sourceNode.data as any).componentSlug,
+                        );
+                        if (sourceComponent) {
+                          const sourceOutput = sourceComponent.outputs.find(
+                            (o) => o.id === connection.sourceHandle,
+                          );
+                          sourceInfo = sourceOutput?.label || 'Connected';
+                        }
+                      }
+                    }
+
+                    const manualDisplay =
+                      manualValueProvided &&
+                        inputSupportsManualValue(input) &&
+                        typeof manualCandidate === 'string'
+                        ? manualCandidate.trim()
+                        : '';
+                    const previewText =
+                      manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
+                    const handleClassName = cn(
+                      '!w-[10px] !h-[10px] !border-2 !rounded-full',
+                      input.required
+                        ? '!bg-blue-500 !border-blue-500'
+                        : '!bg-background !border-blue-500',
+                      input.id === 'tools' &&
+                      '!bg-purple-100 !border-purple-500 !rounded-sm !w-[12px] !h-[12px]',
+                    );
+
+                    return (
+                      <div key={input.id} className="relative flex items-center gap-2 text-xs">
+                        <Handle
+                          type="target"
+                          position={Position.Left}
+                          id={input.id}
+                          className={handleClassName}
+                          style={{ top: '50%', left: '-18px', transform: 'translateY(-50%)' }}
+                        />
+                        <div className="flex-1">
+                          <div className="text-muted-foreground font-medium">{input.label}</div>
+                          {input.required && !sourceInfo && !manualValueProvided && (
+                            <span className="text-red-500 text-[10px]">*required</span>
+                          )}
+                          {manualValueProvided && manualDisplay && (
+                            <span
+                              className="text-muted-foreground text-[10px] italic"
+                              title={manualDisplay}
+                            >
+                              Manual: {previewText}
+                            </span>
+                          )}
+                          {manualValueProvided && !manualDisplay && (
+                            <span className="text-muted-foreground text-[10px] italic">
+                              Manual value
+                            </span>
+                          )}
+                          {!manualValueProvided && sourceInfo && (
+                            <span
+                              className="text-muted-foreground text-[10px] italic"
+                              title={`Connected to: ${sourceInfo}`}
+                            >
+                              {sourceInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {isToolMode && configInputs.length === 0 && (
+                  <div className="text-[10px] text-muted-foreground/50 text-center italic py-2">
+                    No configuration required
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         {/* Output Ports - Regular only (not shown for entry points - they're in the split layout) */}
         {/* Also not shown in Tool Mode (replaced by special handle) */}
@@ -1673,10 +1690,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                               !hasBranchDecision && designModeColors[branchColor],
                               // Active branch - always green
                               isActive &&
-                                'bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-400/50',
+                              'bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-400/50',
                               // Inactive/Skipped branch - MUTED/OFF state
                               isInactive &&
-                                'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 opacity-30 grayscale-[0.8]',
+                              'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 opacity-30 grayscale-[0.8]',
                             )}
                           >
                             {isActive && <LucideIcons.Check className="h-2.5 w-2.5" />}
@@ -1694,7 +1711,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                               !hasBranchDecision && handleDesignColors[branchColor],
                               isActive && '!border-green-500 !bg-green-500',
                               isInactive &&
-                                '!border-slate-300 !bg-slate-200 dark:!bg-slate-800 opacity-30',
+                              '!border-slate-300 !bg-slate-200 dark:!bg-slate-800 opacity-30',
                             )}
                             style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
                           />
