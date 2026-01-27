@@ -153,7 +153,9 @@ const definition = defineComponent({
     }
 
     // Helper to map provider to OpenCode model string format
-    const getOpenCodeModelString = (model: { provider: string; modelId: string } | undefined): string => {
+    const getOpenCodeModelString = (
+      model: { provider: string; modelId: string } | undefined,
+    ): string => {
       if (!model) return 'gpt-4o';
       // OpenCode expects models in format: provider/modelId
       // Most providers follow this pattern
@@ -218,7 +220,8 @@ Please investigate the issue and generate a detailed report.
     if (systemPrompt?.trim()) {
       finalPrompt = `${systemPrompt}\n\n# Task\n${task}`;
       if (taskContext && Object.keys(taskContext).length > 0) {
-        finalPrompt += '\n\n# Context\nThe following context is available in /workspace/context.json.';
+        finalPrompt +=
+          '\n\n# Context\nThe following context is available in /workspace/context.json.';
       }
     } else {
       finalPrompt = defaultPrompt.replace('{{TASK}}', task);
@@ -233,7 +236,8 @@ Please investigate the issue and generate a detailed report.
       // Write a wrapper script to properly execute opencode with file reading
       // The script runs inside the container, so $(cat /workspace/prompt.txt) works correctly
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
-      const wrapperScript = '#!/bin/sh\nopencode run --log-level ERROR "$(cat /workspace/prompt.txt)"\n';
+      const wrapperScript =
+        '#!/bin/sh\nopencode run --log-level ERROR "$(cat /workspace/prompt.txt)"\n';
 
       // Initialize workspace with config, context, prompt, and wrapper script
       await volume.initialize({
@@ -248,9 +252,7 @@ Please investigate the issue and generate a detailed report.
         // Override entrypoint to /bin/sh to avoid the image's default 'opencode' entrypoint
         // The command will be executed as: /bin/sh /workspace/run.sh
         entrypoint: '/bin/sh',
-        command: [
-          '/workspace/run.sh',
-        ],
+        command: ['/workspace/run.sh'],
         // Use host network to access localhost gateway
         network: 'host' as const,
         env: {

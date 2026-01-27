@@ -584,7 +584,7 @@ export function ConfigPanel({
     if (typeof component.toolSchema === 'string') {
       try {
         return JSON.parse(component.toolSchema);
-      } catch (error) {
+      } catch (_error) {
         return null;
       }
     }
@@ -840,9 +840,7 @@ export function ConfigPanel({
                     <Badge variant="outline" className="text-[10px] font-mono">
                       {component.agentTool?.toolName ?? component.slug}
                     </Badge>
-                    <span className="text-xs font-semibold text-foreground">
-                      {component.name}
-                    </span>
+                    <span className="text-xs font-semibold text-foreground">{component.name}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {component.agentTool?.toolDescription ?? component.description}
@@ -859,9 +857,7 @@ export function ConfigPanel({
                           className="rounded-md border bg-background/60 px-3 py-2"
                         >
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium text-foreground">
-                              {field.id}
-                            </span>
+                            <span className="text-sm font-medium text-foreground">{field.id}</span>
                             <Badge variant="outline" className="text-[10px] font-mono">
                               {field.type}
                             </Badge>
@@ -893,7 +889,9 @@ export function ConfigPanel({
                                 <div>
                                   Enum:{' '}
                                   <span className="font-mono text-foreground">
-                                    {field.enumValues.map((value) => JSON.stringify(value)).join(', ')}
+                                    {field.enumValues
+                                      .map((value) => JSON.stringify(value))
+                                      .join(', ')}
                                   </span>
                                 </div>
                               )}
