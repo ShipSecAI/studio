@@ -5,13 +5,14 @@ import {
   inferBindingType,
   getCredentialInputIds,
   getActionInputIds,
+  getExposedParameterIds,
   getToolInputShape,
   getToolSchema,
   getToolName,
   getToolDescription,
   getToolMetadata,
 } from '../tool-helpers';
-import { inputs, outputs, port } from '../schema-builders';
+import { inputs, outputs, port, param, parameters } from '../schema-builders';
 import { extractPorts } from '../zod-ports';
 import type { ComponentDefinition, ComponentPortMetadata } from '../types';
 
@@ -169,6 +170,37 @@ describe('tool-helpers', () => {
       // (the default is applied at runtime, not by JSON Schema)
       expect(schema.required).toEqual(['ipAddress', 'verbose']);
     });
+
+    it('includes exposed parameters in tool schema', () => {
+      const component = createComponent({
+        inputs: inputs({
+          apiKey: port(z.string(), { label: 'API Key', editor: 'secret' }),
+          url: port(z.string(), { label: 'URL' }),
+        }),
+        parameters: parameters({
+          timeoutMs: param(z.number().min(100).default(2000), {
+            label: 'Timeout (ms)',
+            editor: 'number',
+            exposeToTool: true,
+          }),
+          apiSecret: param(z.string(), {
+            label: 'API Secret',
+            editor: 'secret',
+            exposeToTool: true,
+          }),
+        }),
+      });
+
+      const schema = getToolSchema(component);
+
+      expect(Object.keys(schema.properties!)).toEqual(['url', 'timeoutMs']);
+      expect(schema.properties!.timeoutMs).toMatchObject({
+        type: 'number',
+        default: 2000,
+        minimum: 100,
+        description: 'Timeout (ms)',
+      });
+    });
   });
 
   describe('getToolInputShape', () => {
@@ -188,6 +220,47 @@ describe('tool-helpers', () => {
 
       const parsed = z.object(shape).safeParse({ url: 'https://example.com' });
       expect(parsed.success).toBe(true);
+    });
+
+    it('includes exposed parameters in input shape', () => {
+      const component = createComponent({
+        inputs: inputs({
+          target: port(z.string(), { label: 'Target' }),
+        }),
+        parameters: parameters({
+          mode: param(z.enum(['fast', 'safe']).default('fast'), {
+            label: 'Mode',
+            editor: 'select',
+            exposeToTool: true,
+          }),
+        }),
+      });
+
+      const shape = getToolInputShape(component);
+      expect(Object.keys(shape)).toEqual(['target', 'mode']);
+      const parsed = z.object(shape).safeParse({ target: 'example.com', mode: 'safe' });
+      expect(parsed.success).toBe(true);
+    });
+  });
+
+  describe('getExposedParameterIds', () => {
+    it('returns only parameters marked exposeToTool', () => {
+      const component = createComponent({
+        parameters: parameters({
+          mode: param(z.string().default('fast'), {
+            label: 'Mode',
+            editor: 'select',
+            exposeToTool: true,
+          }),
+          token: param(z.string(), {
+            label: 'Token',
+            editor: 'secret',
+            exposeToTool: true,
+          }),
+        }),
+      });
+
+      expect(getExposedParameterIds(component)).toEqual(['mode']);
     });
   });
 

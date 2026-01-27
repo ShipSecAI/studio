@@ -17,6 +17,8 @@ export interface ParamMeta {
   helpText?: string;
   /** Form field editor type */
   editor: ComponentParameterType;
+  /** Expose this parameter as a tool argument */
+  exposeToTool?: boolean;
   /** Placeholder text */
   placeholder?: string;
   /** Select options */

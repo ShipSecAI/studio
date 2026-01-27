@@ -1,5 +1,5 @@
 import * as LucideIcons from 'lucide-react';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   X,
   ExternalLink,
@@ -37,6 +37,7 @@ import type { ComponentType, KeyboardEvent } from 'react';
 import {
   describePortType,
   inputSupportsManualValue,
+  isCredentialInput,
   isListOfTextPort,
   resolvePortType,
 } from '@/utils/portUtils';
@@ -69,7 +70,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left bg-muted/30 hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-left bg-muted/30 hover:bg-muted/50 transition-colors border-b"
       >
         <div className="flex items-center gap-2">
           {isOpen ? (
@@ -562,6 +563,19 @@ export function ConfigPanel({
   const componentInputs = dynamicInputs ?? component.inputs ?? [];
   const componentOutputs = dynamicOutputs ?? component.outputs ?? [];
   const componentParameters = component.parameters ?? [];
+  const toolSchemaJson = useMemo(() => {
+    if (!component.toolSchema) {
+      return null;
+    }
+    if (typeof component.toolSchema === 'string') {
+      return component.toolSchema;
+    }
+    try {
+      return JSON.stringify(component.toolSchema, null, 2);
+    } catch (_error) {
+      return String(component.toolSchema);
+    }
+  }, [component.toolSchema]);
   const exampleItems = [component.example, ...(component.examples ?? [])].filter(
     (value): value is string => Boolean(value && value.trim().length > 0),
   );
@@ -780,11 +794,59 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
+          {/* Parameters Section (Moved to Top) */}
+          {componentParameters.length > 0 && (
+            <CollapsibleSection
+              title="Parameters"
+              count={componentParameters.length}
+              defaultOpen={true}
+            >
+              <div className="space-y-0 mt-2">
+                {/* Render parameters in component definition order to preserve hierarchy */}
+                {componentParameters.map((param, index) => {
+                  // Only show border between top-level parameters (not nested ones)
+                  const isTopLevel = !param.visibleWhen;
+                  const prevParam = index > 0 ? componentParameters[index - 1] : null;
+                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false;
+                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel;
+
+                  return (
+                    <div key={param.id} className={cn(showBorder && 'border-t border-border pt-3')}>
+                      <ParameterFieldWrapper
+                        parameter={param}
+                        value={manualParameters[param.id]}
+                        onChange={(value) => handleParamValueChange(param.id, value)}
+                        connectedInput={nodeData.inputs?.[param.id]}
+                        componentId={component.id}
+                        parameters={manualParameters}
+                        onUpdateParameter={handleParamValueChange}
+                        allComponentParameters={componentParameters}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Inputs Section */}
           {componentInputs.length > 0 && (
-            <CollapsibleSection title="Inputs" count={componentInputs.length} defaultOpen={true}>
+            <CollapsibleSection
+              title="Inputs"
+              count={
+                (nodeData.config as any)?.isToolMode
+                  ? componentInputs.filter(isCredentialInput).length
+                  : componentInputs.length
+              }
+              defaultOpen={true}
+            >
               <div className="space-y-0 mt-2">
                 {componentInputs.map((input, index) => {
+                  const isToolMode = (nodeData.config as any)?.isToolMode;
+                  if (isToolMode && !isCredentialInput(input)) {
+                    return null;
+                  }
+
                   const connection = nodeData.inputs?.[input.id];
                   const hasConnection = Boolean(connection);
                   const manualValue = inputOverrides[input.id];
@@ -983,6 +1045,16 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
+          {component.agentTool?.enabled && toolSchemaJson && (
+            <CollapsibleSection title="Tool Schema" defaultOpen={false}>
+              <div className="mt-2">
+                <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
+                  {toolSchemaJson}
+                </pre>
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Outputs Section */}
           {componentOutputs.length > 0 && (
             <CollapsibleSection title="Outputs" count={componentOutputs.length} defaultOpen={true}>
@@ -1005,41 +1077,6 @@ export function ConfigPanel({
                     )}
                   </div>
                 ))}
-              </div>
-            </CollapsibleSection>
-          )}
-
-          {/* Parameters Section */}
-          {componentParameters.length > 0 && (
-            <CollapsibleSection
-              title="Parameters"
-              count={componentParameters.length}
-              defaultOpen={true}
-            >
-              <div className="space-y-0 mt-2">
-                {/* Render parameters in component definition order to preserve hierarchy */}
-                {componentParameters.map((param, index) => {
-                  // Only show border between top-level parameters (not nested ones)
-                  const isTopLevel = !param.visibleWhen;
-                  const prevParam = index > 0 ? componentParameters[index - 1] : null;
-                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false;
-                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel;
-
-                  return (
-                    <div key={param.id} className={cn(showBorder && 'border-t border-border pt-3')}>
-                      <ParameterFieldWrapper
-                        parameter={param}
-                        value={manualParameters[param.id]}
-                        onChange={(value) => handleParamValueChange(param.id, value)}
-                        connectedInput={nodeData.inputs?.[param.id]}
-                        componentId={component.id}
-                        parameters={manualParameters}
-                        onUpdateParameter={handleParamValueChange}
-                        allComponentParameters={componentParameters}
-                      />
-                    </div>
-                  );
-                })}
               </div>
             </CollapsibleSection>
           )}

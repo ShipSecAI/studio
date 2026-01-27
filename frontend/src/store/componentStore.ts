@@ -63,6 +63,7 @@ function buildIndexes(components: any[]) {
       parameters: component.parameters || [],
       examples: component.examples || [],
       agentTool: component.agentTool || null,
+      toolSchema: component.toolSchema ?? null,
     };
 
     byId[metadata.id] = metadata;

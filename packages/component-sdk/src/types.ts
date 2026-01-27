@@ -282,6 +282,7 @@ export interface ComponentParameterMetadata {
   type: ComponentParameterType;
   required?: boolean;
   default?: unknown;
+  exposeToTool?: boolean;
   placeholder?: string;
   description?: string;
   helpText?: string;

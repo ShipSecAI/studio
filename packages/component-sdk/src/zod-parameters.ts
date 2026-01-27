@@ -48,6 +48,7 @@ export function extractParameters(schema: z.ZodTypeAny): ComponentParameterMetad
       type: paramMeta.editor,
       required,
       default: defaultValue,
+      exposeToTool: paramMeta.exposeToTool,
       placeholder: paramMeta.placeholder,
       description: paramMeta.description,
       helpText: paramMeta.helpText,

@@ -4,9 +4,10 @@ import type { ComponentMetadata } from '@/schemas/component';
 import {
   arePortTypesCompatible,
   describePortType,
-  inputSupportsManualValue,
   resolvePortType,
+  inputSupportsManualValue,
   runtimeInputTypeToConnectionType,
+  isCredentialInput,
 } from '@/utils/portUtils';
 
 export interface ValidationResult {
@@ -204,8 +205,14 @@ export function getNodeValidationWarnings(
   // Check for required inputs that are not connected
   const manualParameters = (node.data.config?.params ?? {}) as Record<string, unknown>;
   const inputOverrides = (node.data.config?.inputOverrides ?? {}) as Record<string, unknown>;
+  const isToolMode = (node.data.config as any)?.isToolMode;
 
   component.inputs.forEach((input) => {
+    // In Tool Mode, skip validation for non-credential inputs
+    if (isToolMode && !isCredentialInput(input)) {
+      return;
+    }
+
     if (input.required) {
       const hasConnection = edges.some(
         (edge) => edge.target === node.id && edge.targetHandle === input.id,
