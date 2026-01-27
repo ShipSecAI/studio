@@ -138,6 +138,89 @@ services:
       - ./redpanda-console-config.yaml:/etc/redpanda/console-config.yaml:ro
     restart: unless-stopped
 
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: shipsec-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: shipsec-opensearch-dashboards
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    # Port exposed for development access
+    # Production uses nginx reverse proxy at /analytics
+    ports:
+      - "5601:5601"
+    volumes:
+      - ./opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/analytics/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Initialize OpenSearch Dashboards with default index patterns
+  opensearch-init:
+    image: curlimages/curl:8.5.0
+    container_name: shipsec-opensearch-init
+    depends_on:
+      opensearch-dashboards:
+        condition: service_healthy
+    volumes:
+      - ./opensearch-init.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    restart: "no"
+
+  # Nginx reverse proxy - unified entry point
+  # DEV MODE: Uses nginx.dev.conf which points to host.docker.internal for PM2 services
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: shipsec-nginx
+    depends_on:
+      opensearch-dashboards:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 volumes:
   postgres_data:
   minio_data:
@@ -145,6 +228,7 @@ volumes:
   temporal_data:
   redis_data:
   redpanda_data:
+  opensearch_data:
 
 networks:
   default:

@@ -1,0 +1,30 @@
+# OpenSearch Dashboards configuration
+# Mount this file to /usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+#
+# SECURITY NOTE:
+# - Local development: Security plugin is disabled (DISABLE_SECURITY_DASHBOARDS_PLUGIN=true in docker-compose)
+# - Production: Enable security plugin and configure multitenancy:
+#     1. Remove DISABLE_SECURITY_PLUGIN=true from OpenSearch
+#     2. Remove DISABLE_SECURITY_DASHBOARDS_PLUGIN=true from Dashboards
+#     3. Configure TLS certificates and authentication
+#     4. Add: opensearch_security.multitenancy.enabled: true
+#     5. Add: opensearch_security.multitenancy.tenants.preferred: ["Private", "Global"]
+
+server.host: "0.0.0.0"
+server.port: 5601
+
+# Base path configuration for reverse proxy
+server.basePath: "/analytics"
+server.rewriteBasePath: true
+
+# OpenSearch connection
+opensearch.hosts: ["http://opensearch:9200"]
+
+# Logging
+logging.dest: stdout
+logging.silent: false
+logging.quiet: false
+logging.verbose: false
+
+# CSP - relaxed for development (inline scripts needed by dashboards)
+csp.strict: false

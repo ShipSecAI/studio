@@ -1,0 +1,61 @@
+# OpenSearch Security - Internal Users (SaaS Model)
+#
+# USER PROVISIONING STRATEGY:
+# Customer users are created dynamically via the Security REST API
+# when users are added to the platform. This file only contains
+# system users required for platform operations.
+#
+# Customer user creation example (via backend):
+#   PUT /_plugins/_security/api/internalusers/{user_email}
+#   {
+#     "password": "hashed_password",
+#     "backend_roles": ["customer_{customer_id}"],
+#     "attributes": {
+#       "customer_id": "{customer_id}",
+#       "email": "{user_email}"
+#     }
+#   }
+#
+# Password hashing:
+#   docker run -it opensearchproject/opensearch:2.11.1 \
+#     /usr/share/opensearch/plugins/opensearch-security/tools/hash.sh -p <password>
+
+---
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+# =============================================================================
+# SYSTEM USERS (Platform Operations)
+# =============================================================================
+
+# Platform admin - for internal operations only
+admin:
+  # CHANGE THIS IN PRODUCTION - hash for "admin"
+  hash: "$2y$12$QJMOhaNM2dVJQGOVIBJOqOHQhQqq2v7rnE3iyNWMWvqjvjnvZe/Aq"
+  reserved: true
+  backend_roles:
+    - "platform_admin"
+  attributes:
+    role: "system"
+  description: "Platform administrator - internal use only"
+
+# Dashboards server user - used by OpenSearch Dashboards
+kibanaserver:
+  # CHANGE THIS IN PRODUCTION - hash for "kibanaserver"
+  hash: "$2y$12$r2uo1.C/6oXP1NnMgQzNxO3LnKCJR2I3ymvY9rUYLQq9cYEITCwfO"
+  reserved: true
+  attributes:
+    role: "system"
+  description: "Dashboards backend communication user"
+
+# =============================================================================
+# CUSTOMER USERS
+# Note: Customer users are created dynamically by the backend when users
+# register or are invited to the platform.
+#
+# Each customer user will have:
+#   - backend_roles: ["customer_{customer_id}"]
+#   - attributes.customer_id: their customer ID
+#   - Mapped to customer-specific role for index isolation
+# =============================================================================
