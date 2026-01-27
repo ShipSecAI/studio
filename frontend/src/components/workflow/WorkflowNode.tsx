@@ -1469,17 +1469,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
             return (
               <div className="space-y-3">
-                {/* Configuration Section Header (Tool Mode only) */}
-                {isToolMode && configInputs.length > 0 && (
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="h-[1px] flex-1 bg-purple-500/40" />
-                    <div className="text-[10px] uppercase font-black tracking-widest text-purple-600/90 dark:text-purple-400/90">
-                      Configuration
-                    </div>
-                    <div className="h-[1px] flex-1 bg-purple-500/40" />
-                  </div>
-                )}
-
                 <div className="space-y-1.5 px-0">
                   {visibleInputs.map((input) => {
                     // Check if this input has a connection

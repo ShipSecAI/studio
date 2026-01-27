@@ -418,6 +418,7 @@ export function ConfigPanel({
 
   const nodeData: FrontendNodeData = selectedNode.data;
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug;
+  const isToolMode = Boolean((nodeData.config as any)?.isToolMode);
   const component = getComponent(componentRef);
 
   if (!component) {
@@ -436,7 +437,7 @@ export function ConfigPanel({
             />
           )}
           <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
-            <h3 className="font-medium text-sm">Configuration</h3>
+            <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
             <Button
               variant="ghost"
               size="icon"
@@ -466,7 +467,7 @@ export function ConfigPanel({
           />
         )}
         <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
-          <h3 className="font-medium text-sm">Configuration</h3>
+          <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
           <Button
             variant="ghost"
             size="icon"
@@ -576,6 +577,43 @@ export function ConfigPanel({
       return String(component.toolSchema);
     }
   }, [component.toolSchema]);
+  const toolSchemaObject = useMemo(() => {
+    if (!component.toolSchema) {
+      return null;
+    }
+    if (typeof component.toolSchema === 'string') {
+      try {
+        return JSON.parse(component.toolSchema);
+      } catch (error) {
+        return null;
+      }
+    }
+    if (typeof component.toolSchema === 'object') {
+      return component.toolSchema as Record<string, any>;
+    }
+    return null;
+  }, [component.toolSchema]);
+  const toolSchemaFields = useMemo(() => {
+    const properties = toolSchemaObject?.properties ?? {};
+    const required = new Set((toolSchemaObject?.required as string[]) ?? []);
+    return Object.entries(properties).map(([id, schema]) => {
+      const typed = schema as Record<string, any>;
+      const type =
+        typeof typed.type === 'string'
+          ? typed.type
+          : Array.isArray(typed.type)
+            ? typed.type.join(' | ')
+            : 'object';
+      return {
+        id,
+        type,
+        description: typed.description as string | undefined,
+        required: required.has(id),
+        defaultValue: typed.default,
+        enumValues: Array.isArray(typed.enum) ? typed.enum : undefined,
+      };
+    });
+  }, [toolSchemaObject]);
   const exampleItems = [component.example, ...(component.examples ?? [])].filter(
     (value): value is string => Boolean(value && value.trim().length > 0),
   );
@@ -659,7 +697,7 @@ export function ConfigPanel({
       )}
       {/* Header */}
       <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
-        <h3 className="font-medium text-sm">Configuration</h3>
+        <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
         <Button
           variant="ghost"
           size="icon"
@@ -794,8 +832,97 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
+          {isToolMode && (
+            <CollapsibleSection title="Tool" defaultOpen={true}>
+              <div className="space-y-3 mt-2">
+                <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {component.agentTool?.toolName ?? component.slug}
+                    </Badge>
+                    <span className="text-xs font-semibold text-foreground">
+                      {component.name}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {component.agentTool?.toolDescription ?? component.description}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase text-muted-foreground">Arguments</div>
+                  {toolSchemaFields.length > 0 ? (
+                    <div className="space-y-2">
+                      {toolSchemaFields.map((field) => (
+                        <div
+                          key={field.id}
+                          className="rounded-md border bg-background/60 px-3 py-2"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-foreground">
+                              {field.id}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] font-mono">
+                              {field.type}
+                            </Badge>
+                            {field.required && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-destructive border-destructive/40"
+                              >
+                                required
+                              </Badge>
+                            )}
+                          </div>
+                          {field.description && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {field.description}
+                            </p>
+                          )}
+                          {(field.defaultValue !== undefined || field.enumValues) && (
+                            <div className="mt-2 text-[11px] text-muted-foreground space-y-1">
+                              {field.defaultValue !== undefined && (
+                                <div>
+                                  Default:{' '}
+                                  <span className="font-mono text-foreground">
+                                    {JSON.stringify(field.defaultValue)}
+                                  </span>
+                                </div>
+                              )}
+                              {field.enumValues && (
+                                <div>
+                                  Enum:{' '}
+                                  <span className="font-mono text-foreground">
+                                    {field.enumValues.map((value) => JSON.stringify(value)).join(', ')}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No tool schema available for this node.
+                    </p>
+                  )}
+                </div>
+
+                {toolSchemaJson && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] uppercase text-muted-foreground">Raw Schema</div>
+                    <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
+                      {toolSchemaJson}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Parameters Section (Moved to Top) */}
-          {componentParameters.length > 0 && (
+          {!isToolMode && componentParameters.length > 0 && (
             <CollapsibleSection
               title="Parameters"
               count={componentParameters.length}
@@ -830,7 +957,7 @@ export function ConfigPanel({
           )}
 
           {/* Inputs Section */}
-          {componentInputs.length > 0 && (
+          {!isToolMode && componentInputs.length > 0 && (
             <CollapsibleSection
               title="Inputs"
               count={
@@ -1045,7 +1172,7 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
-          {component.agentTool?.enabled && toolSchemaJson && (
+          {!isToolMode && component.agentTool?.enabled && toolSchemaJson && (
             <CollapsibleSection title="Tool Schema" defaultOpen={false}>
               <div className="mt-2">
                 <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
@@ -1056,7 +1183,7 @@ export function ConfigPanel({
           )}
 
           {/* Outputs Section */}
-          {componentOutputs.length > 0 && (
+          {!isToolMode && componentOutputs.length > 0 && (
             <CollapsibleSection title="Outputs" count={componentOutputs.length} defaultOpen={true}>
               <div className="space-y-0 mt-2">
                 {componentOutputs.map((output, index) => (
