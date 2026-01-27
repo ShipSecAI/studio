@@ -46,7 +46,7 @@ import {
 import {
   inputSupportsManualValue,
   runtimeInputTypeToConnectionType,
-  resolvePortType,
+  isCredentialInput,
 } from '@/utils/portUtils';
 import { WebhookDetails } from './WebhookDetails';
 import { useApiKeyStore } from '@/store/apiKeyStore';
@@ -196,7 +196,7 @@ function TerminalButton({
           const needsDataUpdate =
             terminalNode.data.runId !== selectedRunId ||
             terminalNode.data.timelineSync !==
-            (mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing));
+              (mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing));
 
           // Update terminal node position to follow parent node if parent moved or resized
           const lastPosition = parentPositionRef.current;
@@ -213,17 +213,17 @@ function TerminalButton({
               nds.map((n) =>
                 n.id === terminalNodeId
                   ? {
-                    ...n,
-                    position: needsPositionUpdate ? expectedPosition : n.position,
-                    data: needsDataUpdate
-                      ? {
-                        ...n.data,
-                        runId: selectedRunId,
-                        timelineSync:
-                          mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
-                      }
-                      : n.data,
-                  }
+                      ...n,
+                      position: needsPositionUpdate ? expectedPosition : n.position,
+                      data: needsDataUpdate
+                        ? {
+                            ...n.data,
+                            runId: selectedRunId,
+                            timelineSync:
+                              mode === 'execution' && (playbackMode !== 'live' || !isLiveFollowing),
+                          }
+                        : n.data,
+                    }
                   : n,
               ),
             );
@@ -277,9 +277,9 @@ function TerminalButton({
             nds.map((n) =>
               n.id === terminalNodeId
                 ? {
-                  ...n,
-                  position: expectedPosition,
-                }
+                    ...n,
+                    position: expectedPosition,
+                  }
                 : n,
             ),
           );
@@ -404,9 +404,9 @@ function ParametersDisplay({
   );
 }
 
-/**
- * Enhanced WorkflowNode - Visual representation with timeline states
- */
+// Helper to identify credential/configuration inputs
+// Moved to portUtils.ts
+
 export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const { getComponent, loading } = useComponentStore();
   const { getNodes, getEdges, setNodes, deleteElements } = useReactFlow();
@@ -600,18 +600,18 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
       nodes.map((node) =>
         node.id === id
           ? {
-            ...node,
-            data: {
-              ...(node.data as any),
-              ui: {
-                ...(node.data as any).ui,
-                size: {
-                  width: clampedWidth,
-                  height: clampedHeight,
+              ...node,
+              data: {
+                ...(node.data as any),
+                ui: {
+                  ...(node.data as any).ui,
+                  size: {
+                    width: clampedWidth,
+                    height: clampedHeight,
+                  },
                 },
               },
-            },
-          }
+            }
           : node,
       ),
     );
@@ -799,6 +799,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     }) ||
     // Check unfilled required inputs (not connected)
     requiredInputs.some((input) => {
+      // In Tool Mode, only credential inputs are required to be filled
+      if (isToolMode && !isCredentialInput(input)) return false;
+
       const hasConnection = Boolean(nodeData.inputs?.[input.id]);
       if (hasConnection) return false;
       if (manualValueProvidedForInput(input, hasConnection)) return false;
@@ -934,23 +937,23 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
         // Timeline active states for entry point (when it has active execution status)
         isEntryPoint &&
-        isTimelineActive &&
-        effectiveStatus === 'running' &&
-        !isPlaying &&
-        'border-dashed',
+          isTimelineActive &&
+          effectiveStatus === 'running' &&
+          !isPlaying &&
+          'border-dashed',
 
         // Enhanced border styling for timeline (non-entry-point nodes only)
         !isEntryPoint && isTimelineActive && effectiveStatus === 'running' && 'border-blue-400',
         !isEntryPoint &&
-        isTimelineActive &&
-        effectiveStatus === 'running' &&
-        !isPlaying &&
-        'border-dashed',
+          isTimelineActive &&
+          effectiveStatus === 'running' &&
+          !isPlaying &&
+          'border-dashed',
         !isEntryPoint && isTimelineActive && effectiveStatus === 'error' && 'border-red-400',
 
         // Node status states (non-entry-point nodes only)
         !isEntryPoint &&
-        (effectiveStatus !== 'idle' || isTimelineActive) && [nodeStyle.bg, nodeStyle.border],
+          (effectiveStatus !== 'idle' || isTimelineActive) && [nodeStyle.bg, nodeStyle.border],
 
         // Default state (all nodes when idle) - white/grey background
         (!nodeData.status || nodeData.status === 'idle') && !isTimelineActive && ['border-border'],
@@ -960,7 +963,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         selected && 'hover:shadow-[0_0_25px_rgba(59,130,246,0.6),0_0_45px_rgba(59,130,246,0.4)]',
 
         // Tool Mode styling - Stronger purple vibe
-        isToolMode && 'border-purple-500/60 dark:border-purple-400/50 shadow-purple-500/10 dark:shadow-purple-400/5',
+        isToolMode &&
+          'border-purple-500/60 dark:border-purple-400/50 shadow-purple-500/10 dark:shadow-purple-400/5',
         isToolMode && !selected && 'hover:shadow-purple-500/20',
 
         // Interactive states - use CSS hover to avoid re-renders
@@ -974,9 +978,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         // Text block and entry point sizing
         ...(isTextBlock
           ? {
-            width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
-            minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
-          }
+              width: Math.max(MIN_TEXT_WIDTH, textSize.width ?? DEFAULT_TEXT_WIDTH),
+              minHeight: Math.max(MIN_TEXT_HEIGHT, textSize.height ?? DEFAULT_TEXT_HEIGHT),
+            }
           : isEntryPoint
             ? { width: 160, minHeight: 160 }
             : {}),
@@ -1004,7 +1008,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           isEntryPoint ? 'rounded-t-[1.5rem]' : 'rounded-t-lg',
         )}
         style={{
-          borderColor: isToolMode ? 'rgb(168 85 247 / 0.4)' : (separatorColor || 'hsl(var(--border) / 0.5)'),
+          borderColor: isToolMode
+            ? 'rgb(168 85 247 / 0.4)'
+            : separatorColor || 'hsl(var(--border) / 0.5)',
           backgroundColor: headerBackgroundColor || undefined,
         }}
       >
@@ -1076,7 +1082,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     )}
                     title={isToolMode ? 'Disable Tool Mode' : 'Enable Tool Mode'}
                   >
-                    <Hammer className={cn('h-3.5 w-3.5', isToolMode ? 'text-white' : 'text-current')} />
+                    <Hammer
+                      className={cn('h-3.5 w-3.5', isToolMode ? 'text-white' : 'text-current')}
+                    />
                     <span className="text-[10px] font-bold uppercase tracking-tight">
                       {isToolMode ? 'Tool' : 'Mode'}
                     </span>
@@ -1110,9 +1118,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                         'h-4 w-4 flex-shrink-0',
                         nodeStyle.iconClass,
                         isTimelineActive &&
-                        effectiveStatus === 'running' &&
-                        isPlaying &&
-                        'animate-spin',
+                          effectiveStatus === 'running' &&
+                          isPlaying &&
+                          'animate-spin',
                         isTimelineActive && effectiveStatus === 'error' && 'animate-bounce',
                       )}
                     />
@@ -1453,14 +1461,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         {!isEntryPoint &&
           componentInputs.length > 0 &&
           (() => {
-            const configInputs = componentInputs.filter((input) => {
-              const resolved = resolvePortType(input);
-              return (
-                (resolved.kind === 'contract' && resolved.credential) ||
-                input.editor === 'secret' ||
-                input.id === 'connection'
-              );
-            });
+            const configInputs = componentInputs.filter(isCredentialInput);
 
             const visibleInputs = isToolMode ? configInputs : componentInputs;
 
@@ -1498,7 +1499,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       if (sourceNode) {
                         const sourceComponent = getComponent(
                           (sourceNode.data as any).componentId ??
-                          (sourceNode.data as any).componentSlug,
+                            (sourceNode.data as any).componentSlug,
                         );
                         if (sourceComponent) {
                           const sourceOutput = sourceComponent.outputs.find(
@@ -1511,8 +1512,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
                     const manualDisplay =
                       manualValueProvided &&
-                        inputSupportsManualValue(input) &&
-                        typeof manualCandidate === 'string'
+                      inputSupportsManualValue(input) &&
+                      typeof manualCandidate === 'string'
                         ? manualCandidate.trim()
                         : '';
                     const previewText =
@@ -1523,7 +1524,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                         ? '!bg-blue-500 !border-blue-500'
                         : '!bg-background !border-blue-500',
                       input.id === 'tools' &&
-                      '!bg-purple-100 !border-purple-500 !rounded-sm !w-[12px] !h-[12px]',
+                        '!bg-purple-100 !border-purple-500 !rounded-sm !w-[12px] !h-[12px]',
                     );
 
                     return (
@@ -1690,10 +1691,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                               !hasBranchDecision && designModeColors[branchColor],
                               // Active branch - always green
                               isActive &&
-                              'bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-400/50',
+                                'bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-400/50',
                               // Inactive/Skipped branch - MUTED/OFF state
                               isInactive &&
-                              'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 opacity-30 grayscale-[0.8]',
+                                'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 opacity-30 grayscale-[0.8]',
                             )}
                           >
                             {isActive && <LucideIcons.Check className="h-2.5 w-2.5" />}
@@ -1711,7 +1712,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                               !hasBranchDecision && handleDesignColors[branchColor],
                               isActive && '!border-green-500 !bg-green-500',
                               isInactive &&
-                              '!border-slate-300 !bg-slate-200 dark:!bg-slate-800 opacity-30',
+                                '!border-slate-300 !bg-slate-200 dark:!bg-slate-800 opacity-30',
                             )}
                             style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
                           />

@@ -112,6 +112,7 @@ export const ParameterSchema = z.object({
   ]),
   required: z.boolean().optional(),
   default: z.any().optional(),
+  exposeToTool: z.boolean().optional(),
   options: z
     .array(
       z.object({
@@ -205,6 +206,7 @@ export const ComponentMetadataSchema = z.object({
   outputs: z.array(OutputPortSchema).default([]),
   parameters: z.array(ParameterSchema).default([]),
   examples: z.array(z.string()).optional().default([]),
+  toolSchema: z.any().optional().nullable(),
   /**
    * Configuration for exposing this component as an agent-callable tool.
    */

@@ -6,6 +6,7 @@ import '@shipsec/studio-worker/components';
 import {
   componentRegistry,
   extractPorts,
+  getToolSchema,
   type CachedComponentMetadata,
 } from '@shipsec/component-sdk';
 import { categorizeComponent, getCategoryConfig } from './utils/categorization';
@@ -46,6 +47,7 @@ function serializeComponent(entry: CachedComponentMetadata) {
     parameters: entry.parameters ?? [],
     examples: metadata.examples ?? [],
     agentTool: metadata.agentTool ?? null,
+    toolSchema: metadata.agentTool?.enabled ? getToolSchema(component) : null,
   };
 }
 

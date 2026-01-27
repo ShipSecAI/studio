@@ -5,7 +5,12 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { componentRegistry, getToolInputShape } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  getActionInputIds,
+  getExposedParameterIds,
+  getToolInputShape,
+} from '@shipsec/component-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -354,8 +359,25 @@ export class McpGatewayService {
       throw new BadRequestException(`Component ID missing for tool '${tool.toolName}'`);
     }
 
+    const component = componentRegistry.get(tool.componentId);
+    const actionInputIds = component ? new Set(getActionInputIds(component)) : new Set<string>();
+    const exposedParamIds = component ? getExposedParameterIds(component) : [];
+    const exposedParamSet = new Set(exposedParamIds);
+
+    const inputArgs: Record<string, unknown> = {};
+    const paramOverrides: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(args ?? {})) {
+      if (exposedParamSet.has(key) && !actionInputIds.has(key)) {
+        paramOverrides[key] = value;
+      } else {
+        inputArgs[key] = value;
+      }
+    }
+
     // Resolve credentials from registry
     const credentials = await this.toolRegistry.getToolCredentials(runId, tool.nodeId);
+
+    const mergedParams = { ...(tool.parameters ?? {}), ...paramOverrides };
 
     // Generate a unique call ID for this tool invocation
     const callId = `${runId}:${tool.nodeId}:${Date.now()}`;
@@ -372,8 +394,8 @@ export class McpGatewayService {
         callId,
         nodeId: tool.nodeId,
         componentId: tool.componentId,
-        arguments: args,
-        parameters: tool.parameters,
+        arguments: inputArgs,
+        parameters: mergedParams,
         credentials: credentials ?? undefined,
         requestedAt: new Date().toISOString(),
       },
