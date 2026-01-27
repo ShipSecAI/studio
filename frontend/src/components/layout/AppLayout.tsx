@@ -23,6 +23,8 @@ import {
   Command,
   Zap,
   Webhook,
+  BarChart3,
+  Settings,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -299,6 +301,21 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/artifacts',
       icon: Archive,
     },
+    {
+      name: 'Analytics Settings',
+      href: '/analytics-settings',
+      icon: Settings,
+    },
+    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
+      ? [
+          {
+            name: 'Dashboards',
+            href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
+            icon: BarChart3,
+            external: true,
+          },
+        ]
+      : []),
   ];
 
   const isActive = (path: string) => {
@@ -399,6 +416,50 @@ export function AppLayout({ children }: AppLayoutProps) {
               {navigationItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
+                const isExternal = 'external' in item && item.external;
+                const openInNewTab = isExternal && 'newTab' in item ? item.newTab !== false : true;
+
+                // Render external link
+                if (isExternal) {
+                  return (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      target={openInNewTab ? '_blank' : undefined}
+                      rel={openInNewTab ? 'noopener noreferrer' : undefined}
+                      onClick={() => {
+                        // Close sidebar on mobile after clicking
+                        if (isMobile) {
+                          setSidebarOpen(false);
+                        }
+                      }}
+                    >
+                      <SidebarItem
+                        isActive={false}
+                        className={cn(
+                          'flex items-center gap-3',
+                          sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                        )}
+                      >
+                        <Icon className="h-5 w-5 flex-shrink-0" />
+                        <span
+                          className={cn(
+                            'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                            sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                          )}
+                          style={{
+                            transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                            transitionProperty: 'opacity, max-width',
+                          }}
+                        >
+                          {item.name}
+                        </span>
+                      </SidebarItem>
+                    </a>
+                  );
+                }
+
+                // Render internal link (React Router)
                 return (
                   <Link
                     key={item.href}

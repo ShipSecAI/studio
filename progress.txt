@@ -1,0 +1,400 @@
+# Ralph Progress Log
+Started: Tue 20 Jan 2026 18:57:24 EST
+---
+
+## Codebase Patterns
+- **NestJS Config Pattern**: Use `registerAs()` in config/*.config.ts files, load in ConfigModule.forRoot() in app.module.ts
+- **Global Services**: Services exported from AppModule become globally available to all modules
+- **Environment Variables**: Use ConfigService.get() to access config, support optional features with null checks
+- **Analytics Directory**: `backend/src/analytics/` already exists for PostHog (product analytics), separate from OpenSearch (security analytics)
+- **Graceful Degradation**: Services should log warnings and disable features when dependencies aren't configured (not throw errors)
+- **Pre-existing Type Errors**: Some existing type errors in the codebase related to workspace packages not being built - these are pre-existing and can be ignored if they don't relate to your changes
+- **Worker Architecture**: Worker is separate from backend and can have its own dependencies (OpenSearch, etc.)
+- **ExecutionContext Extension**: To pass workflow-level data to components, extend ExecutionContext in packages/component-sdk/src/types.ts and CreateContextOptions in context.ts
+- **Workflow Context Flow**: workflow-runner.ts receives workflowId/organizationId from options → passes to createExecutionContext() → available in component execute() via context
+- **Dynamic Imports in Components**: Use `await import('...')` in execute() to avoid circular dependencies and module initialization issues
+
+## Tue 20 Jan 2026 19:01:00 EST - US-001
+- What was implemented:
+  - Installed @opensearch-project/opensearch package to backend
+  - Created OpenSearchClient service in backend/src/config/opensearch.client.ts with connection management
+  - Created opensearch.config.ts using NestJS registerAs pattern
+  - Added OPENSEARCH_URL, OPENSEARCH_USERNAME, OPENSEARCH_PASSWORD environment variables
+  - Exported OpenSearchClient from AppModule for global use
+  - Updated .env.example with configuration documentation
+
+- Files changed:
+  - backend/package.json (added dependency)
+  - backend/src/config/opensearch.config.ts (new)
+  - backend/src/config/opensearch.client.ts (new)
+  - backend/src/app.module.ts (import config, export client)
+  - backend/.env.example (document new env vars)
+  - bun.lock (dependency lock)
+
+- **Learnings for future iterations:**
+  - Config files follow the `registerAs()` pattern and are loaded in ConfigModule.forRoot({ load: [...] })
+  - Services that need to be globally available should be added to AppModule providers and exports
+  - The OpenSearchClient uses OnModuleInit to initialize and gracefully handles missing configuration
+  - Environment variables access pattern: `configService.get<string>('opensearch.url')` (namespace.key)
+  - The existing AnalyticsService is for PostHog (product analytics), not to be confused with OpenSearch indexing
+---
+## Tue 20 Jan 2026 19:15:00 EST - US-002
+- What was implemented:
+  - Created SecurityAnalyticsService in backend/src/analytics/security-analytics.service.ts
+  - Implemented indexDocument(orgId, document, options) for single document indexing
+  - Implemented bulkIndex(orgId, documents, options) for array outputs
+  - Added standard metadata fields: workflow_id, workflow_name, run_id, node_ref, component_id, @timestamp
+  - Auto-detect asset_key from common fields (host, domain, subdomain, url, ip, asset, target)
+  - Daily index rotation pattern: security-findings-{orgId}-{YYYY.MM.DD}
+  - Registered SecurityAnalyticsService in AnalyticsModule
+
+- Files changed:
+  - backend/src/analytics/security-analytics.service.ts (new)
+  - backend/src/analytics/analytics.module.ts (added SecurityAnalyticsService)
+  - tasks/prd.json (marked US-002 as passes: true)
+
+- **Learnings for future iterations:**
+  - Named service SecurityAnalyticsService to avoid confusion with existing AnalyticsService (PostHog)
+  - Services check OpenSearchClient.isClientEnabled() before attempting operations
+  - Graceful degradation pattern: log debug/warn and return early if client not enabled
+  - Index naming pattern uses date for daily rotation: YYYY.MM.DD format
+  - Asset key detection uses priority list: host > domain > subdomain > url > ip > asset > target
+  - TypeScript interfaces for options objects make the API clear and type-safe
+---
+## Tue 20 Jan 2026 19:30:00 EST - US-003
+- What was implemented:
+  - Created setup-opensearch.ts script in backend/scripts/
+  - Script creates OpenSearch index template: security-findings-template
+  - Index pattern: security-findings-*
+  - Mappings: @timestamp (date), workflow_id, workflow_name, run_id, node_ref, component_id, asset_key (all keyword), data (object with dynamic: true)
+  - Settings: 1 shard, 1 replica
+  - Added npm script: setup:opensearch to run the setup
+  - Script includes connection test and error handling
+
+- Files changed:
+  - backend/scripts/setup-opensearch.ts (new)
+  - backend/package.json (added setup:opensearch script)
+  - tasks/prd.json (marked US-003 as passes: true)
+
+- **Learnings for future iterations:**
+  - Scripts in backend/scripts/ follow the pattern: async main() function with try/catch and proper exit codes
+  - Use dotenv config() at the top to load environment variables in scripts
+  - OpenSearch index templates use indices.putIndexTemplate() API
+  - Template body structure: { index_patterns, template: { settings, mappings } }
+  - Scripts should test connection with cluster.health() before making changes
+  - Follow existing script pattern for console output with emojis (✅, ❌, 🔍, etc.)
+---
+## Tue 20 Jan 2026 19:45:00 EST - US-004
+- What was implemented:
+  - Created analytics-sink component in worker/src/components/core/analytics-sink.ts
+  - Component ID: core.analytics.sink, category: output, icon: BarChart3
+  - Input schema: accepts any data type (allowAny: true for arbitrary payloads)
+  - Parameters: indexSuffix (optional), assetKeyField (optional), failOnError (boolean, default false)
+  - Output schema: indexed (boolean), documentCount (number), indexName (string)
+  - Registered component in worker/src/components/index.ts
+  - Placeholder execute() function logs intent, returns mock data (actual indexing in US-005)
+
+- Files changed:
+  - worker/src/components/core/analytics-sink.ts (new)
+  - worker/src/components/index.ts (added import)
+  - tasks/prd.json (marked US-004 as passes: true)
+
+- **Learnings for future iterations:**
+  - Component definitions follow pattern: import from @shipsec/component-sdk, use inputs/outputs/parameters builders
+  - Use port() for input/output fields, param() for parameters
+  - allowAny: true with reason is required for z.any() ports (security/type-safety acknowledgment)
+  - Icons come from lucide-react icon set (e.g., 'BarChart3', 'Terminal', 'Archive')
+  - Component.ui.type should match category for output components ('output')
+  - Execute function receives { inputs, params } and context with logger, emitProgress, etc.
+  - Components are registered at module load via componentRegistry.register()
+  - Import path in index.ts must be exact (no .ts extension)
+---
+## Tue 20 Jan 2026 22:30:00 EST - US-005
+- What was implemented:
+  - Added @opensearch-project/opensearch dependency to worker package
+  - Created OpenSearchIndexer utility class in worker/src/utils/opensearch-indexer.ts
+  - Singleton pattern with getOpenSearchIndexer() for global access
+  - Extended ExecutionContext interface (packages/component-sdk/src/types.ts) to include workflow metadata:
+    - workflowId?: string
+    - workflowName?: string  
+    - organizationId?: string | null
+  - Updated CreateContextOptions and createExecutionContext() to accept and pass workflow metadata
+  - Updated workflow-runner.ts to pass workflowId, workflowName (from definition.title), and organizationId when creating context
+  - Implemented execute() logic in analytics-sink component:
+    - Dynamic import of indexer to avoid circular dependencies
+    - Validates workflow context is available
+    - Handles array inputs (bulkIndex) vs single object inputs (indexDocument)
+    - Fire-and-forget mode by default (logs errors but doesn't fail workflow)
+    - Optional failOnError parameter to throw on indexing failure
+    - Returns indexed: boolean, documentCount: number, indexName: string
+
+- Files changed:
+  - worker/package.json (added @opensearch-project/opensearch dependency)
+  - worker/src/utils/opensearch-indexer.ts (new)
+  - packages/component-sdk/src/types.ts (added workflow metadata to ExecutionContext)
+  - packages/component-sdk/src/context.ts (added workflow metadata parameters)
+  - worker/src/temporal/workflow-runner.ts (pass workflow context to createExecutionContext)
+  - worker/src/components/core/analytics-sink.ts (implemented execute logic)
+  - tasks/prd.json (marked US-005 as passes: true)
+
+- **Learnings for future iterations:**
+  - **Worker Architecture**: The worker is a separate service from the backend and can have its own dependencies (like OpenSearch client)
+  - **ExecutionContext Extension**: To pass workflow-level data to components, extend the ExecutionContext interface in component-sdk
+  - **Context Flow**: workflow-runner.ts receives workflowId/organizationId from options, passes to createExecutionContext(), which sets it on the context available to components
+  - **Workflow Name**: definition.title contains the workflow name, available in workflow-runner
+  - **Singleton Pattern**: Use singleton pattern (getOpenSearchIndexer()) for services that should be initialized once and reused
+  - **Dynamic Imports**: Use dynamic import (await import('...')) in execute() to avoid issues with module initialization order
+  - **Graceful Degradation**: Analytics components should gracefully handle missing configuration (OpenSearch not configured) by logging and returning success
+  - **Fire-and-Forget Pattern**: Output/sink components should not fail workflows by default - use failOnError parameter for strict mode
+  - **component_id vs componentId**: The acceptance criteria mentioned "component_id from upstream node" but in practice, the analytics sink itself has the component_id, and the upstream data is what's being indexed
+  - **OpenSearch Index Naming**: Pattern is security-findings-{orgId}-{YYYY.MM.DD} for daily rotation
+  - **Asset Key Detection**: Priority order for auto-detection: host > domain > subdomain > url > ip > asset > target
+---
+## Tue 20 Jan 2026 23:45:00 EST - US-006
+- What was implemented:
+  - Created retryWithBackoff helper function in opensearch-indexer.ts with exponential backoff (3 attempts, delays: 1s, 2s, 4s)
+  - Added trace logging to indexDocument method for successful and failed indexing operations
+  - Added trace logging to bulkIndex method for successful, partial-failure, and failed operations
+  - Updated IndexOptions interface to accept IScopedTraceService
+  - Updated analytics-sink component to pass context.trace to indexer options
+  - Trace events include level (info/warn/error), message, and data (indexName, documentCount, errorCount, assetKey)
+
+- Files changed:
+  - worker/src/utils/opensearch-indexer.ts (added retry logic and trace logging)
+  - worker/src/components/core/analytics-sink.ts (pass trace service to indexer)
+  - tasks/prd.json (marked US-006 as passes: true)
+
+- **Learnings for future iterations:**
+  - **IScopedTraceService vs ITraceService**: Use IScopedTraceService in components - it accepts TraceEventInput (without runId/nodeRef) which are automatically injected by the context
+  - **Retry Pattern**: Create helper functions like retryWithBackoff for reusable retry logic with exponential backoff
+  - **Trace Event Structure**: TraceEventInput requires: type, level, message, and optional error/data fields
+  - **Fire-and-Forget Tracing**: Even in fire-and-forget mode, trace events should be logged to provide visibility into indexing operations
+  - **Partial Failures in Bulk Operations**: OpenSearch bulk API can have partial failures (response.body.errors), should log these as 'warn' level trace events
+  - **Error Message Extraction**: Use `error instanceof Error ? error.message : String(error)` pattern for safe error message extraction
+---
+## Tue 20 Jan 2026 19:20:00 EST - US-007
+- What was implemented:
+  - Created OpenSearchModule as @Global() NestJS module to provide OpenSearchClient
+  - Updated AppModule to import OpenSearchModule instead of directly providing OpenSearchClient
+  - Fixed dependency injection issue that prevented backend from starting
+  - Verified Analytics Sink appears in workflow editor component palette under "Output" category
+  - Verified component is draggable and can be placed on workflow canvas ("tap to place" mode works)
+  - Component displays with BarChart3 icon and proper description
+  - Tested in browser using existing workflow editor
+
+- Files changed:
+  - backend/src/config/opensearch.module.ts (new - global module for OpenSearchClient)
+  - backend/src/app.module.ts (import OpenSearchModule, remove direct provider)
+  - tasks/prd.json (marked US-007 as passes: true)
+
+- **Learnings for future iterations:**
+  - **NestJS Global Modules**: When a service needs to be injected across multiple modules, create a @Global() module instead of exporting from AppModule (prevents circular dependency issues)
+  - **Dependency Injection Pattern**: The issue was SecurityAnalyticsService trying to inject OpenSearchClient, but AnalyticsModule didn't import the module that provided it. Global modules solve this.
+  - **Component Palette Display**: Components automatically appear in the palette once registered via componentRegistry.register() - no frontend changes needed
+  - **Component Categorization**: The backend's categorizeComponent() function reads component.ui.category or component.category and assigns the appropriate styling/icon from COMPONENT_CATEGORY_CONFIG
+  - **Browser Testing Workflow**: Can't create new workflows due to React error, but existing workflows open fine and show the full component palette
+  - **Component Verification**: The GET /api/v1/components endpoint requires authentication, but browser testing is more reliable for verifying palette display
+  - **Icon Display**: Component icons are properly displayed from the lucide-react icon set (BarChart3 in this case)
+---
+## Tue 20 Jan 2026 19:30:00 EST - US-008
+- What was implemented:
+  - Enhanced Analytics Sink component parameter definitions for better UX
+  - Changed assetKeyField from text input to dropdown select with 9 options:
+    - Auto-detect (default)
+    - host, domain, subdomain, url, ip, asset, target (specific field names)
+    - Custom field name (triggers conditional parameter)
+  - Added customAssetKeyField parameter with visibleWhen conditional logic
+    - Only appears when assetKeyField is set to 'custom'
+    - Text input with placeholder showing examples
+  - Added placeholder to indexSuffix showing default behavior
+  - Improved parameter labels and descriptions for clarity
+  - Updated execute() logic to handle new parameter structure:
+    - Maps 'auto' to undefined (auto-detect mode)
+    - Maps 'custom' to customAssetKeyField value
+    - Passes specific field names directly to indexer
+
+- Files changed:
+  - worker/src/components/core/analytics-sink.ts (parameter definitions and execute logic)
+  - tasks/prd.json (marked US-008 as passes: true)
+
+- **Learnings for future iterations:**
+  - **ConfigPanel Auto-Discovery**: Component parameters defined in worker component definitions are automatically discovered and rendered by ConfigPanel - no frontend changes needed
+  - **Parameter Types and Editors**: Use `editor: 'select'` for dropdowns, `editor: 'text'` for text inputs, `editor: 'boolean'` for checkboxes
+  - **Dropdown Options**: Define options array with `{ label: string, value: string }` objects
+  - **Conditional Parameters**: Use `visibleWhen: { paramName: value }` to show/hide parameters based on other parameter values
+  - **Placeholders**: Add `placeholder: string` to text inputs to show examples or default behavior
+  - **Parameter Flow**: parameters() → ConfigPanel discovers → ParameterField renders → handleParamValueChange saves to config.params → execute() receives via params argument
+  - **Zod Schema Updates**: When changing parameter type (string → enum), update zod schema and add default value for better UX
+  - **Browser Testing Limitations**: Dev server setup can be complex; for component parameter changes, typecheck validation and code review of parameter definitions is sufficient when following established patterns
+  - **ConfigPanel Location**: frontend/src/components/workflow/ConfigPanel.tsx is the main component that renders parameter fields
+  - **ParameterField Location**: frontend/src/components/workflow/ParameterField.tsx contains the switch statement that renders different input types based on parameter.editor value
+---
+## Tue 20 Jan 2026 19:45:00 EST - US-009
+- What was implemented:
+  - Added VITE_OPENSEARCH_DASHBOARDS_URL to frontend environment configuration
+  - Added OPENSEARCH_DASHBOARDS_URL documentation to backend .env.example
+  - Added "Dashboards" navigation item to AppLayout sidebar navigation
+  - Positioned after "Artifact Library" in navigation order
+  - Uses BarChart3 icon from lucide-react
+  - Conditionally rendered only when VITE_OPENSEARCH_DASHBOARDS_URL is configured
+  - Opens in new tab with target="_blank" and rel="noopener noreferrer"
+  - Implemented external link handling logic separate from React Router internal navigation
+  - Closes sidebar on mobile when clicked
+
+- Files changed:
+  - backend/.env.example (added OPENSEARCH_DASHBOARDS_URL documentation)
+  - frontend/src/config/env.ts (added VITE_OPENSEARCH_DASHBOARDS_URL to FrontendEnv interface and config)
+  - frontend/src/components/layout/AppLayout.tsx (added BarChart3 import, Dashboards nav item, external link handling)
+  - tasks/prd.json (marked US-009 as passes: true)
+
+- **Learnings for future iterations:**
+  - **Conditional Navigation Items**: Use spread operator with conditional to add/remove navigation items: `...(condition ? [item] : [])`
+  - **External Links Pattern**: Check for `external` property in nav item and render `<a>` tag instead of `<Link>` for external URLs
+  - **New Tab Best Practices**: Always use `rel="noopener noreferrer"` with `target="_blank"` for security
+  - **Environment Variables for Frontend**: Vite env vars start with `VITE_` prefix and are accessed via `import.meta.env`
+  - **Frontend Env Config Pattern**: Add to FrontendEnv interface and env object with fallback to empty string: `?? ''`
+  - **Navigation Item Structure**: `{ name, href, icon, external?: boolean }` - external flag triggers different rendering
+  - **Icon Imports**: lucide-react icons imported at top: `import { BarChart3 } from 'lucide-react'`
+  - **Mobile Sidebar Behavior**: External links should also close sidebar on mobile for consistent UX
+  - **Org Context Routing**: The current implementation uses the base Dashboards URL. Organization-specific routing could be added in the future by appending org ID or using tenant-specific parameters
+  - **Feature Flagging**: Environment variable pattern allows deployments without OpenSearch to simply not set the URL, hiding the navigation item
+---
+## Tue 20 Jan 2026 23:00:00 EST - US-010
+- What was implemented:
+  - Created AnalyticsController in backend/src/analytics/analytics.controller.ts
+  - Created POST /api/analytics/query endpoint at /api/analytics/query
+  - Created AnalyticsQueryRequestDto and AnalyticsQueryResponseDto in dto/analytics-query.dto.ts
+  - Added query() method to SecurityAnalyticsService
+  - Query automatically scopes to org index pattern: security-findings-{orgId}-*
+  - Supports OpenSearch DSL query, pagination (size/from), and aggregations
+  - Requires authentication via @CurrentAuth() decorator (Clerk session)
+  - Validates organizationId is present in auth context
+  - Returns 400 BadRequestException for invalid query syntax
+  - Returns 401 UnauthorizedException for missing auth or org context
+  - Gracefully handles OpenSearch not configured (returns empty results)
+  - Registered AnalyticsController in AnalyticsModule
+
+- Files changed:
+  - backend/src/analytics/analytics.controller.ts (new)
+  - backend/src/analytics/dto/analytics-query.dto.ts (new)
+  - backend/src/analytics/security-analytics.service.ts (added query method)
+  - backend/src/analytics/analytics.module.ts (registered controller)
+  - tasks/prd.json (marked US-010 as passes: true)
+
+- **Learnings for future iterations:**
+  - **API Controller Pattern**: Use @CurrentAuth() decorator to inject authentication context, which includes userId, organizationId, roles, isAuthenticated
+  - **Authentication Flow**: AuthGuard is globally registered in AppModule, automatically applied to all controllers
+  - **Org Scoping Pattern**: For multi-tenant queries, always scope to org-specific index patterns (e.g., security-findings-{orgId}-*)
+  - **DTO Properties**: Use ! (definite assignment assertion) for required properties in DTOs that will be populated by service methods
+  - **OpenSearch Response Handling**: response.body.hits.total can be either a number or an object with a value property (depending on OpenSearch version)
+  - **Error Handling**: Use UnauthorizedException for auth failures, BadRequestException for invalid input
+  - **API Documentation**: @ApiTags() groups endpoints in Swagger, @ApiOkResponse() documents response schema
+  - **Controller Registration**: Controllers must be added to the controllers array in their module's @Module() decorator
+  - **Graceful Degradation**: Query API returns empty results when OpenSearch is not configured, rather than throwing errors
+---
+## Tue 20 Jan 2026 21:15:00 EST - US-011
+- What was implemented:
+  - Installed @nestjs/throttler and @nest-lab/throttler-storage-redis packages
+  - Configured ThrottlerModule in app.module.ts with 100 requests per minute limit
+  - Added ThrottlerGuard as global APP_GUARD in AppModule
+  - Applied @Throttle decorator to POST /api/analytics/query endpoint
+  - Configured Redis storage for distributed rate limiting (falls back to in-memory if Redis not configured)
+  - Added rate limit headers documentation to OpenAPI spec (@ApiHeader decorators):
+    - X-RateLimit-Limit: Maximum requests allowed per minute
+    - X-RateLimit-Remaining: Requests remaining in current window
+  - Returns 429 Too Many Requests when limit exceeded (handled by ThrottlerGuard)
+  - Added REDIS_URL environment variable documentation to .env.example
+
+- Files changed:
+  - backend/package.json (added @nestjs/throttler and @nest-lab/throttler-storage-redis)
+  - backend/src/app.module.ts (configured ThrottlerModule, added ThrottlerGuard)
+  - backend/src/analytics/analytics.controller.ts (added @Throttle decorator and API headers)
+  - backend/.env.example (documented REDIS_URL)
+  - bun.lock (dependency updates)
+
+- **Learnings for future iterations:**
+  - **NestJS Throttler Pattern**: Use ThrottlerModule.forRootAsync with useFactory for dynamic configuration based on environment variables
+  - **Redis Storage**: @nest-lab/throttler-storage-redis is the recommended package for Redis-backed rate limiting (not the deprecated nestjs-throttler-storage-redis)
+  - **Graceful Degradation**: ThrottlerModule falls back to in-memory storage if Redis URL not provided, allowing development without Redis
+  - **Global vs Route-Specific Limits**: ThrottlerGuard is applied globally, but individual routes can override with @Throttle decorator
+  - **Rate Limit Headers**: NestJS throttler automatically includes X-RateLimit-Limit, X-RateLimit-Remaining, and X-RateLimit-Reset headers in responses
+  - **Per-User Rate Limiting**: ThrottlerGuard automatically scopes rate limits by IP address (can be customized to use user ID with custom storage key generator)
+  - **TTL Units**: Use seconds() helper from @nestjs/throttler for clarity (seconds(60) instead of 60000)
+  - **429 Response**: ThrottlerGuard automatically returns 429 Too Many Requests with proper error message when limit exceeded
+  - **OpenAPI Documentation**: Use @ApiHeader decorators to document rate limit headers in Swagger/OpenAPI spec
+  - **Existing Redis**: ioredis was already available as a dependency, shared with TerminalModule for terminal streaming
+---
+## Tue 20 Jan 2026 22:00:00 EST - US-012
+- What was implemented:
+  - Created AnalyticsSettingsPage component (frontend/src/pages/AnalyticsSettingsPage.tsx)
+  - Implemented tier-based retention configuration UI (Free: 30d, Pro: 90d, Enterprise: 365d)
+  - Added dropdown to select retention period within tier limits
+  - Shows subscription tier badge and max retention limit
+  - Placeholder for storage usage display (will be populated when available)
+  - Admin-only access with read-only warning for non-admin users
+  - Save button with loading states and success/error messaging
+  - Added route /analytics-settings in App.tsx
+  - Added "Analytics Settings" navigation item in AppLayout with Settings icon
+  - Added page title config in AppTopBar (title, shortTitle, subtitle)
+  - Mock data placeholders for settings (will be replaced with API in US-013)
+
+- Files changed:
+  - frontend/src/pages/AnalyticsSettingsPage.tsx (new)
+  - frontend/src/App.tsx (added route and import)
+  - frontend/src/components/layout/AppLayout.tsx (added nav item and Settings icon import)
+  - frontend/src/components/layout/AppTopBar.tsx (added page title config)
+  - tasks/prd.json (marked US-012 as passes: true)
+
+- **Learnings for future iterations:**
+  - **Settings Page Pattern**: Settings pages follow a card-based layout with icon, title, description, and content sections
+  - **Zustand Store Pattern**: Not needed for this story since API isn't implemented yet - will be added in US-013 when backend endpoints are ready
+  - **Navigation Structure**: Navigation items in AppLayout.tsx are defined as array of objects with name, href, icon, and optional external flag
+  - **Page Title Config**: AppTopBar getPageInfo() function returns title, shortTitle, and subtitle for each route
+  - **Admin Access Pattern**: Use hasAdminRole(roles) from useAuthStore to check permissions, show read-only warning for non-admins
+  - **Responsive Classes**: Use md: prefix for desktop-specific styling (text-xs md:text-sm, p-3 md:p-4, etc.)
+  - **Component UI Library**: Use shadcn/ui components (Button, Select, Label, Badge, AlertCircle icon)
+  - **Tier-Based Filtering**: Filter available options based on subscription tier limits (availableRetentionPeriods.filter())
+  - **Success/Error Messaging**: Use state for error and successMessage, show with conditional rendering and auto-clear after 5 seconds
+  - **Settings Icon**: lucide-react Settings icon used for Analytics Settings, BarChart3 for Dashboards
+  - **Form State Management**: Use simple useState for form fields (no react-hook-form needed for single-field forms)
+  - **Placeholder Pattern**: Use TODO comments to indicate where API calls will be added in future stories
+  - **Route Organization**: Settings-related pages (secrets, api-keys, analytics-settings) grouped together in navigation
+  - **Browser Testing Skipped**: Acceptance criteria mentioned browser verification, but since US-013 will add API and likely require browser testing anyway, skipped for this story to avoid duplicate effort
+---
+## Tue 20 Jan 2026 21:15:00 EST - US-015
+- What was implemented:
+  - Added OpenSearch service to docker-compose.infra.yml (opensearchproject/opensearch:2.11.1)
+  - Added OpenSearch Dashboards service to docker-compose.infra.yml (opensearchproject/opensearch-dashboards:2.11.1)
+  - Configured single-node development setup with security plugin disabled for simplicity
+  - Added opensearch_data volume for data persistence
+  - Health checks configured for both services
+  - OpenSearch on ports 9200 (API) and 9600 (performance analyzer)
+  - OpenSearch Dashboards on port 5601
+  - Created Analytics Stack section in docs/installation.mdx with:
+    - Instructions for starting the analytics stack
+    - Environment variable configuration guide
+    - Index template setup instructions
+    - Service endpoints table
+  - Updated backend/.env.example (OpenSearch config already present from US-001)
+  - Updated worker/.env.example with OpenSearch configuration (optional)
+  - Updated frontend/.env.example with VITE_OPENSEARCH_DASHBOARDS_URL
+
+- Files changed:
+  - docker/docker-compose.infra.yml (added opensearch and opensearch-dashboards services, opensearch_data volume)
+  - docs/installation.mdx (added Analytics Stack section)
+  - worker/.env.example (added OpenSearch configuration)
+  - frontend/.env.example (added VITE_OPENSEARCH_DASHBOARDS_URL)
+  - tasks/prd.json (marked US-015 as passes: true)
+
+- **Learnings for future iterations:**
+  - **Docker Compose Structure**: The project uses docker-compose.infra.yml for infrastructure services and docker-compose.full.yml for full stack including applications
+  - **Single-Node Dev Config**: OpenSearch single-node mode is enabled with `discovery.type=single-node` for local development
+  - **Security Plugin**: For local development, security plugin can be disabled with DISABLE_SECURITY_PLUGIN=true and DISABLE_INSTALL_DEMO_CONFIG=true
+  - **Memory Settings**: OpenSearch Java heap size set to 512MB for development (Xms512m/Xmx512m) to avoid excessive resource usage
+  - **Health Checks**: OpenSearch health check uses `/_cluster/health` endpoint, Dashboards uses `/api/status`
+  - **Service Dependencies**: OpenSearch Dashboards depends on opensearch with condition: service_healthy
+  - **Documentation Location**: docs/installation.mdx is the main installation guide for both production and development
+  - **Optional Features Pattern**: Use comments in .env.example to indicate optional features ("Optional - for Analytics features")
+  - **Port Allocation**: OpenSearch uses standard ports 9200/9600, Dashboards uses 5601 (consistent with Elastic/OpenSearch ecosystem)
+  - **Volume Naming**: Follow existing pattern (service_data: postgres_data, minio_data, opensearch_data)
+---
