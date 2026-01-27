@@ -315,6 +315,25 @@ export type ComponentUiType =
   | 'process'
   | 'output';
 
+/**
+ * Configuration for exposing a component as an agent-callable tool.
+ */
+export interface AgentToolConfig {
+  /** Whether this component can be used as an agent tool */
+  enabled: boolean;
+  /**
+   * Tool name exposed to the agent. Defaults to component slug with underscores.
+   * Should be descriptive and follow snake_case convention.
+   * @example 'check_ip_reputation', 'query_cloudtrail'
+   */
+  toolName?: string;
+  /**
+   * Description of what the tool does, shown to the agent.
+   * Should clearly explain the tool's purpose and when to use it.
+   */
+  toolDescription?: string;
+}
+
 export interface ComponentUiMetadata {
   slug: string;
   version: string;
@@ -332,6 +351,12 @@ export interface ComponentUiMetadata {
   examples?: string[];
   /** UI-only component - should not be included in workflow execution */
   uiOnly?: boolean;
+  /**
+   * Configuration for exposing this component as an agent-callable tool.
+   * When enabled, the component can be used in tool mode within workflows,
+   * allowing AI agents to invoke it via the MCP gateway.
+   */
+  agentTool?: AgentToolConfig;
 }
 
 export interface ExecutionContext {
