@@ -372,6 +372,7 @@ services:
       - STUDIO_API_BASE_URL=http://backend:3211/api/v1
       # OpenSearch for Analytics Sink
       - OPENSEARCH_URL=http://opensearch:9200
+      - OPENSEARCH_DASHBOARDS_URL=http://opensearch-dashboards:5601/analytics
     depends_on:
       postgres:
         condition: service_healthy

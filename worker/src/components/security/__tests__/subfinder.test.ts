@@ -73,13 +73,19 @@ describe.skip('subfinder component', () => {
       rawOutput: 'api.example.com',
       domainCount: 1,
       subdomainCount: 1,
+      results: [],
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(payload);
 
     const result = component.outputs.parse(await component.execute(executePayload, context));
 
-    expect(result).toEqual(component.outputs.parse(payload));
+    expect(result.subdomains).toEqual(['api.example.com']);
+    expect(result.domainCount).toBe(1);
+    expect(result.subdomainCount).toBe(1);
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].scanner).toBe('subfinder');
+    expect(result.results[0].severity).toBe('info');
   });
 
   it('should accept a single domain string and normalise to array', () => {

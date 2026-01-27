@@ -74,6 +74,68 @@ The `just dev` command automatically:
 
 ---
 
+## Analytics Stack (Optional)
+
+ShipSec Studio includes an optional analytics stack powered by OpenSearch for indexing and visualizing workflow execution data.
+
+### Starting the Analytics Stack
+
+The analytics services are included in the infrastructure docker-compose file:
+
+```bash
+# Start infrastructure including OpenSearch
+just infra up
+```
+
+This will start:
+- **OpenSearch** on port `9200` - Search and analytics engine
+- **OpenSearch Dashboards** on port `5601` - Visualization and query UI
+
+### Configuring Analytics
+
+Add these environment variables to your backend and worker `.env` files:
+
+```bash
+# Backend (.env)
+OPENSEARCH_URL=http://localhost:9200
+OPENSEARCH_USERNAME=admin
+OPENSEARCH_PASSWORD=admin
+OPENSEARCH_DASHBOARDS_URL=http://localhost:5601
+
+# Frontend (.env)
+VITE_OPENSEARCH_DASHBOARDS_URL=http://localhost:5601
+```
+
+### Setting Up the Index Template
+
+After starting OpenSearch, create the security findings index template:
+
+```bash
+cd backend
+bun run setup:opensearch
+```
+
+This creates the `security-findings-*` index template with proper mappings for workflow execution data.
+
+### Using Analytics
+
+1. **Analytics Sink Component**: Add the "Analytics Sink" component to your workflows to index output data
+2. **Dashboards Link**: Access OpenSearch Dashboards from the Studio sidebar
+3. **Query API**: Use the `/api/analytics/query` endpoint to query indexed data programmatically
+
+### Analytics Service Endpoints
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| OpenSearch | http://localhost:9200 | Search engine API |
+| OpenSearch Dashboards | http://localhost:5601 | Visualization UI |
+
+<Note>
+  The analytics stack is optional. If OpenSearch is not configured, the Analytics Sink component will gracefully skip indexing and log a warning.
+</Note>
+
+---
+
 ## Production Deployment
 
 For production, use the Docker-based deployment:

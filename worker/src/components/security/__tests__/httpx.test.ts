@@ -85,7 +85,7 @@ describeHttpx('httpx component', () => {
     });
 
     const payload: HttpxOutput = {
-      results: [
+      responses: [
         {
           url: 'https://example.com',
           host: 'example.com',
@@ -105,6 +105,7 @@ describeHttpx('httpx component', () => {
           timestamp: '2023-01-01T00:00:00Z',
         },
       ],
+      results: [],
       rawOutput:
         '{"url":"https://example.com","host":"example.com","status-code":200,"title":"Example Domain","tech":["HTTP","CDN"]}',
       targetCount: 1,
