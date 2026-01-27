@@ -337,8 +337,9 @@ prod action="start":
             docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d
             echo ""
             echo "✅ Production environment ready"
-            echo "   Frontend:    http://localhost:8090"
-            echo "   Backend:     http://localhost:3211"
+            echo "   App:         http://localhost"
+            echo "   API:         http://localhost/api"
+            echo "   Analytics:   http://localhost/analytics"
             echo "   Temporal UI: http://localhost:8081"
             echo ""
 
@@ -367,8 +368,9 @@ prod action="start":
             [ -f "docker/.env" ] && ENV_FLAG="--env-file docker/.env"
             docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d --build
             echo "✅ Production built and started"
-            echo "   Frontend: http://localhost:8090"
-            echo "   Backend:  http://localhost:3211"
+            echo "   App:       http://localhost"
+            echo "   API:       http://localhost/api"
+            echo "   Analytics: http://localhost/analytics"
             echo ""
 
             # Version check
@@ -424,8 +426,9 @@ prod action="start":
 
             echo ""
             echo "✅ ShipSec Studio $LATEST_TAG ready"
-            echo "   Frontend:    http://localhost:8090"
-            echo "   Backend:     http://localhost:3211"
+            echo "   App:         http://localhost"
+            echo "   API:         http://localhost/api"
+            echo "   Analytics:   http://localhost/analytics"
             echo "   Temporal UI: http://localhost:8081"
             echo ""
             echo "💡 Note: Using images tagged as $LATEST_TAG"
@@ -477,8 +480,9 @@ prod-images action="start":
             DOCKER_BUILDKIT=1 docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d
             echo ""
             echo "✅ Production environment ready"
-            echo "   Frontend:    http://localhost:8090"
-            echo "   Backend:     http://localhost:3211"
+            echo "   App:         http://localhost"
+            echo "   API:         http://localhost/api"
+            echo "   Analytics:   http://localhost/analytics"
             echo "   Temporal UI: http://localhost:8081"
             ;;
         stop)
@@ -532,6 +536,75 @@ prod-images action="start":
             echo "Usage: just prod-images [start|stop|build-test|logs|status|clean]"
             ;;
     esac
+
+# === Production Secure (with Security & Multitenancy) ===
+
+# Run production with OpenSearch security and SaaS multitenancy
+prod-secure action="start":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{action}}" in
+        start)
+            echo "🔐 Starting secure production environment..."
+
+            # Check for certificates
+            if [ ! -f "docker/certs/root-ca.pem" ]; then
+                echo "❌ TLS certificates not found!"
+                echo ""
+                echo "   Run: just generate-certs"
+                exit 1
+            fi
+
+            # Check for required env vars
+            if [ -z "${OPENSEARCH_ADMIN_PASSWORD:-}" ] || [ -z "${OPENSEARCH_DASHBOARDS_PASSWORD:-}" ]; then
+                echo "❌ Required environment variables not set!"
+                echo ""
+                echo "   export OPENSEARCH_ADMIN_PASSWORD='your-secure-password'"
+                echo "   export OPENSEARCH_DASHBOARDS_PASSWORD='your-secure-password'"
+                exit 1
+            fi
+
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.prod.yml up -d
+            echo ""
+            echo "✅ Secure production environment ready"
+            echo "   Analytics:   https://localhost/analytics (requires auth)"
+            echo "   OpenSearch:  https://localhost:9200 (TLS enabled)"
+            echo ""
+            echo "💡 See docker/PRODUCTION.md for customer provisioning"
+            ;;
+        stop)
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.prod.yml down
+            echo "✅ Secure production stopped"
+            ;;
+        logs)
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.prod.yml logs -f
+            ;;
+        status)
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.prod.yml ps
+            ;;
+        clean)
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.prod.yml down -v
+            echo "✅ Secure production cleaned"
+            ;;
+        *)
+            echo "Usage: just prod-secure [start|stop|logs|status|clean]"
+            ;;
+    esac
+
+# Generate TLS certificates for production
+generate-certs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🔐 Generating TLS certificates..."
+    chmod +x docker/scripts/generate-certs.sh
+    docker/scripts/generate-certs.sh
+    echo ""
+    echo "✅ Certificates generated in docker/certs/"
+    echo ""
+    echo "Next steps:"
+    echo "  1. export OPENSEARCH_ADMIN_PASSWORD='your-secure-password'"
+    echo "  2. export OPENSEARCH_DASHBOARDS_PASSWORD='your-secure-password'"
+    echo "  3. just prod-secure"
 
 # === Infrastructure Only ===
 
@@ -634,6 +707,13 @@ help:
     @echo "  just prod status   Check production status"
     @echo "  just prod clean    Remove all data"
     @echo "  just prod-images   Start with GHCR images (uses cache)"
+    @echo ""
+    @echo "Production Secure (SaaS with multitenancy):"
+    @echo "  just generate-certs     Generate TLS certificates"
+    @echo "  just prod-secure        Start with security & multitenancy"
+    @echo "  just prod-secure stop   Stop secure production"
+    @echo "  just prod-secure logs   View logs"
+    @echo "  just prod-secure clean  Remove all data"
     @echo ""
     @echo "Infrastructure:"
     @echo "  just infra up      Start infrastructure only"

@@ -62,7 +62,7 @@ services:
       - temporal_data:/var/lib/temporal
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'tctl', '--address', 'localhost:7233', 'cluster', 'health']
+      test: ["CMD-SHELL", "tctl --address $(hostname -i):7233 cluster health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -79,7 +79,7 @@ services:
       - temporal
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:8080']
+      test: ["CMD", "curl", "-sf", "http://localhost:8080"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -171,6 +171,65 @@ services:
       - ./redpanda-console-config.yaml:/etc/redpanda/console-config.yaml:ro
     restart: unless-stopped
 
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: shipsec-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: shipsec-opensearch-dashboards
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    expose:
+      - "5601"
+    volumes:
+      - ./opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/analytics/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  opensearch-init:
+    image: curlimages/curl:8.5.0
+    container_name: shipsec-opensearch-init
+    depends_on:
+      opensearch-dashboards:
+        condition: service_healthy
+    volumes:
+      - ./opensearch-init.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    restart: "no"
+
   # Applications
   dind:
     image: docker:27-dind
@@ -226,8 +285,9 @@ services:
       - SECRET_STORE_MASTER_KEY=${SECRET_STORE_MASTER_KEY:-CHANGE_ME_32_CHAR_SECRET_KEY!!!!}
       # Internal service-to-service auth token (must match worker)
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-internal-service-token}
-    ports:
-      - '3211:3211'
+    # Internal only - accessed via nginx at /api/
+    expose:
+      - "3211"
     depends_on:
       postgres:
         condition: service_healthy
@@ -246,30 +306,33 @@ services:
       dockerfile: Dockerfile
       target: frontend
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3211}
-        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3211}
-        VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-clerk}
-        VITE_DEFAULT_ORG_ID: ${VITE_DEFAULT_ORG_ID:-}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost}
+        VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-local}
+        VITE_DEFAULT_ORG_ID: ${VITE_DEFAULT_ORG_ID:-local-dev}
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
         VITE_GIT_SHA: ${GIT_SHA:-unknown}
         VITE_PUBLIC_POSTHOG_KEY: ${VITE_PUBLIC_POSTHOG_KEY:-}
         VITE_PUBLIC_POSTHOG_HOST: ${VITE_PUBLIC_POSTHOG_HOST:-}
+        VITE_OPENSEARCH_DASHBOARDS_URL: ${VITE_OPENSEARCH_DASHBOARDS_URL:-/analytics}
     container_name: shipsec-frontend
     # NOTE: Auth defaults to Clerk intentionally - production requires Clerk authentication.
     # Set VITE_AUTH_PROVIDER=local in .env only for local development without Clerk.
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:3211}
-      - VITE_BACKEND_URL=${VITE_BACKEND_URL:-http://localhost:3211}
-      - VITE_AUTH_PROVIDER=${VITE_AUTH_PROVIDER:-clerk}
-      - VITE_DEFAULT_ORG_ID=${VITE_DEFAULT_ORG_ID:-}
-      - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY:-}
-    ports:
-      - '8090:8080'
+      - VITE_API_URL=${VITE_API_URL:-http://localhost}
+      - VITE_BACKEND_URL=${VITE_BACKEND_URL:-http://localhost}
+      - VITE_AUTH_PROVIDER=clerk
+      - VITE_DEFAULT_ORG_ID=local-dev
+      - VITE_CLERK_PUBLISHABLE_KEY=
+      - VITE_OPENSEARCH_DASHBOARDS_URL=${VITE_OPENSEARCH_DASHBOARDS_URL:-/analytics}
+    # Internal only - accessed via nginx at /
+    expose:
+      - "8080"
     depends_on:
       - backend
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8080']
+      test: ["CMD", "curl", "-sf", "http://localhost:8080"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -307,6 +370,8 @@ services:
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-internal-service-token}
       # Backend URL for internal API calls
       - STUDIO_API_BASE_URL=http://backend:3211/api/v1
+      # OpenSearch for Analytics Sink
+      - OPENSEARCH_URL=http://opensearch:9200
     depends_on:
       postgres:
         condition: service_healthy
@@ -320,9 +385,33 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+      opensearch:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'node', '-e', 'process.exit(0)']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Nginx reverse proxy - unified entry point
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: shipsec-nginx
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_started
+      opensearch-dashboards:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.full.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -335,6 +424,7 @@ volumes:
   docker_data:
   redis_data:
   redpanda_data:
+  opensearch_data:
 
 networks:
   default:
