@@ -219,25 +219,22 @@ Please investigate the issue and generate a detailed report.
     const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
     try {
+      // Initialize workspace with config and context files
       await volume.initialize({
         'context.json': contextJson,
         'opencode.jsonc': JSON.stringify(opencodeConfig, null, 2),
-        'investigator.md': finalPrompt,
       });
 
       // 5. Execute Docker Container
-      // Command: opencode run --quiet "$(cat /workspace/investigator.md)"
-      // Config file: ./opencode.jsonc in the workspace (project-level config)
-
+      // Use sh -c to properly quote the prompt string
+      // The prompt is passed as a single argument to sh -c, which then passes it to opencode
+      const escapedPrompt = finalPrompt.replace(/'/g, "'\\''"); // Escape single quotes in the prompt
       const runnerConfig = {
         ...definition.runner,
-        entrypoint: 'sh', // Use sh to ease command construction
+        entrypoint: 'sh',
         command: [
           '-c',
-          // Set HOME to /root so it looks for config there if we mounted it there,
-          // OR rely on CWD config. Let's try CWD config first as it is simpler.
-          // We mount volume to /workspace and set WORKDIR /workspace
-          `opencode run --quiet "$(cat investigator.md)"`,
+          `opencode run --quiet '${escapedPrompt}'`,
         ],
         // Use host network to access localhost gateway
         network: 'host' as const,
