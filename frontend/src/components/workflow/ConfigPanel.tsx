@@ -955,8 +955,10 @@ export function ConfigPanel({
                             />
                           )}
                           {/* Skip helper text for DynamicArtifactNameInput as it has its own */}
-                          {!(component?.id === 'core.artifact.writer' && input.id === 'artifactName') && (
-                            manualLocked ? (
+                          {!(
+                            component?.id === 'core.artifact.writer' && input.id === 'artifactName'
+                          ) &&
+                            (manualLocked ? (
                               <p className="text-xs text-muted-foreground italic">
                                 Disconnect the port to edit manual input.
                               </p>
@@ -968,8 +970,7 @@ export function ConfigPanel({
                                     ? 'Add entries or clear manual input to require a port connection.'
                                     : 'Leave blank to require a port connection.'}
                               </p>
-                            )
-                          )}
+                            ))}
                         </div>
                       )}
 

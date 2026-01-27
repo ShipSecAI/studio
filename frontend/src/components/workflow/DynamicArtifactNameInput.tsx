@@ -51,9 +51,7 @@ export function DynamicArtifactNameInput({
         className="text-sm font-mono"
         disabled={disabled}
       />
-      <p className="text-[10px] text-muted-foreground">
-        e.g., task123-1617181920
-      </p>
+      <p className="text-[10px] text-muted-foreground">e.g., task123-1617181920</p>
 
       {/* Dynamic Parameters Section */}
       <div className="rounded-md border bg-muted/30">
@@ -85,7 +83,7 @@ export function DynamicArtifactNameInput({
                   className={cn(
                     'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors',
                     'hover:bg-primary/10 group',
-                    disabled && 'opacity-50 cursor-not-allowed'
+                    disabled && 'opacity-50 cursor-not-allowed',
                   )}
                 >
                   <div
@@ -93,19 +91,15 @@ export function DynamicArtifactNameInput({
                       'flex items-center justify-center w-5 h-5 rounded-full',
                       'bg-primary/10 text-primary',
                       'group-hover:bg-primary group-hover:text-primary-foreground',
-                      'transition-colors'
+                      'transition-colors',
                     )}
                   >
                     <Plus className="h-3 w-3" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-mono text-foreground">
-                      {param.placeholder}
-                    </span>
+                    <span className="text-xs font-mono text-foreground">{param.placeholder}</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground">
-                    {param.description}
-                  </span>
+                  <span className="text-[10px] text-muted-foreground">{param.description}</span>
                 </button>
               ))}
             </div>

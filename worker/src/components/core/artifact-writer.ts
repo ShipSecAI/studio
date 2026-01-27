@@ -79,14 +79,12 @@ function substituteArtifactName(
 
 const parameterSchema = parameters({
   fileExtension: param(
-    z
-      .string()
-      .default('.txt')
-      .describe('File extension to append to the artifact name.'),
+    z.string().default('.txt').describe('File extension to append to the artifact name.'),
     {
       label: 'File Extension',
       editor: 'text',
-      description: 'File extension (e.g., .txt, .json, .csv). Will be appended to the artifact name.',
+      description:
+        'File extension (e.g., .txt, .json, .csv). Will be appended to the artifact name.',
     },
   ),
   mimeType: param(
