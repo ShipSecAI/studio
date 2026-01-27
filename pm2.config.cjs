@@ -196,6 +196,41 @@ function loadFrontendEnv() {
 
 const frontendEnv = loadFrontendEnv();
 
+// Load worker .env file for OpenSearch and other worker-specific variables
+function loadWorkerEnv() {
+  const envPath = path.join(__dirname, 'worker', '.env');
+  const env = {};
+
+  try {
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      envContent.split('\n').forEach((line) => {
+        const trimmed = line.trim();
+        // Skip comments and empty lines
+        if (!trimmed || trimmed.startsWith('#')) {
+          return;
+        }
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          let value = match[2].trim();
+          // Remove surrounding quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          env[key] = value;
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to load worker .env file:', err.message);
+  }
+
+  return env;
+}
+
+const workerEnv = loadWorkerEnv();
+
 // Determine environment from NODE_ENV or SHIPSEC_ENV
 const environment = process.env.SHIPSEC_ENV || process.env.NODE_ENV || 'development';
 const isProduction = environment === 'production';
@@ -264,6 +299,7 @@ module.exports = {
       env_file: __dirname + '/worker/.env',
       env: Object.assign(
         {
+          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
           INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
@@ -290,6 +326,7 @@ module.exports = {
       env_file: __dirname + '/worker/.env',
       env: Object.assign(
         {
+          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
           TEMPORAL_TASK_QUEUE: 'test-worker-integration',
           TEMPORAL_NAMESPACE: 'shipsec-dev',
           NODE_ENV: 'development',
