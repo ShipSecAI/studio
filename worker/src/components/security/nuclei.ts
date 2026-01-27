@@ -12,6 +12,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 import * as yaml from 'js-yaml';
@@ -184,6 +187,11 @@ const outputSchema = outputs({
     label: 'Vulnerability Findings',
     description: 'Array of detected vulnerabilities with severity, tags, and matched URLs.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   rawOutput: port(z.string(), {
     label: 'Raw Output',
@@ -515,8 +523,17 @@ const definition = defineComponent({
         `[Nuclei] Scan complete: ${findings.length} finding(s) from ${parsedInputs.targets.length} target(s)`,
       );
 
+      // Build analytics-ready results with scanner metadata (follows core.analytics.result.v1 contract)
+      const results: AnalyticsResult[] = findings.map((finding) => ({
+        ...finding,
+        scanner: 'nuclei',
+        asset_key: finding.host ?? finding.matchedAt,
+        finding_hash: generateFindingHash(finding.templateId, finding.host, finding.matchedAt),
+      }));
+
       const output = {
         findings,
+        results,
         rawOutput: stdout,
         targetCount: parsedInputs.targets.length,
         findingCount: findings.length,

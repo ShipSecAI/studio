@@ -93,7 +93,17 @@ const LocalAuthProvider: FrontendAuthProviderComponent = ({
       signUp: () => {
         console.warn('Local auth: signUp not implemented');
       },
-      signOut: () => {
+      signOut: async () => {
+        // Clear session cookie via backend logout endpoint
+        // Use relative path to ensure we hit the same origin as login
+        try {
+          await fetch('/api/v1/auth/logout', {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch (error) {
+          console.warn('Failed to clear session cookie:', error);
+        }
         // Clear admin credentials from store
         useAuthStore.getState().clear();
       },

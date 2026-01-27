@@ -27,6 +27,7 @@ import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
 import './core/workflow-call';
+import './core/analytics-sink';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';

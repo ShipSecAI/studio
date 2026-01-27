@@ -68,6 +68,7 @@ export interface WorkflowDefinition {
 export interface RunComponentActivityInput {
   runId: string;
   workflowId: string;
+  workflowName?: string;
   workflowVersionId?: string | null;
   organizationId?: string | null;
   action: {

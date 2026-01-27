@@ -25,6 +25,7 @@
     "@googleapis/admin": "^29.0.0",
     "@grpc/grpc-js": "^1.14.0",
     "@okta/okta-sdk-nodejs": "^7.3.0",
+    "@opensearch-project/opensearch": "^3.5.1",
     "@shipsec/component-sdk": "*",
     "@shipsec/contracts": "*",
     "@shipsec/shared": "*",
