@@ -31,6 +31,7 @@ import { useComponentStore } from '@/store/componentStore';
 import { ParameterFieldWrapper } from './ParameterField';
 import { WebhookDetails } from './WebhookDetails';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
+import { DynamicArtifactNameInput } from './DynamicArtifactNameInput';
 import type { Node } from 'reactflow';
 import type { FrontendNodeData } from '@/schemas/node';
 import type { ComponentType, KeyboardEvent } from 'react';
@@ -913,6 +914,20 @@ export function ConfigPanel({
                               placeholder={manualPlaceholder}
                               onChange={(value) => handleInputOverrideChange(input.id, value)}
                             />
+                          ) : component?.id === 'core.artifact.writer' &&
+                            input.id === 'artifactName' ? (
+                            <DynamicArtifactNameInput
+                              value={manualInputValue}
+                              onChange={(value) => {
+                                if (!value || value === '') {
+                                  handleInputOverrideChange(input.id, undefined);
+                                } else {
+                                  handleInputOverrideChange(input.id, value);
+                                }
+                              }}
+                              disabled={manualLocked}
+                              placeholder="{{run_id}}-{{timestamp}}"
+                            />
                           ) : (
                             <Input
                               id={`manual-${input.id}`}
@@ -939,18 +954,21 @@ export function ConfigPanel({
                               disabled={manualLocked}
                             />
                           )}
-                          {manualLocked ? (
-                            <p className="text-xs text-muted-foreground italic">
-                              Disconnect the port to edit manual input.
-                            </p>
-                          ) : (
-                            <p className="text-[10px] text-muted-foreground">
-                              {isBooleanInput
-                                ? 'Select a value or clear manual input to require a port connection.'
-                                : isListOfTextInput
-                                  ? 'Add entries or clear manual input to require a port connection.'
-                                  : 'Leave blank to require a port connection.'}
-                            </p>
+                          {/* Skip helper text for DynamicArtifactNameInput as it has its own */}
+                          {!(component?.id === 'core.artifact.writer' && input.id === 'artifactName') && (
+                            manualLocked ? (
+                              <p className="text-xs text-muted-foreground italic">
+                                Disconnect the port to edit manual input.
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-muted-foreground">
+                                {isBooleanInput
+                                  ? 'Select a value or clear manual input to require a port connection.'
+                                  : isListOfTextInput
+                                    ? 'Add entries or clear manual input to require a port connection.'
+                                    : 'Leave blank to require a port connection.'}
+                              </p>
+                            )
                           )}
                         </div>
                       )}
