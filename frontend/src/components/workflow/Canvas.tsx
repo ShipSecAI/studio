@@ -415,9 +415,14 @@ export function Canvas({
           requestAnimationFrame(() => {
             if (!reactFlowInstance) return;
 
-            // Re-check workflow nodes (terminal nodes might have been added/removed)
-            // Use the nodes prop directly since we're inside the effect
-            const currentWorkflowNodes = nodes.filter((n: Node<NodeData>) => n.type !== 'terminal');
+            // IMPORTANT: Get CURRENT nodes from ReactFlow instance, not from the stale closure.
+            // When mode switches, execution nodes are set asynchronously by useWorkflowExecutionLifecycle.
+            // The `nodes` variable captured in this closure may be stale (from before the mode switch).
+            // Using getNodes() ensures we get the most up-to-date node positions.
+            const currentNodes = reactFlowInstance.getNodes() as Node<NodeData>[];
+            const currentWorkflowNodes = currentNodes.filter(
+              (n: Node<NodeData>) => n.type !== 'terminal',
+            );
             if (currentWorkflowNodes.length === 0) return;
 
             try {

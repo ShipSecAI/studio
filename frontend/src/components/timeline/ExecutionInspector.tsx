@@ -30,7 +30,7 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useArtifactStore } from '@/store/artifactStore';
 import { useToast } from '@/components/ui/use-toast';
-import { useRunStore } from '@/store/runStore';
+import { useRunStore, type ExecutionRun } from '@/store/runStore';
 import { cn } from '@/lib/utils';
 import type { ExecutionLog } from '@/schemas/execution';
 import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel';
@@ -39,6 +39,20 @@ import { NodeIOInspector } from '@/components/timeline/NodeIOInspector';
 import { NetworkPanel } from '@/components/timeline/NetworkPanel';
 import { getTriggerDisplay } from '@/utils/triggerDisplay';
 import { RunInfoDisplay } from '@/components/timeline/RunInfoDisplay';
+
+const TERMINAL_STATUSES: ExecutionRun['status'][] = [
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+  'TERMINATED',
+  'TIMED_OUT',
+];
+
+const isRunLive = (run?: ExecutionRun | null) => {
+  if (!run) return false;
+  if (run.isLive) return true;
+  return !TERMINAL_STATUSES.includes(run.status);
+};
 
 const formatTime = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -307,6 +321,10 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                       variant="outline"
                       size="sm"
                       className="h-7 px-3 gap-1.5"
+                      disabled={isRunLive(selectedRun)}
+                      title={
+                        isRunLive(selectedRun) ? 'Wait for run to complete' : 'Rerun this workflow'
+                      }
                       onClick={() => onRerunRun(selectedRun.id)}
                     >
                       <RefreshCw className="h-3.5 w-3.5" />

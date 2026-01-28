@@ -80,6 +80,8 @@ export const ExecutionErrorView: React.FC<ExecutionErrorViewProps> = ({ error, c
         config.border,
         className,
       )}
+      // Prevent wheel events from propagating to React Flow canvas (which would zoom instead of scroll)
+      onWheel={(e) => e.stopPropagation()}
     >
       <div
         className={cn('flex items-center gap-1.5 font-bold uppercase tracking-wider', config.color)}

@@ -319,6 +319,8 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
                   size="sm"
                   variant="outline"
                   className="h-7 px-3 gap-1.5"
+                  disabled={isRunLive(run)}
+                  title={isRunLive(run) ? 'Wait for run to complete' : 'Rerun this workflow'}
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
