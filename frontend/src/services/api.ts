@@ -605,11 +605,17 @@ export const api = {
     },
 
     downloadArtifact: async (executionId: string, artifactId: string): Promise<Blob> => {
-      try {
-        return await apiClient.downloadWorkflowRunArtifact(executionId, artifactId);
-      } catch (error) {
-        throw new Error(error instanceof Error ? error.message : 'Failed to download artifact');
+      // Use direct fetch instead of typed client due to OpenAPI spec mismatch
+      // (path uses {artifactId} but parameter is named 'id')
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/workflows/runs/${executionId}/artifacts/${artifactId}/download`,
+        { headers },
+      );
+      if (!response.ok) {
+        throw new Error('Failed to download artifact');
       }
+      return await response.blob();
     },
 
     stream: async (
@@ -802,6 +808,17 @@ export const api = {
         throw new Error('Failed to download artifact');
       }
       return await response.blob();
+    },
+
+    delete: async (id: string): Promise<void> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/v1/artifacts/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete artifact');
+      }
     },
   },
 

@@ -1,5 +1,15 @@
-import { Controller, Get, Query, Param, Res, StreamableFile } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Delete,
+  Query,
+  Param,
+  Res,
+  StreamableFile,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { ApiOkResponse, ApiNoContentResponse, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
 
@@ -59,5 +69,17 @@ export class ArtifactsController {
     res.setHeader('Content-Length', file.size.toString());
 
     return new StreamableFile(buffer);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description: 'Artifact deleted successfully',
+  })
+  async deleteArtifact(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param(new ZodValidationPipe(ArtifactIdParamSchema)) params: ArtifactIdParamDto,
+  ) {
+    await this.artifactsService.deleteArtifact(auth, params.id);
   }
 }

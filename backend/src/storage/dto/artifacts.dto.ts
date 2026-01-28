@@ -17,3 +17,10 @@ export const ArtifactIdParamSchema = z.object({
 });
 
 export class ArtifactIdParamDto extends createZodDto(ArtifactIdParamSchema) {}
+
+// Schema for run artifact downloads where the path param is :artifactId
+export const RunArtifactIdParamSchema = z.object({
+  artifactId: z.string().uuid(),
+});
+
+export class RunArtifactIdParamDto extends createZodDto(RunArtifactIdParamSchema) {}

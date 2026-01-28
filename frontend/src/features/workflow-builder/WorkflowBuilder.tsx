@@ -594,9 +594,10 @@ function WorkflowBuilderContent() {
 
         // Initialize execution state only when there's no run context; otherwise the execution
         // lifecycle hook will load the appropriate version for the routed run.
+        // IMPORTANT: Always initialize when execution nodes are empty to prevent blank canvas.
+        const executionNodesEmpty = executionNodesRef.current.length === 0;
         const shouldInitializeExecution =
-          !hasRunContext &&
-          (executionNodesRef.current.length === 0 || executionEdgesRef.current.length === 0);
+          executionNodesEmpty || (!hasRunContext && executionEdgesRef.current.length === 0);
 
         if (shouldInitializeExecution) {
           setExecutionNodes(cloneNodes(workflowNodes));

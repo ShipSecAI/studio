@@ -16,9 +16,11 @@ interface ArtifactStoreState {
   libraryError: string | null;
   libraryFilters?: ArtifactListFilters;
   downloading: Record<string, boolean>;
+  deleting: Record<string, boolean>;
   fetchRunArtifacts: (runId: string, force?: boolean) => Promise<void>;
   fetchLibrary: (filters?: ArtifactListFilters) => Promise<void>;
   downloadArtifact: (artifact: ArtifactMetadata, options?: { runId?: string }) => Promise<void>;
+  deleteArtifact: (artifactId: string) => Promise<void>;
 }
 
 export const useArtifactStore = create<ArtifactStoreState>((set, get) => ({
@@ -27,6 +29,7 @@ export const useArtifactStore = create<ArtifactStoreState>((set, get) => ({
   libraryLoading: false,
   libraryError: null,
   downloading: {},
+  deleting: {},
   async fetchRunArtifacts(runId: string, force = false) {
     const existing = get().runArtifacts[runId];
     if (!force && existing && !existing.error && existing.artifacts.length > 0) {
@@ -110,6 +113,26 @@ export const useArtifactStore = create<ArtifactStoreState>((set, get) => ({
       set((state) => {
         const { [artifact.id]: _removed, ...next } = state.downloading;
         return { downloading: next };
+      });
+    }
+  },
+  async deleteArtifact(artifactId: string) {
+    set((state) => ({
+      deleting: { ...state.deleting, [artifactId]: true },
+    }));
+    try {
+      await api.artifacts.delete(artifactId);
+      // Remove artifact from library after successful deletion
+      set((state) => ({
+        library: state.library.filter((a) => a.id !== artifactId),
+      }));
+    } catch (error) {
+      console.error('Failed to delete artifact', error);
+      throw error;
+    } finally {
+      set((state) => {
+        const { [artifactId]: _removed, ...next } = state.deleting;
+        return { deleting: next };
       });
     }
   },

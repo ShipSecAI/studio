@@ -253,7 +253,7 @@ export function useWorkflowExecutionLifecycle({
     // If execution graph is empty when navigating directly to a run, hydrate from the latest
     // design snapshot so the canvas isn't blank while we load the historical version.
     if (executionNodesRef.current.length === 0 && executionEdgesRef.current.length === 0) {
-      if (designSavedSnapshotRef.current) {
+      if (designSavedSnapshotRef.current && designSavedSnapshotRef.current.nodes.length > 0) {
         const savedNodes = cloneNodes(designSavedSnapshotRef.current.nodes);
         const savedEdges = cloneEdges(designSavedSnapshotRef.current.edges);
         const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
@@ -263,7 +263,7 @@ export function useWorkflowExecutionLifecycle({
           nodes: cloneNodes(savedNodes),
           edges: cloneEdges(savedEdges),
         };
-      } else {
+      } else if (designNodesRef.current.length > 0) {
         const designNodesCopy = cloneNodes(designNodesRef.current);
         const designEdgesCopy = cloneEdges(designEdgesRef.current);
         const terminalNodes = executionNodesRef.current.filter((n) => n.type === 'terminal');
@@ -273,6 +273,11 @@ export function useWorkflowExecutionLifecycle({
           nodes: cloneNodes(designNodesCopy),
           edges: cloneEdges(designEdgesCopy),
         };
+      } else {
+        // Both execution and design graphs are empty - workflow hasn't loaded yet.
+        // Return early and let the workflow load effect populate the design state first.
+        // This effect will re-run when the design state is populated.
+        return;
       }
     }
 

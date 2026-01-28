@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Download, RefreshCw, Search, Copy, ExternalLink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Download, RefreshCw, Search, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import { useArtifactStore } from '@/store/artifactStore';
+import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ArtifactMetadata } from '@shipsec/shared';
@@ -26,21 +28,33 @@ const formatTimestamp = (value: string) => {
 
 export function ArtifactLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { library, libraryLoading, libraryError, fetchLibrary, downloadArtifact, downloading } =
-    useArtifactStore();
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const {
+    library,
+    libraryLoading,
+    libraryError,
+    fetchLibrary,
+    downloadArtifact,
+    downloading,
+    deleteArtifact,
+    deleting,
+  } = useArtifactStore();
   const [copiedRemoteUri, setCopiedRemoteUri] = useState<string | null>(null);
+  const [workflows, setWorkflows] = useState<Record<string, string>>({});
 
-  const handleCopy = useCallback(async (artifactId: string) => {
-    try {
-      await navigator.clipboard.writeText(artifactId);
-      setCopiedId(artifactId);
-      setTimeout(() => {
-        setCopiedId((current) => (current === artifactId ? null : current));
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to copy artifact ID', error);
-    }
+  useEffect(() => {
+    const loadWorkflows = async () => {
+      try {
+        const list = await api.workflows.list();
+        const map: Record<string, string> = {};
+        list.forEach((w) => {
+          if (w.id) map[w.id] = w.name;
+        });
+        setWorkflows(map);
+      } catch (err) {
+        console.error('Failed to load workflows', err);
+      }
+    };
+    loadWorkflows();
   }, []);
 
   useEffect(() => {
@@ -128,19 +142,17 @@ export function ArtifactLibrary() {
               <thead className="sticky top-0 bg-background shadow-sm">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="px-3 md:px-6 py-3 font-medium min-w-[150px]">Name</th>
+                  <th className="px-3 md:px-4 py-3 font-medium min-w-[150px] hidden sm:table-cell">
+                    Workflow
+                  </th>
                   <th className="px-3 md:px-4 py-3 font-medium min-w-[100px] hidden sm:table-cell">
                     Run
-                  </th>
-                  <th className="px-3 md:px-4 py-3 font-medium min-w-[100px] hidden md:table-cell">
-                    Component
                   </th>
                   <th className="px-3 md:px-4 py-3 font-medium min-w-[60px]">Size</th>
                   <th className="px-3 md:px-4 py-3 font-medium min-w-[100px] hidden lg:table-cell">
                     Created
                   </th>
-                  <th className="px-3 md:px-4 py-3 font-medium min-w-[120px] text-right">
-                    Actions
-                  </th>
+                  <th className="px-3 md:px-4 py-3 font-medium min-w-[120px] text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -148,9 +160,10 @@ export function ArtifactLibrary() {
                   <ArtifactLibraryRow
                     key={artifact.id}
                     artifact={artifact}
+                    workflowName={workflows[artifact.workflowId] || 'Unknown Workflow'}
                     onDownload={() => downloadArtifact(artifact)}
-                    onCopy={() => handleCopy(artifact.id)}
-                    copied={copiedId === artifact.id}
+                    onDelete={() => deleteArtifact(artifact.id)}
+                    isDeleting={Boolean(deleting[artifact.id])}
                     onCopyRemoteUri={async (uri: string) => {
                       try {
                         await navigator.clipboard.writeText(uri);
@@ -177,20 +190,22 @@ export function ArtifactLibrary() {
 
 function ArtifactLibraryRow({
   artifact,
+  workflowName,
   onDownload,
-  onCopy,
-  copied,
+  onDelete,
   onCopyRemoteUri,
   copiedRemoteUri,
   isDownloading,
+  isDeleting,
 }: {
   artifact: ArtifactMetadata;
+  workflowName: string;
   onDownload: () => void;
-  onCopy: () => void;
-  copied: boolean;
+  onDelete: () => void;
   onCopyRemoteUri: (uri: string) => void;
   copiedRemoteUri: string | null;
   isDownloading: boolean;
+  isDeleting: boolean;
 }) {
   const remoteUploads = getRemoteUploads(artifact);
 
@@ -242,11 +257,15 @@ function ArtifactLibraryRow({
           </div>
         )}
       </td>
-      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground font-mono hidden sm:table-cell">
-        <span className="truncate max-w-[80px] md:max-w-none block">{artifact.runId}</span>
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground hidden sm:table-cell">
+        <span className="truncate max-w-[150px] block" title={workflowName}>
+          {workflowName}
+        </span>
       </td>
-      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground hidden md:table-cell">
-        <span className="truncate max-w-[100px] block">{artifact.componentRef}</span>
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-primary hidden sm:table-cell">
+        <Link to={`/runs/${artifact.runId}`} className="hover:underline font-mono">
+          {artifact.runId.substring(0, 8)}…
+        </Link>
       </td>
       <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm">
         {formatBytes(artifact.size)}
@@ -254,17 +273,22 @@ function ArtifactLibraryRow({
       <td className="px-3 md:px-4 py-3 md:py-4 align-top text-xs md:text-sm text-muted-foreground hidden lg:table-cell">
         {formatTimestamp(artifact.createdAt)}
       </td>
-      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-right">
-        <div className="flex flex-wrap justify-end gap-1 md:gap-2">
+      <td className="px-3 md:px-4 py-3 md:py-4 align-top text-left">
+        <div className="flex flex-wrap justify-start gap-1 md:gap-2">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="gap-1 md:gap-2 h-8 px-2 md:px-3"
-            onClick={onCopy}
+            className="gap-1 md:gap-2 h-8 px-2 md:px-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              if (confirm('Are you sure you want to delete this artifact?')) {
+                onDelete();
+              }
+            }}
+            disabled={isDeleting}
           >
-            <Copy className="h-4 w-4" />
-            <span className="hidden md:inline">{copied ? 'Copied' : 'Copy ID'}</span>
+            <Trash2 className="h-4 w-4" />
+            <span className="hidden md:inline">{isDeleting ? 'Deleting…' : 'Delete'}</span>
           </Button>
           <Button
             type="button"

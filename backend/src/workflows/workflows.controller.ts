@@ -62,7 +62,7 @@ import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import { RequireWorkflowRole, WorkflowRoleGuard } from './workflow-role.guard';
 import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
-import { ArtifactIdParamDto, ArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
+import { RunArtifactIdParamDto, RunArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
 import type { WorkflowTerminalRecord } from '../database/schema';
 import { NodeIOService } from '../node-io/node-io.service';
 
@@ -757,14 +757,14 @@ export class WorkflowsController {
   })
   async downloadRunArtifact(
     @Param('runId') runId: string,
-    @Param(new ZodValidationPipe(ArtifactIdParamSchema)) params: ArtifactIdParamDto,
+    @Param(new ZodValidationPipe(RunArtifactIdParamSchema)) params: RunArtifactIdParamDto,
     @CurrentAuth() auth: AuthContext | null,
     @Res({ passthrough: true }) res: Response,
   ) {
     const { artifact, buffer, file } = await this.artifactsService.downloadArtifactForRun(
       auth,
       runId,
-      params.id,
+      params.artifactId,
     );
 
     res.setHeader('Content-Type', file.mimeType);
