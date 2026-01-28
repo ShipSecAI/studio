@@ -272,8 +272,8 @@ export function TopBar({
 
       <div className="flex-1 min-w-0">
         <div className="flex w-full gap-2 md:gap-4 items-center">
-          {/* Workflow name - always visible, truncated on mobile, tappable to edit */}
-          <div className="flex items-center justify-start gap-2 min-w-0 flex-shrink">
+          {/* Workflow name - fixed width left section for consistent centering */}
+          <div className="flex items-center justify-start gap-2 min-w-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px] flex-shrink-0">
             <div
               className={cn(
                 'flex items-center gap-2 min-w-0 max-w-[120px] sm:max-w-[180px] md:max-w-[280px] lg:max-w-[360px]',
@@ -327,8 +327,8 @@ export function TopBar({
           <div className="flex-1 flex justify-center min-w-0">
             <div className="flex-shrink-0">{modeToggle}</div>
           </div>
-          {/* Actions on the right */}
-          <div className="flex items-center justify-end gap-1 md:gap-2 flex-shrink-0">
+          {/* Actions on the right - fixed width to match left section for consistent centering */}
+          <div className="flex items-center justify-end gap-1 md:gap-2 flex-shrink-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px]">
             <div className="flex items-center gap-1 md:gap-2">
               {mode === 'design' && (
                 <>
