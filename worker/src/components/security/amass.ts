@@ -19,10 +19,20 @@ const AMASS_TIMEOUT_SECONDS = (() => {
   const raw = process.env.AMASS_TIMEOUT_SECONDS;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
   if (!Number.isFinite(parsed) || Number.isNaN(parsed)) {
-    return 600;
+    return 900; // 15 minutes default
   }
   return parsed;
 })();
+
+// Free data sources that don't require API keys (fast, lightweight)
+// NOTE: wayback and commoncrawl are excluded - they return massive amounts of data
+// and can choke the system with 1GB+ downloads even for a single domain
+const DEFAULT_FREE_DATA_SOURCES = ['crtsh', 'hackertarget'];
+const DEFAULT_DATA_SOURCES_STRING = DEFAULT_FREE_DATA_SOURCES.join(',');
+
+// Fast public DNS resolvers (Cloudflare, Google, Quad9)
+const DEFAULT_RESOLVERS = ['1.1.1.1', '8.8.8.8', '9.9.9.9', '8.8.4.4', '1.0.0.1'];
+const DEFAULT_RESOLVERS_STRING = DEFAULT_RESOLVERS.join(',');
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
 const DOMAIN_FILE_NAME = 'domains.txt';
@@ -43,10 +53,7 @@ const inputSchema = inputs({
 
 const parameterSchema = parameters({
   passive: param(
-    z
-      .boolean()
-      .default(true)
-      .describe('Use passive mode only (no DNS queries, faster)'),
+    z.boolean().default(true).describe('Use passive mode only (no DNS queries, faster)'),
     {
       label: 'Passive Mode',
       editor: 'boolean',
@@ -87,13 +94,13 @@ const parameterSchema = parameters({
   recursive: param(
     z
       .boolean()
-      .default(true)
+      .default(false)
       .describe('Allow recursive brute forcing when enough labels are discovered'),
     {
       label: 'Recursive Brute Force',
       editor: 'boolean',
       description: 'Allow recursive brute forcing when sufficient labels are discovered.',
-      helpText: 'Disable to keep enumeration shallow when DNS infrastructure is fragile.',
+      helpText: 'Enable for deeper enumeration. Keep disabled for faster, shallower scans.',
     },
   ),
   minForRecursive: param(
@@ -185,7 +192,7 @@ const parameterSchema = parameters({
       .int()
       .positive()
       .max(360, 'Timeout larger than 6 hours is not supported')
-      .optional()
+      .default(15)
       .describe('Maximum enumeration runtime before Amass exits'),
     {
       label: 'Timeout (minutes)',
@@ -194,7 +201,38 @@ const parameterSchema = parameters({
       max: 360,
       description: 'Stop Amass after the specified number of minutes.',
       placeholder: '15',
-      helpText: 'Leave blank to allow Amass to run to completion.',
+      helpText:
+        'Default is 15 minutes. Decrease for quick scans, increase for thorough enumeration.',
+    },
+  ),
+  resolvers: param(
+    z
+      .string()
+      .trim()
+      .default(DEFAULT_RESOLVERS_STRING)
+      .describe('Comma-separated list of DNS resolvers to use'),
+    {
+      label: 'DNS Resolvers',
+      editor: 'text',
+      placeholder: '1.1.1.1,8.8.8.8,9.9.9.9',
+      description: 'Fast DNS resolvers for query resolution.',
+      helpText:
+        'Default uses Cloudflare (1.1.1.1), Google (8.8.8.8), and Quad9 (9.9.9.9). Add custom resolvers if needed.',
+    },
+  ),
+  dataSources: param(
+    z
+      .string()
+      .trim()
+      .default(DEFAULT_DATA_SOURCES_STRING)
+      .describe('Comma-separated list of data sources to query'),
+    {
+      label: 'Data Sources',
+      editor: 'text',
+      placeholder: 'crtsh,hackertarget',
+      description: 'Limit which data sources Amass queries (speeds up enumeration).',
+      helpText:
+        'Default uses lightweight free sources. Add wayback,commoncrawl for more coverage (warning: very data-heavy).',
     },
   ),
 });
@@ -230,6 +268,8 @@ const outputSchema = outputs({
       minForRecursive: z.number().nullable(),
       maxDepth: z.number().nullable(),
       dnsQueryRate: z.number().nullable(),
+      resolvers: z.string().nullable(),
+      dataSources: z.string().nullable(),
       customFlags: z.string().nullable(),
     }),
     {
@@ -305,6 +345,8 @@ interface BuildAmassArgsOptions {
   verbose: boolean;
   demoMode: boolean;
   timeoutMinutes?: number;
+  resolvers?: string;
+  dataSources?: string;
   customFlags: string[];
 }
 
@@ -368,6 +410,17 @@ const buildAmassArgs = (options: BuildAmassArgsOptions): string[] => {
   // Timeout
   if (typeof options.timeoutMinutes === 'number' && options.timeoutMinutes >= 1) {
     args.push('-timeout', String(options.timeoutMinutes));
+  }
+
+  // Data sources - limit which sources to query for faster enumeration
+  // Use -include flag (not -src) to specify which data sources to use
+  if (typeof options.dataSources === 'string' && options.dataSources.length > 0) {
+    args.push('-include', options.dataSources);
+  }
+
+  // DNS resolvers - use fast public resolvers for better performance
+  if (typeof options.resolvers === 'string' && options.resolvers.length > 0) {
+    args.push('-r', options.resolvers);
   }
 
   // Verbose
@@ -464,6 +517,8 @@ const definition = defineComponent({
       verbose,
       demoMode,
       timeoutMinutes,
+      resolvers,
+      dataSources,
       customFlags,
     } = parsedParams;
 
@@ -471,19 +526,24 @@ const definition = defineComponent({
       typeof customFlags === 'string' && customFlags.length > 0 ? customFlags : null;
     const customFlagArgs = trimmedCustomFlags ? splitCliArgs(trimmedCustomFlags) : [];
 
+    const effectiveDataSources = dataSources ?? DEFAULT_DATA_SOURCES_STRING;
+    const effectiveResolvers = resolvers ?? DEFAULT_RESOLVERS_STRING;
+
     const optionsSummary = {
       passive: passive ?? true,
       active: active ?? false,
       bruteForce: bruteForce ?? false,
       enableAlterations: enableAlterations ?? false,
       includeIps: includeIps ?? false,
-      recursive: recursive ?? true,
+      recursive: recursive ?? false,
       minForRecursive: minForRecursive ?? null,
       maxDepth: maxDepth ?? null,
       dnsQueryRate: dnsQueryRate ?? null,
       verbose: verbose ?? false,
       demoMode: demoMode ?? false,
-      timeoutMinutes: timeoutMinutes ?? null,
+      timeoutMinutes: timeoutMinutes ?? 15,
+      resolvers: effectiveResolvers,
+      dataSources: effectiveDataSources,
       customFlags: trimmedCustomFlags,
     };
 
@@ -543,14 +603,16 @@ const definition = defineComponent({
         active: active ?? false,
         bruteForce: bruteForce ?? false,
         enableAlterations: enableAlterations ?? false,
-        recursive: recursive ?? true,
+        recursive: recursive ?? false,
         minForRecursive,
         maxDepth,
         dnsQueryRate,
         includeIps: includeIps ?? false,
         verbose: verbose ?? false,
         demoMode: demoMode ?? false,
-        timeoutMinutes,
+        timeoutMinutes: timeoutMinutes ?? 15,
+        resolvers: effectiveResolvers,
+        dataSources: effectiveDataSources,
         customFlags: customFlagArgs,
       });
 
