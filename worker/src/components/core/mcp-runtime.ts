@@ -1,3 +1,4 @@
+import { createServer } from 'node:net';
 import { runComponentWithRunner, ValidationError } from '@shipsec/component-sdk';
 
 type StartMcpServerInput = {
@@ -15,10 +16,29 @@ type StartMcpServerOutput = {
   containerId?: string;
 };
 
+async function getAvailablePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '0.0.0.0', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      server.close((closeErr) => {
+        if (closeErr) {
+          reject(closeErr);
+        } else {
+          resolve(port);
+        }
+      });
+    });
+  });
+}
+
 export async function startMcpDockerServer(
   input: StartMcpServerInput,
 ): Promise<StartMcpServerOutput> {
-  const port = input.port ?? 8080;
+  const port = input.port ?? (await getAvailablePort());
 
   if (!input.image || input.image.trim().length === 0) {
     throw new ValidationError('Docker image is required for MCP server', {
@@ -26,11 +46,13 @@ export async function startMcpDockerServer(
     });
   }
 
+  const endpoint = `http://localhost:${port}/mcp`;
   const runnerConfig = {
     kind: 'docker' as const,
     image: input.image,
     command: [...(input.command ?? []), ...(input.args ?? [])],
-    env: input.env,
+    env: { ...input.env, PORT: String(port), ENDPOINT: endpoint },
+    network: 'bridge' as const,
     detached: true,
     ports: { [port]: port },
   };
@@ -48,7 +70,7 @@ export async function startMcpDockerServer(
   }
 
   return {
-    endpoint: `http://localhost:${port}`,
+    endpoint,
     containerId,
   };
 }

@@ -1,8 +1,15 @@
 import express from 'express';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  CallToolRequestSchema,
+  InitializeRequestSchema,
+  InitializedNotificationSchema,
+  ListToolsRequestSchema,
+  LATEST_PROTOCOL_VERSION,
+} from '@modelcontextprotocol/sdk/types.js';
 
 function parseArgs(raw) {
   if (!raw) return [];
@@ -35,44 +42,70 @@ const clientTransport = new StdioClientTransport({
 
 await client.connect(clientTransport);
 
-const toolsResponse = await client.listTools();
-const tools = toolsResponse.tools ?? [];
+const server = new Server(
+  {
+    name: 'shipsec-mcp-stdio-proxy',
+    version: '1.0.0',
+  },
+  {
+    capabilities: client.getServerCapabilities() ?? {
+      tools: { listChanged: false },
+    },
+  },
+);
 
-const server = new McpServer({
-  name: 'shipsec-mcp-stdio-proxy',
-  version: '1.0.0',
+server.setRequestHandler(InitializeRequestSchema, async () => {
+  return {
+    protocolVersion: LATEST_PROTOCOL_VERSION,
+    capabilities: client.getServerCapabilities() ?? {},
+    serverInfo: client.getServerVersion() ?? {
+      name: 'shipsec-mcp-stdio-proxy',
+      version: '1.0.0',
+    },
+    instructions: client.getInstructions?.(),
+  };
 });
 
-for (const tool of tools) {
-  server.registerTool(
-    tool.name,
-    {
-      description: tool.description,
-      inputSchema: tool.inputSchema,
-    },
-    async (toolArgs) => {
-      return client.callTool({
-        name: tool.name,
-        arguments: toolArgs ?? {},
-      });
-    },
-  );
-}
+server.setNotificationHandler(InitializedNotificationSchema, () => {
+  // no-op
+});
+
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return await client.listTools();
+});
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  return await client.callTool({
+    name: request.params.name,
+    arguments: request.params.arguments ?? {},
+  });
+});
 
 const transport = new StreamableHTTPServerTransport({
-  sessionIdGenerator: () => 'stdio-proxy',
+  sessionIdGenerator: undefined,
   enableJsonResponse: true,
 });
+
 await server.connect(transport);
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 app.all('/mcp', async (req, res) => {
+  console.log('[mcp-proxy] incoming request', {
+    method: req.method,
+    path: req.path,
+    headers: {
+      'mcp-session-id': req.headers['mcp-session-id'],
+      accept: req.headers['accept'],
+      'content-type': req.headers['content-type'],
+    },
+    body: req.body,
+  });
   try {
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
-    console.error('Failed to handle MCP request', error);
+    console.error('[mcp-proxy] Failed to handle MCP request', error);
     if (!res.headersSent) {
       res.status(500).send('MCP proxy error');
     }

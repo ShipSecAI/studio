@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ToolRegistryService } from './tool-registry.service';
+import { McpGatewayService } from './mcp-gateway.service';
 import { McpAuthService } from './mcp-auth.service';
 import {
   RegisterComponentToolInput,
@@ -12,6 +13,7 @@ export class InternalMcpController {
   constructor(
     private readonly toolRegistry: ToolRegistryService,
     private readonly mcpAuthService: McpAuthService,
+    private readonly mcpGatewayService: McpGatewayService,
   ) {}
 
   @Post('generate-token')
@@ -36,18 +38,21 @@ export class InternalMcpController {
   @Post('register-component')
   async registerComponent(@Body() body: RegisterComponentToolInput) {
     await this.toolRegistry.registerComponentTool(body);
+    await this.mcpGatewayService.refreshServersForRun(body.runId);
     return { success: true };
   }
 
   @Post('register-remote')
   async registerRemote(@Body() body: RegisterRemoteMcpInput) {
     await this.toolRegistry.registerRemoteMcp(body);
+    await this.mcpGatewayService.refreshServersForRun(body.runId);
     return { success: true };
   }
 
   @Post('register-local')
   async registerLocal(@Body() body: RegisterLocalMcpInput) {
     await this.toolRegistry.registerLocalMcp(body);
+    await this.mcpGatewayService.refreshServersForRun(body.runId);
     return { success: true };
   }
 

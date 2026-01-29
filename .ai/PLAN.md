@@ -2,6 +2,93 @@
 
 Goal: Make AWS CloudTrail + CloudWatch MCP servers usable locally via OpenCode and the MCP Gateway, with a standardized MCP-node lifecycle (start → register → cleanup), and UI support through tool-mode nodes.
 
+---
+
+## E2E Debug Ladder (Manual → Full)
+
+This is the incremental pipeline to isolate failures quickly.
+
+### Stage 0 — Image Sanity
+Goal: Ensure proxy images contain `uvx` and boot correctly.
+
+Commands:
+```
+docker run --rm shipsec/mcp-aws-cloudtrail:latest sh -lc "uvx --help"
+docker run --rm shipsec/mcp-aws-cloudwatch:latest sh -lc "uvx --help"
+```
+
+Pass: `uvx` help output.
+
+---
+
+### Stage 1 — Proxy Health Endpoint
+Goal: Container boots and proxy HTTP server responds.
+
+Commands:
+```
+docker run --rm -p 8081:8080 \
+  -e AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
+  -e AWS_SESSION_TOKEN=$TEST_AWS_SESSION_TOKEN \
+  -e AWS_REGION=$TEST_AWS_REGION \
+  shipsec/mcp-aws-cloudtrail:latest
+```
+Then:
+```
+curl http://localhost:8081/health
+```
+
+Pass: JSON `{ status: "ok", toolCount: ... }`.
+
+---
+
+### Stage 2 — MCP Protocol (Direct)
+Goal: MCP initialize + tools/list via HTTP to the proxy.
+
+Commands:
+```
+curl -s http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}'
+
+curl -s http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+Pass: `result.tools` present.
+
+---
+
+### Stage 3 — Workflow Registration
+Goal: Tool-mode node registers local MCP in Redis.
+
+Run a workflow with a single tool-mode AWS MCP node and ensure:
+- `registerLocalMcpActivity` invoked
+- Redis key `mcp:run:{runId}:tools` has entry with containerId
+
+---
+
+### Stage 4 — Gateway Discovery
+Goal: Gateway exposes MCP tools via `toolName__tool`.
+
+Use MCP client to hit `/mcp/gateway` with session token for the run.
+Pass: `tools/list` returns `aws_cloudtrail_mcp__*`.
+
+---
+
+### Stage 5 — OpenCode Tool Call
+Goal: OpenCode uses gateway tools successfully.
+
+Run OpenCode with tool connected to AWS MCP node; verify it calls at least one tool.
+
+---
+
+### Stage 6 — Cleanup
+Goal: Workflow finalize stops containers and cleans Redis.
+
+Pass: `docker ps` doesn’t show MCP container; Redis entry deleted.
+
 This plan is split into commit-sized phases. No code changes beyond the plan should happen until you approve.
 
 ---

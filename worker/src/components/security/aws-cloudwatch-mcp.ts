@@ -38,7 +38,7 @@ const parameterSchema = parameters({
     editor: 'text',
     placeholder: 'us-east-1',
   }),
-  port: param(z.number().default(8080).describe('Internal port the MCP proxy listens on'), {
+  port: param(z.number().optional().describe('Internal port the MCP proxy listens on'), {
     label: 'Port',
     editor: 'number',
   }),
@@ -89,17 +89,22 @@ const definition = defineComponent({
     }
 
     const region = params.region || credentials.region || 'us-east-1';
-    const port = params.port ?? 8080;
+    const port = params.port;
 
     const env: Record<string, string> = {
       AWS_ACCESS_KEY_ID: credentials.accessKeyId,
       AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
       AWS_REGION: region,
       AWS_DEFAULT_REGION: region,
-      MCP_COMMAND: 'uvx',
-      MCP_ARGS: JSON.stringify(['awslabs-cloudwatch-mcp-server', ...(params.extraArgs ?? [])]),
-      MCP_PORT: String(port),
     };
+
+    if (params.extraArgs && params.extraArgs.length > 0) {
+      env.MCP_ARGS = JSON.stringify(params.extraArgs);
+    }
+
+    if (port) {
+      env.MCP_PORT = String(port);
+    }
 
     if (credentials.sessionToken) {
       env.AWS_SESSION_TOKEN = credentials.sessionToken;
