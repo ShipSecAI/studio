@@ -1,3 +1,1 @@
-# Run typecheck before push
-# Tests are run by CI - not included here due to flaky Docker-based tests
-bun run typecheck
+bun run typecheck && bun run test
