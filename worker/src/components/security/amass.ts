@@ -629,20 +629,46 @@ const definition = defineComponent({
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
 
-      const result = await runComponentWithRunner(
-        runnerConfig,
-        async () => ({}) as Output,
-        { domains: inputs.domains },
-        context,
-      );
+      try {
+        const result = await runComponentWithRunner(
+          runnerConfig,
+          async () => ({}) as Output,
+          { domains: inputs.domains },
+          context,
+        );
 
-      // Get raw output (either string or from object)
-      if (typeof result === 'string') {
-        rawOutput = result;
-      } else if (result && typeof result === 'object' && 'rawOutput' in result) {
-        rawOutput = String((result as any).rawOutput ?? '');
-      } else {
-        rawOutput = '';
+        // Get raw output (either string or from object)
+        if (typeof result === 'string') {
+          rawOutput = result;
+        } else if (result && typeof result === 'object' && 'rawOutput' in result) {
+          rawOutput = String((result as any).rawOutput ?? '');
+        } else {
+          rawOutput = '';
+        }
+      } catch (error) {
+        // Amass can exit non-zero when some data sources fail or rate-limit,
+        // even though it still printed valid findings. Preserve partial results
+        // instead of failing the entire workflow.
+        if (error instanceof ContainerError) {
+          const details = (error as any).details as Record<string, unknown> | undefined;
+          const capturedStdout = details?.stdout;
+          if (typeof capturedStdout === 'string' && capturedStdout.trim().length > 0) {
+            context.logger.warn(
+              `[Amass] Container exited non-zero but produced output. Preserving partial results.`,
+            );
+            context.emitProgress({
+              message: 'Amass exited with errors but found some results',
+              level: 'warn',
+              data: { exitCode: details?.exitCode },
+            });
+            rawOutput = capturedStdout;
+          } else {
+            // No output captured - re-throw the original error
+            throw error;
+          }
+        } else {
+          throw error;
+        }
       }
     } finally {
       // Always cleanup the volume
