@@ -461,41 +461,41 @@ export function TopBar({
               {env.VITE_OPENSEARCH_DASHBOARDS_URL &&
                 workflowId &&
                 (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING')) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 md:gap-2 min-w-0"
-                  onClick={() => {
-                    const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
-                    // Filter by run_id if a specific run is selected, otherwise by workflow_id
-                    const filterQuery = selectedRunId
-                      ? `shipsec.run_id.keyword:"${selectedRunId}"`
-                      : `shipsec.workflow_id.keyword:"${workflowId}"`;
-                    // OpenSearch Data Explorer URL format
-                    // Use .keyword fields for exact match filtering
-                    // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
-                    const aParam = encodeURIComponent(
-                      "(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'security-findings-*',view:discover))",
-                    );
-                    const qParam = encodeURIComponent(
-                      `(query:(language:kuery,query:'${filterQuery}'))`,
-                    );
-                    const gParam = encodeURIComponent(
-                      "(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))",
-                    );
-                    const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
-                    window.open(url, '_blank', 'noopener,noreferrer');
-                  }}
-                  title={
-                    selectedRunId
-                      ? 'View analytics for this run in OpenSearch Dashboards'
-                      : 'View analytics for this workflow in OpenSearch Dashboards'
-                  }
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  <span className="hidden lg:inline">View Analytics</span>
-                </Button>
-              )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 md:gap-2 min-w-0"
+                    onClick={() => {
+                      const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
+                      // Filter by run_id if a specific run is selected, otherwise by workflow_id
+                      const filterQuery = selectedRunId
+                        ? `shipsec.run_id.keyword:"${selectedRunId}"`
+                        : `shipsec.workflow_id.keyword:"${workflowId}"`;
+                      // OpenSearch Data Explorer URL format
+                      // Use .keyword fields for exact match filtering
+                      // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
+                      const aParam = encodeURIComponent(
+                        "(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'security-findings-*',view:discover))",
+                      );
+                      const qParam = encodeURIComponent(
+                        `(query:(language:kuery,query:'${filterQuery}'))`,
+                      );
+                      const gParam = encodeURIComponent(
+                        '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
+                      );
+                      const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                    title={
+                      selectedRunId
+                        ? 'View analytics for this run in OpenSearch Dashboards'
+                        : 'View analytics for this workflow in OpenSearch Dashboards'
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="hidden lg:inline">View Analytics</span>
+                  </Button>
+                )}
 
               <Button
                 onClick={handleRun}
