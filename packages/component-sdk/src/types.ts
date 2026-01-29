@@ -265,7 +265,8 @@ export type ComponentParameterType =
   | 'artifact'
   | 'variable-list'
   | 'form-fields'
-  | 'selection-options';
+  | 'selection-options'
+  | 'analytics-inputs';
 
 export interface ComponentParameterOption {
   label: string;

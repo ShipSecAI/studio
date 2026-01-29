@@ -363,7 +363,7 @@ export class OpenSearchIndexer {
         return;
       }
 
-      const fieldsData = await fieldsResponse.json();
+      const fieldsData = (await fieldsResponse.json()) as { fields?: unknown[] };
       const freshFields = fieldsData.fields || [];
 
       // Step 2: Get current index pattern to preserve other attributes
@@ -375,7 +375,10 @@ export class OpenSearchIndexer {
         return;
       }
 
-      const patternData = await patternResponse.json();
+      const patternData = (await patternResponse.json()) as {
+        attributes: { title: string; timeFieldName: string };
+        version: string;
+      };
 
       // Step 3: Update the index pattern with fresh fields
       // Include version for optimistic concurrency control (matches UI behavior)

@@ -44,7 +44,7 @@ const definition = defineComponent({
       type: 'shipsecai',
     },
   },
-  async execute() {
+  async execute(_payload, _context) {
     const results = [
       {
         scanner: 'analytics-fixture',
