@@ -332,7 +332,9 @@ export class OpenSearchIndexer {
    */
   private async refreshIndexPattern(): Promise<void> {
     if (!this.dashboardsUrl) {
-      console.debug('[OpenSearchIndexer] Dashboards URL not configured, skipping index pattern refresh');
+      console.debug(
+        '[OpenSearchIndexer] Dashboards URL not configured, skipping index pattern refresh',
+      );
       return;
     }
 
@@ -391,9 +393,13 @@ export class OpenSearchIndexer {
       });
 
       if (updateResponse.ok) {
-        console.debug(`[OpenSearchIndexer] Index pattern fields refreshed (${freshFields.length} fields)`);
+        console.debug(
+          `[OpenSearchIndexer] Index pattern fields refreshed (${freshFields.length} fields)`,
+        );
       } else {
-        console.warn(`[OpenSearchIndexer] Failed to update index pattern: ${updateResponse.status}`);
+        console.warn(
+          `[OpenSearchIndexer] Failed to update index pattern: ${updateResponse.status}`,
+        );
       }
     } catch (error) {
       // Non-critical failure - log but don't throw

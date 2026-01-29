@@ -214,17 +214,19 @@ const definition = defineComponent({
     }
 
     // Build analytics-ready results
-    const analyticsResults: AnalyticsResult[] = [{
-      scanner: 'abuseipdb',
-      finding_hash: generateFindingHash('ip-reputation', ipAddress, String(abuseConfidenceScore)),
-      severity,
-      asset_key: ipAddress,
-      ip_address: ipAddress,
-      abuse_confidence_score: abuseConfidenceScore,
-      country_code: info.countryCode as string | undefined,
-      isp: info.isp as string | undefined,
-      total_reports: info.totalReports as number | undefined,
-    }];
+    const analyticsResults: AnalyticsResult[] = [
+      {
+        scanner: 'abuseipdb',
+        finding_hash: generateFindingHash('ip-reputation', ipAddress, String(abuseConfidenceScore)),
+        severity,
+        asset_key: ipAddress,
+        ip_address: ipAddress,
+        abuse_confidence_score: abuseConfidenceScore,
+        country_code: info.countryCode as string | undefined,
+        isp: info.isp as string | undefined,
+        total_reports: info.totalReports as number | undefined,
+      },
+    ];
 
     return {
       ipAddress: info.ipAddress as string,

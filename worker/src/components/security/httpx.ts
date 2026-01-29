@@ -403,7 +403,11 @@ const definition = defineComponent({
       // Build analytics-ready results with scanner metadata
       const analyticsResults: AnalyticsResult[] = findings.map((finding) => ({
         scanner: 'httpx',
-        finding_hash: generateFindingHash('http-endpoint', finding.url, String(finding.statusCode ?? 0)),
+        finding_hash: generateFindingHash(
+          'http-endpoint',
+          finding.url,
+          String(finding.statusCode ?? 0),
+        ),
         severity: 'info' as const,
         asset_key: finding.url,
         url: finding.url,

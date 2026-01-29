@@ -209,19 +209,21 @@ const definition = defineComponent({
     }
 
     // Build analytics-ready results
-    const analyticsResults: AnalyticsResult[] = [{
-      scanner: 'virustotal',
-      finding_hash: generateFindingHash('threat-intelligence', indicator, type),
-      severity,
-      asset_key: indicator,
-      indicator,
-      indicator_type: type,
-      malicious_count: malicious,
-      suspicious_count: suspicious,
-      harmless_count: harmless,
-      reputation,
-      tags,
-    }];
+    const analyticsResults: AnalyticsResult[] = [
+      {
+        scanner: 'virustotal',
+        finding_hash: generateFindingHash('threat-intelligence', indicator, type),
+        severity,
+        asset_key: indicator,
+        indicator,
+        indicator_type: type,
+        malicious_count: malicious,
+        suspicious_count: suspicious,
+        harmless_count: harmless,
+        reputation,
+        tags,
+      },
+    ];
 
     return {
       malicious,

@@ -778,7 +778,11 @@ const definition = defineComponent({
       // Build analytics-ready results with scanner metadata
       const analyticsResults: AnalyticsResult[] = normalisedRecords.map((record) => ({
         scanner: 'dnsx',
-        finding_hash: generateFindingHash('dns-resolution', record.host, JSON.stringify(record.answers)),
+        finding_hash: generateFindingHash(
+          'dns-resolution',
+          record.host,
+          JSON.stringify(record.answers),
+        ),
         severity: 'info' as const,
         asset_key: record.host,
         host: record.host,
@@ -918,7 +922,11 @@ const definition = defineComponent({
       // Build analytics-ready results
       const analyticsResults: AnalyticsResult[] = silentRecords.map((record) => ({
         scanner: 'dnsx',
-        finding_hash: generateFindingHash('dns-resolution', record.host, JSON.stringify(record.answers)),
+        finding_hash: generateFindingHash(
+          'dns-resolution',
+          record.host,
+          JSON.stringify(record.answers),
+        ),
         severity: 'info' as const,
         asset_key: record.host,
         host: record.host,
@@ -1011,7 +1019,11 @@ const definition = defineComponent({
         // Build analytics-ready results
         const analyticsResults: AnalyticsResult[] = fallbackResults.map((record) => ({
           scanner: 'dnsx',
-          finding_hash: generateFindingHash('dns-resolution', record.host, JSON.stringify(record.answers)),
+          finding_hash: generateFindingHash(
+            'dns-resolution',
+            record.host,
+            JSON.stringify(record.answers),
+          ),
           severity: 'info' as const,
           asset_key: record.host,
           host: record.host,

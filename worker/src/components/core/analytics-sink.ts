@@ -63,7 +63,8 @@ const parameterSchema = parameters({
       editor: 'analytics-inputs',
       description:
         'Configure input ports for different scanner results. Each input creates a corresponding input port.',
-      helpText: 'Each input accepts AnalyticsResult[] and can be tagged for filtering in dashboards.',
+      helpText:
+        'Each input accepts AnalyticsResult[] and can be tagged for filtering in dashboards.',
     },
   ),
   indexSuffix: param(
@@ -260,13 +261,15 @@ const definition = defineComponent({
     }
 
     // Aggregate all documents from all inputs
-    const allDocuments: Array<Record<string, unknown>> = [];
+    const allDocuments: Record<string, unknown>[] = [];
     const inputsRecord = inputs as Record<string, unknown>;
 
     for (const [inputId, inputData] of Object.entries(inputsRecord)) {
       if (!inputData || !Array.isArray(inputData)) {
         if (!params.failOnError) {
-          context.logger.warn(`[Analytics Sink] Input '${inputId}' is empty or undefined, skipping`);
+          context.logger.warn(
+            `[Analytics Sink] Input '${inputId}' is empty or undefined, skipping`,
+          );
         }
         continue;
       }

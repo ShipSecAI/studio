@@ -13,6 +13,8 @@ const inputSchema = inputs({
   trigger: port(z.any().optional(), {
     label: 'Trigger',
     description: 'Optional trigger input to allow wiring from entrypoint.',
+    allowAny: true,
+    reason: 'Test fixture accepts any trigger input for E2E testing flexibility.',
   }),
 });
 
