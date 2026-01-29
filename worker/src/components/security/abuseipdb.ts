@@ -13,6 +13,9 @@ import {
   param,
   coerceBooleanFromText,
   coerceNumberFromText,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 const inputSchema = inputs({
@@ -102,6 +105,11 @@ const outputSchema = outputs({
     reason: 'Full AbuseIPDB response payload varies by plan and API version.',
     connectionType: { kind: 'primitive', name: 'json' },
   }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 const abuseIPDBRetryPolicy: ComponentRetryPolicy = {
@@ -173,6 +181,7 @@ const definition = defineComponent({
       context.logger.warn(`[AbuseIPDB] IP not found: ${ipAddress}`);
       return {
         ipAddress,
+        results: [],
         abuseConfidenceScore: 0,
         full_report: { error: 'Not Found' },
       };
@@ -186,14 +195,44 @@ const definition = defineComponent({
     const data = (await response.json()) as Record<string, unknown>;
     const info = (data.data || {}) as Record<string, unknown>;
 
-    context.logger.info(`[AbuseIPDB] Score for ${ipAddress}: ${info.abuseConfidenceScore}`);
+    const abuseConfidenceScore = info.abuseConfidenceScore as number;
+
+    context.logger.info(`[AbuseIPDB] Score for ${ipAddress}: ${abuseConfidenceScore}`);
+
+    // Determine severity based on abuse confidence score
+    let severity: 'critical' | 'high' | 'medium' | 'low' | 'info' | 'none' = 'none';
+    if (abuseConfidenceScore >= 90) {
+      severity = 'critical';
+    } else if (abuseConfidenceScore >= 70) {
+      severity = 'high';
+    } else if (abuseConfidenceScore >= 50) {
+      severity = 'medium';
+    } else if (abuseConfidenceScore >= 25) {
+      severity = 'low';
+    } else if (abuseConfidenceScore > 0) {
+      severity = 'info';
+    }
+
+    // Build analytics-ready results
+    const analyticsResults: AnalyticsResult[] = [{
+      scanner: 'abuseipdb',
+      finding_hash: generateFindingHash('ip-reputation', ipAddress, String(abuseConfidenceScore)),
+      severity,
+      asset_key: ipAddress,
+      ip_address: ipAddress,
+      abuse_confidence_score: abuseConfidenceScore,
+      country_code: info.countryCode as string | undefined,
+      isp: info.isp as string | undefined,
+      total_reports: info.totalReports as number | undefined,
+    }];
 
     return {
       ipAddress: info.ipAddress as string,
+      results: analyticsResults,
       isPublic: info.isPublic as boolean | undefined,
       ipVersion: info.ipVersion as number | undefined,
       isWhitelisted: info.isWhitelisted as boolean | undefined,
-      abuseConfidenceScore: info.abuseConfidenceScore as number,
+      abuseConfidenceScore,
       countryCode: info.countryCode as string | undefined,
       usageType: info.usageType as string | undefined,
       isp: info.isp as string | undefined,

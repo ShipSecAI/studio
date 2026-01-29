@@ -82,9 +82,9 @@ describe('dnsx component', () => {
 
     expect(result.domainCount).toBe(1);
     expect(result.recordCount).toBe(2);
-    expect(result.results).toHaveLength(2);
-    expect(result.results[0].host).toBe('example.com');
-    const aggregatedAnswers = result.results.flatMap((entry) => entry.answers.a ?? []);
+    expect(result.dnsRecords).toHaveLength(2);
+    expect((result.dnsRecords[0] as { host: string }).host).toBe('example.com');
+    const aggregatedAnswers = result.dnsRecords.flatMap((entry) => (entry as { answers: { a?: string[] } }).answers.a ?? []);
     expect(aggregatedAnswers).toEqual(['23.215.0.138', '23.215.0.136']);
     expect(result.recordTypes).toEqual(['A']);
     expect(result.resolvedHosts).toEqual(['example.com']);

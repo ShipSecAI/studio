@@ -32,6 +32,7 @@ import { env } from '@/config/env';
 interface TopBarProps {
   workflowId?: string;
   selectedRunId?: string | null;
+  selectedRunStatus?: string | null;
   isNew?: boolean;
   onRun?: () => void;
   onSave: () => Promise<void> | void;
@@ -49,6 +50,7 @@ const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow';
 export function TopBar({
   workflowId,
   selectedRunId,
+  selectedRunStatus,
   onRun,
   onSave,
   onImport,
@@ -456,7 +458,9 @@ export function TopBar({
                 </>
               )}
 
-              {env.VITE_OPENSEARCH_DASHBOARDS_URL && workflowId && (
+              {env.VITE_OPENSEARCH_DASHBOARDS_URL &&
+                workflowId &&
+                (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING')) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -467,13 +471,19 @@ export function TopBar({
                     const filterQuery = selectedRunId
                       ? `shipsec.run_id.keyword:"${selectedRunId}"`
                       : `shipsec.workflow_id.keyword:"${workflowId}"`;
-                    // OpenSearch Dashboards Discover URL
+                    // OpenSearch Data Explorer URL format
                     // Use .keyword fields for exact match filtering
-                    const gParam = encodeURIComponent('(time:(from:now-7d,to:now))');
+                    // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
                     const aParam = encodeURIComponent(
-                      `(columns:!(_source),index:'security-findings-*',interval:auto,query:(language:kuery,query:'${filterQuery}'),sort:!('@timestamp',desc))`,
+                      "(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'security-findings-*',view:discover))",
                     );
-                    const url = `${baseUrl}/app/discover#/?_g=${gParam}&_a=${aParam}`;
+                    const qParam = encodeURIComponent(
+                      `(query:(language:kuery,query:'${filterQuery}'))`,
+                    );
+                    const gParam = encodeURIComponent(
+                      "(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))",
+                    );
+                    const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
                     window.open(url, '_blank', 'noopener,noreferrer');
                   }}
                   title={

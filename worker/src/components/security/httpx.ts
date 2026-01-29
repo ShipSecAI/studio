@@ -10,6 +10,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -145,7 +148,7 @@ const findingSchema = z.object({
 type Finding = z.infer<typeof findingSchema>;
 
 const outputSchema = outputs({
-  results: port(z.array(findingSchema), {
+  responses: port(z.array(findingSchema), {
     label: 'HTTP Responses',
     description: 'Structured metadata for each responsive endpoint.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
@@ -178,6 +181,11 @@ const outputSchema = outputs({
       connectionType: { kind: 'primitive', name: 'json' },
     },
   ),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 const httpxRunnerOutputSchema = z.object({
@@ -268,6 +276,7 @@ const definition = defineComponent({
     if (runnerParams.targets.length === 0) {
       context.logger.info('[httpx] Skipping httpx probe because no targets were provided.');
       const emptyOutput: Output = {
+        responses: [],
         results: [],
         rawOutput: '',
         targetCount: 0,
@@ -391,8 +400,23 @@ const definition = defineComponent({
         `[httpx] Completed probe with ${findings.length} result(s) from ${runnerParams.targets.length} target(s)`,
       );
 
+      // Build analytics-ready results with scanner metadata
+      const analyticsResults: AnalyticsResult[] = findings.map((finding) => ({
+        scanner: 'httpx',
+        finding_hash: generateFindingHash('http-endpoint', finding.url, String(finding.statusCode ?? 0)),
+        severity: 'info' as const,
+        asset_key: finding.url,
+        url: finding.url,
+        host: finding.host,
+        status_code: finding.statusCode,
+        title: finding.title,
+        webserver: finding.webserver,
+        technologies: finding.technologies,
+      }));
+
       const output: Output = {
-        results: findings,
+        responses: findings,
+        results: analyticsResults,
         rawOutput: runnerOutput,
         targetCount: runnerParams.targets.length,
         resultCount: findings.length,

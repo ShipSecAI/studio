@@ -8,15 +8,24 @@ import {
   port,
   param,
   analyticsResultSchema,
+  withPortMeta,
+  ValidationError,
 } from '@shipsec/component-sdk';
 
-const inputSchema = inputs({
-  data: port(z.array(analyticsResultSchema()), {
-    label: 'Results',
-    description:
-      'Array of analytics results with required scanner, finding_hash, and severity fields. Each array item is indexed as a separate document. Additional scanner-specific fields are preserved.',
-  }),
+// Schema for defining a data input port
+const dataInputDefinitionSchema = z.object({
+  id: z.string().describe('Unique identifier for this input (becomes input port ID)'),
+  label: z.string().describe('Display label for the input in the UI'),
+  sourceTag: z
+    .string()
+    .optional()
+    .describe('Tag added to indexed documents for filtering by source in dashboards'),
 });
+
+type DataInputDefinition = z.infer<typeof dataInputDefinitionSchema>;
+
+// Base input schema - will be extended by resolvePorts
+const baseInputSchema = inputs({});
 
 const outputSchema = outputs({
   indexed: port(z.boolean(), {
@@ -34,6 +43,19 @@ const outputSchema = outputs({
 });
 
 const parameterSchema = parameters({
+  dataInputs: param(
+    z
+      .array(dataInputDefinitionSchema)
+      .default([{ id: 'input1', label: 'Input 1', sourceTag: 'input_1' }])
+      .describe('Define multiple data inputs from different scanner components'),
+    {
+      label: 'Data Inputs',
+      editor: 'analytics-inputs',
+      description:
+        'Configure input ports for different scanner results. Each input creates a corresponding input port.',
+      helpText: 'Each input accepts AnalyticsResult[] and can be tagged for filtering in dashboards.',
+    },
+  ),
   indexSuffix: param(
     z
       .string()
@@ -104,13 +126,13 @@ const parameterSchema = parameters({
       .boolean()
       .default(false)
       .describe(
-        'Whether to fail the workflow if indexing fails. Default is false (fire-and-forget).',
+        'Strict mode: requires all configured inputs to have data and validates all documents before indexing. Default is lenient (fire-and-forget).',
       ),
     {
-      label: 'Fail workflow if indexing fails',
+      label: 'Strict Mode (Fail on Error)',
       editor: 'boolean',
       description:
-        "When enabled, the workflow will stop if indexing to OpenSearch fails. By default, indexing errors are logged but don't stop the workflow.",
+        'When enabled: requires ALL configured inputs to have data, validates ALL documents before indexing, and fails the workflow if any check fails. When disabled: skips missing inputs and logs errors without failing.',
     },
   ),
 });
@@ -120,17 +142,17 @@ const definition = defineComponent({
   label: 'Analytics Sink',
   category: 'output',
   runner: { kind: 'inline' },
-  inputs: inputSchema,
+  inputs: baseInputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Indexes structured analytics results into OpenSearch for dashboards, queries, and alerts. Requires results to follow the `core.analytics.result.v1` contract with scanner, finding_hash, and severity fields. Connect the `results` port from scanner components. Each array item becomes a separate document with workflow context stored under `shipsec.*`. Indexing is fire-and-forget by default.',
+  docs: 'Indexes structured analytics results into OpenSearch for dashboards, queries, and alerts. Configure multiple data inputs to aggregate results from different scanner components. Each input can be tagged with a sourceTag for filtering in dashboards. Supports lenient (fire-and-forget) and strict (all-or-nothing) modes via the failOnError parameter.',
   ui: {
     slug: 'analytics-sink',
-    version: '1.0.0',
+    version: '2.0.0',
     type: 'output',
     category: 'output',
     description:
-      'Index security findings and workflow outputs into OpenSearch for analytics, dashboards, and alerting.',
+      'Index security findings from multiple scanners into OpenSearch for analytics, dashboards, and alerting.',
     icon: 'BarChart3',
     author: {
       name: 'ShipSecAI',
@@ -139,16 +161,49 @@ const definition = defineComponent({
     isLatest: true,
     deprecated: false,
     examples: [
+      'Aggregate findings from Nuclei, Subfinder, and Prowler into a unified security dashboard.',
       'Index subdomain enumeration results for tracking asset discovery over time.',
       'Store vulnerability scan findings for correlation and trend analysis.',
-      'Aggregate security metrics across multiple workflows into unified dashboards.',
     ],
+  },
+  resolvePorts(params: z.infer<typeof parameterSchema>) {
+    const dataInputs = Array.isArray(params.dataInputs) ? params.dataInputs : [];
+
+    const inputShape: Record<string, z.ZodTypeAny> = {};
+
+    // Create dynamic input ports from dataInputs parameter
+    for (const input of dataInputs) {
+      const id = typeof input?.id === 'string' ? input.id.trim() : '';
+      if (!id) {
+        continue;
+      }
+
+      const label = typeof input?.label === 'string' ? input.label : id;
+      const sourceTag = typeof input?.sourceTag === 'string' ? input.sourceTag : undefined;
+
+      const description = sourceTag
+        ? `Analytics results tagged with '${sourceTag}' in indexed documents.`
+        : `Analytics results from ${label}.`;
+
+      // Each input port accepts an optional array of analytics results
+      inputShape[id] = withPortMeta(z.array(analyticsResultSchema()).optional(), {
+        label,
+        description,
+      });
+    }
+
+    return {
+      inputs: inputs(inputShape),
+      outputs: outputSchema,
+    };
   },
   async execute({ inputs, params }, context) {
     const { getOpenSearchIndexer } = await import('../../utils/opensearch-indexer');
     const indexer = getOpenSearchIndexer();
 
-    const documentCount = inputs.data.length;
+    const dataInputsMap = new Map<string, DataInputDefinition>(
+      (params.dataInputs ?? []).map((d) => [d.id, d]),
+    );
 
     // Check if indexing is enabled
     if (!indexer.isEnabled()) {
@@ -157,7 +212,7 @@ const definition = defineComponent({
       );
       return {
         indexed: false,
-        documentCount,
+        documentCount: 0,
         indexName: '',
       };
     }
@@ -178,32 +233,87 @@ const definition = defineComponent({
       };
     }
 
-    // Runtime validation of analytics result contract
-    const validated = z.array(analyticsResultSchema()).safeParse(inputs.data);
-    if (!validated.success) {
-      const errorMessage = `Invalid analytics results format: ${validated.error.message}`;
-      context.logger.error(`[Analytics Sink] ${errorMessage}`);
-      if (params.failOnError) {
-        throw new Error(errorMessage);
+    // STRICT MODE: Require all configured inputs to be present
+    if (params.failOnError) {
+      for (const inputDef of params.dataInputs ?? []) {
+        const inputData = (inputs as Record<string, unknown>)[inputDef.id];
+        if (!inputData || !Array.isArray(inputData) || inputData.length === 0) {
+          throw new ValidationError(
+            `Required input '${inputDef.label}' (${inputDef.id}) is missing or empty. ` +
+              `All configured inputs must provide data when strict mode is enabled.`,
+            {
+              fieldErrors: { [inputDef.id]: ['This input is required but has no data'] },
+            },
+          );
+        }
       }
+    }
+
+    // Aggregate all documents from all inputs
+    const allDocuments: Array<Record<string, unknown>> = [];
+    const inputsRecord = inputs as Record<string, unknown>;
+
+    for (const [inputId, inputData] of Object.entries(inputsRecord)) {
+      if (!inputData || !Array.isArray(inputData)) {
+        if (!params.failOnError) {
+          context.logger.warn(`[Analytics Sink] Input '${inputId}' is empty or undefined, skipping`);
+        }
+        continue;
+      }
+
+      const inputDef = dataInputsMap.get(inputId);
+      const sourceTag = inputDef?.sourceTag;
+
+      for (const doc of inputData) {
+        // STRICT MODE: Validate each document against analytics schema
+        if (params.failOnError) {
+          const validated = analyticsResultSchema().safeParse(doc);
+          if (!validated.success) {
+            throw new ValidationError(
+              `Document from input '${inputDef?.label ?? inputId}' failed validation: ${validated.error.message}`,
+              {
+                fieldErrors: { [inputId]: [validated.error.message] },
+              },
+            );
+          }
+        }
+
+        // Add source_input field if sourceTag is defined
+        const enrichedDoc = sourceTag ? { ...doc, source_input: sourceTag } : { ...doc };
+        allDocuments.push(enrichedDoc);
+      }
+    }
+
+    const documentCount = allDocuments.length;
+
+    if (documentCount === 0) {
+      context.logger.info('[Analytics Sink] No documents to index from any input');
       return {
         indexed: false,
-        documentCount,
+        documentCount: 0,
         indexName: '',
       };
+    }
+
+    // LENIENT MODE: Validate all documents (but don't fail, just log warnings)
+    if (!params.failOnError) {
+      const validated = z.array(analyticsResultSchema()).safeParse(allDocuments);
+      if (!validated.success) {
+        context.logger.warn(
+          `[Analytics Sink] Some documents have validation issues: ${validated.error.message}`,
+        );
+        // Continue anyway in lenient mode
+      }
     }
 
     try {
       // Determine the actual asset key field to use
       let assetKeyField: string | undefined;
       if (params.assetKeyField === 'auto') {
-        // Auto-detect mode: let the indexer determine the asset key field
         assetKeyField = undefined;
       } else if (params.assetKeyField === 'custom') {
-        // Custom mode: use the custom field name if provided
         assetKeyField = params.customAssetKeyField;
       } else {
-        // Specific field selected
         assetKeyField = params.assetKeyField;
       }
 
@@ -218,8 +328,10 @@ const definition = defineComponent({
         trace: context.trace,
       };
 
-      context.logger.info(`[Analytics Sink] Bulk indexing ${documentCount} documents`);
-      const result = await indexer.bulkIndex(context.organizationId, validated.data, indexOptions);
+      context.logger.info(
+        `[Analytics Sink] Bulk indexing ${documentCount} documents from ${dataInputsMap.size} input(s)`,
+      );
+      const result = await indexer.bulkIndex(context.organizationId, allDocuments, indexOptions);
 
       context.logger.info(
         `[Analytics Sink] Successfully indexed ${result.documentCount} document(s) to ${result.indexName}`,

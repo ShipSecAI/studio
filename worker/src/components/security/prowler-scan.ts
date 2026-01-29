@@ -14,6 +14,9 @@ import {
   parameters,
   port,
   param,
+  analyticsResultSchema,
+  generateFindingHash,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
@@ -246,6 +249,11 @@ const outputSchema = outputs({
     description:
       'Array of normalized findings derived from Prowler ASFF output (includes severity, resource id, remediation).',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   rawOutput: port(z.string(), {
     label: 'Raw Output',
@@ -730,9 +738,29 @@ const definition = defineComponent({
 
       const scanId = buildScanId(parsedInputs.accountId, parsedParams.scanMode);
 
+      // Build analytics-ready results (follows core.analytics.result.v1 contract)
+      const results: AnalyticsResult[] = findings.map((finding) => ({
+        scanner: 'prowler',
+        finding_hash: generateFindingHash(
+          finding.id,
+          finding.resourceId ?? finding.accountId ?? '',
+          finding.title ?? '',
+        ),
+        severity: mapToAnalyticsSeverity(finding.severity),
+        asset_key: finding.resourceId ?? finding.accountId ?? undefined,
+        // Include additional context for analytics
+        title: finding.title,
+        description: finding.description,
+        region: finding.region,
+        status: finding.status,
+        remediationText: finding.remediationText,
+        recommendationUrl: finding.recommendationUrl,
+      }));
+
       const output: Output = {
         scanId,
         findings,
+        results,
         rawOutput: rawSegments.join('\n'),
         summary: {
           totalFindings: findings.length,
@@ -937,6 +965,31 @@ function extractRegionFromArn(resourceId?: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Maps Prowler severity levels to analytics severity enum.
+ * Prowler: critical, high, medium, low, informational, unknown
+ * Analytics: critical, high, medium, low, info, none
+ */
+function mapToAnalyticsSeverity(
+  prowlerSeverity: NormalisedSeverity,
+): 'critical' | 'high' | 'medium' | 'low' | 'info' | 'none' {
+  switch (prowlerSeverity) {
+    case 'critical':
+      return 'critical';
+    case 'high':
+      return 'high';
+    case 'medium':
+      return 'medium';
+    case 'low':
+      return 'low';
+    case 'informational':
+      return 'info';
+    case 'unknown':
+    default:
+      return 'none';
+  }
 }
 
 componentRegistry.register(definition);

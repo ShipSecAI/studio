@@ -338,6 +338,7 @@ services:
       - EVENT_KAFKA_CLIENT_ID=shipsec-worker-events
       # OpenSearch for Analytics Sink
       - OPENSEARCH_URL=http://opensearch:9200
+      - OPENSEARCH_DASHBOARDS_URL=http://opensearch-dashboards:5601/analytics
     depends_on:
       postgres:
         condition: service_healthy
