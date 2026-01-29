@@ -3,15 +3,29 @@ import {
   componentRegistry,
   ComponentRetryPolicy,
   runComponentWithRunner,
-  ServiceError,
-  ValidationError,
+  ContainerError,
   defineComponent,
   inputs,
   outputs,
   parameters,
   port,
   param,
+  type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+
+const AMASS_IMAGE = 'owaspamass/amass:v5.0.1';
+const AMASS_TIMEOUT_SECONDS = (() => {
+  const raw = process.env.AMASS_TIMEOUT_SECONDS;
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) {
+    return 600;
+  }
+  return parsed;
+})();
+const INPUT_MOUNT_NAME = 'inputs';
+const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
+const DOMAIN_FILE_NAME = 'domains.txt';
 
 const inputSchema = inputs({
   domains: port(
@@ -28,6 +42,18 @@ const inputSchema = inputs({
 });
 
 const parameterSchema = parameters({
+  passive: param(
+    z
+      .boolean()
+      .default(true)
+      .describe('Use passive mode only (no DNS queries, faster)'),
+    {
+      label: 'Passive Mode',
+      editor: 'boolean',
+      description: 'Skip DNS verification for faster execution (recommended for quick scans).',
+      helpText: 'Disable only if you need verified DNS records.',
+    },
+  ),
   active: param(
     z
       .boolean()
@@ -126,7 +152,7 @@ const parameterSchema = parameters({
       label: 'Custom CLI Flags',
       editor: 'textarea',
       rows: 3,
-      placeholder: '--passive --config /work/config.yaml',
+      placeholder: '--config /work/config.yaml',
       description: 'Paste additional Amass CLI options exactly as you would on the command line.',
       helpText:
         'Flags are appended after the generated options; avoid duplicating -d domain arguments.',
@@ -192,6 +218,7 @@ const outputSchema = outputs({
   }),
   options: port(
     z.object({
+      passive: z.boolean(),
       active: z.boolean(),
       bruteForce: z.boolean(),
       includeIps: z.boolean(),
@@ -213,14 +240,155 @@ const outputSchema = outputs({
   ),
 });
 
-const dockerTimeoutSeconds = (() => {
-  const raw = process.env.AMASS_TIMEOUT_SECONDS;
-  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
-  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) {
-    return 600;
+// Split custom CLI flags into an array of arguments
+const splitCliArgs = (input: string): string[] => {
+  const args: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let escape = false;
+
+  for (const ch of input) {
+    if (escape) {
+      current += ch;
+      escape = false;
+      continue;
+    }
+
+    if (ch === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (quote) {
+      if (ch === quote) {
+        quote = null;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      quote = ch as '"' | "'";
+      continue;
+    }
+
+    if (/\s/.test(ch)) {
+      if (current.length > 0) {
+        args.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += ch;
   }
-  return parsed;
-})();
+
+  if (current.length > 0) {
+    args.push(current);
+  }
+
+  return args;
+};
+
+interface BuildAmassArgsOptions {
+  domainFile: string;
+  passive: boolean;
+  active: boolean;
+  bruteForce: boolean;
+  enableAlterations: boolean;
+  recursive: boolean;
+  minForRecursive?: number;
+  maxDepth?: number;
+  dnsQueryRate?: number;
+  includeIps: boolean;
+  verbose: boolean;
+  demoMode: boolean;
+  timeoutMinutes?: number;
+  customFlags: string[];
+}
+
+/**
+ * Build Amass CLI arguments in TypeScript.
+ * This follows the Dynamic Args Pattern recommended in component-development.md
+ */
+const buildAmassArgs = (options: BuildAmassArgsOptions): string[] => {
+  const args: string[] = ['enum'];
+
+  // CRITICAL: Always use -silent to prevent progress bar spam
+  // Without this, Amass outputs "0 / 1 [____]" to stderr hundreds of times per second
+  // This floods Loki and can cause system overload (see incident report)
+  args.push('-silent');
+
+  // Domain file input
+  args.push('-df', options.domainFile);
+
+  // Passive mode - recommended for quick scans
+  if (options.passive) {
+    args.push('-passive');
+  }
+
+  // Active techniques (zone transfers, cert grabs)
+  if (options.active) {
+    args.push('-active');
+  }
+
+  // Brute force
+  if (options.bruteForce) {
+    args.push('-brute');
+  }
+
+  // Alterations engine
+  if (options.enableAlterations) {
+    args.push('-alts');
+  }
+
+  // Include IP addresses
+  if (options.includeIps) {
+    args.push('-ip');
+  }
+
+  // Recursive brute forcing
+  if (!options.recursive) {
+    args.push('-norecursive');
+  } else if (typeof options.minForRecursive === 'number' && options.minForRecursive >= 1) {
+    args.push('-min-for-recursive', String(options.minForRecursive));
+  }
+
+  // Max depth
+  if (typeof options.maxDepth === 'number' && options.maxDepth >= 1) {
+    args.push('-max-depth', String(options.maxDepth));
+  }
+
+  // DNS query rate
+  if (typeof options.dnsQueryRate === 'number' && options.dnsQueryRate >= 1) {
+    args.push('-dns-qps', String(options.dnsQueryRate));
+  }
+
+  // Timeout
+  if (typeof options.timeoutMinutes === 'number' && options.timeoutMinutes >= 1) {
+    args.push('-timeout', String(options.timeoutMinutes));
+  }
+
+  // Verbose
+  if (options.verbose) {
+    args.push('-v');
+  }
+
+  // Demo mode
+  if (options.demoMode) {
+    args.push('-demo');
+  }
+
+  // Custom flags (appended last)
+  for (const flag of options.customFlags) {
+    if (flag.length > 0) {
+      args.push(flag);
+    }
+  }
+
+  return args;
+};
 
 // Retry policy for Amass - long-running subdomain enumeration
 const amassRetryPolicy: ComponentRetryPolicy = {
@@ -238,219 +406,20 @@ const definition = defineComponent({
   retryPolicy: amassRetryPolicy,
   runner: {
     kind: 'docker',
-    image: 'owaspamass/amass:v4.2.0',
+    image: AMASS_IMAGE,
+    // IMPORTANT: Use shell wrapper for PTY compatibility
+    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
+    // The shell wrapper ensures proper TTY signal handling and clean exit
+    // See docs/component-development.md "Docker Entrypoint Pattern" for details
     entrypoint: 'sh',
     network: 'bridge',
-    timeoutSeconds: dockerTimeoutSeconds,
-    command: [
-      '-c',
-      String.raw`set -eo pipefail
-
-export HOME=/tmp
-mkdir -p "$HOME/.config/amass"
-
-INPUT=$(cat)
-
-DOMAINS_SECTION=$(printf "%s" "$INPUT" | tr -d '\n' | sed -n 's/.*"domains":[[:space:]]*\[\([^]]*\)\].*/\1/p')
-
-if [ -z "$DOMAINS_SECTION" ]; then
-  printf '{"subdomains":[],"rawOutput":"","domainCount":0,"subdomainCount":0,"options":{"active":false,"bruteForce":false,"includeIps":false,"enableAlterations":false,"recursive":true,"verbose":false,"demoMode":false,"timeoutMinutes":null,"minForRecursive":null,"maxDepth":null,"dnsQueryRate":null,"customFlags":null}}'
-  exit 0
-fi
-
-DOMAIN_LIST=$(printf "%s" "$DOMAINS_SECTION" | tr ',' '\n' | sed 's/"//g; s/^[[:space:]]*//; s/[[:space:]]*$//' | sed '/^$/d')
-
-if [ -z "$DOMAIN_LIST" ]; then
-  printf '{"subdomains":[],"rawOutput":"","domainCount":0,"subdomainCount":0,"options":{"active":false,"bruteForce":false,"includeIps":false,"enableAlterations":false,"recursive":true,"verbose":false,"demoMode":false,"timeoutMinutes":null,"minForRecursive":null,"maxDepth":null,"dnsQueryRate":null,"customFlags":null}}'
-  exit 0
-fi
-
-extract_bool() {
-  key="$1"
-  default="$2"
-  value=$(printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*\\(true\\|false\\)" | head -n1 | sed 's/.*://; s/[[:space:]]//g')
-  if [ -z "$value" ]; then
-    value="$default"
-  fi
-  if [ "$value" = "true" ]; then
-    echo "true"
-  else
-    echo "false"
-  fi
-}
-
-extract_number() {
-  key="$1"
-  value=$(printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*[0-9][0-9]*" | head -n1 | sed 's/[^0-9]//g')
-  if [ -z "$value" ]; then
-    echo ""
-  else
-    echo "$value"
-  fi
-}
-
-extract_string() {
-  key="$1"
-  printf "%s" "$INPUT" | tr '\n' ' ' | sed -n "s/.*\"$key\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n1
-}
-
-ACTIVE=$(extract_bool "active" "false")
-BRUTE=$(extract_bool "bruteForce" "false")
-INCLUDE_IPS=$(extract_bool "includeIps" "false")
-ALTERATIONS=$(extract_bool "enableAlterations" "false")
-RECURSIVE=$(extract_bool "recursive" "true")
-VERBOSE=$(extract_bool "verbose" "false")
-DEMO=$(extract_bool "demoMode" "false")
-TIMEOUT=$(extract_number "timeoutMinutes")
-MIN_FOR_RECUR=$(extract_number "minForRecursive")
-MAX_DEPTH=$(extract_number "maxDepth")
-DNS_QPS=$(extract_number "dnsQueryRate")
-CUSTOM_FLAGS=$(extract_string "customFlags")
-
-if [ -n "$TIMEOUT" ]; then
-  TIMEOUT_JSON="$TIMEOUT"
-else
-  TIMEOUT_JSON=null
-fi
-
-if [ -n "$MIN_FOR_RECUR" ]; then
-  MIN_FOR_RECUR_JSON="$MIN_FOR_RECUR"
-else
-  MIN_FOR_RECUR_JSON=null
-fi
-
-if [ -n "$MAX_DEPTH" ]; then
-  MAX_DEPTH_JSON="$MAX_DEPTH"
-else
-  MAX_DEPTH_JSON=null
-fi
-
-if [ -n "$DNS_QPS" ]; then
-  DNS_QPS_JSON="$DNS_QPS"
-else
-  DNS_QPS_JSON=null
-fi
-
-if [ -n "$CUSTOM_FLAGS" ]; then
-  CUSTOM_FLAGS_JSON=$(printf '"%s"' "$(printf '%s' "$CUSTOM_FLAGS" | sed 's/\\/\\\\/g; s/"/\\"/g')")
-else
-  CUSTOM_FLAGS_JSON=null
-fi
-
-AMASS_FLAGS=""
-if [ "$ACTIVE" = "true" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -active"
-fi
-if [ "$BRUTE" = "true" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -brute"
-fi
-if [ "$INCLUDE_IPS" = "true" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -ip"
-fi
-if [ "$ALTERATIONS" = "true" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -alts"
-fi
-if [ "$RECURSIVE" = "false" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -norecursive"
-else
-  if [ -n "$MIN_FOR_RECUR" ]; then
-    AMASS_FLAGS="$AMASS_FLAGS -min-for-recursive $MIN_FOR_RECUR"
-  fi
-fi
-if [ -n "$TIMEOUT" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -timeout $TIMEOUT"
-fi
-if [ -n "$MAX_DEPTH" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -max-depth $MAX_DEPTH"
-fi
-if [ -n "$DNS_QPS" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -dns-qps $DNS_QPS"
-fi
-if [ "$VERBOSE" = "true" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -v"
-fi
-if [ "$DEMO" = "true" ]; then
-  AMASS_FLAGS="$AMASS_FLAGS -demo"
-fi
-
-DOMAIN_ARGS=""
-DOMAIN_COUNT=0
-for DOMAIN in $DOMAIN_LIST; do
-  if [ -n "$DOMAIN" ]; then
-    DOMAIN_ARGS="$DOMAIN_ARGS -d $DOMAIN"
-    DOMAIN_COUNT=$((DOMAIN_COUNT + 1))
-  fi
-done
-
-RAW_FILE=$(mktemp)
-DEDUP_FILE=$(mktemp)
-trap 'rm -f "$RAW_FILE" "$DEDUP_FILE"' EXIT
-
-if [ "$DOMAIN_COUNT" -eq 0 ]; then
-  printf '{"subdomains":[],"rawOutput":"","domainCount":0,"subdomainCount":0,"options":{"active":%s,"bruteForce":%s,"includeIps":%s,"enableAlterations":%s,"recursive":%s,"verbose":%s,"demoMode":%s,"timeoutMinutes":%s,"minForRecursive":%s,"maxDepth":%s,"dnsQueryRate":%s,"customFlags":%s}}' \
-    "$ACTIVE" \
-    "$BRUTE" \
-    "$INCLUDE_IPS" \
-    "$ALTERATIONS" \
-    "$RECURSIVE" \
-    "$VERBOSE" \
-    "$DEMO" \
-    "$TIMEOUT_JSON" \
-    "$MIN_FOR_RECUR_JSON" \
-    "$MAX_DEPTH_JSON" \
-    "$DNS_QPS_JSON" \
-    "$CUSTOM_FLAGS_JSON"
-  exit 0
-fi
-
-AMASS_COMMAND="/bin/amass enum $AMASS_FLAGS $DOMAIN_ARGS"
-if [ -n "$CUSTOM_FLAGS" ]; then
-  AMASS_COMMAND="$AMASS_COMMAND $CUSTOM_FLAGS"
-fi
-
-set +e
-eval "$AMASS_COMMAND" >"$RAW_FILE"
-STATUS=$?
-set -e
-
-if [ $STATUS -ne 0 ] && [ ! -s "$RAW_FILE" ]; then
-  exit $STATUS
-fi
-
-sed -e 's/\r//g' "$RAW_FILE" | grep -v '^\[' | awk '{print $1}' | sed '/^$/d' | sort -u > "$DEDUP_FILE"
-
-SUBDOMAIN_COUNT=$(wc -l < "$DEDUP_FILE" | tr -d ' ')
-
-if [ "$SUBDOMAIN_COUNT" -eq 0 ]; then
-  SUBDOMAIN_JSON="[]"
-else
-  SUBDOMAIN_JSON=$(awk 'NR==1{printf("[\"%s\"", $0); next} {printf(",\"%s\"", $0)} END {if (NR==0) printf("[]"); else printf("]");}' "$DEDUP_FILE")
-fi
-
-RAW_OUTPUT_ESCAPED=$(printf '%s' "$(cat "$RAW_FILE")" | sed ':a;N;$!ba;s/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g')
-
-printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"options":{"active":%s,"bruteForce":%s,"includeIps":%s,"enableAlterations":%s,"recursive":%s,"verbose":%s,"demoMode":%s,"timeoutMinutes":%s,"minForRecursive":%s,"maxDepth":%s,"dnsQueryRate":%s,"customFlags":%s}}' \
-  "$SUBDOMAIN_JSON" \
-  "$RAW_OUTPUT_ESCAPED" \
-  "$DOMAIN_COUNT" \
-  "$SUBDOMAIN_COUNT" \
-  "$ACTIVE" \
-  "$BRUTE" \
-  "$INCLUDE_IPS" \
-  "$ALTERATIONS" \
-  "$RECURSIVE" \
-  "$VERBOSE" \
-  "$DEMO" \
-  "$TIMEOUT_JSON" \
-  "$MIN_FOR_RECUR_JSON" \
-  "$MAX_DEPTH_JSON" \
-  "$DNS_QPS_JSON" \
-  "$CUSTOM_FLAGS_JSON"
-`,
-    ],
+    timeoutSeconds: AMASS_TIMEOUT_SECONDS,
     env: {
-      HOME: '/root',
+      HOME: '/tmp',
     },
+    // Shell wrapper pattern: sh -c 'amass "$@"' -- [args...]
+    // This allows dynamic args to be appended and properly passed to amass
+    command: ['-c', 'amass "$@"', '--'],
   },
   inputs: inputSchema,
   outputs: outputSchema,
@@ -482,33 +451,62 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
-    const runnerPayload = {
-      ...inputs,
-      ...parsedParams,
-    };
+    const {
+      passive,
+      active,
+      bruteForce,
+      enableAlterations,
+      recursive,
+      minForRecursive,
+      maxDepth,
+      dnsQueryRate,
+      includeIps,
+      verbose,
+      demoMode,
+      timeoutMinutes,
+      customFlags,
+    } = parsedParams;
 
-    const customFlags =
-      runnerPayload.customFlags && runnerPayload.customFlags.length > 0
-        ? runnerPayload.customFlags
-        : null;
+    const trimmedCustomFlags =
+      typeof customFlags === 'string' && customFlags.length > 0 ? customFlags : null;
+    const customFlagArgs = trimmedCustomFlags ? splitCliArgs(trimmedCustomFlags) : [];
 
     const optionsSummary = {
-      active: parsedParams.active ?? false,
-      bruteForce: parsedParams.bruteForce ?? false,
-      enableAlterations: parsedParams.enableAlterations ?? false,
-      includeIps: parsedParams.includeIps ?? false,
-      recursive: parsedParams.recursive ?? true,
-      minForRecursive: parsedParams.minForRecursive ?? null,
-      maxDepth: parsedParams.maxDepth ?? null,
-      dnsQueryRate: parsedParams.dnsQueryRate ?? null,
-      verbose: parsedParams.verbose ?? false,
-      demoMode: parsedParams.demoMode ?? false,
-      timeoutMinutes: parsedParams.timeoutMinutes ?? null,
-      customFlags,
+      passive: passive ?? true,
+      active: active ?? false,
+      bruteForce: bruteForce ?? false,
+      enableAlterations: enableAlterations ?? false,
+      includeIps: includeIps ?? false,
+      recursive: recursive ?? true,
+      minForRecursive: minForRecursive ?? null,
+      maxDepth: maxDepth ?? null,
+      dnsQueryRate: dnsQueryRate ?? null,
+      verbose: verbose ?? false,
+      demoMode: demoMode ?? false,
+      timeoutMinutes: timeoutMinutes ?? null,
+      customFlags: trimmedCustomFlags,
     };
 
+    // Normalize domains
+    const normalisedDomains = inputs.domains
+      .map((domain) => domain.trim())
+      .filter((domain) => domain.length > 0);
+
+    const domainCount = normalisedDomains.length;
+
+    if (domainCount === 0) {
+      context.logger.info('[Amass] Skipping execution because no domains were provided.');
+      return {
+        subdomains: [],
+        rawOutput: '',
+        domainCount: 0,
+        subdomainCount: 0,
+        options: optionsSummary,
+      };
+    }
+
     context.logger.info(
-      `[Amass] Enumerating ${inputs.domains.length} domain(s) with options: ${JSON.stringify(optionsSummary)}`,
+      `[Amass] Enumerating ${domainCount} domain(s) with options: ${JSON.stringify(optionsSummary)}`,
     );
 
     context.emitProgress({
@@ -517,66 +515,134 @@ printf '{"subdomains":%s,"rawOutput":"%s","domainCount":%d,"subdomainCount":%d,"
       data: { domains: inputs.domains, options: optionsSummary },
     });
 
-    const normalizedInput: (typeof inputSchema)['__inferred'] &
-      (typeof parameterSchema)['__inferred'] = {
-      ...runnerPayload,
-      customFlags: customFlags ?? undefined,
-    };
+    // Extract tenant ID from context
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
 
-    const result = await runComponentWithRunner(
-      definition.runner,
-      async () => ({}) as Output,
-      normalizedInput,
-      context,
-    );
+    // Create isolated volume for this execution
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
-    if (typeof result === 'string') {
-      try {
-        const parsed = JSON.parse(result);
-        return outputSchema.parse(parsed);
-      } catch (error) {
-        context.logger.error(`[Amass] Failed to parse raw output: ${(error as Error).message}`);
-        throw new ServiceError('Amass returned unexpected raw output format', {
-          cause: error as Error,
-          details: { outputType: typeof result },
-        });
-      }
-    }
-
-    const parsed = outputSchema.safeParse(result);
-    if (!parsed.success) {
-      context.logger.error('[Amass] Output validation failed', parsed.error);
-      throw new ValidationError('Amass output validation failed', {
-        cause: parsed.error,
-        details: { issues: parsed.error.issues },
+    const baseRunner = definition.runner;
+    if (baseRunner.kind !== 'docker') {
+      throw new ContainerError('Amass runner is expected to be docker-based.', {
+        details: { expectedKind: 'docker', actualKind: baseRunner.kind },
       });
     }
 
+    let rawOutput: string;
+    try {
+      // Initialize volume with domain file
+      const volumeName = await volume.initialize({
+        [DOMAIN_FILE_NAME]: normalisedDomains.join('\n'),
+      });
+      context.logger.info(`[Amass] Created isolated volume: ${volumeName}`);
+
+      // Build Amass arguments in TypeScript
+      const amassArgs = buildAmassArgs({
+        domainFile: `${CONTAINER_INPUT_DIR}/${DOMAIN_FILE_NAME}`,
+        passive: passive ?? true,
+        active: active ?? false,
+        bruteForce: bruteForce ?? false,
+        enableAlterations: enableAlterations ?? false,
+        recursive: recursive ?? true,
+        minForRecursive,
+        maxDepth,
+        dnsQueryRate,
+        includeIps: includeIps ?? false,
+        verbose: verbose ?? false,
+        demoMode: demoMode ?? false,
+        timeoutMinutes,
+        customFlags: customFlagArgs,
+      });
+
+      const runnerConfig: DockerRunnerConfig = {
+        kind: 'docker',
+        image: baseRunner.image,
+        network: baseRunner.network,
+        timeoutSeconds: baseRunner.timeoutSeconds ?? AMASS_TIMEOUT_SECONDS,
+        env: { ...(baseRunner.env ?? {}) },
+        // Preserve the shell wrapper from baseRunner (sh -c 'amass "$@"' --)
+        entrypoint: baseRunner.entrypoint,
+        // Append amass arguments to shell wrapper command
+        command: [...(baseRunner.command ?? []), ...amassArgs],
+        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
+      };
+
+      const result = await runComponentWithRunner(
+        runnerConfig,
+        async () => ({}) as Output,
+        { domains: inputs.domains },
+        context,
+      );
+
+      // Get raw output (either string or from object)
+      if (typeof result === 'string') {
+        rawOutput = result;
+      } else if (result && typeof result === 'object' && 'rawOutput' in result) {
+        rawOutput = String((result as any).rawOutput ?? '');
+      } else {
+        rawOutput = '';
+      }
+    } finally {
+      // Always cleanup the volume
+      await volume.cleanup();
+      context.logger.info('[Amass] Cleaned up isolated volume');
+    }
+
+    // Parse output in TypeScript (not shell)
+    const lines = rawOutput
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    // Deduplicate subdomains - extract hostname from each line
+    // Amass output can include IP addresses or other data after the hostname
+    const subdomainSet = new Set(
+      lines
+        .map((line) => {
+          // Extract first token (hostname)
+          const tokens = line.split(/\s+/);
+          return tokens[0] || '';
+        })
+        .filter((host) => host.length > 0 && !host.startsWith('[')),
+    );
+    const subdomains = Array.from(subdomainSet);
+    const subdomainCount = subdomains.length;
+
     context.logger.info(
-      `[Amass] Found ${parsed.data.subdomainCount} unique subdomains across ${parsed.data.domainCount} domains`,
+      `[Amass] Found ${subdomainCount} unique subdomains across ${domainCount} domains`,
     );
 
-    if (parsed.data.subdomainCount === 0) {
+    if (subdomainCount === 0) {
       context.emitProgress({
         message: 'No subdomains discovered by Amass',
         level: 'warn',
       });
     } else {
       context.emitProgress({
-        message: `Amass discovered ${parsed.data.subdomainCount} subdomains`,
+        message: `Amass discovered ${subdomainCount} subdomains`,
         level: 'info',
-        data: { subdomains: parsed.data.subdomains.slice(0, 10) },
+        data: { subdomains: subdomains.slice(0, 10) },
       });
     }
 
-    return parsed.data;
+    return {
+      subdomains,
+      rawOutput,
+      domainCount,
+      subdomainCount,
+      options: optionsSummary,
+    };
   },
 });
 
 componentRegistry.register(definition);
 
-// Create local type aliases for backward compatibility
-type Input = typeof inputSchema;
-type Output = typeof outputSchema;
+// Internal type for execute function
+type Output = (typeof outputSchema)['__inferred'];
 
-export type { Input as AmassInput, Output as AmassOutput };
+// Create local type aliases for backward compatibility
+type AmassInput = typeof inputSchema;
+type AmassOutput = typeof outputSchema;
+
+export type { AmassInput, AmassOutput };
