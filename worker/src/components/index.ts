@@ -68,6 +68,7 @@ import './it-automation/okta-user-offboard';
 // Test utility components
 import './test/sleep-parallel';
 import './test/live-event-heartbeat';
+import './test/analytics-fixture';
 
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';
