@@ -99,7 +99,8 @@ const parameterSchema = parameters({
       editor: 'textarea',
       rows: 3,
       placeholder: '-sources shodan,censys',
-      description: 'Paste additional subfinder CLI options exactly as you would on the command line.',
+      description:
+        'Paste additional subfinder CLI options exactly as you would on the command line.',
       helpText: 'Flags are appended after the generated options.',
     },
   ),
