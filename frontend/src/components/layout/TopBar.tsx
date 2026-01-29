@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   Undo2,
   Redo2,
+  ExternalLink,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ import {
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { cn } from '@/lib/utils';
+import { env } from '@/config/env';
 
 interface TopBarProps {
   workflowId?: string;
@@ -452,6 +454,37 @@ export function TopBar({
                     </span>
                   </Button>
                 </>
+              )}
+
+              {env.VITE_OPENSEARCH_DASHBOARDS_URL && workflowId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 md:gap-2 min-w-0"
+                  onClick={() => {
+                    const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(/\/+$/, '');
+                    // Filter by run_id if a specific run is selected, otherwise by workflow_id
+                    const filterQuery = selectedRunId
+                      ? `shipsec.run_id.keyword:"${selectedRunId}"`
+                      : `shipsec.workflow_id.keyword:"${workflowId}"`;
+                    // OpenSearch Dashboards Discover URL
+                    // Use .keyword fields for exact match filtering
+                    const gParam = encodeURIComponent('(time:(from:now-7d,to:now))');
+                    const aParam = encodeURIComponent(
+                      `(columns:!(_source),index:'security-findings-*',interval:auto,query:(language:kuery,query:'${filterQuery}'),sort:!('@timestamp',desc))`,
+                    );
+                    const url = `${baseUrl}/app/discover#/?_g=${gParam}&_a=${aParam}`;
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  }}
+                  title={
+                    selectedRunId
+                      ? 'View analytics for this run in OpenSearch Dashboards'
+                      : 'View analytics for this workflow in OpenSearch Dashboards'
+                  }
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span className="hidden lg:inline">View Analytics</span>
+                </Button>
               )}
 
               <Button

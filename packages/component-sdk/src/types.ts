@@ -344,6 +344,11 @@ export interface ExecutionContext {
   metadata: ExecutionContextMetadata;
   agentTracePublisher?: AgentTracePublisher;
 
+  // Workflow context (optional, available when running in workflow)
+  workflowId?: string;
+  workflowName?: string;
+  organizationId?: string | null;
+
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;
   secrets?: ISecretsService;

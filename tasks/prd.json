@@ -1,0 +1,253 @@
+{
+  "project": "ShipSec Studio",
+  "branchName": "ralph/workflow-analytics-dashboards",
+  "description": "Security Analytics Platform - Index workflow output data into OpenSearch for dashboards, queries, and alerts",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add OpenSearch client dependency and configuration",
+      "description": "As a developer, I need the OpenSearch client library installed and configured so that the backend can communicate with OpenSearch.",
+      "acceptanceCriteria": [
+        "Add @opensearch-project/opensearch package to backend dependencies",
+        "Create OpenSearch client configuration in backend config module",
+        "Environment variables: OPENSEARCH_URL, OPENSEARCH_USERNAME, OPENSEARCH_PASSWORD",
+        "Client exported from a dedicated module (e.g., opensearch.client.ts)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Completed: OpenSearchClient created in config/opensearch.client.ts, config in config/opensearch.config.ts, exported from AppModule"
+    },
+    {
+      "id": "US-002",
+      "title": "Create Analytics service for document indexing",
+      "description": "As a developer, I need an Analytics service that can index documents to OpenSearch with proper metadata.",
+      "acceptanceCriteria": [
+        "Create AnalyticsService in backend (analytics.service.ts)",
+        "Method: indexDocument(orgId, document, options) that indexes to security-findings-{orgId}-{YYYY.MM.DD}",
+        "Method: bulkIndex(orgId, documents, options) for array outputs",
+        "Standard metadata added: workflow_id, workflow_name, run_id, node_ref, component_id, @timestamp",
+        "Auto-detect asset_key from fields: host, domain, subdomain, url, ip, asset, target",
+        "Service registered in analytics module",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Completed: SecurityAnalyticsService created with indexDocument and bulkIndex methods, registered in AnalyticsModule"
+    },
+    {
+      "id": "US-003",
+      "title": "Create index template for security-findings indices",
+      "description": "As a developer, I need an index template setup script that creates proper mappings for analytics data.",
+      "acceptanceCriteria": [
+        "Create setup script or migration for index template: security-findings-*",
+        "Template includes mappings: @timestamp (date), workflow_id (keyword), workflow_name (keyword), run_id (keyword), node_ref (keyword), component_id (keyword), asset_key (keyword), data (object with dynamic: true)",
+        "Template settings: number_of_shards: 1, number_of_replicas: 1",
+        "Script can be run via npm command (e.g., npm run setup:opensearch)",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Completed: Created backend/scripts/setup-opensearch.ts with index template setup, added npm script setup:opensearch"
+    },
+    {
+      "id": "US-004",
+      "title": "Define Analytics Sink component schema",
+      "description": "As a workflow builder, I need the Analytics Sink component defined so it appears in the component registry.",
+      "acceptanceCriteria": [
+        "Add analytics-sink component definition to component registry",
+        "Component category: 'Outputs'",
+        "Component accepts any input type",
+        "Parameters: indexSuffix (optional string), assetKeyField (optional string), failOnError (optional boolean, default false)",
+        "Component has appropriate icon and description",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Completed: Created analytics-sink component in worker/src/components/core/analytics-sink.ts, registered in index.ts, category: output, icon: BarChart3"
+    },
+    {
+      "id": "US-005",
+      "title": "Implement Analytics Sink execution logic in worker",
+      "description": "As a workflow executor, I need the Analytics Sink to actually index data when the workflow runs.",
+      "acceptanceCriteria": [
+        "Add analytics-sink handler in worker execution code",
+        "Handler receives input from upstream node",
+        "If input is array, call bulkIndex with each item as separate document",
+        "If input is object, call indexDocument with single document",
+        "Include workflow context: workflow_id, workflow_name, run_id, node_ref",
+        "Use component_id from upstream node that produced the data",
+        "Indexing is fire-and-forget by default (does not fail workflow)",
+        "If failOnError is true, throw on indexing failure",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Completed: Implemented execute() logic in analytics-sink component, created OpenSearchIndexer utility, extended ExecutionContext with workflow metadata"
+    },
+    {
+      "id": "US-006",
+      "title": "Add retry logic and error handling to Analytics service",
+      "description": "As a workflow builder, I need analytics indexing to be resilient to transient failures.",
+      "acceptanceCriteria": [
+        "Implement retry with exponential backoff (3 attempts, 1s/2s/4s delays)",
+        "Log indexing errors to workflow trace via trace service",
+        "Error details include: index name, document count, error message",
+        "Successful indexing logged as trace event",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Completed: Added retryWithBackoff helper function, trace logging for success/error/partial-failure cases in both indexDocument and bulkIndex methods"
+    },
+    {
+      "id": "US-007",
+      "title": "Add Analytics Sink to workflow editor palette",
+      "description": "As a workflow builder, I want to see Analytics Sink in the component palette so I can add it to workflows.",
+      "acceptanceCriteria": [
+        "Analytics Sink appears in 'Outputs' category in component palette",
+        "Component has icon consistent with design system (chart/analytics icon)",
+        "Component can be dragged onto canvas",
+        "Component can receive connections from any other node",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Completed: Analytics Sink appears in Output category, uses BarChart3 icon, is draggable/placeable, verified in browser. Fixed OpenSearchClient DI by creating OpenSearchModule."
+    },
+    {
+      "id": "US-008",
+      "title": "Create Analytics Sink configuration panel",
+      "description": "As a workflow builder, I want to configure the Analytics Sink parameters in the workflow editor.",
+      "acceptanceCriteria": [
+        "When Analytics Sink node is selected, configuration panel shows",
+        "Panel has text input for 'Index Suffix' with placeholder showing default (workflow slug)",
+        "Panel has dropdown for 'Asset Key Field' with options: Auto-detect, host, domain, subdomain, url, ip, asset, target, or custom",
+        "Panel has checkbox for 'Fail workflow if indexing fails'",
+        "Configuration saves to node parameters",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Completed: Enhanced component parameters with dropdown for assetKeyField, placeholder for indexSuffix, conditional customAssetKeyField parameter. ConfigPanel auto-discovers and renders parameters."
+    },
+    {
+      "id": "US-009",
+      "title": "Add Dashboards link to Studio sidebar",
+      "description": "As a user, I want to access analytics dashboards from the Studio sidebar.",
+      "acceptanceCriteria": [
+        "New 'Dashboards' item added to sidebar navigation after 'Artifact Library'",
+        "Icon: BarChart3 or similar analytics icon from lucide-react",
+        "Clicking opens external URL in new tab",
+        "URL constructed as: OPENSEARCH_DASHBOARDS_URL (from env) or configurable",
+        "Link includes org context if needed for tenant routing",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Completed: Added Dashboards navigation item with BarChart3 icon, opens in new tab, conditional on VITE_OPENSEARCH_DASHBOARDS_URL env var. Note: org context routing can be added later if needed."
+    },
+    {
+      "id": "US-010",
+      "title": "Create Analytics query API endpoint",
+      "description": "As a developer, I want to query analytics data via API for integrations and custom visualizations.",
+      "acceptanceCriteria": [
+        "POST /api/analytics/query endpoint created",
+        "Request body accepts: query (OpenSearch DSL), size (number), from (number), aggs (object)",
+        "Endpoint automatically scopes query to user's org index pattern: security-findings-{orgId}-*",
+        "Returns OpenSearch response (hits, aggregations, total)",
+        "Authentication required (Clerk session)",
+        "Returns 400 for invalid query syntax",
+        "Endpoint documented in OpenAPI spec or API docs",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Completed: Created AnalyticsController with POST /api/analytics/query endpoint, added query() method to SecurityAnalyticsService, supports OpenSearch DSL queries with org scoping"
+    },
+    {
+      "id": "US-011",
+      "title": "Add rate limiting to Analytics API",
+      "description": "As a platform operator, I need rate limiting on the analytics API to prevent abuse.",
+      "acceptanceCriteria": [
+        "Rate limit applied to POST /api/analytics/query: 100 requests per minute per user",
+        "Returns 429 Too Many Requests when limit exceeded",
+        "Rate limit headers included in response: X-RateLimit-Limit, X-RateLimit-Remaining",
+        "Rate limiting uses existing rate limit infrastructure or Redis",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Completed: Installed @nestjs/throttler, configured ThrottlerModule with Redis storage, applied rate limiting to analytics query endpoint with headers documentation"
+    },
+    {
+      "id": "US-012",
+      "title": "Create Analytics settings page for retention configuration",
+      "description": "As an org admin, I want to configure data retention settings for my organization.",
+      "acceptanceCriteria": [
+        "New settings page or section: Analytics Settings",
+        "Displays current retention period (read from org settings)",
+        "Shows retention limit based on subscription tier (Free: 30d, Pro: 90d, Enterprise: 365d)",
+        "Dropdown to select retention period within tier limit",
+        "Save button updates org analytics settings",
+        "Shows current storage usage if available (or placeholder)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Completed: Created AnalyticsSettingsPage with tier-based retention UI, routing, navigation. Ready for API integration in US-013."
+    },
+    {
+      "id": "US-013",
+      "title": "Create retention settings API endpoints",
+      "description": "As a developer, I need API endpoints to get and update analytics retention settings.",
+      "acceptanceCriteria": [
+        "GET /api/analytics/settings returns current retention config for org",
+        "PUT /api/analytics/settings updates retention config",
+        "Validates retention period is within tier limits",
+        "Returns 400 if retention exceeds tier limit",
+        "Only org admins can update settings (authorization check)",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "Completed: Created organization_settings table, OrganizationSettingsService, analytics settings DTOs, GET and PUT endpoints with tier-based validation and admin-only authorization"
+    },
+    {
+      "id": "US-014",
+      "title": "Add View Analytics button to workflow detail page",
+      "description": "As a user, I want to quickly view analytics for a specific workflow.",
+      "acceptanceCriteria": [
+        "Add 'View Analytics' button on workflow detail/edit page header",
+        "Button opens OpenSearch Dashboards in new tab",
+        "URL includes pre-filtered query parameter: workflow_id:{workflowId}",
+        "Button uses external link icon to indicate opens in new tab",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "Completed: Added View Analytics button to TopBar component, conditionally shown when VITE_OPENSEARCH_DASHBOARDS_URL is set, opens in new tab with workflow_id filter"
+    },
+    {
+      "id": "US-015",
+      "title": "Add Analytics Sink to docker-compose for development",
+      "description": "As a developer, I need OpenSearch running locally for development and testing.",
+      "acceptanceCriteria": [
+        "Add opensearch service to docker-compose.yml (single-node, dev config)",
+        "Add opensearch-dashboards service to docker-compose.yml",
+        "Services use environment variables for configuration",
+        "Health check configured for opensearch service",
+        "README updated with instructions to start analytics stack",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "Completed: Added OpenSearch and OpenSearch Dashboards services to docker-compose.infra.yml, updated installation.mdx with Analytics Stack section, updated .env.example files"
+    }
+  ]
+}

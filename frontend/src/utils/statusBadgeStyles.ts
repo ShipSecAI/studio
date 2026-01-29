@@ -17,6 +17,7 @@ export const STATUS_COLOR_MAP: Record<string, StatusColor> = {
   TERMINATED: 'gray',
   TIMED_OUT: 'amber',
   AWAITING_INPUT: 'purple',
+  STALE: 'amber', // Orphaned record - data inconsistency warning
 };
 
 /**

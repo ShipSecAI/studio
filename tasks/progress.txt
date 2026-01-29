@@ -1,0 +1,28 @@
+## Codebase Patterns
+- TopBar component is in frontend/src/components/layout/TopBar.tsx
+- Environment variables are centralized in frontend/src/config/env.ts
+- Use ExternalLink icon from lucide-react for external navigation buttons
+- Conditional UI rendering based on env vars: check if env var is set before showing features
+
+---
+
+## 2026-01-21 - US-014
+- What was implemented:
+  - Added "View Analytics" button to TopBar component in workflow detail/edit page
+  - Button conditionally appears when VITE_OPENSEARCH_DASHBOARDS_URL environment variable is set
+  - Button opens OpenSearch Dashboards in new tab with pre-filtered query: workflow_id:{workflowId}
+  - Used ExternalLink icon from lucide-react to indicate external navigation
+  - Button positioned between "Synced" and "Run" buttons in the header
+
+- Files changed:
+  - frontend/src/components/layout/TopBar.tsx
+
+- **Learnings for future iterations:**
+  - The TopBar component is shared across all workflow pages (design and execution modes)
+  - The workflowId prop is available in TopBar and can be used for URL construction
+  - Environment variables from env.ts are already typed and safe to use (empty string fallback if not set)
+  - The env.VITE_OPENSEARCH_DASHBOARDS_URL is already used in AppLayout for the sidebar Dashboards link
+  - OpenSearch Dashboards URL format for pre-filtered queries: `${baseUrl}/app/discover#/?_a=(query:(language:kuery,query:'${encodeURIComponent(filterQuery)}'))`
+  - Browser verification confirmed button appears correctly and opens in new tab (use window.open with 'noopener,noreferrer' for security)
+
+---

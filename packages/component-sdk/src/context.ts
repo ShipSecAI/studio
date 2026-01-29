@@ -45,10 +45,13 @@ export interface CreateContextOptions {
   logCollector?: (entry: LogEventInput) => void;
   terminalCollector?: (chunk: TerminalChunkInput) => void;
   agentTracePublisher?: AgentTracePublisher;
+  workflowId?: string;
+  workflowName?: string;
+  organizationId?: string | null;
 }
 
 export function createExecutionContext(options: CreateContextOptions): ExecutionContext {
-  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector, agentTracePublisher } =
+  const { runId, componentRef, metadata: metadataInput, storage, secrets, artifacts, trace, logCollector, terminalCollector, agentTracePublisher, workflowId, workflowName, organizationId } =
     options;
   const metadata = createMetadata(runId, componentRef, metadataInput);
   const scopedTrace = trace ? createScopedTrace(trace, metadata) : undefined;
@@ -145,6 +148,9 @@ export function createExecutionContext(options: CreateContextOptions): Execution
     terminalCollector,
     metadata,
     agentTracePublisher,
+    workflowId,
+    workflowName,
+    organizationId,
     http: undefined as unknown as ExecutionContext['http'],
   };
 
