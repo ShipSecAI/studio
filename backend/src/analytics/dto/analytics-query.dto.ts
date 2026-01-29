@@ -12,6 +12,8 @@ export class AnalyticsQueryRequestDto {
     description: 'Number of results to return',
     example: 10,
     default: 10,
+    minimum: 0,
+    maximum: 1000,
     required: false,
   })
   size?: number;
@@ -20,6 +22,8 @@ export class AnalyticsQueryRequestDto {
     description: 'Offset for pagination',
     example: 0,
     default: 0,
+    minimum: 0,
+    maximum: 10000,
     required: false,
   })
   from?: number;

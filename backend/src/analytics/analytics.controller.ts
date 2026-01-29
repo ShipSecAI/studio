@@ -22,6 +22,13 @@ import {
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 
+const MAX_QUERY_SIZE = 1000;
+const MAX_QUERY_FROM = 10000;
+
+function isValidNonNegativeInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
 @ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
@@ -72,6 +79,22 @@ export class AnalyticsController {
     // Set defaults
     const size = queryDto.size ?? 10;
     const from = queryDto.from ?? 0;
+
+    if (!isValidNonNegativeInt(size)) {
+      throw new BadRequestException('Invalid size: must be a non-negative integer');
+    }
+
+    if (!isValidNonNegativeInt(from)) {
+      throw new BadRequestException('Invalid from: must be a non-negative integer');
+    }
+
+    if (size > MAX_QUERY_SIZE) {
+      throw new BadRequestException(`Invalid size: maximum is ${MAX_QUERY_SIZE}`);
+    }
+
+    if (from > MAX_QUERY_FROM) {
+      throw new BadRequestException(`Invalid from: maximum is ${MAX_QUERY_FROM}`);
+    }
 
     // Call the service to execute the query
     return this.securityAnalyticsService.query(auth.organizationId, {
@@ -154,6 +177,13 @@ export class AnalyticsController {
 
     // Validate retention period is within tier limits
     if (updateDto.analyticsRetentionDays !== undefined) {
+      if (
+        typeof updateDto.analyticsRetentionDays !== 'number' ||
+        !Number.isInteger(updateDto.analyticsRetentionDays)
+      ) {
+        throw new BadRequestException('Retention period must be an integer number of days');
+      }
+
       const isValid = this.organizationSettingsService.validateRetentionPeriod(
         tierToValidate,
         updateDto.analyticsRetentionDays,

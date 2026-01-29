@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsInt, Min, Max } from 'class-validator';
+import { IsEnum, IsInt, Min, Max, IsOptional } from 'class-validator';
 import type { SubscriptionTier } from '../../database/schema/organization-settings';
 
 export type { SubscriptionTier };
@@ -55,11 +55,13 @@ export class UpdateAnalyticsSettingsDto {
     example: 30,
     minimum: 1,
     maximum: 365,
+    required: false,
   })
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(365)
-  analyticsRetentionDays!: number;
+  analyticsRetentionDays?: number;
 
   // Optional: allow updating subscription tier (if needed in the future)
   @ApiProperty({
@@ -67,6 +69,7 @@ export class UpdateAnalyticsSettingsDto {
     enum: ['free', 'pro', 'enterprise'],
     required: false,
   })
+  @IsOptional()
   @IsEnum(['free', 'pro', 'enterprise'])
   subscriptionTier?: SubscriptionTier;
 }

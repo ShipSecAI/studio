@@ -140,6 +140,24 @@ VITE_OPENSEARCH_DASHBOARDS_URL=/analytics
 3. **Indexing**: Documents bulk-indexed to OpenSearch via `OPENSEARCH_URL`
 4. **Visualization**: Users explore data in OpenSearch Dashboards at `/analytics`
 
+## Analytics API Limits
+
+To protect OpenSearch and keep queries responsive:
+
+- `size` must be a non-negative integer and is capped at **1000**
+- `from` must be a non-negative integer and is capped at **10000**
+
+Requests exceeding these limits return `400 Bad Request`.
+
+## Analytics Settings Updates
+
+The analytics settings update API supports **partial updates**:
+
+- `analyticsRetentionDays` is optional
+- `subscriptionTier` is optional
+
+Omit fields you don’t want to change. The backend validates the retention days only when provided.
+
 ## Troubleshooting
 
 ### Analytics Sink Not Writing Data

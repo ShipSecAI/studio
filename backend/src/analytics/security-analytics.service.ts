@@ -221,6 +221,10 @@ export class SecurityAnalyticsService {
       return String(document[explicitField]);
     }
 
+    if (document.asset_key) {
+      return String(document.asset_key);
+    }
+
     // Auto-detect from common fields
     const assetFields = ['host', 'domain', 'subdomain', 'url', 'ip', 'asset', 'target'];
 

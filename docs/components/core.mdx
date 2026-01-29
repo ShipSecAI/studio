@@ -226,7 +226,7 @@ Indexes workflow output data into OpenSearch for analytics dashboards, queries, 
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `indexSuffix` | String | Custom suffix for the index name. Defaults to workflow slug. |
+| `indexSuffix` | String | Custom suffix for the index name. Defaults to slugified workflow name. |
 | `assetKeyField` | Select | Field to use as asset identifier. Options: auto, asset_key, host, domain, subdomain, url, ip, asset, target, custom |
 | `customAssetKeyField` | String | Custom field name when assetKeyField is "custom" |
 | `failOnError` | Boolean | When enabled, workflow stops if indexing fails. Default: false (fire-and-forget) |

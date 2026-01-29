@@ -44,30 +44,25 @@ async function main() {
           },
           mappings: {
             properties: {
-              '@timestamp': {
-                type: 'date',
-              },
-              workflow_id: {
-                type: 'keyword',
-              },
-              workflow_name: {
-                type: 'keyword',
-              },
-              run_id: {
-                type: 'keyword',
-              },
-              node_ref: {
-                type: 'keyword',
-              },
-              component_id: {
-                type: 'keyword',
-              },
-              asset_key: {
-                type: 'keyword',
-              },
-              data: {
+              '@timestamp': { type: 'date' },
+              // Root-level analytics fields
+              scanner: { type: 'keyword' },
+              severity: { type: 'keyword' },
+              finding_hash: { type: 'keyword' },
+              asset_key: { type: 'keyword' },
+              // Workflow context under shipsec namespace
+              shipsec: {
                 type: 'object',
                 dynamic: true,
+                properties: {
+                  organization_id: { type: 'keyword' },
+                  run_id: { type: 'keyword' },
+                  workflow_id: { type: 'keyword' },
+                  workflow_name: { type: 'keyword' },
+                  component_id: { type: 'keyword' },
+                  node_ref: { type: 'keyword' },
+                  asset_key: { type: 'keyword' },
+                },
               },
             },
           },
@@ -79,9 +74,10 @@ async function main() {
     console.log('\n📊 Template configuration:');
     console.log('  - Index pattern: security-findings-*');
     console.log('  - Shards: 1, Replicas: 1');
-    console.log('  - Mappings: @timestamp (date), workflow_id (keyword), workflow_name (keyword),');
-    console.log('              run_id (keyword), node_ref (keyword), component_id (keyword),');
-    console.log('              asset_key (keyword), data (object with dynamic: true)');
+    console.log('  - Mappings: @timestamp (date)');
+    console.log('              root: scanner, severity, finding_hash, asset_key (keyword)');
+    console.log('              shipsec.*: organization_id, run_id, workflow_id, workflow_name,');
+    console.log('                         component_id, node_ref, asset_key (keyword)');
     console.log('\n🎉 OpenSearch setup completed successfully!');
   } catch (error) {
     console.error('❌ OpenSearch setup failed');

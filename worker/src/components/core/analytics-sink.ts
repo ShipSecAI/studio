@@ -24,6 +24,16 @@ const dataInputDefinitionSchema = z.object({
 
 type DataInputDefinition = z.infer<typeof dataInputDefinitionSchema>;
 
+function toWorkflowSlug(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const slug = value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug.length > 0 ? slug : undefined;
+}
+
 // Base input schema - will be extended by resolvePorts
 const baseInputSchema = inputs({});
 
@@ -61,14 +71,14 @@ const parameterSchema = parameters({
       .string()
       .optional()
       .describe(
-        'Optional suffix to append to the index name. Defaults to workflow slug if not provided.',
+        'Optional suffix to append to the index name. Defaults to slugified workflow name if not provided.',
       ),
     {
       label: 'Index Suffix',
       editor: 'text',
       placeholder: 'workflow-slug (default)',
       description:
-        'Custom suffix for the index name (e.g., "subdomain-enum"). Defaults to workflow slug if not provided.',
+        'Custom suffix for the index name (e.g., "subdomain-enum"). Defaults to slugified workflow name if not provided.',
     },
   ),
   assetKeyField: param(
@@ -317,6 +327,9 @@ const definition = defineComponent({
         assetKeyField = params.assetKeyField;
       }
 
+      const fallbackIndexSuffix =
+        params.indexSuffix ?? toWorkflowSlug(context.workflowName ?? undefined);
+
       const indexOptions = {
         workflowId: context.workflowId,
         workflowName: context.workflowName,
@@ -324,7 +337,7 @@ const definition = defineComponent({
         nodeRef: context.componentRef,
         componentId: 'core.analytics.sink',
         assetKeyField,
-        indexSuffix: params.indexSuffix,
+        indexSuffix: fallbackIndexSuffix,
         trace: context.trace,
       };
 
