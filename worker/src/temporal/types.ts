@@ -225,3 +225,7 @@ export interface PrepareAndRegisterToolActivityInput {
   inputs: Record<string, unknown>;
   params: Record<string, unknown>;
 }
+
+export interface CleanupLocalMcpActivityInput {
+  runId: string;
+}
