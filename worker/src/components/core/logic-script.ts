@@ -172,13 +172,22 @@ async function run() {
     
     console.log('[Script] Execution completed, writing output...');
     const OUTPUT_PATH = process.env.SHIPSEC_OUTPUT_PATH || '/shipsec-output/result.json';
+    const OUTPUT_DIR = OUTPUT_PATH.substring(0, OUTPUT_PATH.lastIndexOf('/'));
     
-    // Write output to mounted file instead of stdout
-    await Bun.write(OUTPUT_PATH, JSON.stringify(result || {}));
-
-    console.log('[Script] Output written to', OUTPUT_PATH);
+    try {
+      const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+      if (!existsSync(OUTPUT_DIR)) {
+        mkdirSync(OUTPUT_DIR, { recursive: true });
+      }
+      writeFileSync(OUTPUT_PATH, JSON.stringify(result || {}));
+      console.log('[Script] Output written to', OUTPUT_PATH);
+    } catch (writeErr) {
+      console.error('[Script] Failed to write output:', writeErr.message);
+      throw writeErr;
+    }
   } catch (err) {
-    console.error('Runtime Error:', err.stack || err.message);
+    console.error('Runtime Error:', err.message);
+    if (err.stack) console.error(err.stack);
     process.exit(1);
   }
 }
@@ -198,7 +207,7 @@ const baseRunner: DockerRunnerConfig = {
   command: ['-c', ''], // Will be set dynamically in execute()
   env: {},
   network: 'bridge', // Need network access for fetch() and HTTP imports
-  timeoutSeconds: 30,
+  timeoutSeconds: 60,
   stdinJson: false, // Inputs are passed via mounted file now
 };
 
@@ -284,7 +293,7 @@ const definition = defineComponent({
     context.emitProgress({
       message: 'Starting script execution in Docker...',
       level: 'info',
-      data: { inputCount: Object.keys(params).length },
+      data: { inputCount: Object.keys(params).length, returnsCount: variables.length },
     });
 
     // 5. Execute using the Docker runner

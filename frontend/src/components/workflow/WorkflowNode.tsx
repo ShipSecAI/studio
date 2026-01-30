@@ -21,6 +21,7 @@ import {
   Trash2,
   ChevronDown,
   ExternalLink,
+  Hammer,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -42,7 +43,11 @@ import {
   getCategorySeparatorColor,
   getCategoryHeaderBackgroundColor,
 } from '@/utils/categoryColors';
-import { inputSupportsManualValue, runtimeInputTypeToConnectionType } from '@/utils/portUtils';
+import {
+  inputSupportsManualValue,
+  runtimeInputTypeToConnectionType,
+  isCredentialInput,
+} from '@/utils/portUtils';
 import { WebhookDetails } from './WebhookDetails';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import { API_BASE_URL } from '@/services/api';
@@ -59,24 +64,6 @@ const STATUS_ICONS = {
   skipped: LucideIcons.Ban,
   idle: null,
 } as const;
-
-// Custom hook to detect mobile viewport
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
-  );
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [breakpoint]);
-
-  return isMobile;
-}
 
 /**
  * Terminal button with portal-based panel rendering.
@@ -417,9 +404,9 @@ function ParametersDisplay({
   );
 }
 
-/**
- * Enhanced WorkflowNode - Visual representation with timeline states
- */
+// Helper to identify credential/configuration inputs
+// Moved to portUtils.ts
+
 export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const { getComponent, loading } = useComponentStore();
   const { getNodes, getEdges, setNodes, deleteElements } = useReactFlow();
@@ -450,7 +437,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Get API key for webhook details if this is an entry point
   const { lastCreatedKey } = useApiKeyStore();
-  const isMobile = useIsMobile();
   // Use last created key if available (from just-created flow), otherwise null (will show placeholder)
   const activeApiKey = lastCreatedKey;
 
@@ -460,6 +446,11 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const MAX_TEXT_HEIGHT = 1200;
   const DEFAULT_TEXT_WIDTH = 320;
   const DEFAULT_TEXT_HEIGHT = 300;
+  const TOOL_MODE_ONLY_COMPONENTS = new Set([
+    'core.mcp.server',
+    'security.aws-cloudtrail-mcp',
+    'security.aws-cloudwatch-mcp',
+  ]);
   const [textSize, setTextSize] = useState<{ width: number; height: number }>(() => {
     const uiSize = (data as any)?.ui?.size as { width?: number; height?: number } | undefined;
     return {
@@ -502,6 +493,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const component = getComponent(componentRef);
   const isTextBlock = component?.id === 'core.ui.text';
   const isEntryPoint = component?.id === 'core.workflow.entrypoint';
+  const isToolModeOnly = component?.id ? TOOL_MODE_ONLY_COMPONENTS.has(component.id) : false;
 
   // Detect dark mode using theme store (reacts to theme changes)
   const theme = useThemeStore((state) => state.theme);
@@ -510,6 +502,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Get component category (default to 'input' for entry points)
   const componentCategory: ComponentCategory =
     (component?.category as ComponentCategory) || (isEntryPoint ? 'input' : 'input');
+  const showMcpBadge = componentCategory === 'mcp' || isToolModeOnly;
 
   // Entry Point Helper Data
   // Get workflowId from store first, then from node data (passed from Canvas), then from route params
@@ -527,6 +520,54 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
 
   // Get schedule and webhook sidebar callbacks from Canvas context
   const { onOpenScheduleSidebar, onOpenWebhooksSidebar } = useEntryPointActions();
+
+  // Tool Mode State
+  const isToolMode = (nodeData.config as any)?.isToolMode || false;
+
+  useEffect(() => {
+    if (!isToolModeOnly || isToolMode) return;
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== id) return n;
+        const currentConfig = (n.data as any).config || {};
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            config: {
+              ...currentConfig,
+              isToolMode: true,
+            },
+          },
+        };
+      }),
+    );
+    markDirty();
+  }, [id, isToolMode, isToolModeOnly, markDirty, setNodes]);
+
+  const toggleToolMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isToolModeOnly) {
+      return;
+    }
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== id) return n;
+        const currentConfig = (n.data as any).config || {};
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            config: {
+              ...currentConfig,
+              isToolMode: !isToolMode,
+            },
+          },
+        };
+      }),
+    );
+    markDirty();
+  };
 
   const entryPointPayload = (() => {
     const params = nodeData.config?.params || {};
@@ -789,6 +830,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     }) ||
     // Check unfilled required inputs (not connected)
     requiredInputs.some((input) => {
+      // In Tool Mode, only credential inputs are required to be filled
+      if (isToolMode && !isCredentialInput(input)) return false;
+
       const hasConnection = Boolean(nodeData.inputs?.[input.id]);
       if (hasConnection) return false;
       if (manualValueProvidedForInput(input, hasConnection)) return false;
@@ -949,10 +993,13 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         selected && 'shadow-[0_0_15px_rgba(59,130,246,0.4),0_0_30px_rgba(59,130,246,0.3)]',
         selected && 'hover:shadow-[0_0_25px_rgba(59,130,246,0.6),0_0_45px_rgba(59,130,246,0.4)]',
 
-        // Validation styling removed - now shown in ValidationDock
+        // Tool Mode styling - Stronger purple vibe
+        isToolMode &&
+          'border-purple-500/60 dark:border-purple-400/50 shadow-purple-500/10 dark:shadow-purple-400/5',
+        isToolMode && !selected && 'hover:shadow-purple-500/20',
 
         // Interactive states - use CSS hover to avoid re-renders
-        !selected && 'hover:shadow-xl',
+        !selected && !isToolMode && 'hover:shadow-xl',
         'hover:scale-[1.02]',
         selectedRunId && 'cursor-pointer',
       )}
@@ -992,7 +1039,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           isEntryPoint ? 'rounded-t-[1.5rem]' : 'rounded-t-lg',
         )}
         style={{
-          borderColor: separatorColor || 'hsl(var(--border) / 0.5)',
+          borderColor: isToolMode
+            ? 'rgb(168 85 247 / 0.4)'
+            : separatorColor || 'hsl(var(--border) / 0.5)',
           backgroundColor: headerBackgroundColor || undefined,
         }}
       >
@@ -1040,7 +1089,14 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       !isEntryPoint && mode === 'design' ? 'Double-click to rename' : undefined
                     }
                   >
-                    <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                      {showMcpBadge && (
+                        <span className="inline-flex items-center rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 dark:bg-teal-900/40 dark:text-teal-200">
+                          MCP
+                        </span>
+                      )}
+                    </div>
                     {hasCustomLabel && (
                       <span className="text-[10px] text-muted-foreground opacity-70 truncate block">
                         {component.name}
@@ -1049,7 +1105,37 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                   </div>
                 )}
               </div>
+
               <div className="flex items-center gap-1">
+                {/* Tool Mode Toggle (Design Mode only) */}
+                {mode === 'design' && !isEntryPoint && component?.agentTool?.enabled && (
+                  <button
+                    type="button"
+                    onClick={toggleToolMode}
+                    disabled={isToolModeOnly}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2 py-1 rounded transition-all border',
+                      isToolModeOnly && 'opacity-70 cursor-not-allowed',
+                      isToolMode
+                        ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
+                        : 'bg-background text-muted-foreground/60 border-border hover:border-purple-400 hover:text-purple-600',
+                    )}
+                    title={
+                      isToolModeOnly
+                        ? 'Tool Mode Only'
+                        : isToolMode
+                          ? 'Disable Tool Mode'
+                          : 'Enable Tool Mode'
+                    }
+                  >
+                    <Hammer
+                      className={cn('h-3.5 w-3.5', isToolMode ? 'text-white' : 'text-current')}
+                    />
+                    <span className="text-[10px] font-bold uppercase tracking-tight">
+                      {isToolMode ? 'Tool' : 'Mode'}
+                    </span>
+                  </button>
+                )}
                 {/* Delete button (Design Mode only, not Entry Point) */}
 
                 {/* Embedded Webhook Dialog (Controlled) */}
@@ -1107,14 +1193,13 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                   <button
                     type="button"
                     className={cn(
-                      'p-1 rounded hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive transition-all',
-                      isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                      'p-1.5 rounded border border-transparent transition-all hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive hover:border-destructive/20',
                     )}
                     title="Delete node"
                     aria-label="Delete node"
                     onClick={handleDelete}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 )}
               </div>
@@ -1156,7 +1241,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700"
             >
               <CheckCircle className="h-3 w-3 mr-1" />
-              Completed
+              {componentCategory === 'mcp' ? 'Server Ready' : 'Completed'}
             </Badge>
           )}
           {visualState.status === 'error' && (
@@ -1392,6 +1477,20 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               )}
             </div>
           </div>
+        ) : isToolMode ? (
+          /* Tool Mode - Special Export Handle */
+          <div className="relative flex items-center justify-end gap-2 text-xs">
+            <div className="flex-1 text-right text-purple-600 dark:text-purple-400 font-medium italic">
+              Tool Export
+            </div>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="tool-export"
+              className="!w-[10px] !h-[10px] !border-2 !border-purple-500 !bg-purple-500 !rounded-full"
+              style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+            />
+          </div>
         ) : null}
 
         {/* Parameters Display - Shown above ports for non-entry-point nodes */}
@@ -1405,115 +1504,141 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         )}
 
         {/* Input Ports (not shown for entry points) */}
-        {!isEntryPoint && componentInputs.length > 0 && (
-          <div className="space-y-1.5">
-            {componentInputs.map((input) => {
-              // Check if this input has a connection
-              const edges = getEdges();
-              const connection = edges.find(
-                (edge) => edge.target === id && edge.targetHandle === input.id,
-              );
-              const hasConnection = Boolean(connection);
+        {!isEntryPoint &&
+          componentInputs.length > 0 &&
+          (() => {
+            const configInputs = componentInputs.filter(isCredentialInput);
 
-              // Get source node and output info if connected
-              const manualCandidate = inputOverrides[input.id];
-              const manualValueProvided = manualValueProvidedForInput(input, hasConnection);
+            const visibleInputs = isToolMode ? configInputs : componentInputs;
 
-              let sourceInfo: string | null = null;
-              if (!manualValueProvided && connection) {
-                const sourceNode = getNodes().find((n) => n.id === connection.source);
-                if (sourceNode) {
-                  const sourceComponent = getComponent(
-                    (sourceNode.data as any).componentId ?? (sourceNode.data as any).componentSlug,
-                  );
-                  if (sourceComponent) {
-                    const sourceOutput = sourceComponent.outputs.find(
-                      (o) => o.id === connection.sourceHandle,
+            if (visibleInputs.length === 0 && !isToolMode) return null;
+
+            return (
+              <div className="space-y-3">
+                <div className="space-y-1.5 px-0">
+                  {visibleInputs.map((input) => {
+                    // Check if this input has a connection
+                    const edges = getEdges();
+                    const connection = edges.find(
+                      (edge) => edge.target === id && edge.targetHandle === input.id,
                     );
-                    sourceInfo = sourceOutput?.label || 'Connected';
-                  }
-                }
-              }
+                    const hasConnection = Boolean(connection);
 
-              const manualDisplay =
-                manualValueProvided &&
-                inputSupportsManualValue(input) &&
-                typeof manualCandidate === 'string'
-                  ? manualCandidate.trim()
-                  : '';
-              const previewText =
-                manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
-              const handleClassName = cn(
-                '!w-[10px] !h-[10px] !border-2 !rounded-full',
-                input.required
-                  ? '!bg-blue-500 !border-blue-500'
-                  : '!bg-background !border-blue-500',
-              );
+                    // Get source node and output info if connected
+                    const manualCandidate = inputOverrides[input.id];
+                    const manualValueProvided = manualValueProvidedForInput(input, hasConnection);
 
-              return (
-                <div key={input.id} className="relative flex items-center gap-2 text-xs">
-                  <Handle
-                    type="target"
-                    position={Position.Left}
-                    id={input.id}
-                    className={handleClassName}
-                    style={{ top: '50%', left: '-18px', transform: 'translateY(-50%)' }}
-                  />
-                  <div className="flex-1">
-                    <div className="text-muted-foreground font-medium">{input.label}</div>
-                    {input.required && !sourceInfo && !manualValueProvided && (
-                      <span className="text-red-500 text-[10px]">*required</span>
-                    )}
-                    {manualValueProvided && manualDisplay && (
-                      <span
-                        className="text-muted-foreground text-[10px] italic"
-                        title={manualDisplay}
-                      >
-                        Manual: {previewText}
-                      </span>
-                    )}
-                    {manualValueProvided && !manualDisplay && (
-                      <span className="text-muted-foreground text-[10px] italic">Manual value</span>
-                    )}
-                    {!manualValueProvided && sourceInfo && (
-                      <span
-                        className="text-muted-foreground text-[10px] italic"
-                        title={`Connected to: ${sourceInfo}`}
-                      >
-                        {sourceInfo}
-                      </span>
-                    )}
-                  </div>
+                    let sourceInfo: string | null = null;
+                    if (!manualValueProvided && connection) {
+                      const sourceNode = getNodes().find((n) => n.id === connection.source);
+                      if (sourceNode) {
+                        const sourceComponent = getComponent(
+                          (sourceNode.data as any).componentId ??
+                            (sourceNode.data as any).componentSlug,
+                        );
+                        if (sourceComponent) {
+                          const sourceOutput = sourceComponent.outputs.find(
+                            (o) => o.id === connection.sourceHandle,
+                          );
+                          sourceInfo = sourceOutput?.label || 'Connected';
+                        }
+                      }
+                    }
+
+                    const manualDisplay =
+                      manualValueProvided &&
+                      inputSupportsManualValue(input) &&
+                      typeof manualCandidate === 'string'
+                        ? manualCandidate.trim()
+                        : '';
+                    const previewText =
+                      manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
+                    const handleClassName = cn(
+                      '!w-[10px] !h-[10px] !border-2 !rounded-full',
+                      input.required
+                        ? '!bg-blue-500 !border-blue-500'
+                        : '!bg-background !border-blue-500',
+                      input.id === 'tools' &&
+                        '!bg-purple-100 !border-purple-500 !rounded-sm !w-[12px] !h-[12px]',
+                    );
+
+                    return (
+                      <div key={input.id} className="relative flex items-center gap-2 text-xs">
+                        <Handle
+                          type="target"
+                          position={Position.Left}
+                          id={input.id}
+                          className={handleClassName}
+                          style={{ top: '50%', left: '-18px', transform: 'translateY(-50%)' }}
+                        />
+                        <div className="flex-1">
+                          <div className="text-muted-foreground font-medium">{input.label}</div>
+                          {input.required && !sourceInfo && !manualValueProvided && (
+                            <span className="text-red-500 text-[10px]">*required</span>
+                          )}
+                          {manualValueProvided && manualDisplay && (
+                            <span
+                              className="text-muted-foreground text-[10px] italic"
+                              title={manualDisplay}
+                            >
+                              Manual: {previewText}
+                            </span>
+                          )}
+                          {manualValueProvided && !manualDisplay && (
+                            <span className="text-muted-foreground text-[10px] italic">
+                              Manual value
+                            </span>
+                          )}
+                          {!manualValueProvided && sourceInfo && (
+                            <span
+                              className="text-muted-foreground text-[10px] italic"
+                              title={`Connected to: ${sourceInfo}`}
+                            >
+                              {sourceInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                {isToolMode && configInputs.length === 0 && (
+                  <div className="text-[10px] text-muted-foreground/50 text-center italic py-2">
+                    No configuration required
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         {/* Output Ports - Regular only (not shown for entry points - they're in the split layout) */}
-        {!isEntryPoint && effectiveOutputs.filter((o: any) => !o.isBranching).length > 0 && (
-          <div className="space-y-1.5">
-            {effectiveOutputs
-              .filter((o: any) => !o.isBranching)
-              .map((output: any) => (
-                <div
-                  key={output.id}
-                  className="relative flex items-center justify-end gap-2 text-xs"
-                >
-                  <div className="flex-1 text-right">
-                    <div className="text-muted-foreground font-medium">{output.label}</div>
+        {/* Also not shown in Tool Mode (replaced by special handle) */}
+        {!isEntryPoint &&
+          !isToolMode &&
+          effectiveOutputs.filter((o: any) => !o.isBranching).length > 0 && (
+            <div className="space-y-1.5">
+              {effectiveOutputs
+                .filter((o: any) => !o.isBranching)
+                .map((output: any) => (
+                  <div
+                    key={output.id}
+                    className="relative flex items-center justify-end gap-2 text-xs"
+                  >
+                    <div className="flex-1 text-right">
+                      <div className="text-muted-foreground font-medium">{output.label}</div>
+                    </div>
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={output.id}
+                      className="!w-[10px] !h-[10px] !border-2 !border-green-500 !bg-green-500 !rounded-full"
+                      style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+                    />
                   </div>
-                  <Handle
-                    type="source"
-                    position={Position.Right}
-                    id={output.id}
-                    className="!w-[10px] !h-[10px] !border-2 !border-green-500 !bg-green-500 !rounded-full"
-                    style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
-                  />
-                </div>
-              ))}
-          </div>
-        )}
+                ))}
+            </div>
+          )}
 
         {/* Branching Outputs - Compact horizontal section */}
         {!isEntryPoint &&

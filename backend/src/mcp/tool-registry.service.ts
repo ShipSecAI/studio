@@ -13,6 +13,11 @@ import { Injectable, Logger, Inject, OnModuleDestroy } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { type ToolInputSchema } from '@shipsec/component-sdk';
 import { SecretsEncryptionService } from '../secrets/secrets.encryption';
+import {
+  RegisterComponentToolInput,
+  RegisterLocalMcpInput,
+  RegisterRemoteMcpInput,
+} from './dto/mcp.dto';
 
 export const TOOL_REGISTRY_REDIS = Symbol('TOOL_REGISTRY_REDIS');
 
@@ -45,6 +50,9 @@ export interface RegisteredTool {
   /** Component ID (for component tools) */
   componentId?: string;
 
+  /** Additional parameters for the component */
+  parameters?: Record<string, unknown>;
+
   /** JSON Schema for action inputs */
   inputSchema: ToolInputSchema;
 
@@ -65,45 +73,6 @@ export interface RegisteredTool {
 
   /** Timestamp when tool was registered */
   registeredAt: string;
-}
-
-/**
- * Input for registering a component tool
- */
-export interface RegisterComponentToolInput {
-  runId: string;
-  nodeId: string;
-  toolName: string;
-  componentId: string;
-  description: string;
-  inputSchema: ToolInputSchema;
-  credentials: Record<string, unknown>;
-}
-
-/**
- * Input for registering a remote MCP
- */
-export interface RegisterRemoteMcpInput {
-  runId: string;
-  nodeId: string;
-  toolName: string;
-  description: string;
-  inputSchema: ToolInputSchema;
-  endpoint: string;
-  authToken?: string;
-}
-
-/**
- * Input for registering a local MCP (stdio container)
- */
-export interface RegisterLocalMcpInput {
-  runId: string;
-  nodeId: string;
-  toolName: string;
-  description: string;
-  inputSchema: ToolInputSchema;
-  endpoint: string;
-  containerId: string;
 }
 
 const REGISTRY_TTL_SECONDS = 60 * 60; // 1 hour
@@ -134,7 +103,16 @@ export class ToolRegistryService implements OnModuleDestroy {
       return;
     }
 
-    const { runId, nodeId, toolName, componentId, description, inputSchema, credentials } = input;
+    const {
+      runId,
+      nodeId,
+      toolName,
+      componentId,
+      description,
+      inputSchema,
+      credentials,
+      parameters,
+    } = input;
 
     // Encrypt credentials
     const credentialsJson = JSON.stringify(credentials);
@@ -147,6 +125,7 @@ export class ToolRegistryService implements OnModuleDestroy {
       type: 'component',
       status: 'ready',
       componentId,
+      parameters,
       description,
       inputSchema,
       encryptedCredentials,
@@ -230,18 +209,26 @@ export class ToolRegistryService implements OnModuleDestroy {
     );
   }
 
-  /**
-   * Get all registered tools for a workflow run
-   */
-  async getToolsForRun(runId: string): Promise<RegisteredTool[]> {
+  async getToolsForRun(runId: string, nodeIds?: string[]): Promise<RegisteredTool[]> {
     if (!this.redis) {
+      this.logger.warn('Redis not configured, tool registry disabled');
       return [];
     }
 
     const key = this.getRegistryKey(runId);
     const toolsHash = await this.redis.hgetall(key);
 
-    return Object.values(toolsHash).map((json) => JSON.parse(json) as RegisteredTool);
+    let tools = Object.values(toolsHash).map((json) => JSON.parse(json) as RegisteredTool);
+
+    this.logger.debug(`Found ${tools.length} tool(s) for run ${runId}`);
+
+    if (nodeIds && nodeIds.length > 0) {
+      this.logger.debug(`Filtering tools by nodeIds: ${nodeIds.join(', ')}`);
+      tools = tools.filter((t) => nodeIds.includes(t.nodeId));
+      this.logger.debug(`Filtered down to ${tools.length} tool(s)`);
+    }
+
+    return tools;
   }
 
   /**

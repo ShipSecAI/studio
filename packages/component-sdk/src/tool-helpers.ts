@@ -6,18 +6,23 @@
  */
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type {
-  ComponentDefinition,
-  ComponentPortMetadata,
-  PortBindingType,
-} from './types';
+import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+import type { ComponentDefinition, ComponentPortMetadata, PortBindingType } from './types';
 import { extractPorts } from './zod-ports';
+import { getParamMeta } from './param-meta';
 
 /**
  * Tool input schema - matches the MCP SDK's Tool.inputSchema type.
  * This is a JSON Schema object with type: 'object'.
  */
+// export type ToolInputSchema = Tool['inputSchema'];
 export type ToolInputSchema = Tool['inputSchema'];
+
+/**
+ * Tool input shape for MCP server registration.
+ * This is a Zod raw shape (record of schemas).
+ */
+export type ToolInputShape = ZodRawShapeCompat;
 
 /**
  * Metadata for an agent-callable tool, suitable for MCP tools/list response.
@@ -90,6 +95,37 @@ export function getActionInputIds(component: ComponentDefinition): string[] {
     .map(input => input.id);
 }
 
+/**
+ * Get the IDs of parameters explicitly exposed to the agent.
+ * Secret parameters are always excluded.
+ */
+export function getExposedParameterIds(component: ComponentDefinition): string[] {
+  if (!component.parameters) {
+    return [];
+  }
+
+  const shape = getObjectShape(component.parameters);
+  if (!shape) {
+    return [];
+  }
+
+  return Object.entries(shape)
+    .filter(([id, schema]) => {
+      if (id.startsWith('__')) {
+        return false;
+      }
+      const meta = getParamMeta(schema as any);
+      if (!meta?.exposeToTool) {
+        return false;
+      }
+      if (meta.editor === 'secret') {
+        return false;
+      }
+      return true;
+    })
+    .map(([id]) => id);
+}
+
 // ============================================================================
 // Schema Generation Helpers
 // ============================================================================
@@ -110,6 +146,66 @@ function pick<T extends Record<string, unknown>, K extends string>(
   return result;
 }
 
+type ZodObjectLike = {
+  shape?: Record<string, AnySchema> | (() => Record<string, AnySchema>);
+  _def?: {
+    shape?: Record<string, AnySchema> | (() => Record<string, AnySchema>);
+  };
+};
+
+function getObjectShape(schema: unknown): Record<string, AnySchema> | null {
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+
+  const objectSchema = schema as ZodObjectLike;
+  const shape = objectSchema.shape ?? objectSchema._def?.shape;
+  if (!shape) {
+    return null;
+  }
+
+  return typeof shape === 'function' ? shape() : shape;
+}
+
+/**
+ * Get the Zod raw shape for the action inputs only (inputs exposed to the agent).
+ * This is used to register tools with the MCP server for input validation.
+ */
+export function getToolInputShape(component: ComponentDefinition): ToolInputShape {
+  const shape = getObjectShape(component.inputs);
+  if (!shape) {
+    return {};
+  }
+
+  const actionInputIds = getActionInputIds(component);
+  const filtered: ToolInputShape = {};
+
+  for (const id of actionInputIds) {
+    const schema = shape[id];
+    if (schema) {
+      filtered[id] = schema;
+    }
+  }
+
+  const exposedParamIds = getExposedParameterIds(component);
+  if (exposedParamIds.length > 0) {
+    const paramShape = getObjectShape(component.parameters);
+    if (paramShape) {
+      for (const id of exposedParamIds) {
+        if (filtered[id]) {
+          continue;
+        }
+        const schema = paramShape[id];
+        if (schema) {
+          filtered[id] = schema;
+        }
+      }
+    }
+  }
+
+  return filtered;
+}
+
 /**
  * Get the JSON Schema for the action inputs only (inputs exposed to the agent).
  * This is used for the MCP tools/list inputSchema field.
@@ -124,6 +220,7 @@ function pick<T extends Record<string, unknown>, K extends string>(
  */
 export function getToolSchema(component: ComponentDefinition): ToolInputSchema {
   const inputsSchema = component.inputs;
+  const parametersSchema = component.parameters;
 
   // 1. Generate full JSON Schema using Zod's built-in
   const fullSchema = (
@@ -135,6 +232,7 @@ export function getToolSchema(component: ComponentDefinition): ToolInputSchema {
 
   // 2. Get action input IDs (credentials excluded) - reuse existing function!
   const actionInputIds = getActionInputIds(component);
+  const exposedParamIds = getExposedParameterIds(component);
 
   // 3. Filter properties to only include action inputs
   const filteredProperties = pick(
@@ -156,6 +254,64 @@ export function getToolSchema(component: ComponentDefinition): ToolInputSchema {
         prop.description = input.description ?? input.label;
       }
     }
+  }
+
+  // 6. Add exposed parameters (if any)
+  if (parametersSchema && exposedParamIds.length > 0) {
+    const paramSchema = (
+      parametersSchema as { toJSONSchema(): Record<string, unknown> }
+    ).toJSONSchema() as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+
+    const paramProperties = pick(
+      (paramSchema.properties ?? {}) as Record<string, unknown>,
+      exposedParamIds
+    );
+
+    const paramRequired = (paramSchema.required ?? []).filter((id: string) =>
+      exposedParamIds.includes(id)
+    );
+
+    // Avoid collisions: inputs take precedence
+    for (const [key, value] of Object.entries(paramProperties)) {
+      if (!(key in filteredProperties)) {
+        filteredProperties[key] = value;
+      }
+    }
+
+    const requiredSet = new Set(filteredRequired);
+    for (const id of paramRequired) {
+      if (!(id in filteredProperties)) {
+        continue;
+      }
+      requiredSet.add(id);
+    }
+
+    // Add descriptions from parameter metadata when missing
+    const paramShape = getObjectShape(parametersSchema);
+    if (paramShape) {
+      for (const id of exposedParamIds) {
+        if (!(id in filteredProperties)) {
+          continue;
+        }
+        const prop = filteredProperties[id] as Record<string, unknown> | undefined;
+        if (!prop || prop.description) {
+          continue;
+        }
+        const meta = getParamMeta(paramShape[id] as any);
+        if (meta?.description ?? meta?.label) {
+          prop.description = meta?.description ?? meta?.label;
+        }
+      }
+    }
+
+    return {
+      type: 'object' as const,
+      properties: filteredProperties as Record<string, object>,
+      required: Array.from(requiredSet),
+    };
   }
 
   return {
