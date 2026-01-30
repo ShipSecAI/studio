@@ -14,6 +14,8 @@ import {
   generateFindingHash,
   analyticsResultSchema,
   type AnalyticsResult,
+  type ExecutionContext,
+  type ExecutionPayload,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -460,7 +462,7 @@ const amassRetryPolicy: ComponentRetryPolicy = {
   nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
 };
 
-const definition = defineComponent({
+const definition = (defineComponent as any)({
   id: 'shipsec.amass.enum',
   label: 'Amass Enumeration',
   category: 'security',
@@ -510,7 +512,13 @@ const definition = defineComponent({
       'Perform quick passive reconnaissance using custom CLI flags like --passive.',
     ],
   },
-  async execute({ inputs, params }, context) {
+  async execute(
+    {
+      inputs,
+      params,
+    }: ExecutionPayload<z.infer<typeof inputSchema>, z.infer<typeof parameterSchema>>,
+    context: ExecutionContext,
+  ) {
     const parsedParams = parameterSchema.parse(params);
     const {
       passive,

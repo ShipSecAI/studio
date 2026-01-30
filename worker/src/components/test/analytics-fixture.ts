@@ -7,6 +7,7 @@ import {
   port,
   analyticsResultSchema,
   generateFindingHash,
+  type ExecutionContext,
 } from '@shipsec/component-sdk';
 
 const inputSchema = inputs({
@@ -25,7 +26,7 @@ const outputSchema = outputs({
   }),
 });
 
-const definition = defineComponent({
+const definition = (defineComponent as any)({
   id: 'test.analytics.fixture',
   label: 'Analytics Fixture (Test)',
   category: 'transform',
@@ -44,7 +45,7 @@ const definition = defineComponent({
       type: 'shipsecai',
     },
   },
-  async execute(_payload, _context) {
+  async execute(_payload: z.infer<typeof inputSchema>, _context: ExecutionContext) {
     const results = [
       {
         scanner: 'analytics-fixture',
