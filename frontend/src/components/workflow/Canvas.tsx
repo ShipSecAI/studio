@@ -904,19 +904,33 @@ export function Canvas({
           dedupedEdges.set(edge.id, { ...edge, selected: false });
         });
 
+        // Calculate next state for snapshot before applying changes
+        let nextNodes = nodes;
+        let nextEdges = edges;
+
         if (selectedNodes.length > 0) {
-          setNodes((nds) => nds.filter((node) => !nodeIds.has(node.id)));
-          setEdges((eds) =>
-            eds.filter((edge) => !nodeIds.has(edge.source) && !nodeIds.has(edge.target)),
+          nextNodes = nodes.filter((node) => !nodeIds.has(node.id));
+          nextEdges = edges.filter(
+            (edge) => !nodeIds.has(edge.source) && !nodeIds.has(edge.target),
           );
-          setSelectedNode(null);
         }
 
         if (selectedEdges.length > 0) {
-          setEdges((eds) => eds.filter((edge) => !selectedEdgeIds.has(edge.id)));
+          nextEdges = nextEdges.filter((edge) => !selectedEdgeIds.has(edge.id));
         }
 
+        // Apply the changes
+        if (selectedNodes.length > 0) {
+          setNodes(nextNodes);
+          setEdges(nextEdges);
+          setSelectedNode(null);
+        } else if (selectedEdges.length > 0) {
+          setEdges(nextEdges);
+        }
+
+        // Capture snapshot for undo/redo
         if (selectedNodes.length > 0 || selectedEdges.length > 0) {
+          onSnapshot?.(nextNodes, nextEdges);
           markDirty();
         }
       }
@@ -924,7 +938,7 @@ export function Canvas({
 
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [nodes, edges, setNodes, setEdges, markDirty, mode]);
+  }, [nodes, edges, setNodes, setEdges, markDirty, mode, onSnapshot, toast]);
 
   // Panel width changes are handled by CSS transitions, no manual viewport translation needed
 

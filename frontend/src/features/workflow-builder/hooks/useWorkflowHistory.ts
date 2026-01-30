@@ -114,7 +114,11 @@ export const useWorkflowHistory = ({
   );
 
   /**
-   * Capture the current graph state as an undoable snapshot
+   * Capture the current graph state as an undoable snapshot.
+   *
+   * IMPORTANT: Always pass BOTH nodes and edges for a consistent snapshot.
+   * The debouncing ensures that rapid changes (like node deletion which triggers
+   * both onNodesChange and onEdgesChange) are captured as a single history entry.
    */
   const captureSnapshot = useCallback(
     (nodesOverride?: ReactFlowNode<FrontendNodeData>[], edgesOverride?: ReactFlowEdge[]) => {
@@ -123,16 +127,17 @@ export const useWorkflowHistory = ({
       }
 
       // Update pending state with new overrides if provided
-      if (nodesOverride) pendingStateRef.current.nodes = nodesOverride;
-      if (edgesOverride) pendingStateRef.current.edges = edgesOverride;
+      // Always prefer the explicitly passed state over refs for consistency
+      if (nodesOverride !== undefined) pendingStateRef.current.nodes = nodesOverride;
+      if (edgesOverride !== undefined) pendingStateRef.current.edges = edgesOverride;
 
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
 
       debounceRef.current = setTimeout(() => {
-        // Resolve final state: Override (via pending) -> Ref
-        // Note: We use the accumulated pending state as the source of truth for "next" state
+        // Resolve final state from pending or fallback to refs
+        // The pending state should contain the NEXT state after the change
         const nodes = pendingStateRef.current.nodes ?? designGraph.nodesRef.current;
         const edges = pendingStateRef.current.edges ?? designGraph.edgesRef.current;
 
