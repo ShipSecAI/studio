@@ -94,7 +94,7 @@ describe('core.artifact.writer component', () => {
 
     const executePayload = {
       inputs: {
-        artifactName: '{{run_id}}-{{task}}',
+        artifactName: '{{run_id}}-{{node_id}}',
         content: { data: 'test' },
       },
       params: {
