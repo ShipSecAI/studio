@@ -8,6 +8,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
+import { z } from 'zod';
 
 import { compileWorkflowGraph } from '../dsl/compiler';
 // Ensure all worker components are registered before accessing the registry
@@ -21,6 +22,8 @@ import {
 import {
   WorkflowGraphDto,
   WorkflowGraphSchema,
+  WorkflowNodeSchema,
+  WorkflowNodeDataSchema,
   ServiceWorkflowResponse,
   UpdateWorkflowMetadataDto,
 } from './dto/workflow-graph.dto';
@@ -40,7 +43,7 @@ import {
   ExecutionInputPreview,
   ExecutionTriggerMetadata,
 } from '@shipsec/shared';
-import type { WorkflowRunRecord, WorkflowVersionRecord } from '../database/schema';
+import type { WorkflowRunRecord, WorkflowVersionRecord, WorkflowGraph } from '../database/schema';
 import type { AuthContext } from '../auth/types';
 
 export interface WorkflowRunRequest {
@@ -366,10 +369,152 @@ export class WorkflowsService {
     record: WorkflowRecord,
     version?: WorkflowVersionRecord | null,
   ): ServiceWorkflowResponse {
+    // Resolve dynamic ports for the graph so Entry Point nodes show correct outputs
+    const resolvedGraph = this.resolveGraphPorts(record.graph);
+
     return {
       ...record,
+      graph: resolvedGraph,
       currentVersionId: version?.id ?? null,
       currentVersion: version?.version ?? null,
+    };
+  }
+
+  /**
+   * Extract component parameters from node data, handling legacy schema formats.
+   * This handles the migration from old formats where params might be at:
+   * - nodeData.config.params (current schema)
+   * - nodeData.parameters (legacy)
+   * - nodeData.config (legacy - when config was the params object directly)
+   */
+  private extractNodeParams(
+    nodeData: z.infer<typeof WorkflowNodeDataSchema>,
+  ): Record<string, unknown> {
+    // Current schema: params are in config.params
+    if (nodeData.config?.params && Object.keys(nodeData.config.params).length > 0) {
+      return nodeData.config.params;
+    }
+
+    // Legacy: params stored directly on nodeData (via extended properties)
+    const extendedNodeData = nodeData as Record<string, unknown>;
+    if (extendedNodeData.parameters && typeof extendedNodeData.parameters === 'object') {
+      return extendedNodeData.parameters as Record<string, unknown>;
+    }
+
+    // Legacy: config was the params object itself (before nested config.params structure)
+    // Only use this if config doesn't have the modern structure
+    if (
+      nodeData.config &&
+      !('params' in nodeData.config) &&
+      !('inputOverrides' in nodeData.config) &&
+      typeof nodeData.config === 'object'
+    ) {
+      return nodeData.config as Record<string, unknown>;
+    }
+
+    return {};
+  }
+
+  /**
+   * Extract component ID from node, handling frontend extensions.
+   * The componentId might be in node.type or in extended nodeData properties.
+   */
+  private extractComponentId(
+    node: z.infer<typeof WorkflowNodeSchema>,
+    nodeData: z.infer<typeof WorkflowNodeDataSchema>,
+  ): string | null {
+    // In backend schema, node.type contains the component ID
+    if (node.type && node.type !== 'workflow') {
+      return node.type;
+    }
+
+    // Frontend extensions might store componentId/componentSlug in nodeData
+    const extendedNodeData = nodeData as Record<string, unknown>;
+    if (typeof extendedNodeData.componentId === 'string') {
+      return extendedNodeData.componentId;
+    }
+    if (typeof extendedNodeData.componentSlug === 'string') {
+      return extendedNodeData.componentSlug;
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve dynamic ports for a single node based on its component and parameters.
+   */
+  private resolveNodePorts(
+    node: z.infer<typeof WorkflowNodeSchema>,
+  ): z.infer<typeof WorkflowNodeSchema> {
+    const nodeData = node.data;
+    const componentId = this.extractComponentId(node, nodeData);
+
+    if (!componentId) {
+      return node;
+    }
+
+    try {
+      const entry = componentRegistry.getMetadata(componentId);
+      if (!entry) {
+        return node;
+      }
+      const component = entry.definition;
+      const baseInputs = entry.inputs ?? extractPorts(component.inputs);
+      const baseOutputs = entry.outputs ?? extractPorts(component.outputs);
+
+      const params = this.extractNodeParams(nodeData);
+
+      if (typeof component.resolvePorts === 'function') {
+        try {
+          const resolved = component.resolvePorts(params);
+          return {
+            ...node,
+            data: {
+              ...nodeData,
+              dynamicInputs: resolved.inputs ? extractPorts(resolved.inputs) : baseInputs,
+              dynamicOutputs: resolved.outputs ? extractPorts(resolved.outputs) : baseOutputs,
+            },
+          };
+        } catch (resolveError) {
+          this.logger.warn(`Failed to resolve ports for component ${componentId}: ${resolveError}`);
+          return {
+            ...node,
+            data: {
+              ...nodeData,
+              dynamicInputs: baseInputs,
+              dynamicOutputs: baseOutputs,
+            },
+          };
+        }
+      } else {
+        return {
+          ...node,
+          data: {
+            ...nodeData,
+            dynamicInputs: baseInputs,
+            dynamicOutputs: baseOutputs,
+          },
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get component ${componentId} for port resolution: ${error}`);
+      return node;
+    }
+  }
+
+  /**
+   * Resolve dynamic ports for all nodes in a workflow graph.
+   * This ensures Entry Point nodes and other components with resolvePorts
+   * have their dynamicInputs/dynamicOutputs populated correctly.
+   */
+  private resolveGraphPorts(graph: WorkflowGraph): WorkflowGraph {
+    if (!graph || !Array.isArray(graph.nodes)) {
+      return graph;
+    }
+
+    return {
+      ...graph,
+      nodes: graph.nodes.map((node) => this.resolveNodePorts(node)),
     };
   }
 
@@ -1213,80 +1358,11 @@ export class WorkflowsService {
     return 0;
   }
 
-  private parse(dto: WorkflowGraphDto) {
+  private parse(dto: WorkflowGraphDto): WorkflowGraph {
     const parsed = WorkflowGraphSchema.parse(dto);
 
-    // Resolve dynamic ports for each node based on its component and parameters
-    const nodesWithResolvedPorts = parsed.nodes.map((node) => {
-      const nodeData = node.data as any;
-      // Component ID can be in node.type, data.componentId, or data.componentSlug
-      // In the workflow graph schema, node.type contains the component ID (e.g., "security.virustotal.lookup")
-      const componentId =
-        node.type !== 'workflow' ? node.type : nodeData.componentId || nodeData.componentSlug;
-
-      if (!componentId) {
-        return node;
-      }
-
-      try {
-        const entry = componentRegistry.getMetadata(componentId);
-        if (!entry) {
-          return node;
-        }
-        const component = entry.definition;
-        const baseInputs = entry.inputs ?? extractPorts(component.inputs);
-        const baseOutputs = entry.outputs ?? extractPorts(component.outputs);
-
-        // Get parameters from node data (they may be stored in config.params, parameters, or at data level)
-        const params = nodeData.parameters || nodeData.config?.params || nodeData.config || {};
-
-        // Resolve ports using the component's resolvePorts function if available
-        if (typeof component.resolvePorts === 'function') {
-          try {
-            const resolved = component.resolvePorts(params);
-            return {
-              ...node,
-              data: {
-                ...nodeData,
-                dynamicInputs: resolved.inputs ? extractPorts(resolved.inputs) : baseInputs,
-                dynamicOutputs: resolved.outputs ? extractPorts(resolved.outputs) : baseOutputs,
-              },
-            };
-          } catch (resolveError) {
-            this.logger.warn(
-              `Failed to resolve ports for component ${componentId}: ${resolveError}`,
-            );
-            // Fall back to static metadata
-            return {
-              ...node,
-              data: {
-                ...nodeData,
-                dynamicInputs: baseInputs,
-                dynamicOutputs: baseOutputs,
-              },
-            };
-          }
-        } else {
-          // No dynamic resolver, use static metadata
-          return {
-            ...node,
-            data: {
-              ...nodeData,
-              dynamicInputs: baseInputs,
-              dynamicOutputs: baseOutputs,
-            },
-          };
-        }
-      } catch (error) {
-        this.logger.warn(`Failed to get component ${componentId} for port resolution: ${error}`);
-        return node;
-      }
-    });
-
-    return {
-      ...parsed,
-      nodes: nodesWithResolvedPorts,
-    };
+    // Resolve dynamic ports for all nodes using the shared helper
+    return this.resolveGraphPorts(parsed);
   }
 
   private formatInputSummary(inputs?: Record<string, unknown>): string {

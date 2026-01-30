@@ -9,11 +9,13 @@ import {
   ValidationError,
   TEMPORAL_SPILL_THRESHOLD_BYTES,
   isSpilledDataMarker,
+  extractPorts,
   type IFileStorageService,
   type ISecretsService,
   type ITraceService,
   type INodeIOService,
   type AgentTracePublisher,
+  type ComponentPortMetadata,
 } from '@shipsec/component-sdk';
 
 import {
@@ -276,6 +278,110 @@ export async function runComponentActivity(
 
   await unspill(resolvedParams, 'Parameter');
   await unspill(resolvedInputs, 'Input');
+
+  // Resolve secret references in inputOverrides
+  // When a user selects a secret from the store in the config panel,
+  // the secret ID is stored. We need to resolve it to the actual value.
+  const resolveSecretInputOverrides = async (
+    inputs: Record<string, unknown>,
+    inputOverrides: Record<string, unknown>,
+  ) => {
+    if (!globalSecrets) {
+      return;
+    }
+
+    // Get input port metadata to identify which inputs are secret-type
+    // For components with dynamic ports, we must resolve them first
+    let inputsSchema = component.inputs;
+    if (typeof component.resolvePorts === 'function') {
+      try {
+        const resolved = component.resolvePorts(resolvedParams);
+        if (resolved?.inputs) {
+          inputsSchema = resolved.inputs;
+        }
+      } catch (err) {
+        console.warn(`[Activity] Failed to resolve ports for secret check: ${err}`);
+      }
+    }
+
+    const inputPorts = inputsSchema ? extractPorts(inputsSchema) : [];
+
+    for (const [key, value] of Object.entries(inputOverrides)) {
+      if (typeof value !== 'string' || !value) {
+        continue;
+      }
+
+      const portMeta = inputPorts.find((p: ComponentPortMetadata) => p.id === key);
+      const isSecretPort =
+        portMeta?.editor === 'secret' ||
+        (portMeta?.connectionType?.kind === 'primitive' &&
+          portMeta?.connectionType?.name === 'secret');
+
+      if (!isSecretPort) {
+        continue;
+      }
+
+      // This is a secret reference, resolve it
+      try {
+        console.log(`[Activity] Resolving secret '${key}'...`);
+        const resolved = await globalSecrets.get(value);
+        if (resolved?.value) {
+          inputs[key] = resolved.value;
+          console.log(`[Activity] Successfully resolved secret reference for input '${key}'`);
+        } else {
+          console.warn(`[Activity] Secret '${value}' not found in store for input '${key}'`);
+        }
+      } catch (err) {
+        console.warn(`[Activity] Error resolving secret '${value}' for input '${key}': ${err}`);
+      }
+    }
+  };
+
+  // Resolve secret references for input overrides
+  await resolveSecretInputOverrides(resolvedInputs, input.inputOverrides ?? {});
+
+  // Also resolve secret references in params (for params with editor: 'secret')
+  const resolveSecretParams = async (
+    params: Record<string, unknown>,
+    rawParams: Record<string, unknown>,
+  ) => {
+    if (!globalSecrets || !component.parameters) {
+      return;
+    }
+
+    const paramPorts = extractPorts(component.parameters);
+
+    for (const [key, value] of Object.entries(rawParams)) {
+      if (typeof value !== 'string' || !value) {
+        continue;
+      }
+
+      const portMeta = paramPorts.find((p: ComponentPortMetadata) => p.id === key);
+      const isSecretParam =
+        portMeta?.editor === 'secret' ||
+        (portMeta?.connectionType?.kind === 'primitive' &&
+          portMeta?.connectionType?.name === 'secret');
+
+      if (!isSecretParam) {
+        continue;
+      }
+
+      try {
+        console.log(`[Activity] Resolving secret '${key}'...`);
+        const resolved = await globalSecrets.get(value);
+        if (resolved?.value) {
+          params[key] = resolved.value;
+          console.log(`[Activity] Successfully resolved secret reference for param '${key}'`);
+        } else {
+          console.warn(`[Activity] Secret '${value}' not found in store for param '${key}'`);
+        }
+      } catch (err) {
+        console.warn(`[Activity] Error resolving secret '${value}' for param '${key}': ${err}`);
+      }
+    }
+  };
+
+  await resolveSecretParams(resolvedParams, input.rawParams ?? {});
 
   for (const warning of warningsToReport) {
     context.trace?.record({

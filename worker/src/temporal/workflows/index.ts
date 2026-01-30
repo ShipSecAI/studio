@@ -627,6 +627,8 @@ export async function shipsecWorkflowRun(
           },
           inputs: mergedInputs,
           params: mergedParams,
+          inputOverrides: action.inputOverrides,
+          rawParams: action.params,
           warnings,
           metadata: {
             streamId,

@@ -10,6 +10,8 @@ import { SimpleVariableListEditor } from './SimpleVariableListEditor';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
 import { FormFieldsEditor } from './FormFieldsEditor';
 import { SelectionOptionsEditor } from './SelectionOptionsEditor';
+import { SecretSelect } from '@/components/inputs/SecretSelect';
+import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
 import type { InputMapping } from '@/schemas/node';
 import { useSecretStore } from '@/store/secretStore';
@@ -57,7 +59,6 @@ export function ParameterField({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const secrets = useSecretStore((state) => state.secrets);
-  const secretsLoading = useSecretStore((state) => state.loading);
   const secretsError = useSecretStore((state) => state.error);
   const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
   const refreshSecrets = useSecretStore((state) => state.refresh);
@@ -229,18 +230,8 @@ export function ParameterField({
 
   const isReceivingInput = Boolean(connectedInput);
 
-  const [secretMode, setSecretMode] = useState<'select' | 'manual'>(() => {
-    if (parameter.type !== 'secret') {
-      return 'manual';
-    }
-    if (
-      typeof currentValue === 'string' &&
-      secrets.some((secret) => secret.id === currentValue || secret.name === currentValue)
-    ) {
-      return 'select';
-    }
-    return secrets.length > 0 ? 'select' : 'manual';
-  });
+  // Secret IDs are resolved to actual values at runtime by the worker
+  // and selecting from store is mandatory to ensure security and portability.
 
   useEffect(() => {
     if (parameter.type !== 'secret') {
@@ -256,22 +247,22 @@ export function ParameterField({
       return;
     }
 
-    if (secrets.length === 0) {
-      setSecretMode('manual');
-      return;
-    }
-
+    // Only auto-migrate if current value is a non-empty string that doesn't match any secret ID
+    // Do NOT auto-select if value is undefined/null/empty (user intentionally cleared it)
     if (
-      secretMode === 'select' &&
-      (typeof currentValue !== 'string' ||
-        !secrets.some((secret) => secret.id === currentValue || secret.name === currentValue))
+      typeof currentValue === 'string' &&
+      currentValue.trim().length > 0 &&
+      secrets.length > 0 &&
+      !secrets.some((secret) => secret.id === currentValue)
     ) {
-      const firstSecret = secrets[0];
-      if (firstSecret) {
-        onChange(firstSecret.name);
+      // The value looks like a legacy name-based reference, try to find matching secret
+      const matchingSecret = secrets.find((secret) => secret.name === currentValue);
+      if (matchingSecret) {
+        // Migrate to ID-based reference
+        onChange(matchingSecret.id);
       }
     }
-  }, [parameter.type, secretMode, secrets, currentValue, onChange, isReceivingInput]);
+  }, [parameter.type, secrets, currentValue, onChange, isReceivingInput]);
 
   useEffect(() => {
     if (parameter.type !== 'secret') {
@@ -551,30 +542,27 @@ export function ParameterField({
     case 'select': {
       const isAuthModeField = isRemoveGithubComponent && parameter.id === 'authMode';
 
+      const options: SelectOption[] =
+        parameter.options?.map((o) => ({
+          label: o.label,
+          value: o.value,
+        })) || [];
+
       return (
-        <select
-          id={parameter.id}
-          value={currentValue || ''}
-          onChange={(e) => {
-            const nextValue = e.target.value;
+        <LeanSelect
+          value={currentValue}
+          options={options}
+          onChange={(nextValue) => {
             onChange(nextValue);
 
             if (isAuthModeField && nextValue === 'manual') {
               onUpdateParameter?.('connectionId', undefined);
             }
           }}
-          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
           disabled={isReceivingInput && !isAuthModeField}
-        >
-          {!parameter.required && !parameter.default && (
-            <option value="">Select an option...</option>
-          )}
-          {parameter.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          placeholder={parameter.required ? 'Select an option...' : 'Select an option (optional)'}
+          clearable={!parameter.required}
+        />
       );
     }
 
@@ -656,12 +644,6 @@ export function ParameterField({
       );
 
     case 'secret': {
-      const hasSecrets = secrets.length > 0;
-      const activeSecret = secrets.find((s) => s.id === currentValue || s.name === currentValue);
-
-      const selectedSecretKey = activeSecret?.name ?? '';
-
-      const manualValue = typeof currentValue === 'string' && !activeSecret ? currentValue : '';
       const disableForGithubConnection =
         isRemoveGithubComponent && parameter.id === 'clientSecret' && isGithubConnectionMode;
 
@@ -669,31 +651,6 @@ export function ParameterField({
         connectedInput?.source && connectedInput?.output
           ? `${connectedInput.source}.${connectedInput.output}`
           : connectedInput?.source;
-
-      const handleModeChange = (mode: 'select' | 'manual') => {
-        if (disableForGithubConnection) {
-          return;
-        }
-        if (isReceivingInput) {
-          return;
-        }
-        if (mode === 'select') {
-          if (!hasSecrets) {
-            setSecretMode('manual');
-            return;
-          }
-          const existing =
-            secrets.find((s) => s.id === currentValue || s.name === currentValue) ?? secrets[0];
-          setSecretMode('select');
-          updateSecretValue(existing?.name ?? undefined);
-          return;
-        }
-
-        setSecretMode('manual');
-        if (selectedSecretKey) {
-          updateSecretValue(undefined);
-        }
-      };
 
       return (
         <div className="space-y-3">
@@ -709,101 +666,27 @@ export function ParameterField({
               Using a stored GitHub connection, so the OAuth client secret is managed automatically.
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={secretMode === 'select' ? 'default' : 'outline'}
-              onClick={() => handleModeChange('select')}
-              disabled={!hasSecrets || isReceivingInput || disableForGithubConnection}
-            >
-              From store
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={secretMode === 'manual' ? 'default' : 'outline'}
-              onClick={() => handleModeChange('manual')}
-              disabled={isReceivingInput || disableForGithubConnection}
-            >
-              Manual ID
-            </Button>
-            <div className="ml-auto flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  refreshSecrets().catch((error) => {
-                    console.error('Failed to refresh secrets', error);
-                  });
-                }}
-                disabled={secretsLoading || isReceivingInput || disableForGithubConnection}
-              >
-                {secretsLoading ? 'Refreshing…' : 'Refresh'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => navigate('/secrets')}
-                disabled={isReceivingInput || disableForGithubConnection}
-              >
-                Manage secrets
-              </Button>
-            </div>
-          </div>
 
           {secretsError && <p className="text-xs text-destructive">{secretsError}</p>}
 
-          {secretMode === 'select' && hasSecrets && (
-            <select
-              value={selectedSecretKey}
-              onChange={(e) => {
-                const nextValue = e.target.value;
-                updateSecretValue(nextValue === '' ? undefined : nextValue);
-              }}
-              className="w-full px-3 py-2 text-sm border rounded-md bg-background"
-              disabled={isReceivingInput || disableForGithubConnection}
-            >
-              <option value="">Select a secret…</option>
-              {secrets.map((secret) => (
-                <option key={secret.id} value={secret.name}>
-                  {secret.name}
-                </option>
-              ))}
-            </select>
-          )}
+          <SecretSelect
+            value={typeof currentValue === 'string' ? currentValue : ''}
+            onChange={(nextValue) => {
+              // Handle both undefined (from clear button) and empty string
+              const valueToSet =
+                nextValue === undefined || nextValue === '' || nextValue === null
+                  ? undefined
+                  : nextValue;
+              updateSecretValue(valueToSet);
+            }}
+            disabled={isReceivingInput || disableForGithubConnection}
+            onRefresh={() => {
+              void refreshSecrets();
+            }}
+          />
 
-          {secretMode === 'select' && !hasSecrets && (
-            <p className="text-xs text-muted-foreground">
-              No stored secrets yet. Create one in the Secret Manager or switch to manual entry.
-            </p>
-          )}
-
-          {secretMode === 'manual' && (
-            <Input
-              id={`${parameter.id}-manual`}
-              type="text"
-              placeholder="Paste secret ID…"
-              value={manualValue}
-              onChange={(e) => updateSecretValue(e.target.value)}
-              className="text-sm"
-              disabled={isReceivingInput || disableForGithubConnection}
-            />
-          )}
-
-          {secretMode === 'select' && activeSecret && (
-            <p className="text-xs text-muted-foreground">
-              Reference: <span className="font-mono">{activeSecret.name}</span> (ID:{' '}
-              {activeSecret.id.substring(0, 8)}...)
-            </p>
-          )}
-
-          {secretsError && <p className="text-xs text-destructive">{secretsError}</p>}
-
-          <p className="text-xs text-muted-foreground">
-            Secrets are securely stored; only references are shared with components.
+          <p className="text-xs text-muted-foreground opacity-70">
+            Secrets are resolved at runtime. Only the secret reference is stored in the workflow.
           </p>
         </div>
       );

@@ -85,6 +85,8 @@ export interface TimelineState {
   // Node states for visualization
   nodeStates: Record<string, NodeVisualState>;
   selectedNodeId: string | null;
+  // Per-run node selection history - remembers which node was selected for each run
+  nodeSelectionHistory: Record<string, string | null>;
   selectedEventId: string | null;
 
   // UI state
@@ -487,6 +489,7 @@ const INITIAL_STATE: TimelineState = {
   nodeStates: {},
   selectedNodeId: null,
   selectedEventId: null,
+  nodeSelectionHistory: {},
   showTimeline: true,
   showEventInspector: false,
   timelineZoom: 1,
@@ -500,6 +503,21 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
     ...INITIAL_STATE,
 
     selectRun: async (runId: string, initialMode: 'live' | 'replay' = 'replay') => {
+      const state = get();
+      const previousRunId = state.selectedRunId;
+
+      // Save current node selection to history before switching runs
+      const updatedHistory = { ...state.nodeSelectionHistory };
+      if (previousRunId && previousRunId !== runId) {
+        updatedHistory[previousRunId] = state.selectedNodeId;
+      }
+
+      // When switching to a different run, check if we have a saved selection for it
+      // If it's a new/different run, start with summary view (null)
+      // If returning to a previously viewed run, restore its selection
+      const restoredNodeId =
+        previousRunId !== runId ? (updatedHistory[runId] ?? null) : state.selectedNodeId;
+
       // Clear previous events before loading new timeline
       set({
         selectedRunId: runId,
@@ -516,6 +534,8 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
         isLiveFollowing: initialMode === 'live',
         agentMarkersRunId: null,
         agentMarkers: {},
+        nodeSelectionHistory: updatedHistory,
+        selectedNodeId: restoredNodeId,
       });
       await get().loadTimeline(runId);
     },
@@ -669,7 +689,12 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
     },
 
     selectNode: (nodeId: string | null) => {
-      set({ selectedNodeId: nodeId, selectedEventId: null });
+      const state = get();
+      // Update selection and also save to history for the current run
+      const updatedHistory = state.selectedRunId
+        ? { ...state.nodeSelectionHistory, [state.selectedRunId]: nodeId }
+        : state.nodeSelectionHistory;
+      set({ selectedNodeId: nodeId, selectedEventId: null, nodeSelectionHistory: updatedHistory });
     },
 
     selectEvent: (eventId: string | null) => {

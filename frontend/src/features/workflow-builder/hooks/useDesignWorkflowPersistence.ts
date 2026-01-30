@@ -6,6 +6,9 @@ import { api, API_BASE_URL } from '@/services/api';
 import { serializeWorkflowForCreate, serializeWorkflowForUpdate } from '@/utils/workflowSerializer';
 import { cloneNodes, cloneEdges, type GraphSnapshot } from './useWorkflowGraphControllers';
 import { track, Events } from '@/features/analytics/events';
+import { getNodeValidationWarnings } from '@/utils/connectionValidation';
+import { useComponentStore } from '@/store/componentStore';
+import { useSecretStore } from '@/store/secretStore';
 
 interface WorkflowMetadataShape {
   id: string | null;
@@ -144,6 +147,34 @@ export function useDesignWorkflowPersistence({
         }
         return;
       }
+
+      // --- NEW: VALIDATION CHECK ---
+      const getComponent = useComponentStore.getState().getComponent;
+      const secrets = useSecretStore.getState().secrets;
+      const allIssues: string[] = [];
+
+      designNodes.forEach((node) => {
+        const nodeData = node.data as any;
+        const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+        const component = getComponent(componentRef);
+
+        if (!component) return;
+
+        const warnings = getNodeValidationWarnings(node as any, designEdges, component, secrets);
+        warnings.forEach((w) => allIssues.push(`${nodeData.label || node.id}: ${w}`));
+      });
+
+      if (allIssues.length > 0) {
+        if (showToast) {
+          toast({
+            variant: 'destructive',
+            title: 'Cannot save workflow',
+            description: `Please fix the following issues:\n${allIssues[0]}${allIssues.length > 1 ? ` (+${allIssues.length - 1} more)` : ''}`,
+          });
+        }
+        return;
+      }
+      // --- END VALIDATION CHECK ---
 
       try {
         if (!designNodes || !Array.isArray(designNodes)) {

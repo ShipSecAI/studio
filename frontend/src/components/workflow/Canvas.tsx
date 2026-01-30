@@ -209,7 +209,10 @@ export function Canvas({
     (changes: EdgeChange[]) => {
       // Handle edge removals by cleaning up input mappings
       if (mode !== 'design') {
-        applyEdgesChange(changes);
+        const allowedChanges = changes.filter((change) => change.type !== 'remove');
+        if (allowedChanges.length > 0) {
+          applyEdgesChange(allowedChanges);
+        }
         return;
       }
 
@@ -419,9 +422,14 @@ export function Canvas({
           requestAnimationFrame(() => {
             if (!reactFlowInstance) return;
 
-            // Re-check workflow nodes (terminal nodes might have been added/removed)
-            // Use the nodes prop directly since we're inside the effect
-            const currentWorkflowNodes = nodes.filter((n: Node<NodeData>) => n.type !== 'terminal');
+            // IMPORTANT: Get CURRENT nodes from ReactFlow instance, not from the stale closure.
+            // When mode switches, execution nodes are set asynchronously by useWorkflowExecutionLifecycle.
+            // The `nodes` variable captured in this closure may be stale (from before the mode switch).
+            // Using getNodes() ensures we get the most up-to-date node positions.
+            const currentNodes = reactFlowInstance.getNodes() as Node<NodeData>[];
+            const currentWorkflowNodes = currentNodes.filter(
+              (n: Node<NodeData>) => n.type !== 'terminal',
+            );
             if (currentWorkflowNodes.length === 0) return;
 
             try {
@@ -706,11 +714,81 @@ export function Canvas({
   // Handle node data update from config panel
   const handleUpdateNode = useCallback(
     (nodeId: string, data: Partial<NodeData>) => {
-      const newNodes = nodes.map((node) =>
+      let updatedNodes = nodes.map((node) =>
         node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node,
       );
 
-      setNodes(newNodes);
+      let updatedEdges = edges;
+      const edgesToRemove: Edge[] = [];
+
+      // Check for dynamic outputs change (e.g. Entry Point inputs renamed)
+      // We cast to any because dynamicOutputs is on FrontendNodeData, not NodeData
+      const dynamicOutputs = (data as any).dynamicOutputs;
+      if (dynamicOutputs && Array.isArray(dynamicOutputs)) {
+        const validOutputIds = new Set(dynamicOutputs.map((p: any) => p.id));
+        updatedEdges.forEach((edge) => {
+          if (
+            edge.source === nodeId &&
+            edge.sourceHandle &&
+            !validOutputIds.has(edge.sourceHandle)
+          ) {
+            edgesToRemove.push(edge);
+          }
+        });
+      }
+
+      // Check for dynamic inputs change
+      const dynamicInputs = (data as any).dynamicInputs;
+      if (dynamicInputs && Array.isArray(dynamicInputs)) {
+        const validInputIds = new Set(dynamicInputs.map((p: any) => p.id));
+        updatedEdges.forEach((edge) => {
+          if (
+            edge.target === nodeId &&
+            edge.targetHandle &&
+            !validInputIds.has(edge.targetHandle)
+          ) {
+            edgesToRemove.push(edge);
+          }
+        });
+      }
+
+      // Perform cleanup if edges were invalidated
+      if (edgesToRemove.length > 0) {
+        updatedEdges = updatedEdges.filter((e) => !edgesToRemove.includes(e));
+
+        // Cleanup input mappings on target nodes of removed edges
+        updatedNodes = updatedNodes.map((node) => {
+          const incomingRemovedEdges = edgesToRemove.filter((e) => e.target === node.id);
+          if (incomingRemovedEdges.length === 0) return node;
+
+          const originalInputs = (node.data.inputs as Record<string, unknown>) || {};
+          const keysToRemove = new Set(
+            incomingRemovedEdges
+              .filter((e) => e.targetHandle && originalInputs[e.targetHandle])
+              .map((e) => e.targetHandle as string),
+          );
+
+          if (keysToRemove.size === 0) return node;
+
+          // Build new inputs object excluding the keys to remove
+          const inputs = Object.fromEntries(
+            Object.entries(originalInputs).filter(([key]) => !keysToRemove.has(key)),
+          );
+
+          if (Object.keys(inputs).length === Object.keys(originalInputs).length) return node;
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              inputs,
+            },
+          };
+        });
+      }
+
+      setNodes(updatedNodes);
+      setEdges(updatedEdges);
 
       // Debounce history snapshot to avoid creating history entries for every keystroke
       if (snapshotDebounceRef.current) {
@@ -718,14 +796,14 @@ export function Canvas({
       }
 
       snapshotDebounceRef.current = setTimeout(() => {
-        onSnapshot?.(newNodes, edges);
+        onSnapshot?.(updatedNodes, updatedEdges);
         snapshotDebounceRef.current = null;
       }, 500);
 
       // Mark workflow as dirty immediately so Save button enables
       markDirty();
     },
-    [nodes, edges, setNodes, markDirty, onSnapshot],
+    [nodes, edges, setNodes, setEdges, markDirty, onSnapshot],
   );
 
   // Sync selectedNode with the latest node data from nodes array
@@ -991,8 +1069,10 @@ export function Canvas({
               }}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
-              nodesDraggable
+              nodesDraggable={mode === 'design'}
               nodesConnectable={mode === 'design'}
+              edgesUpdatable={mode === 'design'}
+              deleteKeyCode={mode === 'design' ? ['Backspace', 'Delete'] : []}
               elementsSelectable
             >
               <Background

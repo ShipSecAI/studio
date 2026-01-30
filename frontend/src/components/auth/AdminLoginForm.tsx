@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
-import { API_BASE_URL } from '@/services/api';
+import { API_V1_URL } from '@/services/api';
 
 export function AdminLoginForm() {
   const [username, setUsername] = useState('');
@@ -34,7 +34,7 @@ export function AdminLoginForm() {
       // Test the credentials by making a simple API call
       // If it fails, the credentials are invalid
       const credentials = btoa(`${trimmedUsername}:${trimmedPassword}`);
-      const response = await fetch(`${API_BASE_URL}/api/v1/workflows`, {
+      const response = await fetch(`${API_V1_URL}/workflows`, {
         headers: {
           Authorization: `Basic ${credentials}`,
           'Content-Type': 'application/json',

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api } from '@/services/api';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { Card } from '@/components/ui/card';
@@ -44,9 +44,21 @@ export function NodeIOInspector() {
     content: '',
   });
 
+  // Track the previous run ID to detect actual run changes
+  const previousRunIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!selectedRunId) {
+    const isNewRun = selectedRunId !== previousRunIdRef.current;
+
+    // Only reset completely when switching to a different run
+    if (isNewRun) {
+      setSelectedNodeIO(null);
+      setError(null);
       setNodeIOList([]);
+      previousRunIdRef.current = selectedRunId;
+    }
+
+    if (!selectedRunId) {
       return;
     }
 

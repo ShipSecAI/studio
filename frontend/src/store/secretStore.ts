@@ -24,7 +24,7 @@ interface SecretStoreActions {
   refresh: () => Promise<void>;
 }
 
-type SecretStore = SecretStoreState & SecretStoreActions;
+export type SecretStore = SecretStoreState & SecretStoreActions;
 
 function sortSecrets(secrets: SecretSummary[]) {
   return [...secrets].sort((a, b) => a.name.localeCompare(b.name));

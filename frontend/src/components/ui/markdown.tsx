@@ -203,6 +203,11 @@ export const MarkdownView = memo(function MarkdownView({
     }
   };
 
+  // Prevent wheel events from propagating to React Flow canvas (which would zoom instead of scroll)
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+  }, []);
+
   return (
     <div
       ref={setRef}
@@ -210,6 +215,7 @@ export const MarkdownView = memo(function MarkdownView({
       data-testid={dataTestId}
       onMouseDownCapture={handleMouseDown}
       onClick={handleClick}
+      onWheel={handleWheel}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

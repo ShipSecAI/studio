@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSecretStore, type SecretStore } from '@/store/secretStore';
 import { useComponentStore } from '@/store/componentStore';
 import { getNodeValidationWarnings } from '@/utils/connectionValidation';
 import type { Node, Edge } from 'reactflow';
@@ -48,6 +49,8 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
   // Only show validation in design mode
   const isDesignMode = mode === 'design';
 
+  const secrets = useSecretStore((state: SecretStore) => state.secrets);
+
   const validationIssues = useMemo<ValidationIssue[]>(() => {
     if (!isDesignMode) return [];
 
@@ -62,9 +65,14 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
 
       // Get validation warnings using the existing utility
       // FrontendNodeData extends NodeData, so this cast is safe
-      const warnings = getNodeValidationWarnings(node as Node<FrontendNodeData>, edges, component);
+      const warnings = getNodeValidationWarnings(
+        node as Node<FrontendNodeData>,
+        edges,
+        component,
+        secrets,
+      );
 
-      warnings.forEach((warning) => {
+      warnings.forEach((warning: string) => {
         issues.push({
           nodeId: node.id,
           nodeLabel: nodeData.label || component.name || node.id,
@@ -74,7 +82,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
     });
 
     return issues;
-  }, [nodes, edges, getComponent, isDesignMode]);
+  }, [nodes, edges, getComponent, isDesignMode, secrets]);
 
   const totalIssues = validationIssues.length;
   const hasIssues = totalIssues > 0;
@@ -167,7 +175,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
           </div>
 
           {/* Issue list */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
             {hasIssues ? (
               <div className="divide-y divide-border">
                 {validationIssues.map((issue, index) => (
@@ -251,6 +259,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
               shouldCollapse && !isExpanded && 'max-h-0',
               (!shouldCollapse || isExpanded) && 'max-h-[300px] overflow-y-auto',
             )}
+            onWheel={(e) => e.stopPropagation()}
           >
             {validationIssues.map((issue, index) => (
               <button

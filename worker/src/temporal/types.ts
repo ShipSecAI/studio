@@ -95,6 +95,8 @@ export interface RunComponentActivityInput {
     failure?: WorkflowFailureMetadata;
     connectedToolNodeIds?: string[];
   };
+  inputOverrides?: Record<string, unknown>;
+  rawParams?: Record<string, unknown>;
 }
 
 export interface RunComponentActivityOutput {

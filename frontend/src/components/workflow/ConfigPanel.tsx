@@ -41,7 +41,7 @@ import {
   isListOfTextPort,
   resolvePortType,
 } from '@/utils/portUtils';
-import { API_BASE_URL, api } from '@/services/api';
+import { API_V1_URL, api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import type { WorkflowSchedule } from '@shipsec/shared';
@@ -679,8 +679,8 @@ export function ConfigPanel({
     }, {}),
   };
   const workflowInvokeUrl = workflowId
-    ? `${API_BASE_URL}/workflows/${workflowId}/run`
-    : `${API_BASE_URL}/workflows/{workflowId}/run`;
+    ? `${API_V1_URL}/workflows/${workflowId}/run`
+    : `${API_V1_URL}/workflows/{workflowId}/run`;
 
   return (
     <div
@@ -1042,7 +1042,8 @@ export function ConfigPanel({
                             <SecretSelect
                               value={typeof manualValue === 'string' ? manualValue : ''}
                               onChange={(value) => {
-                                if (value === '') {
+                                // Handle both undefined (from clear button) and empty string
+                                if (value === undefined || value === '' || value === null) {
                                   handleInputOverrideChange(input.id, undefined);
                                 } else {
                                   handleInputOverrideChange(input.id, value);
@@ -1051,7 +1052,6 @@ export function ConfigPanel({
                               placeholder={manualPlaceholder}
                               className="text-sm"
                               disabled={manualLocked}
-                              allowManualEntry={!manualLocked}
                             />
                           ) : isBooleanInput ? (
                             <div className="space-y-2">

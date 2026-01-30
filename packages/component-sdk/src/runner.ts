@@ -359,7 +359,7 @@ async function runDockerWithStandardIO<I, O>(
         });
 
         reject(new ContainerError(`Docker container failed with exit code ${code}: ${stderr}`, {
-          details: { exitCode: code, stderr, dockerArgs: formatArgs(dockerArgs) },
+          details: { exitCode: code, stderr, stdout, dockerArgs: formatArgs(dockerArgs) },
         }));
         return;
       }
@@ -490,6 +490,7 @@ async function runDockerWithPty<I, O>(
           {
             details: {
               exitCode,
+              stdout,
               dockerArgs: formatArgs(dockerArgs),
             },
           },
