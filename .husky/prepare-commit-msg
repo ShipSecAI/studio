@@ -1,0 +1,6 @@
+# Automatically add Signed-off-by line for the current committer if not already present
+# This ensures DCO compliance even when cherry-picking/rebasing commits with existing signoffs
+COMMITTER_SIGNOFF="Signed-off-by: $(git config user.name) <$(git config user.email)>"
+if ! grep -qF "$COMMITTER_SIGNOFF" "$1"; then
+  git interpret-trailers --in-place --trailer "$COMMITTER_SIGNOFF" "$1"
+fi
