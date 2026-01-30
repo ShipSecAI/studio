@@ -354,7 +354,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
           style={{ height: timelineHeight }}
         >
           {selectedRun ? (
-            <div className="h-full overflow-hidden">
+            <div className="h-full overflow-y-auto">
               <ExecutionTimeline />
             </div>
           ) : (
