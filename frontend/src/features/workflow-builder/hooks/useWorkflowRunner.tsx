@@ -31,6 +31,7 @@ interface UseWorkflowRunnerOptions {
   setNodes: Dispatch<SetStateAction<ReactFlowNode<FrontendNodeData>[]>>;
   toast: ToastFn;
   resolveRuntimeInputDefinitions: () => any[];
+  resolveRuntimeInputDefaults: () => Record<string, unknown>;
   fetchRuns: (params: { workflowId: string; force?: boolean }) => Promise<unknown>;
   markClean: () => void;
   navigate: (path: string, options?: { replace?: boolean }) => void;
@@ -63,6 +64,7 @@ export function useWorkflowRunner({
   setNodes,
   toast,
   resolveRuntimeInputDefinitions,
+  resolveRuntimeInputDefaults,
   fetchRuns,
   markClean,
   navigate,
@@ -199,7 +201,9 @@ export function useWorkflowRunner({
     const runtimeDefinitions = resolveRuntimeInputDefinitions();
     if (runtimeDefinitions.length > 0) {
       setRuntimeInputs(runtimeDefinitions);
-      setPrefilledRuntimeValues({});
+      // Use default values from Entry Point's __runtimeData input override
+      const defaultValues = resolveRuntimeInputDefaults();
+      setPrefilledRuntimeValues(defaultValues);
       setPendingVersionId(null);
       setRunDialogOpen(true);
       return;
@@ -213,6 +217,7 @@ export function useWorkflowRunner({
     metadata.id,
     nodes.length,
     resolveRuntimeInputDefinitions,
+    resolveRuntimeInputDefaults,
     toast,
   ]);
 

@@ -785,6 +785,165 @@ export function ConfigPanel({
             <CollapsibleSection title="Inputs" count={componentInputs.length} defaultOpen={true}>
               <div className="space-y-0 mt-2">
                 {componentInputs.map((input, index) => {
+                  // Special handling for Entry Point's __runtimeData input
+                  // Render individual fields for each runtime input definition
+                  if (isEntryPointComponent && input.id === '__runtimeData') {
+                    const runtimeDataValue =
+                      typeof inputOverrides.__runtimeData === 'object' &&
+                      inputOverrides.__runtimeData !== null
+                        ? (inputOverrides.__runtimeData as Record<string, unknown>)
+                        : {};
+
+                    const handleRuntimeDataFieldChange = (fieldId: string, value: unknown) => {
+                      const updatedRuntimeData = { ...runtimeDataValue };
+                      if (value === undefined || value === '' || value === null) {
+                        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+                        delete updatedRuntimeData[fieldId];
+                      } else {
+                        updatedRuntimeData[fieldId] = value;
+                      }
+                      // Store as empty object to avoid validation issues, or the full object
+                      const finalValue =
+                        Object.keys(updatedRuntimeData).length > 0 ? updatedRuntimeData : undefined;
+                      handleInputOverrideChange('__runtimeData', finalValue);
+                    };
+
+                    // If no runtime inputs defined, show a helpful message
+                    if (runtimeInputDefinitions.length === 0) {
+                      return (
+                        <div
+                          key={input.id}
+                          className={cn('py-3', index > 0 && 'border-t border-border')}
+                        >
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-medium">{input.label}</span>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] font-mono px-1.5">
+                              json
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Add runtime inputs in the Parameters section below to define default
+                            values here.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // Render a field for each runtime input definition
+                    return (
+                      <div
+                        key={input.id}
+                        className={cn('py-3', index > 0 && 'border-t border-border')}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium">{input.label}</span>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] font-mono px-1.5">
+                            json
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                          Set default values for runtime inputs. These will be used when the
+                          workflow is triggered without providing values.
+                        </p>
+                        <div className="space-y-3">
+                          {runtimeInputDefinitions.map((runtimeInput: any) => {
+                            const fieldId = runtimeInput.id;
+                            const fieldLabel = runtimeInput.label || fieldId;
+                            const fieldType = runtimeInput.type || 'text';
+                            const fieldDescription = runtimeInput.description;
+                            const fieldRequired = runtimeInput.required ?? true;
+                            const currentValue = runtimeDataValue[fieldId];
+                            const hasValue =
+                              currentValue !== undefined &&
+                              currentValue !== null &&
+                              currentValue !== '';
+
+                            return (
+                              <div
+                                key={fieldId}
+                                className="rounded-lg border bg-muted/20 p-3 space-y-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-sm font-medium">{fieldLabel}</span>
+                                    {fieldRequired && (
+                                      <span className="text-[9px] text-destructive font-medium">
+                                        *
+                                      </span>
+                                    )}
+                                  </div>
+                                  <Badge variant="outline" className="text-[10px] font-mono px-1.5">
+                                    {fieldType}
+                                  </Badge>
+                                </div>
+                                {fieldDescription && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {fieldDescription}
+                                  </p>
+                                )}
+                                <Input
+                                  id={`runtime-${fieldId}`}
+                                  type={fieldType === 'number' ? 'number' : 'text'}
+                                  value={
+                                    currentValue === undefined || currentValue === null
+                                      ? ''
+                                      : typeof currentValue === 'string' ||
+                                          typeof currentValue === 'number'
+                                        ? String(currentValue)
+                                        : JSON.stringify(currentValue)
+                                  }
+                                  onChange={(e) => {
+                                    const nextValue = e.target.value;
+                                    if (nextValue === '') {
+                                      handleRuntimeDataFieldChange(fieldId, undefined);
+                                      return;
+                                    }
+                                    if (fieldType === 'number') {
+                                      const parsed = Number(nextValue);
+                                      if (!Number.isNaN(parsed)) {
+                                        handleRuntimeDataFieldChange(fieldId, parsed);
+                                      }
+                                    } else if (fieldType === 'json') {
+                                      // Store as string, will be parsed at runtime
+                                      try {
+                                        const parsed = JSON.parse(nextValue);
+                                        handleRuntimeDataFieldChange(fieldId, parsed);
+                                      } catch {
+                                        // Keep as string if not valid JSON
+                                        handleRuntimeDataFieldChange(fieldId, nextValue);
+                                      }
+                                    } else {
+                                      handleRuntimeDataFieldChange(fieldId, nextValue);
+                                    }
+                                  }}
+                                  placeholder={`Enter default ${fieldType} value`}
+                                  className="text-sm"
+                                />
+                                <div className="text-[11px]">
+                                  {hasValue ? (
+                                    <div className="flex items-center gap-1.5 text-primary">
+                                      <Circle className="h-2 w-2 fill-current" />
+                                      <span>Value set</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground">
+                                      Leave blank to require a port connection.
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Standard input handling for non-Entry Point components
                   const connection = nodeData.inputs?.[input.id];
                   const hasConnection = Boolean(connection);
                   const manualValue = inputOverrides[input.id];
