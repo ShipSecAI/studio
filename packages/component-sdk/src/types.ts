@@ -282,6 +282,7 @@ export interface ComponentParameterMetadata {
   type: ComponentParameterType;
   required?: boolean;
   default?: unknown;
+  exposeToTool?: boolean;
   placeholder?: string;
   description?: string;
   helpText?: string;
@@ -306,6 +307,7 @@ export type ComponentCategory =
   | 'input'
   | 'transform'
   | 'ai'
+  | 'mcp'
   | 'security'
   | 'it_ops'
   | 'notification'

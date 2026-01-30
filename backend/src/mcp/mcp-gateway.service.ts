@@ -5,7 +5,12 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { componentRegistry, getToolInputShape } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  getActionInputIds,
+  getExposedParameterIds,
+  getToolInputShape,
+} from '@shipsec/component-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -23,6 +28,7 @@ export class McpGatewayService {
 
   // Cache of servers per runId
   private readonly servers = new Map<string, McpServer>();
+  private readonly registeredToolNames = new Map<string, Set<string>>();
 
   constructor(
     private readonly toolRegistry: ToolRegistryService,
@@ -60,10 +66,40 @@ export class McpGatewayService {
       version: '1.0.0',
     });
 
-    await this.registerTools(server, runId, allowedTools, allowedNodeIds);
+    const toolSet = new Set<string>();
+    this.registeredToolNames.set(cacheKey, toolSet);
+    await this.registerTools(server, runId, allowedTools, allowedNodeIds, toolSet);
     this.servers.set(cacheKey, server);
 
     return server;
+  }
+
+  /**
+   * Refresh tool registrations for any cached servers for a run.
+   * This is used when tools register after an MCP session has already initialized.
+   */
+  async refreshServersForRun(runId: string): Promise<void> {
+    const matchingEntries = Array.from(this.servers.entries()).filter(
+      ([key]) => key === runId || key.startsWith(`${runId}:`),
+    );
+
+    if (matchingEntries.length === 0) {
+      return;
+    }
+
+    this.logger.log(
+      `Refreshing MCP servers for run ${runId} (${matchingEntries.length} instance(s))`,
+    );
+
+    await Promise.all(
+      matchingEntries.map(async ([cacheKey, server]) => {
+        const allowedNodeIds =
+          cacheKey === runId ? undefined : cacheKey.split(':').slice(1).join(':').split(',');
+        const toolSet = this.registeredToolNames.get(cacheKey) ?? new Set<string>();
+        this.registeredToolNames.set(cacheKey, toolSet);
+        await this.registerTools(server, runId, undefined, allowedNodeIds, toolSet);
+      }),
+    );
   }
 
   private async validateRunAccess(runId: string, organizationId?: string | null) {
@@ -119,8 +155,15 @@ export class McpGatewayService {
     runId: string,
     allowedTools?: string[],
     allowedNodeIds?: string[],
+    registeredToolNames?: Set<string>,
   ) {
+    this.logger.log(
+      `Registering tools for run ${runId} (allowedNodeIds=${allowedNodeIds?.join(',') ?? 'none'}, allowedTools=${allowedTools?.join(',') ?? 'none'})`,
+    );
     const allRegistered = await this.toolRegistry.getToolsForRun(runId, allowedNodeIds);
+    this.logger.log(
+      `Tool registry returned ${allRegistered.length} tool(s) for run ${runId}: ${allRegistered.map((t) => `${t.toolName}:${t.type}`).join(', ') || 'none'}`,
+    );
 
     // Filter by allowed tools if specified
     if (allowedTools && allowedTools.length > 0) {
@@ -132,11 +175,19 @@ export class McpGatewayService {
 
     // 1. Register Internal Tools
     const internalTools = allRegistered.filter((t) => t.type === 'component');
+    this.logger.log(`Registering ${internalTools.length} internal tool(s) for run ${runId}`);
     for (const tool of internalTools) {
       if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(tool.toolName)) {
+        this.logger.log(`Skipping internal tool ${tool.toolName} (not in allowedTools)`);
         continue;
       }
 
+      if (registeredToolNames?.has(tool.toolName)) {
+        this.logger.log(`Skipping internal tool ${tool.toolName} (already registered)`);
+        continue;
+      }
+
+      this.logger.log(`Registering internal tool ${tool.toolName} (node=${tool.nodeId})`);
       const component = tool.componentId ? componentRegistry.get(tool.componentId) : null;
       const inputShape = component ? getToolInputShape(component) : undefined;
 
@@ -212,22 +263,37 @@ export class McpGatewayService {
           }
         },
       );
+      registeredToolNames?.add(tool.toolName);
     }
 
     // 2. Register External Tools (Proxied)
     const externalSources = allRegistered.filter((t) => t.type !== 'component');
+    this.logger.log(
+      `Registering ${externalSources.length} external MCP source(s) for run ${runId}`,
+    );
     for (const source of externalSources) {
       try {
+        this.logger.log(
+          `Fetching tools from external source ${source.toolName} (type=${source.type}, endpoint=${source.endpoint ?? 'missing'})`,
+        );
         const tools = await this.fetchExternalTools(source);
         const prefix = source.toolName;
 
+        this.logger.log(`External source ${source.toolName} returned ${tools.length} tool(s)`);
         for (const t of tools) {
           const proxiedName = `${prefix}__${t.name}`;
 
           if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(proxiedName)) {
+            this.logger.log(`Skipping proxied tool ${proxiedName} (not in allowedTools)`);
             continue;
           }
 
+          if (registeredToolNames?.has(proxiedName)) {
+            this.logger.log(`Skipping proxied tool ${proxiedName} (already registered)`);
+            continue;
+          }
+
+          this.logger.log(`Registering proxied tool ${proxiedName} (source=${source.toolName})`);
           server.registerTool(
             proxiedName,
             {
@@ -256,6 +322,7 @@ export class McpGatewayService {
               }
             },
           );
+          registeredToolNames?.add(proxiedName);
         }
       } catch (error) {
         this.logger.error(`Failed to fetch tools from external source ${source.toolName}:`, error);
@@ -267,21 +334,58 @@ export class McpGatewayService {
    * Fetches tools from an external MCP source
    */
   private async fetchExternalTools(source: RegisteredTool): Promise<any[]> {
-    if (!source.endpoint) return [];
-
-    const transport = new StreamableHTTPClientTransport(new URL(source.endpoint));
-    const client = new Client(
-      { name: 'shipsec-gateway-client', version: '1.0.0' },
-      { capabilities: {} },
-    );
-
-    await client.connect(transport);
-    try {
-      const response = await client.listTools();
-      return response.tools;
-    } finally {
-      await client.close();
+    if (!source.endpoint) {
+      this.logger.warn(`Missing endpoint for external source ${source.toolName}`);
+      return [];
     }
+
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY_MS = 1000;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+      const sessionId = `stdio-proxy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
+        requestInit: {
+          headers: {
+            'Mcp-Session-Id': sessionId,
+          },
+        },
+      });
+      const client = new Client(
+        { name: 'shipsec-gateway-client', version: '1.0.0' },
+        { capabilities: {} },
+      );
+
+      this.logger.log(
+        `Connecting to external MCP source ${source.toolName} at ${source.endpoint} (attempt ${attempt}/${MAX_RETRIES})`,
+      );
+
+      try {
+        await client.connect(transport);
+        const response = await client.listTools();
+        this.logger.log(
+          `listTools from ${source.toolName} returned ${response.tools?.length ?? 0} tool(s)`,
+        );
+        return response.tools;
+      } catch (error) {
+        lastError = error;
+        this.logger.warn(
+          `listTools failed for ${source.toolName} (attempt ${attempt}/${MAX_RETRIES}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+        if (attempt < MAX_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        }
+      } finally {
+        this.logger.log(`Closing external MCP client for ${source.toolName}`);
+        await client.close();
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+    return [];
   }
 
   /**
@@ -305,7 +409,14 @@ export class McpGatewayService {
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint));
+      const sessionId = `stdio-proxy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
+        requestInit: {
+          headers: {
+            'Mcp-Session-Id': sessionId,
+          },
+        },
+      });
       const client = new Client(
         { name: 'shipsec-gateway-client', version: '1.0.0' },
         { capabilities: {} },
@@ -354,8 +465,25 @@ export class McpGatewayService {
       throw new BadRequestException(`Component ID missing for tool '${tool.toolName}'`);
     }
 
+    const component = componentRegistry.get(tool.componentId);
+    const actionInputIds = component ? new Set(getActionInputIds(component)) : new Set<string>();
+    const exposedParamIds = component ? getExposedParameterIds(component) : [];
+    const exposedParamSet = new Set(exposedParamIds);
+
+    const inputArgs: Record<string, unknown> = {};
+    const paramOverrides: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(args ?? {})) {
+      if (exposedParamSet.has(key) && !actionInputIds.has(key)) {
+        paramOverrides[key] = value;
+      } else {
+        inputArgs[key] = value;
+      }
+    }
+
     // Resolve credentials from registry
     const credentials = await this.toolRegistry.getToolCredentials(runId, tool.nodeId);
+
+    const mergedParams = { ...(tool.parameters ?? {}), ...paramOverrides };
 
     // Generate a unique call ID for this tool invocation
     const callId = `${runId}:${tool.nodeId}:${Date.now()}`;
@@ -372,8 +500,8 @@ export class McpGatewayService {
         callId,
         nodeId: tool.nodeId,
         componentId: tool.componentId,
-        arguments: args,
-        parameters: tool.parameters,
+        arguments: inputArgs,
+        parameters: mergedParams,
         credentials: credentials ?? undefined,
         requestedAt: new Date().toISOString(),
       },

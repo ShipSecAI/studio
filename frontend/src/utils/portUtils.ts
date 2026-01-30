@@ -150,6 +150,15 @@ export const inputSupportsManualValue = (input: InputPort): boolean => {
   );
 };
 
+export const isCredentialInput = (input: InputPort): boolean => {
+  const resolved = resolvePortType(input);
+  return (
+    (resolved.kind === 'contract' && resolved.credential) ||
+    input.editor === 'secret' ||
+    input.id === 'connection'
+  );
+};
+
 export const runtimeInputTypeToConnectionType = (type: string): ConnectionType => {
   const normalized = type.toLowerCase();
 

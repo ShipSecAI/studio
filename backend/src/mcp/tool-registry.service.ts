@@ -211,6 +211,7 @@ export class ToolRegistryService implements OnModuleDestroy {
 
   async getToolsForRun(runId: string, nodeIds?: string[]): Promise<RegisteredTool[]> {
     if (!this.redis) {
+      this.logger.warn('Redis not configured, tool registry disabled');
       return [];
     }
 

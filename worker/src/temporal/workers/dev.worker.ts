@@ -29,6 +29,7 @@ import {
   registerComponentToolActivity,
   registerLocalMcpActivity,
   registerRemoteMcpActivity,
+  cleanupLocalMcpActivity,
   prepareAndRegisterToolActivity,
 } from '../activities/mcp.activity';
 
@@ -221,6 +222,7 @@ async function main() {
       registerComponentToolActivity,
       registerLocalMcpActivity,
       registerRemoteMcpActivity,
+      cleanupLocalMcpActivity,
     }).join(', ')}`,
   );
 
@@ -256,6 +258,7 @@ async function main() {
       registerComponentToolActivity,
       registerLocalMcpActivity,
       registerRemoteMcpActivity,
+      cleanupLocalMcpActivity,
       prepareAndRegisterToolActivity,
     },
     bundlerOptions: {

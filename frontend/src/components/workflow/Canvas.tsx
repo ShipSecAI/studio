@@ -225,6 +225,7 @@ export function Canvas({
             if (
               edgeToRemove &&
               edgeToRemove.targetHandle &&
+              edgeToRemove.targetHandle !== 'tools' &&
               (node.data.inputs as Record<string, unknown>)?.[edgeToRemove.targetHandle]
             ) {
               const targetHandle = edgeToRemove.targetHandle;
@@ -329,8 +330,14 @@ export function Canvas({
       // Calculate new nodes (if input mapping update is needed)
       let nextNodes = nodes;
 
-      // Update target node's input mapping
-      if (params.target && params.targetHandle && params.source && params.sourceHandle) {
+      // Update target node's input mapping (SKIP for 'tools' port)
+      if (
+        params.target &&
+        params.targetHandle &&
+        params.source &&
+        params.sourceHandle &&
+        params.targetHandle !== 'tools'
+      ) {
         const targetHandle = params.targetHandle;
         nextNodes = nodes.map((node) =>
           node.id === params.target

@@ -37,6 +37,7 @@ import './ai/gemini-provider';
 import './ai/openrouter-provider';
 import './ai/ai-agent';
 import './ai/llm-generate-text';
+import './ai/opencode';
 import './ai/mcp-http-provider';
 import './ai/mcp-tool-merge';
 
@@ -56,6 +57,8 @@ import './security/trufflehog';
 import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
+import './security/aws-cloudtrail-mcp';
+import './security/aws-cloudwatch-mcp';
 
 // GitHub components
 import './github/connection-provider';

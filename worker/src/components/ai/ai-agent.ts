@@ -29,7 +29,7 @@ import {
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
 import { AgentStreamRecorder } from './agent-stream-recorder';
 
-type ModelProvider = 'openai' | 'gemini' | 'openrouter';
+type ModelProvider = 'openai' | 'gemini' | 'openrouter' | 'zai-coding-plan';
 
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? '';
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? '';
@@ -118,7 +118,7 @@ const inputSchema = inputs({
       description: 'Connect tool-mode nodes here to scope gateway tool discovery for this agent.',
       allowAny: true,
       reason: 'Tool-mode port acts as a graph anchor; payloads are not consumed by the agent.',
-      connectionType: { kind: 'primitive', name: 'json' },
+      connectionType: { kind: 'contract', name: 'mcp.tool' },
     },
   ),
 });

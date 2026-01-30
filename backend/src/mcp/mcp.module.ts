@@ -20,6 +20,11 @@ import { ApiKeysModule } from '../api-keys/api-keys.module';
         // Use the same Redis URL as terminal or a dedicated one
         const url = process.env.TOOL_REGISTRY_REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
         if (!url) {
+          console.warn('[MCP] Redis URL not set; tool registry disabled');
+        } else {
+          console.info(`[MCP] Tool registry Redis URL: ${url}`);
+        }
+        if (!url) {
           return null;
         }
         return new Redis(url);
