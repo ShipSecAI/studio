@@ -272,8 +272,17 @@ export async function executeWorkflow(
         inputs: maskSecretOutputs(inputPorts, inputs) as Record<string, unknown>,
       });
 
-      const parsedInputs = component.inputs.parse(inputs);
       const parsedParams = component.parameters ? component.parameters.parse(params) : params;
+
+      // For components with dynamic ports (resolvePorts), resolve the actual input schema
+      let inputsSchema = component.inputs;
+      if (typeof component.resolvePorts === 'function') {
+        const resolved = component.resolvePorts(parsedParams);
+        if (resolved?.inputs) {
+          inputsSchema = resolved.inputs;
+        }
+      }
+      const parsedInputs = inputsSchema.parse(inputs);
 
       // Create execution context with SDK interfaces
       const scopedArtifacts = options.artifacts
