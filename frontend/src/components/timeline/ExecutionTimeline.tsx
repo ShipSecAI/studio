@@ -305,7 +305,7 @@ export function ExecutionTimeline() {
   }
 
   return (
-    <div className="border-t bg-background">
+    <div className="border-t bg-background overflow-y-auto max-h-full">
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
