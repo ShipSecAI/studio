@@ -469,6 +469,7 @@ async function registerGatewayTools({
   tools: ToolSet;
   close: () => Promise<void>;
 }> {
+  console.log(`[AGENT] Connecting to MCP gateway at ${gatewayUrl} to discover tools`);
   const mcpClient = await createMCPClient({
     transport: {
       type: 'http',
@@ -478,6 +479,7 @@ async function registerGatewayTools({
   });
 
   const tools = await mcpClient.tools();
+  console.log(`[AGENT] Discovered ${Object.keys(tools).length} tools from gateway: ${Object.keys(tools).join(', ') || 'none'}`);
   return {
     tools,
     close: async () => {

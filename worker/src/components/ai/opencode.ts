@@ -133,23 +133,33 @@ const definition = defineComponent({
 
     const { connectedToolNodeIds, organizationId } = context.metadata;
 
-    context.logger.info('[OpenCode] Preparing agent execution...');
+    context.logger.info(
+      `[OpenCode] Starting execution with connectedToolNodeIds: ${JSON.stringify(connectedToolNodeIds || [])}`,
+    );
+    context.logger.info(`[OpenCode] Organization ID: ${organizationId}`);
 
     // 1. Resolve Gateway Token for MCP
     let gatewayToken = '';
     if (connectedToolNodeIds && connectedToolNodeIds.length > 0) {
       try {
+        context.logger.info(
+          `[OpenCode] Attempting to generate gateway token for ${connectedToolNodeIds.length} tools: ${connectedToolNodeIds.join(', ')}`,
+        );
         gatewayToken = await getGatewaySessionToken(
           context.runId,
           organizationId ?? null,
           connectedToolNodeIds,
         );
         context.logger.info(
-          `[OpenCode] Generated gateway token for ${connectedToolNodeIds.length} tools.`,
+          `[OpenCode] Generated gateway token successfully (length: ${gatewayToken.length})`,
         );
       } catch (error) {
-        context.logger.warn(`[OpenCode] Failed to generate gateway token: ${error}`);
+        context.logger.error(`[OpenCode] Failed to generate gateway token: ${error}`);
       }
+    } else {
+      context.logger.warn(
+        '[OpenCode] No connectedToolNodeIds provided - agent will run without MCP tools',
+      );
     }
 
     // Helper to map provider to OpenCode model string format
@@ -178,6 +188,10 @@ const definition = defineComponent({
         }
       : {};
 
+    context.logger.info(
+      `[OpenCode] MCP Config: ${gatewayToken ? 'ENABLED' : 'DISABLED'}, URL: ${DEFAULT_GATEWAY_URL}`,
+    );
+
     // Build provider config for OpenCode
     // Z.AI requires the API key to be in provider.options.apiKey
     const providerConfigForOpenCode: Record<string, unknown> = {
@@ -200,6 +214,10 @@ const definition = defineComponent({
       // Merge in any additional provider config from parameters
       ...providerConfig,
     };
+
+    context.logger.info(
+      `[OpenCode] opencode.jsonc config: ${JSON.stringify(opencodeConfig, null, 2)}`,
+    );
 
     const providerEnv = buildProviderEnv(model);
 
@@ -313,6 +331,7 @@ Please investigate the issue and generate a detailed report.
       }
 
       context.logger.info(`[OpenCode] Finished. Stdout length: ${stdout.length}`);
+      context.logger.info(`[OpenCode] Raw output (first 500 chars):\n${stdout.substring(0, 500)}`);
 
       return outputSchema.parse({
         report: stdout, // The markdown report is expected in stdout

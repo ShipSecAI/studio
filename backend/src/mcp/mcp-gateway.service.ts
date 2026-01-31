@@ -158,11 +158,11 @@ export class McpGatewayService {
     registeredToolNames?: Set<string>,
   ) {
     this.logger.log(
-      `Registering tools for run ${runId} (allowedNodeIds=${allowedNodeIds?.join(',') ?? 'none'}, allowedTools=${allowedTools?.join(',') ?? 'none'})`,
+      `[TOOL REGISTRY] Starting tool registration for run ${runId} (allowedNodeIds=${allowedNodeIds?.join(',') ?? 'none'}, allowedTools=${allowedTools?.join(',') ?? 'none'})`,
     );
     const allRegistered = await this.toolRegistry.getToolsForRun(runId, allowedNodeIds);
     this.logger.log(
-      `Tool registry returned ${allRegistered.length} tool(s) for run ${runId}: ${allRegistered.map((t) => `${t.toolName}:${t.type}`).join(', ') || 'none'}`,
+      `[TOOL REGISTRY] Tool registry returned ${allRegistered.length} tool(s) for run ${runId}: ${allRegistered.map((t) => `${t.toolName}:${t.type}(${t.nodeId})`).join(', ') || 'none'}`,
     );
 
     // Filter by allowed tools if specified
@@ -175,7 +175,9 @@ export class McpGatewayService {
 
     // 1. Register Internal Tools
     const internalTools = allRegistered.filter((t) => t.type === 'component');
-    this.logger.log(`Registering ${internalTools.length} internal tool(s) for run ${runId}`);
+    this.logger.log(
+      `[TOOL REGISTRY] Found ${internalTools.length} internal tool(s) for run ${runId}: ${internalTools.map((t) => `${t.toolName}(${t.nodeId})`).join(', ') || 'none'}`,
+    );
     for (const tool of internalTools) {
       if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(tool.toolName)) {
         this.logger.log(`Skipping internal tool ${tool.toolName} (not in allowedTools)`);
@@ -187,7 +189,7 @@ export class McpGatewayService {
         continue;
       }
 
-      this.logger.log(`Registering internal tool ${tool.toolName} (node=${tool.nodeId})`);
+      this.logger.log(`[TOOL REGISTRY] Registering internal tool ${tool.toolName} (node=${tool.nodeId}, component=${tool.componentId})`);
       const component = tool.componentId ? componentRegistry.get(tool.componentId) : null;
       const inputShape = component ? getToolInputShape(component) : undefined;
 
@@ -269,17 +271,19 @@ export class McpGatewayService {
     // 2. Register External Tools (Proxied)
     const externalSources = allRegistered.filter((t) => t.type !== 'component');
     this.logger.log(
-      `Registering ${externalSources.length} external MCP source(s) for run ${runId}`,
+      `[TOOL REGISTRY] Found ${externalSources.length} external MCP source(s) for run ${runId}: ${externalSources.map((t) => `${t.toolName}(${t.type})`).join(', ') || 'none'}`,
     );
     for (const source of externalSources) {
       try {
         this.logger.log(
-          `Fetching tools from external source ${source.toolName} (type=${source.type}, endpoint=${source.endpoint ?? 'missing'})`,
+          `[TOOL REGISTRY] Fetching tools from external source ${source.toolName} (type=${source.type}, endpoint=${source.endpoint ?? 'missing'})`,
         );
         const tools = await this.fetchExternalTools(source);
         const prefix = source.toolName;
 
-        this.logger.log(`External source ${source.toolName} returned ${tools.length} tool(s)`);
+        this.logger.log(
+          `[TOOL REGISTRY] External source ${source.toolName} returned ${tools.length} tool(s): ${tools.map((t) => `${prefix}__${t.name}`).join(', ') || 'none'}`,
+        );
         for (const t of tools) {
           const proxiedName = `${prefix}__${t.name}`;
 
@@ -335,7 +339,7 @@ export class McpGatewayService {
    */
   private async fetchExternalTools(source: RegisteredTool): Promise<any[]> {
     if (!source.endpoint) {
-      this.logger.warn(`Missing endpoint for external source ${source.toolName}`);
+      this.logger.warn(`[TOOL REGISTRY] Missing endpoint for external source ${source.toolName}`);
       return [];
     }
 
@@ -345,6 +349,10 @@ export class McpGatewayService {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
       const sessionId = `stdio-proxy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      this.logger.log(
+        `[TOOL REGISTRY] Connecting to ${source.toolName} at ${source.endpoint} (attempt ${attempt}/${MAX_RETRIES}, sessionId=${sessionId})`,
+      );
+
       const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
         requestInit: {
           headers: {
@@ -357,15 +365,11 @@ export class McpGatewayService {
         { capabilities: {} },
       );
 
-      this.logger.log(
-        `Connecting to external MCP source ${source.toolName} at ${source.endpoint} (attempt ${attempt}/${MAX_RETRIES})`,
-      );
-
       try {
         await client.connect(transport);
         const response = await client.listTools();
         this.logger.log(
-          `listTools from ${source.toolName} returned ${response.tools?.length ?? 0} tool(s)`,
+          `[TOOL REGISTRY] listTools from ${source.toolName} returned ${response.tools?.length ?? 0} tool(s): ${response.tools?.map((t: any) => t.name).join(', ') || 'none'}`,
         );
         return response.tools;
       } catch (error) {

@@ -74,11 +74,17 @@ export async function registerLocalMcpActivity(
   const endpoint = input.endpoint || `http://localhost:${port}`;
   const containerId = input.containerId || `docker-${input.image.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
+  console.log(
+    `[TOOL REGISTRY] Registering local MCP: toolName=${input.toolName}, endpoint=${endpoint}, containerId=${containerId}, runId=${input.runId}`,
+  );
+
   await callInternalApi('register-local', {
     ...input,
     endpoint,
     containerId,
   });
+
+  console.log(`[TOOL REGISTRY] Local MCP registered successfully: ${input.toolName}`);
 }
 
 export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void> {
