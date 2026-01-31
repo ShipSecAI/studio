@@ -6,21 +6,12 @@ import {
   outputs,
   parameters,
   port,
+  param,
 } from '@shipsec/component-sdk';
 import { consoleLogResultSchema } from '@shipsec/contracts';
 
-const inputSchema = inputs({
-  data: port(z.any().describe('Data to log to console'), {
-    label: 'Data',
-    description: 'Any data to log (objects will be JSON stringified).',
-    allowAny: true,
-    reason: 'Console log accepts arbitrary payloads for debugging.',
-  }),
-  label: port(z.string().optional().describe('Optional label for the log entry'), {
-    label: 'Label',
-    description: 'Optional label to identify this log entry.',
-  }),
-});
+// Dynamic inputs will be injected here by resolvePorts
+const inputSchema = inputs({});
 
 const outputSchema = outputs({
   result: port(consoleLogResultSchema(), {
@@ -37,7 +28,24 @@ const outputSchema = outputs({
   }),
 });
 
-const parameterSchema = parameters({});
+const parameterSchema = parameters({
+  variables: param(
+    z
+      .array(
+        z.object({
+          name: z.string(),
+          label: z.string().optional(),
+        }),
+      )
+      .default([]),
+    {
+      label: 'Input Fields',
+      editor: 'variable-list',
+      description:
+        'Define named input fields to log. Each field creates a port that can receive data from other components.',
+    },
+  ),
+});
 
 const definition = defineComponent({
   id: 'core.console.log',
@@ -47,13 +55,14 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Logs data to workflow execution logs. Useful for debugging and displaying results.',
+  docs: 'Logs data to workflow execution logs. Supports multiple named inputs for debugging and displaying results from different components.',
   ui: {
     slug: 'console-log',
-    version: '1.0.0',
+    version: '2.0.0',
     type: 'output',
     category: 'output',
-    description: 'Output data to workflow execution logs for debugging and monitoring.',
+    description:
+      'Output data to workflow execution logs for debugging and monitoring. Supports multiple named inputs.',
     icon: 'Terminal',
     author: {
       name: 'ShipSecAI',
@@ -64,47 +73,105 @@ const definition = defineComponent({
     examples: [
       'Preview component output before wiring into external systems.',
       'Dump intermediate data structures while developing new workflows.',
+      'Log multiple outputs from different components in a single node.',
     ],
   },
-  async execute({ inputs, params: _params }, context) {
-    const label = inputs.label || 'Console Log';
+  resolvePorts(params: z.infer<typeof parameterSchema>) {
+    const inputShape: Record<string, z.ZodTypeAny> = {
+      // Always include a default 'data' input for simple use cases
+      data: port(z.any().optional().describe('Data to log to console'), {
+        label: 'Data',
+        description: 'Any data to log (objects will be JSON stringified).',
+        allowAny: true,
+        reason: 'Console log accepts arbitrary payloads for debugging.',
+      }),
+      label: port(z.string().optional().describe('Optional label for the log entry'), {
+        label: 'Label',
+        description: 'Optional label to identify this log entry.',
+      }),
+    };
 
-    context.logger.info(`[${label}] ========================================`);
-
-    // Format the data for logging
-    let formattedData: string;
-    let preview: string;
-
-    if (typeof inputs.data === 'object' && inputs.data !== null) {
-      formattedData = JSON.stringify(inputs.data, null, 2);
-
-      // Create a preview (first 200 chars)
-      if (Array.isArray(inputs.data)) {
-        preview = `Array with ${inputs.data.length} items`;
-      } else {
-        const keys = Object.keys(inputs.data);
-        preview = `Object with ${keys.length} keys: ${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '...' : ''}`;
+    // Add dynamic input ports based on variables parameter
+    if (params.variables && Array.isArray(params.variables)) {
+      for (const v of params.variables) {
+        if (!v || !v.name) continue;
+        // Use label if provided, otherwise use name
+        const portLabel = v.label || v.name;
+        inputShape[v.name] = port(z.any().optional(), {
+          label: portLabel,
+          description: `Data input: ${portLabel}`,
+          allowAny: true,
+          reason: 'Console log accepts arbitrary payloads for debugging.',
+        });
       }
-    } else {
-      formattedData = String(inputs.data);
-      preview =
-        formattedData.length > 100 ? formattedData.substring(0, 100) + '...' : formattedData;
     }
 
-    // Log to workflow execution logs
-    context.logger.info(`[${label}] ${formattedData}`);
-    context.logger.info(`[${label}] ========================================`);
+    return { inputs: inputs(inputShape) };
+  },
+  async execute({ inputs, params }, context) {
+    const inputData = inputs as Record<string, unknown>;
+    const logLabel = (inputData.label as string) || 'Console Log';
+    const variables = params.variables || [];
+
+    context.logger.info(`[${logLabel}] ========================================`);
+
+    const previews: string[] = [];
+
+    // Helper to format and log data
+    const formatData = (data: unknown): { formatted: string; preview: string } => {
+      if (data === undefined || data === null) {
+        return { formatted: 'null', preview: 'null' };
+      }
+      if (typeof data === 'object') {
+        const formatted = JSON.stringify(data, null, 2);
+        let preview: string;
+        if (Array.isArray(data)) {
+          preview = `Array with ${data.length} items`;
+        } else {
+          const keys = Object.keys(data);
+          preview = `Object with ${keys.length} keys: ${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '...' : ''}`;
+        }
+        return { formatted, preview };
+      }
+      const formatted = String(data);
+      const preview = formatted.length > 100 ? formatted.substring(0, 100) + '...' : formatted;
+      return { formatted, preview };
+    };
+
+    // Log the default 'data' input if provided
+    if (inputData.data !== undefined) {
+      const { formatted, preview } = formatData(inputData.data);
+      context.logger.info(`[${logLabel}] [Data] ${formatted}`);
+      previews.push(`Data: ${preview}`);
+    }
+
+    // Log each dynamic variable input
+    for (const v of variables) {
+      if (!v || !v.name) continue;
+      const value = inputData[v.name];
+      if (value !== undefined) {
+        const displayLabel = v.label || v.name;
+        const { formatted, preview } = formatData(value);
+        context.logger.info(`[${logLabel}] [${displayLabel}] ${formatted}`);
+        previews.push(`${displayLabel}: ${preview}`);
+      }
+    }
+
+    context.logger.info(`[${logLabel}] ========================================`);
+
+    // Create combined preview
+    const combinedPreview = previews.length > 0 ? previews.join(' | ') : 'No data logged';
 
     // Emit progress with preview
-    context.emitProgress(`Logged: ${preview}`);
+    context.emitProgress(`Logged: ${combinedPreview}`);
 
     return {
       result: {
         logged: true,
-        preview,
+        preview: combinedPreview,
       },
       logged: true,
-      preview,
+      preview: combinedPreview,
     };
   },
 });
