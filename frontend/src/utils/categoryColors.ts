@@ -5,6 +5,7 @@ export type ComponentCategory =
   | 'input'
   | 'transform'
   | 'ai'
+  | 'mcp'
   | 'security'
   | 'it_ops'
   | 'notification'
@@ -28,6 +29,10 @@ export const CATEGORY_SEPARATOR_COLORS: Record<ComponentCategory, { light: strin
     ai: {
       light: 'rgb(196 181 253)', // violet-300 (2 shades lighter than violet-500)
       dark: 'rgb(196 181 253)', // violet-300 (2 shades lighter than violet-400)
+    },
+    mcp: {
+      light: 'rgb(153 246 228)', // teal-200
+      dark: 'rgb(94 234 212)', // teal-300
     },
     security: {
       light: 'rgb(252 165 165)', // red-300 (2 shades lighter than red-500)
@@ -68,6 +73,10 @@ export const CATEGORY_HEADER_BG_COLORS: Record<ComponentCategory, { light: strin
     ai: {
       light: 'rgb(253 250 255)', // custom violet-25
       dark: 'rgb(36 25 50 / 0.15)', // violet-950/15
+    },
+    mcp: {
+      light: 'rgb(247 254 253)', // teal-25
+      dark: 'rgb(19 78 74 / 0.15)', // teal-950/15
     },
     security: {
       light: 'rgb(255 250 250)', // custom red-25

@@ -25,6 +25,7 @@
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@types/har-format": "^1.2.16",
     "@types/node": "^20.16.11",
     "@typescript-eslint/eslint-plugin": "^8.53.0",

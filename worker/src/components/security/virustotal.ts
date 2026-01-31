@@ -95,6 +95,11 @@ const definition = defineComponent({
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
+    agentTool: {
+      enabled: true,
+      toolDescription:
+        'Threat intelligence lookup for IPs, domains, hashes, and URLs (VirusTotal).',
+    },
   },
   async execute({ inputs, params }, context) {
     const { indicator, apiKey } = inputs;

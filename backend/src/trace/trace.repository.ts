@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, desc } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { workflowTracesTable, type WorkflowTraceRecord } from '../database/schema';
@@ -165,6 +165,18 @@ export class TraceRepository implements OnModuleDestroy {
       firstTimestamp: result?.firstTimestamp ?? null,
       lastTimestamp: result?.lastTimestamp ?? null,
     };
+  }
+
+  async getLastSequence(runId: string, organizationId?: string | null): Promise<number> {
+    const runFilter = this.buildRunFilter(runId, organizationId);
+    const [result] = await this.db
+      .select({ sequence: workflowTracesTable.sequence })
+      .from(workflowTracesTable)
+      .where(runFilter)
+      .orderBy(desc(workflowTracesTable.sequence))
+      .limit(1);
+
+    return result?.sequence ?? 0;
   }
 
   private mapToInsert(event: PersistedTraceEvent) {

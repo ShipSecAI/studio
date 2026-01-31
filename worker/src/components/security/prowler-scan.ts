@@ -426,6 +426,10 @@ const definition = defineComponent({
       'Run nightly `prowler aws --quick --severity-filter high,critical` scans on production accounts and forward findings into ELK.',
       'Use `prowler cloud` with custom flags to generate a multi-cloud compliance snapshot.',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'AWS and multi-cloud security assessment tool (Prowler).',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);

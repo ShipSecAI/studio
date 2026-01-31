@@ -35,6 +35,8 @@ export interface PortMeta {
   schemaName?: string;
   /** Mark this schema as a credential type */
   isCredential?: boolean;
+  /** True if this port should be hidden from the UI (defaults to false) */
+  hidden?: boolean;
 }
 
 const METADATA_STORE = new WeakMap<z.ZodTypeAny, PortMeta>();

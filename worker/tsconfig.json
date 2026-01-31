@@ -18,11 +18,11 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "emitDeclarationOnly": true,
     "types": [
       "bun-types"
     ],
     "incremental": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
     "composite": true,
     "assumeChangesOnlyAffectDirectDependencies": true
   },

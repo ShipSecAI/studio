@@ -19,6 +19,7 @@ export * from './registry';
 export * from './context';
 export * from './runner';
 export * from './errors';
+export * from './tool-helpers';
 export * from './http/types';
 export * from './http/har-builder';
 export * from './http/instrumented-fetch';

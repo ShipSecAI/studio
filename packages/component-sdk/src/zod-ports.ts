@@ -14,7 +14,7 @@ export interface ValidationResult {
   error?: string;
 }
 
-type ZodDef = { type?: string; typeName?: string; [key: string]: any };
+type ZodDef = { type?: string; typeName?: string;[key: string]: any };
 
 const LEGACY_TYPE_MAP: Record<string, string> = {
   ZodString: 'string',
@@ -131,6 +131,7 @@ export function extractPorts(
       valuePriority: metadata.valuePriority,
       isBranching: metadata.isBranching,
       branchColor: metadata.branchColor,
+      hidden: metadata.hidden,
     });
   }
 
@@ -160,6 +161,15 @@ export function deriveConnectionType(schema: z.ZodTypeAny): ConnectionType {
   const unwrapped = unwrapEffects(schema);
   const defType = getSchemaType(unwrapped);
 
+  // Check for schemaName (named contract) - takes precedence over generic types
+  if (portMeta?.schemaName) {
+    return {
+      kind: 'contract',
+      name: portMeta.schemaName,
+      credential: portMeta.isCredential,
+    };
+  }
+
   // Handle explicit any/unknown with allowAny flag
   if (defType === 'any' || defType === 'unknown') {
     if (portMeta?.allowAny) {
@@ -168,15 +178,6 @@ export function deriveConnectionType(schema: z.ZodTypeAny): ConnectionType {
     throw new Error(
       `z.any() or z.unknown() requires explicit allowAny=true${portMeta?.reason ? `: ${portMeta.reason}` : ''}`
     );
-  }
-
-  // Check for schemaName (named contract)
-  if (portMeta?.schemaName) {
-    return {
-      kind: 'contract',
-      name: portMeta.schemaName,
-      credential: portMeta.isCredential,
-    };
   }
 
   const editorConnectionType = editorToConnectionType(portMeta?.editor);

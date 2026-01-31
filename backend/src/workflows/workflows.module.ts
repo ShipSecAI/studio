@@ -38,6 +38,6 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
     TerminalArchiveService,
     WorkflowRoleGuard,
   ],
-  exports: [WorkflowsService],
+  exports: [WorkflowsService, WorkflowRepository, WorkflowRunRepository, WorkflowVersionRepository],
 })
 export class WorkflowsModule {}

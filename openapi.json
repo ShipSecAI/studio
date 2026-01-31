@@ -2825,6 +2825,20 @@
                               ],
                               "additionalProperties": true
                             },
+                            "editor": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "textarea",
+                                "number",
+                                "boolean",
+                                "select",
+                                "multi-select",
+                                "json",
+                                "secret"
+                              ],
+                              "nullable": true
+                            },
                             "required": {
                               "type": "boolean"
                             },
@@ -3119,6 +3133,20 @@
                               "kind"
                             ],
                             "additionalProperties": true
+                          },
+                          "editor": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "textarea",
+                              "number",
+                              "boolean",
+                              "select",
+                              "multi-select",
+                              "json",
+                              "secret"
+                            ],
+                            "nullable": true
                           },
                           "required": {
                             "type": "boolean"
@@ -4677,6 +4705,198 @@
         ]
       }
     },
+    "/api/v1/mcp/gateway": {
+      "get": {
+        "operationId": "McpGatewayController_handleGateway_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "post": {
+        "operationId": "McpGatewayController_handleGateway_post",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "put": {
+        "operationId": "McpGatewayController_handleGateway_put",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "delete": {
+        "operationId": "McpGatewayController_handleGateway_delete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "patch": {
+        "operationId": "McpGatewayController_handleGateway_patch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "options": {
+        "operationId": "McpGatewayController_handleGateway_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "head": {
+        "operationId": "McpGatewayController_handleGateway_head",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      },
+      "search": {
+        "operationId": "McpGatewayController_handleGateway_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/internal/mcp/generate-token": {
+      "post": {
+        "operationId": "InternalMcpController_generateToken",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalMcp"
+        ]
+      }
+    },
+    "/api/v1/internal/mcp/register-component": {
+      "post": {
+        "operationId": "InternalMcpController_registerComponent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterComponentToolInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalMcp"
+        ]
+      }
+    },
+    "/api/v1/internal/mcp/register-remote": {
+      "post": {
+        "operationId": "InternalMcpController_registerRemote",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRemoteMcpInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalMcp"
+        ]
+      }
+    },
+    "/api/v1/internal/mcp/register-local": {
+      "post": {
+        "operationId": "InternalMcpController_registerLocal",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterLocalMcpInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalMcp"
+        ]
+      }
+    },
     "/api/v1/testing/webhooks": {
       "post": {
         "operationId": "TestingWebhookController_acceptWebhook",
@@ -4835,12 +5055,48 @@
                       "type": "string"
                     },
                     "config": {
-                      "default": {},
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
+                      "default": {
+                        "params": {},
+                        "inputOverrides": {}
                       },
-                      "additionalProperties": {}
+                      "type": "object",
+                      "properties": {
+                        "params": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "inputOverrides": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "joinStrategy": {
+                          "type": "string",
+                          "enum": [
+                            "all",
+                            "any",
+                            "first"
+                          ]
+                        },
+                        "streamId": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "maxConcurrency": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      }
                     },
                     "dynamicInputs": {
                       "type": "array",
@@ -5004,12 +5260,48 @@
                           "type": "string"
                         },
                         "config": {
-                          "default": {},
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
                           },
-                          "additionalProperties": {}
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "any",
+                                "first"
+                              ]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
                         },
                         "dynamicInputs": {
                           "type": "array",
@@ -5204,12 +5496,48 @@
                       "type": "string"
                     },
                     "config": {
-                      "default": {},
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
+                      "default": {
+                        "params": {},
+                        "inputOverrides": {}
                       },
-                      "additionalProperties": {}
+                      "type": "object",
+                      "properties": {
+                        "params": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "inputOverrides": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "joinStrategy": {
+                          "type": "string",
+                          "enum": [
+                            "all",
+                            "any",
+                            "first"
+                          ]
+                        },
+                        "streamId": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "maxConcurrency": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      }
                     },
                     "dynamicInputs": {
                       "type": "array",
@@ -5356,7 +5684,8 @@
                     "json",
                     "array",
                     "file",
-                    "boolean"
+                    "boolean",
+                    "secret"
                   ]
                 },
                 "required": {
@@ -5441,12 +5770,48 @@
                           "type": "string"
                         },
                         "config": {
-                          "default": {},
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
                           },
-                          "additionalProperties": {}
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": [
+                                "all",
+                                "any",
+                                "first"
+                              ]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
                         },
                         "dynamicInputs": {
                           "type": "array",
@@ -5907,10 +6272,24 @@
             },
             "additionalProperties": {
               "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {}
+              "properties": {
+                "params": {
+                  "default": {},
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "inputOverrides": {
+                  "default": {},
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              }
             }
           },
           "trigger": {
@@ -6373,8 +6752,8 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "plainKey": {
-            "description": "The plaintext API key (only returned on creation)",
-            "type": "string"
+            "type": "string",
+            "description": "The plaintext API key (only returned on creation)"
           }
         },
         "required": [
@@ -6977,10 +7356,24 @@
                 },
                 "additionalProperties": {
                   "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {}
+                  "properties": {
+                    "params": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "inputOverrides": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  }
                 }
               }
             }
@@ -7064,10 +7457,24 @@
                 },
                 "additionalProperties": {
                   "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {}
+                  "properties": {
+                    "params": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "inputOverrides": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  }
                 }
               }
             }
@@ -7763,6 +8170,18 @@
           "message",
           "input"
         ]
+      },
+      "RegisterComponentToolInput": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegisterRemoteMcpInput": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegisterLocalMcpInput": {
+        "type": "object",
+        "properties": {}
       }
     }
   }

@@ -245,6 +245,10 @@ const definition = defineComponent({
       'Validate Subfinder or Amass discoveries by probing for live web services.',
       'Filter Naabu results to identify hosts exposing HTTP/S services on uncommon ports.',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Live HTTP endpoint probe and metadata collector (httpx).',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
