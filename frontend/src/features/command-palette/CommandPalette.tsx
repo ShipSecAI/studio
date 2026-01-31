@@ -6,7 +6,8 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useComponentStore } from '@/store/componentStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
-import { mobilePlacementState } from '@/components/layout/sidebar-state';
+import { useWorkflowStore } from '@/store/workflowStore';
+import { usePlacementStore } from '@/components/layout/sidebar-state';
 import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
 import {
@@ -185,6 +186,9 @@ export function CommandPalette() {
   }, [storeComponents]);
 
   // Handle component placement
+  const setPlacement = usePlacementStore((state) => state.setPlacement);
+  const currentWorkflowId = useWorkflowStore((state) => state.metadata.id);
+
   const handleComponentSelect = useCallback(
     (component: ComponentMetadata) => {
       // If not on workflow page, navigate to new workflow first
@@ -195,19 +199,14 @@ export function CommandPalette() {
         return;
       }
 
-      // Set up mobile placement state (works for both mobile and desktop now)
-      // The canvas will detect this and place the component
-      mobilePlacementState.componentId = component.id;
-      mobilePlacementState.componentName = component.name;
-      mobilePlacementState.isActive = true;
+      // Set up placement state scoped to the current workflow
+      // The canvas will detect this and place the component when clicked
+      setPlacement(component.id, component.name, currentWorkflowId);
 
       // Close the command palette
       close();
-
-      // For desktop, we could also trigger a center placement, but the "click to place"
-      // gives users more control over where the component goes
     },
-    [isOnWorkflowPage, isOnNewWorkflowPage, navigate, close],
+    [isOnWorkflowPage, isOnNewWorkflowPage, navigate, close, setPlacement, currentWorkflowId],
   );
 
   // Build static commands
