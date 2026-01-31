@@ -11,6 +11,20 @@ import {
 } from '@shipsec/component-sdk';
 
 const inputSchema = inputs({
+  artifactName: port(
+    z
+      .string()
+      .optional()
+      .describe(
+        'Name for the artifact. Supports dynamic placeholders: {{run_id}}, {{node_id}}, {{timestamp}}, {{date}}, {{time}}. Defaults to {{run_id}}-{{timestamp}}.',
+      ),
+    {
+      label: 'Artifact Name',
+      description:
+        'Name for the artifact file. Use dynamic placeholders like {{run_id}}, {{timestamp}} for unique names.',
+      editor: 'text',
+    },
+  ),
   content: port(
     z
       .any()
@@ -29,17 +43,40 @@ const inputSchema = inputs({
   ),
 });
 
+/**
+ * Substitutes dynamic placeholders in artifact name template.
+ * Supported placeholders:
+ * - {{run_id}} - Full workflow run ID
+ * - {{node_id}} - Component's node ID in the workflow (e.g., "artifact-writer-1")
+ * - {{timestamp}} - Unix timestamp in milliseconds
+ * - {{date}} - ISO date (YYYY-MM-DD)
+ * - {{time}} - ISO time (HH-MM-SS)
+ */
+function substituteArtifactName(
+  template: string,
+  context: { runId: string; componentRef: string },
+): string {
+  const now = new Date();
+  const timestamp = now.getTime().toString();
+  const isoDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const isoTime = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-'); // HH-MM-SS
+
+  return template
+    .replace(/\{\{run_id\}\}/gi, context.runId)
+    .replace(/\{\{node_id\}\}/gi, context.componentRef)
+    .replace(/\{\{timestamp\}\}/gi, timestamp)
+    .replace(/\{\{date\}\}/gi, isoDate)
+    .replace(/\{\{time\}\}/gi, isoTime);
+}
+
 const parameterSchema = parameters({
-  fileName: param(
-    z
-      .string()
-      .min(1, 'File name is required')
-      .default('artifact.txt')
-      .describe('File name to assign to the saved artifact.'),
+  fileExtension: param(
+    z.string().default('.txt').describe('File extension to append to the artifact name.'),
     {
-      label: 'File Name',
+      label: 'File Extension',
       editor: 'text',
-      description: 'File name to use when saving the artifact.',
+      description:
+        'File extension (e.g., .txt, .json, .csv). Will be appended to the artifact name.',
     },
   ),
   mimeType: param(
@@ -76,9 +113,13 @@ const outputSchema = outputs({
     label: 'Artifact ID',
     description: 'Identifier returned by the artifact service.',
   }),
+  artifactName: port(z.string(), {
+    label: 'Artifact Name',
+    description: 'Resolved name of the artifact (with placeholders substituted).',
+  }),
   fileName: port(z.string(), {
     label: 'File Name',
-    description: 'Name of the artifact file that was written.',
+    description: 'Full file name including extension.',
   }),
   size: port(z.number(), {
     label: 'Size',
@@ -125,6 +166,19 @@ const definition = defineComponent({
       destinations.push('library');
     }
 
+    // Resolve artifact name with dynamic placeholders
+    const artifactNameTemplate = inputs.artifactName || '{{run_id}}-{{timestamp}}';
+    const resolvedArtifactName = substituteArtifactName(artifactNameTemplate, {
+      runId: context.runId,
+      componentRef: context.componentRef,
+    });
+
+    // Build full filename with extension
+    const extension = params.fileExtension || '.txt';
+    const fileName = resolvedArtifactName.endsWith(extension)
+      ? resolvedArtifactName
+      : `${resolvedArtifactName}${extension}`;
+
     // Serialize content to string - if already a string, use as-is; otherwise JSON stringify
     const rawContent = inputs.content;
     let serializedContent: string;
@@ -141,7 +195,8 @@ const definition = defineComponent({
       context.logger.info('[ArtifactWriter] No destinations selected; skipping upload.');
       return {
         artifactId: undefined,
-        fileName: params.fileName,
+        artifactName: resolvedArtifactName,
+        fileName,
         size: Buffer.byteLength(serializedContent),
         destinations: [],
         saved: false,
@@ -157,13 +212,13 @@ const definition = defineComponent({
 
     const buffer = Buffer.from(serializedContent, 'utf-8');
     context.logger.info(
-      `[ArtifactWriter] Uploading '${params.fileName}' (${buffer.byteLength} bytes) to ${destinations.join(
+      `[ArtifactWriter] Uploading '${fileName}' (${buffer.byteLength} bytes) to ${destinations.join(
         ', ',
       )}`,
     );
 
     const upload = await context.artifacts.upload({
-      name: params.fileName,
+      name: fileName,
       mimeType: params.mimeType ?? 'text/plain',
       content: buffer,
       destinations,
@@ -171,7 +226,8 @@ const definition = defineComponent({
 
     return {
       artifactId: upload.artifactId,
-      fileName: params.fileName,
+      artifactName: resolvedArtifactName,
+      fileName,
       size: buffer.byteLength,
       destinations,
       saved: true,
