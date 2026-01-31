@@ -27,6 +27,7 @@ import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
 import './core/workflow-call';
+import './core/analytics-sink';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';
@@ -67,6 +68,7 @@ import './it-automation/okta-user-offboard';
 // Test utility components
 import './test/sleep-parallel';
 import './test/live-event-heartbeat';
+import './test/analytics-fixture';
 
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';

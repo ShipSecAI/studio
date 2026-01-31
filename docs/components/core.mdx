@@ -205,3 +205,44 @@ Provides AWS credentials for S3 operations.
 | Output | Type | Description |
 |--------|------|-------------|
 | `credentials` | Object | Credential object for S3 components |
+
+---
+
+## Analytics
+
+### Analytics Sink
+
+Indexes workflow output data into OpenSearch for analytics dashboards, queries, and alerts. Connect the `results` port from upstream security scanners.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `data` | Any | Data to index. Works best with `list<json>` from scanner `results` ports. |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `indexed` | Boolean | Whether data was successfully indexed |
+| `documentCount` | Number | Number of documents indexed |
+| `indexName` | String | Name of the OpenSearch index used |
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `indexSuffix` | String | Custom suffix for the index name. Defaults to slugified workflow name. |
+| `assetKeyField` | Select | Field to use as asset identifier. Options: auto, asset_key, host, domain, subdomain, url, ip, asset, target, custom |
+| `customAssetKeyField` | String | Custom field name when assetKeyField is "custom" |
+| `failOnError` | Boolean | When enabled, workflow stops if indexing fails. Default: false (fire-and-forget) |
+
+**How it works:**
+
+1. Each item in the input array becomes a separate document
+2. Workflow context is added under `shipsec.*` namespace
+3. Nested objects are serialized to JSON strings (prevents field explosion)
+4. All documents get the same `@timestamp`
+
+**Example use cases:**
+- Index Nuclei scan results for trend analysis
+- Store TruffleHog secrets for tracking over time
+- Aggregate vulnerability data across workflows
+
+<Note>
+  See [Workflow Analytics](/development/workflow-analytics) for detailed setup and querying guide.
+</Note>

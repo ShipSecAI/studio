@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard, seconds } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import Redis from 'ioredis';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { authConfig } from './config/auth.config';
+import { opensearchConfig } from './config/opensearch.config';
+import { OpenSearchModule } from './config/opensearch.module';
 import { AgentsModule } from './agents/agents.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthGuard } from './auth/auth.guard';
@@ -46,8 +51,25 @@ const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupp
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', '../.env'],
-      load: [authConfig],
+      load: [authConfig, opensearchConfig],
     }),
+    ThrottlerModule.forRootAsync({
+      useFactory: () => {
+        const redisUrl = process.env.REDIS_URL;
+
+        return {
+          throttlers: [
+            {
+              name: 'default',
+              ttl: seconds(60), // 60 seconds
+              limit: 100, // 100 requests per minute
+            },
+          ],
+          storage: redisUrl ? new ThrottlerStorageRedisService(new Redis(redisUrl)) : undefined, // Falls back to in-memory storage if Redis not configured
+        };
+      },
+    }),
+    OpenSearchModule,
     ...coreModules,
     ...testingModules,
   ],
@@ -61,6 +83,10 @@ const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupp
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })
