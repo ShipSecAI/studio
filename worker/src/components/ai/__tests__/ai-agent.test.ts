@@ -11,6 +11,7 @@ const createGoogleGenerativeAIMock = vi.fn(() => (modelId: string) => ({
   modelId,
 }));
 const createMCPClientMock = vi.fn();
+const getGatewaySessionTokenMock = vi.fn(async () => 'gateway-token');
 
 let toolLoopAgentSettings: unknown;
 let lastGenerateMessages: unknown;
@@ -50,6 +51,7 @@ function createTestContext(overrides?: Partial<ExecutionContext>): ExecutionCont
         createOpenAI: createOpenAIMock,
         createGoogleGenerativeAI: createGoogleGenerativeAIMock,
         createMCPClient: createMCPClientMock,
+        getGatewaySessionToken: getGatewaySessionTokenMock,
       },
     },
     http: {
@@ -131,6 +133,7 @@ beforeEach(() => {
   createOpenAIMock.mockClear();
   createGoogleGenerativeAIMock.mockClear();
   createMCPClientMock.mockClear();
+  getGatewaySessionTokenMock.mockClear();
   vi.restoreAllMocks();
   process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
 });
@@ -199,18 +202,6 @@ describe('core.ai.agent (refactor)', () => {
       createGenerationResult({ text: 'Agent final answer' }),
     );
 
-    let fetchCalls = 0;
-    const originalFetch = globalThis.fetch;
-    const fetchMock: typeof fetch = async () => {
-      fetchCalls += 1;
-      return new Response(JSON.stringify({ token: 'gateway-token' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    };
-    fetchMock.preconnect = () => {};
-    globalThis.fetch = fetchMock;
-
     const mockTools = {
       ping: {
         inputSchema: { type: 'object', properties: {} },
@@ -230,49 +221,45 @@ describe('core.ai.agent (refactor)', () => {
       },
     });
 
-    try {
-      const result = await runComponentWithRunner(
-        component!.runner,
-        component!.execute,
-        {
-          inputs: {
-            userInput: 'Use tools',
-            conversationState: undefined,
-            chatModel: {
-              provider: 'openai',
-              modelId: 'gpt-4o-mini',
-            },
-            modelApiKey: 'sk-test',
+    const result = await runComponentWithRunner(
+      component!.runner,
+      component!.execute,
+      {
+        inputs: {
+          userInput: 'Use tools',
+          conversationState: undefined,
+          chatModel: {
+            provider: 'openai',
+            modelId: 'gpt-4o-mini',
           },
-          params: {
-            systemPrompt: '',
-            temperature: 0.3,
-            maxTokens: 64,
-            memorySize: 3,
-            stepLimit: 1,
-          },
+          modelApiKey: 'sk-test',
         },
-        contextWithTools,
-      );
+        params: {
+          systemPrompt: '',
+          temperature: 0.3,
+          maxTokens: 64,
+          memorySize: 3,
+          stepLimit: 1,
+        },
+      },
+      contextWithTools,
+    );
 
-      expect(result.responseText).toBe('Agent final answer');
-      expect(fetchCalls).toBeGreaterThan(0);
-      expect(createMCPClientMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          transport: {
-            type: 'http',
-            url: 'http://localhost:3211/api/v1/mcp/gateway',
-            headers: { Authorization: 'Bearer gateway-token' },
-          },
-        }),
-      );
+    expect(result.responseText).toBe('Agent final answer');
+    expect(getGatewaySessionTokenMock).toHaveBeenCalledWith('test-run', null, ['tool-node-1']);
+    expect(createMCPClientMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transport: {
+          type: 'http',
+          url: 'http://localhost:3211/api/v1/mcp/gateway',
+          headers: { Authorization: 'Bearer gateway-token' },
+        },
+      }),
+    );
 
-      const settings = expectRecord(toolLoopAgentSettings, 'agent settings');
-      const tools = expectRecord(settings.tools, 'agent tools');
-      expect(Object.keys(tools)).toEqual(['ping']);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const settings = expectRecord(toolLoopAgentSettings, 'agent settings');
+    const tools = expectRecord(settings.tools, 'agent tools');
+    expect(Object.keys(tools)).toEqual(['ping']);
   });
 
   test('stores tool outputs in conversation state', async () => {

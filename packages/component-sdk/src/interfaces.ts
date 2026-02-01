@@ -150,6 +150,7 @@ export interface ExecutionContextMetadata {
     createOpenAI?: unknown;
     createGoogleGenerativeAI?: unknown;
     createMCPClient?: unknown;
+    getGatewaySessionToken?: unknown;
   };
 }
 

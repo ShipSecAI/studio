@@ -69,6 +69,7 @@ interface AiSdkOverrides {
   createOpenAI?: typeof createOpenAI;
   createGoogleGenerativeAI?: typeof createGoogleGenerativeAI;
   createMCPClient?: typeof createMCPClient;
+  getGatewaySessionToken?: typeof getGatewaySessionToken;
 }
 
 const inputSchema = inputs({
@@ -549,6 +550,8 @@ Loop the Conversation State output back into the next agent invocation to keep m
     const { connectedToolNodeIds, organizationId } = context.metadata;
     const aiSdkOverrides = (context.metadata as { aiSdkOverrides?: AiSdkOverrides }).aiSdkOverrides;
     const createMCPClientImpl = aiSdkOverrides?.createMCPClient ?? createMCPClient;
+    const getGatewaySessionTokenImpl =
+      aiSdkOverrides?.getGatewaySessionToken ?? getGatewaySessionToken;
     const ToolLoopAgentImpl = aiSdkOverrides?.ToolLoopAgent ?? ToolLoopAgent;
     const stepCountIsImpl = aiSdkOverrides?.stepCountIs ?? stepCountIs;
     const createOpenAIImpl = aiSdkOverrides?.createOpenAI ?? createOpenAI;
@@ -563,7 +566,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
         `Discovering tools from gateway for nodes: ${connectedToolNodeIds.join(', ')}`,
       );
       try {
-        const sessionToken = await getGatewaySessionToken(
+        const sessionToken = await getGatewaySessionTokenImpl(
           context.runId,
           organizationId ?? null,
           connectedToolNodeIds,
