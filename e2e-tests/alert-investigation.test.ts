@@ -155,7 +155,7 @@ function loadGuardDutySample() {
   return JSON.parse(raw);
 }
 
-e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
+e2eDescribe('Alert Investigation: End-to-End Workflow', () => {
   beforeAll(() => {
     if (!requiredSecretsReady) {
       throw new Error('Missing required ENV vars. Copy e2e-tests/.env.eng-104.example to .env.eng-104 and fill secrets.');
