@@ -1,0 +1,60 @@
+# PR `any` Usage Report (origin/main..HEAD)
+
+Below are all **new `any` usages** introduced by this PR, with file/line, the exact snippet, and the reason each `any` exists.
+
+| File:Line | Snippet | Reason |
+|---|---|---|
+| backend/src/mcp/__tests__/mcp-internal.integration.spec.ts:63 | `mockRedis as unknown as any` | Test double doesn’t match the Redis client interface; force-cast for constructor. |
+| backend/src/mcp/__tests__/tool-registry.service.spec.ts:61 | `redis as any, encryption as any as SecretsEncryptionService` | Test stubs don’t fully implement the concrete types; cast to satisfy ctor. |
+| backend/src/mcp/mcp-gateway.service.ts:117 | `details: { duration?: number; error?: any; output?: any } = {}` | Tool error/output are arbitrary shapes (JSON or error objects) so types are loose. |
+| backend/src/mcp/mcp-gateway.service.ts:187 | `async (args: any) => {` | MCP tool arguments are arbitrary JSON from remote callers. |
+| backend/src/mcp/mcp-gateway.service.ts:279 | `async (args: any) => {` | Same: external MCP tool args are untyped JSON. |
+| backend/src/mcp/mcp-gateway.service.ts:312 | `fetchExternalTools(...): Promise<any[]>` | External MCP SDK returns tool list with dynamic shapes. |
+| backend/src/mcp/mcp-gateway.service.ts:367 | `args: any` | Proxying arbitrary tool args to external MCP. |
+| backend/src/mcp/mcp-gateway.service.ts:368 | `): Promise<any>` | External tool response is untyped JSON. |
+| e2e-tests/alert-investigation.test.ts:67 | `(test as any)(...)` | Bun’s `test` overload typing doesn’t match dynamic args; cast to call. |
+| e2e-tests/alert-investigation.test.ts:86 | `createWorkflow(workflow: any)` | Workflow payload is dynamic JSON assembled in the test. |
+| e2e-tests/alert-investigation.test.ts:332 | `(e: any) => e.nodeId === 'agent'...` | Trace event objects aren’t typed in the test. |
+| frontend/src/components/workflow/ConfigPanel.tsx:424 | `(nodeData.config as any)?.isToolMode ...` | Node config is untyped dynamic data from workflow definition. |
+| frontend/src/components/workflow/ConfigPanel.tsx:596 | `component.toolSchema as Record<string, any>` | Tool schemas are JSON-schema-like and untyped at compile time. |
+| frontend/src/components/workflow/ConfigPanel.tsx:604 | `schema as Record<string, any>` | Same: schema object is untyped JSON. |
+| frontend/src/components/workflow/ConfigPanel.tsx:1000 | `(sourceNode?.data as any)?.label` | Node data shape is not strongly typed in UI graph. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:153 | `(nodeData.config as any)?.isToolMode ...` | Same dynamic config issue. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:170 | `(n.data as any).config` | Node data not fully typed. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:394 | `(n.data as any).config` | Same. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:967 | `(sourceNode.data as any)?.label` | Node data not fully typed. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:982 | `(sourceNode.data as any).componentId` | Node data not fully typed. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:983 | `(sourceNode.data as any).componentSlug` | Node data not fully typed. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:1100 | `effectiveOutputs.filter((o: any) => ...)` | `effectiveOutputs` element type is not narrowed/typed. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:1103 | `.filter((o: any) => ...)` | Same. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:1104 | `.map((output: any) => ...)` | Same. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:1126 | `filter((o: any) => o.isBranching)` | Same. |
+| frontend/src/components/workflow/node/WorkflowNode.tsx:1176 | `branchingOutputs.map((output: any) => ...)` | Same. |
+| frontend/src/schemas/component.ts:210 | `toolSchema: z.any().optional().nullable()` | Tool schema is arbitrary JSON schema. |
+| frontend/src/utils/connectionValidation.ts:70 | `sourceNode.data.config as any` | Config is dynamic/untyped per node. |
+| frontend/src/utils/connectionValidation.ts:101 | `runtimeInputs.map((input: any) => ...)` | Runtime inputs are dynamic shapes from API. |
+| frontend/src/utils/connectionValidation.ts:210 | `const config = node.data.config as any` | Same. |
+| packages/component-sdk/src/__tests__/tool-helpers.test.ts:21 | `ComponentDefinition<any, any, any>` | Test helper builds components with arbitrary schemas. |
+| packages/component-sdk/src/__tests__/tool-helpers.test.ts:22 | `): ComponentDefinition<any, any, any>` | Same. |
+| packages/component-sdk/src/__tests__/tool-helpers.test.ts:124 | `port(z.any(), ...)` | Tool helper tests need unconstrained schema. |
+| packages/component-sdk/src/tool-helpers.ts:117 | `getParamMeta(schema as any)` | Zod meta typing is not exposed strongly; cast to inspect. |
+| packages/component-sdk/src/tool-helpers.ts:303 | `getParamMeta(paramShape[id] as any)` | Same: Zod shape typing is too loose. |
+| packages/component-sdk/src/zod-ports.ts:17 | `{ [key: string]: any }` | Zod internal definitions are untyped/structural. |
+| worker/src/components/ai/__tests__/opencode.test.ts:29 | `let runSpy: any;` | Spy handle type not important in unit test. |
+| worker/src/components/ai/__tests__/opencode.test.ts:41 | `} as any);` | Mocked child_process signature mismatch. |
+| worker/src/components/ai/__tests__/opencode.test.ts:85 | `context as any` | Test context stub doesn’t satisfy full ExecutionContext. |
+| worker/src/components/ai/__tests__/opencode.test.ts:90 | `IsolatedContainerVolume as any` | Jest/Bun mock access to `.mock.results` isn’t typed. |
+| worker/src/components/ai/__tests__/opencode.test.ts:134 | `context as any` | Same. |
+| worker/src/components/ai/__tests__/opencode.test.ts:137 | `IsolatedContainerVolume as any` | Same. |
+| worker/src/components/ai/opencode.ts:243 | `context as any` | ExecutionContext lacks `tenantId`; runtime injects it. |
+| worker/src/components/core/mcp-runtime.ts:16 | `context: any` | Avoid importing ExecutionContext in shared MCP runtime signature. |
+| worker/src/components/security/aws-cloudtrail-mcp.ts:118 | `context as any` | ExecutionContext missing `tenantId`. |
+| worker/src/components/security/aws-cloudwatch-mcp.ts:118 | `context as any` | Same. |
+| worker/src/components/test/simple-http-mcp.ts:72 | `context as any` | Same. |
+| worker/src/temporal/activities/mcp.activity.ts:27 | `body: any` | Internal API payload varies per MCP call. |
+| worker/src/temporal/activities/run-component.activity.ts:167 | `metadata: ... as any` | ExecutionContext metadata type doesn’t include all fields used here. |
+| worker/src/temporal/types.ts:194 | `inputSchema: any` | Tool schema is arbitrary JSON schema. |
+| worker/src/temporal/types.ts:203 | `inputSchema: any` | Same. |
+| worker/src/temporal/types.ts:213 | `inputSchema: any` | Same. |
+| worker/src/temporal/workflows/index.ts:668 | `mcpOutput.output as any` | MCP server output shape is dynamic (endpoint/containerId). |
+

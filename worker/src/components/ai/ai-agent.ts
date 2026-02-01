@@ -63,6 +63,13 @@ type AgentTools = ToolSet;
 type AgentStepResult = StepResult<AgentTools>;
 type AgentGenerationResult = GenerateTextResult<AgentTools, never>;
 type ToolResultOutput = ToolResultPart['output'];
+interface AiSdkOverrides {
+  ToolLoopAgent?: typeof ToolLoopAgent;
+  stepCountIs?: typeof stepCountIs;
+  createOpenAI?: typeof createOpenAI;
+  createGoogleGenerativeAI?: typeof createGoogleGenerativeAI;
+  createMCPClient?: typeof createMCPClient;
+}
 
 const inputSchema = inputs({
   userInput: port(
@@ -460,17 +467,19 @@ function toModelMessages(messages: AgentMessage[]): ModelMessage[] {
 interface RegisterGatewayToolsParams {
   gatewayUrl: string;
   sessionToken: string;
+  createClient?: typeof createMCPClient;
 }
 
 async function registerGatewayTools({
   gatewayUrl,
   sessionToken,
+  createClient = createMCPClient,
 }: RegisterGatewayToolsParams): Promise<{
   tools: ToolSet;
   close: () => Promise<void>;
 }> {
   console.log(`[AGENT] Connecting to MCP gateway at ${gatewayUrl} to discover tools`);
-  const mcpClient = await createMCPClient({
+  const mcpClient = await createClient({
     transport: {
       type: 'http',
       url: gatewayUrl,
@@ -538,6 +547,13 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
     const agentStream = new AgentStreamRecorder(context, agentRunId);
     const { connectedToolNodeIds, organizationId } = context.metadata;
+    const aiSdkOverrides = (context.metadata as { aiSdkOverrides?: AiSdkOverrides }).aiSdkOverrides;
+    const createMCPClientImpl = aiSdkOverrides?.createMCPClient ?? createMCPClient;
+    const ToolLoopAgentImpl = aiSdkOverrides?.ToolLoopAgent ?? ToolLoopAgent;
+    const stepCountIsImpl = aiSdkOverrides?.stepCountIs ?? stepCountIs;
+    const createOpenAIImpl = aiSdkOverrides?.createOpenAI ?? createOpenAI;
+    const createGoogleGenerativeAIImpl =
+      aiSdkOverrides?.createGoogleGenerativeAI ?? createGoogleGenerativeAI;
 
     let discoveredTools: ToolSet = {};
     let closeDiscovery: (() => Promise<void>) | undefined;
@@ -555,6 +571,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
         const discoveryResult = await registerGatewayTools({
           gatewayUrl: DEFAULT_GATEWAY_URL,
           sessionToken,
+          createClient: createMCPClientImpl,
         });
         discoveredTools = discoveryResult.tools;
         closeDiscovery = discoveryResult.close;
@@ -640,13 +657,13 @@ Loop the Conversation State output back into the next agent invocation to keep m
       const isOpenRouter =
         effectiveProvider === 'openrouter' ||
         (typeof baseUrl === 'string' && baseUrl.includes('openrouter.ai'));
-      const openAIProvider = createOpenAI({
+      const openAIProvider = createOpenAIImpl({
         ...openAIOptions,
         ...(isOpenRouter ? { name: 'openrouter' } : {}),
       });
       const model =
         effectiveProvider === 'gemini'
-          ? createGoogleGenerativeAI({
+          ? createGoogleGenerativeAIImpl({
               apiKey: effectiveApiKey,
               ...(baseUrl ? { baseURL: baseUrl } : {}),
             })(effectiveModel)
@@ -659,7 +676,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
         instructions: resolvedSystemPrompt || undefined,
         temperature,
         maxOutputTokens: maxTokens,
-        stopWhen: stepCountIs(stepLimit),
+        stopWhen: stepCountIsImpl(stepLimit),
         onStepFinish: (stepResult: AgentStepResult) => {
           for (const call of stepResult.toolCalls) {
             const input = getToolInput(call);
@@ -674,7 +691,7 @@ Loop the Conversation State output back into the next agent invocation to keep m
         ...(toolsConfig ? { tools: toolsConfig } : {}),
       };
 
-      const agent = new ToolLoopAgent<never, AgentTools>(agentSettings);
+      const agent = new ToolLoopAgentImpl<never, AgentTools>(agentSettings);
 
       context.logger.info(
         `[AIAgent] Using ${effectiveProvider} model "${effectiveModel}" with ${availableToolsCount} connected tool(s).`,

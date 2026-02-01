@@ -26,7 +26,7 @@
     "mcp:logs": "pm2 logs shipsec-mcp-server",
     "mcp:status": "pm2 status shipsec-mcp-server",
     "typecheck": "tsc --build",
-    "test": "bun test",
+    "test": "rm -rf worker/dist && bun test",
     "test:e2e": "RUN_E2E=true bun test e2e-tests",
     "dev:docs": "cd docs && mint dev",
     "lint": "bun run lint:frontend && bun run lint:backend && bun run lint:worker",

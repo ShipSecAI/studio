@@ -143,6 +143,14 @@ export interface ExecutionContextMetadata {
   failure?: ExecutionFailureMetadata;
   connectedToolNodeIds?: string[];
   organizationId?: string | null;
+  // Internal/test-only overrides for AI SDK dependencies (kept optional for runtime)
+  aiSdkOverrides?: {
+    ToolLoopAgent?: unknown;
+    stepCountIs?: unknown;
+    createOpenAI?: unknown;
+    createGoogleGenerativeAI?: unknown;
+    createMCPClient?: unknown;
+  };
 }
 
 export interface TraceEventData {
@@ -217,4 +225,3 @@ export interface NodeIOCompletionEvent {
   status: 'completed' | 'failed' | 'skipped';
   errorMessage?: string;
 }
-
