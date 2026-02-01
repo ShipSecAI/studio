@@ -31,7 +31,6 @@ import type {
   CleanupLocalMcpActivityInput,
   RegisterLocalMcpActivityInput,
   PrepareAndRegisterToolActivityInput,
-  AreAllToolsReadyActivityInput,
 } from '../types';
 
 const {
@@ -73,7 +72,10 @@ const {
   registerLocalMcpActivity(input: RegisterLocalMcpActivityInput): Promise<void>;
   cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void>;
   prepareAndRegisterToolActivity(input: PrepareAndRegisterToolActivityInput): Promise<void>;
-  areAllToolsReadyActivity(input: { runId: string; requiredNodeIds: string[] }): Promise<{ ready: boolean }>;
+  areAllToolsReadyActivity(input: {
+    runId: string;
+    requiredNodeIds: string[];
+  }): Promise<{ ready: boolean }>;
 }>({
   startToCloseTimeout: '10 minutes',
 });
@@ -974,12 +976,16 @@ export async function shipsecWorkflowRun(
     // Only cleanup MCP tools if workflow failed or was cancelled
     // For successful completion, tools remain in registry for gateway access
     if (!workflowCompletedSuccessfully) {
-      console.log(`[Workflow] Workflow did not complete successfully, cleaning up MCP containers for run ${input.runId}`);
+      console.log(
+        `[Workflow] Workflow did not complete successfully, cleaning up MCP containers for run ${input.runId}`,
+      );
       await cleanupLocalMcpActivity({ runId: input.runId }).catch((err) => {
         console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
       });
     } else {
-      console.log(`[Workflow] Workflow completed successfully, keeping MCP tools available for run ${input.runId}`);
+      console.log(
+        `[Workflow] Workflow completed successfully, keeping MCP tools available for run ${input.runId}`,
+      );
     }
     await finalizeRunActivity({ runId: input.runId }).catch((err) => {
       console.error(`[Workflow] Failed to finalize run ${input.runId}`, err);

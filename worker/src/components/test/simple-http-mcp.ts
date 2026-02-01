@@ -3,7 +3,15 @@
  * Returns an HTTP endpoint with a single get_weather tool
  */
 
-import { defineComponent, inputs, outputs, parameters, port, param, runComponentWithRunner } from '@shipsec/component-sdk';
+import {
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+  runComponentWithRunner,
+} from '@shipsec/component-sdk';
 import { z } from 'zod';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -174,7 +182,7 @@ process.on('SIGTERM', () => {
       // Run with a long timeout since this is a server
       const result = await runComponentWithRunner(
         runnerConfig,
-        async (raw) => {
+        async (_raw) => {
           // The server will keep running, we just need to return the endpoint
           return {
             endpoint: `http://127.0.0.1:${port}/mcp`,

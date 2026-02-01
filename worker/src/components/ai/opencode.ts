@@ -129,7 +129,7 @@ const definition = defineComponent({
   },
   async execute({ inputs, params }, context) {
     const { task, context: taskContext, model } = inputs;
-    const { systemPrompt, autoApprove, providerConfig } = params;
+    const { systemPrompt, providerConfig } = params;
 
     const { connectedToolNodeIds, organizationId } = context.metadata;
 
