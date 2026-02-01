@@ -13,6 +13,7 @@ vi.mock('../../../utils/isolated-volume', () => {
       getVolumeConfig: vi
         .fn()
         .mockReturnValue({ source: 'mock', target: '/workspace', readOnly: false }),
+      getVolumeName: vi.fn().mockReturnValue('mock-volume-name'),
     })),
   };
 });
