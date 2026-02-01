@@ -14,7 +14,6 @@ const createMCPClientMock = vi.fn();
 
 let toolLoopAgentSettings: unknown;
 let lastGenerateMessages: unknown;
-let nextGenerateResultOverride: unknown;
 type GenerationResult = GenerateTextResult<ToolSet, ReturnType<typeof AIOutput.text>>;
 
 class MockToolLoopAgent {
@@ -27,7 +26,7 @@ class MockToolLoopAgent {
 
   async generate({ messages }: { messages: unknown }) {
     lastGenerateMessages = messages;
-    return nextGenerateResultOverride || createGenerationResult();
+    return createGenerationResult();
   }
 }
 
@@ -128,11 +127,11 @@ function expectRecord(value: unknown, label: string): Record<string, unknown> {
 beforeEach(() => {
   toolLoopAgentSettings = undefined;
   lastGenerateMessages = undefined;
-  nextGenerateResultOverride = undefined;
   stepCountIsMock.mockClear();
   createOpenAIMock.mockClear();
   createGoogleGenerativeAIMock.mockClear();
   createMCPClientMock.mockClear();
+  vi.restoreAllMocks();
   process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
 });
 
@@ -145,7 +144,13 @@ describe('core.ai.agent (refactor)', () => {
     const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
-    nextGenerateResultOverride = createGenerationResult({ text: 'Hello agent' });
+    vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockImplementation(async function (
+      this: MockToolLoopAgent,
+      { messages }: { messages: unknown },
+    ) {
+      lastGenerateMessages = messages;
+      return createGenerationResult({ text: 'Hello agent' });
+    });
 
     const result = await runComponentWithRunner(
       component!.runner,
@@ -189,6 +194,10 @@ describe('core.ai.agent (refactor)', () => {
   test('discovers gateway tools and passes them to the agent', async () => {
     const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
+
+    vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockResolvedValue(
+      createGenerationResult({ text: 'Agent final answer' }),
+    );
 
     let fetchCalls = 0;
     const originalFetch = globalThis.fetch;
@@ -270,19 +279,21 @@ describe('core.ai.agent (refactor)', () => {
     const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
-    nextGenerateResultOverride = createGenerationResult({
-      text: 'Tool done',
-      toolResults: [
-        {
-          type: 'tool-result',
-          toolCallId: 'call-1',
-          toolName: 'ping',
-          input: { target: 'example.com' },
-          output: { type: 'json', value: { ok: true } },
-          dynamic: true,
-        },
-      ],
-    });
+    vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockResolvedValue(
+      createGenerationResult({
+        text: 'Tool done',
+        toolResults: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            toolName: 'ping',
+            input: { target: 'example.com' },
+            output: { type: 'json', value: { ok: true } },
+            dynamic: true,
+          },
+        ],
+      }),
+    );
 
     const result = await runComponentWithRunner(
       component!.runner,
