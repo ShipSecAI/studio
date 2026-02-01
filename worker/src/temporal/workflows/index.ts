@@ -973,20 +973,12 @@ export async function shipsecWorkflowRun(
       [{ outputs, error: normalizedError.message }],
     );
   } finally {
-    // Only cleanup MCP tools if workflow failed or was cancelled
-    // For successful completion, tools remain in registry for gateway access
-    if (!workflowCompletedSuccessfully) {
-      console.log(
-        `[Workflow] Workflow did not complete successfully, cleaning up MCP containers for run ${input.runId}`,
-      );
-      await cleanupLocalMcpActivity({ runId: input.runId }).catch((err) => {
-        console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
-      });
-    } else {
-      console.log(
-        `[Workflow] Workflow completed successfully, keeping MCP tools available for run ${input.runId}`,
-      );
-    }
+    console.log(
+      `[Workflow] Cleaning up MCP containers for run ${input.runId} (success=${workflowCompletedSuccessfully})`,
+    );
+    await cleanupLocalMcpActivity({ runId: input.runId }).catch((err) => {
+      console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
+    });
     await finalizeRunActivity({ runId: input.runId }).catch((err) => {
       console.error(`[Workflow] Failed to finalize run ${input.runId}`, err);
     });

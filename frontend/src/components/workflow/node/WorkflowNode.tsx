@@ -582,34 +582,31 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 )}
               </div>
               <div className="flex items-center gap-1">
-                {mode === 'design' && !isEntryPoint && component?.agentTool?.enabled && (
-                  <button
-                    type="button"
-                    onClick={toggleToolMode}
-                    disabled={isToolModeOnly}
-                    className={cn(
-                      'flex items-center gap-1.5 px-2 py-1 rounded transition-all border',
-                      isToolModeOnly && 'opacity-70 cursor-not-allowed',
-                      isToolMode
-                        ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
-                        : 'bg-background text-muted-foreground/60 border-border hover:border-purple-400 hover:text-purple-600',
-                    )}
-                    title={
-                      isToolModeOnly
-                        ? 'Tool Mode Only'
-                        : isToolMode
-                          ? 'Disable Tool Mode'
-                          : 'Enable Tool Mode'
-                    }
-                  >
-                    <Hammer
-                      className={cn('h-3.5 w-3.5', isToolMode ? 'text-white' : 'text-current')}
-                    />
-                    <span className="text-[10px] font-bold uppercase tracking-tight">
-                      {isToolMode ? 'Tool' : 'Mode'}
-                    </span>
-                  </button>
-                )}
+                {mode === 'design' &&
+                  !isEntryPoint &&
+                  component?.agentTool?.enabled &&
+                  !isToolModeOnly &&
+                  componentCategory !== 'mcp' && (
+                    <button
+                      type="button"
+                      onClick={toggleToolMode}
+                      disabled={isToolModeOnly}
+                      className={cn(
+                        'flex items-center gap-1.5 px-2 py-1 rounded transition-all border',
+                        isToolMode
+                          ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
+                          : 'bg-background text-muted-foreground/60 border-border hover:border-purple-400 hover:text-purple-600',
+                      )}
+                      title={isToolMode ? 'Disable Tool Mode' : 'Enable Tool Mode'}
+                    >
+                      <Hammer
+                        className={cn('h-3.5 w-3.5', isToolMode ? 'text-white' : 'text-current')}
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-tight">
+                        {isToolMode ? 'Tool' : 'Mode'}
+                      </span>
+                    </button>
+                  )}
                 {isEntryPoint && (
                   <div style={{ display: 'none' }}>
                     <WebhookDetails

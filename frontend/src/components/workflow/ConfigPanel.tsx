@@ -1198,12 +1198,34 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
-          {!isToolMode && component.agentTool?.enabled && toolSchemaJson && (
-            <CollapsibleSection title="Tool Schema" defaultOpen={false}>
-              <div className="mt-2">
-                <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
-                  {toolSchemaJson}
-                </pre>
+          {!isToolMode &&
+            component.agentTool?.enabled &&
+            toolSchemaJson &&
+            component.category !== 'mcp' && (
+              <CollapsibleSection title="Tool Schema" defaultOpen={false}>
+                <div className="mt-2">
+                  <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
+                    {toolSchemaJson}
+                  </pre>
+                </div>
+              </CollapsibleSection>
+            )}
+
+          {component.category === 'mcp' && component.agentTool?.toolName && (
+            <CollapsibleSection title="MCP Server" defaultOpen={false}>
+              <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                <div>
+                  <span className="font-medium text-foreground">Tool name: </span>
+                  <span className="font-mono">{component.agentTool.toolName}</span>
+                </div>
+                {component.agentTool.toolDescription && (
+                  <div className="text-[11px] leading-relaxed">
+                    {component.agentTool.toolDescription}
+                  </div>
+                )}
+                <div className="text-[11px] italic">
+                  Tool list appears after the MCP server starts at runtime.
+                </div>
               </div>
             </CollapsibleSection>
           )}

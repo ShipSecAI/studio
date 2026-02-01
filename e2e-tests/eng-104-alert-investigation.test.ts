@@ -111,22 +111,42 @@ async function runWorkflow(workflowId: string, inputs: Record<string, unknown> =
   return runId;
 }
 
-async function createSecret(name: string, value: string) {
-  const res = await fetch(`${API_BASE}/secrets`, {
-    method: 'POST',
+async function listSecrets(): Promise<Array<{ id: string; name: string }>> {
+  const res = await fetch(`${API_BASE}/secrets`, { headers: HEADERS });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to list secrets: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+async function createOrRotateSecret(name: string, value: string): Promise<string> {
+  const secrets = await listSecrets();
+  const existing = secrets.find((s) => s.name === name);
+  if (!existing) {
+    const res = await fetch(`${API_BASE}/secrets`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ name, value }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to create secret: ${res.status} ${text}`);
+    }
+    const secret = await res.json();
+    return secret.id as string;
+  }
+
+  const res = await fetch(`${API_BASE}/secrets/${existing.id}/rotate`, {
+    method: 'PUT',
     headers: HEADERS,
-    body: JSON.stringify({ name, value }),
+    body: JSON.stringify({ value }),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Failed to create secret: ${res.status} ${text}`);
+    throw new Error(`Failed to rotate secret: ${res.status} ${text}`);
   }
-  const secret = await res.json();
-  return secret.id as string;
-}
-
-async function deleteSecret(secretId: string) {
-  await fetch(`${API_BASE}/secrets/${secretId}`, { method: 'DELETE', headers: HEADERS });
+  return existing.id;
 }
 
 function loadGuardDutySample() {
@@ -145,18 +165,17 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
   e2eTest('triage workflow runs end-to-end with MCP tools + OpenCode agent', { timeout: 480000 }, async () => {
     const now = Date.now();
 
-    const abuseSecretId = await createSecret(`ENG104_ABUSE_${now}`, ABUSEIPDB_API_KEY!);
-    const vtSecretId = await createSecret(`ENG104_VT_${now}`, VIRUSTOTAL_API_KEY!);
-    const zaiSecretId = await createSecret(`ENG104_ZAI_${now}`, ZAI_API_KEY!);
+    const abuseSecretName = `ENG104_ABUSE_${now}`;
+    const vtSecretName = `ENG104_VT_${now}`;
+    const zaiSecretName = `ENG104_ZAI_${now}`;
+    const awsAccessKeyName = `ENG104_AWS_ACCESS_${now}`;
+    const awsSecretKeyName = `ENG104_AWS_SECRET_${now}`;
 
-    // For AWS MCP components, credentials are contract-based (object, not secret reference)
-    // So we pass the credential object directly instead of a secret ID
-    const awsCredentials = {
-      accessKeyId: AWS_ACCESS_KEY_ID,
-      secretAccessKey: AWS_SECRET_ACCESS_KEY,
-      sessionToken: AWS_SESSION_TOKEN,
-      region: AWS_REGION,
-    };
+    await createOrRotateSecret(abuseSecretName, ABUSEIPDB_API_KEY!);
+    await createOrRotateSecret(vtSecretName, VIRUSTOTAL_API_KEY!);
+    await createOrRotateSecret(zaiSecretName, ZAI_API_KEY!);
+    await createOrRotateSecret(awsAccessKeyName, AWS_ACCESS_KEY_ID!);
+    await createOrRotateSecret(awsSecretKeyName, AWS_SECRET_ACCESS_KEY!);
 
     const guardDutyAlert = loadGuardDutySample();
 
@@ -179,34 +198,6 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
           },
         },
         {
-          id: 'parse',
-          type: 'core.logic.script',
-          position: { x: 250, y: 0 },
-          data: {
-            label: 'Parse Alert',
-            config: {
-              params: {
-                variables: [
-                  { name: 'alert', type: 'json' },
-                ],
-                returns: [
-                  { name: 'suspiciousIp', type: 'string' },
-                  { name: 'publicIp', type: 'string' },
-                  { name: 'instanceId', type: 'string' },
-                ],
-                code: `export async function script(input: Input): Promise<Output> {
-  const alert = input.alert || {};
-  const portProbe = alert?.service?.action?.portProbeAction?.portProbeDetails || [];
-  const suspiciousIp = portProbe[0]?.remoteIpDetails?.ipAddressV4 || alert?.intel?.ip || '';
-  const publicIp = alert?.resource?.instanceDetails?.publicIp || '';
-  const instanceId = alert?.resource?.instanceDetails?.instanceId || '';
-  return { suspiciousIp, publicIp, instanceId };
-}`,
-              },
-            },
-          },
-        },
-        {
           id: 'abuseipdb',
           type: 'security.abuseipdb.check',
           position: { x: 520, y: -160 },
@@ -216,7 +207,7 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
               mode: 'tool',
               params: { maxAgeInDays: 90 },
               inputOverrides: {
-                apiKey: abuseSecretId,
+                apiKey: abuseSecretName,
                 ipAddress: '',
               },
             },
@@ -232,8 +223,24 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
               mode: 'tool',
               params: { type: 'ip' },
               inputOverrides: {
-                apiKey: vtSecretId,
+                apiKey: vtSecretName,
                 indicator: '',
+              },
+            },
+          },
+        },
+        {
+          id: 'aws-creds',
+          type: 'core.credentials.aws',
+          position: { x: 520, y: 200 },
+          data: {
+            label: 'AWS Credentials Bundle',
+            config: {
+              params: {},
+              inputOverrides: {
+                accessKeyId: awsAccessKeyName,
+                secretAccessKey: awsSecretKeyName,
+                region: AWS_REGION,
               },
             },
           },
@@ -250,9 +257,7 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
                 image: AWS_CLOUDTRAIL_MCP_IMAGE,
                 region: AWS_REGION,
               },
-              inputOverrides: {
-                credentials: awsCredentials,
-              },
+              inputOverrides: {},
             },
           },
         },
@@ -268,9 +273,7 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
                 image: AWS_CLOUDWATCH_MCP_IMAGE,
                 region: AWS_REGION,
               },
-              inputOverrides: {
-                credentials: awsCredentials,
-              },
+              inputOverrides: {},
             },
           },
         },
@@ -302,7 +305,6 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
         },
       ],
       edges: [
-        { id: 'e1', source: 'start', target: 'parse', sourceHandle: 'alert', targetHandle: 'alert' },
         { id: 'e2', source: 'start', target: 'agent' },
 
         { id: 't1', source: 'abuseipdb', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
@@ -310,8 +312,8 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
         { id: 't3', source: 'cloudtrail', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
         { id: 't4', source: 'cloudwatch', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
 
-        { id: 'd1', source: 'parse', target: 'abuseipdb', sourceHandle: 'suspiciousIp', targetHandle: 'ipAddress' },
-        { id: 'd2', source: 'parse', target: 'virustotal', sourceHandle: 'suspiciousIp', targetHandle: 'indicator' },
+        { id: 'a1', source: 'aws-creds', target: 'cloudtrail', sourceHandle: 'credentials', targetHandle: 'credentials' },
+        { id: 'a2', source: 'aws-creds', target: 'cloudwatch', sourceHandle: 'credentials', targetHandle: 'credentials' },
       ],
     };
 
@@ -340,8 +342,6 @@ e2eDescribe('ENG-104: End-to-End Alert Investigation Workflow', () => {
       }
     }
 
-    await deleteSecret(abuseSecretId);
-    await deleteSecret(vtSecretId);
-    await deleteSecret(zaiSecretId);
+    // Leave secrets for reuse across runs; rotation already updated values.
   });
 });
