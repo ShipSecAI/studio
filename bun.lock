@@ -134,7 +134,7 @@
         "tailwind-merge": "^3.3.1",
         "xterm": "^5.3.0",
         "xterm-addon-fit": "^0.8.0",
-        "zod": "^4.1.11",
+        "zod": "^4.3.6",
         "zundo": "^2.3.0",
         "zustand": "^5.0.8",
       },
@@ -186,7 +186,7 @@
       "name": "@shipsec/component-sdk",
       "version": "0.1.0",
       "dependencies": {
-        "zod": "^4.1.12",
+        "zod": "^4.3.6",
       },
       "devDependencies": {
         "@modelcontextprotocol/sdk": "^1.25.2",
@@ -208,7 +208,7 @@
       "dependencies": {
         "@shipsec/component-sdk": "workspace:*",
         "@shipsec/shared": "workspace:*",
-        "zod": "^4.1.12",
+        "zod": "^4.3.6",
       },
       "devDependencies": {
         "@types/node": "^24.10.1",
@@ -223,7 +223,7 @@
       "name": "@shipsec/shared",
       "version": "0.1.0",
       "dependencies": {
-        "zod": "^4.1.12",
+        "zod": "^4.3.6",
       },
       "devDependencies": {
         "@typescript-eslint/eslint-plugin": "^8.53.0",

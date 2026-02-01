@@ -95,7 +95,7 @@ async function runComponentInDocker<I, O>(
   params: I,
   context: ExecutionContext,
 ): Promise<O> {
-  const { image, command, entrypoint, env = {}, network = 'none', platform, volumes, timeoutSeconds = 300 } = runner;
+  const { image, command, entrypoint, env = {}, network = 'none', platform, containerName, volumes, timeoutSeconds = 300, detached } = runner;
 
   context.logger.info(`[Docker] Running ${image} with command: ${formatArgs(command)}`);
   context.emitProgress(`Starting Docker container: ${image}`);
@@ -119,6 +119,10 @@ async function runComponentInDocker<I, O>(
       // Mount the directory containing both input and output
       '-v', `${outputDir}:${CONTAINER_OUTPUT_PATH}`,
     ];
+
+    if (containerName) {
+      dockerArgs.push('--name', containerName);
+    }
 
     if (platform && platform.trim().length > 0) {
       dockerArgs.push('--platform', platform);

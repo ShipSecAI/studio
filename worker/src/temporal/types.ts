@@ -231,3 +231,12 @@ export interface PrepareAndRegisterToolActivityInput {
 export interface CleanupLocalMcpActivityInput {
   runId: string;
 }
+
+export interface AreAllToolsReadyActivityInput {
+  runId: string;
+  requiredNodeIds: string[];
+}
+
+export interface AreAllToolsReadyActivityOutput {
+  ready: boolean;
+}

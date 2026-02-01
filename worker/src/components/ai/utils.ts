@@ -1,10 +1,19 @@
 import { ConfigurationError } from '@shipsec/component-sdk';
 
+// Detect if running inside Docker and use host.docker.internal instead of localhost
+const isInDocker = () => {
+  try {
+    return require('fs').existsSync('/.dockerenv');
+  } catch {
+    return false;
+  }
+};
+
 export const DEFAULT_API_BASE_URL =
   process.env.STUDIO_API_BASE_URL ??
   process.env.SHIPSEC_API_BASE_URL ??
   process.env.API_BASE_URL ??
-  'http://localhost:3211';
+  (isInDocker() ? 'http://host.docker.internal:3211/api/v1' : 'http://localhost:3211/api/v1');
 
 export const DEFAULT_GATEWAY_URL = `${DEFAULT_API_BASE_URL}/mcp/gateway`;
 

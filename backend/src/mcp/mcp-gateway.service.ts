@@ -87,10 +87,6 @@ export class McpGatewayService {
       return;
     }
 
-    this.logger.log(
-      `Refreshing MCP servers for run ${runId} (${matchingEntries.length} instance(s))`,
-    );
-
     await Promise.all(
       matchingEntries.map(async ([cacheKey, server]) => {
         const allowedNodeIds =
@@ -157,13 +153,7 @@ export class McpGatewayService {
     allowedNodeIds?: string[],
     registeredToolNames?: Set<string>,
   ) {
-    this.logger.log(
-      `[TOOL REGISTRY] Starting tool registration for run ${runId} (allowedNodeIds=${allowedNodeIds?.join(',') ?? 'none'}, allowedTools=${allowedTools?.join(',') ?? 'none'})`,
-    );
     const allRegistered = await this.toolRegistry.getToolsForRun(runId, allowedNodeIds);
-    this.logger.log(
-      `[TOOL REGISTRY] Tool registry returned ${allRegistered.length} tool(s) for run ${runId}: ${allRegistered.map((t) => `${t.toolName}:${t.type}(${t.nodeId})`).join(', ') || 'none'}`,
-    );
 
     // Filter by allowed tools if specified
     if (allowedTools && allowedTools.length > 0) {
@@ -175,21 +165,15 @@ export class McpGatewayService {
 
     // 1. Register Internal Tools
     const internalTools = allRegistered.filter((t) => t.type === 'component');
-    this.logger.log(
-      `[TOOL REGISTRY] Found ${internalTools.length} internal tool(s) for run ${runId}: ${internalTools.map((t) => `${t.toolName}(${t.nodeId})`).join(', ') || 'none'}`,
-    );
     for (const tool of internalTools) {
       if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(tool.toolName)) {
-        this.logger.log(`Skipping internal tool ${tool.toolName} (not in allowedTools)`);
         continue;
       }
 
       if (registeredToolNames?.has(tool.toolName)) {
-        this.logger.log(`Skipping internal tool ${tool.toolName} (already registered)`);
         continue;
       }
 
-      this.logger.log(`[TOOL REGISTRY] Registering internal tool ${tool.toolName} (node=${tool.nodeId}, component=${tool.componentId})`);
       const component = tool.componentId ? componentRegistry.get(tool.componentId) : null;
       const inputShape = component ? getToolInputShape(component) : undefined;
 
@@ -270,34 +254,22 @@ export class McpGatewayService {
 
     // 2. Register External Tools (Proxied)
     const externalSources = allRegistered.filter((t) => t.type !== 'component');
-    this.logger.log(
-      `[TOOL REGISTRY] Found ${externalSources.length} external MCP source(s) for run ${runId}: ${externalSources.map((t) => `${t.toolName}(${t.type})`).join(', ') || 'none'}`,
-    );
     for (const source of externalSources) {
       try {
-        this.logger.log(
-          `[TOOL REGISTRY] Fetching tools from external source ${source.toolName} (type=${source.type}, endpoint=${source.endpoint ?? 'missing'})`,
-        );
         const tools = await this.fetchExternalTools(source);
         const prefix = source.toolName;
 
-        this.logger.log(
-          `[TOOL REGISTRY] External source ${source.toolName} returned ${tools.length} tool(s): ${tools.map((t) => `${prefix}__${t.name}`).join(', ') || 'none'}`,
-        );
         for (const t of tools) {
           const proxiedName = `${prefix}__${t.name}`;
 
           if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(proxiedName)) {
-            this.logger.log(`Skipping proxied tool ${proxiedName} (not in allowedTools)`);
             continue;
           }
 
           if (registeredToolNames?.has(proxiedName)) {
-            this.logger.log(`Skipping proxied tool ${proxiedName} (already registered)`);
             continue;
           }
 
-          this.logger.log(`Registering proxied tool ${proxiedName} (source=${source.toolName})`);
           server.registerTool(
             proxiedName,
             {
@@ -349,14 +321,12 @@ export class McpGatewayService {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
       const sessionId = `stdio-proxy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      this.logger.log(
-        `[TOOL REGISTRY] Connecting to ${source.toolName} at ${source.endpoint} (attempt ${attempt}/${MAX_RETRIES}, sessionId=${sessionId})`,
-      );
 
       const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
         requestInit: {
           headers: {
             'Mcp-Session-Id': sessionId,
+            'Accept': 'application/json, text/event-stream',
           },
         },
       });
@@ -368,9 +338,6 @@ export class McpGatewayService {
       try {
         await client.connect(transport);
         const response = await client.listTools();
-        this.logger.log(
-          `[TOOL REGISTRY] listTools from ${source.toolName} returned ${response.tools?.length ?? 0} tool(s): ${response.tools?.map((t: any) => t.name).join(', ') || 'none'}`,
-        );
         return response.tools;
       } catch (error) {
         lastError = error;
@@ -381,7 +348,6 @@ export class McpGatewayService {
           await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
         }
       } finally {
-        this.logger.log(`Closing external MCP client for ${source.toolName}`);
         await client.close();
       }
     }
@@ -418,6 +384,7 @@ export class McpGatewayService {
         requestInit: {
           headers: {
             'Mcp-Session-Id': sessionId,
+            'Accept': 'application/json, text/event-stream',
           },
         },
       });
@@ -492,10 +459,6 @@ export class McpGatewayService {
     // Generate a unique call ID for this tool invocation
     const callId = `${runId}:${tool.nodeId}:${Date.now()}`;
 
-    this.logger.log(
-      `Signaling tool execution: callId=${callId}, tool='${tool.toolName}' (${tool.componentId})`,
-    );
-
     // Signal the workflow to execute the tool
     await this.temporalService.signalWorkflow({
       workflowId: runId,
@@ -547,7 +510,6 @@ export class McpGatewayService {
         }
       } catch (error) {
         // Query might fail if workflow is busy, continue polling
-        this.logger.debug(`Polling for tool result: ${error}`);
       }
 
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));

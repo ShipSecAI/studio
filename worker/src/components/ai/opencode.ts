@@ -133,35 +133,19 @@ const definition = defineComponent({
 
     const { connectedToolNodeIds, organizationId } = context.metadata;
 
-    context.logger.info(
-      `[OpenCode] Starting execution with connectedToolNodeIds: ${JSON.stringify(connectedToolNodeIds || [])}`,
-    );
-    context.logger.info(`[OpenCode] Organization ID: ${organizationId}`);
-    context.logger.info(`[OpenCode] Full metadata: ${JSON.stringify(context.metadata)}`);
-    context.logger.info(`[OpenCode] All context keys: ${Object.keys(context).join(', ')}`);
-
     // 1. Resolve Gateway Token for MCP
     let gatewayToken = '';
-    if (connectedToolNodeIds && connectedToolNodeIds.length > 0) {
+    const connectedToolIds = connectedToolNodeIds ?? [];
+    if (connectedToolIds.length > 0) {
       try {
-        context.logger.info(
-          `[OpenCode] Attempting to generate gateway token for ${connectedToolNodeIds.length} tools: ${connectedToolNodeIds.join(', ')}`,
-        );
         gatewayToken = await getGatewaySessionToken(
           context.runId,
           organizationId ?? null,
-          connectedToolNodeIds,
-        );
-        context.logger.info(
-          `[OpenCode] Generated gateway token successfully (length: ${gatewayToken.length})`,
+          connectedToolIds,
         );
       } catch (error) {
         context.logger.error(`[OpenCode] Failed to generate gateway token: ${error}`);
       }
-    } else {
-      context.logger.warn(
-        '[OpenCode] No connectedToolNodeIds provided - agent will run without MCP tools',
-      );
     }
 
     // Helper to map provider to OpenCode model string format
@@ -179,25 +163,25 @@ const definition = defineComponent({
     // Correct format from https://opencode.ai/docs/mcp-servers/
     // CRITICAL: oauth: false is required for custom headers (OAuth is auto-detected as default in v1.0.137+)
     // See: https://github.com/anomalyco/opencode/issues/5278
-    const mcpConfig = gatewayToken
-      ? {
-          mcp: {
-            'shipsec-gateway': {
-              type: 'remote' as const,
-              url: DEFAULT_GATEWAY_URL,
-              oauth: false,
-              headers: {
+    // Always add MCP config (even if token is empty, so OpenCode can attempt connection)
+    const mcpConfig = {
+      mcp: {
+        'shipsec-gateway': {
+          type: 'remote' as const,
+          url: DEFAULT_GATEWAY_URL,
+          oauth: false,
+          headers: gatewayToken
+            ? {
                 Authorization: `Bearer ${gatewayToken}`,
+                Accept: 'application/json, text/event-stream',
+              }
+            : {
+                Accept: 'application/json, text/event-stream',
               },
-              enabled: true,
-            },
-          },
-        }
-      : {};
-
-    context.logger.info(
-      `[OpenCode] MCP Config: ${gatewayToken ? 'ENABLED' : 'DISABLED'}, URL: ${DEFAULT_GATEWAY_URL}`,
-    );
+          enabled: true,
+        },
+      },
+    };
 
     // Build provider config for OpenCode
     // Z.AI requires the API key to be in provider.options.apiKey
@@ -205,7 +189,6 @@ const definition = defineComponent({
       ...(model?.provider === 'zai-coding-plan' && model.apiKey
         ? {
             'zai-coding-plan': {
-              npm: '@ai-sdk/openai-compatible',
               options: {
                 apiKey: model.apiKey,
               },
@@ -222,10 +205,6 @@ const definition = defineComponent({
       // Merge in any additional provider config from parameters
       ...providerConfig,
     };
-
-    context.logger.info(
-      `[OpenCode] opencode.jsonc config: ${JSON.stringify(opencodeConfig, null, 2)}`,
-    );
 
     const providerEnv = buildProviderEnv(model);
 
@@ -255,6 +234,11 @@ Please investigate the issue and generate a detailed report.
       finalPrompt = defaultPrompt.replace('{{TASK}}', task);
     }
 
+    // Ask the agent to list available MCP tools first (best-effort).
+    finalPrompt =
+      `${finalPrompt}\n\n# MCP Tools\n` +
+      `Before you start, list the MCP tools you can see. If none are available, say so explicitly.`;
+
     // 4. Setup Isolated Volume
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     const volume = new IsolatedContainerVolume(tenantId, context.runId);
@@ -264,13 +248,24 @@ Please investigate the issue and generate a detailed report.
       // Write a wrapper script to properly execute opencode with file reading
       // The script runs inside the container, so $(cat /workspace/prompt.txt) works correctly
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
-      const wrapperScript =
-        '#!/bin/sh\nopencode run --log-level ERROR "$(cat /workspace/prompt.txt)"\n';
+      const wrapperScript = [
+        '#!/bin/sh',
+        'set -e',
+        'cd /workspace',
+        'echo "[OpenCode] Listing MCP tools before run..."',
+        'opencode mcp list --log-level ERROR || true',
+        'echo "[OpenCode] Starting agent run..."',
+        'opencode run --log-level ERROR "$(cat /workspace/prompt.txt)"',
+        '',
+      ].join('\n');
 
+      const opencodeConfigJson = JSON.stringify(opencodeConfig, null, 2);
       // Initialize workspace with config, context, prompt, and wrapper script
       await volume.initialize({
         'context.json': contextJson,
-        'opencode.json': JSON.stringify(opencodeConfig, null, 2),
+        // Opencode prefers opencode.jsonc in cwd; keep opencode.json for backwards compat.
+        'opencode.jsonc': opencodeConfigJson,
+        'opencode.json': opencodeConfigJson,
         'prompt.txt': finalPrompt,
         'run.sh': wrapperScript,
       });
@@ -337,9 +332,6 @@ Please investigate the issue and generate a detailed report.
         stdout = (runnerResult.stdout as string) || (runnerResult.raw as string) || '';
         stderr = (runnerResult.stderr as string) || '';
       }
-
-      context.logger.info(`[OpenCode] Finished. Stdout length: ${stdout.length}`);
-      context.logger.info(`[OpenCode] Raw output (first 500 chars):\n${stdout.substring(0, 500)}`);
 
       return outputSchema.parse({
         report: stdout, // The markdown report is expected in stdout

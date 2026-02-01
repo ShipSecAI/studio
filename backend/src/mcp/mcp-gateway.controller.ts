@@ -54,7 +54,7 @@ export class McpGatewayController {
 
     // Initialization if transport doesn't exist
     if (!transport) {
-      if (!isInitRequest) {
+      if (!isInitRequest && !isGet && !isPost) {
         return res.status(400).send('Bad Request: No valid session ID provided');
       }
 
@@ -69,7 +69,7 @@ export class McpGatewayController {
           : undefined;
 
       transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => cacheKey,
+        sessionIdGenerator: undefined,
         enableJsonResponse: true,
       });
       this.transports.set(cacheKey, transport);
@@ -91,7 +91,7 @@ export class McpGatewayController {
       }
     }
 
-    if ((isGet || isDelete) && !transport.sessionId) {
+    if (isDelete && !transport.sessionId) {
       return res.status(400).send('Bad Request: Server not initialized');
     }
 

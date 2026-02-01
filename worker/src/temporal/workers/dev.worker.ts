@@ -31,6 +31,7 @@ import {
   registerRemoteMcpActivity,
   cleanupLocalMcpActivity,
   prepareAndRegisterToolActivity,
+  areAllToolsReadyActivity,
 } from '../activities/mcp.activity';
 
 // ... (existing imports)
@@ -260,6 +261,7 @@ async function main() {
       registerRemoteMcpActivity,
       cleanupLocalMcpActivity,
       prepareAndRegisterToolActivity,
+      areAllToolsReadyActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

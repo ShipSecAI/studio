@@ -10,6 +10,8 @@ import {
   RegisterComponentToolActivityInput,
   RegisterLocalMcpActivityInput,
   RegisterRemoteMcpActivityInput,
+  AreAllToolsReadyActivityInput,
+  AreAllToolsReadyActivityOutput,
 } from '../types';
 
 const DEFAULT_API_BASE_URL =
@@ -34,7 +36,8 @@ async function callInternalApi(path: string, body: any) {
   }
 
   const baseUrl = normalizeBaseUrl(DEFAULT_API_BASE_URL);
-  const response = await fetch(`${baseUrl}/internal/mcp/${path}`, {
+  const url = `${baseUrl}/internal/mcp/${path}`;
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -45,13 +48,15 @@ async function callInternalApi(path: string, body: any) {
 
   if (!response.ok) {
     const raw = await response.text().catch(() => '<unable to read response body>');
+    console.error(`[MCP Activity] API call failed: ${raw}`);
     throw new ServiceError(`Failed to call internal MCP registry (${path}): ${raw}`, {
       statusCode: response.status,
       details: { statusText: response.statusText },
     });
   }
 
-  return response.json();
+  const result = await response.json();
+  return result;
 }
 
 export async function registerComponentToolActivity(
@@ -74,17 +79,11 @@ export async function registerLocalMcpActivity(
   const endpoint = input.endpoint || `http://localhost:${port}`;
   const containerId = input.containerId || `docker-${input.image.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-  console.log(
-    `[TOOL REGISTRY] Registering local MCP: toolName=${input.toolName}, endpoint=${endpoint}, containerId=${containerId}, runId=${input.runId}`,
-  );
-
   await callInternalApi('register-local', {
     ...input,
     endpoint,
     containerId,
   });
-
-  console.log(`[TOOL REGISTRY] Local MCP registered successfully: ${input.toolName}`);
 }
 
 export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void> {
@@ -150,6 +149,17 @@ export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInpu
   } catch (error) {
     console.warn(`[MCP Cleanup] Failed to list volumes for run ${input.runId}:`, error);
   }
+}
+
+export async function areAllToolsReadyActivity(
+  input: AreAllToolsReadyActivityInput,
+): Promise<AreAllToolsReadyActivityOutput> {
+  const { runId, requiredNodeIds } = input;
+  const response = await callInternalApi('tools-ready', {
+    runId,
+    requiredNodeIds,
+  });
+  return response as AreAllToolsReadyActivityOutput;
 }
 
 export async function prepareAndRegisterToolActivity(input: {

@@ -35,12 +35,13 @@ const outputSchema = outputs({
 const definition = defineComponent({
   id: 'test.mcp.simple-http',
   label: 'Simple HTTP MCP Server',
-  category: 'tools',
+  category: 'mcp',
   runner: {
     kind: 'docker',
     image: 'node:20-alpine',
     network: 'host',
     entrypoint: '/bin/sh',
+    command: ['-c', 'node /workspace/server.js'],
   },
   inputs: inputSchema,
   outputs: outputSchema,
@@ -50,7 +51,7 @@ const definition = defineComponent({
     slug: 'simple-http-mcp',
     version: '1.0.0',
     type: 'process',
-    category: 'tools',
+    category: 'mcp',
     description: 'Simple HTTP MCP server with get_weather tool',
     icon: 'Cloud',
     author: {

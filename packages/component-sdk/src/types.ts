@@ -29,6 +29,7 @@ export interface DockerRunnerConfig {
   env?: Record<string, string>;
   network?: 'none' | 'bridge' | 'host'; // Network mode (default: none for security)
   platform?: string; // Optional platform to run under (e.g., 'linux/amd64')
+  containerName?: string; // Optional container name for --name flag
   volumes?: Array<{
     source: string; // host path
     target: string; // container path
@@ -37,7 +38,7 @@ export interface DockerRunnerConfig {
   timeoutSeconds?: number;
   stdinJson?: boolean; // Whether to write params as JSON to container's stdin (default: true)
   detached?: boolean; // If true, start container and return immediately without waiting for exit
-  ports?: Record<number, number>; // Port mapping host -> container
+  ports?: Record<string, number>; // Port mapping host (e.g., "0.0.0.0:8080" or "127.0.0.1:8080") -> container port
 }
 
 

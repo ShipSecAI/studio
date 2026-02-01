@@ -51,7 +51,14 @@ export async function startMcpDockerServer(
     });
   }
 
-  const endpoint = `http://127.0.0.1:${port}/mcp`;
+  // Use friendly container name for identification and inter-container DNS
+  const containerName = `mcp-server-${input.image.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
+  
+  // For endpoint, use localhost:port for local backend access
+  // If backend is in Docker container, it can reach by container name
+  // But for local development, localhost works
+  const endpoint = `http://localhost:${port}/mcp`;
+  
   const runnerConfig = {
     kind: 'docker' as const,
     image: input.image,
@@ -59,7 +66,9 @@ export async function startMcpDockerServer(
     env: { ...input.env, PORT: String(port), ENDPOINT: endpoint },
     network: 'bridge' as const,
     detached: true,
-    ports: { [`127.0.0.1:${port}`]: port } as unknown as Record<number, number>,
+    containerName,
+    // Bind to 0.0.0.0 so all interfaces can reach it (both localhost and Docker network)
+    ports: { [`0.0.0.0:${port}`]: port },
     volumes: input.volumes,
   };
 
@@ -70,13 +79,10 @@ export async function startMcpDockerServer(
     input.context,
   );
 
-  let containerId: string | undefined;
-  if (result && typeof result === 'object' && 'containerId' in result) {
-    containerId = (result as { containerId?: string }).containerId;
-  }
-
+  // The runner returns the full container SHA, but we use the friendly containerName instead
+  // for easier identification and cleanup
   return {
     endpoint,
-    containerId,
+    containerId: containerName,
   };
 }

@@ -31,6 +31,7 @@ import type {
   CleanupLocalMcpActivityInput,
   RegisterLocalMcpActivityInput,
   PrepareAndRegisterToolActivityInput,
+  AreAllToolsReadyActivityInput,
 } from '../types';
 
 const {
@@ -42,6 +43,7 @@ const {
   registerLocalMcpActivity,
   cleanupLocalMcpActivity,
   prepareAndRegisterToolActivity,
+  areAllToolsReadyActivity,
 } = proxyActivities<{
   runComponentActivity(input: RunComponentActivityInput): Promise<RunComponentActivityOutput>;
   setRunMetadataActivity(input: {
@@ -71,6 +73,7 @@ const {
   registerLocalMcpActivity(input: RegisterLocalMcpActivityInput): Promise<void>;
   cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void>;
   prepareAndRegisterToolActivity(input: PrepareAndRegisterToolActivityInput): Promise<void>;
+  areAllToolsReadyActivity(input: { runId: string; requiredNodeIds: string[] }): Promise<{ ready: boolean }>;
 }>({
   startToCloseTimeout: '10 minutes',
 });
@@ -263,6 +266,9 @@ export async function shipsecWorkflowRun(
     workflowId: input.workflowId,
     organizationId: input.organizationId ?? null,
   });
+
+  // Track workflow completion for cleanup decision
+  let workflowCompletedSuccessfully = true;
 
   try {
     await runWorkflowWithScheduler(input.definition, {
@@ -726,6 +732,51 @@ export async function shipsecWorkflowRun(
           retry: retryOptions,
         });
 
+        // Wait for connected tools to be ready if this node has tool dependencies
+        if (nodeMetadata?.connectedToolNodeIds && nodeMetadata.connectedToolNodeIds.length > 0) {
+          console.log(
+            `[Workflow] Node ${action.ref} has tool dependencies: ${nodeMetadata.connectedToolNodeIds.join(', ')}, waiting for tools to be ready...`,
+          );
+          const MAX_WAIT_TIME_MS = 120000; // 2 minutes
+          const POLL_INTERVAL_MS = 2000; // 2 seconds
+          const startTime = Date.now();
+
+          while (Date.now() - startTime < MAX_WAIT_TIME_MS) {
+            const readyCheck = await areAllToolsReadyActivity({
+              runId: input.runId,
+              requiredNodeIds: nodeMetadata.connectedToolNodeIds,
+            });
+
+            if (readyCheck.ready) {
+              console.log(
+                `[Workflow] All tools ready for ${action.ref}: ${nodeMetadata.connectedToolNodeIds.join(', ')}`,
+              );
+              break;
+            }
+
+            console.log(
+              `[Workflow] Tools not ready yet for ${action.ref}, retrying in ${POLL_INTERVAL_MS}ms...`,
+            );
+            await sleep(POLL_INTERVAL_MS);
+          }
+
+          // Final check after waiting
+          const finalReadyCheck = await areAllToolsReadyActivity({
+            runId: input.runId,
+            requiredNodeIds: nodeMetadata.connectedToolNodeIds,
+          });
+
+          if (!finalReadyCheck.ready) {
+            console.error(
+              `[Workflow] Timeout waiting for tools for ${action.ref}: ${nodeMetadata.connectedToolNodeIds.join(', ')}`,
+            );
+            throw ApplicationFailure.nonRetryable(
+              `Tools not ready after ${MAX_WAIT_TIME_MS}ms: ${nodeMetadata.connectedToolNodeIds.join(', ')}`,
+              'ToolsNotReady',
+            );
+          }
+        }
+
         const output = await runComponentWithRetry(activityInput);
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
@@ -907,6 +958,7 @@ export async function shipsecWorkflowRun(
       success: true,
     };
   } catch (error) {
+    workflowCompletedSuccessfully = false;
     const outputs = Object.fromEntries(results);
     const normalizedError =
       error instanceof Error
@@ -919,9 +971,16 @@ export async function shipsecWorkflowRun(
       [{ outputs, error: normalizedError.message }],
     );
   } finally {
-    await cleanupLocalMcpActivity({ runId: input.runId }).catch((err) => {
-      console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
-    });
+    // Only cleanup MCP tools if workflow failed or was cancelled
+    // For successful completion, tools remain in registry for gateway access
+    if (!workflowCompletedSuccessfully) {
+      console.log(`[Workflow] Workflow did not complete successfully, cleaning up MCP containers for run ${input.runId}`);
+      await cleanupLocalMcpActivity({ runId: input.runId }).catch((err) => {
+        console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
+      });
+    } else {
+      console.log(`[Workflow] Workflow completed successfully, keeping MCP tools available for run ${input.runId}`);
+    }
     await finalizeRunActivity({ runId: input.runId }).catch((err) => {
       console.error(`[Workflow] Failed to finalize run ${input.runId}`, err);
     });
