@@ -326,7 +326,7 @@ export class McpGatewayService {
         requestInit: {
           headers: {
             'Mcp-Session-Id': sessionId,
-            'Accept': 'application/json, text/event-stream',
+            Accept: 'application/json, text/event-stream',
           },
         },
       });
@@ -384,7 +384,7 @@ export class McpGatewayService {
         requestInit: {
           headers: {
             'Mcp-Session-Id': sessionId,
-            'Accept': 'application/json, text/event-stream',
+            Accept: 'application/json, text/event-stream',
           },
         },
       });
@@ -508,7 +508,7 @@ export class McpGatewayService {
         if (result) {
           return result as { success: boolean; output?: unknown; error?: string };
         }
-      } catch (error) {
+      } catch (_error) {
         // Query might fail if workflow is busy, continue polling
       }
 

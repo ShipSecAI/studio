@@ -258,7 +258,7 @@ describe('core.ai.agent (refactor)', () => {
         expect.objectContaining({
           transport: {
             type: 'http',
-            url: 'http://localhost:3211/mcp/gateway',
+            url: 'http://localhost:3211/api/v1/mcp/gateway',
             headers: { Authorization: 'Bearer gateway-token' },
           },
         }),

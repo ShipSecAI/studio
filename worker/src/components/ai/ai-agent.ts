@@ -479,7 +479,9 @@ async function registerGatewayTools({
   });
 
   const tools = await mcpClient.tools();
-  console.log(`[AGENT] Discovered ${Object.keys(tools).length} tools from gateway: ${Object.keys(tools).join(', ') || 'none'}`);
+  console.log(
+    `[AGENT] Discovered ${Object.keys(tools).length} tools from gateway: ${Object.keys(tools).join(', ') || 'none'}`,
+  );
   return {
     tools,
     close: async () => {

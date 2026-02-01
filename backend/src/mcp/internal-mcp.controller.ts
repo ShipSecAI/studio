@@ -63,13 +63,8 @@ export class InternalMcpController {
   }
 
   @Post('tools-ready')
-  async areToolsReady(
-    @Body() body: { runId: string; requiredNodeIds: string[] },
-  ) {
-    const ready = await this.toolRegistry.areAllToolsReady(
-      body.runId,
-      body.requiredNodeIds,
-    );
+  async areToolsReady(@Body() body: { runId: string; requiredNodeIds: string[] }) {
+    const ready = await this.toolRegistry.areAllToolsReady(body.runId, body.requiredNodeIds);
     return { ready };
   }
 }

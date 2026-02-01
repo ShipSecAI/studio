@@ -20,7 +20,7 @@ vi.mock('../../../utils/isolated-volume', () => {
 // Mock getGatewaySessionToken
 vi.mock('../utils', () => {
   return {
-    DEFAULT_GATEWAY_URL: 'http://localhost:3211/mcp/gateway',
+    DEFAULT_GATEWAY_URL: 'http://localhost:3211/api/v1/mcp/gateway',
     getGatewaySessionToken: vi.fn().mockResolvedValue('mock-session-token'),
   };
 });
