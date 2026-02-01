@@ -31,21 +31,6 @@ class MockToolLoopAgent {
   }
 }
 
-vi.mock('ai', () => ({
-  ToolLoopAgent: MockToolLoopAgent,
-  generateText: vi.fn(),
-  stepCountIs: stepCountIsMock,
-}));
-vi.mock('@ai-sdk/openai', () => ({
-  createOpenAI: createOpenAIMock,
-}));
-vi.mock('@ai-sdk/google', () => ({
-  createGoogleGenerativeAI: createGoogleGenerativeAIMock,
-}));
-vi.mock('@ai-sdk/mcp', () => ({
-  createMCPClient: createMCPClientMock,
-}));
-
 const baseContext: ExecutionContext = {
   runId: 'test-run',
   componentRef: 'core.ai.agent',
@@ -59,6 +44,13 @@ const baseContext: ExecutionContext = {
   metadata: {
     runId: 'test-run',
     componentRef: 'core.ai.agent',
+    aiSdkOverrides: {
+      ToolLoopAgent: MockToolLoopAgent,
+      stepCountIs: stepCountIsMock,
+      createOpenAI: createOpenAIMock,
+      createGoogleGenerativeAI: createGoogleGenerativeAIMock,
+      createMCPClient: createMCPClientMock,
+    },
   },
   http: {
     fetch: async () => new Response(),
