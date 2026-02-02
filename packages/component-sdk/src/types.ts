@@ -29,6 +29,7 @@ export interface DockerRunnerConfig {
   env?: Record<string, string>;
   network?: 'none' | 'bridge' | 'host'; // Network mode (default: none for security)
   platform?: string; // Optional platform to run under (e.g., 'linux/amd64')
+  containerName?: string; // Optional container name for --name flag
   volumes?: Array<{
     source: string; // host path
     target: string; // container path
@@ -36,6 +37,8 @@ export interface DockerRunnerConfig {
   }>; // Optional volume mounts
   timeoutSeconds?: number;
   stdinJson?: boolean; // Whether to write params as JSON to container's stdin (default: true)
+  detached?: boolean; // If true, start container and return immediately without waiting for exit
+  ports?: Record<string, number>; // Port mapping host (e.g., "0.0.0.0:8080" or "127.0.0.1:8080") -> container port
 }
 
 
@@ -251,6 +254,8 @@ export interface ComponentPortMetadata {
   isBranching?: boolean;
   /** Custom color for branching ports: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate' */
   branchColor?: 'green' | 'red' | 'amber' | 'blue' | 'purple' | 'slate';
+  /** True if this port should be hidden from the UI */
+  hidden?: boolean;
 }
 
 export type ComponentParameterType =
@@ -278,6 +283,7 @@ export interface ComponentParameterMetadata {
   type: ComponentParameterType;
   required?: boolean;
   default?: unknown;
+  exposeToTool?: boolean;
   placeholder?: string;
   description?: string;
   helpText?: string;
@@ -302,6 +308,7 @@ export type ComponentCategory =
   | 'input'
   | 'transform'
   | 'ai'
+  | 'mcp'
   | 'security'
   | 'it_ops'
   | 'notification'
@@ -314,6 +321,25 @@ export type ComponentUiType =
   | 'scan'
   | 'process'
   | 'output';
+
+/**
+ * Configuration for exposing a component as an agent-callable tool.
+ */
+export interface AgentToolConfig {
+  /** Whether this component can be used as an agent tool */
+  enabled: boolean;
+  /**
+   * Tool name exposed to the agent. Defaults to component slug with underscores.
+   * Should be descriptive and follow snake_case convention.
+   * @example 'check_ip_reputation', 'query_cloudtrail'
+   */
+  toolName?: string;
+  /**
+   * Description of what the tool does, shown to the agent.
+   * Should clearly explain the tool's purpose and when to use it.
+   */
+  toolDescription?: string;
+}
 
 export interface ComponentUiMetadata {
   slug: string;
@@ -332,6 +358,12 @@ export interface ComponentUiMetadata {
   examples?: string[];
   /** UI-only component - should not be included in workflow execution */
   uiOnly?: boolean;
+  /**
+   * Configuration for exposing this component as an agent-callable tool.
+   * When enabled, the component can be used in tool mode within workflows,
+   * allowing AI agents to invoke it via the MCP gateway.
+   */
+  agentTool?: AgentToolConfig;
 }
 
 export interface ExecutionContext {

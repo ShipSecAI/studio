@@ -10,9 +10,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "App"
-        ]
+        "tags": ["App"]
       }
     },
     "/api/v1/agents/{agentRunId}/parts": {
@@ -33,9 +31,7 @@
             "description": "Returns stored agent trace parts"
           }
         },
-        "tags": [
-          "agents"
-        ]
+        "tags": ["agents"]
       }
     },
     "/api/v1/agents/{agentRunId}/chat": {
@@ -56,9 +52,7 @@
             "description": "AI SDK-compatible SSE for agent run"
           }
         },
-        "tags": [
-          "agents"
-        ]
+        "tags": ["agents"]
       }
     },
     "/api/v1/workflows": {
@@ -87,9 +81,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       },
       "get": {
         "operationId": "WorkflowsController_findAll",
@@ -109,9 +101,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/{id}": {
@@ -149,9 +139,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       },
       "get": {
         "operationId": "WorkflowsController_findOne",
@@ -177,9 +165,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       },
       "delete": {
         "operationId": "WorkflowsController_remove",
@@ -198,9 +184,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/{id}/metadata": {
@@ -238,9 +222,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs": {
@@ -342,11 +324,7 @@
                           },
                           "triggerType": {
                             "type": "string",
-                            "enum": [
-                              "manual",
-                              "schedule",
-                              "api"
-                            ]
+                            "enum": ["manual", "schedule", "api"]
                           },
                           "triggerSource": {
                             "type": "string",
@@ -381,9 +359,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}": {
@@ -461,11 +437,7 @@
                     },
                     "triggerType": {
                       "type": "string",
-                      "enum": [
-                        "manual",
-                        "schedule",
-                        "api"
-                      ]
+                      "enum": ["manual", "schedule", "api"]
                     },
                     "triggerSource": {
                       "type": "string",
@@ -497,9 +469,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/children": {
@@ -562,9 +532,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/{id}/runtime-inputs": {
@@ -592,9 +560,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/{workflowId}/versions/{versionId}": {
@@ -630,9 +596,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/{id}/commit": {
@@ -712,9 +676,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/{id}/run": {
@@ -791,9 +753,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/status": {
@@ -823,9 +783,7 @@
             "description": "Current Temporal execution status"
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/result": {
@@ -855,9 +813,7 @@
             "description": "Resolved workflow result payload"
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/config": {
@@ -906,9 +862,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/cancel": {
@@ -938,9 +892,7 @@
             "description": "Cancels a running workflow execution"
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/trace": {
@@ -983,21 +935,11 @@
                           },
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "STARTED",
-                              "PROGRESS",
-                              "COMPLETED",
-                              "FAILED"
-                            ]
+                            "enum": ["STARTED", "PROGRESS", "COMPLETED", "FAILED"]
                           },
                           "level": {
                             "type": "string",
-                            "enum": [
-                              "info",
-                              "warn",
-                              "error",
-                              "debug"
-                            ]
+                            "enum": ["info", "warn", "error", "debug"]
                           },
                           "timestamp": {
                             "type": "string",
@@ -1067,11 +1009,7 @@
                               },
                               "joinStrategy": {
                                 "type": "string",
-                                "enum": [
-                                  "all",
-                                  "any",
-                                  "first"
-                                ]
+                                "enum": ["all", "any", "first"]
                               },
                               "triggeredBy": {
                                 "type": "string"
@@ -1147,9 +1085,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/events": {
@@ -1192,21 +1128,11 @@
                           },
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "STARTED",
-                              "PROGRESS",
-                              "COMPLETED",
-                              "FAILED"
-                            ]
+                            "enum": ["STARTED", "PROGRESS", "COMPLETED", "FAILED"]
                           },
                           "level": {
                             "type": "string",
-                            "enum": [
-                              "info",
-                              "warn",
-                              "error",
-                              "debug"
-                            ]
+                            "enum": ["info", "warn", "error", "debug"]
                           },
                           "timestamp": {
                             "type": "string",
@@ -1276,11 +1202,7 @@
                               },
                               "joinStrategy": {
                                 "type": "string",
-                                "enum": [
-                                  "all",
-                                  "any",
-                                  "first"
-                                ]
+                                "enum": ["all", "any", "first"]
                               },
                               "triggeredBy": {
                                 "type": "string"
@@ -1356,9 +1278,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/dataflows": {
@@ -1422,12 +1342,7 @@
                           },
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "file",
-                              "json",
-                              "text",
-                              "binary"
-                            ]
+                            "enum": ["file", "json", "text", "binary"]
                           }
                         },
                         "additionalProperties": false
@@ -1440,9 +1355,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/artifacts": {
@@ -1470,9 +1383,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/artifacts/{artifactId}/download": {
@@ -1503,9 +1414,7 @@
             "description": "Download artifact for a specific run"
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/node-io": {
@@ -1545,12 +1454,7 @@
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "running",
-                              "completed",
-                              "failed",
-                              "skipped"
-                            ]
+                            "enum": ["running", "completed", "failed", "skipped"]
                           },
                           "startedAt": {
                             "type": "string",
@@ -1601,9 +1505,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/node-io/{nodeRef}": {
@@ -1652,12 +1554,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "running",
-                        "completed",
-                        "failed",
-                        "skipped"
-                      ]
+                      "enum": ["running", "completed", "failed", "skipped"]
                     },
                     "startedAt": {
                       "type": "string",
@@ -1711,9 +1608,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/stream": {
@@ -1770,9 +1665,7 @@
             "description": "Server-sent events stream for workflow run updates"
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/logs": {
@@ -1802,11 +1695,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "stdout",
-                "stderr",
-                "console"
-              ]
+              "enum": ["stdout", "stderr", "console"]
             }
           },
           {
@@ -1815,12 +1704,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error"
-              ]
+              "enum": ["debug", "info", "warn", "error"]
             }
           },
           {
@@ -1892,12 +1776,7 @@
                           },
                           "level": {
                             "type": "string",
-                            "enum": [
-                              "debug",
-                              "info",
-                              "warn",
-                              "error"
-                            ]
+                            "enum": ["debug", "info", "warn", "error"]
                           },
                           "message": {
                             "type": "string"
@@ -1925,9 +1804,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/terminal": {
@@ -1957,11 +1834,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "stdout",
-                "stderr",
-                "pty"
-              ]
+              "enum": ["stdout", "stderr", "pty"]
             }
           },
           {
@@ -1998,9 +1871,7 @@
             "description": "Terminal chunks for a workflow run"
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/terminal/archive": {
@@ -2038,9 +1909,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       },
       "get": {
         "operationId": "WorkflowsController_listTerminalArchives",
@@ -2066,9 +1935,7 @@
             }
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/workflows/runs/{runId}/terminal/archive/{recordId}/download": {
@@ -2099,9 +1966,7 @@
             "description": "Download terminal recording"
           }
         },
-        "tags": [
-          "workflows"
-        ]
+        "tags": ["workflows"]
       }
     },
     "/api/v1/internal/runs": {
@@ -2123,9 +1988,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "InternalRuns"
-        ]
+        "tags": ["InternalRuns"]
       }
     },
     "/api/v1/files/upload": {
@@ -2183,9 +2046,7 @@
             }
           }
         },
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
       }
     },
     "/api/v1/files": {
@@ -2238,9 +2099,7 @@
             }
           }
         },
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
       }
     },
     "/api/v1/files/{id}": {
@@ -2263,9 +2122,7 @@
             "description": "Get file metadata"
           }
         },
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
       },
       "delete": {
         "operationId": "FilesController_deleteFile",
@@ -2286,9 +2143,7 @@
             "description": "Delete file"
           }
         },
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
       }
     },
     "/api/v1/files/{id}/download": {
@@ -2319,9 +2174,7 @@
             }
           }
         },
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
       }
     },
     "/api/v1/artifacts": {
@@ -2364,10 +2217,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "run",
-                "library"
-              ]
+              "enum": ["run", "library"]
             }
           },
           {
@@ -2393,9 +2243,7 @@
             }
           }
         },
-        "tags": [
-          "artifacts"
-        ]
+        "tags": ["artifacts"]
       }
     },
     "/api/v1/artifacts/{id}/download": {
@@ -2426,9 +2274,7 @@
             }
           }
         },
-        "tags": [
-          "artifacts"
-        ]
+        "tags": ["artifacts"]
       }
     },
     "/api/v1/api-keys": {
@@ -2461,10 +2307,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
+              "enum": ["true", "false"]
             }
           }
         ],
@@ -2483,9 +2326,7 @@
             }
           }
         },
-        "tags": [
-          "api-keys"
-        ]
+        "tags": ["api-keys"]
       },
       "post": {
         "operationId": "ApiKeysController_create",
@@ -2512,9 +2353,7 @@
             }
           }
         },
-        "tags": [
-          "api-keys"
-        ]
+        "tags": ["api-keys"]
       }
     },
     "/api/v1/api-keys/{id}": {
@@ -2542,9 +2381,7 @@
             }
           }
         },
-        "tags": [
-          "api-keys"
-        ]
+        "tags": ["api-keys"]
       },
       "patch": {
         "operationId": "ApiKeysController_update",
@@ -2580,9 +2417,7 @@
             }
           }
         },
-        "tags": [
-          "api-keys"
-        ]
+        "tags": ["api-keys"]
       },
       "delete": {
         "operationId": "ApiKeysController_delete",
@@ -2608,9 +2443,7 @@
             }
           }
         },
-        "tags": [
-          "api-keys"
-        ]
+        "tags": ["api-keys"]
       }
     },
     "/api/v1/api-keys/{id}/revoke": {
@@ -2638,9 +2471,7 @@
             }
           }
         },
-        "tags": [
-          "api-keys"
-        ]
+        "tags": ["api-keys"]
       }
     },
     "/api/v1/components": {
@@ -2747,10 +2578,7 @@
                           },
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "shipsecai",
-                              "community"
-                            ]
+                            "enum": ["shipsecai", "community"]
                           },
                           "url": {
                             "type": "string",
@@ -2763,11 +2591,7 @@
                         "properties": {
                           "kind": {
                             "type": "string",
-                            "enum": [
-                              "inline",
-                              "docker",
-                              "remote"
-                            ],
+                            "enum": ["inline", "docker", "remote"],
                             "example": "inline"
                           },
                           "image": {
@@ -2799,13 +2623,7 @@
                               "properties": {
                                 "kind": {
                                   "type": "string",
-                                  "enum": [
-                                    "primitive",
-                                    "list",
-                                    "map",
-                                    "contract",
-                                    "any"
-                                  ]
+                                  "enum": ["primitive", "list", "map", "contract", "any"]
                                 },
                                 "name": {
                                   "type": "string",
@@ -2820,10 +2638,22 @@
                                   "nullable": true
                                 }
                               },
-                              "required": [
-                                "kind"
-                              ],
+                              "required": ["kind"],
                               "additionalProperties": true
+                            },
+                            "editor": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "textarea",
+                                "number",
+                                "boolean",
+                                "select",
+                                "multi-select",
+                                "json",
+                                "secret"
+                              ],
+                              "nullable": true
                             },
                             "required": {
                               "type": "boolean"
@@ -2834,10 +2664,7 @@
                             },
                             "valuePriority": {
                               "type": "string",
-                              "enum": [
-                                "manual-first",
-                                "connection-first"
-                              ],
+                              "enum": ["manual-first", "connection-first"],
                               "nullable": true
                             }
                           }
@@ -2859,13 +2686,7 @@
                               "properties": {
                                 "kind": {
                                   "type": "string",
-                                  "enum": [
-                                    "primitive",
-                                    "list",
-                                    "map",
-                                    "contract",
-                                    "any"
-                                  ]
+                                  "enum": ["primitive", "list", "map", "contract", "any"]
                                 },
                                 "name": {
                                   "type": "string",
@@ -2880,9 +2701,7 @@
                                   "nullable": true
                                 }
                               },
-                              "required": [
-                                "kind"
-                              ],
+                              "required": ["kind"],
                               "additionalProperties": true
                             },
                             "description": {
@@ -2975,9 +2794,7 @@
             }
           }
         },
-        "tags": [
-          "components"
-        ]
+        "tags": ["components"]
       }
     },
     "/api/v1/components/{id}": {
@@ -3094,13 +2911,7 @@
                             "properties": {
                               "kind": {
                                 "type": "string",
-                                "enum": [
-                                  "primitive",
-                                  "list",
-                                  "map",
-                                  "contract",
-                                  "any"
-                                ]
+                                "enum": ["primitive", "list", "map", "contract", "any"]
                               },
                               "name": {
                                 "type": "string",
@@ -3115,10 +2926,22 @@
                                 "nullable": true
                               }
                             },
-                            "required": [
-                              "kind"
-                            ],
+                            "required": ["kind"],
                             "additionalProperties": true
+                          },
+                          "editor": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "textarea",
+                              "number",
+                              "boolean",
+                              "select",
+                              "multi-select",
+                              "json",
+                              "secret"
+                            ],
+                            "nullable": true
                           },
                           "required": {
                             "type": "boolean"
@@ -3129,10 +2952,7 @@
                           },
                           "valuePriority": {
                             "type": "string",
-                            "enum": [
-                              "manual-first",
-                              "connection-first"
-                            ],
+                            "enum": ["manual-first", "connection-first"],
                             "nullable": true
                           }
                         }
@@ -3154,13 +2974,7 @@
                             "properties": {
                               "kind": {
                                 "type": "string",
-                                "enum": [
-                                  "primitive",
-                                  "list",
-                                  "map",
-                                  "contract",
-                                  "any"
-                                ]
+                                "enum": ["primitive", "list", "map", "contract", "any"]
                               },
                               "name": {
                                 "type": "string",
@@ -3175,9 +2989,7 @@
                                 "nullable": true
                               }
                             },
-                            "required": [
-                              "kind"
-                            ],
+                            "required": ["kind"],
                             "additionalProperties": true
                           },
                           "description": {
@@ -3211,9 +3023,7 @@
             }
           }
         },
-        "tags": [
-          "components"
-        ]
+        "tags": ["components"]
       }
     },
     "/api/v1/components/{id}/resolve-ports": {
@@ -3234,9 +3044,7 @@
             "description": "Resolve dynamic ports based on parameters"
           }
         },
-        "tags": [
-          "components"
-        ]
+        "tags": ["components"]
       }
     },
     "/api/v1/secrets": {
@@ -3258,9 +3066,7 @@
             }
           }
         },
-        "tags": [
-          "secrets"
-        ]
+        "tags": ["secrets"]
       },
       "post": {
         "operationId": "SecretsController_createSecret",
@@ -3287,9 +3093,7 @@
             }
           }
         },
-        "tags": [
-          "secrets"
-        ]
+        "tags": ["secrets"]
       }
     },
     "/api/v1/secrets/{id}": {
@@ -3317,9 +3121,7 @@
             }
           }
         },
-        "tags": [
-          "secrets"
-        ]
+        "tags": ["secrets"]
       },
       "patch": {
         "operationId": "SecretsController_updateSecret",
@@ -3355,9 +3157,7 @@
             }
           }
         },
-        "tags": [
-          "secrets"
-        ]
+        "tags": ["secrets"]
       },
       "delete": {
         "operationId": "SecretsController_deleteSecret",
@@ -3376,9 +3176,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "secrets"
-        ]
+        "tags": ["secrets"]
       }
     },
     "/api/v1/secrets/{id}/value": {
@@ -3415,9 +3213,7 @@
             }
           }
         },
-        "tags": [
-          "secrets"
-        ]
+        "tags": ["secrets"]
       }
     },
     "/api/v1/secrets/{id}/rotate": {
@@ -3455,9 +3251,7 @@
             }
           }
         },
-        "tags": [
-          "secrets"
-        ]
+        "tags": ["secrets"]
       }
     },
     "/api/v1/integrations/providers": {
@@ -3479,9 +3273,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/integrations/providers/{provider}/config": {
@@ -3509,9 +3301,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       },
       "put": {
         "operationId": "IntegrationsController_upsertProviderConfiguration",
@@ -3547,9 +3337,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       },
       "delete": {
         "operationId": "IntegrationsController_deleteProviderConfiguration",
@@ -3568,9 +3356,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/integrations/connections": {
@@ -3601,9 +3387,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/integrations/{provider}/start": {
@@ -3641,9 +3425,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/integrations/{provider}/exchange": {
@@ -3681,9 +3463,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/integrations/connections/{id}/refresh": {
@@ -3721,9 +3501,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/integrations/connections/{id}": {
@@ -3754,9 +3532,7 @@
             "description": "Connection removed"
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/integrations/connections/{id}/token": {
@@ -3792,9 +3568,7 @@
             }
           }
         },
-        "tags": [
-          "integrations"
-        ]
+        "tags": ["integrations"]
       }
     },
     "/api/v1/schedules": {
@@ -3817,11 +3591,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "active",
-                "paused",
-                "error"
-              ]
+              "enum": ["active", "paused", "error"]
             }
           }
         ],
@@ -3830,9 +3600,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       },
       "post": {
         "operationId": "SchedulesController_create",
@@ -3852,9 +3620,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       }
     },
     "/api/v1/schedules/{id}": {
@@ -3875,9 +3641,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       },
       "patch": {
         "operationId": "SchedulesController_update",
@@ -3906,9 +3670,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       },
       "delete": {
         "operationId": "SchedulesController_delete",
@@ -3927,9 +3689,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       }
     },
     "/api/v1/schedules/{id}/pause": {
@@ -3950,9 +3710,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       }
     },
     "/api/v1/schedules/{id}/resume": {
@@ -3973,9 +3731,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       }
     },
     "/api/v1/schedules/{id}/trigger": {
@@ -3996,9 +3752,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       }
     },
     "/api/v1/webhooks/workflows": {
@@ -4010,9 +3764,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/workflows/{id}": {
@@ -4033,9 +3785,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/workflows/{id}/run": {
@@ -4066,9 +3816,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/runs/{runId}/status": {
@@ -4089,9 +3837,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/runs/{runId}/result": {
@@ -4112,9 +3858,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/runs/{runId}/cancel": {
@@ -4135,9 +3879,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/inbound/{path}": {
@@ -4183,9 +3925,7 @@
           }
         },
         "summary": "Receive inbound webhook",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/configurations": {
@@ -4208,9 +3948,7 @@
           }
         },
         "summary": "List all webhook configurations",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       },
       "post": {
         "operationId": "WebhooksAdminController_create",
@@ -4238,9 +3976,7 @@
           }
         },
         "summary": "Create a new webhook configuration",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/configurations/{id}": {
@@ -4269,9 +4005,7 @@
           }
         },
         "summary": "Get a webhook configuration by ID",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       },
       "put": {
         "operationId": "WebhooksAdminController_update",
@@ -4308,9 +4042,7 @@
           }
         },
         "summary": "Update a webhook configuration",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       },
       "delete": {
         "operationId": "WebhooksAdminController_delete",
@@ -4330,9 +4062,7 @@
           }
         },
         "summary": "Delete a webhook configuration",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/configurations/{id}/regenerate-path": {
@@ -4361,9 +4091,7 @@
           }
         },
         "summary": "Regenerate webhook path (creates new URL)",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/configurations/{id}/url": {
@@ -4392,9 +4120,7 @@
           }
         },
         "summary": "Get the webhook URL for a configuration",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/configurations/test-script": {
@@ -4424,9 +4150,7 @@
           }
         },
         "summary": "Test a parsing script with sample data",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/configurations/{id}/deliveries": {
@@ -4458,9 +4182,7 @@
           }
         },
         "summary": "List delivery history for a webhook",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/webhooks/configurations/{id}/deliveries/{deliveryId}": {
@@ -4489,9 +4211,7 @@
           }
         },
         "summary": "Get details of a specific delivery",
-        "tags": [
-          "webhooks"
-        ]
+        "tags": ["webhooks"]
       }
     },
     "/api/v1/human-inputs": {
@@ -4504,12 +4224,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "pending",
-                "resolved",
-                "expired",
-                "cancelled"
-              ]
+              "enum": ["pending", "resolved", "expired", "cancelled"]
             }
           },
           {
@@ -4518,13 +4233,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "approval",
-                "form",
-                "selection",
-                "review",
-                "acknowledge"
-              ]
+              "enum": ["approval", "form", "selection", "review", "acknowledge"]
             }
           }
         ],
@@ -4549,9 +4258,7 @@
           }
         ],
         "summary": "List human input requests",
-        "tags": [
-          "Human Inputs"
-        ]
+        "tags": ["Human Inputs"]
       }
     },
     "/api/v1/human-inputs/{id}": {
@@ -4585,9 +4292,7 @@
           }
         ],
         "summary": "Get a human input request details",
-        "tags": [
-          "Human Inputs"
-        ]
+        "tags": ["Human Inputs"]
       }
     },
     "/api/v1/human-inputs/{id}/resolve": {
@@ -4631,9 +4336,7 @@
           }
         ],
         "summary": "Resolve a human input request",
-        "tags": [
-          "Human Inputs"
-        ]
+        "tags": ["Human Inputs"]
       }
     },
     "/api/v1/human-inputs/resolve/{token}": {
@@ -4672,9 +4375,175 @@
           }
         },
         "summary": "Resolve input via public token",
-        "tags": [
-          "Human Inputs"
-        ]
+        "tags": ["Human Inputs"]
+      }
+    },
+    "/api/v1/mcp/gateway": {
+      "get": {
+        "operationId": "McpGatewayController_handleGateway_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      },
+      "post": {
+        "operationId": "McpGatewayController_handleGateway_post",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      },
+      "put": {
+        "operationId": "McpGatewayController_handleGateway_put",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      },
+      "delete": {
+        "operationId": "McpGatewayController_handleGateway_delete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      },
+      "patch": {
+        "operationId": "McpGatewayController_handleGateway_patch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      },
+      "options": {
+        "operationId": "McpGatewayController_handleGateway_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      },
+      "head": {
+        "operationId": "McpGatewayController_handleGateway_head",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      },
+      "search": {
+        "operationId": "McpGatewayController_handleGateway_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unified MCP Gateway endpoint (Streamable HTTP)",
+        "tags": ["mcp"]
+      }
+    },
+    "/api/v1/internal/mcp/generate-token": {
+      "post": {
+        "operationId": "InternalMcpController_generateToken",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["InternalMcp"]
+      }
+    },
+    "/api/v1/internal/mcp/register-component": {
+      "post": {
+        "operationId": "InternalMcpController_registerComponent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterComponentToolInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["InternalMcp"]
+      }
+    },
+    "/api/v1/internal/mcp/register-remote": {
+      "post": {
+        "operationId": "InternalMcpController_registerRemote",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRemoteMcpInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["InternalMcp"]
+      }
+    },
+    "/api/v1/internal/mcp/register-local": {
+      "post": {
+        "operationId": "InternalMcpController_registerLocal",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterLocalMcpInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["InternalMcp"]
       }
     },
     "/api/v1/testing/webhooks": {
@@ -4707,9 +4576,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "TestingWebhook"
-        ]
+        "tags": ["TestingWebhook"]
       },
       "get": {
         "operationId": "TestingWebhookController_listRecords",
@@ -4719,9 +4586,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "TestingWebhook"
-        ]
+        "tags": ["TestingWebhook"]
       },
       "delete": {
         "operationId": "TestingWebhookController_clearRecords",
@@ -4731,9 +4596,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "TestingWebhook"
-        ]
+        "tags": ["TestingWebhook"]
       }
     },
     "/api/v1/testing/webhooks/latest": {
@@ -4745,9 +4608,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "TestingWebhook"
-        ]
+        "tags": ["TestingWebhook"]
       }
     },
     "/api/v1/testing/webhooks/{id}": {
@@ -4768,9 +4629,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "TestingWebhook"
-        ]
+        "tags": ["TestingWebhook"]
       }
     }
   },
@@ -4823,10 +4682,7 @@
                       "type": "number"
                     }
                   },
-                  "required": [
-                    "x",
-                    "y"
-                  ]
+                  "required": ["x", "y"]
                 },
                 "data": {
                   "type": "object",
@@ -4835,12 +4691,44 @@
                       "type": "string"
                     },
                     "config": {
-                      "default": {},
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
+                      "default": {
+                        "params": {},
+                        "inputOverrides": {}
                       },
-                      "additionalProperties": {}
+                      "type": "object",
+                      "properties": {
+                        "params": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "inputOverrides": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "joinStrategy": {
+                          "type": "string",
+                          "enum": ["all", "any", "first"]
+                        },
+                        "streamId": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "maxConcurrency": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      }
                     },
                     "dynamicInputs": {
                       "type": "array",
@@ -4863,17 +4751,10 @@
                       }
                     }
                   },
-                  "required": [
-                    "label"
-                  ]
+                  "required": ["label"]
                 }
               },
-              "required": [
-                "id",
-                "type",
-                "position",
-                "data"
-              ]
+              "required": ["id", "type", "position", "data"]
             }
           },
           "edges": {
@@ -4898,20 +4779,10 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "default",
-                    "smoothstep",
-                    "step",
-                    "straight",
-                    "bezier"
-                  ]
+                  "enum": ["default", "smoothstep", "step", "straight", "bezier"]
                 }
               },
-              "required": [
-                "id",
-                "source",
-                "target"
-              ]
+              "required": ["id", "source", "target"]
             }
           },
           "viewport": {
@@ -4932,18 +4803,10 @@
                 "type": "number"
               }
             },
-            "required": [
-              "x",
-              "y",
-              "zoom"
-            ]
+            "required": ["x", "y", "zoom"]
           }
         },
-        "required": [
-          "name",
-          "nodes",
-          "edges"
-        ]
+        "required": ["name", "nodes", "edges"]
       },
       "WorkflowResponseDto": {
         "type": "object",
@@ -4992,10 +4855,7 @@
                           "type": "number"
                         }
                       },
-                      "required": [
-                        "x",
-                        "y"
-                      ]
+                      "required": ["x", "y"]
                     },
                     "data": {
                       "type": "object",
@@ -5004,12 +4864,44 @@
                           "type": "string"
                         },
                         "config": {
-                          "default": {},
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
                           },
-                          "additionalProperties": {}
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": ["all", "any", "first"]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
                         },
                         "dynamicInputs": {
                           "type": "array",
@@ -5032,17 +4924,10 @@
                           }
                         }
                       },
-                      "required": [
-                        "label"
-                      ]
+                      "required": ["label"]
                     }
                   },
-                  "required": [
-                    "id",
-                    "type",
-                    "position",
-                    "data"
-                  ]
+                  "required": ["id", "type", "position", "data"]
                 }
               },
               "edges": {
@@ -5067,20 +4952,10 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": [
-                        "default",
-                        "smoothstep",
-                        "step",
-                        "straight",
-                        "bezier"
-                      ]
+                      "enum": ["default", "smoothstep", "step", "straight", "bezier"]
                     }
                   },
-                  "required": [
-                    "id",
-                    "source",
-                    "target"
-                  ]
+                  "required": ["id", "source", "target"]
                 }
               },
               "viewport": {
@@ -5101,18 +4976,10 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "x",
-                  "y",
-                  "zoom"
-                ]
+                "required": ["x", "y", "zoom"]
               }
             },
-            "required": [
-              "name",
-              "nodes",
-              "edges"
-            ]
+            "required": ["name", "nodes", "edges"]
           },
           "compiledDefinition": {
             "nullable": true
@@ -5192,10 +5059,7 @@
                       "type": "number"
                     }
                   },
-                  "required": [
-                    "x",
-                    "y"
-                  ]
+                  "required": ["x", "y"]
                 },
                 "data": {
                   "type": "object",
@@ -5204,12 +5068,44 @@
                       "type": "string"
                     },
                     "config": {
-                      "default": {},
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
+                      "default": {
+                        "params": {},
+                        "inputOverrides": {}
                       },
-                      "additionalProperties": {}
+                      "type": "object",
+                      "properties": {
+                        "params": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "inputOverrides": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "joinStrategy": {
+                          "type": "string",
+                          "enum": ["all", "any", "first"]
+                        },
+                        "streamId": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "maxConcurrency": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      }
                     },
                     "dynamicInputs": {
                       "type": "array",
@@ -5232,17 +5128,10 @@
                       }
                     }
                   },
-                  "required": [
-                    "label"
-                  ]
+                  "required": ["label"]
                 }
               },
-              "required": [
-                "id",
-                "type",
-                "position",
-                "data"
-              ]
+              "required": ["id", "type", "position", "data"]
             }
           },
           "edges": {
@@ -5267,20 +5156,10 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "default",
-                    "smoothstep",
-                    "step",
-                    "straight",
-                    "bezier"
-                  ]
+                  "enum": ["default", "smoothstep", "step", "straight", "bezier"]
                 }
               },
-              "required": [
-                "id",
-                "source",
-                "target"
-              ]
+              "required": ["id", "source", "target"]
             }
           },
           "viewport": {
@@ -5301,18 +5180,10 @@
                 "type": "number"
               }
             },
-            "required": [
-              "x",
-              "y",
-              "zoom"
-            ]
+            "required": ["x", "y", "zoom"]
           }
         },
-        "required": [
-          "name",
-          "nodes",
-          "edges"
-        ]
+        "required": ["name", "nodes", "edges"]
       },
       "UpdateWorkflowMetadataDto": {
         "type": "object",
@@ -5326,9 +5197,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "WorkflowRuntimeInputsResponseDto": {
         "type": "object",
@@ -5349,15 +5218,7 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "text",
-                    "string",
-                    "number",
-                    "json",
-                    "array",
-                    "file",
-                    "boolean"
-                  ]
+                  "enum": ["text", "string", "number", "json", "array", "file", "boolean", "secret"]
                 },
                 "required": {
                   "default": true,
@@ -5368,18 +5229,11 @@
                 },
                 "defaultValue": {}
               },
-              "required": [
-                "id",
-                "label",
-                "type"
-              ]
+              "required": ["id", "label", "type"]
             }
           }
         },
-        "required": [
-          "workflowId",
-          "inputs"
-        ]
+        "required": ["workflowId", "inputs"]
       },
       "WorkflowVersionResponseDto": {
         "type": "object",
@@ -5429,10 +5283,7 @@
                           "type": "number"
                         }
                       },
-                      "required": [
-                        "x",
-                        "y"
-                      ]
+                      "required": ["x", "y"]
                     },
                     "data": {
                       "type": "object",
@@ -5441,12 +5292,44 @@
                           "type": "string"
                         },
                         "config": {
-                          "default": {},
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
+                          "default": {
+                            "params": {},
+                            "inputOverrides": {}
                           },
-                          "additionalProperties": {}
+                          "type": "object",
+                          "properties": {
+                            "params": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "inputOverrides": {
+                              "default": {},
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            "joinStrategy": {
+                              "type": "string",
+                              "enum": ["all", "any", "first"]
+                            },
+                            "streamId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "maxConcurrency": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
                         },
                         "dynamicInputs": {
                           "type": "array",
@@ -5469,17 +5352,10 @@
                           }
                         }
                       },
-                      "required": [
-                        "label"
-                      ]
+                      "required": ["label"]
                     }
                   },
-                  "required": [
-                    "id",
-                    "type",
-                    "position",
-                    "data"
-                  ]
+                  "required": ["id", "type", "position", "data"]
                 }
               },
               "edges": {
@@ -5504,20 +5380,10 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": [
-                        "default",
-                        "smoothstep",
-                        "step",
-                        "straight",
-                        "bezier"
-                      ]
+                      "enum": ["default", "smoothstep", "step", "straight", "bezier"]
                     }
                   },
-                  "required": [
-                    "id",
-                    "source",
-                    "target"
-                  ]
+                  "required": ["id", "source", "target"]
                 }
               },
               "viewport": {
@@ -5538,30 +5404,16 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "x",
-                  "y",
-                  "zoom"
-                ]
+                "required": ["x", "y", "zoom"]
               }
             },
-            "required": [
-              "name",
-              "nodes",
-              "edges"
-            ]
+            "required": ["name", "nodes", "edges"]
           },
           "createdAt": {
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "workflowId",
-          "version",
-          "graph",
-          "createdAt"
-        ]
+        "required": ["id", "workflowId", "version", "graph", "createdAt"]
       },
       "RunWorkflowRequestDto": {
         "type": "object",
@@ -5641,10 +5493,7 @@
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "enum": [
-                      "run",
-                      "library"
-                    ]
+                    "enum": ["run", "library"]
                   }
                 },
                 "metadata": {
@@ -5657,10 +5506,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "s3",
-                              "gcs"
-                            ]
+                            "enum": ["s3", "gcs"]
                           },
                           "bucket": {
                             "type": "string"
@@ -5693,12 +5539,7 @@
                             "additionalProperties": {}
                           }
                         },
-                        "required": [
-                          "type",
-                          "bucket",
-                          "key",
-                          "uri"
-                        ]
+                        "required": ["type", "bucket", "key", "uri"]
                       }
                     }
                   },
@@ -5730,10 +5571,7 @@
             }
           }
         },
-        "required": [
-          "runId",
-          "artifacts"
-        ]
+        "required": ["runId", "artifacts"]
       },
       "TerminalArchiveRequestDto": {
         "type": "object",
@@ -5745,11 +5583,7 @@
           "stream": {
             "default": "pty",
             "type": "string",
-            "enum": [
-              "stdout",
-              "stderr",
-              "pty"
-            ]
+            "enum": ["stdout", "stderr", "pty"]
           },
           "width": {
             "type": "integer",
@@ -5762,9 +5596,7 @@
             "maximum": 200
           }
         },
-        "required": [
-          "nodeRef"
-        ]
+        "required": ["nodeRef"]
       },
       "TerminalRecordingDto": {
         "type": "object",
@@ -5870,10 +5702,7 @@
             }
           }
         },
-        "required": [
-          "runId",
-          "records"
-        ]
+        "required": ["runId", "records"]
       },
       "PrepareRunRequestDto": {
         "type": "object",
@@ -5907,10 +5736,24 @@
             },
             "additionalProperties": {
               "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {}
+              "properties": {
+                "params": {
+                  "default": {},
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "inputOverrides": {
+                  "default": {},
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              }
             }
           },
           "trigger": {
@@ -5918,12 +5761,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "manual",
-                  "schedule",
-                  "api",
-                  "webhook"
-                ]
+                "enum": ["manual", "schedule", "api", "webhook"]
               },
               "sourceId": {
                 "type": "string",
@@ -5934,9 +5772,7 @@
                 "nullable": true
               }
             },
-            "required": [
-              "type"
-            ]
+            "required": ["type"]
           },
           "runId": {
             "type": "string"
@@ -5953,9 +5789,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "workflowId"
-        ]
+        "required": ["workflowId"]
       },
       "ArtifactListResponseDto": {
         "type": "object",
@@ -6010,10 +5844,7 @@
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "enum": [
-                      "run",
-                      "library"
-                    ]
+                    "enum": ["run", "library"]
                   }
                 },
                 "metadata": {
@@ -6026,10 +5857,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "enum": [
-                              "s3",
-                              "gcs"
-                            ]
+                            "enum": ["s3", "gcs"]
                           },
                           "bucket": {
                             "type": "string"
@@ -6062,12 +5890,7 @@
                             "additionalProperties": {}
                           }
                         },
-                        "required": [
-                          "type",
-                          "bucket",
-                          "key",
-                          "uri"
-                        ]
+                        "required": ["type", "bucket", "key", "uri"]
                       }
                     }
                   },
@@ -6099,9 +5922,7 @@
             }
           }
         },
-        "required": [
-          "artifacts"
-        ]
+        "required": ["artifacts"]
       },
       "ApiKeyResponseDto": {
         "type": "object",
@@ -6138,11 +5959,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "run",
-                  "list",
-                  "read"
-                ]
+                "required": ["run", "list", "read"]
               },
               "runs": {
                 "type": "object",
@@ -6154,16 +5971,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "read",
-                  "cancel"
-                ]
+                "required": ["read", "cancel"]
               }
             },
-            "required": [
-              "workflows",
-              "runs"
-            ]
+            "required": ["workflows", "runs"]
           },
           "isActive": {
             "type": "boolean"
@@ -6236,11 +6047,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "run",
-                  "list",
-                  "read"
-                ]
+                "required": ["run", "list", "read"]
               },
               "runs": {
                 "type": "object",
@@ -6252,16 +6059,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "read",
-                  "cancel"
-                ]
+                "required": ["read", "cancel"]
               }
             },
-            "required": [
-              "workflows",
-              "runs"
-            ]
+            "required": ["workflows", "runs"]
           },
           "expiresAt": {
             "type": "string",
@@ -6277,10 +6078,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "name",
-          "permissions"
-        ]
+        "required": ["name", "permissions"]
       },
       "CreateApiKeyResponseDto": {
         "type": "object",
@@ -6317,11 +6115,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "run",
-                  "list",
-                  "read"
-                ]
+                "required": ["run", "list", "read"]
               },
               "runs": {
                 "type": "object",
@@ -6333,16 +6127,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "read",
-                  "cancel"
-                ]
+                "required": ["read", "cancel"]
               }
             },
-            "required": [
-              "workflows",
-              "runs"
-            ]
+            "required": ["workflows", "runs"]
           },
           "isActive": {
             "type": "boolean"
@@ -6373,8 +6161,8 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "plainKey": {
-            "description": "The plaintext API key (only returned on creation)",
-            "type": "string"
+            "type": "string",
+            "description": "The plaintext API key (only returned on creation)"
           }
         },
         "required": [
@@ -6420,11 +6208,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "run",
-                  "list",
-                  "read"
-                ]
+                "required": ["run", "list", "read"]
               },
               "runs": {
                 "type": "object",
@@ -6436,16 +6220,10 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "read",
-                  "cancel"
-                ]
+                "required": ["read", "cancel"]
               }
             },
-            "required": [
-              "workflows",
-              "runs"
-            ]
+            "required": ["workflows", "runs"]
           },
           "isActive": {
             "type": "boolean"
@@ -6465,9 +6243,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "success"
-        ]
+        "required": ["success"]
       },
       "SecretVersionResponse": {
         "type": "object",
@@ -6486,11 +6262,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "version",
-          "createdAt"
-        ]
+        "required": ["id", "version", "createdAt"]
       },
       "SecretSummaryResponse": {
         "type": "object",
@@ -6527,12 +6299,7 @@
             ]
           }
         },
-        "required": [
-          "id",
-          "name",
-          "createdAt",
-          "updatedAt"
-        ]
+        "required": ["id", "name", "createdAt", "updatedAt"]
       },
       "SecretValueResponse": {
         "type": "object",
@@ -6548,11 +6315,7 @@
             "description": "Decrypted secret value"
           }
         },
-        "required": [
-          "secretId",
-          "version",
-          "value"
-        ]
+        "required": ["secretId", "version", "value"]
       },
       "CreateSecretDto": {
         "type": "object",
@@ -6577,10 +6340,7 @@
             }
           }
         },
-        "required": [
-          "name",
-          "value"
-        ]
+        "required": ["name", "value"]
       },
       "RotateSecretDto": {
         "type": "object",
@@ -6590,9 +6350,7 @@
             "description": "New plaintext secret value"
           }
         },
-        "required": [
-          "value"
-        ]
+        "required": ["value"]
       },
       "UpdateSecretDto": {
         "type": "object",
@@ -6668,10 +6426,7 @@
           },
           "configuredBy": {
             "type": "string",
-            "enum": [
-              "environment",
-              "user"
-            ],
+            "enum": ["environment", "user"],
             "description": "Origin of the credential configuration"
           },
           "updatedAt": {
@@ -6679,11 +6434,7 @@
             "description": "Last update timestamp in ISO 8601 format"
           }
         },
-        "required": [
-          "provider",
-          "hasClientSecret",
-          "configuredBy"
-        ]
+        "required": ["provider", "hasClientSecret", "configuredBy"]
       },
       "UpsertProviderConfigDto": {
         "type": "object",
@@ -6697,9 +6448,7 @@
             "description": "OAuth client secret. Required when configuring the provider for the first time."
           }
         },
-        "required": [
-          "clientId"
-        ]
+        "required": ["clientId"]
       },
       "IntegrationConnectionResponse": {
         "type": "object",
@@ -6736,10 +6485,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "expired"
-            ]
+            "enum": ["active", "expired"]
           },
           "supportsRefresh": {
             "type": "boolean"
@@ -6785,10 +6531,7 @@
             }
           }
         },
-        "required": [
-          "userId",
-          "redirectUri"
-        ]
+        "required": ["userId", "redirectUri"]
       },
       "OAuthStartResponseDto": {
         "type": "object",
@@ -6808,12 +6551,7 @@
             "example": 300
           }
         },
-        "required": [
-          "provider",
-          "authorizationUrl",
-          "state",
-          "expiresIn"
-        ]
+        "required": ["provider", "authorizationUrl", "state", "expiresIn"]
       },
       "CompleteOAuthDto": {
         "type": "object",
@@ -6842,12 +6580,7 @@
             "description": "Authorization code issued by the provider"
           }
         },
-        "required": [
-          "userId",
-          "redirectUri",
-          "state",
-          "code"
-        ]
+        "required": ["userId", "redirectUri", "state", "code"]
       },
       "RefreshConnectionDto": {
         "type": "object",
@@ -6857,9 +6590,7 @@
             "description": "Application user identifier that owns the connection"
           }
         },
-        "required": [
-          "userId"
-        ]
+        "required": ["userId"]
       },
       "DisconnectConnectionDto": {
         "type": "object",
@@ -6869,9 +6600,7 @@
             "description": "Application user identifier that owns the connection"
           }
         },
-        "required": [
-          "userId"
-        ]
+        "required": ["userId"]
       },
       "ConnectionTokenResponseDto": {
         "type": "object",
@@ -6898,13 +6627,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "provider",
-          "userId",
-          "accessToken",
-          "tokenType",
-          "scopes"
-        ]
+        "required": ["provider", "userId", "accessToken", "tokenType", "scopes"]
       },
       "CreateScheduleRequestDto": {
         "type": "object",
@@ -6942,11 +6665,7 @@
           "overlapPolicy": {
             "default": "skip",
             "type": "string",
-            "enum": [
-              "skip",
-              "buffer",
-              "allow"
-            ]
+            "enum": ["skip", "buffer", "allow"]
           },
           "catchupWindowSeconds": {
             "default": 0,
@@ -6977,21 +6696,30 @@
                 },
                 "additionalProperties": {
                   "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {}
+                  "properties": {
+                    "params": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "inputOverrides": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  }
                 }
               }
             }
           }
         },
-        "required": [
-          "workflowId",
-          "name",
-          "cronExpression",
-          "timezone"
-        ]
+        "required": ["workflowId", "name", "cronExpression", "timezone"]
       },
       "UpdateScheduleRequestDto": {
         "type": "object",
@@ -7029,11 +6757,7 @@
           "overlapPolicy": {
             "default": "skip",
             "type": "string",
-            "enum": [
-              "skip",
-              "buffer",
-              "allow"
-            ]
+            "enum": ["skip", "buffer", "allow"]
           },
           "catchupWindowSeconds": {
             "default": 0,
@@ -7064,21 +6788,31 @@
                 },
                 "additionalProperties": {
                   "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {}
+                  "properties": {
+                    "params": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "inputOverrides": {
+                      "default": {},
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  }
                 }
               }
             }
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "paused",
-              "error"
-            ]
+            "enum": ["active", "paused", "error"]
           }
         }
       },
@@ -7158,13 +6892,7 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "text",
-                    "number",
-                    "json",
-                    "array",
-                    "file"
-                  ]
+                  "enum": ["text", "number", "json", "array", "file"]
                 },
                 "required": {
                   "default": true,
@@ -7174,19 +6902,12 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "label",
-                "type"
-              ]
+              "required": ["id", "label", "type"]
             }
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "inactive"
-            ]
+            "enum": ["active", "inactive"]
           },
           "organizationId": {
             "type": "string",
@@ -7265,13 +6986,7 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "text",
-                    "number",
-                    "json",
-                    "array",
-                    "file"
-                  ]
+                  "enum": ["text", "number", "json", "array", "file"]
                 },
                 "required": {
                   "default": true,
@@ -7281,19 +6996,11 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "label",
-                "type"
-              ]
+              "required": ["id", "label", "type"]
             }
           }
         },
-        "required": [
-          "workflowId",
-          "name",
-          "parsingScript"
-        ]
+        "required": ["workflowId", "name", "parsingScript"]
       },
       "UpdateWebhookRequestDto": {
         "type": "object",
@@ -7335,13 +7042,7 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": [
-                    "text",
-                    "number",
-                    "json",
-                    "array",
-                    "file"
-                  ]
+                  "enum": ["text", "number", "json", "array", "file"]
                 },
                 "required": {
                   "default": true,
@@ -7351,19 +7052,12 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "label",
-                "type"
-              ]
+              "required": ["id", "label", "type"]
             }
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "inactive"
-            ]
+            "enum": ["active", "inactive"]
           }
         }
       },
@@ -7384,11 +7078,7 @@
             "format": "uri"
           }
         },
-        "required": [
-          "id",
-          "webhookPath",
-          "url"
-        ]
+        "required": ["id", "webhookPath", "url"]
       },
       "GetWebhookUrlResponseDto": {
         "type": "object",
@@ -7410,12 +7100,7 @@
             "format": "uri"
           }
         },
-        "required": [
-          "id",
-          "name",
-          "webhookPath",
-          "url"
-        ]
+        "required": ["id", "name", "webhookPath", "url"]
       },
       "TestWebhookScriptRequestDto": {
         "type": "object",
@@ -7441,10 +7126,7 @@
             }
           }
         },
-        "required": [
-          "parsingScript",
-          "testPayload"
-        ]
+        "required": ["parsingScript", "testPayload"]
       },
       "TestWebhookScriptResponseDto": {
         "type": "object",
@@ -7476,18 +7158,11 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "inputId",
-                "message"
-              ]
+              "required": ["inputId", "message"]
             }
           }
         },
-        "required": [
-          "success",
-          "parsedData",
-          "errorMessage"
-        ]
+        "required": ["success", "parsedData", "errorMessage"]
       },
       "WebhookDeliveryResponseDto": {
         "type": "object",
@@ -7508,11 +7183,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "processing",
-              "delivered",
-              "failed"
-            ]
+            "enum": ["processing", "delivered", "failed"]
           },
           "payload": {
             "type": "object",
@@ -7587,22 +7258,11 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "resolved",
-              "expired",
-              "cancelled"
-            ]
+            "enum": ["pending", "resolved", "expired", "cancelled"]
           },
           "inputType": {
             "type": "string",
-            "enum": [
-              "approval",
-              "form",
-              "selection",
-              "review",
-              "acknowledge"
-            ]
+            "enum": ["approval", "form", "selection", "review", "acknowledge"]
           },
           "inputSchema": {
             "nullable": true
@@ -7690,11 +7350,7 @@
           "action": {
             "default": "resolve",
             "type": "string",
-            "enum": [
-              "approve",
-              "reject",
-              "resolve"
-            ]
+            "enum": ["approve", "reject", "resolve"]
           },
           "data": {
             "type": "object",
@@ -7727,42 +7383,33 @@
               },
               "inputType": {
                 "type": "string",
-                "enum": [
-                  "approval",
-                  "form",
-                  "selection",
-                  "review",
-                  "acknowledge"
-                ]
+                "enum": ["approval", "form", "selection", "review", "acknowledge"]
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "pending",
-                  "resolved",
-                  "expired",
-                  "cancelled"
-                ]
+                "enum": ["pending", "resolved", "expired", "cancelled"]
               },
               "respondedAt": {
                 "type": "string",
                 "nullable": true
               }
             },
-            "required": [
-              "id",
-              "title",
-              "inputType",
-              "status",
-              "respondedAt"
-            ]
+            "required": ["id", "title", "inputType", "status", "respondedAt"]
           }
         },
-        "required": [
-          "success",
-          "message",
-          "input"
-        ]
+        "required": ["success", "message", "input"]
+      },
+      "RegisterComponentToolInput": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegisterRemoteMcpInput": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegisterLocalMcpInput": {
+        "type": "object",
+        "properties": {}
       }
     }
   }

@@ -1,0 +1,14 @@
+{
+  "name": "mcp-stdio-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HTTP proxy for stdio-based MCP servers",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "express": "^5.2.1"
+  }
+}

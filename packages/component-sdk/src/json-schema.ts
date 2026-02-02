@@ -52,7 +52,7 @@ function getObjectShape(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> {
  * @param schema - Zod schema to convert
  * @returns JSON Schema object
  */
-export function getToolSchema(schema: z.ZodTypeAny): Record<string, unknown> {
+export function generateJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   const jsonSchema = zodToJsonSchema(schema);
 
   return jsonSchema;

@@ -1,0 +1,13 @@
+{
+    "mcp": {
+        "test-server": {
+            "type": "remote",
+            "url": "http://localhost:8000/mcp",
+            "headers": {
+                "Authorization": "Bearer test-token"
+            }
+        }
+    },
+    "autoApprove": true,
+    "model": "openrouter/anthropic/claude-3-haiku"
+}

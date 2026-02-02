@@ -1,14 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { KeyRound, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import {
-  fetchSecrets,
-  type SecretSummary,
-  getSecretLabel,
-  getSecretDescription,
-} from '@/api/secrets';
+import { getSecretLabel, getSecretDescription } from '@/api/secrets';
 import { LeanSelect, type SelectOption } from './LeanSelect';
+import { useSecretStore } from '@/store/secretStore';
 
 interface SecretSelectProps {
   value?: string;
@@ -32,25 +28,17 @@ export function SecretSelect({
   onRefresh,
   clearable = true,
 }: SecretSelectProps) {
-  const [secrets, setSecrets] = useState<SecretSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const secrets = useSecretStore((state) => state.secrets);
+  const loading = useSecretStore((state) => state.loading);
+  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
+  const refreshSecrets = useSecretStore((state) => state.refresh);
   const navigate = useNavigate();
 
-  const loadSecrets = async () => {
-    setLoading(true);
-    try {
-      const fetchedSecrets = await fetchSecrets();
-      setSecrets(fetchedSecrets);
-    } catch (error) {
-      console.error('Failed to load secrets:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadSecrets();
-  }, []);
+    fetchSecrets().catch((error) => {
+      console.error('Failed to load secrets:', error);
+    });
+  }, [fetchSecrets]);
 
   const options: SelectOption[] = secrets.map((s) => ({
     label: getSecretLabel(s),
@@ -66,12 +54,12 @@ export function SecretSelect({
     ? getSecretLabel(activeSecret)
     : value && !loading
       ? /^[0-9a-f]{8}-/i.test(value)
-        ? 'Missing Secret'
+        ? `Unknown secret (${value.slice(0, 8)}…)`
         : value // Legacy name-based secret reference
       : undefined;
 
   const handleRefresh = async () => {
-    await loadSecrets();
+    await refreshSecrets();
     onRefresh?.();
   };
 

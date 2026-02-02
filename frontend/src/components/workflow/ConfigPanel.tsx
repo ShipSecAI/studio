@@ -1,5 +1,5 @@
 import * as LucideIcons from 'lucide-react';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   X,
   ExternalLink,
@@ -32,12 +32,14 @@ import { ParameterFieldWrapper } from './ParameterField';
 import { WebhookDetails } from './WebhookDetails';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { DynamicArtifactNameInput } from './DynamicArtifactNameInput';
+import { useReactFlow } from 'reactflow';
 import type { Node } from 'reactflow';
 import type { FrontendNodeData } from '@/schemas/node';
 import type { ComponentType, KeyboardEvent } from 'react';
 import {
   describePortType,
   inputSupportsManualValue,
+  isCredentialInput,
   isListOfTextPort,
   resolvePortType,
 } from '@/utils/portUtils';
@@ -70,7 +72,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left bg-muted/30 hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-left bg-muted/30 hover:bg-muted/50 transition-colors border-b"
       >
         <div className="flex items-center gap-2">
           {isOpen ? (
@@ -301,6 +303,7 @@ export function ConfigPanel({
 }: ConfigPanelProps) {
   const isMobile = useIsMobile();
   const { getComponent, loading } = useComponentStore();
+  const { getEdges, getNodes } = useReactFlow();
   const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id);
   const workflowId = workflowIdProp ?? fallbackWorkflowId;
   const navigate = useNavigate();
@@ -418,6 +421,9 @@ export function ConfigPanel({
 
   const nodeData: FrontendNodeData = selectedNode.data;
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug;
+  const isToolMode = Boolean(
+    (nodeData.config as any)?.isToolMode || (nodeData.config as any)?.mode === 'tool',
+  );
   const component = getComponent(componentRef);
 
   if (!component) {
@@ -436,7 +442,7 @@ export function ConfigPanel({
             />
           )}
           <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
-            <h3 className="font-medium text-sm">Configuration</h3>
+            <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
             <Button
               variant="ghost"
               size="icon"
@@ -466,7 +472,7 @@ export function ConfigPanel({
           />
         )}
         <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
-          <h3 className="font-medium text-sm">Configuration</h3>
+          <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
           <Button
             variant="ghost"
             size="icon"
@@ -563,6 +569,56 @@ export function ConfigPanel({
   const componentInputs = dynamicInputs ?? component.inputs ?? [];
   const componentOutputs = dynamicOutputs ?? component.outputs ?? [];
   const componentParameters = component.parameters ?? [];
+  const toolSchemaJson = useMemo(() => {
+    if (!component.toolSchema) {
+      return null;
+    }
+    if (typeof component.toolSchema === 'string') {
+      return component.toolSchema;
+    }
+    try {
+      return JSON.stringify(component.toolSchema, null, 2);
+    } catch (_error) {
+      return String(component.toolSchema);
+    }
+  }, [component.toolSchema]);
+  const toolSchemaObject = useMemo(() => {
+    if (!component.toolSchema) {
+      return null;
+    }
+    if (typeof component.toolSchema === 'string') {
+      try {
+        return JSON.parse(component.toolSchema);
+      } catch (_error) {
+        return null;
+      }
+    }
+    if (typeof component.toolSchema === 'object') {
+      return component.toolSchema as Record<string, any>;
+    }
+    return null;
+  }, [component.toolSchema]);
+  const toolSchemaFields = useMemo(() => {
+    const properties = toolSchemaObject?.properties ?? {};
+    const required = new Set((toolSchemaObject?.required as string[]) ?? []);
+    return Object.entries(properties).map(([id, schema]) => {
+      const typed = schema as Record<string, any>;
+      const type =
+        typeof typed.type === 'string'
+          ? typed.type
+          : Array.isArray(typed.type)
+            ? typed.type.join(' | ')
+            : 'object';
+      return {
+        id,
+        type,
+        description: typed.description as string | undefined,
+        required: required.has(id),
+        defaultValue: typed.default,
+        enumValues: Array.isArray(typed.enum) ? typed.enum : undefined,
+      };
+    });
+  }, [toolSchemaObject]);
   const exampleItems = [component.example, ...(component.examples ?? [])].filter(
     (value): value is string => Boolean(value && value.trim().length > 0),
   );
@@ -646,7 +702,7 @@ export function ConfigPanel({
       )}
       {/* Header */}
       <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
-        <h3 className="font-medium text-sm">Configuration</h3>
+        <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
         <Button
           variant="ghost"
           size="icon"
@@ -781,13 +837,153 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
+          {isToolMode && (
+            <CollapsibleSection title="Tool" defaultOpen={true}>
+              <div className="space-y-3 mt-2">
+                <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {component.agentTool?.toolName ?? component.slug}
+                    </Badge>
+                    <span className="text-xs font-semibold text-foreground">{component.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {component.agentTool?.toolDescription ?? component.description}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase text-muted-foreground">Arguments</div>
+                  {toolSchemaFields.length > 0 ? (
+                    <div className="space-y-2">
+                      {toolSchemaFields.map((field) => (
+                        <div
+                          key={field.id}
+                          className="rounded-md border bg-background/60 px-3 py-2"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-foreground">{field.id}</span>
+                            <Badge variant="outline" className="text-[10px] font-mono">
+                              {field.type}
+                            </Badge>
+                            {field.required && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-destructive border-destructive/40"
+                              >
+                                required
+                              </Badge>
+                            )}
+                          </div>
+                          {field.description && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {field.description}
+                            </p>
+                          )}
+                          {(field.defaultValue !== undefined || field.enumValues) && (
+                            <div className="mt-2 text-[11px] text-muted-foreground space-y-1">
+                              {field.defaultValue !== undefined && (
+                                <div>
+                                  Default:{' '}
+                                  <span className="font-mono text-foreground">
+                                    {JSON.stringify(field.defaultValue)}
+                                  </span>
+                                </div>
+                              )}
+                              {field.enumValues && (
+                                <div>
+                                  Enum:{' '}
+                                  <span className="font-mono text-foreground">
+                                    {field.enumValues
+                                      .map((value) => JSON.stringify(value))
+                                      .join(', ')}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No tool schema available for this node.
+                    </p>
+                  )}
+                </div>
+
+                {toolSchemaJson && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] uppercase text-muted-foreground">Raw Schema</div>
+                    <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
+                      {toolSchemaJson}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* Parameters Section (Moved to Top) */}
+          {!isToolMode && componentParameters.length > 0 && (
+            <CollapsibleSection
+              title="Parameters"
+              count={componentParameters.length}
+              defaultOpen={true}
+            >
+              <div className="space-y-0 mt-2">
+                {/* Render parameters in component definition order to preserve hierarchy */}
+                {componentParameters.map((param, index) => {
+                  // Only show border between top-level parameters (not nested ones)
+                  const isTopLevel = !param.visibleWhen;
+                  const prevParam = index > 0 ? componentParameters[index - 1] : null;
+                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false;
+                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel;
+
+                  return (
+                    <div key={param.id} className={cn(showBorder && 'border-t border-border pt-3')}>
+                      <ParameterFieldWrapper
+                        parameter={param}
+                        value={manualParameters[param.id]}
+                        onChange={(value) => handleParamValueChange(param.id, value)}
+                        connectedInput={nodeData.inputs?.[param.id]}
+                        componentId={component.id}
+                        parameters={manualParameters}
+                        onUpdateParameter={handleParamValueChange}
+                        allComponentParameters={componentParameters}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Inputs Section */}
           {componentInputs.length > 0 && (
-            <CollapsibleSection title="Inputs" count={componentInputs.length} defaultOpen={true}>
+            <CollapsibleSection
+              title="Inputs"
+              count={
+                isToolMode
+                  ? componentInputs.filter(isCredentialInput).length
+                  : componentInputs.length
+              }
+              defaultOpen={true}
+            >
               <div className="space-y-0 mt-2">
                 {componentInputs.map((input, index) => {
-                  const connection = nodeData.inputs?.[input.id];
-                  const hasConnection = Boolean(connection);
+                  if (isToolMode && !isCredentialInput(input)) {
+                    return null;
+                  }
+
+                  const isToolsPort = input.id === 'tools';
+                  const toolEdges = isToolsPort
+                    ? getEdges().filter(
+                        (edge) => edge.target === selectedNode.id && edge.targetHandle === 'tools',
+                      )
+                    : [];
+                  const connection = isToolsPort ? undefined : nodeData.inputs?.[input.id];
+                  const hasConnection = isToolsPort ? toolEdges.length > 0 : Boolean(connection);
                   const manualValue = inputOverrides[input.id];
                   const manualOverridesPort = input.valuePriority === 'manual-first';
                   const allowsManualInput = inputSupportsManualValue(input) || manualOverridesPort;
@@ -798,6 +994,25 @@ export function ConfigPanel({
                     manualValue !== null &&
                     (typeof manualValue === 'string' ? manualValue.trim().length > 0 : true);
                   const manualLocked = hasConnection && !manualOverridesPort;
+                  const connectedSourceLabels = isToolsPort
+                    ? toolEdges
+                        .map((edge) => {
+                          const sourceNode = getNodes().find((n) => n.id === edge.source);
+                          return (sourceNode?.data as any)?.label || edge.source;
+                        })
+                        .filter(Boolean)
+                    : connection
+                      ? [connection.source]
+                      : [];
+                  const connectedSummary = (() => {
+                    if (connectedSourceLabels.length === 0) return '';
+                    if (connectedSourceLabels.length <= 2) {
+                      return connectedSourceLabels.join(', ');
+                    }
+                    return `${connectedSourceLabels.slice(0, 2).join(', ')} +${
+                      connectedSourceLabels.length - 2
+                    }`;
+                  })();
                   const portType = resolvePortType(input);
                   const primitiveName = portType?.kind === 'primitive' ? portType.name : null;
                   const isNumberInput = primitiveName === 'number';
@@ -984,7 +1199,7 @@ export function ConfigPanel({
                         ) : hasConnection ? (
                           <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
                             <CheckCircle2 className="h-3 w-3" />
-                            <span>Connected from {connection?.source}</span>
+                            <span>Connected from {connectedSummary || connection?.source}</span>
                           </div>
                         ) : input.required ? (
                           <div className="flex items-center gap-1.5 text-destructive">
@@ -1002,8 +1217,40 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
+          {!isToolMode &&
+            component.agentTool?.enabled &&
+            toolSchemaJson &&
+            component.category !== 'mcp' && (
+              <CollapsibleSection title="Tool Schema" defaultOpen={false}>
+                <div className="mt-2">
+                  <pre className="text-[11px] font-mono whitespace-pre-wrap bg-muted/20 text-foreground p-3 rounded-md border border-border shadow-sm min-h-[40px] max-h-[300px] overflow-y-auto">
+                    {toolSchemaJson}
+                  </pre>
+                </div>
+              </CollapsibleSection>
+            )}
+
+          {component.category === 'mcp' && component.agentTool?.toolName && (
+            <CollapsibleSection title="MCP Server" defaultOpen={false}>
+              <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                <div>
+                  <span className="font-medium text-foreground">Tool name: </span>
+                  <span className="font-mono">{component.agentTool.toolName}</span>
+                </div>
+                {component.agentTool.toolDescription && (
+                  <div className="text-[11px] leading-relaxed">
+                    {component.agentTool.toolDescription}
+                  </div>
+                )}
+                <div className="text-[11px] italic">
+                  Tool list appears after the MCP server starts at runtime.
+                </div>
+              </div>
+            </CollapsibleSection>
+          )}
+
           {/* Outputs Section */}
-          {componentOutputs.length > 0 && (
+          {!isToolMode && componentOutputs.length > 0 && (
             <CollapsibleSection title="Outputs" count={componentOutputs.length} defaultOpen={true}>
               <div className="space-y-0 mt-2">
                 {componentOutputs.map((output, index) => (
@@ -1024,41 +1271,6 @@ export function ConfigPanel({
                     )}
                   </div>
                 ))}
-              </div>
-            </CollapsibleSection>
-          )}
-
-          {/* Parameters Section */}
-          {componentParameters.length > 0 && (
-            <CollapsibleSection
-              title="Parameters"
-              count={componentParameters.length}
-              defaultOpen={true}
-            >
-              <div className="space-y-0 mt-2">
-                {/* Render parameters in component definition order to preserve hierarchy */}
-                {componentParameters.map((param, index) => {
-                  // Only show border between top-level parameters (not nested ones)
-                  const isTopLevel = !param.visibleWhen;
-                  const prevParam = index > 0 ? componentParameters[index - 1] : null;
-                  const prevIsTopLevel = prevParam ? !prevParam.visibleWhen : false;
-                  const showBorder = index > 0 && isTopLevel && prevIsTopLevel;
-
-                  return (
-                    <div key={param.id} className={cn(showBorder && 'border-t border-border pt-3')}>
-                      <ParameterFieldWrapper
-                        parameter={param}
-                        value={manualParameters[param.id]}
-                        onChange={(value) => handleParamValueChange(param.id, value)}
-                        connectedInput={nodeData.inputs?.[param.id]}
-                        componentId={component.id}
-                        parameters={manualParameters}
-                        onUpdateParameter={handleParamValueChange}
-                        allComponentParameters={componentParameters}
-                      />
-                    </div>
-                  );
-                })}
               </div>
             </CollapsibleSection>
           )}

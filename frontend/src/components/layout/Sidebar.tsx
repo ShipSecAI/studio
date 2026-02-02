@@ -16,13 +16,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { type ComponentCategory, getCategorySeparatorColor } from '@/utils/categoryColors';
 import { useThemeStore } from '@/store/themeStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
+import { useWorkflowStore } from '@/store/workflowStore';
+import { usePlacementStore } from './sidebar-state';
 
 // Use backend-provided category configuration
 // The frontend will no longer categorize components - it will use backend data
 
 type ViewMode = 'list' | 'tiles';
-
-import { mobilePlacementState } from './sidebar-state';
 
 interface ComponentItemProps {
   component: ComponentMetadata;
@@ -38,6 +38,11 @@ function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
   const description = component.description || 'No description available yet.';
   const [isSelected, setIsSelected] = useState(false);
 
+  // Get placement store and workflow ID for scoped placement
+  const setPlacement = usePlacementStore((state) => state.setPlacement);
+  const placementComponentId = usePlacementStore((state) => state.componentId);
+  const currentWorkflowId = useWorkflowStore((state) => state.metadata.id);
+
   const onDragStart = (event: React.DragEvent) => {
     if (disabled) {
       event.preventDefault();
@@ -52,10 +57,8 @@ function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
   const handleTap = () => {
     if (disabled || component.deprecated) return;
 
-    // Set the component for placement
-    mobilePlacementState.componentId = component.id;
-    mobilePlacementState.componentName = component.name;
-    mobilePlacementState.isActive = true;
+    // Set the component for placement, scoped to current workflow
+    setPlacement(component.id, component.name, currentWorkflowId);
     setIsSelected(true);
 
     // Close sidebar after a short delay to show selection feedback
@@ -68,10 +71,10 @@ function ComponentItem({ component, disabled, viewMode }: ComponentItemProps) {
 
   // Clear selection if this component is no longer the active one
   useEffect(() => {
-    if (mobilePlacementState.componentId !== component.id) {
+    if (placementComponentId !== component.id) {
       setIsSelected(false);
     }
-  }, [component.id]);
+  }, [placementComponentId, component.id]);
 
   if (viewMode === 'list') {
     return (
@@ -217,6 +220,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
       input: 'text-blue-600 dark:text-blue-400',
       transform: 'text-orange-600 dark:text-orange-400',
       ai: 'text-purple-600 dark:text-purple-400',
+      mcp: 'text-teal-600 dark:text-teal-400',
       security: 'text-red-600 dark:text-red-400',
       it_ops: 'text-cyan-600 dark:text-cyan-400',
       notification: 'text-pink-600 dark:text-pink-400',
@@ -302,6 +306,7 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     'output',
     'notification',
     'security',
+    'mcp',
     'ai',
     'transform',
     'it_ops',

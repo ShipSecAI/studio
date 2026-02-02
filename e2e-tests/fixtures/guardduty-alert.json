@@ -1,0 +1,42 @@
+{
+  "id": "arn:aws:guardduty:us-east-1:123456789012:detector/12abc34d567e8fa901bc2d34e567f890/finding/abcd1234efgh5678ijkl9012mnop3456",
+  "type": "Recon:EC2/PortProbeUnprotectedPort",
+  "region": "us-east-1",
+  "severity": 5.3,
+  "createdAt": "2026-01-30T08:00:00Z",
+  "updatedAt": "2026-01-30T08:05:00Z",
+  "resource": {
+    "resourceType": "Instance",
+    "instanceDetails": {
+      "instanceId": "i-0abc1234def567890",
+      "instanceType": "t3.medium",
+      "availabilityZone": "us-east-1a",
+      "imageId": "ami-0abc1234def567890",
+      "privateIpAddress": "10.0.12.34",
+      "publicIp": "3.91.22.11",
+      "networkInterfaces": [
+        {
+          "networkInterfaceId": "eni-0abc1234def567890",
+          "privateIpAddress": "10.0.12.34",
+          "publicIp": "3.91.22.11"
+        }
+      ]
+    }
+  },
+  "service": {
+    "serviceName": "guardduty",
+    "action": {
+      "actionType": "PORT_PROBE",
+      "portProbeAction": {
+        "portProbeDetails": [
+          { "localPort": 22, "remoteIpDetails": { "ipAddressV4": "198.51.100.23" } },
+          { "localPort": 3389, "remoteIpDetails": { "ipAddressV4": "203.0.113.77" } }
+        ]
+      }
+    }
+  },
+  "intel": {
+    "domains": ["malicious.example", "suspicious.example"],
+    "ip": "198.51.100.23"
+  }
+}

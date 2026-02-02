@@ -17,6 +17,7 @@ import {
   ExternalLink,
   CheckCircle,
   KeyRound,
+  Hammer,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,7 +38,11 @@ import {
   getCategorySeparatorColor,
   getCategoryHeaderBackgroundColor,
 } from '@/utils/categoryColors';
-import { inputSupportsManualValue, runtimeInputTypeToConnectionType } from '@/utils/portUtils';
+import {
+  inputSupportsManualValue,
+  runtimeInputTypeToConnectionType,
+  isCredentialInput,
+} from '@/utils/portUtils';
 import { WebhookDetails } from '../WebhookDetails';
 import { useApiKeyStore } from '@/store/apiKeyStore';
 import { API_V1_URL } from '@/services/api';
@@ -61,6 +66,12 @@ const {
   DEFAULT_WIDTH: DEFAULT_TEXT_WIDTH,
   DEFAULT_HEIGHT: DEFAULT_TEXT_HEIGHT,
 } = TEXT_BLOCK_SIZES;
+
+const TOOL_MODE_ONLY_COMPONENTS = new Set([
+  'core.mcp.server',
+  'security.aws-cloudtrail-mcp',
+  'security.aws-cloudwatch-mcp',
+]);
 
 /**
  * Enhanced WorkflowNode - Visual representation with timeline states
@@ -136,6 +147,11 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const isDarkMode = theme === 'dark';
   const componentCategory: ComponentCategory =
     (component?.category as ComponentCategory) || (isEntryPoint ? 'input' : 'input');
+  const isToolModeOnly = component?.id ? TOOL_MODE_ONLY_COMPONENTS.has(component.id) : false;
+  const showMcpBadge = componentCategory === 'mcp' || isToolModeOnly;
+  const isToolMode = Boolean(
+    (nodeData.config as any)?.isToolMode || (nodeData.config as any)?.mode === 'tool',
+  );
 
   // Workflow ID resolution
   const workflowIdFromNode = (nodeData as any)?.workflowId as string | undefined;
@@ -145,6 +161,27 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const workflowInvokeUrl = workflowId
     ? `${API_V1_URL}/workflows/${workflowId}/run`
     : `${API_V1_URL}/workflows/{workflowId}/run`;
+
+  useEffect(() => {
+    if (!isToolModeOnly || isToolMode) return;
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== id) return n;
+        const currentConfig = (n.data as any).config || {};
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            config: {
+              ...currentConfig,
+              isToolMode: true,
+            },
+          },
+        };
+      }),
+    );
+    markDirty();
+  }, [id, isToolMode, isToolModeOnly, markDirty, setNodes]);
 
   // Entry point payload
   const entryPointPayload = (() => {
@@ -348,6 +385,28 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
     } else if (e.key === 'Escape') handleCancelEditing();
   };
 
+  const toggleToolMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isToolModeOnly) return;
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== id) return n;
+        const currentConfig = (n.data as any).config || {};
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            config: {
+              ...currentConfig,
+              isToolMode: !isToolMode,
+            },
+          },
+        };
+      }),
+    );
+    markDirty();
+  };
+
   // Validation
   const componentParameters = component.parameters ?? [];
   const manualParameters = (nodeData.config?.params ?? {}) as Record<string, unknown>;
@@ -506,7 +565,14 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       !isEntryPoint && mode === 'design' ? 'Double-click to rename' : undefined
                     }
                   >
-                    <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-sm font-semibold truncate">{displayLabel}</h3>
+                      {showMcpBadge && (
+                        <span className="inline-flex items-center rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 dark:bg-teal-900/40 dark:text-teal-200">
+                          MCP
+                        </span>
+                      )}
+                    </div>
                     {hasCustomLabel && (
                       <span className="text-[10px] text-muted-foreground opacity-70 truncate block">
                         {component.name}
@@ -516,6 +582,33 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 )}
               </div>
               <div className="flex items-center gap-1">
+                {mode === 'design' &&
+                  !isEntryPoint &&
+                  component?.agentTool?.enabled &&
+                  !isToolModeOnly &&
+                  componentCategory !== 'mcp' && (
+                    <button
+                      type="button"
+                      onClick={toggleToolMode}
+                      disabled={isToolModeOnly}
+                      aria-label={isToolMode ? 'Disable Tool Mode' : 'Enable Tool Mode'}
+                      aria-pressed={isToolMode}
+                      className={cn(
+                        'flex items-center gap-1.5 px-2 py-1 rounded transition-all border',
+                        isToolMode
+                          ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
+                          : 'bg-background text-muted-foreground/60 border-border hover:border-purple-400 hover:text-purple-600',
+                      )}
+                      title={isToolMode ? 'Disable Tool Mode' : 'Enable Tool Mode'}
+                    >
+                      <Hammer
+                        className={cn('h-3.5 w-3.5', isToolMode ? 'text-white' : 'text-current')}
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-tight">
+                        {isToolMode ? 'Tool' : 'Mode'}
+                      </span>
+                    </button>
+                  )}
                 {isEntryPoint && (
                   <div style={{ display: 'none' }}>
                     <WebhookDetails
@@ -614,7 +707,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700"
             >
               <CheckCircle className="h-3 w-3 mr-1" />
-              Completed
+              {componentCategory === 'mcp' ? 'Server Ready' : 'Completed'}
             </Badge>
           )}
           {visualState.status === 'error' && (
@@ -837,239 +930,309 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         )}
 
         {/* Input Ports */}
-        {!isEntryPoint && componentInputs.length > 0 && (
-          <div className="space-y-1.5">
-            {componentInputs.map((input) => {
-              const edges = getEdges();
-              const connection = edges.find(
-                (edge) => edge.target === id && edge.targetHandle === input.id,
-              );
-              const hasConnection = Boolean(connection);
-              const manualCandidate = inputOverrides[input.id];
-              const manualValueProvided = manualValueProvidedForInput(input, hasConnection);
-
-              let sourceInfo: string | null = null;
-              if (!manualValueProvided && connection) {
-                const sourceNode = getNodes().find((n) => n.id === connection.source);
-                if (sourceNode) {
-                  const sourceComponent = getComponent(
-                    (sourceNode.data as any).componentId ?? (sourceNode.data as any).componentSlug,
-                  );
-                  if (sourceComponent) {
-                    const sourceOutput = sourceComponent.outputs.find(
-                      (o) => o.id === connection.sourceHandle,
-                    );
-                    sourceInfo = sourceOutput?.label || 'Connected';
-                  }
-                }
-              }
-
-              const manualDisplayVal =
-                manualValueProvided &&
-                inputSupportsManualValue(input) &&
-                typeof manualCandidate === 'string'
-                  ? manualCandidate.trim()
-                  : '';
-              let manualDisplay = manualDisplayVal;
-              const isSecretInput =
-                input.editor === 'secret' ||
-                (input.connectionType?.kind === 'primitive' &&
-                  input.connectionType.name === 'secret');
-
-              if (isSecretInput && manualDisplayVal) {
-                const secret = secrets.find(
-                  (s) => s.id === manualDisplayVal || s.name === manualDisplayVal,
-                );
-                manualDisplay = secret ? getSecretLabel(secret) : manualDisplayVal;
-              }
-
-              const previewText =
-                manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
-              const handleClassName = cn(
-                '!w-[10px] !h-[10px] !border-2 !rounded-full',
-                input.required
-                  ? '!bg-blue-500 !border-blue-500'
-                  : '!bg-background !border-blue-500',
-              );
-
-              return (
-                <div key={input.id} className="relative flex items-center gap-2 text-xs">
-                  <Handle
-                    type="target"
-                    position={Position.Left}
-                    id={input.id}
-                    className={handleClassName}
-                    style={{ top: '50%', left: '-18px', transform: 'translateY(-50%)' }}
-                  />
-                  <div className="flex-1">
-                    <div className="text-muted-foreground font-medium">{input.label}</div>
-                    {input.required && !sourceInfo && !manualValueProvided && (
-                      <span className="text-red-500 text-[10px]">*required</span>
-                    )}
-                    {manualValueProvided && manualDisplay && (
-                      <div className="mt-0.5">
-                        <span
-                          className={cn(
-                            'font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[120px] inline-flex items-center gap-1',
-                            isSecretInput
-                              ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 font-semibold'
-                              : 'text-foreground bg-muted',
-                          )}
-                          title={manualDisplay}
-                        >
-                          {isSecretInput && <KeyRound className="h-2.5 w-2.5" />}
-                          {previewText}
-                        </span>
-                      </div>
-                    )}
-                    {manualValueProvided && !manualDisplay && (
-                      <span className="text-muted-foreground text-[10px] italic">Manual value</span>
-                    )}
-                    {!manualValueProvided && sourceInfo && (
-                      <span
-                        className="text-muted-foreground text-[10px] italic"
-                        title={`Connected to: ${sourceInfo}`}
-                      >
-                        {sourceInfo}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Output Ports */}
-        {!isEntryPoint && effectiveOutputs.filter((o: any) => !o.isBranching).length > 0 && (
-          <div className="space-y-1.5">
-            {effectiveOutputs
-              .filter((o: any) => !o.isBranching)
-              .map((output: any) => (
-                <div
-                  key={output.id}
-                  className="relative flex items-center justify-end gap-2 text-xs"
-                >
-                  <div className="flex-1 text-right">
-                    <div className="text-muted-foreground font-medium">{output.label}</div>
-                  </div>
-                  <Handle
-                    type="source"
-                    position={Position.Right}
-                    id={output.id}
-                    className="!w-[10px] !h-[10px] !border-2 !border-green-500 !bg-green-500 !rounded-full"
-                    style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
-                  />
-                </div>
-              ))}
-          </div>
-        )}
-
-        {/* Branching Outputs */}
         {!isEntryPoint &&
+          componentInputs.length > 0 &&
           (() => {
-            const branchingOutputs = effectiveOutputs.filter((o: any) => o.isBranching);
-            if (branchingOutputs.length === 0) return null;
+            const configInputs = componentInputs.filter(isCredentialInput);
+            const visibleInputs = isToolMode ? configInputs : componentInputs;
 
-            const data = isTimelineActive ? visualState.lastEvent?.data : undefined;
-            const activatedPorts = data?.activatedPorts;
-            const legacyActiveBranchId =
-              !activatedPorts && data
-                ? data.approved === true
-                  ? 'approved'
-                  : data.approved === false
-                    ? 'rejected'
-                    : null
-                : null;
-            const isNodeFinished =
-              isTimelineActive &&
-              (visualState.status === 'success' || visualState.status === 'error');
-            const isNodeSkipped = isTimelineActive && visualState.status === 'skipped';
-            const hasBranchDecision = isNodeFinished || isNodeSkipped;
-
-            const designModeColors: Record<string, string> = {
-              green:
-                'bg-green-50/80 dark:bg-green-900/20 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300',
-              red: 'bg-red-50/80 dark:bg-red-900/20 border-red-400 dark:border-red-600 text-red-700 dark:text-red-300',
-              amber:
-                'bg-amber-50/80 dark:bg-amber-900/20 border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300',
-              blue: 'bg-blue-50/80 dark:bg-blue-900/20 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300',
-              purple:
-                'bg-purple-50/80 dark:bg-purple-900/20 border-purple-400 dark:border-purple-600 text-purple-700 dark:text-purple-300',
-              slate:
-                'bg-slate-100/80 dark:bg-slate-800/30 border-slate-400 dark:border-slate-600 text-slate-700 dark:text-slate-300',
-            };
-            const handleDesignColors: Record<string, string> = {
-              green: '!border-green-500 !bg-green-500',
-              red: '!border-red-500 !bg-red-500',
-              amber: '!border-amber-500 !bg-amber-500',
-              blue: '!border-blue-500 !bg-blue-500',
-              purple: '!border-purple-500 !bg-purple-500',
-              slate: '!border-slate-500 !bg-slate-500',
-            };
+            if (visibleInputs.length === 0 && !isToolMode) return null;
 
             return (
-              <div className="mt-2 pt-2 border-t border-dashed border-amber-300/50 dark:border-amber-700/50">
-                <div className="flex gap-2">
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <LucideIcons.GitBranch className="h-3 w-3 text-amber-500 dark:text-amber-400" />
-                    <span className="text-[9px] font-medium text-amber-600/80 dark:text-amber-400/80 uppercase tracking-wider">
-                      Branches
-                    </span>
-                  </div>
-                  <div className="flex flex-col flex-1 gap-1">
-                    {branchingOutputs.map((output: any) => {
-                      const isActive =
-                        isNodeFinished &&
-                        (activatedPorts
-                          ? activatedPorts.includes(output.id)
-                          : legacyActiveBranchId === output.id);
-                      const isInactive = isNodeSkipped || (isNodeFinished && !isActive);
-                      const branchColor = output.branchColor || 'amber';
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  {visibleInputs.map((input) => {
+                    const edges = getEdges();
+                    const isToolsPort = input.id === 'tools';
+                    const connections = isToolsPort
+                      ? edges.filter((edge) => edge.target === id && edge.targetHandle === input.id)
+                      : [];
+                    const connection = isToolsPort
+                      ? connections[0]
+                      : edges.find((edge) => edge.target === id && edge.targetHandle === input.id);
+                    const hasConnection = isToolsPort
+                      ? connections.length > 0
+                      : Boolean(connection);
+                    const manualCandidate = inputOverrides[input.id];
+                    const manualValueProvided = manualValueProvidedForInput(input, hasConnection);
 
-                      return (
-                        <div
-                          key={output.id}
-                          className="relative flex items-center justify-end gap-2 text-xs"
-                        >
-                          <div
-                            className={cn(
-                              'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all',
-                              'border',
-                              !hasBranchDecision && designModeColors[branchColor],
-                              isActive &&
-                                'bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-400/50',
-                              isInactive &&
-                                'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 opacity-30 grayscale-[0.8]',
-                            )}
-                          >
-                            {isActive && <LucideIcons.Check className="h-2.5 w-2.5" />}
-                            {isInactive && (
-                              <LucideIcons.X className="h-2.5 w-2.5 text-slate-400/50" />
-                            )}
-                            <span>{output.label}</span>
-                          </div>
-                          <Handle
-                            type="source"
-                            position={Position.Right}
-                            id={output.id}
-                            className={cn(
-                              '!w-[10px] !h-[10px] !border-2 !rounded-full',
-                              !hasBranchDecision && handleDesignColors[branchColor],
-                              isActive && '!border-green-500 !bg-green-500',
-                              isInactive &&
-                                '!border-slate-300 !bg-slate-200 dark:!bg-slate-800 opacity-30',
-                            )}
-                            style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
-                          />
-                        </div>
+                    let sourceInfo: string | null = null;
+                    if (!manualValueProvided && connection) {
+                      const sourceNodes = isToolsPort
+                        ? connections
+                            .map((edge) => getNodes().find((n) => n.id === edge.source))
+                            .filter(Boolean)
+                        : [getNodes().find((n) => n.id === connection.source)].filter(Boolean);
+                      const sourceLabels = sourceNodes
+                        .map((sourceNode) => {
+                          if (!sourceNode) return null;
+                          return (sourceNode.data as any)?.label || sourceNode.id;
+                        })
+                        .filter(Boolean) as string[];
+                      if (sourceLabels.length > 0) {
+                        if (sourceLabels.length <= 2) {
+                          sourceInfo = sourceLabels.join(', ');
+                        } else {
+                          sourceInfo = `${sourceLabels.slice(0, 2).join(', ')} +${
+                            sourceLabels.length - 2
+                          }`;
+                        }
+                      } else if (!isToolsPort) {
+                        const sourceNode = getNodes().find((n) => n.id === connection.source);
+                        if (sourceNode) {
+                          const sourceComponent = getComponent(
+                            (sourceNode.data as any).componentId ??
+                              (sourceNode.data as any).componentSlug,
+                          );
+                          if (sourceComponent) {
+                            const sourceOutput = sourceComponent.outputs.find(
+                              (o) => o.id === connection.sourceHandle,
+                            );
+                            sourceInfo = sourceOutput?.label || 'Connected';
+                          }
+                        }
+                      }
+                    }
+
+                    const manualDisplayVal =
+                      manualValueProvided &&
+                      inputSupportsManualValue(input) &&
+                      typeof manualCandidate === 'string'
+                        ? manualCandidate.trim()
+                        : '';
+                    let manualDisplay = manualDisplayVal;
+                    const isSecretInput =
+                      input.editor === 'secret' ||
+                      (input.connectionType?.kind === 'primitive' &&
+                        input.connectionType.name === 'secret');
+
+                    if (isSecretInput && manualDisplayVal) {
+                      const secret = secrets.find(
+                        (s) => s.id === manualDisplayVal || s.name === manualDisplayVal,
                       );
-                    })}
-                  </div>
+                      manualDisplay = secret ? getSecretLabel(secret) : manualDisplayVal;
+                    }
+
+                    const previewText =
+                      manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
+                    const handleClassName = cn(
+                      '!w-[10px] !h-[10px] !border-2 !rounded-full',
+                      input.required
+                        ? '!bg-blue-500 !border-blue-500'
+                        : '!bg-background !border-blue-500',
+                      input.id === 'tools' &&
+                        '!bg-purple-100 !border-purple-500 !rounded-sm !w-[12px] !h-[12px]',
+                    );
+
+                    return (
+                      <div key={input.id} className="relative flex items-center gap-2 text-xs">
+                        <Handle
+                          type="target"
+                          position={Position.Left}
+                          id={input.id}
+                          className={handleClassName}
+                          style={{ top: '50%', left: '-18px', transform: 'translateY(-50%)' }}
+                        />
+                        <div className="flex-1">
+                          <div className="text-muted-foreground font-medium">{input.label}</div>
+                          {input.required && !sourceInfo && !manualValueProvided && (
+                            <span className="text-red-500 text-[10px]">*required</span>
+                          )}
+                          {manualValueProvided && manualDisplay && (
+                            <div className="mt-0.5">
+                              <span
+                                className={cn(
+                                  'font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[120px] inline-flex items-center gap-1',
+                                  isSecretInput
+                                    ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 font-semibold'
+                                    : 'text-foreground bg-muted',
+                                )}
+                                title={manualDisplay}
+                              >
+                                {isSecretInput && <KeyRound className="h-2.5 w-2.5" />}
+                                {previewText}
+                              </span>
+                            </div>
+                          )}
+                          {manualValueProvided && !manualDisplay && (
+                            <span className="text-muted-foreground text-[10px] italic">
+                              Manual value
+                            </span>
+                          )}
+                          {!manualValueProvided && sourceInfo && (
+                            <span
+                              className="text-muted-foreground text-[10px] italic"
+                              title={`Connected to: ${sourceInfo}`}
+                            >
+                              {sourceInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {isToolMode && configInputs.length === 0 && (
+                  <div className="text-[10px] text-muted-foreground/50 text-center italic py-2">
+                    No configuration required
+                  </div>
+                )}
               </div>
             );
           })()}
+
+        {!isEntryPoint &&
+          (isToolMode ? (
+            <div className="relative flex items-center justify-end gap-2 text-xs">
+              <div className="flex-1 text-right text-purple-600 dark:text-purple-400 font-medium italic">
+                Tool Export
+              </div>
+              <Handle
+                type="source"
+                position={Position.Right}
+                id="tools"
+                className="!w-[10px] !h-[10px] !border-2 !border-purple-500 !bg-purple-500 !rounded-full"
+                style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+              />
+            </div>
+          ) : (
+            <>
+              {/* Output Ports */}
+              {effectiveOutputs.filter((o: any) => !o.isBranching).length > 0 && (
+                <div className="space-y-1.5">
+                  {effectiveOutputs
+                    .filter((o: any) => !o.isBranching)
+                    .map((output: any) => (
+                      <div
+                        key={output.id}
+                        className="relative flex items-center justify-end gap-2 text-xs"
+                      >
+                        <div className="flex-1 text-right">
+                          <div className="text-muted-foreground font-medium">{output.label}</div>
+                        </div>
+                        <Handle
+                          type="source"
+                          position={Position.Right}
+                          id={output.id}
+                          className="!w-[10px] !h-[10px] !border-2 !border-green-500 !bg-green-500 !rounded-full"
+                          style={{ top: '50%', right: '-18px', transform: 'translateY(-50%)' }}
+                        />
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* Branching Outputs */}
+              {(() => {
+                const branchingOutputs = effectiveOutputs.filter((o: any) => o.isBranching);
+                if (branchingOutputs.length === 0) return null;
+
+                const data = isTimelineActive ? visualState.lastEvent?.data : undefined;
+                const activatedPorts = data?.activatedPorts;
+                const legacyActiveBranchId =
+                  !activatedPorts && data
+                    ? data.approved === true
+                      ? 'approved'
+                      : data.approved === false
+                        ? 'rejected'
+                        : null
+                    : null;
+                const isNodeFinished =
+                  isTimelineActive &&
+                  (visualState.status === 'success' || visualState.status === 'error');
+                const isNodeSkipped = isTimelineActive && visualState.status === 'skipped';
+                const hasBranchDecision = isNodeFinished || isNodeSkipped;
+
+                const designModeColors: Record<string, string> = {
+                  green:
+                    'bg-green-50/80 dark:bg-green-900/20 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300',
+                  red: 'bg-red-50/80 dark:bg-red-900/20 border-red-400 dark:border-red-600 text-red-700 dark:text-red-300',
+                  amber:
+                    'bg-amber-50/80 dark:bg-amber-900/20 border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300',
+                  blue: 'bg-blue-50/80 dark:bg-blue-900/20 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300',
+                  purple:
+                    'bg-purple-50/80 dark:bg-purple-900/20 border-purple-400 dark:border-purple-600 text-purple-700 dark:text-purple-300',
+                  slate:
+                    'bg-slate-100/80 dark:bg-slate-800/30 border-slate-400 dark:border-slate-600 text-slate-700 dark:text-slate-300',
+                };
+                const handleDesignColors: Record<string, string> = {
+                  green: '!border-green-500 !bg-green-500',
+                  red: '!border-red-500 !bg-red-500',
+                  amber: '!border-amber-500 !bg-amber-500',
+                  blue: '!border-blue-500 !bg-blue-500',
+                  purple: '!border-purple-500 !bg-purple-500',
+                  slate: '!border-slate-500 !bg-slate-500',
+                };
+
+                return (
+                  <div className="mt-2 pt-2 border-t border-dashed border-amber-300/50 dark:border-amber-700/50">
+                    <div className="flex gap-2">
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <LucideIcons.GitBranch className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                        <span className="text-[9px] font-medium text-amber-600/80 dark:text-amber-400/80 uppercase tracking-wider">
+                          Branches
+                        </span>
+                      </div>
+                      <div className="flex flex-col flex-1 gap-1">
+                        {branchingOutputs.map((output: any) => {
+                          const isActive =
+                            isNodeFinished &&
+                            (activatedPorts
+                              ? activatedPorts.includes(output.id)
+                              : legacyActiveBranchId === output.id);
+                          const isInactive = isNodeSkipped || (isNodeFinished && !isActive);
+                          const branchColor = output.branchColor || 'amber';
+
+                          return (
+                            <div
+                              key={output.id}
+                              className="relative flex items-center justify-end gap-2 text-xs"
+                            >
+                              <div
+                                className={cn(
+                                  'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all',
+                                  'border',
+                                  !hasBranchDecision && designModeColors[branchColor],
+                                  isActive &&
+                                    'bg-green-50 dark:bg-green-900/30 border-green-400 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-400/50',
+                                  isInactive &&
+                                    'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-600 opacity-30 grayscale-[0.8]',
+                                )}
+                              >
+                                {isActive && <LucideIcons.Check className="h-2.5 w-2.5" />}
+                                {isInactive && (
+                                  <LucideIcons.X className="h-2.5 w-2.5 text-slate-400/50" />
+                                )}
+                                <span>{output.label}</span>
+                              </div>
+                              <Handle
+                                type="source"
+                                position={Position.Right}
+                                id={output.id}
+                                className={cn(
+                                  '!w-[10px] !h-[10px] !border-2 !rounded-full',
+                                  !hasBranchDecision && handleDesignColors[branchColor],
+                                  isActive && '!border-green-500 !bg-green-500',
+                                  isInactive &&
+                                    '!border-slate-300 !bg-slate-200 dark:!bg-slate-800 opacity-30',
+                                )}
+                                style={{
+                                  top: '50%',
+                                  right: '-18px',
+                                  transform: 'translateY(-50%)',
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          ))}
 
         {/* Status Messages */}
         {isTimelineActive && (

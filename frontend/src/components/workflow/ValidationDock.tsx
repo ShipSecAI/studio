@@ -175,7 +175,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
           </div>
 
           {/* Issue list */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
             {hasIssues ? (
               <div className="divide-y divide-border">
                 {validationIssues.map((issue, index) => (
@@ -259,6 +259,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
               shouldCollapse && !isExpanded && 'max-h-0',
               (!shouldCollapse || isExpanded) && 'max-h-[300px] overflow-y-auto',
             )}
+            onWheel={(e) => e.stopPropagation()}
           >
             {validationIssues.map((issue, index) => (
               <button
