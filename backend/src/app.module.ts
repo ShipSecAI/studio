@@ -24,6 +24,7 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
+import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 
 const coreModules = [
   AgentsModule,
@@ -40,6 +41,7 @@ const coreModules = [
   WebhooksModule,
   HumanInputsModule,
   McpServersModule,
+  McpGroupsModule,
   McpModule,
 ];
 

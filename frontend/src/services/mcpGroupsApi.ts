@@ -1,0 +1,169 @@
+import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
+
+// Types matching backend DTOs
+export interface McpGroupResponse {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  serverIds: string[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface McpGroupServerResponse {
+  id?: string;
+  name?: string;
+  serverId: string;
+  serverName: string;
+  description?: string | null;
+  transportType: 'http' | 'stdio' | 'sse' | 'websocket';
+  enabled: boolean;
+  healthStatus: 'healthy' | 'unhealthy' | 'unknown';
+  toolCount: number;
+}
+
+/**
+ * MCP Groups API Service
+ *
+ * Provides methods to interact with MCP group endpoints.
+ * Groups are predefined collections of MCP servers (e.g., AWS MCPs, GitHub MCPs).
+ */
+export const mcpGroupsApi = {
+  /**
+   * Fetch all MCP groups
+   */
+  async listGroups(): Promise<McpGroupResponse[]> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to fetch groups' }));
+      throw new Error(error.message || 'Failed to fetch MCP groups');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Fetch a specific group by ID
+   */
+  async getGroup(groupId: string): Promise<McpGroupResponse> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to fetch group' }));
+      throw new Error(error.message || 'Failed to fetch MCP group');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Fetch servers in a group with health status and tool counts
+   */
+  async getGroupServers(groupId: string): Promise<McpGroupServerResponse[]> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}/servers`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to fetch group servers' }));
+      throw new Error(error.message || 'Failed to fetch group servers');
+    }
+
+    const data = await response.json();
+    return data.map((server: McpGroupServerResponse) => ({
+      ...server,
+      serverId: server.serverId ?? server.id ?? '',
+      serverName: server.serverName ?? server.name ?? 'Server',
+    }));
+  },
+
+  /**
+   * Fetch health status for all servers in a group
+   */
+  async getGroupHealth(
+    groupId: string,
+  ): Promise<Record<string, 'healthy' | 'unhealthy' | 'unknown'>> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}/health`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      // Health check failures should not throw - return empty status
+      console.warn('Failed to fetch group health status');
+      return {};
+    }
+
+    const data = await response.json();
+    return data.statuses || {};
+  },
+
+  /**
+   * Sync group templates from code to database
+   */
+  async syncTemplates(): Promise<{
+    syncedCount: number;
+    createdCount: number;
+    updatedCount: number;
+    templates: string[];
+  }> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/sync-templates`, {
+      method: 'POST',
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to sync group templates' }));
+      throw new Error(error.message || 'Failed to sync group templates');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Discover tools for all enabled servers in a group
+   */
+  async discoverGroupTools(groupId: string): Promise<{
+    groupId: string;
+    totalServers: number;
+    successCount: number;
+    failureCount: number;
+    results: {
+      serverId: string;
+      serverName: string;
+      toolCount: number;
+      success: boolean;
+      error?: string;
+    }[];
+  }> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}/discover-tools`, {
+      method: 'POST',
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to discover group tools' }));
+      throw new Error(error.message || 'Failed to discover group tools');
+    }
+
+    return response.json();
+  },
+};
