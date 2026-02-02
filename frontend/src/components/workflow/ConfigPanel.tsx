@@ -25,18 +25,19 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
-import { useComponentStore } from '@/store/componentStore'
-import { ParameterFieldWrapper } from './ParameterField'
-import { WebhookDetails } from './WebhookDetails'
-import { SecretSelect } from '@/components/inputs/SecretSelect'
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { useComponentStore } from '@/store/componentStore';
+import { ParameterFieldWrapper } from './ParameterField';
+import { WebhookDetails } from './WebhookDetails';
+import { SecretSelect } from '@/components/inputs/SecretSelect';
 // TODO: McpLibraryToolSelector will be integrated in a future PR
 // import { McpLibraryToolSelector } from './McpLibraryToolSelector'
-import type { Node } from 'reactflow'
-import type { FrontendNodeData } from '@/schemas/node'
-import type { ComponentType, KeyboardEvent } from 'react'
+import type { Node } from 'reactflow';
+import type { FrontendNodeData } from '@/schemas/node';
+import type { ComponentType, KeyboardEvent } from 'react';
+import { useReactFlow } from 'reactflow';
 import {
   describePortType,
   inputSupportsManualValue,

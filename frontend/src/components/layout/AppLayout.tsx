@@ -1,19 +1,40 @@
-import { ThemeTransition } from '@/components/ui/ThemeTransition'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarItem } from '@/components/ui/sidebar'
-import { AppTopBar } from '@/components/layout/AppTopBar'
-import { Button } from '@/components/ui/button'
-import { Workflow, KeyRound, Plus, Plug, Archive, CalendarClock, Sun, Moon, Shield, Search, Command, Zap, Webhook, ServerCog } from 'lucide-react'
-import React, { useState, useEffect, useCallback } from 'react'
-import { useAuthStore } from '@/store/authStore'
-import { hasAdminRole } from '@/utils/auth'
-import { UserButton } from '@/components/auth/UserButton'
-import { useAuth, useAuthProvider } from '@/auth/auth-context'
-import { env } from '@/config/env'
-import { useThemeStore } from '@/store/themeStore'
-import { cn } from '@/lib/utils'
-import { setMobilePlacementSidebarClose } from '@/components/layout/Sidebar'
-import { useCommandPaletteStore } from '@/store/commandPaletteStore'
+import { ThemeTransition } from '@/components/ui/ThemeTransition';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarItem,
+} from '@/components/ui/sidebar';
+import { AppTopBar } from '@/components/layout/AppTopBar';
+import { Button } from '@/components/ui/button';
+import {
+  Workflow,
+  KeyRound,
+  Plus,
+  Plug,
+  Archive,
+  CalendarClock,
+  Sun,
+  Moon,
+  Shield,
+  Search,
+  Command,
+  Zap,
+  Webhook,
+  ServerCog,
+} from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuthStore } from '@/store/authStore';
+import { hasAdminRole } from '@/utils/auth';
+import { UserButton } from '@/components/auth/UserButton';
+import { useAuth, useAuthProvider } from '@/auth/auth-context';
+import { env } from '@/config/env';
+import { useThemeStore } from '@/store/themeStore';
+import { cn } from '@/lib/utils';
+import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-state';
+import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -284,7 +305,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/mcp-library',
       icon: ServerCog,
     },
-  ]
+  ];
 
   const isActive = (path: string) => {
     if (path === '/') {
