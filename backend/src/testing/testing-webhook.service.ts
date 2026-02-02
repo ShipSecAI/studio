@@ -31,4 +31,3 @@ export class TestingWebhookService {
     this.records.length = 0;
   }
 }
-

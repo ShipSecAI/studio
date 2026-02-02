@@ -31,7 +31,13 @@ export const ExecutionInputPreviewSchema = z
   .object({
     runtimeInputs: z.record(z.string(), z.unknown()).default({}),
     nodeOverrides: z
-      .record(z.string(), z.record(z.string(), z.unknown()))
+      .record(
+        z.string(),
+        z.object({
+          params: z.record(z.string(), z.unknown()).default({}),
+          inputOverrides: z.record(z.string(), z.unknown()).default({}),
+        }),
+      )
       .default({}),
   })
   .strip();
@@ -82,7 +88,17 @@ export const WorkflowRunStatusSchema = z.object({
 
 export type WorkflowRunStatusPayload = z.infer<typeof WorkflowRunStatusSchema>;
 
-export const TRACE_EVENT_TYPES = ['STARTED', 'PROGRESS', 'COMPLETED', 'FAILED', 'AWAITING_INPUT', 'SKIPPED'] as const;
+export const TRACE_EVENT_TYPES = [
+  'STARTED',
+  'PROGRESS',
+  'COMPLETED',
+  'FAILED',
+  'AWAITING_INPUT',
+  'SKIPPED',
+  'HTTP_REQUEST_SENT',
+  'HTTP_RESPONSE_RECEIVED',
+  'HTTP_REQUEST_ERROR',
+] as const;
 export type TraceEventType = (typeof TRACE_EVENT_TYPES)[number];
 export const TraceEventTypeSchema = z.enum(TRACE_EVENT_TYPES);
 

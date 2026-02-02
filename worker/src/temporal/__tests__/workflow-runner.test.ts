@@ -5,6 +5,9 @@ import {
   type ComponentDefinition,
   type ExecutionContext,
   type TraceEvent,
+  withPortMeta,
+  inputs,
+  outputs,
 } from '@shipsec/component-sdk';
 
 import { executeWorkflow } from '../workflow-runner';
@@ -16,16 +19,20 @@ import '../../components';
 describe('executeWorkflow', () => {
   beforeAll(() => {
     if (!componentRegistry.has('test.echo')) {
-      const component: ComponentDefinition<{ value: string }, { echoed: string }> = {
+      const component: ComponentDefinition = {
         id: 'test.echo',
         label: 'Test Echo',
         category: 'transform',
         runner: { kind: 'inline' },
-        inputSchema: z.object({ value: z.string() }),
-        outputSchema: z.object({ echoed: z.string() }),
-        async execute(params, context) {
-          context.emitProgress({ message: `Echoing ${params.value}`, level: 'debug' });
-          return { echoed: params.value };
+        inputs: inputs({
+          value: withPortMeta(z.string(), { label: 'Value' }),
+        }),
+        outputs: outputs({
+          echoed: withPortMeta(z.string(), { label: 'Echoed' }),
+        }),
+        async execute({ inputs }, context) {
+          context.emitProgress({ message: `Echoing ${inputs.value}`, level: 'debug' });
+          return { echoed: inputs.value };
         },
       };
 
@@ -77,14 +84,16 @@ describe('executeWorkflow', () => {
         {
           ref: 'node-1',
           componentId: 'test.echo',
-          params: { value: 'first' },
+          params: {},
+          inputOverrides: { value: 'first' },
           dependsOn: [],
           inputMappings: {},
         },
         {
           ref: 'node-2',
           componentId: 'core.console.log',
-          params: { data: 'second' },
+          params: {},
+          inputOverrides: { data: 'second' },
           dependsOn: ['node-1'],
           inputMappings: {
             label: {
@@ -96,11 +105,15 @@ describe('executeWorkflow', () => {
       ],
     };
 
-    const result = await executeWorkflow(definition, {}, {
-      runId: 'trace-run',
-      trace,
-      logs,
-    });
+    const result = await executeWorkflow(
+      definition,
+      {},
+      {
+        runId: 'trace-run',
+        trace,
+        logs,
+      },
+    );
 
     expect(result.success).toBe(true);
     await Promise.resolve();
@@ -157,10 +170,30 @@ describe('executeWorkflow', () => {
         merge: { ref: 'merge', streamId: 'stream-merge', joinStrategy: 'all' },
       },
       edges: [
-        { id: 'start->branchA', sourceRef: 'start', targetRef: 'branchA', kind: 'success' as const },
-        { id: 'start->branchB', sourceRef: 'start', targetRef: 'branchB', kind: 'success' as const },
-        { id: 'branchA->merge', sourceRef: 'branchA', targetRef: 'merge', kind: 'success' as const },
-        { id: 'branchB->merge', sourceRef: 'branchB', targetRef: 'merge', kind: 'success' as const },
+        {
+          id: 'start->branchA',
+          sourceRef: 'start',
+          targetRef: 'branchA',
+          kind: 'success' as const,
+        },
+        {
+          id: 'start->branchB',
+          sourceRef: 'start',
+          targetRef: 'branchB',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchA->merge',
+          sourceRef: 'branchA',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchB->merge',
+          sourceRef: 'branchB',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
       ],
       dependencyCounts: {
         start: 0,
@@ -173,6 +206,7 @@ describe('executeWorkflow', () => {
           ref: 'start',
           componentId: 'test.sleep.parallel',
           params: { delay: 50, label: 'start' },
+          inputOverrides: {},
           dependsOn: [],
           inputMappings: {},
         },
@@ -180,6 +214,7 @@ describe('executeWorkflow', () => {
           ref: 'branchA',
           componentId: 'test.sleep.parallel',
           params: { delay: 200, label: 'branchA' },
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
@@ -187,6 +222,7 @@ describe('executeWorkflow', () => {
           ref: 'branchB',
           componentId: 'test.sleep.parallel',
           params: { delay: 200, label: 'branchB' },
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
@@ -194,6 +230,7 @@ describe('executeWorkflow', () => {
           ref: 'merge',
           componentId: 'test.sleep.parallel',
           params: { delay: 0, label: 'merge' },
+          inputOverrides: {},
           dependsOn: ['branchA', 'branchB'],
           inputMappings: {},
         },
@@ -247,10 +284,30 @@ describe('executeWorkflow', () => {
         merge: { ref: 'merge', streamId: 'trace-merge', joinStrategy: 'all' },
       },
       edges: [
-        { id: 'start->branchLeft', sourceRef: 'start', targetRef: 'branchLeft', kind: 'success' as const },
-        { id: 'start->branchRight', sourceRef: 'start', targetRef: 'branchRight', kind: 'success' as const },
-        { id: 'branchLeft->merge', sourceRef: 'branchLeft', targetRef: 'merge', kind: 'success' as const },
-        { id: 'branchRight->merge', sourceRef: 'branchRight', targetRef: 'merge', kind: 'success' as const },
+        {
+          id: 'start->branchLeft',
+          sourceRef: 'start',
+          targetRef: 'branchLeft',
+          kind: 'success' as const,
+        },
+        {
+          id: 'start->branchRight',
+          sourceRef: 'start',
+          targetRef: 'branchRight',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchLeft->merge',
+          sourceRef: 'branchLeft',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchRight->merge',
+          sourceRef: 'branchRight',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
       ],
       dependencyCounts: {
         start: 0,
@@ -263,6 +320,7 @@ describe('executeWorkflow', () => {
           ref: 'start',
           componentId: 'core.workflow.entrypoint',
           params: {},
+          inputOverrides: {},
           dependsOn: [],
           inputMappings: {},
         },
@@ -270,6 +328,7 @@ describe('executeWorkflow', () => {
           ref: 'branchLeft',
           componentId: 'test.sleep.parallel',
           params: { delay: 40, label: 'left' },
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
@@ -277,13 +336,15 @@ describe('executeWorkflow', () => {
           ref: 'branchRight',
           componentId: 'test.sleep.parallel',
           params: { delay: 20, label: 'right' },
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
         {
           ref: 'merge',
           componentId: 'core.console.log',
-          params: { data: 'merge-complete' },
+          params: {},
+          inputOverrides: { data: 'merge-complete' },
           dependsOn: ['branchLeft', 'branchRight'],
           inputMappings: {},
         },
@@ -333,14 +394,18 @@ describe('executeWorkflow', () => {
 
   it('triggers downstream when join strategy is any', async () => {
     if (!componentRegistry.has('test.trigger.capture')) {
-      const captureComponent: ComponentDefinition<{ label: string }, { triggeredBy?: string }> = {
+      const captureComponent: ComponentDefinition = {
         id: 'test.trigger.capture',
         label: 'Capture Trigger',
         category: 'transform',
         runner: { kind: 'inline' },
-        inputSchema: z.object({ label: z.string() }),
-        outputSchema: z.object({ triggeredBy: z.string().optional() }),
-        async execute(params, context) {
+        inputs: inputs({
+          label: withPortMeta(z.string(), { label: 'Label' }),
+        }),
+        outputs: outputs({
+          triggeredBy: withPortMeta(z.string().optional(), { label: 'Triggered By' }),
+        }),
+        async execute({ inputs: _inputs }, context) {
           const triggeredBy = context.metadata.triggeredBy;
           return triggeredBy ? { triggeredBy } : {};
         },
@@ -365,10 +430,30 @@ describe('executeWorkflow', () => {
         merge: { ref: 'merge', joinStrategy: 'any' },
       },
       edges: [
-        { id: 'start->branchSlow', sourceRef: 'start', targetRef: 'branchSlow', kind: 'success' as const },
-        { id: 'start->branchFast', sourceRef: 'start', targetRef: 'branchFast', kind: 'success' as const },
-        { id: 'branchSlow->merge', sourceRef: 'branchSlow', targetRef: 'merge', kind: 'success' as const },
-        { id: 'branchFast->merge', sourceRef: 'branchFast', targetRef: 'merge', kind: 'success' as const },
+        {
+          id: 'start->branchSlow',
+          sourceRef: 'start',
+          targetRef: 'branchSlow',
+          kind: 'success' as const,
+        },
+        {
+          id: 'start->branchFast',
+          sourceRef: 'start',
+          targetRef: 'branchFast',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchSlow->merge',
+          sourceRef: 'branchSlow',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
+        {
+          id: 'branchFast->merge',
+          sourceRef: 'branchFast',
+          targetRef: 'merge',
+          kind: 'success' as const,
+        },
       ],
       dependencyCounts: {
         start: 0,
@@ -381,6 +466,7 @@ describe('executeWorkflow', () => {
           ref: 'start',
           componentId: 'core.workflow.entrypoint',
           params: {},
+          inputOverrides: {},
           dependsOn: [],
           inputMappings: {},
         },
@@ -388,6 +474,7 @@ describe('executeWorkflow', () => {
           ref: 'branchSlow',
           componentId: 'test.sleep.parallel',
           params: { delay: 200, label: 'slow' },
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
@@ -395,13 +482,15 @@ describe('executeWorkflow', () => {
           ref: 'branchFast',
           componentId: 'test.sleep.parallel',
           params: { delay: 10, label: 'fast' },
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
         {
           ref: 'merge',
           componentId: 'test.trigger.capture',
-          params: { label: 'merge' },
+          params: {},
+          inputOverrides: { label: 'merge' },
           dependsOn: ['branchSlow', 'branchFast'],
           inputMappings: {},
         },
@@ -410,8 +499,8 @@ describe('executeWorkflow', () => {
 
     const result = await executeWorkflow(definition);
     expect(result.success).toBe(true);
-    const outputs = result.outputs as Record<string, any>;
-    expect(outputs.merge.triggeredBy).toBe('branchFast');
+    const workflowOutputs = result.outputs as Record<string, any>;
+    expect(workflowOutputs.merge.triggeredBy).toBe('branchFast');
   });
 
   it('fails deterministically when an input mapping is missing', async () => {
@@ -451,14 +540,16 @@ describe('executeWorkflow', () => {
         {
           ref: 'node-1',
           componentId: 'test.echo',
-          params: { value: 'first' },
+          params: {},
+          inputOverrides: { value: 'first' },
           dependsOn: [],
           inputMappings: {},
         },
         {
           ref: 'node-2',
           componentId: 'core.console.log',
-          params: { data: 'second' },
+          params: {},
+          inputOverrides: { data: 'second' },
           dependsOn: ['node-1'],
           inputMappings: {
             label: {
@@ -475,7 +566,9 @@ describe('executeWorkflow', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('One or more workflow actions failed');
 
-    const warnEvent = events.find((event) => event.type === 'NODE_PROGRESS' && event.level === 'warn');
+    const warnEvent = events.find(
+      (event) => event.type === 'NODE_PROGRESS' && event.level === 'warn',
+    );
     expect(warnEvent).toBeDefined();
     expect(warnEvent?.message).toContain("Input 'label'");
   });
@@ -484,31 +577,37 @@ describe('executeWorkflow', () => {
     const executionOrder: string[] = [];
 
     if (!componentRegistry.has('test.fail.always')) {
-      const failComponent: ComponentDefinition<{ message: string }, never> = {
+      const failComponent: ComponentDefinition = {
         id: 'test.fail.always',
         label: 'Always Fail',
         category: 'transform',
         runner: { kind: 'inline' },
-        inputSchema: z.object({ message: z.string() }),
-        outputSchema: z.never(),
+        inputs: inputs({
+          message: withPortMeta(z.string(), { label: 'Message' }),
+        }),
+        outputs: outputs({}),
         async execute(params) {
-          throw new Error(params.message);
+          throw new Error(params.inputs.message as string);
         },
       };
       componentRegistry.register(failComponent);
     }
 
     if (!componentRegistry.has('test.record.execution')) {
-      const recordComponent: ComponentDefinition<{ label: string }, { label: string }> = {
+      const recordComponent: ComponentDefinition = {
         id: 'test.record.execution',
         label: 'Record Execution',
         category: 'transform',
         runner: { kind: 'inline' },
-        inputSchema: z.object({ label: z.string() }),
-        outputSchema: z.object({ label: z.string() }),
-        async execute(params, context) {
+        inputs: inputs({
+          label: withPortMeta(z.string(), { label: 'Label' }),
+        }),
+        outputs: outputs({
+          label: withPortMeta(z.string(), { label: 'Label' }),
+        }),
+        async execute({ inputs }, context) {
           executionOrder.push(context.componentRef);
-          return { label: params.label };
+          return { label: inputs.label };
         },
       };
       componentRegistry.register(recordComponent);
@@ -542,20 +641,23 @@ describe('executeWorkflow', () => {
           ref: 'start',
           componentId: 'core.workflow.entrypoint',
           params: {},
+          inputOverrides: {},
           dependsOn: [],
           inputMappings: {},
         },
         {
           ref: 'fail',
           componentId: 'test.fail.always',
-          params: { message: 'boom' },
+          params: {},
+          inputOverrides: { message: 'boom' },
           dependsOn: ['start'],
           inputMappings: {},
         },
         {
           ref: 'errorHandler',
           componentId: 'test.record.execution',
-          params: { label: 'handled' },
+          params: {},
+          inputOverrides: { label: 'handled' },
           dependsOn: ['fail'],
           inputMappings: {},
         },
@@ -570,33 +672,39 @@ describe('executeWorkflow', () => {
 
   it('injects failure metadata into error-edge components', async () => {
     if (!componentRegistry.has('test.fail.always')) {
-      const failComponent: ComponentDefinition<{ message: string }, never> = {
+      const failComponent: ComponentDefinition = {
         id: 'test.fail.always',
         label: 'Always Fail',
         category: 'transform',
         runner: { kind: 'inline' },
-        inputSchema: z.object({ message: z.string() }),
-        outputSchema: z.never(),
+        inputs: inputs({
+          message: withPortMeta(z.string(), { label: 'Message' }),
+        }),
+        outputs: outputs({}),
         async execute(params) {
-          throw new Error(params.message);
+          throw new Error(params.inputs.message as string);
         },
       };
       componentRegistry.register(failComponent);
     }
 
-    const failureMetadata: Array<ExecutionContext['metadata']['failure']> = [];
+    const failureMetadata: ExecutionContext['metadata']['failure'][] = [];
 
     if (!componentRegistry.has('test.capture.failure-metadata')) {
-      const captureComponent: ComponentDefinition<{ label: string }, { label: string }> = {
+      const captureComponent: ComponentDefinition = {
         id: 'test.capture.failure-metadata',
         label: 'Capture Failure Metadata',
         category: 'transform',
         runner: { kind: 'inline' },
-        inputSchema: z.object({ label: z.string() }),
-        outputSchema: z.object({ label: z.string() }),
-        async execute(params, context) {
+        inputs: inputs({
+          label: withPortMeta(z.string(), { label: 'Label' }),
+        }),
+        outputs: outputs({
+          label: withPortMeta(z.string(), { label: 'Label' }),
+        }),
+        async execute({ inputs }, context) {
           failureMetadata.push(context.metadata.failure);
-          return { label: params.label };
+          return { label: inputs.label };
         },
       };
       componentRegistry.register(captureComponent);
@@ -629,20 +737,23 @@ describe('executeWorkflow', () => {
           ref: 'start',
           componentId: 'core.workflow.entrypoint',
           params: {},
+          inputOverrides: {},
           dependsOn: [],
           inputMappings: {},
         },
         {
           ref: 'fail',
           componentId: 'test.fail.always',
-          params: { message: 'boom' },
+          params: {},
+          inputOverrides: { message: 'boom' },
           dependsOn: ['start'],
           inputMappings: {},
         },
         {
           ref: 'errorHandler',
           componentId: 'test.capture.failure-metadata',
-          params: { label: 'handled' },
+          params: {},
+          inputOverrides: { label: 'handled' },
           dependsOn: ['fail'],
           inputMappings: {},
         },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/auth/auth-context';
-import { useAuthModal } from './AuthModal';
+import { useAuthModal } from './useAuthModal';
 import { UserButton } from './UserButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,9 +40,7 @@ export const AuthDemo: React.FC = () => {
             <Shield className="w-5 h-5" />
             Authentication Demo
           </CardTitle>
-          <CardDescription>
-            Experience the modular authentication system
-          </CardDescription>
+          <CardDescription>Experience the modular authentication system</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="bg-muted/50 p-4 rounded-lg">
@@ -51,8 +49,8 @@ export const AuthDemo: React.FC = () => {
               Current Status: Not Authenticated
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Sign in to test the complete authentication flow including token management,
-              user profile, and protected routes.
+              Sign in to test the complete authentication flow including token management, user
+              profile, and protected routes.
             </p>
             <Button onClick={openSignIn} className="w-full">
               Sign In with Clerk
@@ -101,9 +99,7 @@ export const AuthDemo: React.FC = () => {
           <Shield className="w-5 h-5" />
           Authentication Demo
         </CardTitle>
-        <CardDescription>
-          Successfully authenticated with modular auth system
-        </CardDescription>
+        <CardDescription>Successfully authenticated with modular auth system</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* User Profile Section */}
@@ -135,7 +131,11 @@ export const AuthDemo: React.FC = () => {
             {user?.imageUrl && (
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full overflow-hidden">
-                  <img src={user.imageUrl} alt="User avatar" className="w-full h-full object-cover" />
+                  <img
+                    src={user.imageUrl}
+                    alt="User avatar"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <span className="text-muted-foreground">Profile picture available</span>
               </div>
@@ -154,7 +154,9 @@ export const AuthDemo: React.FC = () => {
               <div className="flex items-center gap-3">
                 <Users className="w-4 h-4 text-muted-foreground" />
                 <div>
-                  <div className="font-medium">{user.organizationName || 'Unknown Organization'}</div>
+                  <div className="font-medium">
+                    {user.organizationName || 'Unknown Organization'}
+                  </div>
                   <div className="text-muted-foreground">ID: {user.organizationId}</div>
                 </div>
               </div>
@@ -186,10 +188,7 @@ export const AuthDemo: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Badge variant="outline">Expires</Badge>
                 <span className="text-muted-foreground">
-                  {token.expiresAt
-                    ? new Date(token.expiresAt).toLocaleString()
-                    : 'Unknown'
-                  }
+                  {token.expiresAt ? new Date(token.expiresAt).toLocaleString() : 'Unknown'}
                 </span>
               </div>
             </div>

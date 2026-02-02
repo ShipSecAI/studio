@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Param, Query, Res, Req, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Res,
+  Req,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Response, Request } from 'express';
 import { ZodValidationPipe } from 'nestjs-zod';
@@ -38,7 +49,8 @@ export class AgentsController {
     const cursor = Number.parseInt(query.cursor ?? '0', 10);
     const effectiveCursor = Number.isNaN(cursor) ? undefined : cursor;
     const events = await this.agentTraceService.list(agentRunId, effectiveCursor);
-    const lastSequence = events.length > 0 ? events[events.length - 1]?.sequence : effectiveCursor ?? 0;
+    const lastSequence =
+      events.length > 0 ? events[events.length - 1]?.sequence : (effectiveCursor ?? 0);
 
     return {
       agentRunId,
@@ -47,9 +59,8 @@ export class AgentsController {
       cursor: lastSequence ?? 0,
       parts: events
         .map((event) => ({ event, chunk: convertAgentTraceToUiChunk(event) }))
-        .filter(
-          (entry): entry is { event: AgentTracePartEntry; chunk: UIMessageChunk } =>
-            Boolean(entry.chunk),
+        .filter((entry): entry is { event: AgentTracePartEntry; chunk: UIMessageChunk } =>
+          Boolean(entry.chunk),
         )
         .map(({ event, chunk }) => ({
           sequence: event.sequence,
@@ -199,7 +210,8 @@ function convertAgentTraceToUiChunk(event: AgentTracePartEntry): UIMessageChunk 
       toolCallId: ensureString(payload.toolCallId) ?? `${event.sequence}`,
       toolName: ensureString(payload.toolName) ?? 'tool',
       input: payload.input ?? null,
-      providerExecuted: typeof payload.providerExecuted === 'boolean' ? payload.providerExecuted : undefined,
+      providerExecuted:
+        typeof payload.providerExecuted === 'boolean' ? payload.providerExecuted : undefined,
     };
   }
 
@@ -208,7 +220,8 @@ function convertAgentTraceToUiChunk(event: AgentTracePartEntry): UIMessageChunk 
       type: 'tool-output-available',
       toolCallId: ensureString(payload.toolCallId) ?? `${event.sequence}`,
       output: payload.output ?? null,
-      providerExecuted: typeof payload.providerExecuted === 'boolean' ? payload.providerExecuted : undefined,
+      providerExecuted:
+        typeof payload.providerExecuted === 'boolean' ? payload.providerExecuted : undefined,
     };
   }
 

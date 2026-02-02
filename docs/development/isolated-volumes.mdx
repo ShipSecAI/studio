@@ -264,6 +264,27 @@ volume.getVolumeConfig('/inputs', true)  // ✅ read-only
 volume.getVolumeConfig('/outputs', false)  // ⚠️ read-write
 ```
 
+### Nonroot Container Support
+
+Volumes automatically support containers running as nonroot users (e.g., distroless images with uid 65532).
+
+After files are written to the volume, permissions are set to `777` to allow any container user to read/write:
+
+```typescript
+// This happens automatically in volume.initialize()
+// chmod -R 777 /data
+```
+
+**Why this is needed:**
+- Files are written to volumes using Alpine containers (running as root)
+- Distroless nonroot images run as uid 65532
+- Without permission changes, nonroot containers can't write output files
+
+**This is safe because:**
+- Each volume is isolated per tenant + run
+- Volumes are cleaned up after execution
+- No cross-tenant access is possible
+
 ### Path Validation
 
 Filenames are automatically validated:

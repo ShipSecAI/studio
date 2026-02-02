@@ -1,8 +1,12 @@
-import type { DestinationAdapterRegistration, DestinationSaveInput, DestinationSaveResult } from '../registry';
+import type {
+  DestinationAdapterRegistration,
+  DestinationSaveInput,
+  DestinationSaveResult,
+} from '../registry';
 import type { ArtifactDestination } from '@shipsec/shared';
 import { ConfigurationError } from '@shipsec/component-sdk';
 
-interface ArtifactAdapterConfig {
+interface _ArtifactAdapterConfig {
   destinations?: ArtifactDestination[];
 }
 
@@ -36,7 +40,8 @@ export const artifactDestinationAdapter: DestinationAdapterRegistration = {
           );
         }
 
-        const normalized = destinations.length > 0 ? destinations : (['run'] as ArtifactDestination[]);
+        const normalized =
+          destinations.length > 0 ? destinations : (['run'] as ArtifactDestination[]);
 
         const upload = await context.artifacts.upload({
           name: input.fileName,

@@ -1,47 +1,50 @@
-import { useMemo } from 'react'
-import { RunSelector } from '@/components/timeline/RunSelector'
-import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline'
-import { EventInspector } from '@/components/timeline/EventInspector'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { useExecutionTimelineStore } from '@/store/executionTimelineStore'
-import { useExecutionStore } from '@/store/executionStore'
-import { useWorkflowUiStore } from '@/store/workflowUiStore'
-import { useWorkflowStore } from '@/store/workflowStore'
-import { useRunStore } from '@/store/runStore'
-import { cn } from '@/lib/utils'
-import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel'
+import { useMemo } from 'react';
+import { RunSelector } from '@/components/timeline/RunSelector';
+import { ExecutionTimeline } from '@/components/timeline/ExecutionTimeline';
+import { EventInspector } from '@/components/timeline/EventInspector';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
+import { useExecutionStore } from '@/store/executionStore';
+import { useWorkflowUiStore } from '@/store/workflowUiStore';
+import { useWorkflowStore } from '@/store/workflowStore';
+import { useRunStore } from '@/store/runStore';
+import { cn } from '@/lib/utils';
+import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel';
 
 const formatTime = (timestamp: string) => {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString()
-}
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString();
+};
 
 export function ReviewInspector() {
-  const {
-    selectedRunId,
-    playbackMode,
-    isPlaying,
-  } = useExecutionTimelineStore()
-  const { id: workflowId } = useWorkflowStore((state) => state.metadata)
-  const workflowCacheKey = workflowId ?? '__global__'
-  const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs)
-  const runs = scopedRuns ?? []
-  const displayLogs = useExecutionStore((state) => state.getDisplayLogs())
-  const { inspectorTab, setInspectorTab } = useWorkflowUiStore()
+  const { selectedRunId, playbackMode, isPlaying } = useExecutionTimelineStore();
+  const { id: workflowId } = useWorkflowStore((state) => state.metadata);
+  const workflowCacheKey = workflowId ?? '__global__';
+  const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs);
+  const runs = scopedRuns ?? [];
+  const displayLogs = useExecutionStore((state) => state.getDisplayLogs());
+  const { inspectorTab, setInspectorTab } = useWorkflowUiStore();
 
-  const selectedRun = useMemo(() => (
-    runs.find(run => run.id === selectedRunId)
-  ), [runs, selectedRunId])
+  const selectedRun = useMemo(
+    () => runs.find((run) => run.id === selectedRunId),
+    [runs, selectedRunId],
+  );
 
   const statusBadge = selectedRun ? (
     <Badge
-      variant={selectedRun.status === 'RUNNING' ? 'default' : selectedRun.status === 'FAILED' ? 'destructive' : 'secondary'}
+      variant={
+        selectedRun.status === 'RUNNING'
+          ? 'default'
+          : selectedRun.status === 'FAILED'
+            ? 'destructive'
+            : 'secondary'
+      }
       className="text-xs"
     >
       {selectedRun.status}
     </Badge>
-  ) : null
+  ) : null;
 
   return (
     <aside className="h-full w-[360px] border-l bg-muted/30 backdrop-blur flex flex-col overflow-y-auto min-h-0">
@@ -115,8 +118,17 @@ export function ReviewInspector() {
           <div className="flex flex-col h-full">
             <div className="flex items-center justify-between px-3 py-2 border-b bg-background/70 text-xs text-muted-foreground">
               <span>{displayLogs.length} log entries</span>
-              <span className={cn('font-medium', playbackMode === 'live' ? 'text-green-600' : 'text-blue-600')}>
-                {playbackMode === 'live' ? (isPlaying ? 'Live (following)' : 'Live paused') : 'Review playback'}
+              <span
+                className={cn(
+                  'font-medium',
+                  playbackMode === 'live' ? 'text-green-600' : 'text-blue-600',
+                )}
+              >
+                {playbackMode === 'live'
+                  ? isPlaying
+                    ? 'Live (following)'
+                    : 'Live paused'
+                  : 'Review playback'}
               </span>
             </div>
             <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 text-xs font-mono bg-background/40">
@@ -129,7 +141,16 @@ export function ReviewInspector() {
                   <div key={log.id} className="border rounded-md bg-background px-3 py-2 space-y-1">
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <span>{formatTime(log.timestamp)}</span>
-                      <Badge variant={log.level === 'error' ? 'destructive' : log.level === 'warn' ? 'warning' : 'secondary'} className="text-[10px] uppercase">
+                      <Badge
+                        variant={
+                          log.level === 'error'
+                            ? 'destructive'
+                            : log.level === 'warn'
+                              ? 'warning'
+                              : 'secondary'
+                        }
+                        className="text-[10px] uppercase"
+                      >
                         {log.level.toUpperCase()}
                       </Badge>
                     </div>
@@ -146,10 +167,8 @@ export function ReviewInspector() {
           </div>
         )}
 
-        {inspectorTab === 'artifacts' && (
-          <RunArtifactsPanel runId={selectedRunId ?? null} />
-        )}
+        {inspectorTab === 'artifacts' && <RunArtifactsPanel runId={selectedRunId ?? null} />}
       </div>
     </aside>
-  )
+  );
 }

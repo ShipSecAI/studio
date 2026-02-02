@@ -1,7 +1,12 @@
 import { WorkflowGraphDto, WorkflowNodeDto } from '../workflows/dto/workflow-graph.dto';
 // Ensure all worker components are registered before accessing the registry
 import '../../../worker/src/components';
-import { componentRegistry } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  getCredentialInputIds,
+  type ComponentPortMetadata,
+} from '@shipsec/component-sdk';
+import { extractPorts } from '@shipsec/component-sdk/zod-ports';
 import {
   WorkflowAction,
   WorkflowDefinition,
@@ -11,7 +16,7 @@ import {
 } from './types';
 import { validateWorkflowGraph } from './validator';
 
-function topoSort(nodes: string[], edges: Array<{ source: string; target: string }>): string[] {
+function topoSort(nodes: string[], edges: { source: string; target: string }[]): string[] {
   const incoming = new Map<string, number>();
   const adjacency = new Map<string, string[]>();
 
@@ -61,7 +66,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       return true; // Let validation catch unknown components
     }
     // Skip UI-only components (they're for documentation/notes, not execution)
-    const isUiOnly = (component.metadata as any)?.uiOnly === true;
+    const isUiOnly = (component.ui as any)?.uiOnly === true;
     return !isUiOnly;
   });
 
@@ -76,7 +81,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
 
   const orderedIds = topoSort(nodeIds, graph.edges);
   const incomingEdges = new Map<string, Set<string>>();
-  type GraphEdge = typeof graph.edges[number];
+  type GraphEdge = (typeof graph.edges)[number];
   const edgesByTarget = new Map<string, GraphEdge[]>();
   for (const nodeId of nodeIds) {
     incomingEdges.set(nodeId, new Set());
@@ -100,16 +105,30 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     const groupIdValue = config.groupId;
     const maxConcurrencyValue = config.maxConcurrency;
 
+    const mode = (config.mode as WorkflowNodeMetadata['mode']) ?? 'normal';
+    const toolConfig = config.toolConfig as WorkflowNodeMetadata['toolConfig'];
+
+    const connectedToolNodeIds = edgesByTarget
+      .get(node.id)
+      ?.filter((edge) => edge.targetHandle === 'tools')
+      .map((edge) => edge.source);
+
     nodesMetadata[node.id] = {
       ref: node.id,
+      mode,
       label: node.data?.label,
       joinStrategy,
-      streamId: typeof streamIdValue === 'string' && streamIdValue.length > 0 ? streamIdValue : undefined,
-      groupId: typeof groupIdValue === 'string' && groupIdValue.length > 0 ? groupIdValue : undefined,
+      streamId:
+        typeof streamIdValue === 'string' && streamIdValue.length > 0 ? streamIdValue : undefined,
+      groupId:
+        typeof groupIdValue === 'string' && groupIdValue.length > 0 ? groupIdValue : undefined,
       maxConcurrency:
         typeof maxConcurrencyValue === 'number' && Number.isFinite(maxConcurrencyValue)
           ? maxConcurrencyValue
           : undefined,
+      toolConfig,
+      connectedToolNodeIds:
+        connectedToolNodeIds && connectedToolNodeIds.length > 0 ? connectedToolNodeIds : undefined,
     };
   }
 
@@ -121,8 +140,9 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       streamId: _streamId,
       groupId: _groupId,
       maxConcurrency: _maxConcurrency,
-      ...componentParams
     } = config;
+    const rawParams = (config.params ?? {}) as Record<string, unknown>;
+    const rawInputOverrides = (config.inputOverrides ?? {}) as Record<string, unknown>;
 
     // Build input mappings from edges
     const inputMappings: WorkflowAction['inputMappings'] = {};
@@ -141,14 +161,18 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
     }
 
     const component = componentRegistry.get(node.type);
-    const params: Record<string, unknown> = { ...componentParams };
+    const credentialInputIds = component ? new Set(getCredentialInputIds(component)) : new Set();
+    const nodeMode = (config.mode as WorkflowNodeMetadata['mode']) ?? 'normal';
+    const params: Record<string, unknown> = { ...rawParams };
+    const inputOverrides: Record<string, unknown> = { ...rawInputOverrides };
 
-    let inputs = component?.metadata?.inputs ?? [];
+    let inputs: ComponentPortMetadata[] =
+      (componentRegistry.getMetadata(node.type)?.inputs as ComponentPortMetadata[]) ?? [];
     if (component?.resolvePorts) {
       try {
         const resolved = component.resolvePorts(params);
         if (resolved.inputs) {
-          inputs = resolved.inputs;
+          inputs = extractPorts(resolved.inputs);
         }
       } catch (e) {
         // Log but fallback to static inputs
@@ -156,16 +180,14 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       }
     }
 
-    const inputMetadata = new Map(
-      inputs.map((input) => [input.id, input]),
-    );
+    const inputMetadata = new Map(inputs.map((input) => [input.id, input]));
 
     // Remove manual values for connected ports unless the port explicitly prefers manual overrides
     for (const targetKey of Object.keys(inputMappings)) {
       const metadata = inputMetadata.get(targetKey);
       const prefersManual = metadata?.valuePriority === 'manual-first';
       if (!prefersManual) {
-        delete params[targetKey];
+        Reflect.deleteProperty(inputOverrides, targetKey);
       }
     }
 
@@ -175,8 +197,12 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
         continue;
       }
 
+      if (nodeMode === 'tool' && !credentialInputIds.has(inputId)) {
+        continue;
+      }
+
       const hasPortMapping = Boolean(inputMappings[inputId]);
-      const manualValue = componentParams[inputId];
+      const manualValue = inputOverrides[inputId];
       const hasManual =
         manualValue !== undefined &&
         manualValue !== null &&
@@ -193,6 +219,7 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
       ref: id,
       componentId: node.type,
       params,
+      inputOverrides,
       dependsOn: Array.from(incomingEdges.get(id) ?? []),
       inputMappings,
     };
@@ -222,11 +249,14 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
 
   // Verify the entrypoint ref points to an entrypoint component
   const entrypointActionVerify = actions.find((action) => action.ref === entryNode);
-  if (!entrypointActionVerify || entrypointActionVerify.componentId !== 'core.workflow.entrypoint') {
+  if (
+    !entrypointActionVerify ||
+    entrypointActionVerify.componentId !== 'core.workflow.entrypoint'
+  ) {
     throw new Error(
       `Workflow compilation error: Entrypoint ref '${entryNode}' does not point to an Entry Point component. ` +
-      `Found component: ${entrypointActionVerify?.componentId ?? 'none'}. ` +
-      `This indicates a workflow configuration error.`
+        `Found component: ${entrypointActionVerify?.componentId ?? 'none'}. ` +
+        `This indicates a workflow configuration error.`,
     );
   }
 
@@ -245,7 +275,10 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
   // Validate the workflow before returning
   const validationResult = validateWorkflowGraph(graph, definition);
   if (!validationResult.isValid) {
-    const errorMessages = validationResult.errors.map(e => `[${e.node}] ${e.field}: ${e.message}${e.suggestion ? ' (Suggestion: ' + e.suggestion + ')' : ''}`);
+    const errorMessages = validationResult.errors.map(
+      (e) =>
+        `[${e.node}] ${e.field}: ${e.message}${e.suggestion ? ' (Suggestion: ' + e.suggestion + ')' : ''}`,
+    );
     const errorMessage = `Workflow validation failed:\n${errorMessages.join('\n')}`;
     throw new Error(errorMessage);
   }
@@ -253,8 +286,10 @@ export function compileWorkflowGraph(graph: WorkflowGraphDto): WorkflowDefinitio
   // Log warnings for user information
   if (validationResult.warnings.length > 0) {
     console.warn(`Workflow validation warnings for ${graph.name}:`);
-    validationResult.warnings.forEach(w => {
-      console.warn(`  [${w.node}] ${w.field}: ${w.message}${w.suggestion ? ' (Suggestion: ' + w.suggestion + ')' : ''}`);
+    validationResult.warnings.forEach((w) => {
+      console.warn(
+        `  [${w.node}] ${w.field}: ${w.message}${w.suggestion ? ' (Suggestion: ' + w.suggestion + ')' : ''}`,
+      );
     });
   }
 

@@ -1,724 +1,332 @@
 import { beforeAll, beforeEach, describe, expect, test, vi } from 'bun:test';
-import '../../index';
+import type { GenerateTextResult, LanguageModelUsage, Output as AIOutput, ToolSet } from 'ai';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import { componentRegistry, runComponentWithRunner } from '@shipsec/component-sdk';
-import type { ToolLoopAgentClass, StepCountIsFn, ToolFn, CreateOpenAIFn, CreateGoogleGenerativeAIFn, GenerateObjectFn, GenerateTextFn } from '../ai-agent';
+import type { AiAgentInput, AiAgentOutput } from '../ai-agent';
 
-const makeAgentResult = (overrides: Record<string, any> = {}) => ({
-  text: 'Agent final answer',
-  steps: [
-    {
-      text: 'Reasoning without tools',
-      finishReason: 'stop',
-      toolCalls: [],
-      toolResults: [],
-    },
-  ],
-  toolResults: [],
-  usage: {
-    promptTokens: 12,
-    completionTokens: 24,
-    totalTokens: 36,
-  },
-  totalUsage: {
-    promptTokens: 12,
-    completionTokens: 24,
-    totalTokens: 36,
-  },
-  finishReason: 'stop',
-  content: [],
-  reasoning: [],
-  reasoningText: undefined,
-  files: [],
-  sources: [],
-  toolCalls: [],
-  staticToolCalls: [],
-  dynamicToolCalls: [],
-  staticToolResults: [],
-  dynamicToolResults: [],
-  warnings: undefined,
-  request: {},
-  response: { messages: [] },
-  providerMetadata: undefined,
-  ...overrides,
-});
-
-const OPENAI_SECRET_ID = 'secret-openai';
-const GEMINI_SECRET_ID = 'secret-gemini';
-
-const workflowContext: ExecutionContext = {
-  runId: 'test-run',
-  componentRef: 'core.ai.agent',
-  logger: {
-    debug: () => {},
-    info: () => {},
-    error: () => {},
-    warn: () => {},
-  },
-  emitProgress: () => {},
-  agentTracePublisher: {
-    publish: () => {},
-  },
-  metadata: {
-    runId: 'test-run',
-    componentRef: 'core.ai.agent',
-  },
-  secrets: {
-    async get(id) {
-      if (id === OPENAI_SECRET_ID) {
-        return { value: 'sk-openai-from-secret', version: 1 };
-      }
-      if (id === GEMINI_SECRET_ID) {
-        return { value: 'gm-gemini-from-secret', version: 1 };
-      }
-      return null;
-    },
-    async list() {
-      return [OPENAI_SECRET_ID, GEMINI_SECRET_ID];
-    },
-  },
-};
-
-// Create mocks for the AI dependencies
-const createdTools: Array<Record<string, unknown>> = [];
 const stepCountIsMock = vi.fn((limit: number) => ({ type: 'step-count', limit }));
-type AgentGenerateArgs = { messages: Array<{ role: string; content: string }> };
-let agentGenerateMock = vi.fn((args: AgentGenerateArgs) => {});
-const toolLoopAgentConstructorMock = vi.fn((settings: any) => settings);
-let nextAgentResult = makeAgentResult();
-let toolLoopAgentGenerateImpl: ((instance: any, args: any) => Promise<any>) | null = null;
+const createOpenAIMock = vi.fn(() => (modelId: string) => ({ provider: 'openai', modelId }));
+const createGoogleGenerativeAIMock = vi.fn(() => (modelId: string) => ({
+  provider: 'gemini',
+  modelId,
+}));
+const createMCPClientMock = vi.fn();
 
-// Mock ToolLoopAgent class
+let toolLoopAgentSettings: unknown;
+let lastGenerateMessages: unknown;
+type GenerationResult = GenerateTextResult<ToolSet, ReturnType<typeof AIOutput.text>>;
+
 class MockToolLoopAgent {
-  settings: any;
-  tools: Record<string, any>;
-  id: string | undefined;
-  version = 'agent-v1';
+  settings: unknown;
 
-  constructor(settings: any) {
+  constructor(settings: unknown) {
     this.settings = settings;
-    this.tools = settings?.tools ?? {};
-    this.id = settings?.id;
-    toolLoopAgentConstructorMock(settings);
+    toolLoopAgentSettings = settings;
   }
 
-  async generate(args: any) {
-    agentGenerateMock(args);
-    if (toolLoopAgentGenerateImpl) {
-      return await toolLoopAgentGenerateImpl(this, args);
-    }
-    return nextAgentResult;
-  }
-
-  async stream() {
-    throw new Error('stream not implemented in test mock');
+  async generate({ messages }: { messages: unknown }) {
+    lastGenerateMessages = messages;
+    return createGenerationResult();
   }
 }
 
-const openAiFactoryMock = vi.fn((options: { apiKey: string; baseURL?: string }) => (model: string) => ({
-  provider: 'openai',
-  modelId: model,
-  options,
-}));
+function createTestContext(overrides?: Partial<ExecutionContext>): ExecutionContext {
+  return {
+    runId: 'test-run',
+    componentRef: 'core.ai.agent',
+    logger: {
+      debug: () => {},
+      info: () => {},
+      error: () => {},
+      warn: () => {},
+    },
+    emitProgress: () => {},
+    metadata: {
+      runId: 'test-run',
+      componentRef: 'core.ai.agent',
+      aiSdkOverrides: {
+        ToolLoopAgent: MockToolLoopAgent,
+        stepCountIs: stepCountIsMock,
+        createOpenAI: createOpenAIMock,
+        createGoogleGenerativeAI: createGoogleGenerativeAIMock,
+        createMCPClient: createMCPClientMock,
+      },
+    },
+    http: {
+      fetch: async (input, init) => globalThis.fetch(input as any, init),
+      toCurl: () => '',
+    },
+    ...overrides,
+  };
+}
 
-const googleFactoryMock = vi.fn((options: { apiKey?: string; baseURL?: string }) => (model: string) => ({
-  provider: 'gemini',
-  modelId: model,
-  options,
-}));
+function createUsage(overrides: Partial<LanguageModelUsage> = {}): LanguageModelUsage {
+  return {
+    inputTokens: 1,
+    inputTokenDetails: {
+      noCacheTokens: undefined,
+      cacheReadTokens: undefined,
+      cacheWriteTokens: undefined,
+    },
+    outputTokens: 1,
+    outputTokenDetails: {
+      textTokens: undefined,
+      reasoningTokens: undefined,
+    },
+    totalTokens: 2,
+    ...overrides,
+  };
+}
+
+function createGenerationResult(overrides: Partial<GenerationResult> = {}): GenerationResult {
+  const usage = createUsage();
+  return {
+    content: [],
+    text: 'Agent final answer',
+    reasoning: [],
+    reasoningText: undefined,
+    files: [],
+    sources: [],
+    toolCalls: [],
+    staticToolCalls: [],
+    dynamicToolCalls: [],
+    toolResults: [],
+    staticToolResults: [],
+    dynamicToolResults: [],
+    finishReason: 'stop',
+    rawFinishReason: 'stop',
+    usage,
+    totalUsage: usage,
+    warnings: undefined,
+    request: {},
+    response: {
+      id: 'resp-1',
+      timestamp: new Date(),
+      modelId: 'mock-model',
+      messages: [],
+    },
+    providerMetadata: undefined,
+    steps: [],
+    experimental_output: '',
+    output: '',
+    ...overrides,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function expectRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw new Error(`Expected ${label} to be an object`);
+  }
+  return value;
+}
+
+beforeEach(() => {
+  toolLoopAgentSettings = undefined;
+  lastGenerateMessages = undefined;
+  stepCountIsMock.mockClear();
+  createOpenAIMock.mockClear();
+  createGoogleGenerativeAIMock.mockClear();
+  createMCPClientMock.mockClear();
+  vi.restoreAllMocks();
+  process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
+});
 
 beforeAll(async () => {
   await import('../../index');
 });
 
-beforeEach(() => {
-  createdTools.length = 0;
-  agentGenerateMock = vi.fn((args: AgentGenerateArgs) => {});
-  toolLoopAgentConstructorMock.mockReset();
-  stepCountIsMock.mockReset();
-  nextAgentResult = makeAgentResult();
-  toolLoopAgentGenerateImpl = null;
-});
-
-describe('core.ai.agent component', () => {
-  test('runs with OpenAI provider and updates conversation state', async () => {
-    const component = componentRegistry.get('core.ai.agent');
+describe('core.ai.agent (refactor)', () => {
+  test('runs without tool discovery when no connected tools', async () => {
+    const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
-    nextAgentResult = makeAgentResult();
+    vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockImplementation(async function (
+      this: MockToolLoopAgent,
+      { messages }: { messages: unknown },
+    ) {
+      lastGenerateMessages = messages;
+      return createGenerationResult({ text: 'Hello agent' });
+    });
 
-    const params = {
-      userInput: 'Summarise the status update.',
-      conversationState: {
-        sessionId: 'session-1',
-        messages: [],
-        toolInvocations: [],
-      },
-      chatModel: {
-        provider: 'openai',
-        modelId: 'gpt-4o-mini',
-      },
-      modelApiKey: 'sk-openai-from-secret',
-      systemPrompt: 'You are a concise assistant.',
-      temperature: 0.2,
-      maxTokens: 256,
-      memorySize: 8,
-      stepLimit: 2,
-    };
-
-    const result = (await runComponentWithRunner(
+    const result = await runComponentWithRunner(
       component!.runner,
-      (params: any, context: any) => 
-        (component!.execute as any)(params, context, {
-          ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-          stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-          tool: ((definition: any) => {
-            createdTools.push(definition);
-            return definition;
-          }) as unknown as ToolFn,
-          createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-          createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-        }),
-      params,
-      workflowContext,
-    )) as any;
+      component!.execute,
+      {
+        inputs: {
+          userInput: 'Hi',
+          conversationState: undefined,
+          chatModel: {
+            provider: 'openai',
+            modelId: 'gpt-4o-mini',
+          },
+          modelApiKey: 'sk-test',
+        },
+        params: {
+          systemPrompt: 'Say hello',
+          temperature: 0.2,
+          maxTokens: 128,
+          memorySize: 4,
+          stepLimit: 2,
+        },
+      },
+      createTestContext(),
+    );
 
-    expect(toolLoopAgentConstructorMock).toHaveBeenCalledTimes(1);
-    const agentSettings = toolLoopAgentConstructorMock.mock.calls[0][0];
-    expect(agentSettings).toMatchObject({
-      instructions: 'You are a concise assistant.',
-      temperature: 0.2,
-      maxOutputTokens: 256,
-    });
-    expect(agentSettings.model).toMatchObject({
-      provider: 'openai',
-      modelId: 'gpt-4o-mini',
-      options: expect.objectContaining({ apiKey: 'sk-openai-from-secret' }),
-    });
+    expect(result.responseText).toBe('Hello agent');
+    expect(createMCPClientMock).not.toHaveBeenCalled();
 
-    expect(agentGenerateMock).toHaveBeenCalledTimes(1);
-    const callArgs = agentGenerateMock.mock.calls[0][0];
-    expect(callArgs.messages.at(-1)).toEqual({
+    const settings = expectRecord(toolLoopAgentSettings, 'agent settings');
+    expect(settings.tools).toBeUndefined();
+    expect(settings.temperature).toBe(0.2);
+    expect(stepCountIsMock).toHaveBeenCalledWith(2);
+
+    const messages = Array.isArray(lastGenerateMessages) ? lastGenerateMessages : [];
+    expect(messages.at(-1)).toMatchObject({
       role: 'user',
-      content: 'Summarise the status update.',
+      content: 'Hi',
     });
-
-    expect(result.responseText).toBe('Agent final answer');
-    expect(result.conversationState.sessionId).toBe('session-1');
-    const assistantMessage = result.conversationState.messages.at(-1);
-    expect(assistantMessage).toEqual({
-      role: 'assistant',
-      content: 'Agent final answer',
-    });
-    expect(result.toolInvocations).toHaveLength(0);
-    expect(result.reasoningTrace).toHaveLength(1);
-    expect(typeof result.agentRunId).toBe('string');
-    expect(result.agentRunId.length).toBeGreaterThan(0);
   });
 
+  test('discovers gateway tools and passes them to the agent', async () => {
+    const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
+    expect(component).toBeDefined();
 
-  test('wires MCP tool output into reasoning trace for Gemini provider', async () => {
-    const fetchMock = vi.fn(async () => {
-      return new Response(JSON.stringify({ answer: 'Evidence' }), {
+    vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockResolvedValue(
+      createGenerationResult({ text: 'Agent final answer' }),
+    );
+
+    let fetchCalls = 0;
+    const originalFetch = globalThis.fetch;
+    const fetchMock: typeof fetch = async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ token: 'gateway-token' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
+    };
+    fetchMock.preconnect = () => {};
+    globalThis.fetch = fetchMock;
+
+    const mockTools = {
+      ping: {
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => ({ type: 'json', value: { ok: true } }),
+      },
+    };
+
+    createMCPClientMock.mockResolvedValue({
+      tools: async () => mockTools,
+      close: async () => {},
     });
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const contextWithTools: ExecutionContext = createTestContext({
+      metadata: {
+        ...createTestContext().metadata,
+        connectedToolNodeIds: ['tool-node-1'],
+      },
+    });
 
     try {
-      toolLoopAgentGenerateImpl = async (instance) => {
-        const toolResult = await instance.settings.tools.call_mcp_tool.execute({
-          toolName: 'lookup',
-          arguments: { question: 'Lookup reference' },
-        });
-
-        return makeAgentResult({
-          text: 'Final resolved answer',
-          usage: {
-            promptTokens: 20,
-            completionTokens: 30,
-            totalTokens: 50,
-          },
-          totalUsage: {
-            promptTokens: 20,
-            completionTokens: 30,
-            totalTokens: 50,
-          },
-          toolResults: [
-            {
-              toolCallId: 'call-1',
-              toolName: 'call_mcp_tool',
-              args: { question: 'Lookup reference' },
-              result: toolResult,
-            },
-          ],
-          steps: [
-            {
-              text: 'Consulting MCP',
-              finishReason: 'tool',
-              toolCalls: [
-                {
-                  toolCallId: 'call-1',
-                  toolName: 'call_mcp_tool',
-                  args: { question: 'Lookup reference' },
-                },
-              ],
-              toolResults: [
-                {
-                  toolCallId: 'call-1',
-                  toolName: 'call_mcp_tool',
-                  args: { question: 'Lookup reference' },
-                  result: toolResult,
-                },
-              ],
-            },
-          ],
-        });
-      };
-
-      const component = componentRegistry.get('core.ai.agent');
-      expect(component).toBeDefined();
-
-      const params = {
-        userInput: 'What does the MCP tool return?',
-        conversationState: undefined,
-        chatModel: {
-          provider: 'gemini',
-          modelId: 'gemini-2.5-flash',
-          baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        },
-        modelApiKey: 'gm-gemini-from-secret',
-        mcpTools: [
-          {
-            id: 'call-mcp',
-            title: 'Lookup',
-            endpoint: 'https://mcp.test/api',
-            metadata: {
-              toolName: 'call_mcp_tool',
-            },
-          },
-        ],
-        systemPrompt: '',
-        temperature: 0.6,
-        maxTokens: 512,
-        memorySize: 6,
-        stepLimit: 3,
-      };
-
-      const result = (await runComponentWithRunner(
+      const result = await runComponentWithRunner(
         component!.runner,
-        (params: any, context: any) => 
-          (component!.execute as any)(params, context, {
-            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-            tool: ((definition: any) => {
-              createdTools.push(definition);
-              return definition;
-            }) as unknown as ToolFn,
-            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-          }),
-        params,
-        workflowContext,
-      )) as any;
+        component!.execute,
+        {
+          inputs: {
+            userInput: 'Use tools',
+            conversationState: undefined,
+            chatModel: {
+              provider: 'openai',
+              modelId: 'gpt-4o-mini',
+            },
+            modelApiKey: 'sk-test',
+          },
+          params: {
+            systemPrompt: '',
+            temperature: 0.3,
+            maxTokens: 64,
+            memorySize: 3,
+            stepLimit: 1,
+          },
+        },
+        contextWithTools,
+      );
 
-      expect(createdTools).toHaveLength(1);
-      expect(stepCountIsMock).toHaveBeenCalledWith(3);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(result.toolInvocations).toHaveLength(1);
-      expect(result.toolInvocations[0]).toMatchObject({
-        toolName: 'call_mcp_tool',
-        result: { answer: 'Evidence' },
-      });
-      expect(result.reasoningTrace[0]).toMatchObject({
-        thought: 'Consulting MCP',
-      });
-      const toolMessage = result.conversationState.messages.find((msg: any) => msg.role === 'tool');
-      expect(toolMessage?.content).toMatchObject({
-        toolName: 'call_mcp_tool',
-        result: { answer: 'Evidence' },
-      });
-      const agentSettings = toolLoopAgentConstructorMock.mock.calls[0][0];
-      expect(agentSettings.model).toMatchObject({
-        provider: 'gemini',
-        modelId: 'gemini-2.5-flash',
-      });
-      expect(result.responseText).toBe('Final resolved answer');
-      expect(result.agentRunId).toBeTruthy();
+      expect(result.responseText).toBe('Agent final answer');
+      expect(fetchCalls).toBeGreaterThan(0);
+      expect(createMCPClientMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transport: {
+            type: 'http',
+            url: 'http://localhost:3211/api/v1/mcp/gateway',
+            headers: { Authorization: 'Bearer gateway-token' },
+          },
+        }),
+      );
+
+      const settings = expectRecord(toolLoopAgentSettings, 'agent settings');
+      const tools = expectRecord(settings.tools, 'agent tools');
+      expect(Object.keys(tools)).toEqual(['ping']);
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  test('emits agent trace events via publisher and fallback progress stream', async () => {
-    const component = componentRegistry.get('core.ai.agent');
+  test('stores tool outputs in conversation state', async () => {
+    const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
     expect(component).toBeDefined();
 
-    nextAgentResult = makeAgentResult({
-      text: 'Tool enriched answer',
-      steps: [
-        {
-          text: 'Consider calling lookup_fact',
-          finishReason: 'tool-calls',
-          toolCalls: [
-            {
-              toolCallId: 'call-1',
-              toolName: 'lookup_fact',
-              args: { topic: 'zebra stripes' },
-            },
-          ],
-          toolResults: [
-            {
-              toolCallId: 'call-1',
-              toolName: 'lookup_fact',
-              result: { fact: 'Zebra stripes help confuse predators.' },
-            },
-          ],
-        },
-      ],
-    });
-
-    const params = {
-      userInput: 'Explain zebra stripes',
-      conversationState: undefined,
-      chatModel: {
-        provider: 'openai',
-        modelId: 'gpt-4o-mini',
-      },
-      modelApiKey: 'sk-openai-from-secret',
-      systemPrompt: 'You are a biologist.',
-      temperature: 0.2,
-      maxTokens: 256,
-      memorySize: 5,
-      stepLimit: 3,
-    };
-
-    const publishMock = vi.fn().mockResolvedValue(undefined);
-    const emitProgressMock = vi.fn();
-    const contextWithPublisher: ExecutionContext = {
-      ...workflowContext,
-      agentTracePublisher: { publish: publishMock },
-      emitProgress: emitProgressMock,
-    };
-
-    await runComponentWithRunner(
-      component!.runner,
-      (componentParams: any, ctx: any) =>
-        (component!.execute as any)(componentParams, ctx, {
-          ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-          stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-          tool: ((definition: any) => definition) as unknown as ToolFn,
-          createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-          createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-        }),
-      params,
-      contextWithPublisher,
-    );
-
-    expect(publishMock).toHaveBeenCalled();
-    const publishedEnvelope = publishMock.mock.calls[0][0];
-    expect(publishedEnvelope).toMatchObject({
-      workflowRunId: 'test-run',
-      nodeRef: 'core.ai.agent',
-      agentRunId: expect.any(String),
-    });
-    const fallbackDuringPublisher = emitProgressMock.mock.calls.some(([payload]) =>
-      payload?.message?.includes('[AgentTraceFallback]'),
-    );
-    expect(fallbackDuringPublisher).toBe(false);
-
-    publishMock.mockReset();
-    emitProgressMock.mockReset();
-
-    const contextWithoutPublisher: ExecutionContext = {
-      ...workflowContext,
-      agentTracePublisher: undefined,
-      emitProgress: emitProgressMock,
-    };
-
-    await runComponentWithRunner(
-      component!.runner,
-      (componentParams: any, ctx: any) =>
-        (component!.execute as any)(componentParams, ctx, {
-          ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-          stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-          tool: ((definition: any) => definition) as unknown as ToolFn,
-          createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-          createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-        }),
-      params,
-      contextWithoutPublisher,
-    );
-
-    expect(publishMock).not.toHaveBeenCalled();
-    const fallbackCall = emitProgressMock.mock.calls.find(
-      ([payload]) => payload?.message?.includes('[AgentTraceFallback]'),
-    );
-    expect(fallbackCall).toBeTruthy();
-    expect(fallbackCall?.[0]?.data).toMatchObject({
-      workflowRunId: 'test-run',
-      nodeRef: 'core.ai.agent',
-      agentRunId: expect.any(String),
-    });
-  });
-
-  describe('Structured Output', () => {
-    const generateObjectMock = vi.fn();
-    const generateTextMock = vi.fn();
-
-    beforeEach(() => {
-      generateObjectMock.mockReset();
-      generateTextMock.mockReset();
-    });
-
-    test('generates structured output from JSON example', async () => {
-      const component = componentRegistry.get('core.ai.agent');
-      expect(component).toBeDefined();
-
-      generateObjectMock.mockResolvedValue({
-        object: { name: 'Test User', age: 30 },
-        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-      });
-
-      const params = {
-        userInput: 'Generate user data',
-        conversationState: undefined,
-        chatModel: {
-          provider: 'openai',
-          modelId: 'gpt-4o-mini',
-        },
-        modelApiKey: 'sk-openai-from-secret',
-        systemPrompt: '',
-        temperature: 0.7,
-        maxTokens: 256,
-        memorySize: 8,
-        stepLimit: 4,
-        structuredOutputEnabled: true,
-        schemaType: 'json-example',
-        jsonExample: '{"name": "example", "age": 0}',
-        autoFixFormat: false,
-      };
-
-      const result = (await runComponentWithRunner(
-        component!.runner,
-        (p: any, ctx: any) =>
-          (component!.execute as any)(p, ctx, {
-            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-            tool: ((definition: any) => definition) as unknown as ToolFn,
-            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-            generateObject: generateObjectMock as unknown as GenerateObjectFn,
-            generateText: generateTextMock as unknown as GenerateTextFn,
-          }),
-        params,
-        workflowContext,
-      )) as any;
-
-      expect(generateObjectMock).toHaveBeenCalledTimes(1);
-      expect(result.structuredOutput).toEqual({ name: 'Test User', age: 30 });
-      expect(result.responseText).toBe(JSON.stringify({ name: 'Test User', age: 30 }, null, 2));
-      // ToolLoopAgent should NOT be called when structured output is enabled
-      expect(toolLoopAgentConstructorMock).not.toHaveBeenCalled();
-    });
-
-    test('generates structured output from JSON Schema', async () => {
-      const component = componentRegistry.get('core.ai.agent');
-      expect(component).toBeDefined();
-
-      generateObjectMock.mockResolvedValue({
-        object: { title: 'Hello World', count: 42 },
-        usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40 },
-      });
-
-      const params = {
-        userInput: 'Generate article data',
-        conversationState: undefined,
-        chatModel: {
-          provider: 'gemini',
-          modelId: 'gemini-2.5-flash',
-        },
-        modelApiKey: 'gm-gemini-from-secret',
-        systemPrompt: '',
-        temperature: 0.5,
-        maxTokens: 512,
-        memorySize: 8,
-        stepLimit: 4,
-        structuredOutputEnabled: true,
-        schemaType: 'json-schema',
-        jsonSchema: JSON.stringify({
-          type: 'object',
-          properties: {
-            title: { type: 'string' },
-            count: { type: 'integer' },
+    vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockResolvedValue(
+      createGenerationResult({
+        text: 'Tool done',
+        toolResults: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            toolName: 'ping',
+            input: { target: 'example.com' },
+            output: { type: 'json', value: { ok: true } },
+            dynamic: true,
           },
-          required: ['title', 'count'],
-        }),
-        autoFixFormat: false,
-      };
+        ],
+      }),
+    );
 
-      const result = (await runComponentWithRunner(
-        component!.runner,
-        (p: any, ctx: any) =>
-          (component!.execute as any)(p, ctx, {
-            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-            tool: ((definition: any) => definition) as unknown as ToolFn,
-            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-            generateObject: generateObjectMock as unknown as GenerateObjectFn,
-            generateText: generateTextMock as unknown as GenerateTextFn,
-          }),
-        params,
-        workflowContext,
-      )) as any;
-
-      expect(generateObjectMock).toHaveBeenCalledTimes(1);
-      expect(result.structuredOutput).toEqual({ title: 'Hello World', count: 42 });
-    });
-
-    test('uses auto-fix when generateObject fails', async () => {
-      const component = componentRegistry.get('core.ai.agent');
-      expect(component).toBeDefined();
-
-      generateObjectMock.mockRejectedValue(new Error('Schema validation failed'));
-      generateTextMock.mockResolvedValue({
-        text: '```json\n{"name": "Fixed User", "age": 25}\n```',
-        usage: { promptTokens: 20, completionTokens: 30, totalTokens: 50 },
-      });
-
-      const params = {
-        userInput: 'Generate user data',
-        conversationState: undefined,
-        chatModel: {
-          provider: 'openai',
-          modelId: 'gpt-4o-mini',
+    const result = await runComponentWithRunner(
+      component!.runner,
+      component!.execute,
+      {
+        inputs: {
+          userInput: 'Run the tool',
+          conversationState: undefined,
+          chatModel: {
+            provider: 'openai',
+            modelId: 'gpt-4o-mini',
+          },
+          modelApiKey: 'sk-test',
         },
-        modelApiKey: 'sk-openai-from-secret',
-        systemPrompt: '',
-        temperature: 0.7,
-        maxTokens: 256,
-        memorySize: 8,
-        stepLimit: 4,
-        structuredOutputEnabled: true,
-        schemaType: 'json-example',
-        jsonExample: '{"name": "example", "age": 0}',
-        autoFixFormat: true,
-      };
-
-      const result = (await runComponentWithRunner(
-        component!.runner,
-        (p: any, ctx: any) =>
-          (component!.execute as any)(p, ctx, {
-            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-            tool: ((definition: any) => definition) as unknown as ToolFn,
-            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-            generateObject: generateObjectMock as unknown as GenerateObjectFn,
-            generateText: generateTextMock as unknown as GenerateTextFn,
-          }),
-        params,
-        workflowContext,
-      )) as any;
-
-      expect(generateObjectMock).toHaveBeenCalledTimes(1);
-      expect(generateTextMock).toHaveBeenCalledTimes(1);
-      expect(result.structuredOutput).toEqual({ name: 'Fixed User', age: 25 });
-    });
-
-    test('returns null structuredOutput when not enabled', async () => {
-      const component = componentRegistry.get('core.ai.agent');
-      expect(component).toBeDefined();
-
-      nextAgentResult = makeAgentResult();
-
-      const params = {
-        userInput: 'Regular text query',
-        conversationState: undefined,
-        chatModel: {
-          provider: 'openai',
-          modelId: 'gpt-4o-mini',
+        params: {
+          systemPrompt: '',
+          temperature: 0.2,
+          maxTokens: 128,
+          memorySize: 5,
+          stepLimit: 2,
         },
-        modelApiKey: 'sk-openai-from-secret',
-        systemPrompt: '',
-        temperature: 0.7,
-        maxTokens: 256,
-        memorySize: 8,
-        stepLimit: 4,
-        structuredOutputEnabled: false,
-      };
+      },
+      createTestContext(),
+    );
 
-      const result = (await runComponentWithRunner(
-        component!.runner,
-        (p: any, ctx: any) =>
-          (component!.execute as any)(p, ctx, {
-            ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-            stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-            tool: ((definition: any) => definition) as unknown as ToolFn,
-            createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-            createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-            generateObject: generateObjectMock as unknown as GenerateObjectFn,
-            generateText: generateTextMock as unknown as GenerateTextFn,
-          }),
-        params,
-        workflowContext,
-      )) as any;
-
-      expect(generateObjectMock).not.toHaveBeenCalled();
-      expect(toolLoopAgentConstructorMock).toHaveBeenCalled();
-      expect(result.structuredOutput).toBeNull();
-      expect(result.responseText).toBe('Agent final answer');
-    });
-
-    test('throws error when auto-fix fails to parse', async () => {
-      const component = componentRegistry.get('core.ai.agent');
-      expect(component).toBeDefined();
-
-      generateObjectMock.mockRejectedValue(new Error('Schema validation failed'));
-      generateTextMock.mockResolvedValue({
-        text: 'This is not valid JSON at all',
-        usage: { promptTokens: 20, completionTokens: 30, totalTokens: 50 },
-      });
-
-      const params = {
-        userInput: 'Generate user data',
-        conversationState: undefined,
-        chatModel: {
-          provider: 'openai',
-          modelId: 'gpt-4o-mini',
-        },
-        modelApiKey: 'sk-openai-from-secret',
-        systemPrompt: '',
-        temperature: 0.7,
-        maxTokens: 256,
-        memorySize: 8,
-        stepLimit: 4,
-        structuredOutputEnabled: true,
-        schemaType: 'json-example',
-        jsonExample: '{"name": "example", "age": 0}',
-        autoFixFormat: true,
-      };
-
-      await expect(
-        runComponentWithRunner(
-          component!.runner,
-          (p: any, ctx: any) =>
-            (component!.execute as any)(p, ctx, {
-              ToolLoopAgent: MockToolLoopAgent as unknown as ToolLoopAgentClass,
-              stepCountIs: stepCountIsMock as unknown as StepCountIsFn,
-              tool: ((definition: any) => definition) as unknown as ToolFn,
-              createOpenAI: openAiFactoryMock as unknown as CreateOpenAIFn,
-              createGoogleGenerativeAI: googleFactoryMock as unknown as CreateGoogleGenerativeAIFn,
-              generateObject: generateObjectMock as unknown as GenerateObjectFn,
-              generateText: generateTextMock as unknown as GenerateTextFn,
-            }),
-          params,
-          workflowContext,
-        ),
-      ).rejects.toThrow('auto-fix could not parse');
+    const toolMessage = result.conversationState.messages.find(
+      (message: { role: string }) => message.role === 'tool',
+    );
+    expect(toolMessage).toBeDefined();
+    expect(toolMessage?.content).toMatchObject({
+      toolCallId: 'call-1',
+      toolName: 'ping',
+      output: { type: 'json', value: { ok: true } },
     });
   });
 });

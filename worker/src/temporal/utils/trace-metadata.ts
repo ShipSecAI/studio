@@ -8,6 +8,8 @@ export interface TraceMetadataAware extends ITraceService {
   finalizeRun?(runId: string): void;
 }
 
-export function isTraceMetadataAware(trace: ITraceService | undefined): trace is TraceMetadataAware {
+export function isTraceMetadataAware(
+  trace: ITraceService | undefined,
+): trace is TraceMetadataAware {
   return Boolean(trace && typeof (trace as any).setRunMetadata === 'function');
 }

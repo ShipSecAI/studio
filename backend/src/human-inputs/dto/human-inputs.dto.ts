@@ -2,7 +2,13 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 // Input type enum
-export const HumanInputTypeSchema = z.enum(['approval', 'form', 'selection', 'review', 'acknowledge']);
+export const HumanInputTypeSchema = z.enum([
+  'approval',
+  'form',
+  'selection',
+  'review',
+  'acknowledge',
+]);
 export type HumanInputType = z.infer<typeof HumanInputTypeSchema>;
 
 // Status enum
@@ -12,7 +18,10 @@ export type HumanInputStatus = z.infer<typeof HumanInputStatusSchema>;
 // ===== Request DTOs =====
 
 export const ResolveHumanInputSchema = z.object({
-  responseData: z.record(z.string(), z.unknown()).optional().describe('The response data from the human'),
+  responseData: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('The response data from the human'),
   respondedBy: z.string().optional().describe('User ID or identifier of who resolved the input'),
 });
 

@@ -49,22 +49,28 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    this.connectToKafka().catch((error) => {
+      this.logger.error('Failed to initialize Kafka e vent ingestion', error as Error);
+    });
+  }
+
+  private async connectToKafka(): Promise<void> {
     try {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
         requestTimeout: 30000,
         retry: {
-          retries: 1,
+          retries: 10,
           initialRetryTime: 100,
           maxRetryTime: 30000,
         },
       });
 
-      this.consumer = kafka.consumer({ 
+      this.consumer = kafka.consumer({
         groupId: this.kafkaGroupId,
-        sessionTimeout: 30000,
-        heartbeatInterval: 3000,
+        sessionTimeout: 6000,
+        heartbeatInterval: 2000,
       });
       await this.consumer.connect();
       await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
@@ -81,7 +87,9 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
               `Processing trace event: runId=${payload.runId}, type=${payload.type}, sequence=${payload.sequence}, offset=${messageOffset}`,
             );
             await this.persistEvent(payload);
-            this.logger.debug(`Successfully persisted trace event for run ${payload.runId}, sequence ${payload.sequence}`);
+            this.logger.debug(
+              `Successfully persisted trace event for run ${payload.runId}, sequence ${payload.sequence}`,
+            );
           } catch (error) {
             this.logger.error(
               `Failed to process trace event from Kafka (topic=${topic}, partition=${partition}, offset=${messageOffset})`,
@@ -94,22 +102,26 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
         `Kafka event ingestion connected (${this.kafkaBrokers.join(', ')}) topic=${this.kafkaTopic}`,
       );
     } catch (error) {
-      this.logger.error('Failed to initialize Kafka event ingestion', error as Error);
-      throw error;
+      this.logger.error('Failed to connect to Kafka event ingestion', error as Error);
+      // We don't throw here to ensure the backend stays up even if ingestion fails initially
     }
   }
 
   async onModuleDestroy(): Promise<void> {
     if (this.consumer) {
+      this.logger.log('Disconnecting Kafka consumer...');
       await this.consumer.disconnect().catch((error) => {
         this.logger.error('Failed to disconnect Kafka consumer', error as Error);
       });
+      this.logger.log('Kafka consumer disconnected');
     }
   }
 
   private async persistEvent(event: KafkaTraceEventPayload): Promise<void> {
     if (!event.sequence || event.sequence < 1) {
-      this.logger.warn(`Dropping trace event with invalid sequence for run ${event.runId}, sequence=${event.sequence}`);
+      this.logger.warn(
+        `Dropping trace event with invalid sequence for run ${event.runId}, sequence=${event.sequence}`,
+      );
       return;
     }
 
@@ -129,6 +141,5 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
     };
 
     await this.traceRepository.append(mapped);
-
   }
 }

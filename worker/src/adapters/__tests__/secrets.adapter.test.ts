@@ -6,18 +6,18 @@ import * as schema from '../schema';
 
 const TEST_MASTER_KEY = '00112233445566778899aabbccddeeff';
 
-type VersionRow = {
+interface VersionRow {
   encryptedValue: string;
   iv: string;
   authTag: string;
   keyId: string;
   versionNumber: number;
-};
+}
 
-type SecretsDbStubConfig = {
+interface SecretsDbStubConfig {
   versions?: VersionRow[];
   list?: { name: string }[];
-};
+}
 
 function createDbStub(config: SecretsDbStubConfig): NodePgDatabase<typeof schema> {
   return {

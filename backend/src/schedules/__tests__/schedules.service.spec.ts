@@ -36,6 +36,7 @@ const workflowDefinition: WorkflowDefinition = {
       params: {
         runtimeInputs: [{ id: 'domain', label: 'Domain', required: true }],
       },
+      inputOverrides: {},
       dependsOn: [],
       inputMappings: {},
     },
@@ -43,6 +44,7 @@ const workflowDefinition: WorkflowDefinition = {
       ref: 'scanner',
       componentId: 'security.dnsx',
       params: {},
+      inputOverrides: {},
       dependsOn: ['entry'],
       inputMappings: {},
     },
@@ -253,7 +255,7 @@ describe('SchedulesService', () => {
       overlapPolicy: 'skip',
       inputPayload: {
         runtimeInputs: { domain: 'acme.com' },
-        nodeOverrides: { scanner: { depth: 3 } },
+        nodeOverrides: { scanner: { params: { depth: 3 }, inputOverrides: {} } },
       },
     });
 
@@ -267,7 +269,7 @@ describe('SchedulesService', () => {
         workflowId: 'workflow-1',
         scheduleId: schedule.id,
         runtimeInputs: { domain: 'acme.com' },
-        nodeOverrides: { scanner: { depth: 3 } },
+        nodeOverrides: { scanner: { params: { depth: 3 }, inputOverrides: {} } },
         trigger: {
           type: 'schedule',
           sourceId: schedule.id,
@@ -317,7 +319,7 @@ describe('SchedulesService', () => {
       name: 'Nightly updated',
       inputPayload: {
         runtimeInputs: { domain: 'example.org' },
-        nodeOverrides: { scanner: { timeout: 60 } },
+        nodeOverrides: { scanner: { params: { timeout: 60 }, inputOverrides: {} } },
       },
     });
 
@@ -327,7 +329,7 @@ describe('SchedulesService', () => {
       timezone: 'America/New_York',
       dispatchArgs: {
         runtimeInputs: { domain: 'example.org' },
-        nodeOverrides: { scanner: { timeout: 60 } },
+        nodeOverrides: { scanner: { params: { timeout: 60 }, inputOverrides: {} } },
       },
     });
   });
@@ -343,7 +345,7 @@ describe('SchedulesService', () => {
       catchupWindowSeconds: 0,
       inputPayload: {
         runtimeInputs: { domain: 'acme.com' },
-        nodeOverrides: { scanner: { depth: 1 } },
+        nodeOverrides: { scanner: { params: { depth: 1 }, inputOverrides: {} } },
       },
     });
 
@@ -363,7 +365,7 @@ describe('SchedulesService', () => {
         sourceId: created.id,
         label: created.name,
       },
-      nodeOverrides: { scanner: { depth: 1 } },
+      nodeOverrides: { scanner: { params: { depth: 1 }, inputOverrides: {} } },
     });
     expect(startPreparedRunCalls.length).toBe(1);
   });

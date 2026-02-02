@@ -1,4 +1,5 @@
 import tailwindTypography from '@tailwindcss/typography'
+import tailwindColors from 'tailwindcss/colors'
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -30,7 +31,7 @@ export default {
   	},
   	colors: (() => {
 		// Exclude deprecated color names to silence Tailwind v3 warnings
-		const { lightBlue, warmGray, trueGray, coolGray, blueGray, ...colors } = require('tailwindcss/colors')
+		const { lightBlue, warmGray, trueGray, coolGray, blueGray, ...colors } = tailwindColors
 		return {
 			...colors,
 			// Custom semantic colors (override defaults)

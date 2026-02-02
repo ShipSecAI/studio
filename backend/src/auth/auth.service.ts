@@ -13,9 +13,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly provider: AuthProviderStrategy;
 
-  constructor(
-    private readonly configService: ConfigService,
-  ) {
+  constructor(private readonly configService: ConfigService) {
     this.provider = this.createProvider();
     this.logger.log(`Auth provider initialised: ${this.provider.name}`);
   }
@@ -44,13 +42,15 @@ export class AuthService {
       if (!config.clerk.secretKey) {
         const error = new Error(
           'Clerk auth provider is configured but CLERK_SECRET_KEY is missing. ' +
-          'Please set CLERK_SECRET_KEY in your environment variables or change AUTH_PROVIDER to "local".'
+            'Please set CLERK_SECRET_KEY in your environment variables or change AUTH_PROVIDER to "local".',
         );
         this.logger.error(error.message);
         throw error;
       }
       if (!config.clerk.publishableKey) {
-        this.logger.warn('CLERK_PUBLISHABLE_KEY is not set, but this is only needed on the frontend');
+        this.logger.warn(
+          'CLERK_PUBLISHABLE_KEY is not set, but this is only needed on the frontend',
+        );
       }
       return new ClerkAuthProvider(config.clerk);
     }

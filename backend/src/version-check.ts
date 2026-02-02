@@ -41,7 +41,9 @@ export function isVersionCheckDisabled(env: NodeJS.ProcessEnv = process.env) {
   return ['1', 'true', 'yes'].includes(value.toLowerCase());
 }
 
-export async function performVersionCheck(overrides: Partial<VersionCheckMetadata> = {}): Promise<VersionCheckResult> {
+export async function performVersionCheck(
+  overrides: Partial<VersionCheckMetadata> = {},
+): Promise<VersionCheckResult> {
   const metadata: VersionCheckMetadata = {
     version: overrides.version ?? DEFAULT_VERSION,
     platform: overrides.platform ?? process.platform,
@@ -61,7 +63,9 @@ export async function performVersionCheck(overrides: Partial<VersionCheckMetadat
     const response = await fetch(url.toString(), { signal: controller.signal });
     if (!response.ok) {
       const body = await safeBody(response);
-      throw new Error(`Version check failed with status ${response.status}${body ? `: ${body}` : ''}`);
+      throw new Error(
+        `Version check failed with status ${response.status}${body ? `: ${body}` : ''}`,
+      );
     }
     const payload = (await response.json()) as VersionCheckResponse;
     return {

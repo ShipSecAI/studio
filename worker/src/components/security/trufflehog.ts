@@ -1,78 +1,141 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
   ComponentRetryPolicy,
-  port,
   runComponentWithRunner,
   type DockerRunnerConfig,
   ContainerError,
   ValidationError,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const scanTypeSchema = z.enum([
-  'git',
-  'github',
-  'gitlab',
-  's3',
-  'gcs',
-  'filesystem',
-  'docker',
-]);
+const scanTypeSchema = z.enum(['git', 'github', 'gitlab', 's3', 'gcs', 'filesystem', 'docker']);
 
-const inputSchema = z.object({
-  scanTarget: z
-    .string()
-    .min(1, 'Scan target cannot be empty')
-    .describe('Target to scan (repository URL, filesystem path, S3 bucket, etc.)'),
-  scanType: scanTypeSchema
-    .default('git')
-    .describe('Type of scan to perform'),
-  filesystemContent: z
-    .record(z.string(), z.string())
-    .optional()
-    .describe('Files to write to isolated volume for filesystem scanning (filename -> content map)'),
-  onlyVerified: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe('Show only verified secrets'),
-  jsonOutput: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe('Output results in JSON format'),
-  branch: z
-    .string()
-    .trim()
-    .optional()
-    .describe('Specific branch to scan - use PR branch for PR scanning (git/github only)'),
-  sinceCommit: z
-    .string()
-    .trim()
-    .optional()
-    .describe('Scan commits since this reference - use base branch for PR scanning (git only)'),
-  includeIssueComments: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('Include GitHub issue comments (github only)'),
-  includePRComments: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('Include pull request comments (github only)'),
-  customFlags: z
-    .string()
-    .trim()
-    .optional()
-    .describe('Additional CLI flags to append to the TruffleHog command'),
+const inputSchema = inputs({
+  scanTarget: port(
+    z
+      .string()
+      .min(1, 'Scan target cannot be empty')
+      .describe('Target to scan (repository URL, filesystem path, S3 bucket, etc.)'),
+    {
+      label: 'Scan Target',
+      description: 'Target to scan (repository URL, filesystem path, bucket, etc.).',
+      connectionType: { kind: 'primitive', name: 'text' },
+    },
+  ),
 });
 
-type Input = z.infer<typeof inputSchema>;
+type Output = z.infer<typeof outputSchema>;
 
-type Secret = {
+const parameterSchema = parameters({
+  scanType: param(scanTypeSchema.default('git').describe('Type of scan to perform'), {
+    label: 'Scan Type',
+    editor: 'select',
+    options: [
+      { label: 'Git', value: 'git' },
+      { label: 'GitHub', value: 'github' },
+      { label: 'GitLab', value: 'gitlab' },
+      { label: 'S3', value: 's3' },
+      { label: 'GCS', value: 'gcs' },
+      { label: 'Filesystem', value: 'filesystem' },
+      { label: 'Docker', value: 'docker' },
+    ],
+  }),
+  filesystemContent: param(
+    z
+      .record(z.string(), z.string())
+      .optional()
+      .describe(
+        'Files to write to isolated volume for filesystem scanning (filename -> content map)',
+      ),
+    {
+      label: 'Filesystem Files',
+      editor: 'json',
+      description: 'JSON map of filename to content for filesystem scanning (optional).',
+      helpText:
+        'Only use with scanType=filesystem. Files are written to an isolated Docker volume.',
+    },
+  ),
+  onlyVerified: param(z.boolean().default(true).describe('Show only verified secrets'), {
+    label: 'Only Verified',
+    editor: 'boolean',
+    description: 'Show only verified secrets (actively valid credentials).',
+    helpText: 'Disable to also show unverified potential secrets.',
+  }),
+  jsonOutput: param(z.boolean().default(true).describe('Output results in JSON format'), {
+    label: 'JSON Output',
+    editor: 'boolean',
+    description: 'Output results in JSON format for parsing.',
+    helpText: 'JSON format provides structured data for further processing.',
+  }),
+  branch: param(
+    z
+      .string()
+      .trim()
+      .optional()
+      .describe('Specific branch to scan - use PR branch for PR scanning (git/github only)'),
+    {
+      label: 'Branch',
+      editor: 'text',
+      placeholder: 'feature-branch',
+      description: 'Specific branch to scan (git/github only).',
+      helpText: 'For PR scanning: set this to the PR/feature branch name.',
+    },
+  ),
+  sinceCommit: param(
+    z
+      .string()
+      .trim()
+      .optional()
+      .describe('Scan commits since this reference - use base branch for PR scanning (git only)'),
+    {
+      label: 'Since Commit',
+      editor: 'text',
+      placeholder: 'main',
+      description: 'Scan commits since this reference (git only).',
+      helpText: 'For PR scans: set this to the base branch (e.g. "main").',
+    },
+  ),
+  includeIssueComments: param(
+    z.boolean().default(false).describe('Include GitHub issue comments (github only)'),
+    {
+      label: 'Include Issue Comments',
+      editor: 'boolean',
+      description: 'Scan GitHub issue comments (github only).',
+    },
+  ),
+  includePRComments: param(
+    z.boolean().default(false).describe('Include pull request comments (github only)'),
+    {
+      label: 'Include PR Comments',
+      editor: 'boolean',
+      description: 'Scan pull request comments (github only).',
+    },
+  ),
+  customFlags: param(
+    z
+      .string()
+      .trim()
+      .optional()
+      .describe('Additional CLI flags to append to the TruffleHog command'),
+    {
+      label: 'Custom CLI Flags',
+      editor: 'textarea',
+      rows: 3,
+      placeholder: '--fail --concurrency=8',
+      description: 'Additional TruffleHog CLI flags.',
+      helpText: 'Use --fail to exit with code 183 if secrets are found.',
+    },
+  ),
+});
+
+interface Secret {
   DetectorType?: string;
   DetectorName?: string;
   DecoderName?: string;
@@ -97,26 +160,38 @@ type Secret = {
     };
   };
   StructuredData?: Record<string, any>;
-};
+}
 
-type Output = {
-  secrets: Secret[];
-  rawOutput: string;
-  secretCount: number;
-  verifiedCount: number;
-  hasVerifiedSecrets: boolean;
-};
-
-const outputSchema = z.object({
-  secrets: z.array(z.any()),
-  rawOutput: z.string(),
-  secretCount: z.number(),
-  verifiedCount: z.number(),
-  hasVerifiedSecrets: z.boolean(),
+const outputSchema = outputs({
+  secrets: port(z.array(z.any()), {
+    label: 'Secrets',
+    description: 'Secrets detected by TruffleHog.',
+    allowAny: true,
+    reason: 'TruffleHog returns heterogeneous secret payloads.',
+    connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  rawOutput: port(z.string(), {
+    label: 'Raw Output',
+    description: 'Raw TruffleHog output for debugging.',
+  }),
+  secretCount: port(z.number(), {
+    label: 'Secret Count',
+    description: 'Total number of secrets detected.',
+  }),
+  verifiedCount: port(z.number(), {
+    label: 'Verified Count',
+    description: 'Number of verified secrets detected.',
+  }),
+  hasVerifiedSecrets: port(z.boolean(), {
+    label: 'Has Verified Secrets',
+    description: 'True when any verified secrets are detected.',
+  }),
 });
 
 // Helper function to build TruffleHog command arguments
-function buildTruffleHogCommand(input: Input): string[] {
+function buildTruffleHogCommand(
+  input: (typeof inputSchema)['__inferred'] & (typeof parameterSchema)['__inferred'],
+): string[] {
   const args: string[] = [input.scanType];
 
   // Add scan target based on scan type
@@ -166,7 +241,7 @@ function buildTruffleHogCommand(input: Input): string[] {
 
   // Add custom flags if provided
   if (input.customFlags) {
-    args.push(...input.customFlags.split(' ').filter(f => f.trim().length > 0));
+    args.push(...input.customFlags.split(' ').filter((f) => f.trim().length > 0));
   }
 
   return args;
@@ -196,7 +271,7 @@ function parseRawOutput(rawOutput: string): Output {
   }
 
   // TruffleHog outputs one JSON object per line for each secret found (NDJSON format)
-  const lines = rawOutput.split('\n').filter(line => line.trim().length > 0);
+  const lines = rawOutput.split('\n').filter((line) => line.trim().length > 0);
   const secrets: Secret[] = [];
   let verifiedCount = 0;
 
@@ -207,7 +282,7 @@ function parseRawOutput(rawOutput: string): Output {
       if (secret.Verified === true) {
         verifiedCount++;
       }
-    } catch (error) {
+    } catch (_error) {
       // Skip non-JSON lines (like status messages)
       continue;
     }
@@ -222,7 +297,7 @@ function parseRawOutput(rawOutput: string): Output {
   };
 }
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'shipsec.trufflehog.scan',
   label: 'TruffleHog',
   category: 'security',
@@ -244,16 +319,19 @@ const definition: ComponentDefinition<Input, Output> = {
     backoffCoefficient: 2,
     nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
   } satisfies ComponentRetryPolicy,
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Scan for secrets and credentials using TruffleHog. Supports Git repositories, GitHub, GitLab, filesystems, S3 buckets, Docker images, and more.',
-  metadata: {
+  ui: {
     slug: 'trufflehog',
     version: '1.0.0',
     type: 'scan',
     category: 'security',
-    description: 'Find, verify, and analyze leaked credentials across repositories, filesystems, and cloud storage using TruffleHog.',
-    documentation: 'TruffleHog discovers and verifies secrets across 800+ credential types. Scan Git history, filesystems, S3 buckets, Docker images, and more.',
+    description:
+      'Find, verify, and analyze leaked credentials across repositories, filesystems, and cloud storage using TruffleHog.',
+    documentation:
+      'TruffleHog discovers and verifies secrets across 800+ credential types. Scan Git history, filesystems, S3 buckets, Docker images, and more.',
     documentationUrl: 'https://github.com/trufflesecurity/trufflehog',
     icon: 'Key',
     author: {
@@ -262,62 +340,8 @@ const definition: ComponentDefinition<Input, Output> = {
     },
     isLatest: true,
     deprecated: false,
-    example: '`trufflehog git https://github.com/org/repo --results=verified --json` - Scans a Git repository for verified secrets and outputs results in JSON format.',
-    inputs: [
-      {
-        id: 'scanTarget',
-        label: 'Scan Target',
-        dataType: port.text(),
-        required: true,
-        description: 'Repository URL, filesystem path, S3 bucket name, or Docker image to scan.',
-      },
-      {
-        id: 'scanType',
-        label: 'Scan Type',
-        dataType: port.text(),
-        required: true,
-        description: 'Type of scan: git, github, gitlab, s3, gcs, filesystem, or docker.',
-      },
-      {
-        id: 'filesystemContent',
-        label: 'Filesystem Content',
-        dataType: port.any(),
-        required: false,
-        description: 'Map of filename to content for filesystem scanning (uses isolated volumes).',
-      },
-    ],
-    outputs: [
-      {
-        id: 'secrets',
-        label: 'Detected Secrets',
-        dataType: port.list(port.any()),
-        description: 'Array of secrets discovered by TruffleHog with verification status.',
-      },
-      {
-        id: 'rawOutput',
-        label: 'Raw Output',
-        dataType: port.text(),
-        description: 'Raw TruffleHog output for debugging.',
-      },
-      {
-        id: 'secretCount',
-        label: 'Secret Count',
-        dataType: port.number(),
-        description: 'Total number of secrets found.',
-      },
-      {
-        id: 'verifiedCount',
-        label: 'Verified Count',
-        dataType: port.number(),
-        description: 'Number of verified secrets.',
-      },
-      {
-        id: 'hasVerifiedSecrets',
-        label: 'Has Verified Secrets',
-        dataType: port.boolean(),
-        description: 'Boolean flag indicating if any verified secrets were found.',
-      },
-    ],
+    example:
+      '`trufflehog git https://github.com/org/repo --results=verified --json` - Scans a Git repository for verified secrets and outputs results in JSON format.',
     examples: [
       'Scan a Git repository for verified secrets before deployment.',
       'Audit filesystem directories for accidentally committed credentials.',
@@ -325,96 +349,40 @@ const definition: ComponentDefinition<Input, Output> = {
       'Scan only changes in a Pull Request by setting branch to PR branch and sinceCommit to base branch.',
       'Scan last 10 commits in CI/CD using sinceCommit=HEAD~10 to catch recent secrets.',
     ],
-    parameters: [
-      {
-        id: 'filesystemContent',
-        label: 'Filesystem Files',
-        type: 'textarea',
-        rows: 10,
-        placeholder: '{"config.yaml": "api_key: secret123", "app.py": "# code here"}',
-        description: 'JSON map of filename to content for filesystem scanning (optional).',
-        helpText: 'Only use with scanType=filesystem. Files are written to an isolated Docker volume for secure multi-tenant scanning.',
-      },
-      {
-        id: 'onlyVerified',
-        label: 'Only Verified',
-        type: 'boolean',
-        default: true,
-        description: 'Show only verified secrets (actively valid credentials).',
-        helpText: 'Disable to also show unverified potential secrets.',
-      },
-      {
-        id: 'jsonOutput',
-        label: 'JSON Output',
-        type: 'boolean',
-        default: true,
-        description: 'Output results in JSON format for parsing.',
-        helpText: 'JSON format provides structured data for further processing.',
-      },
-      {
-        id: 'branch',
-        label: 'Branch',
-        type: 'text',
-        placeholder: 'feature-branch',
-        description: 'Specific branch to scan (git/github only).',
-        helpText: 'For PR scanning: set this to the PR/feature branch name.',
-      },
-      {
-        id: 'sinceCommit',
-        label: 'Since Commit',
-        type: 'text',
-        placeholder: 'main',
-        description: 'Scan commits since this reference (git only).',
-        helpText: 'For PR scanning: set this to the base branch (e.g., "main"). For incremental scans: use HEAD~10 or a commit hash.',
-      },
-      {
-        id: 'includeIssueComments',
-        label: 'Include Issue Comments',
-        type: 'boolean',
-        default: false,
-        description: 'Scan GitHub issue comments (github only).',
-      },
-      {
-        id: 'includePRComments',
-        label: 'Include PR Comments',
-        type: 'boolean',
-        default: false,
-        description: 'Scan pull request comments (github only).',
-      },
-      {
-        id: 'customFlags',
-        label: 'Custom CLI Flags',
-        type: 'textarea',
-        rows: 3,
-        placeholder: '--fail --concurrency=8',
-        description: 'Additional TruffleHog CLI flags.',
-        helpText: 'Use --fail to exit with code 183 if secrets are found.',
-      },
-    ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Secret and credential leakage scanner (TruffleHog).',
+    },
   },
-  async execute(input, context) {
+  async execute({ inputs, params }, context) {
+    const parsedParams = parameterSchema.parse(params);
+    const runnerPayload = {
+      ...inputs,
+      ...parsedParams,
+    };
+
     context.logger.info(
-      `[TruffleHog] Scanning ${input.scanType} target: ${input.scanTarget}`,
+      `[TruffleHog] Scanning ${runnerPayload.scanType} target: ${runnerPayload.scanTarget}`,
     );
 
     const optionsSummary = {
-      scanType: input.scanType,
-      onlyVerified: input.onlyVerified ?? true,
-      jsonOutput: input.jsonOutput ?? true,
-      branch: input.branch ?? null,
-      sinceCommit: input.sinceCommit ?? null,
-      hasFilesystemContent: !!input.filesystemContent,
+      scanType: runnerPayload.scanType,
+      onlyVerified: runnerPayload.onlyVerified ?? true,
+      jsonOutput: runnerPayload.jsonOutput ?? true,
+      branch: runnerPayload.branch ?? null,
+      sinceCommit: runnerPayload.sinceCommit ?? null,
+      hasFilesystemContent: !!runnerPayload.filesystemContent,
     };
 
     context.emitProgress({
       message: 'Launching TruffleHog scan…',
       level: 'info',
-      data: { target: input.scanTarget, options: optionsSummary },
+      data: { target: runnerPayload.scanTarget, options: optionsSummary },
     });
 
     // Handle filesystem scanning with isolated volumes
     let volume: IsolatedContainerVolume | undefined;
-    let effectiveInput = input;
+    let effectiveInput = runnerPayload;
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
@@ -425,8 +393,11 @@ const definition: ComponentDefinition<Input, Output> = {
 
     try {
       // If filesystemContent is provided, use isolated volume
-      if (input.filesystemContent && Object.keys(input.filesystemContent).length > 0) {
-        if (input.scanType !== 'filesystem') {
+      if (
+        runnerPayload.filesystemContent &&
+        Object.keys(runnerPayload.filesystemContent).length > 0
+      ) {
+        if (runnerPayload.scanType !== 'filesystem') {
           throw new ValidationError('filesystemContent can only be used with scanType=filesystem', {
             fieldErrors: { scanType: ['Must be "filesystem" when using filesystemContent'] },
           });
@@ -436,12 +407,12 @@ const definition: ComponentDefinition<Input, Output> = {
         volume = new IsolatedContainerVolume(tenantId, context.runId);
 
         // Initialize volume with files
-        const volumeName = await volume.initialize(input.filesystemContent);
+        const volumeName = await volume.initialize(runnerPayload.filesystemContent);
         context.logger.info(`[TruffleHog] Created isolated volume: ${volumeName}`);
 
         // Override scanTarget to point to mounted volume
         effectiveInput = {
-          ...input,
+          ...runnerPayload,
           scanTarget: '/scan',
         };
       }
@@ -475,7 +446,10 @@ const definition: ComponentDefinition<Input, Output> = {
 
         // If it's exit code 183, this means secrets were found (not an error)
         // We should still parse and return the output
-        if (errorMessage.includes('exit code 183') || errorMessage.includes('exited with code 183')) {
+        if (
+          errorMessage.includes('exit code 183') ||
+          errorMessage.includes('exited with code 183')
+        ) {
           context.logger.info('[TruffleHog] Exit code 183: secrets found (--fail flag)');
 
           // Try to extract output from error if available
@@ -490,9 +464,8 @@ const definition: ComponentDefinition<Input, Output> = {
       }
 
       // Parse the raw output
-      const output = typeof rawResult === 'string'
-        ? parseRawOutput(rawResult)
-        : (rawResult as Output);
+      const output =
+        typeof rawResult === 'string' ? parseRawOutput(rawResult) : (rawResult as Output);
 
       // Log and emit progress
       context.logger.info(
@@ -505,7 +478,7 @@ const definition: ComponentDefinition<Input, Output> = {
           level: 'warn',
           data: {
             secretCount: output.secretCount,
-            verifiedCount: output.verifiedCount
+            verifiedCount: output.verifiedCount,
           },
         });
       } else if (output.secretCount > 0) {
@@ -529,8 +502,12 @@ const definition: ComponentDefinition<Input, Output> = {
       }
     }
   },
-};
+});
 
 componentRegistry.register(definition);
 
-export type { Input as TruffleHogInput, Output as TruffleHogOutput };
+// Create local type aliases for backward compatibility
+type TruffleHogInput = typeof inputSchema;
+type TruffleHogOutput = typeof outputSchema;
+
+export type { TruffleHogInput, TruffleHogOutput };

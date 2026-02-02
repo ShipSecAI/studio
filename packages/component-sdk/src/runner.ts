@@ -1,10 +1,48 @@
 import { spawn } from 'child_process';
+import { mkdtemp, rm, readFile, writeFile, access, constants } from 'fs/promises';
+
+import { tmpdir } from 'os';
+import { join } from 'path';
 import type { ExecutionContext, RunnerConfig, DockerRunnerConfig } from './types';
 import { createTerminalChunkEmitter } from './terminal';
 import { ContainerError, TimeoutError, ValidationError, ConfigurationError } from './errors';
 
+// Standard output file path inside the container
+const CONTAINER_OUTPUT_PATH = '/shipsec-output';
+const OUTPUT_FILENAME = 'result.json';
+
 type PtySpawn = typeof import('node-pty')['spawn'];
 let cachedPtySpawn: PtySpawn | null = null;
+let cachedDockerPath: string | null = null;
+
+export async function resolveDockerPath(context?: ExecutionContext): Promise<string> {
+  if (cachedDockerPath) return cachedDockerPath;
+
+  const commonPaths = [
+    '/usr/local/bin/docker',
+    '/opt/homebrew/bin/docker',
+    '/usr/bin/docker',
+    '/bin/docker',
+  ];
+
+  for (const path of commonPaths) {
+    try {
+      await access(path, constants.X_OK);
+      context?.logger.debug(`[Docker] Resolved docker path to: ${path}`);
+      cachedDockerPath = path;
+      return path;
+    } catch {
+      // Continue to next path
+    }
+  }
+
+  // Fallback to searching in PATH
+  context?.logger.info(`[Docker] Checked common paths but could not find docker. Fallback to using "docker" from PATH.`);
+  cachedDockerPath = 'docker';
+  return 'docker';
+}
+
+
 
 function formatArgs(args: string[]): string {
   return args
@@ -47,71 +85,193 @@ export async function runComponentInline<I, O>(
 /**
  * Execute a component in a Docker container
  * - Starts container with specified image and command
- * - Passes input params as JSON via stdin
- * - Captures stdout as output
- * - Automatically cleans up container on exit
+ * - Mounts a temp directory for structured output at /shipsec-output
+ * - Components should write results to /shipsec-output/result.json
+ * - Stdout/stderr are used purely for logging/progress
+ * - Automatically cleans up container and temp directory on exit
  */
 async function runComponentInDocker<I, O>(
   runner: DockerRunnerConfig,
   params: I,
   context: ExecutionContext,
 ): Promise<O> {
-  const { image, command, entrypoint, env = {}, network = 'none', platform, volumes, timeoutSeconds = 300 } = runner;
+  const { image, command, entrypoint, env = {}, network = 'none', platform, containerName, volumes, timeoutSeconds = 300, detached } = runner;
 
   context.logger.info(`[Docker] Running ${image} with command: ${formatArgs(command)}`);
   context.emitProgress(`Starting Docker container: ${image}`);
 
-  const dockerArgs = [
-    'run',
-    '--rm',
-    '-i',
-    '--network', network,
-  ];
+  // Create temp directory for output and input
+  const outputDir = await mkdtemp(join(tmpdir(), 'shipsec-run-'));
+  const hostOutputPath = join(outputDir, OUTPUT_FILENAME);
+  const hostInputPath = join(outputDir, 'input.json');
 
-  if (platform && platform.trim().length > 0) {
-    dockerArgs.push('--platform', platform);
-  }
+  try {
+    // Write inputs to file instead of passing via env or stdin
+    await writeFile(hostInputPath, JSON.stringify(params));
 
-  if (Array.isArray(volumes)) {
-    for (const vol of volumes) {
-      if (!vol || !vol.source || !vol.target) continue;
-      const mode = vol.readOnly ? ':ro' : '';
-      dockerArgs.push('-v', `${vol.source}:${vol.target}${mode}`);
+    const dockerArgs = [
+      'run',
+      '--rm',
+      '-i',
+      '--network', network,
+      '--label', `shipsec.runId=${context.runId}`,
+      '--label', `shipsec.nodeRef=${context.componentRef}`,
+      // Mount the directory containing both input and output
+      '-v', `${outputDir}:${CONTAINER_OUTPUT_PATH}`,
+    ];
+
+    if (containerName) {
+      dockerArgs.push('--name', containerName);
     }
-  }
 
-  for (const [key, value] of Object.entries(env)) {
-    dockerArgs.push('-e', `${key}=${value}`);
-  }
-
-  if (entrypoint) {
-    dockerArgs.push('--entrypoint', entrypoint);
-  }
-
-  dockerArgs.push(image, ...command);
-
-  const useTerminal = Boolean(context.terminalCollector);
-  if (useTerminal) {
-    // Remove -i flag for PTY mode (stdin not needed with TTY)
-    const argsWithoutStdin = dockerArgs.filter(arg => arg !== '-i');
-    if (!argsWithoutStdin.includes('-t')) {
-      argsWithoutStdin.splice(2, 0, '-t');
+    if (platform && platform.trim().length > 0) {
+      dockerArgs.push('--platform', platform);
     }
-    // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
-    return runDockerWithPty(argsWithoutStdin, params, context, timeoutSeconds);
-  }
 
-  return runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds);
+    if (Array.isArray(volumes)) {
+      for (const vol of volumes) {
+        if (!vol || !vol.source || !vol.target) continue;
+        const mode = vol.readOnly ? ':ro' : '';
+        dockerArgs.push('-v', `${vol.source}:${vol.target}${mode}`);
+      }
+    }
+
+    if (runner.ports) {
+      for (const [hostPort, containerPort] of Object.entries(runner.ports)) {
+        dockerArgs.push('-p', `${hostPort}:${containerPort}`);
+      }
+    }
+
+    for (const [key, value] of Object.entries(env)) {
+      dockerArgs.push('-e', `${key}=${value}`);
+    }
+
+    // Tell the container where to read input and write output
+    dockerArgs.push('-e', `SHIPSEC_INPUT_PATH=${CONTAINER_OUTPUT_PATH}/input.json`);
+    dockerArgs.push('-e', `SHIPSEC_OUTPUT_PATH=${CONTAINER_OUTPUT_PATH}/${OUTPUT_FILENAME}`);
+
+    if (entrypoint) {
+      dockerArgs.push('--entrypoint', entrypoint);
+    }
+
+    dockerArgs.push(image, ...command);
+
+
+    const useTerminal = Boolean(context.terminalCollector);
+    let capturedStdout = '';
+
+    if (runner.detached) {
+      // For detached mode, we use -d instead of -i and return the container ID
+      const detachedArgs = dockerArgs.map(arg => arg === '-i' ? '-d' : arg);
+      if (!detachedArgs.includes('-d')) {
+        detachedArgs.splice(1, 0, '-d');
+      }
+
+      // In detached mode, we don't want --rm because we want the container to persist for the registry
+      const persistentArgs = detachedArgs.filter(arg => arg !== '--rm');
+
+      capturedStdout = await runDockerWithStandardIO(persistentArgs, params, context, timeoutSeconds, runner.stdinJson, true);
+
+      // In detached mode, we return the container ID as part of a specialized output
+      return {
+        containerId: capturedStdout.trim(),
+        status: 'running',
+        endpoint: env.ENDPOINT || `http://localhost:${env.PORT || 8080}`
+      } as unknown as O;
+    }
+
+    if (useTerminal) {
+      // Remove -i flag for PTY mode (stdin not needed with TTY)
+      const argsWithoutStdin = dockerArgs.filter(arg => arg !== '-i');
+      if (!argsWithoutStdin.includes('-t')) {
+        argsWithoutStdin.splice(2, 0, '-t');
+      }
+      // NEVER write JSON to stdin in PTY mode - it pollutes the terminal output
+      capturedStdout = await runDockerWithPty(argsWithoutStdin, params, context, timeoutSeconds);
+    } else {
+      capturedStdout = await runDockerWithStandardIO(dockerArgs, params, context, timeoutSeconds, runner.stdinJson);
+    }
+
+
+    // Read output from file (with stdout fallback for legacy components)
+    return await readOutputFromFile<O>(hostOutputPath, capturedStdout, context);
+  } finally {
+    // Cleanup temp directory
+    await rm(outputDir, { recursive: true, force: true }).catch((err) => {
+      context.logger.warn(`[Docker] Failed to cleanup temp directory ${outputDir}: ${err.message}`);
+    });
+  }
 }
 
-function runDockerWithStandardIO<I, O>(
+/**
+ * Read component output from the mounted output file.
+ * If file doesn't exist, falls back to stdout parsing for backwards compatibility.
+ * 
+ * @param filePath Path to the output file
+ * @param stdout Captured stdout as fallback for legacy components
+ * @param context Execution context for logging
+ */
+async function readOutputFromFile<O>(
+  filePath: string,
+  stdout: string,
+  context: ExecutionContext
+): Promise<O> {
+  // First, try to read from the output file (preferred method)
+  try {
+    await access(filePath, constants.R_OK);
+    const content = await readFile(filePath, 'utf8');
+    const output = JSON.parse(content.trim());
+    context.logger.info(`[Docker] Read output from file (${content.length} bytes)`);
+    return output as O;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if (error instanceof SyntaxError) {
+        context.logger.error(`[Docker] Failed to parse output JSON: ${error.message}`);
+        throw new ValidationError(`Failed to parse container output as JSON: ${error.message}`, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
+    // File not found - fall through to stdout fallback
+  }
+
+  // Fallback: Use stdout (for backwards compatibility with legacy components)
+  // This allows components that just write to stdout to continue working.
+  if (stdout.trim().length > 0) {
+    context.logger.info(`[Docker] No output file found, using stdout fallback (${stdout.length} bytes)`);
+
+    // Try to parse stdout as JSON
+    try {
+      const output = JSON.parse(stdout.trim());
+      return output as O;
+    } catch {
+      // Not JSON - return raw string as output
+      // This handles components like subfinder that output plain text
+      return stdout.trim() as unknown as O;
+    }
+  }
+
+  // No output file and no stdout - return empty object
+  context.logger.warn('[Docker] No output file or stdout, returning empty result');
+  return {} as O;
+}
+
+/**
+ * Run Docker container with standard I/O.
+ * Stdout/stderr are collected - stdout is returned for backwards compatibility.
+ * Primary output method is the mounted output file.
+ */
+async function runDockerWithStandardIO<I, O>(
   dockerArgs: string[],
   params: I,
   context: ExecutionContext,
   timeoutSeconds: number,
   stdinJson?: boolean,
-): Promise<O> {
-  return new Promise<O>((resolve, reject) => {
+  detached?: boolean,
+): Promise<string> {
+  const dockerPath = await resolveDockerPath(context);
+  return new Promise<string>((resolve, reject) => {
     const stdoutEmitter = createTerminalChunkEmitter(context, 'stdout');
     const stderrEmitter = createTerminalChunkEmitter(context, 'stderr');
 
@@ -122,9 +282,12 @@ function runDockerWithStandardIO<I, O>(
       }));
     }, timeoutSeconds * 1000);
 
-    const proc = spawn('docker', dockerArgs, {
+    const proc = spawn(dockerPath, dockerArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env,
     });
+
+
 
     let stdout = '';
     let stderr = '';
@@ -132,7 +295,9 @@ function runDockerWithStandardIO<I, O>(
     proc.stdout.on('data', (data) => {
       stdoutEmitter(data);
       const chunk = data.toString();
-      stdout += chunk;
+      stdout += chunk; // Capture for fallback
+
+      // Send to log collector (which has chunking support)
       const logEntry = {
         runId: context.runId,
         nodeRef: context.componentRef,
@@ -141,13 +306,11 @@ function runDockerWithStandardIO<I, O>(
         message: chunk,
         timestamp: new Date().toISOString(),
       };
-
       context.logCollector?.(logEntry);
-      context.emitProgress({
-        message: chunk.trim(),
-        level: 'info',
-        data: { stream: 'stdout', origin: 'docker' },
-      });
+
+      // NOTE: We intentionally do NOT emit stdout as trace progress events.
+      // Output data is written to /shipsec-output/result.json by the container.
+      // Stdout should only contain logs and progress messages from the component.
     });
 
     proc.stderr.on('data', (data) => {
@@ -164,11 +327,14 @@ function runDockerWithStandardIO<I, O>(
       };
 
       context.logCollector?.(logEntry);
-      context.emitProgress({
-        message: chunk.trim(),
-        level: 'error',
-        data: { stream: 'stderr', origin: 'docker' },
-      });
+      // Only emit actual error messages as progress, not raw data
+      if (chunk.trim().length > 0 && chunk.trim().length < 500) {
+        context.emitProgress({
+          message: chunk.trim(),
+          level: 'error',
+          data: { stream: 'stderr', origin: 'docker' },
+        });
+      }
 
       console.error(`[${context.componentRef}] [Docker] stderr: ${chunk.trim()}`);
     });
@@ -193,11 +359,11 @@ function runDockerWithStandardIO<I, O>(
         context.emitProgress({
           message: `Docker container failed with exit code ${code}`,
           level: 'error',
-          data: { exitCode: code, stderr },
+          data: { exitCode: code, stderr: stderr.slice(0, 500) },
         });
 
         reject(new ContainerError(`Docker container failed with exit code ${code}: ${stderr}`, {
-          details: { exitCode: code, stderr, dockerArgs: formatArgs(dockerArgs) },
+          details: { exitCode: code, stderr, stdout, dockerArgs: formatArgs(dockerArgs) },
         }));
         return;
       }
@@ -205,13 +371,8 @@ function runDockerWithStandardIO<I, O>(
       context.logger.info(`[Docker] Completed successfully`);
       context.emitProgress('Docker container completed');
 
-      try {
-        const output = JSON.parse(stdout.trim());
-        resolve(output as O);
-      } catch (e) {
-        context.logger.info(`[Docker] Raw output (not JSON): ${stdout.trim()}`);
-        resolve(stdout.trim() as any);
-      }
+      // Return captured stdout for fallback processing
+      resolve(stdout);
     });
 
     if (stdinJson !== false) {
@@ -235,12 +396,17 @@ function runDockerWithStandardIO<I, O>(
   });
 }
 
+/**
+ * Run Docker container with PTY (pseudo-terminal).
+ * Used when terminal streaming is enabled for interactive output.
+ * Returns captured stdout for backwards compatibility.
+ */
 async function runDockerWithPty<I, O>(
   dockerArgs: string[],
   params: I,
   context: ExecutionContext,
   timeoutSeconds: number,
-): Promise<O> {
+): Promise<string> {
   const spawnPty = await loadPtySpawn();
   if (!spawnPty) {
     context.logger.warn('[Docker][PTY] node-pty unavailable; falling back to standard IO');
@@ -249,33 +415,52 @@ async function runDockerWithPty<I, O>(
     return runDockerWithStandardIO(argsWithoutTty, params, context, timeoutSeconds);
   }
 
-  return new Promise<O>((resolve, reject) => {
+  const dockerPath = await resolveDockerPath(context);
+  return new Promise<string>((resolve, reject) => {
     const emitChunk = createTerminalChunkEmitter(context, 'pty');
     let stdout = '';
-    let stderr = '';
 
     let ptyProcess: ReturnType<typeof spawnPty>;
     try {
       // Debug: Log the full docker command
-      context.logger.info(`[Docker][PTY] Spawning: docker ${formatArgs(dockerArgs)}`);
+      context.logger.info(`[Docker][PTY] Spawning: ${dockerPath} ${formatArgs(dockerArgs)}`);
 
-      ptyProcess = spawnPty('docker', dockerArgs, {
+      ptyProcess = spawnPty(dockerPath, dockerArgs, {
         name: 'xterm-color',
         cols: 120,
         rows: 40,
+        env: process.env as Record<string, string>,
       });
     } catch (error) {
-      reject(
-        new ContainerError(
-          `Failed to spawn Docker PTY: ${error instanceof Error ? error.message : String(error)}`,
-          {
-            cause: error instanceof Error ? error : undefined,
-            details: { dockerArgs: formatArgs(dockerArgs) },
-          },
-        ),
+      const diag = {
+        dockerPath,
+        pathEnv: process.env.PATH,
+        cwd: process.cwd(),
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          // @ts-ignore
+          code: error.code,
+        } : String(error)
+      };
+
+      console.log('diag', diag);
+      context.logger.warn(
+        `[Docker][PTY] Failed to spawn PTY: ${error instanceof Error ? error.message : String(error)}. Diagnostic: ${JSON.stringify(diag)}`,
       );
+      context.logger.warn('[Docker][PTY] Falling back to standard IO due to PTY spawn failure');
+
+      // Remove -t flag and restore -i flag for standard IO (it was removed for PTY mode)
+      const argsForStandardIO = dockerArgs.filter((arg) => arg !== '-t');
+      if (!argsForStandardIO.includes('-i')) {
+        argsForStandardIO.splice(2, 0, '-i');
+      }
+      resolve(runDockerWithStandardIO(argsForStandardIO, params, context, timeoutSeconds));
       return;
     }
+
+
 
     const timeout = setTimeout(() => {
       ptyProcess.kill();
@@ -289,21 +474,19 @@ async function runDockerWithPty<I, O>(
 
     ptyProcess.onData((data) => {
       emitChunk(data);
-      stdout += data;
+      stdout += data; // Capture for fallback
     });
 
     ptyProcess.onExit(({ exitCode }) => {
       clearTimeout(timeout);
       if (exitCode !== 0) {
-        stderr = stdout;
         context.logger.error(`[Docker][PTY] Exited with code ${exitCode}`);
-        context.logger.error(`[Docker][PTY] Output: ${stdout.trim()}`);
 
         // Emit error to UI
         context.emitProgress({
           message: `Docker container failed with exit code ${exitCode}`,
           level: 'error',
-          data: { exitCode, output: stdout.trim() },
+          data: { exitCode },
         });
 
         reject(new ContainerError(
@@ -311,7 +494,7 @@ async function runDockerWithPty<I, O>(
           {
             details: {
               exitCode,
-              outputPreview: stdout.trim().slice(-500),
+              stdout,
               dockerArgs: formatArgs(dockerArgs),
             },
           },
@@ -327,13 +510,8 @@ async function runDockerWithPty<I, O>(
       });
       context.emitProgress('Docker container completed');
 
-      try {
-        const output = JSON.parse(stdout.trim());
-        resolve(output as O);
-      } catch (error) {
-        context.logger.info(`[Docker][PTY] Raw output (not JSON): ${stdout.trim()}`);
-        resolve(stdout.trim() as any);
-      }
+      // Return captured stdout for fallback processing
+      resolve(stdout);
     });
   });
 }

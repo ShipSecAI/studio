@@ -1,32 +1,57 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
   port,
-  registerContract,
+  param,
+  type PortMeta,
 } from '@shipsec/component-sdk';
 
 /**
  * Manual Approval Component
- * 
+ *
  * This component creates a human-in-the-loop gate that pauses workflow execution
  * until a human approves or rejects the request.
- * 
+ *
  * It supports dynamic description templates using context variables.
  */
 
-const inputSchema = z.object({
-  // Dynamic variables will be injected here by resolvePorts via .catchall(z.any())
-}).catchall(z.any());
+const inputSchema = inputs({
+  // Dynamic variables will be injected here by resolvePorts
+});
 
-type Input = z.infer<typeof inputSchema>;
-
-type Params = {
-  title?: string;
-  description?: string;
-  variables?: { name: string; type: string }[];
-  timeout?: string;
-};
+const parameterSchema = parameters({
+  title: param(z.string().optional(), {
+    label: 'Title',
+    editor: 'text',
+    placeholder: 'Approval Required',
+    description: 'Title for the approval request',
+  }),
+  description: param(z.string().optional(), {
+    label: 'Description',
+    editor: 'textarea',
+    placeholder: 'Please review and approve... You can use {{variable}} here.',
+    description: 'Detailed description (Markdown supported)',
+    helpText: 'Provide context about what needs to be approved. Supports interpolation.',
+  }),
+  variables: param(
+    z.array(z.object({ name: z.string(), type: z.string().optional() })).default([]),
+    {
+      label: 'Context Variables',
+      editor: 'variable-list',
+      description: 'Define variables to use as {{name}} in your description.',
+    },
+  ),
+  timeout: param(z.string().optional(), {
+    label: 'Timeout',
+    editor: 'text',
+    placeholder: '24h',
+    description: 'How long to wait for approval (e.g., "1h", "24h", "7d")',
+  }),
+});
 
 /**
  * Simple helper to replace {{var}} placeholders in a string
@@ -38,51 +63,85 @@ function interpolate(template: string, vars: Record<string, any>): string {
   });
 }
 
-const mapTypeToPort = (type: string, id: string, label: string) => {
-    switch (type) {
-      case 'string': return { id, label, dataType: port.text(), required: false };
-      case 'number': return { id, label, dataType: port.number(), required: false };
-      case 'boolean': return { id, label, dataType: port.boolean(), required: false };
-      case 'secret': return { id, label, dataType: port.secret(), required: false };
-      case 'list': return { id, label, dataType: port.list(port.text()), required: false };
-      default: return { id, label, dataType: port.any(), required: false };
-    }
-  };
+const mapTypeToSchema = (type: string): { schema: z.ZodTypeAny; meta?: PortMeta } => {
+  switch (type) {
+    case 'string':
+      return { schema: z.string() };
+    case 'number':
+      return { schema: z.number() };
+    case 'boolean':
+      return { schema: z.boolean() };
+    case 'secret':
+      return {
+        schema: z.unknown(),
+        meta: {
+          editor: 'secret',
+          allowAny: true,
+          reason: 'Manual approval inputs can include raw secrets.',
+          connectionType: { kind: 'primitive', name: 'secret' } as const,
+        },
+      };
+    case 'list':
+      return { schema: z.array(z.string()) };
+    default:
+      return {
+        schema: z.unknown(),
+        meta: {
+          allowAny: true,
+          reason: 'Manual approval inputs can include arbitrary JSON.',
+          connectionType: { kind: 'primitive', name: 'json' } as const,
+        },
+      };
+  }
+};
 
-const outputSchema = z.object({
-  approved: z.boolean().describe('Whether the request was approved'),
-  respondedBy: z.string().describe('Who responded to the request'),
-  responseNote: z.string().optional().describe('Note provided by the responder'),
-  respondedAt: z.string().describe('When the request was resolved'),
-  requestId: z.string().describe('The ID of the human input request'),
+const outputSchema = outputs({
+  approved: port(z.boolean().describe('Whether the request was approved'), {
+    label: 'Approved',
+    description: 'Active path when request is approved',
+    isBranching: true,
+    branchColor: 'green',
+  }),
+  rejected: port(z.boolean().describe('Whether the request was rejected'), {
+    label: 'Rejected',
+    description: 'Active path when request is rejected',
+    isBranching: true,
+    branchColor: 'red',
+  }),
+  respondedBy: port(z.string().describe('Who responded to the request'), {
+    label: 'Responded By',
+    description: 'The user who resolved this request',
+  }),
+  responseNote: port(z.string().optional().describe('Note provided by the responder'), {
+    label: 'Response Note',
+    description: 'The comment left by the responder',
+  }),
+  respondedAt: port(z.string().describe('When the request was resolved'), {
+    label: 'Responded At',
+    description: 'Timestamp when the request was resolved.',
+  }),
+  requestId: port(z.string().describe('The ID of the human input request'), {
+    label: 'Request ID',
+    description: 'Unique identifier for the manual approval request.',
+  }),
 });
 
-type Output = z.infer<typeof outputSchema>;
-
-const APPROVAL_PENDING_CONTRACT = 'core.manual-approval.pending.v1';
-
-registerContract({
-  name: APPROVAL_PENDING_CONTRACT,
-  schema: outputSchema,
-  summary: 'Manual approval pending response',
-  description:
-    'Indicates that a workflow is waiting for manual approval. Contains the approval request ID and tokens for approve/reject actions.',
-});
-
-const definition: ComponentDefinition<Input, Output, Params> = {
+const definition = defineComponent({
   id: 'core.manual_action.approval',
   label: 'Manual Approval',
   category: 'manual_action',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Pauses workflow execution until a human approves or rejects. Supports Markdown and dynamic context variables in the description.',
-  metadata: {
+  ui: {
     slug: 'manual-approval',
     version: '1.2.0',
     type: 'process',
     category: 'manual_action',
-    description: 'Pause and wait for manual approval. Supports dynamic templates for providing context to the reviewer.',
+    description:
+      'Pause and wait for manual approval. Supports dynamic templates for providing context to the reviewer.',
     icon: 'ShieldCheck',
     author: {
       name: 'ShipSecAI',
@@ -90,90 +149,33 @@ const definition: ComponentDefinition<Input, Output, Params> = {
     },
     isLatest: true,
     deprecated: false,
-    inputs: [],
-    outputs: [
-      {
-        id: 'approved',
-        label: 'Approved',
-        dataType: port.boolean(),
-        description: 'Active path when request is approved',
-        isBranching: true,
-        branchColor: 'green',
-      },
-      {
-        id: 'rejected',
-        label: 'Rejected',
-        dataType: port.boolean(),
-        description: 'Active path when request is rejected',
-        isBranching: true,
-        branchColor: 'red',
-      },
-      {
-          id: 'respondedBy',
-          label: 'Responded By',
-          dataType: port.text(),
-          description: 'The user who resolved this request',
-      },
-      {
-          id: 'responseNote',
-          label: 'Response Note',
-          dataType: port.text(),
-          description: 'The comment left by the responder',
-      }
-    ],
-    parameters: [
-      {
-        id: 'title',
-        label: 'Title',
-        type: 'text',
-        required: true,
-        placeholder: 'Approval Required',
-        description: 'Title for the approval request',
-      },
-      {
-        id: 'description',
-        label: 'Description',
-        type: 'textarea',
-        required: false,
-        placeholder: 'Please review and approve... You can use {{variable}} here.',
-        description: 'Detailed description (Markdown supported)',
-        helpText: 'Provide context about what needs to be approved. Supports interpolation.',
-      },
-      {
-          id: 'variables',
-          label: 'Context Variables',
-          type: 'variable-list',
-          default: [],
-          description: 'Define variables to use as {{name}} in your description.',
-      },
-      {
-        id: 'timeout',
-        label: 'Timeout',
-        type: 'text',
-        required: false,
-        placeholder: '24h',
-        description: 'How long to wait for approval (e.g., "1h", "24h", "7d")',
-      },
-    ],
   },
-  resolvePorts(params: any) {
-    const inputs: any[] = [];
+  resolvePorts(params: z.infer<typeof parameterSchema>) {
+    const inputShape: Record<string, z.ZodTypeAny> = {};
     if (params.variables && Array.isArray(params.variables)) {
-        for (const v of params.variables) {
-            if (!v || !v.name) continue;
-            inputs.push(mapTypeToPort(v.type || 'json', v.name, v.name));
-        }
+      for (const v of params.variables) {
+        if (!v || !v.name) continue;
+        const { schema, meta } = mapTypeToSchema(v.type || 'json');
+        inputShape[v.name] = port(schema.optional(), {
+          ...(meta ?? {}),
+          label: v.name,
+        });
+      }
     }
-    return { inputs };
+    return {
+      inputs: inputs(inputShape),
+      outputs: outputSchema,
+    };
   },
-  async execute(params, context) {
+  async execute({ inputs, params }, context) {
     const titleTemplate = params.title || 'Approval Required';
     const descriptionTemplate = params.description || '';
     const timeoutStr = params.timeout;
 
     // Interpolate values
-    const title = interpolate(titleTemplate, params);
-    const description = interpolate(descriptionTemplate, params);
+    const contextData = { ...params, ...inputs };
+    const title = interpolate(titleTemplate, contextData);
+    const description = interpolate(descriptionTemplate, contextData);
 
     // Calculate timeout
     let timeoutAt: string | null = null;
@@ -195,10 +197,10 @@ const definition: ComponentDefinition<Input, Output, Params> = {
       title,
       description,
       timeoutAt,
-      contextData: params,
+      contextData,
     } as any;
   },
-};
+});
 
 function parseTimeout(timeout: string): number | null {
   const match = timeout.match(/^(\d+)(m|h|d)$/);
@@ -206,10 +208,14 @@ function parseTimeout(timeout: string): number | null {
   const value = parseInt(match[1], 10);
   const unit = match[2];
   switch (unit) {
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 60 * 60 * 1000;
-    case 'd': return value * 24 * 60 * 60 * 1000;
-    default: return null;
+    case 'm':
+      return value * 60 * 1000;
+    case 'h':
+      return value * 60 * 60 * 1000;
+    case 'd':
+      return value * 24 * 60 * 60 * 1000;
+    default:
+      return null;
   }
 }
 

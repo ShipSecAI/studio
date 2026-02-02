@@ -1,26 +1,26 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import './index.css'
-import { PostHogProvider } from 'posthog-js/react'
-import posthog from 'posthog-js'
-import { initializeTimelineStore } from '@/store/executionTimelineStore'
-import { initializeTheme } from '@/store/themeStore'
-import { isAnalyticsEnabled } from '@/features/analytics/config'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
+import { PostHogProvider } from 'posthog-js/react';
+import posthog from 'posthog-js';
+import { initializeTimelineStore } from '@/store/executionTimelineStore';
+import { initializeTheme } from '@/store/themeStore';
+import { isAnalyticsEnabled } from '@/features/analytics/config';
 
-const hasPostHog = isAnalyticsEnabled()
+const hasPostHog = isAnalyticsEnabled();
 
 // Print analytics status
 if (hasPostHog) {
-  console.log('📊 Analytics enabled - PostHog is collecting usage data')
+  console.log('📊 Analytics enabled - PostHog is collecting usage data');
 } else {
-  console.log('📊 Analytics disabled - No usage data will be collected')
+  console.log('📊 Analytics disabled - No usage data will be collected');
 }
 
 // Initialize the global PostHog singleton so helpers using `posthog.capture` work.
 if (hasPostHog) {
-  const apiKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY!
-  const apiHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST!
+  const apiKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY!;
+  const apiHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST!;
   posthog.init(apiKey, {
     api_host: apiHost,
     autocapture: true,
@@ -32,11 +32,11 @@ if (hasPostHog) {
     },
     respect_dnt: true,
     debug: import.meta.env.DEV,
-  })
+  });
 }
 
-initializeTimelineStore()
-initializeTheme()
+initializeTimelineStore();
+initializeTheme();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -48,4 +48,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <App />
     )}
   </React.StrictMode>,
-)
+);

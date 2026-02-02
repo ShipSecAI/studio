@@ -24,7 +24,10 @@ export class TerminalRecordRepository {
     return record;
   }
 
-  async listByRun(runId: string, organizationId?: string | null): Promise<WorkflowTerminalRecord[]> {
+  async listByRun(
+    runId: string,
+    organizationId?: string | null,
+  ): Promise<WorkflowTerminalRecord[]> {
     return this.db
       .select()
       .from(workflowTerminalRecordsTable)

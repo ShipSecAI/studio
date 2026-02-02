@@ -1,49 +1,32 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
-  port,
-  registerContract,
+  defineComponent,
   ConfigurationError,
   ComponentRetryPolicy,
+  inputs,
+  outputs,
+  port,
 } from '@shipsec/component-sdk';
+import { fileContractSchema } from '@shipsec/contracts';
 
-const inputSchema = z.object({
-  fileId: z.string().uuid().describe('File ID from uploaded files'),
-});
-
-type Input = z.infer<typeof inputSchema>;
-
-type Output = {
-  file: {
-    id: string;
-    name: string;
-    mimeType: string;
-    size: number;
-    content: string; // base64 encoded
-  };
-  textContent: string; // decoded text content
-};
-
-const outputSchema = z.object({
-  file: z.object({
-    id: z.string(),
-    name: z.string(),
-    mimeType: z.string(),
-    size: z.number(),
-    content: z.string(),
+const inputSchema = inputs({
+  fileId: port(z.string().uuid().describe('File ID from uploaded files'), {
+    label: 'File ID',
+    description: 'File ID from uploaded file (typically from Entry Point runtime input).',
+    connectionType: { kind: 'primitive', name: 'file' },
   }),
-  textContent: z.string(),
 });
 
-const FILE_CONTRACT = 'shipsec.file.v1';
-
-registerContract({
-  name: FILE_CONTRACT,
-  schema: outputSchema.shape.file,
-  summary: 'ShipSec file payload with base64 content',
-  description:
-    'Normalized file representation returned by File Loader with metadata and base64-encoded content.',
+const outputSchema = outputs({
+  file: port(fileContractSchema(), {
+    label: 'File Data',
+    description: 'Complete file metadata and base64 encoded content.',
+  }),
+  textContent: port(z.string(), {
+    label: 'Text Content',
+    description: 'Decoded text content of the file (UTF-8).',
+  }),
 });
 
 // Retry policy for file operations - quick retries for transient I/O issues
@@ -52,23 +35,19 @@ const fileLoaderRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 1,
   maximumIntervalSeconds: 10,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'NotFoundError',
-    'ConfigurationError',
-    'ValidationError',
-  ],
+  nonRetryableErrorTypes: ['NotFoundError', 'ConfigurationError', 'ValidationError'],
 };
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'core.file.loader',
   label: 'File Loader',
   category: 'input',
   runner: { kind: 'inline' },
   retryPolicy: fileLoaderRetryPolicy,
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
   docs: 'Loads file content from storage. Requires a fileId from previously uploaded file.',
-  metadata: {
+  ui: {
     slug: 'file-loader',
     version: '1.0.0',
     type: 'input',
@@ -81,52 +60,28 @@ const definition: ComponentDefinition<Input, Output> = {
     },
     isLatest: true,
     deprecated: false,
-    inputs: [
-      {
-        id: 'fileId',
-        label: 'File ID',
-        dataType: port.text({ coerceFrom: [] }),
-        required: true,
-        description: 'File ID from uploaded file (typically from Entry Point runtime input).',
-      },
-    ],
-    outputs: [
-      {
-        id: 'file',
-        label: 'File Data',
-        dataType: port.contract(FILE_CONTRACT),
-        description: 'Complete file metadata and base64 encoded content.',
-      },
-      {
-        id: 'textContent',
-        label: 'Text Content',
-        dataType: port.text(),
-        description: 'Decoded text content of the file (UTF-8).',
-      },
-    ],
     examples: [
       'Load a scope text file before passing content into Text Splitter or scanners.',
       'Fetch uploaded configuration archives to hand off to downstream components.',
     ],
-    parameters: [],
   },
-  async execute(params, context) {
-    context.logger.info(`[FileLoader] Loading file with ID: ${params.fileId}`);
+  async execute({ inputs }, context) {
+    context.logger.info(`[FileLoader] Loading file with ID: ${inputs.fileId}`);
 
     // Use storage interface (not concrete implementation!)
     const storage = context.storage;
-    
+
     if (!storage) {
       throw new ConfigurationError(
         'Storage service not available in execution context. Worker must provide IFileStorageService adapter.',
-        { configKey: 'storage' }
+        { configKey: 'storage' },
       );
     }
 
     context.emitProgress('Fetching file from storage...');
 
     // Download file using interface
-    const { buffer, metadata } = await storage.downloadFile(params.fileId);
+    const { buffer, metadata } = await storage.downloadFile(inputs.fileId);
 
     context.logger.info(
       `[FileLoader] Loaded file: ${metadata.fileName} (${metadata.size} bytes, ${metadata.mimeType})`,
@@ -136,7 +91,7 @@ const definition: ComponentDefinition<Input, Output> = {
 
     // Convert to base64 for downstream components
     const content = buffer.toString('base64');
-    
+
     // Also provide decoded text content
     const textContent = buffer.toString('utf-8');
 
@@ -151,8 +106,12 @@ const definition: ComponentDefinition<Input, Output> = {
       textContent,
     };
   },
-};
+});
 
 componentRegistry.register(definition);
+
+// Create local type aliases for backward compatibility
+type Input = typeof inputSchema;
+type Output = typeof outputSchema;
 
 export type { Input as FileLoaderInput, Output as FileLoaderOutput };

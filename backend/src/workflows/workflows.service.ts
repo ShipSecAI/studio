@@ -1,12 +1,19 @@
 import { randomUUID, createHash } from 'node:crypto';
 
-import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
+import { z } from 'zod';
 
 import { compileWorkflowGraph } from '../dsl/compiler';
 // Ensure all worker components are registered before accessing the registry
 import '@shipsec/studio-worker/components';
-import { componentRegistry } from '@shipsec/component-sdk';
+import { componentRegistry, extractPorts } from '@shipsec/component-sdk';
 import { WorkflowDefinition } from '../dsl/types';
 import {
   TemporalService,
@@ -15,13 +22,12 @@ import {
 import {
   WorkflowGraphDto,
   WorkflowGraphSchema,
+  WorkflowNodeSchema,
+  WorkflowNodeDataSchema,
   ServiceWorkflowResponse,
   UpdateWorkflowMetadataDto,
 } from './dto/workflow-graph.dto';
-import {
-  WorkflowRecord,
-  WorkflowRepository,
-} from './repository/workflow.repository';
+import { WorkflowRecord, WorkflowRepository } from './repository/workflow.repository';
 import { WorkflowRoleRepository } from './repository/workflow-role.repository';
 import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
@@ -37,7 +43,7 @@ import {
   ExecutionInputPreview,
   ExecutionTriggerMetadata,
 } from '@shipsec/shared';
-import type { WorkflowRunRecord, WorkflowVersionRecord } from '../database/schema';
+import type { WorkflowRunRecord, WorkflowVersionRecord, WorkflowGraph } from '../database/schema';
 import type { AuthContext } from '../auth/types';
 
 export interface WorkflowRunRequest {
@@ -111,11 +117,11 @@ interface FlowContext {
   definition: WorkflowDefinition;
   targetsBySource: Map<
     string,
-    Array<{
+    {
       targetRef: string;
       sourceHandle: string;
       inputKey: string;
-    }>
+    }[]
   >;
 }
 
@@ -138,10 +144,7 @@ export class WorkflowsService {
     return auth?.organizationId ?? null;
   }
 
-  async ensureWorkflowAdminAccess(
-    workflowId: string,
-    auth?: AuthContext | null,
-  ): Promise<string> {
+  async ensureWorkflowAdminAccess(workflowId: string, auth?: AuthContext | null): Promise<string> {
     return this.requireWorkflowAdmin(workflowId, auth);
   }
 
@@ -174,7 +177,7 @@ export class WorkflowsService {
     const organizationId = this.requireOrganizationId(auth);
     const workflow = await this.repository.findById(workflowId, { organizationId });
     if (!workflow) {
-      throw new NotFoundException(`Workflow ${workflowId} not found`);
+      throw new NotFoundException(`Workflo w ${workflowId} not found`);
     }
     const version = await this.resolveWorkflowVersion(workflowId, request, organizationId);
     const definition = await this.ensureDefinitionForVersion(workflow, version, organizationId);
@@ -196,11 +199,11 @@ export class WorkflowsService {
 
   private ensureOrganizationAdmin(auth?: AuthContext | null): void {
     this.logger.debug(
-      `[WORKFLOWS] Checking org admin - Auth: ${auth ? 'present' : 'null'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}, User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}`
+      `[WORKFLOWS] Checking org admin - Auth: ${auth ? 'present' : 'null'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}, User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}`,
     );
     if (!auth?.roles || !auth.roles.includes('ADMIN')) {
       this.logger.warn(
-        `[WORKFLOWS] Access denied - User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}`
+        `[WORKFLOWS] Access denied - User: ${auth?.userId || 'none'}, Org: ${auth?.organizationId || 'none'}, Roles: ${auth?.roles ? JSON.stringify(auth.roles) : 'none'}`,
       );
       throw new ForbiddenException('Administrator role required');
     }
@@ -234,10 +237,7 @@ export class WorkflowsService {
     return organizationId;
   }
 
-  private async requireRunAccess(
-    runId: string,
-    auth?: AuthContext | null,
-  ) {
+  private async requireRunAccess(runId: string, auth?: AuthContext | null) {
     const organizationId = this.requireOrganizationId(auth);
     const run = await this.runRepository.findByRunId(runId, { organizationId });
     if (!run) {
@@ -246,10 +246,7 @@ export class WorkflowsService {
     return { organizationId, run };
   }
 
-  async resolveRunForAccess(
-    runId: string,
-    auth?: AuthContext | null,
-  ) {
+  async resolveRunForAccess(runId: string, auth?: AuthContext | null) {
     return this.requireRunAccess(runId, auth);
   }
 
@@ -264,19 +261,13 @@ export class WorkflowsService {
     };
   }
 
-  async ensureRunAccess(
-    runId: string,
-    auth?: AuthContext | null,
-  ): Promise<void> {
+  async ensureRunAccess(runId: string, auth?: AuthContext | null): Promise<void> {
     await this.requireRunAccess(runId, auth);
   }
 
-  async create(
-    dto: WorkflowGraphDto,
-    auth?: AuthContext | null,
-  ): Promise<ServiceWorkflowResponse> {
+  async create(dto: WorkflowGraphDto, auth?: AuthContext | null): Promise<ServiceWorkflowResponse> {
     const input = this.parse(dto);
-    
+
     // Validate workflow graph before saving (including port connections)
     try {
       compileWorkflowGraph(input);
@@ -286,7 +277,7 @@ export class WorkflowsService {
       }
       throw error;
     }
-    
+
     this.ensureOrganizationAdmin(auth);
     const organizationId = this.requireOrganizationId(auth);
     const record = await this.repository.create(input, { organizationId });
@@ -322,7 +313,7 @@ export class WorkflowsService {
     auth?: AuthContext | null,
   ): Promise<ServiceWorkflowResponse> {
     const input = this.parse(dto);
-    
+
     // Validate workflow graph before saving (including port connections)
     try {
       compileWorkflowGraph(input);
@@ -332,7 +323,7 @@ export class WorkflowsService {
       }
       throw error;
     }
-    
+
     const organizationId = await this.requireWorkflowAdmin(id, auth);
     const record = await this.repository.update(id, input, { organizationId });
     const version = await this.versionRepository.create({
@@ -378,10 +369,152 @@ export class WorkflowsService {
     record: WorkflowRecord,
     version?: WorkflowVersionRecord | null,
   ): ServiceWorkflowResponse {
+    // Resolve dynamic ports for the graph so Entry Point nodes show correct outputs
+    const resolvedGraph = this.resolveGraphPorts(record.graph);
+
     return {
       ...record,
+      graph: resolvedGraph,
       currentVersionId: version?.id ?? null,
       currentVersion: version?.version ?? null,
+    };
+  }
+
+  /**
+   * Extract component parameters from node data, handling legacy schema formats.
+   * This handles the migration from old formats where params might be at:
+   * - nodeData.config.params (current schema)
+   * - nodeData.parameters (legacy)
+   * - nodeData.config (legacy - when config was the params object directly)
+   */
+  private extractNodeParams(
+    nodeData: z.infer<typeof WorkflowNodeDataSchema>,
+  ): Record<string, unknown> {
+    // Current schema: params are in config.params
+    if (nodeData.config?.params && Object.keys(nodeData.config.params).length > 0) {
+      return nodeData.config.params;
+    }
+
+    // Legacy: params stored directly on nodeData (via extended properties)
+    const extendedNodeData = nodeData as Record<string, unknown>;
+    if (extendedNodeData.parameters && typeof extendedNodeData.parameters === 'object') {
+      return extendedNodeData.parameters as Record<string, unknown>;
+    }
+
+    // Legacy: config was the params object itself (before nested config.params structure)
+    // Only use this if config doesn't have the modern structure
+    if (
+      nodeData.config &&
+      !('params' in nodeData.config) &&
+      !('inputOverrides' in nodeData.config) &&
+      typeof nodeData.config === 'object'
+    ) {
+      return nodeData.config as Record<string, unknown>;
+    }
+
+    return {};
+  }
+
+  /**
+   * Extract component ID from node, handling frontend extensions.
+   * The componentId might be in node.type or in extended nodeData properties.
+   */
+  private extractComponentId(
+    node: z.infer<typeof WorkflowNodeSchema>,
+    nodeData: z.infer<typeof WorkflowNodeDataSchema>,
+  ): string | null {
+    // In backend schema, node.type contains the component ID
+    if (node.type && node.type !== 'workflow') {
+      return node.type;
+    }
+
+    // Frontend extensions might store componentId/componentSlug in nodeData
+    const extendedNodeData = nodeData as Record<string, unknown>;
+    if (typeof extendedNodeData.componentId === 'string') {
+      return extendedNodeData.componentId;
+    }
+    if (typeof extendedNodeData.componentSlug === 'string') {
+      return extendedNodeData.componentSlug;
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve dynamic ports for a single node based on its component and parameters.
+   */
+  private resolveNodePorts(
+    node: z.infer<typeof WorkflowNodeSchema>,
+  ): z.infer<typeof WorkflowNodeSchema> {
+    const nodeData = node.data;
+    const componentId = this.extractComponentId(node, nodeData);
+
+    if (!componentId) {
+      return node;
+    }
+
+    try {
+      const entry = componentRegistry.getMetadata(componentId);
+      if (!entry) {
+        return node;
+      }
+      const component = entry.definition;
+      const baseInputs = entry.inputs ?? extractPorts(component.inputs);
+      const baseOutputs = entry.outputs ?? extractPorts(component.outputs);
+
+      const params = this.extractNodeParams(nodeData);
+
+      if (typeof component.resolvePorts === 'function') {
+        try {
+          const resolved = component.resolvePorts(params);
+          return {
+            ...node,
+            data: {
+              ...nodeData,
+              dynamicInputs: resolved.inputs ? extractPorts(resolved.inputs) : baseInputs,
+              dynamicOutputs: resolved.outputs ? extractPorts(resolved.outputs) : baseOutputs,
+            },
+          };
+        } catch (resolveError) {
+          this.logger.warn(`Failed to resolve ports for component ${componentId}: ${resolveError}`);
+          return {
+            ...node,
+            data: {
+              ...nodeData,
+              dynamicInputs: baseInputs,
+              dynamicOutputs: baseOutputs,
+            },
+          };
+        }
+      } else {
+        return {
+          ...node,
+          data: {
+            ...nodeData,
+            dynamicInputs: baseInputs,
+            dynamicOutputs: baseOutputs,
+          },
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to get component ${componentId} for port resolution: ${error}`);
+      return node;
+    }
+  }
+
+  /**
+   * Resolve dynamic ports for all nodes in a workflow graph.
+   * This ensures Entry Point nodes and other components with resolvePorts
+   * have their dynamicInputs/dynamicOutputs populated correctly.
+   */
+  private resolveGraphPorts(graph: WorkflowGraph): WorkflowGraph {
+    if (!graph || !Array.isArray(graph.nodes)) {
+      return graph;
+    }
+
+    return {
+      ...graph,
+      nodes: graph.nodes.map((node) => this.resolveNodePorts(node)),
     };
   }
 
@@ -427,7 +560,7 @@ export class WorkflowsService {
         ? await this.versionRepository.findLatestByWorkflowId(workflow.id, { organizationId })
         : undefined;
     const graph = (version?.graph ?? workflow?.graph) as { nodes?: unknown[] } | undefined;
-    const nodeCount = Array.isArray(graph?.nodes) ? graph!.nodes!.length : 0;
+    const nodeCount = graph?.nodes && Array.isArray(graph.nodes) ? graph.nodes.length : 0;
 
     const eventCount = await this.traceRepository.countByType(
       run.runId,
@@ -436,13 +569,11 @@ export class WorkflowsService {
     );
 
     // Calculate duration from events (more accurate than createdAt/updatedAt)
-    const eventTimeRange = await this.traceRepository.getEventTimeRange(
-      run.runId,
-      organizationId,
-    );
-    const duration = eventTimeRange.firstTimestamp && eventTimeRange.lastTimestamp
-      ? this.computeDuration(eventTimeRange.firstTimestamp, eventTimeRange.lastTimestamp)
-      : this.computeDuration(run.createdAt, run.updatedAt);
+    const eventTimeRange = await this.traceRepository.getEventTimeRange(run.runId, organizationId);
+    const duration =
+      eventTimeRange.firstTimestamp && eventTimeRange.lastTimestamp
+        ? this.computeDuration(eventTimeRange.firstTimestamp, eventTimeRange.lastTimestamp)
+        : this.computeDuration(run.createdAt, run.updatedAt);
 
     let currentStatus: ExecutionStatus = 'RUNNING';
     try {
@@ -476,8 +607,10 @@ export class WorkflowsService {
     const triggerType = (run.triggerType as ExecutionTriggerType) ?? 'manual';
     const triggerSource = run.triggerSource ?? null;
     const triggerLabel = run.triggerLabel ?? (triggerType === 'manual' ? 'Manual run' : null);
-    const inputPreview: ExecutionInputPreview =
-      run.inputPreview ?? { runtimeInputs: {}, nodeOverrides: {} };
+    const inputPreview: ExecutionInputPreview = run.inputPreview ?? {
+      runtimeInputs: {},
+      nodeOverrides: {},
+    };
 
     return {
       id: run.runId,
@@ -528,7 +661,7 @@ export class WorkflowsService {
     auth?: AuthContext | null,
     options: { limit?: number } = {},
   ): Promise<{
-    runs: Array<{
+    runs: {
       runId: string;
       workflowId: string;
       workflowName: string;
@@ -536,7 +669,7 @@ export class WorkflowsService {
       status: ExecutionStatus;
       startedAt: string;
       completedAt?: string;
-    }>;
+    }[];
   }> {
     const { organizationId } = await this.requireRunAccess(parentRunId, auth);
     const children = await this.runRepository.listChildren(parentRunId, {
@@ -603,7 +736,10 @@ export class WorkflowsService {
     auth?: AuthContext | null,
     options: {
       trigger?: ExecutionTriggerMetadata;
-      nodeOverrides?: Record<string, Record<string, unknown>>;
+      nodeOverrides?: Record<
+        string,
+        { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+      >;
       runId?: string;
       idempotencyKey?: string;
     } = {},
@@ -740,7 +876,9 @@ export class WorkflowsService {
         this.logger.error(`Stack trace: ${errorStack}`);
       }
 
-      this.logger.debug(`Full error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+      this.logger.debug(
+        `Full error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`,
+      );
 
       throw error;
     }
@@ -752,7 +890,10 @@ export class WorkflowsService {
     auth?: AuthContext | null,
     options: {
       trigger?: ExecutionTriggerMetadata;
-      nodeOverrides?: Record<string, Record<string, unknown>>;
+      nodeOverrides?: Record<
+        string,
+        { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+      >;
       runId?: string;
       idempotencyKey?: string;
       parentRunId?: string;
@@ -790,7 +931,9 @@ export class WorkflowsService {
       }),
     };
     const normalizedKey = this.normalizeIdempotencyKey(options.idempotencyKey);
-    const runId = options.runId ?? (normalizedKey ? this.runIdFromIdempotencyKey(normalizedKey) : `shipsec-run-${randomUUID()}`);
+    const runId =
+      options.runId ??
+      (normalizedKey ? this.runIdFromIdempotencyKey(normalizedKey) : `shipsec-run-${randomUUID()}`);
     const triggerMetadata = options.trigger ?? this.buildEntryPointTriggerMetadata(auth);
     const inputs = request.inputs ?? {};
     const inputPreview = this.buildInputPreview(inputs, nodeOverrides);
@@ -812,16 +955,16 @@ export class WorkflowsService {
     });
 
     this.analyticsService.trackWorkflowStarted({
-        workflowId: workflow.id,
-        workflowVersionId: version.id,
-        workflowVersion: version.version,
-        runId,
-        organizationId,
-        nodeCount: compiledDefinition.actions.length,
-        inputCount: Object.keys(request.inputs ?? {}).length,
-        triggerType: triggerMetadata.type,
-        triggerSource: triggerMetadata.sourceId ?? undefined,
-        triggerLabel: triggerMetadata.label ?? undefined
+      workflowId: workflow.id,
+      workflowVersionId: version.id,
+      workflowVersion: version.version,
+      runId,
+      organizationId,
+      nodeCount: compiledDefinition.actions.length,
+      inputCount: Object.keys(request.inputs ?? {}).length,
+      triggerType: triggerMetadata.type,
+      triggerSource: triggerMetadata.sourceId ?? undefined,
+      triggerLabel: triggerMetadata.label ?? undefined,
     });
 
     return {
@@ -862,9 +1005,7 @@ export class WorkflowsService {
         organizationId,
       });
       if (!version) {
-        throw new NotFoundException(
-          `Workflow ${workflowId} version ${request.version} not found`,
-        );
+        throw new NotFoundException(`Workflow ${workflowId} version ${request.version} not found`);
       }
       return version;
     }
@@ -898,13 +1039,9 @@ export class WorkflowsService {
           entrypoint: { ref: entryAction.ref },
         };
 
-        await this.versionRepository.setCompiledDefinition(
-          version.id,
-          patchedDefinition,
-          {
-            organizationId: organizationId ?? undefined,
-          },
-        );
+        await this.versionRepository.setCompiledDefinition(version.id, patchedDefinition, {
+          organizationId: organizationId ?? undefined,
+        });
 
         return patchedDefinition;
       }
@@ -912,9 +1049,7 @@ export class WorkflowsService {
       return definition;
     }
 
-    this.logger.log(
-      `Compiling workflow ${workflow.id} version ${version.version} for execution`,
-    );
+    this.logger.log(`Compiling workflow ${workflow.id} version ${version.version} for execution`);
     const graph = WorkflowGraphSchema.parse(version.graph);
     const definition = compileWorkflowGraph(graph);
 
@@ -959,7 +1094,9 @@ export class WorkflowsService {
     }
 
     // Track workflow completion/failure when status changes to terminal state
-    if (['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'].includes(statusPayload.status)) {
+    if (
+      ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'].includes(statusPayload.status)
+    ) {
       const startTime = run.createdAt;
       const endTime = statusPayload.completedAt ? new Date(statusPayload.completedAt) : new Date();
       const durationMs = endTime.getTime() - startTime.getTime();
@@ -986,10 +1123,7 @@ export class WorkflowsService {
     return this.temporalService.getWorkflowResult({ workflowId: runId, runId: temporalRunId });
   }
 
-  async getRunConfig(
-    runId: string,
-    auth?: AuthContext | null,
-  ): Promise<WorkflowRunConfigPayload> {
+  async getRunConfig(runId: string, auth?: AuthContext | null): Promise<WorkflowRunConfigPayload> {
     const { run } = await this.requireRunAccess(runId, auth);
     return {
       runId: run.runId,
@@ -1000,11 +1134,7 @@ export class WorkflowsService {
     };
   }
 
-  async getWorkflowVersion(
-    workflowId: string,
-    versionId: string,
-    auth?: AuthContext | null,
-  ) {
+  async getWorkflowVersion(workflowId: string, versionId: string, auth?: AuthContext | null) {
     const organizationId = this.requireOrganizationId(auth);
     const version = await this.versionRepository.findById(versionId, { organizationId });
     if (!version || version.workflowId !== workflowId) {
@@ -1160,10 +1290,8 @@ export class WorkflowsService {
     return context;
   }
 
-  private buildTargetsIndex(
-    definition: WorkflowDefinition,
-  ): FlowContext['targetsBySource'] {
-    const map = new Map<string, Array<{ targetRef: string; sourceHandle: string; inputKey: string }>>();
+  private buildTargetsIndex(definition: WorkflowDefinition): FlowContext['targetsBySource'] {
+    const map = new Map<string, { targetRef: string; sourceHandle: string; inputKey: string }[]>();
 
     for (const action of definition.actions) {
       const mappings = action.inputMappings ?? {};
@@ -1230,74 +1358,11 @@ export class WorkflowsService {
     return 0;
   }
 
-  private parse(dto: WorkflowGraphDto) {
+  private parse(dto: WorkflowGraphDto): WorkflowGraph {
     const parsed = WorkflowGraphSchema.parse(dto);
-    
-    // Resolve dynamic ports for each node based on its component and parameters
-    const nodesWithResolvedPorts = parsed.nodes.map((node) => {
-      const nodeData = node.data as any;
-      // Component ID can be in node.type, data.componentId, or data.componentSlug
-      // In the workflow graph schema, node.type contains the component ID (e.g., "security.virustotal.lookup")
-      const componentId = node.type !== 'workflow' ? node.type : (nodeData.componentId || nodeData.componentSlug);
-      
-      if (!componentId) {
-        return node;
-      }
-      
-      try {
-        const component = componentRegistry.get(componentId);
-        if (!component) {
-          return node;
-        }
-        
-        // Get parameters from node data (they may be stored in config, parameters, or at data level)
-        const params = nodeData.parameters || nodeData.config || {};
-        
-        // Resolve ports using the component's resolvePorts function if available
-        if (typeof component.resolvePorts === 'function') {
-          try {
-            const resolved = component.resolvePorts(params);
-            return {
-              ...node,
-              data: {
-                ...nodeData,
-                dynamicInputs: resolved.inputs ?? component.metadata?.inputs ?? [],
-                dynamicOutputs: resolved.outputs ?? component.metadata?.outputs ?? [],
-              },
-            };
-          } catch (resolveError) {
-            this.logger.warn(`Failed to resolve ports for component ${componentId}: ${resolveError}`);
-            // Fall back to static metadata
-            return {
-              ...node,
-              data: {
-                ...nodeData,
-                dynamicInputs: component.metadata?.inputs ?? [],
-                dynamicOutputs: component.metadata?.outputs ?? [],
-              },
-            };
-          }
-        } else {
-          // No dynamic resolver, use static metadata
-          return {
-            ...node,
-            data: {
-              ...nodeData,
-              dynamicInputs: component.metadata?.inputs ?? [],
-              dynamicOutputs: component.metadata?.outputs ?? [],
-            },
-          };
-        }
-      } catch (error) {
-        this.logger.warn(`Failed to get component ${componentId} for port resolution: ${error}`);
-        return node;
-      }
-    });
-    
-    return {
-      ...parsed,
-      nodes: nodesWithResolvedPorts,
-    };
+
+    // Resolve dynamic ports for all nodes using the shared helper
+    return this.resolveGraphPorts(parsed);
   }
 
   private formatInputSummary(inputs?: Record<string, unknown>): string {
@@ -1312,7 +1377,10 @@ export class WorkflowsService {
 
   private applyNodeOverrides(
     definition: WorkflowDefinition,
-    overrides?: Record<string, Record<string, unknown>>,
+    overrides?: Record<
+      string,
+      { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+    >,
   ): WorkflowDefinition {
     if (!overrides || Object.keys(overrides).length === 0) {
       return definition;
@@ -1320,7 +1388,11 @@ export class WorkflowsService {
 
     const updatedActions = definition.actions.map((action) => {
       const override = overrides[action.ref];
-      if (!override || Object.keys(override).length === 0) {
+      if (
+        !override ||
+        (Object.keys(override.params ?? {}).length === 0 &&
+          Object.keys(override.inputOverrides ?? {}).length === 0)
+      ) {
         return action;
       }
 
@@ -1328,7 +1400,11 @@ export class WorkflowsService {
         ...action,
         params: {
           ...(action.params ?? {}),
-          ...override,
+          ...(override.params ?? {}),
+        },
+        inputOverrides: {
+          ...(action.inputOverrides ?? {}),
+          ...(override.inputOverrides ?? {}),
         },
       };
     });
@@ -1355,10 +1431,26 @@ export class WorkflowsService {
 
   private buildInputPreview(
     inputs?: Record<string, unknown>,
-    nodeOverrides?: Record<string, Record<string, unknown>>,
+    nodeOverrides?: Record<
+      string,
+      { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+    >,
   ): ExecutionInputPreview {
     const runtimeInputs = inputs ? { ...inputs } : {};
-    const overrides = nodeOverrides ? { ...nodeOverrides } : {};
+    const overrides: Record<
+      string,
+      { params: Record<string, unknown>; inputOverrides: Record<string, unknown> }
+    > = {};
+
+    if (nodeOverrides) {
+      for (const [key, value] of Object.entries(nodeOverrides)) {
+        overrides[key] = {
+          params: value.params ?? {},
+          inputOverrides: value.inputOverrides ?? {},
+        };
+      }
+    }
+
     return {
       runtimeInputs,
       nodeOverrides: overrides,
@@ -1399,12 +1491,13 @@ export class WorkflowsService {
     const completedAt = status.closeTime ?? undefined;
     const workflowId = metadata?.workflowId ?? requestedRunId;
     const totalActions = metadata?.totalActions ?? 0;
-    const progress = totalActions > 0
-      ? {
-          completedActions: Math.min(completedActions, totalActions),
-          totalActions,
-        }
-      : undefined;
+    const progress =
+      totalActions > 0
+        ? {
+            completedActions: Math.min(completedActions, totalActions),
+            totalActions,
+          }
+        : undefined;
 
     return {
       runId: requestedRunId,

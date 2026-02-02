@@ -14,10 +14,10 @@ export const humanInputStatusEnum = pgEnum('human_input_status', [
  * Human input type enum - the kind of input expected from the human
  */
 export const humanInputTypeEnum = pgEnum('human_input_type', [
-  'approval',   // Simple yes/no decision
-  'form',       // Structured form with fields
-  'selection',  // Choose from options
-  'review',     // Review and optionally edit content
+  'approval', // Simple yes/no decision
+  'form', // Structured form with fields
+  'selection', // Choose from options
+  'review', // Review and optionally edit content
   'acknowledge', // Simple acknowledgment
 ]);
 
@@ -27,38 +27,38 @@ export const humanInputTypeEnum = pgEnum('human_input_type', [
 export const humanInputRequestsTable = pgTable('human_input_requests', {
   // Primary key
   id: uuid('id').primaryKey().defaultRandom(),
-  
+
   // Workflow context
   runId: text('run_id').notNull(),
   workflowId: uuid('workflow_id').notNull(),
   nodeRef: text('node_ref').notNull(),
-  
+
   // Status
   status: humanInputStatusEnum('status').notNull().default('pending'),
-  
+
   // Input type and schema
   inputType: humanInputTypeEnum('input_type').notNull().default('approval'),
   inputSchema: jsonb('input_schema').$type<Record<string, unknown>>().default({}),
-  
+
   // Display metadata
   title: text('title').notNull(),
   description: text('description'),
   context: jsonb('context').$type<Record<string, unknown>>().default({}),
-  
+
   // Secure token for public links
   resolveToken: text('resolve_token').notNull().unique(),
-  
+
   // Timeout handling
   timeoutAt: timestamp('timeout_at', { withTimezone: true }),
-  
-  // Response tracking  
+
+  // Response tracking
   responseData: jsonb('response_data').$type<Record<string, unknown>>(),
   respondedAt: timestamp('responded_at', { withTimezone: true }),
   respondedBy: text('responded_by'),
-  
+
   // Multi-tenancy
   organizationId: varchar('organization_id', { length: 191 }),
-  
+
   // Audit timestamps
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

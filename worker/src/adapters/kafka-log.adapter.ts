@@ -1,5 +1,5 @@
 import { Kafka, logLevel as KafkaLogLevel, type Producer } from 'kafkajs';
-import { ConfigurationError } from '@shipsec/component-sdk';
+import { ConfigurationError, LOG_CHUNK_SIZE_CHARS } from '@shipsec/component-sdk';
 
 import type { WorkflowLogEntry, WorkflowLogSink } from '../temporal/types';
 
@@ -47,21 +47,45 @@ export class KafkaLogAdapter implements WorkflowLogSink {
       return;
     }
 
-    const payload: SerializedLogEntry = {
-      ...entry,
-      timestamp: (entry.timestamp ?? new Date()).toISOString(),
-    };
+    // Chunk message if it's too large to prevent Kafka/Loki size limit errors.
+    const messages: string[] = [];
+
+    if (entry.message.length <= LOG_CHUNK_SIZE_CHARS) {
+      messages.push(entry.message);
+    } else {
+      const totalChars = entry.message.length;
+      const totalChunks = Math.ceil(totalChars / LOG_CHUNK_SIZE_CHARS);
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * LOG_CHUNK_SIZE_CHARS;
+        const chunk = entry.message.substring(start, start + LOG_CHUNK_SIZE_CHARS);
+        const indicator = ` [Chunk ${i + 1}/${totalChunks}]`;
+        messages.push(chunk + indicator);
+      }
+    }
+
+    const timestamp = (entry.timestamp ?? new Date()).toISOString();
 
     try {
       await this.connectPromise;
-      await this.producer.send({
-        topic: this.config.topic,
-        messages: [
-          {
-            value: JSON.stringify(payload),
-          },
-        ],
-      });
+
+      // Send all chunks
+      for (const msg of messages) {
+        const payload: SerializedLogEntry = {
+          ...entry,
+          message: msg,
+          timestamp,
+        };
+
+        await this.producer.send({
+          topic: this.config.topic,
+          messages: [
+            {
+              value: JSON.stringify(payload),
+            },
+          ],
+        });
+      }
     } catch (error) {
       console.error('[KafkaLogAdapter] Failed to send log entry', error);
     }

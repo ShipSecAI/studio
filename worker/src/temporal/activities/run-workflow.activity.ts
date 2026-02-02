@@ -33,8 +33,15 @@ export function initializeActivityServices(
 export async function runWorkflowActivity(
   input: RunWorkflowActivityInput,
 ): Promise<RunWorkflowActivityOutput> {
-  console.log(`🔧 [ACTIVITY] runWorkflow started for run: ${input.runId}`);
-  console.log(`🔧 [ACTIVITY] Workflow: ${input.workflowId}, Actions: ${input.definition.actions.length}`);
+  console.log(`╔══════════════════════════════════════════════════════════════════════════════╗`);
+  console.log(`🔧 [ACTIVITY START] runWorkflowActivity called`);
+  console.log(`📋 Run ID: ${input.runId}`);
+  console.log(`📋 Workflow ID: ${input.workflowId}`);
+  console.log(`📋 Actions count: ${input.definition.actions.length}`);
+  console.log(`📋 Action refs: ${input.definition.actions.map((a) => a.ref).join(', ')}`);
+  console.log(`📋 Inputs keys: ${Object.keys(input.inputs || {}).join(', ')}`);
+  console.log(`╚══════════════════════════════════════════════════════════════════════════════╝`);
+  const startTime = Date.now();
 
   try {
     if (isTraceMetadataAware(globalTrace)) {
@@ -44,6 +51,7 @@ export async function runWorkflowActivity(
       });
     }
 
+    console.log(`⏳ [ACTIVITY] About to call executeWorkflow for ${input.runId}`);
     const result = await executeWorkflow(
       input.definition,
       {
@@ -62,14 +70,28 @@ export async function runWorkflowActivity(
         workflowVersionId: input.workflowVersionId ?? null,
       },
     );
-
-    console.log(`✅ [ACTIVITY] runWorkflow completed for run: ${input.runId}`);
+    const duration = Date.now() - startTime;
+    console.log(
+      `✅ [ACTIVITY DONE] runWorkflow completed for run: ${input.runId} in ${duration}ms`,
+    );
+    console.log(`📊 [ACTIVITY] Result keys: ${Object.keys(result || {}).join(', ')}`);
     return result;
   } catch (error) {
-    console.error(`❌ [ACTIVITY] runWorkflow failed for run: ${input.runId}`, error);
+    const duration = Date.now() - startTime;
+    console.error(
+      `❌ [ACTIVITY FAIL] runWorkflow FAILED for run: ${input.runId} after ${duration}ms`,
+    );
+    console.error(`❌ [ACTIVITY] Error type: ${error?.constructor?.name}`);
+    console.error(
+      `❌ [ACTIVITY] Error message: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    console.error(
+      `❌ [ACTIVITY] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`,
+    );
     throw error;
   } finally {
     if (isTraceMetadataAware(globalTrace) && typeof globalTrace.finalizeRun === 'function') {
+      console.log(`🧹 [ACTIVITY] Finalizing trace metadata for ${input.runId}`);
       globalTrace.finalizeRun(input.runId);
     }
   }

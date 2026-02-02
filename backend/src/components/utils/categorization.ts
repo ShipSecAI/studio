@@ -1,6 +1,6 @@
 import type { ComponentDefinition, ComponentCategory } from '@shipsec/component-sdk';
 
-interface ComponentCategoryConfig {
+export interface ComponentCategoryConfig {
   label: string;
   color: string;
   description: string;
@@ -8,7 +8,17 @@ interface ComponentCategoryConfig {
   icon: string;
 }
 
-const SUPPORTED_CATEGORIES: ReadonlyArray<ComponentCategory> = ['input', 'transform', 'ai', 'security', 'it_ops', 'notification', 'manual_action', 'output'];
+const SUPPORTED_CATEGORIES: readonly ComponentCategory[] = [
+  'input',
+  'transform',
+  'ai',
+  'mcp',
+  'security',
+  'it_ops',
+  'notification',
+  'manual_action',
+  'output',
+];
 
 const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConfig> = {
   input: {
@@ -31,6 +41,13 @@ const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConf
     description: 'AI-powered analysis and generation tools',
     emoji: '🤖',
     icon: 'Brain',
+  },
+  mcp: {
+    label: 'MCP Servers',
+    color: 'text-teal-600',
+    description: 'Model Context Protocol servers and tool gateways',
+    emoji: '🔌',
+    icon: 'Plug',
   },
   security: {
     label: 'Security Tools',
@@ -84,7 +101,7 @@ function normalizeCategory(category?: string | null): ComponentCategory | null {
 }
 
 export function categorizeComponent(component: ComponentDefinition): ComponentCategory {
-  const fromMetadata = normalizeCategory(component.metadata?.category);
+  const fromMetadata = normalizeCategory(component.ui?.category);
   if (fromMetadata) {
     return fromMetadata;
   }

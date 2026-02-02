@@ -17,9 +17,19 @@ describe('runWorkflowWithScheduler', () => {
       },
       edges: [
         { id: 'start->branchFail', sourceRef: 'start', targetRef: 'branchFail', kind: 'success' },
-        { id: 'start->branchSuccess', sourceRef: 'start', targetRef: 'branchSuccess', kind: 'success' },
+        {
+          id: 'start->branchSuccess',
+          sourceRef: 'start',
+          targetRef: 'branchSuccess',
+          kind: 'success',
+        },
         { id: 'branchFail->merge', sourceRef: 'branchFail', targetRef: 'merge', kind: 'success' },
-        { id: 'branchSuccess->merge', sourceRef: 'branchSuccess', targetRef: 'merge', kind: 'success' },
+        {
+          id: 'branchSuccess->merge',
+          sourceRef: 'branchSuccess',
+          targetRef: 'merge',
+          kind: 'success',
+        },
       ],
       dependencyCounts: {
         start: 0,
@@ -28,11 +38,19 @@ describe('runWorkflowWithScheduler', () => {
         merge: 2,
       },
       actions: [
-        { ref: 'start', componentId: 'noop', params: {}, dependsOn: [], inputMappings: {} },
+        {
+          ref: 'start',
+          componentId: 'noop',
+          params: {},
+          inputOverrides: {},
+          dependsOn: [],
+          inputMappings: {},
+        },
         {
           ref: 'branchFail',
           componentId: 'noop',
           params: {},
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
@@ -40,6 +58,7 @@ describe('runWorkflowWithScheduler', () => {
           ref: 'branchSuccess',
           componentId: 'noop',
           params: {},
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
@@ -47,6 +66,7 @@ describe('runWorkflowWithScheduler', () => {
           ref: 'merge',
           componentId: 'noop',
           params: {},
+          inputOverrides: {},
           dependsOn: ['branchFail', 'branchSuccess'],
           inputMappings: {},
         },
@@ -60,7 +80,10 @@ describe('runWorkflowWithScheduler', () => {
     const order: string[] = [];
     let mergeTriggeredBy: string | undefined;
 
-    const run = async (ref: string, context: WorkflowSchedulerRunContext) => {
+    const run = async (
+      ref: string,
+      context: WorkflowSchedulerRunContext,
+    ): Promise<{ activePorts?: string[] | undefined } | null> => {
       order.push(ref);
       if (ref === 'branchFail') {
         await new Promise((resolve) => setTimeout(resolve, 5));
@@ -74,6 +97,8 @@ describe('runWorkflowWithScheduler', () => {
       if (ref === 'merge') {
         mergeTriggeredBy = context.triggeredBy;
       }
+
+      return null;
     };
 
     await expect(
@@ -106,11 +131,19 @@ describe('runWorkflowWithScheduler', () => {
         errorHandler: 1,
       },
       actions: [
-        { ref: 'start', componentId: 'noop', params: {}, dependsOn: [], inputMappings: {} },
+        {
+          ref: 'start',
+          componentId: 'noop',
+          params: {},
+          inputOverrides: {},
+          dependsOn: [],
+          inputMappings: {},
+        },
         {
           ref: 'fail',
           componentId: 'noop',
           params: {},
+          inputOverrides: {},
           dependsOn: ['start'],
           inputMappings: {},
         },
@@ -118,6 +151,7 @@ describe('runWorkflowWithScheduler', () => {
           ref: 'errorHandler',
           componentId: 'noop',
           params: {},
+          inputOverrides: {},
           dependsOn: ['fail'],
           inputMappings: {},
         },
@@ -130,12 +164,17 @@ describe('runWorkflowWithScheduler', () => {
 
     const contexts = new Map<string, WorkflowSchedulerRunContext>();
 
-    const run = async (ref: string, context: WorkflowSchedulerRunContext) => {
+    const run = async (
+      ref: string,
+      context: WorkflowSchedulerRunContext,
+    ): Promise<{ activePorts?: string[] | undefined } | null> => {
       contexts.set(ref, context);
 
       if (ref === 'fail') {
         throw new Error('boom');
       }
+
+      return null;
     };
 
     await expect(

@@ -33,13 +33,29 @@ export class AgentTraceIngestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    this.connectToKafka().catch((error) => {
+      this.logger.error('Failed to initialize Kafka agent trace ingestion', error as Error);
+    });
+  }
+
+  private async connectToKafka(): Promise<void> {
     try {
       const kafka = new Kafka({
         clientId: this.kafkaClientId,
         brokers: this.kafkaBrokers,
+        requestTimeout: 30000,
+        retry: {
+          retries: 10,
+          initialRetryTime: 100,
+          maxRetryTime: 30000,
+        },
       });
 
-      this.consumer = kafka.consumer({ groupId: this.kafkaGroupId });
+      this.consumer = kafka.consumer({
+        groupId: this.kafkaGroupId,
+        sessionTimeout: 6000,
+        heartbeatInterval: 2000,
+      });
       await this.consumer.connect();
       await this.consumer.subscribe({ topic: this.kafkaTopic, fromBeginning: true });
       await this.consumer.run({
@@ -60,16 +76,18 @@ export class AgentTraceIngestService implements OnModuleInit, OnModuleDestroy {
         `Kafka agent trace ingestion connected (${this.kafkaBrokers.join(', ')}) topic=${this.kafkaTopic}`,
       );
     } catch (error) {
-      this.logger.error('Failed to initialize Kafka agent trace ingestion', error as Error);
-      throw error;
+      this.logger.error('Failed to connect to Kafka agent trace ingestion', error as Error);
+      // We don't throw here to ensure the backend stays up even if ingestion fails initially
     }
   }
 
   async onModuleDestroy(): Promise<void> {
     if (this.consumer) {
+      this.logger.log('Disconnecting Kafka consumer...');
       await this.consumer.disconnect().catch((error) => {
-        this.logger.error('Failed to disconnect Kafka agent trace consumer', error as Error);
+        this.logger.error('Failed to disconnect Kafka consumer', error as Error);
       });
+      this.logger.log('Kafka consumer disconnected');
     }
   }
 }

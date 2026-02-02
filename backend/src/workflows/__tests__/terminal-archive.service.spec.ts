@@ -18,7 +18,12 @@ describe('TerminalArchiveService', () => {
     deleteStreams: vi.fn().mockResolvedValue(0),
   } as any;
   const filesService = {
-    uploadFile: vi.fn().mockResolvedValue({ id: 'file-1', fileName: 'a.cast', mimeType: 'application/x-asciinema', size: 10 }),
+    uploadFile: vi.fn().mockResolvedValue({
+      id: 'file-1',
+      fileName: 'a.cast',
+      mimeType: 'application/x-asciinema',
+      size: 10,
+    }),
     downloadFile: vi.fn(),
   } as any;
   const repo = {

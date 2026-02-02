@@ -31,32 +31,36 @@ describe('Okta User Offboard - Workflow Integration', () => {
     mockUserApi.deleteUser.mockReset();
   });
 
-  const createTestWorkflow = (params: any): WorkflowDefinition => ({
-    version: 1,
-    title: 'Okta Offboard Test',
-    description: 'Test Okta user offboarding through workflow runner',
-    entrypoint: { ref: 'okta-offboard' },
-    config: {
-      environment: 'test',
-      timeoutSeconds: 30,
-    },
-    nodes: {
-      'okta-offboard': { ref: 'okta-offboard' },
-    },
-    edges: [],
-    dependencyCounts: {
-      'okta-offboard': 0,
-    },
-    actions: [
-      {
-        ref: 'okta-offboard',
-        componentId: 'it-automation.okta.user-offboard',
-        params,
-        dependsOn: [],
-        inputMappings: {},
+  const createTestWorkflow = (config: any): WorkflowDefinition => {
+    const { user_email, okta_domain, apiToken, ...params } = config;
+    return {
+      version: 1,
+      title: 'Okta Offboard Test',
+      description: 'Test Okta user offboarding through workflow runner',
+      entrypoint: { ref: 'okta-offboard' },
+      config: {
+        environment: 'test',
+        timeoutSeconds: 30,
       },
-    ],
-  });
+      nodes: {
+        'okta-offboard': { ref: 'okta-offboard' },
+      },
+      edges: [],
+      dependencyCounts: {
+        'okta-offboard': 0,
+      },
+      actions: [
+        {
+          ref: 'okta-offboard',
+          componentId: 'it-automation.okta.user-offboard',
+          params,
+          inputOverrides: { user_email, okta_domain, apiToken },
+          dependsOn: [],
+          inputMappings: {},
+        },
+      ],
+    };
+  };
 
   it('successfully deactivates a user via the workflow runner', async () => {
     const mockUser = {

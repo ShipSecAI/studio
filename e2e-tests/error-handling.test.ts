@@ -124,7 +124,7 @@ async function createAndRunWorkflow(name: string, config: any) {
         id: 'start',
         type: 'core.workflow.entrypoint',
         position: { x: 0, y: 0 },
-        data: { label: 'Start', config: { runtimeInputs: [] } },
+        data: { label: 'Start', config: { params: { runtimeInputs: [] } } },
       },
       {
         id: 'error-gen',
@@ -132,7 +132,7 @@ async function createAndRunWorkflow(name: string, config: any) {
         position: { x: 200, y: 0 },
         data: {
           label: name,
-          config: config,
+          config: { params: config },
         },
       },
     ],
@@ -322,7 +322,7 @@ e2eDescribe('Error Handling E2E Tests', () => {
           id: 'start',
           type: 'core.workflow.entrypoint',
           position: { x: 0, y: 0 },
-          data: { label: 'Start', config: { runtimeInputs: [] } },
+          data: { label: 'Start', config: { params: { runtimeInputs: [] } } },
         },
         {
           id: 'error-gen',
@@ -331,10 +331,12 @@ e2eDescribe('Error Handling E2E Tests', () => {
           data: {
             label: 'Retry Limited',
             config: {
-              mode: 'fail',
-              errorType: 'ServiceError',
-              errorMessage: 'Should fail early',
-              failUntilAttempt: 4, // Would succeed on 4th attempt if retries were unlimited
+              params: {
+                mode: 'fail',
+                errorType: 'ServiceError',
+                errorMessage: 'Should fail early',
+                failUntilAttempt: 4, // Would succeed on 4th attempt if retries were unlimited
+              },
             },
           },
         },

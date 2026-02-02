@@ -11,7 +11,7 @@ describeNotify('Notify component registration', () => {
     const component = componentRegistry.get<NotifyInput, NotifyOutput>('shipsec.notify.dispatch');
     expect(component).toBeDefined();
     expect(component!.category).toBe('security');
-    expect(component!.metadata?.slug).toBe('notify');
+    expect(component!.ui?.slug).toBe('notify');
 
     if (component!.runner.kind === 'docker') {
       expect(component!.runner.image).toContain('projectdiscovery/notify');

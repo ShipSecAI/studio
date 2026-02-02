@@ -4,60 +4,68 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Copy } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { AnsiUp } from 'ansi_up'
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Copy } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AnsiUp } from 'ansi_up';
 
 interface MessageModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  message: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  message: string;
 }
 
 export function MessageModal({ open, onOpenChange, title, message }: MessageModalProps) {
-  const hasAnsi = /\u001b\[[0-9;]*m/.test(message)
-  const [wrap, setWrap] = useState(true)
-  const [colorize, setColorize] = useState(true)
+  // eslint-disable-next-line no-control-regex
+  const hasAnsi = /\u001b\[[0-9;]*m/.test(message);
+  const [wrap, setWrap] = useState(true);
+  const [colorize, setColorize] = useState(true);
 
   // Load persisted prefs on mount; default colorize to hasAnsi if unset
   useEffect(() => {
     try {
-      const w = localStorage.getItem('messageModal.wrap')
-      if (w !== null) setWrap(w === '1')
-      const c = localStorage.getItem('messageModal.color')
-      if (c !== null) setColorize(c === '1')
-      else setColorize(hasAnsi)
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+      const w = localStorage.getItem('messageModal.wrap');
+      if (w !== null) setWrap(w === '1');
+      const c = localStorage.getItem('messageModal.color');
+      if (c !== null) setColorize(c === '1');
+      else setColorize(hasAnsi);
+    } catch {
+      // Ignore localStorage errors (e.g., in iframes or when cookies disabled)
+    }
+  }, []);
 
   useEffect(() => {
-    try { localStorage.setItem('messageModal.wrap', wrap ? '1' : '0') } catch {}
-  }, [wrap])
+    try {
+      localStorage.setItem('messageModal.wrap', wrap ? '1' : '0');
+    } catch {
+      // Ignore localStorage errors (e.g., in iframes or when cookies disabled)
+    }
+  }, [wrap]);
   useEffect(() => {
-    try { localStorage.setItem('messageModal.color', colorize ? '1' : '0') } catch {}
-  }, [colorize])
+    try {
+      localStorage.setItem('messageModal.color', colorize ? '1' : '0');
+    } catch {
+      // Ignore localStorage errors (e.g., in iframes or when cookies disabled)
+    }
+  }, [colorize]);
 
   const ansiHtml = useMemo(() => {
-    if (!(colorize && hasAnsi)) return ''
-    const au = new AnsiUp()
-    return au.ansi_to_html(message)
-  }, [colorize, hasAnsi, message])
+    if (!(colorize && hasAnsi)) return '';
+    const au = new AnsiUp();
+    return au.ansi_to_html(message);
+  }, [colorize, hasAnsi, message]);
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(message)
-  }
+    navigator.clipboard.writeText(message);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Full message content
-          </DialogDescription>
+          <DialogDescription>Full message content</DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto">
@@ -67,7 +75,9 @@ export function MessageModal({ open, onOpenChange, title, message }: MessageModa
               dangerouslySetInnerHTML={{ __html: ansiHtml }}
             />
           ) : (
-            <pre className={`text-xs font-mono bg-muted/30 rounded p-3 border min-h-[200px] ${wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'}`}>
+            <pre
+              className={`text-xs font-mono bg-muted/30 rounded p-3 border min-h-[200px] ${wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'}`}
+            >
               {message}
             </pre>
           )}
@@ -105,15 +115,11 @@ export function MessageModal({ open, onOpenChange, title, message }: MessageModa
             </Button>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Close
           </Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

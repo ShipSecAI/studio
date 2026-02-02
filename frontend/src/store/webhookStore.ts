@@ -1,51 +1,56 @@
-import { create } from 'zustand'
-import type { WebhookConfiguration, WebhookDelivery } from '@shipsec/shared'
-import { API_BASE_URL } from '@/services/api'
+import { create } from 'zustand';
+import type { WebhookConfiguration, WebhookDelivery } from '@shipsec/shared';
+import { API_V1_URL } from '@/services/api';
 
-type WebhookStatusFilter = 'all' | 'active' | 'inactive'
+type WebhookStatusFilter = 'all' | 'active' | 'inactive';
 
 interface WebhookFilters {
-  workflowId: string | null
-  status: WebhookStatusFilter
-  search: string
+  workflowId: string | null;
+  status: WebhookStatusFilter;
+  search: string;
 }
 
 interface WebhookStoreState {
-  webhooks: WebhookConfiguration[]
-  deliveries: Record<string, WebhookDelivery[]>
-  isLoading: boolean
-  isDeliveriesLoading: Record<string, boolean>
-  error: string | null
-  lastFetched: number | null
-  filters: WebhookFilters
+  webhooks: WebhookConfiguration[];
+  deliveries: Record<string, WebhookDelivery[]>;
+  isLoading: boolean;
+  isDeliveriesLoading: Record<string, boolean>;
+  error: string | null;
+  lastFetched: number | null;
+  filters: WebhookFilters;
 }
 
 interface WebhookStoreActions {
-  fetchWebhooks: (options?: { force?: boolean }) => Promise<WebhookConfiguration[]>
-  refreshWebhooks: () => Promise<WebhookConfiguration[]>
-  setFilters: (filters: Partial<WebhookFilters>) => void
-  deleteWebhook: (id: string) => Promise<void>
-  upsertWebhook: (webhook: WebhookConfiguration) => void
-  regeneratePath: (id: string) => Promise<{ id: string; webhookPath: string; url: string }>
+  fetchWebhooks: (options?: { force?: boolean }) => Promise<WebhookConfiguration[]>;
+  refreshWebhooks: () => Promise<WebhookConfiguration[]>;
+  setFilters: (filters: Partial<WebhookFilters>) => void;
+  deleteWebhook: (id: string) => Promise<void>;
+  upsertWebhook: (webhook: WebhookConfiguration) => void;
+  regeneratePath: (id: string) => Promise<{ id: string; webhookPath: string; url: string }>;
   testScript: (dto: {
-    parsingScript: string
-    testPayload: Record<string, unknown>
-    testHeaders?: Record<string, string>
-    webhookId?: string
-  }) => Promise<{ success: boolean; parsedData: Record<string, unknown> | null; errorMessage: string | null; validationErrors?: Array<{ inputId: string; message: string }> }>
-  fetchDeliveries: (webhookId: string) => Promise<WebhookDelivery[]>
-  setError: (message: string | null) => void
+    parsingScript: string;
+    testPayload: Record<string, unknown>;
+    testHeaders?: Record<string, string>;
+    webhookId?: string;
+  }) => Promise<{
+    success: boolean;
+    parsedData: Record<string, unknown> | null;
+    errorMessage: string | null;
+    validationErrors?: { inputId: string; message: string }[];
+  }>;
+  fetchDeliveries: (webhookId: string) => Promise<WebhookDelivery[]>;
+  setError: (message: string | null) => void;
 }
 
-export type WebhookStore = WebhookStoreState & WebhookStoreActions
+export type WebhookStore = WebhookStoreState & WebhookStoreActions;
 
-const STALE_MS = 15_000
+const STALE_MS = 15_000;
 
 const INITIAL_FILTERS: WebhookFilters = {
   workflowId: null,
   status: 'all',
   search: '',
-}
+};
 
 const createInitialState = (): WebhookStoreState => ({
   webhooks: [],
@@ -55,11 +60,11 @@ const createInitialState = (): WebhookStoreState => ({
   error: null,
   lastFetched: null,
   filters: { ...INITIAL_FILTERS },
-})
+});
 
 async function fetchWithHeaders(url: string, options: RequestInit = {}): Promise<Response> {
-  const { getApiAuthHeaders } = await import('@/services/api')
-  const headers = await getApiAuthHeaders()
+  const { getApiAuthHeaders } = await import('@/services/api');
+  const headers = await getApiAuthHeaders();
 
   return fetch(url, {
     ...options,
@@ -68,42 +73,42 @@ async function fetchWithHeaders(url: string, options: RequestInit = {}): Promise
       'Content-Type': 'application/json',
       ...options.headers,
     },
-  })
+  });
 }
 
 export const useWebhookStore = create<WebhookStore>((set, get) => ({
   ...createInitialState(),
 
   fetchWebhooks: async (options) => {
-    const { lastFetched, isLoading } = get()
-    const force = options?.force ?? false
-    const isFresh = lastFetched && Date.now() - lastFetched < STALE_MS
+    const { lastFetched, isLoading } = get();
+    const force = options?.force ?? false;
+    const isFresh = lastFetched && Date.now() - lastFetched < STALE_MS;
 
     if (!force && !isLoading && isFresh) {
-      return get().webhooks
+      return get().webhooks;
     }
 
     if (!isLoading) {
-      set({ isLoading: true, error: null })
+      set({ isLoading: true, error: null });
     }
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/webhooks/configurations`)
+      const response = await fetchWithHeaders(`${API_V1_URL}/webhooks/configurations`);
       if (!response.ok) {
-        throw new Error('Failed to fetch webhooks')
+        throw new Error('Failed to fetch webhooks');
       }
-      const webhooks = await response.json()
+      const webhooks = await response.json();
       set({
         webhooks,
         isLoading: false,
         error: null,
         lastFetched: Date.now(),
-      })
-      return webhooks
+      });
+      return webhooks;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch webhooks'
-      set({ isLoading: false, error: message })
-      throw error
+      const message = error instanceof Error ? error.message : 'Failed to fetch webhooks';
+      set({ isLoading: false, error: message });
+      throw error;
     }
   },
 
@@ -115,96 +120,99 @@ export const useWebhookStore = create<WebhookStore>((set, get) => ({
         ...state.filters,
         ...partial,
       },
-    }))
+    }));
   },
 
   deleteWebhook: async (id: string) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/webhooks/configurations/${id}`, {
+    const response = await fetchWithHeaders(`${API_V1_URL}/webhooks/configurations/${id}`, {
       method: 'DELETE',
-    })
+    });
     if (!response.ok) {
-      throw new Error('Failed to delete webhook')
+      throw new Error('Failed to delete webhook');
     }
     set((state) => ({
       webhooks: state.webhooks.filter((webhook) => webhook.id !== id),
-    }))
+    }));
   },
 
   upsertWebhook: (webhook) => {
     set((state) => {
-      const exists = state.webhooks.some((item) => item.id === webhook.id)
+      const exists = state.webhooks.some((item) => item.id === webhook.id);
       if (!exists) {
-        return { webhooks: [...state.webhooks, webhook] }
+        return { webhooks: [...state.webhooks, webhook] };
       }
       return {
-        webhooks: state.webhooks.map((item) =>
-          item.id === webhook.id ? webhook : item,
-        ),
-      }
-    })
+        webhooks: state.webhooks.map((item) => (item.id === webhook.id ? webhook : item)),
+      };
+    });
   },
 
   regeneratePath: async (id: string) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/webhooks/configurations/${id}/regenerate-path`, {
-      method: 'POST',
-    })
+    const response = await fetchWithHeaders(
+      `${API_V1_URL}/webhooks/configurations/${id}/regenerate-path`,
+      {
+        method: 'POST',
+      },
+    );
     if (!response.ok) {
-      throw new Error('Failed to regenerate webhook path')
+      throw new Error('Failed to regenerate webhook path');
     }
-    const result = await response.json()
+    const result = await response.json();
 
     // Update the webhook in the store
     set((state) => ({
       webhooks: state.webhooks.map((w) =>
         w.id === id ? { ...w, webhookPath: result.webhookPath } : w,
       ),
-    }))
+    }));
 
-    return result
+    return result;
   },
 
   testScript: async (dto) => {
-    const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/webhooks/configurations/test-script`, {
+    const response = await fetchWithHeaders(`${API_V1_URL}/webhooks/configurations/test-script`, {
       method: 'POST',
       body: JSON.stringify(dto),
-    })
+    });
     if (!response.ok) {
-      throw new Error('Failed to test parsing script')
+      throw new Error('Failed to test parsing script');
     }
-    return response.json()
+    return response.json();
   },
 
   fetchDeliveries: async (webhookId: string) => {
     set((state) => ({
       isDeliveriesLoading: { ...state.isDeliveriesLoading, [webhookId]: true },
-    }))
+    }));
 
     try {
-      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/webhooks/configurations/${webhookId}/deliveries`)
+      const response = await fetchWithHeaders(
+        `${API_V1_URL}/webhooks/configurations/${webhookId}/deliveries`,
+      );
       if (!response.ok) {
-        throw new Error('Failed to fetch deliveries')
+        throw new Error('Failed to fetch deliveries');
       }
-      const deliveries = await response.json()
+      const deliveries = await response.json();
 
       set((state) => ({
         deliveries: { ...state.deliveries, [webhookId]: deliveries },
         isDeliveriesLoading: { ...state.isDeliveriesLoading, [webhookId]: false },
-      }))
+      }));
 
-      return deliveries
+      return deliveries;
     } catch (error) {
       set((state) => ({
         isDeliveriesLoading: { ...state.isDeliveriesLoading, [webhookId]: false },
-      }))
-      throw error
+      }));
+      throw error;
     }
   },
 
   setError: (message) => {
-    set({ error: message })
+    set({ error: message });
   },
-}))
+}));
 
 export const resetWebhookStoreState = () => {
-  useWebhookStore.setState({ ...createInitialState() })
-}
+  useWebhookStore.setState({ ...createInitialState() });
+};

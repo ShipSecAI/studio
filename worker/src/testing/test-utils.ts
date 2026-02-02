@@ -21,6 +21,10 @@ export function createMockExecutionContext(
     trace: undefined,
     logCollector: undefined,
     metadata: { runId: 'test-run-id', componentRef: 'test-component-ref' },
+    http: {
+      fetch: vi.fn(async () => new Response()),
+      toCurl: vi.fn(() => ''),
+    },
   };
 
   return {

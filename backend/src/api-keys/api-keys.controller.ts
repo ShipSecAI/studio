@@ -17,7 +17,6 @@ import type { AuthContext } from '../auth/types';
 import { ApiKeysService } from './api-keys.service';
 import {
   ApiKeyResponseDto,
-  ApiKeyResponseSchema,
   CreateApiKeyDto,
   CreateApiKeySchema,
   CreateApiKeyResponseDto,

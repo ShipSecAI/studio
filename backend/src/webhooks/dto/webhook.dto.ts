@@ -7,12 +7,9 @@ import {
   UpdateWebhookSchema,
   TestWebhookScriptSchema,
   TestWebhookScriptResponseSchema,
-  type WebhookConfiguration,
-  type WebhookDelivery,
   type CreateWebhook,
   type UpdateWebhook,
   type TestWebhookScript,
-  type TestWebhookScriptResponse,
 } from '@shipsec/shared';
 
 // Existing DTO for backward compatibility
@@ -39,7 +36,9 @@ export class TestWebhookScriptRequestDto extends createZodDto(TestWebhookScriptR
 export const WebhookConfigurationResponseSchema = WebhookConfigurationSchema;
 export const WebhookDeliveryResponseSchema = WebhookDeliverySchema;
 
-export class WebhookConfigurationResponseDto extends createZodDto(WebhookConfigurationResponseSchema) {}
+export class WebhookConfigurationResponseDto extends createZodDto(
+  WebhookConfigurationResponseSchema,
+) {}
 export class WebhookDeliveryResponseDto extends createZodDto(WebhookDeliveryResponseSchema) {}
 export class TestWebhookScriptResponseDto extends createZodDto(TestWebhookScriptResponseSchema) {}
 

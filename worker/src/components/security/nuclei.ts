@@ -1,117 +1,182 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
-  port,
   runComponentWithRunner,
   type DockerRunnerConfig,
   ValidationError,
   ServiceError,
   ComponentRetryPolicy,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 import * as yaml from 'js-yaml';
 
-// Input validation with custom refinement
-const inputSchema = z
-  .object({
-    targets: z
+const inputSchema = inputs({
+  targets: port(
+    z
       .array(z.string().min(1, 'Target cannot be empty'))
       .min(1, 'At least one target is required')
       .describe('URLs or IPs to scan for vulnerabilities'),
-
-    // Custom templates - at least one required
-    customTemplateArchive: z
+    {
+      label: 'Targets',
+      description: 'URLs or IP addresses to scan (from subfinder, httpx, or manual input).',
+      connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
+    },
+  ),
+  customTemplateArchive: port(
+    z
       .string()
       .optional()
       .describe('Base64-encoded zip archive containing multiple YAML templates (from File Loader)'),
-    customTemplateYaml: z
-      .string()
-      .optional()
-      .describe('Raw YAML content for a single template (for quick testing)'),
-
-    // Built-in template filters (optional)
-    templateIds: z
+    {
+      label: 'Template Archive (Zip)',
+      description: 'Base64-encoded zip file with multiple templates (connect File Loader output).',
+      connectionType: { kind: 'primitive', name: 'text' },
+    },
+  ),
+  customTemplateYaml: port(
+    z.string().optional().describe('Raw YAML content for a single template (for quick testing)'),
+    {
+      label: 'Template YAML (Single)',
+      description: 'Raw YAML content for quick template testing (paste directly or connect).',
+      connectionType: { kind: 'primitive', name: 'text' },
+    },
+  ),
+  templateIds: port(
+    z
       .array(z.string())
       .optional()
-      .describe('Specific template IDs to run (e.g., ["CVE-2024-1234", "http-missing-security-headers"])'),
-    templatePaths: z
+      .describe(
+        'Specific template IDs to run (e.g., ["CVE-2024-1234", "http-missing-security-headers"])',
+      ),
+    {
+      label: 'Template IDs',
+      description:
+        'Specific template IDs from nuclei-templates repo (e.g., CVE-2024-1234, http-missing-security-headers).',
+      connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
+    },
+  ),
+  templatePaths: port(
+    z
       .array(z.string())
       .optional()
-      .describe('Specific built-in template paths to include (e.g., ["cves/2024/", "http/exposures/"])'),
+      .describe(
+        'Specific built-in template paths to include (e.g., ["cves/2024/", "http/exposures/"])',
+      ),
+    {
+      label: 'Template Paths',
+      description: 'Specific built-in template paths to include in the scan.',
+      connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
+    },
+  ),
+});
 
-    // Scan configuration
-    rateLimit: z
-      .number()
-      .int()
-      .positive()
-      .max(1000)
-      .optional()
-      .default(150)
-      .describe('Maximum requests per second'),
-    concurrency: z
+const parameterSchema = parameters({
+  rateLimit: param(
+    z.number().int().positive().max(1000).default(150).describe('Maximum requests per second'),
+    {
+      label: 'Rate Limit (req/sec)',
+      editor: 'number',
+      min: 1,
+      max: 1000,
+      description: 'Maximum requests per second to avoid overwhelming targets.',
+    },
+  ),
+  concurrency: param(
+    z
       .number()
       .int()
       .positive()
       .max(100)
-      .optional()
       .default(25)
       .describe('Number of parallel template executions'),
-    timeout: z
-      .number()
-      .int()
-      .positive()
-      .max(300)
-      .optional()
-      .default(10)
-      .describe('Timeout per request in seconds'),
-    retries: z
-      .number()
-      .int()
-      .min(0)
-      .max(5)
-      .optional()
-      .default(1)
-      .describe('Number of retries for failed requests'),
-
-    // Advanced options
-    includeRaw: z
+    {
+      label: 'Concurrency',
+      editor: 'number',
+      min: 1,
+      max: 100,
+      description: 'Number of parallel template executions.',
+    },
+  ),
+  timeout: param(
+    z.number().int().positive().max(300).default(10).describe('Timeout per request in seconds'),
+    {
+      label: 'Timeout (seconds)',
+      editor: 'number',
+      min: 1,
+      max: 300,
+      description: 'Timeout per HTTP request.',
+    },
+  ),
+  retries: param(
+    z.number().int().min(0).max(5).default(1).describe('Number of retries for failed requests'),
+    {
+      label: 'Retries',
+      editor: 'number',
+      min: 0,
+      max: 5,
+      description: 'Number of retries for failed requests.',
+    },
+  ),
+  includeRaw: param(
+    z.boolean().default(false).describe('Include raw HTTP requests and responses in output'),
+    {
+      label: 'Include Raw HTTP',
+      editor: 'boolean',
+      description: 'Include raw HTTP requests/responses in findings (increases output size).',
+    },
+  ),
+  followRedirects: param(
+    z.boolean().default(false).describe('Follow HTTP redirects during scanning'),
+    {
+      label: 'Follow Redirects',
+      editor: 'boolean',
+      description: 'Follow HTTP redirects during scanning.',
+    },
+  ),
+  updateTemplates: param(
+    z.boolean().default(false).describe('Update built-in templates before scanning'),
+    {
+      label: 'Update Templates',
+      editor: 'boolean',
+      description: 'Update built-in template library before scanning (slower, usually not needed).',
+    },
+  ),
+  disableHttpx: param(
+    z
       .boolean()
-      .optional()
-      .default(false)
-      .describe('Include raw HTTP requests and responses in output'),
-    followRedirects: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Follow HTTP redirects during scanning'),
-    updateTemplates: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Update built-in templates before scanning'),
-    disableHttpx: z
-      .boolean()
-      .optional()
       .default(true)
       .describe('Disable automatic HTTP probing with httpx (faster scans for known URLs)'),
-  })
-  .refine(
-    (data) => {
-      // At least one template source must be provided
-      const hasCustomArchive = !!data.customTemplateArchive;
-      const hasCustomYaml = !!data.customTemplateYaml;
-      const hasBuiltInFilters = !!(data.templateIds || data.templatePaths);
-
-      return hasCustomArchive || hasCustomYaml || hasBuiltInFilters;
-    },
     {
-      message:
-        'At least one template source is required: customTemplateArchive, customTemplateYaml, templateIds, or templatePaths',
+      label: 'Disable HTTP Probing',
+      editor: 'boolean',
+      description: 'Skip automatic HTTP probing with httpx (faster for known valid URLs).',
     },
-  );
-
-type Input = z.infer<typeof inputSchema>;
+  ),
+  severityFilter: param(
+    z
+      .array(z.enum(['info', 'low', 'medium', 'high', 'critical']))
+      .optional()
+      .describe('Filter templates by severity level'),
+    {
+      label: 'Severity Filter',
+      editor: 'multi-select',
+      options: [
+        { label: 'Info', value: 'info' },
+        { label: 'Low', value: 'low' },
+        { label: 'Medium', value: 'medium' },
+        { label: 'High', value: 'high' },
+        { label: 'Critical', value: 'critical' },
+      ],
+      description: 'Only run templates matching these severity levels (e.g., high, critical).',
+    },
+  ),
+});
 
 // Output schema (unchanged)
 const findingSchema = z.object({
@@ -132,19 +197,37 @@ const findingSchema = z.object({
 
 type Finding = z.infer<typeof findingSchema>;
 
-const outputSchema = z.object({
-  findings: z.array(findingSchema),
-  rawOutput: z.string(),
-  targetCount: z.number(),
-  findingCount: z.number(),
-  stats: z.object({
-    templatesLoaded: z.number(),
-    requestsSent: z.number(),
-    duration: z.number(),
+const outputSchema = outputs({
+  findings: port(z.array(findingSchema), {
+    label: 'Vulnerability Findings',
+    description: 'Array of detected vulnerabilities with severity, tags, and matched URLs.',
+    connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
   }),
+  rawOutput: port(z.string(), {
+    label: 'Raw Output',
+    description: 'Complete JSONL output from nuclei for downstream processing.',
+  }),
+  targetCount: port(z.number(), {
+    label: 'Target Count',
+    description: 'Number of targets scanned.',
+  }),
+  findingCount: port(z.number(), {
+    label: 'Finding Count',
+    description: 'Total number of vulnerabilities detected.',
+  }),
+  stats: port(
+    z.object({
+      templatesLoaded: z.number(),
+      requestsSent: z.number(),
+      duration: z.number(),
+    }),
+    {
+      label: 'Stats',
+      description: 'Aggregate scan statistics for the run.',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
 });
-
-type Output = z.infer<typeof outputSchema>;
 
 // Runner output schema
 const nucleiRunnerOutputSchema = z.object({
@@ -168,14 +251,10 @@ const nucleiRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 10,
   maximumIntervalSeconds: 60,
   backoffCoefficient: 1.5,
-  nonRetryableErrorTypes: [
-    'ContainerError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
 };
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'shipsec.nuclei.scan',
   label: 'Nuclei Vulnerability Scanner',
   category: 'security',
@@ -200,10 +279,11 @@ const definition: ComponentDefinition<Input, Output> = {
       HOME: '/home/nonroot', // Custom image runs as nonroot user
     },
   },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Run ProjectDiscovery Nuclei vulnerability scanner with custom or built-in templates. Supports quick YAML testing or bulk scans with template archives.',
-  metadata: {
+  ui: {
     slug: 'nuclei',
     version: '1.0.0',
     type: 'scan',
@@ -222,171 +302,84 @@ const definition: ComponentDefinition<Input, Output> = {
     deprecated: false,
     example:
       '`nuclei -l targets.txt -t CVE-2024-1234 -t http-missing-headers -stream` - Scan targets for specific vulnerabilities using template IDs with real-time streaming.',
-    inputs: [
-      {
-        id: 'targets',
-        label: 'Targets',
-        dataType: port.list(port.text()),
-        required: true,
-        description: 'URLs or IP addresses to scan (from subfinder, httpx, or manual input).',
-      },
-      {
-        id: 'customTemplateArchive',
-        label: 'Template Archive (Zip)',
-        dataType: port.text(),
-        required: false,
-        description: 'Base64-encoded zip file with multiple templates (connect File Loader output).',
-      },
-      {
-        id: 'customTemplateYaml',
-        label: 'Template YAML (Single)',
-        dataType: port.text(),
-        required: false,
-        description: 'Raw YAML content for quick template testing (paste directly or connect).',
-      },
-      {
-        id: 'templateIds',
-        label: 'Template IDs',
-        dataType: port.list(port.text()),
-        required: false,
-        description: 'Specific template IDs from nuclei-templates repo (e.g., CVE-2024-1234, http-missing-security-headers).',
-      },
-    ],
-    outputs: [
-      {
-        id: 'findings',
-        label: 'Vulnerability Findings',
-        dataType: port.list(port.json()),
-        description: 'Array of detected vulnerabilities with severity, tags, and matched URLs.',
-      },
-      {
-        id: 'rawOutput',
-        label: 'Raw Output',
-        dataType: port.text(),
-        description: 'Complete JSONL output from nuclei for downstream processing.',
-      },
-      {
-        id: 'findingCount',
-        label: 'Finding Count',
-        dataType: port.number(),
-        description: 'Total number of vulnerabilities detected.',
-      },
-    ],
     examples: [
       'Specific CVE scan: Use templateIds=["CVE-2024-1234", "CVE-2024-5678"] to scan for known vulnerabilities',
       'Custom template testing: Paste YAML directly into customTemplateYaml for rapid iteration',
       'Bulk custom scan: Upload zip archive via Entry Point → File Loader → Nuclei',
       'Comprehensive scan: Combine custom archive + built-in templates for complete coverage',
     ],
-    parameters: [
-      {
-        id: 'rateLimit',
-        label: 'Rate Limit (req/sec)',
-        type: 'number',
-        min: 1,
-        max: 1000,
-        default: 150,
-        description: 'Maximum requests per second to avoid overwhelming targets.',
-      },
-      {
-        id: 'concurrency',
-        label: 'Concurrency',
-        type: 'number',
-        min: 1,
-        max: 100,
-        default: 25,
-        description: 'Number of parallel template executions.',
-      },
-      {
-        id: 'timeout',
-        label: 'Timeout (seconds)',
-        type: 'number',
-        min: 1,
-        max: 300,
-        default: 10,
-        description: 'Timeout per HTTP request.',
-      },
-      {
-        id: 'retries',
-        label: 'Retries',
-        type: 'number',
-        min: 0,
-        max: 5,
-        default: 1,
-        description: 'Number of retries for failed requests.',
-      },
-      {
-        id: 'includeRaw',
-        label: 'Include Raw HTTP',
-        type: 'boolean',
-        default: false,
-        description: 'Include raw HTTP requests/responses in findings (increases output size).',
-      },
-      {
-        id: 'followRedirects',
-        label: 'Follow Redirects',
-        type: 'boolean',
-        default: false,
-        description: 'Follow HTTP redirects during scanning.',
-      },
-      {
-        id: 'updateTemplates',
-        label: 'Update Templates',
-        type: 'boolean',
-        default: false,
-        description: 'Update built-in template library before scanning (slower, usually not needed as Docker image has latest templates).',
-      },
-      {
-        id: 'disableHttpx',
-        label: 'Disable HTTP Probing',
-        type: 'boolean',
-        default: true,
-        description: 'Skip automatic HTTP probing with httpx (faster for known valid URLs).',
-      },
-    ],
+    agentTool: {
+      enabled: true,
+      toolDescription:
+        'Fast vulnerability scanner for CVEs, misconfigurations, and exposures using YAML templates.',
+    },
   },
-  async execute(rawInput, context) {
-    const parsedInput = inputSchema.parse(rawInput);
+  async execute({ inputs, params }, context) {
+    const parsedInputs = inputSchema.parse(inputs);
+    const parsedParams = parameterSchema.parse(params);
 
-    context.logger.info(
-      `[Nuclei] Starting scan for ${parsedInput.targets.length} target(s)`,
-    );
+    context.logger.info(`[Nuclei] Starting scan for ${parsedInputs.targets.length} target(s)`);
 
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     let volume: IsolatedContainerVolume | null = null;
 
     try {
+      const hasCustomArchive = !!parsedInputs.customTemplateArchive;
+      const hasCustomYaml = !!parsedInputs.customTemplateYaml;
+      const hasBuiltInFilters = !!(
+        (parsedInputs.templateIds && parsedInputs.templateIds.length > 0) ||
+        (parsedInputs.templatePaths && parsedInputs.templatePaths.length > 0)
+      );
+      const hasSeverityFilter = !!(
+        parsedParams.severityFilter && parsedParams.severityFilter.length > 0
+      );
+
+      if (!hasCustomArchive && !hasCustomYaml && !hasBuiltInFilters && !hasSeverityFilter) {
+        throw new ValidationError(
+          'At least one template source is required: customTemplateArchive, customTemplateYaml, templateIds, templatePaths, or severityFilter',
+        );
+      }
+
       // ===== TypeScript: Build nuclei command args =====
       const args: string[] = [
-        '-duc',            // Disable update check (templates pre-installed in image)
-        '-jsonl',          // JSONL output format (nuclei v3.6.0+)
-        '-stream',         // Stream mode: prevents buffering, required for PTY compatibility
-        '-verbose',        // Show findings in terminal (overrides silent mode)
-        '-l', '/inputs/targets.txt',  // Targets file
+        '-duc', // Disable update check (templates pre-installed in image)
+        '-jsonl', // JSONL output format (nuclei v3.6.0+)
+        '-stream', // Stream mode: prevents buffering, required for PTY compatibility
+        '-verbose', // Show findings in terminal (overrides silent mode)
+        '-l',
+        '/inputs/targets.txt', // Targets file
       ];
 
       // Conditionally disable httpx probing
-      if (parsedInput.disableHttpx) {
+      if (parsedParams.disableHttpx) {
         args.push('-nh');
       }
 
       // Scan configuration
-      args.push('-rl', parsedInput.rateLimit.toString());
-      args.push('-c', parsedInput.concurrency.toString());
-      args.push('-timeout', parsedInput.timeout.toString());
-      args.push('-retries', parsedInput.retries.toString());
+      args.push('-rl', parsedParams.rateLimit.toString());
+      args.push('-c', parsedParams.concurrency.toString());
+      args.push('-timeout', parsedParams.timeout.toString());
+      args.push('-retries', parsedParams.retries.toString());
 
-      if (parsedInput.updateTemplates) {
+      if (parsedParams.updateTemplates) {
         args.push('-update-templates');
       }
 
-      if (parsedInput.followRedirects) {
+      if (parsedParams.followRedirects) {
         args.push('-follow-redirects');
+      }
+
+      // Severity filter
+      if (parsedParams.severityFilter && parsedParams.severityFilter.length > 0) {
+        args.push('-s', parsedParams.severityFilter.join(','));
+        context.logger.info(
+          `[Nuclei] Filtering by severity: ${parsedParams.severityFilter.join(', ')}`,
+        );
       }
 
       // In nuclei v3.6.0+, raw HTTP is included by default
       // Use -omit-raw to exclude it when user doesn't want it
-      if (!parsedInput.includeRaw) {
+      if (!parsedParams.includeRaw) {
         args.push('-omit-raw');
       }
 
@@ -395,26 +388,26 @@ const definition: ComponentDefinition<Input, Output> = {
       const files: Record<string, string | Buffer> = {};
 
       // Always add targets file
-      files['targets.txt'] = parsedInput.targets.join('\n');
+      files['targets.txt'] = parsedInputs.targets.join('\n');
 
       // ===== Handle custom templates =====
       const hasCustomTemplates =
-        parsedInput.customTemplateArchive || parsedInput.customTemplateYaml;
+        parsedInputs.customTemplateArchive || parsedInputs.customTemplateYaml;
 
       if (hasCustomTemplates) {
         // Option 1: Zip archive
-        if (parsedInput.customTemplateArchive) {
+        if (parsedInputs.customTemplateArchive) {
           context.logger.info('[Nuclei] Processing template archive...');
           context.emitProgress('Extracting template archive...');
 
-          const zipBuffer = Buffer.from(parsedInput.customTemplateArchive, 'base64');
+          const zipBuffer = Buffer.from(parsedInputs.customTemplateArchive, 'base64');
 
           // Validate size (10MB max)
           const sizeMB = zipBuffer.length / (1024 * 1024);
           if (sizeMB > 10) {
             throw new ValidationError(
               `Template archive too large: ${sizeMB.toFixed(2)}MB (max 10MB)`,
-              { details: { sizeMB, maxSizeMB: 10 } }
+              { details: { sizeMB, maxSizeMB: 10 } },
             );
           }
 
@@ -428,30 +421,32 @@ const definition: ComponentDefinition<Input, Output> = {
         }
 
         // Option 2: Single YAML
-        if (parsedInput.customTemplateYaml) {
+        if (parsedInputs.customTemplateYaml) {
           context.logger.info('[Nuclei] Processing single YAML template...');
           context.emitProgress('Validating YAML template...');
 
           // Validate YAML
-          validateNucleiTemplate(parsedInput.customTemplateYaml);
+          validateNucleiTemplate(parsedInputs.customTemplateYaml);
 
-          files['custom-template.yaml'] = parsedInput.customTemplateYaml;
+          files['custom-template.yaml'] = parsedInputs.customTemplateYaml;
           args.push('-t', '/inputs/custom-template.yaml');
           context.logger.info('[Nuclei] Single template validated successfully');
         }
 
         // Add custom templates directory to scan (for archive extractions)
-        if (parsedInput.customTemplateArchive) {
+        if (parsedInputs.customTemplateArchive) {
           args.push('-t', '/inputs/');
         }
       }
 
       // ===== Built-in template filters =====
       // ✅ OPTIMIZATION: Write template IDs to file instead of 500+ -id flags
-      if (parsedInput.templateIds && parsedInput.templateIds.length > 0) {
-        files['template-ids.txt'] = parsedInput.templateIds.join('\n');
+      if (parsedInputs.templateIds && parsedInputs.templateIds.length > 0) {
+        files['template-ids.txt'] = parsedInputs.templateIds.join('\n');
         args.push('-id', '/inputs/template-ids.txt');
-        context.logger.info(`[Nuclei] Using ${parsedInput.templateIds.length} template IDs from file`);
+        context.logger.info(
+          `[Nuclei] Using ${parsedInputs.templateIds.length} template IDs from file`,
+        );
       }
 
       // Initialize volume with all files (targets + templates + template IDs)
@@ -460,32 +455,33 @@ const definition: ComponentDefinition<Input, Output> = {
         `[Nuclei] Created isolated volume: ${volume.getVolumeName()} (${Object.keys(files).length} files)`,
       );
 
-      if (parsedInput.templatePaths) {
-        parsedInput.templatePaths.forEach(path => {
+      if (parsedInputs.templatePaths) {
+        parsedInputs.templatePaths.forEach((path) => {
           args.push('-t', path);
         });
       }
 
       // Log scan configuration
       const templateSources: string[] = [];
-      if (parsedInput.customTemplateArchive) templateSources.push('archive');
-      if (parsedInput.customTemplateYaml) templateSources.push('yaml');
-      if (parsedInput.templateIds) templateSources.push(`ids:${parsedInput.templateIds.join(',')}`);
-      if (parsedInput.templatePaths)
-        templateSources.push(`paths:${parsedInput.templatePaths.join(',')}`);
+      if (parsedInputs.customTemplateArchive) templateSources.push('archive');
+      if (parsedInputs.customTemplateYaml) templateSources.push('yaml');
+      if (parsedInputs.templateIds)
+        templateSources.push(`ids:${parsedInputs.templateIds.join(',')}`);
+      if (parsedInputs.templatePaths)
+        templateSources.push(`paths:${parsedInputs.templatePaths.join(',')}`);
 
       context.logger.info(
         `[Nuclei] Template sources: ${templateSources.join(', ') || 'built-in (all)'}`,
       );
       context.logger.info(
-        `[Nuclei] Config: rate=${parsedInput.rateLimit}/s, concurrency=${parsedInput.concurrency}, timeout=${parsedInput.timeout}s, stream=enabled`,
+        `[Nuclei] Config: rate=${parsedParams.rateLimit}/s, concurrency=${parsedParams.concurrency}, timeout=${parsedParams.timeout}s, stream=enabled`,
       );
 
       context.emitProgress({
         message: 'Launching nuclei scan...',
         level: 'info',
         data: {
-          targets: parsedInput.targets.slice(0, 5),
+          targets: parsedInputs.targets.slice(0, 5),
           templateSources,
         },
       });
@@ -512,7 +508,7 @@ const definition: ComponentDefinition<Input, Output> = {
       const rawRunnerResult = await runComponentWithRunner(
         runnerConfig,
         async () => ({}) as Output,
-        parsedInput,
+        { ...parsedInputs, ...parsedParams },
         context,
       );
 
@@ -531,10 +527,8 @@ const definition: ComponentDefinition<Input, Output> = {
         // Nuclei exits with 0 even when findings exist
         if (exitCode !== 0 && !stderr.includes('No results found')) {
           throw new ServiceError(
-            stderr
-              ? `Nuclei scan failed: ${stderr}`
-              : `Nuclei exited with code ${exitCode}`,
-            { details: { exitCode, stderr: stderr?.slice(0, 500) } }
+            stderr ? `Nuclei scan failed: ${stderr}` : `Nuclei exited with code ${exitCode}`,
+            { details: { exitCode, stderr: stderr?.slice(0, 500) } },
           );
         }
       } else if (typeof rawRunnerResult === 'string') {
@@ -552,13 +546,13 @@ const definition: ComponentDefinition<Input, Output> = {
       const stats = extractStats(stderr, stdout);
 
       context.logger.info(
-        `[Nuclei] Scan complete: ${findings.length} finding(s) from ${parsedInput.targets.length} target(s)`,
+        `[Nuclei] Scan complete: ${findings.length} finding(s) from ${parsedInputs.targets.length} target(s)`,
       );
 
-      const output: Output = {
+      const output = {
         findings,
         rawOutput: stdout,
-        targetCount: parsedInput.targets.length,
+        targetCount: parsedInputs.targets.length,
         findingCount: findings.length,
         stats,
       };
@@ -572,7 +566,7 @@ const definition: ComponentDefinition<Input, Output> = {
       }
     }
   },
-};
+});
 
 // ========== Helper Functions (TypeScript) ==========
 
@@ -666,9 +660,7 @@ async function extractAndValidateZip(
       }
 
       if (entry.entryName.includes('..') || entry.entryName.startsWith('/')) {
-        context.logger.warn(
-          `[Nuclei] Skipping file with invalid path: ${entry.entryName}`,
-        );
+        context.logger.warn(`[Nuclei] Skipping file with invalid path: ${entry.entryName}`);
         continue;
       }
 
@@ -758,8 +750,11 @@ function parseNucleiOutput(raw: string, context: any): Finding[] {
     const findingCandidate: Finding = {
       templateId: payload['template-id'] || payload['template'] || 'unknown',
       name: payload.info?.name || payload.name || 'Unknown',
-      severity:
-        (payload.info?.severity || payload.severity || 'info').toLowerCase() as Finding['severity'],
+      severity: (
+        payload.info?.severity ||
+        payload.severity ||
+        'info'
+      ).toLowerCase() as Finding['severity'],
       tags: Array.isArray(payload.info?.tags)
         ? payload.info.tags
         : Array.isArray(payload.tags)
@@ -785,12 +780,14 @@ function parseNucleiOutput(raw: string, context: any): Finding[] {
       context.logger.warn(
         `[Nuclei Parser] Failed to validate finding: ${parsedFinding.error.message}`,
       );
-      context.logger.warn(`[Nuclei Parser] Invalid finding data: ${JSON.stringify(findingCandidate).substring(0, 200)}`);
+      context.logger.warn(
+        `[Nuclei Parser] Invalid finding data: ${JSON.stringify(findingCandidate).substring(0, 200)}`,
+      );
     }
   }
 
   context.logger.info(
-    `[Nuclei Parser] Summary: ${findings.length} findings, ${jsonLineCount} JSON lines, ${skippedStats} stats skipped, ${skippedNonJson} non-JSON skipped`
+    `[Nuclei Parser] Summary: ${findings.length} findings, ${jsonLineCount} JSON lines, ${skippedStats} stats skipped, ${skippedNonJson} non-JSON skipped`,
   );
 
   return findings;
@@ -798,7 +795,7 @@ function parseNucleiOutput(raw: string, context: any): Finding[] {
 
 function extractStats(
   stderr: string,
-  output: string,
+  _output: string,
 ): { templatesLoaded: number; requestsSent: number; duration: number } {
   const stats = {
     templatesLoaded: 0,
@@ -825,5 +822,9 @@ function extractStats(
 }
 
 componentRegistry.register(definition);
+
+// Create local type aliases for backward compatibility
+type Input = typeof inputSchema;
+type Output = typeof outputSchema;
 
 export type { Input as NucleiInput, Output as NucleiOutput };

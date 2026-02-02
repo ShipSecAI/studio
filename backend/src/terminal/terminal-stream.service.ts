@@ -73,7 +73,10 @@ export class TerminalStreamService implements OnModuleDestroy {
     return this.redis!.del(...keys);
   }
 
-  async fetchChunks(runId: string, options: TerminalFetchOptions = {}): Promise<TerminalFetchResult> {
+  async fetchChunks(
+    runId: string,
+    options: TerminalFetchOptions = {},
+  ): Promise<TerminalFetchResult> {
     if (!this.redis) {
       return { cursor: options.cursor ?? '{}', chunks: [] };
     }
@@ -143,7 +146,12 @@ export class TerminalStreamService implements OnModuleDestroy {
     return results;
   }
 
-  private extractPayload(key: string, fields: string[], redisId?: string, previousRedisId?: string): TerminalChunk | null {
+  private extractPayload(
+    key: string,
+    fields: string[],
+    redisId?: string,
+    previousRedisId?: string,
+  ): TerminalChunk | null {
     for (let i = 0; i < fields.length; i += 2) {
       if (fields[i] !== 'data') {
         continue;
@@ -158,24 +166,24 @@ export class TerminalStreamService implements OnModuleDestroy {
           runnerKind?: string;
         };
         const { nodeRef, stream } = this.parseKey(key);
-        
+
         // Use Redis stream ID timestamp if chunks have identical recordedAt timestamps
         // Redis stream IDs are in format: milliseconds-sequence (e.g., "1734972072337-0")
         // This provides microsecond precision for ordering
         let recordedAt = data.recordedAt;
         let deltaMs = data.deltaMs;
-        
+
         if (redisId) {
           const [redisTimestampMs] = redisId.split('-');
           const redisTimestamp = parseInt(redisTimestampMs, 10);
           const storedTimestamp = new Date(data.recordedAt).getTime();
-          
+
           // If Redis timestamp is more precise (different from stored), use it
           // This handles the case where multiple chunks were created in the same millisecond
           if (redisTimestamp && redisTimestamp !== storedTimestamp) {
             const oldRecordedAt = recordedAt;
             recordedAt = new Date(redisTimestamp).toISOString();
-            
+
             // Recalculate deltaMs based on Redis timestamps if we have previous chunk
             // This fixes the case where stored deltaMs is 0 but chunks were actually created at different times
             if (previousRedisId) {
@@ -184,26 +192,32 @@ export class TerminalStreamService implements OnModuleDestroy {
               if (prevRedisTimestamp && redisTimestamp > prevRedisTimestamp) {
                 const oldDeltaMs = deltaMs;
                 deltaMs = redisTimestamp - prevRedisTimestamp;
-                console.log(`[TerminalStreamService] Fixed timestamp and deltaMs for chunk ${data.chunkIndex}`, {
-                  oldRecordedAt,
-                  newRecordedAt: recordedAt,
-                  oldDeltaMs,
-                  newDeltaMs: deltaMs,
-                  redisTimestamp,
-                  prevRedisTimestamp,
-                });
+                console.log(
+                  `[TerminalStreamService] Fixed timestamp and deltaMs for chunk ${data.chunkIndex}`,
+                  {
+                    oldRecordedAt,
+                    newRecordedAt: recordedAt,
+                    oldDeltaMs,
+                    newDeltaMs: deltaMs,
+                    redisTimestamp,
+                    prevRedisTimestamp,
+                  },
+                );
               }
             } else {
-              console.log(`[TerminalStreamService] Fixed timestamp for chunk ${data.chunkIndex} (first chunk)`, {
-                oldRecordedAt,
-                newRecordedAt: recordedAt,
-                redisTimestamp,
-                storedTimestamp,
-              });
+              console.log(
+                `[TerminalStreamService] Fixed timestamp for chunk ${data.chunkIndex} (first chunk)`,
+                {
+                  oldRecordedAt,
+                  newRecordedAt: recordedAt,
+                  redisTimestamp,
+                  storedTimestamp,
+                },
+              );
             }
           }
         }
-        
+
         return {
           nodeRef,
           stream,
@@ -242,7 +256,9 @@ export class TerminalStreamService implements OnModuleDestroy {
       if (parsed && typeof parsed === 'object') {
         return parsed as Record<string, string>;
       }
-    } catch {}
+    } catch {
+      // Ignore parse errors and return empty state
+    }
     return {};
   }
 

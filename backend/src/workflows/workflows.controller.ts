@@ -16,11 +16,7 @@ import {
   StreamableFile,
   Headers,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import {
@@ -66,8 +62,9 @@ import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 import { RequireWorkflowRole, WorkflowRoleGuard } from './workflow-role.guard';
 import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
-import { ArtifactIdParamDto, ArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
+import { RunArtifactIdParamDto, RunArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
 import type { WorkflowTerminalRecord } from '../database/schema';
+import { NodeIOService } from '../node-io/node-io.service';
 
 const TERMINAL_COMPLETION_STATUSES = new Set([
   'COMPLETED',
@@ -254,6 +251,7 @@ export class WorkflowsController {
     private readonly artifactsService: ArtifactsService,
     private readonly terminalStreamService: TerminalStreamService,
     private readonly terminalArchiveService: TerminalArchiveService,
+    private readonly nodeIOService: NodeIOService,
   ) {}
 
   @Post()
@@ -307,7 +305,16 @@ export class WorkflowsController {
               workflowId: { type: 'string' },
               status: {
                 type: 'string',
-                enum: ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'CONTINUED_AS_NEW', 'TIMED_OUT', 'UNKNOWN']
+                enum: [
+                  'RUNNING',
+                  'COMPLETED',
+                  'FAILED',
+                  'CANCELLED',
+                  'TERMINATED',
+                  'CONTINUED_AS_NEW',
+                  'TIMED_OUT',
+                  'UNKNOWN',
+                ],
               },
               startTime: { type: 'string', format: 'date-time' },
               endTime: { type: 'string', format: 'date-time', nullable: true },
@@ -367,7 +374,16 @@ export class WorkflowsController {
         workflowId: { type: 'string' },
         status: {
           type: 'string',
-          enum: ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'CONTINUED_AS_NEW', 'TIMED_OUT', 'UNKNOWN'],
+          enum: [
+            'RUNNING',
+            'COMPLETED',
+            'FAILED',
+            'CANCELLED',
+            'TERMINATED',
+            'CONTINUED_AS_NEW',
+            'TIMED_OUT',
+            'UNKNOWN',
+          ],
         },
         startTime: { type: 'string', format: 'date-time' },
         endTime: { type: 'string', format: 'date-time', nullable: true },
@@ -403,10 +419,7 @@ export class WorkflowsController {
       },
     },
   })
-  async getRun(
-    @CurrentAuth() auth: AuthContext | null,
-    @Param('runId') runId: string,
-  ) {
+  async getRun(@CurrentAuth() auth: AuthContext | null, @Param('runId') runId: string) {
     return this.workflowsService.getRun(runId, auth);
   }
 
@@ -434,10 +447,7 @@ export class WorkflowsController {
       },
     },
   })
-  async listChildRuns(
-    @CurrentAuth() auth: AuthContext | null,
-    @Param('runId') runId: string,
-  ) {
+  async listChildRuns(@CurrentAuth() auth: AuthContext | null, @Param('runId') runId: string) {
     return this.workflowsService.listChildRuns(runId, auth);
   }
 
@@ -452,27 +462,27 @@ export class WorkflowsController {
   }
 
   @Get(':id/runtime-inputs')
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     type: WorkflowRuntimeInputsResponseDto,
-    description: 'Get the runtime inputs defined in the workflow Entry Point' 
+    description: 'Get the runtime inputs defined in the workflow Entry Point',
   })
   async getRuntimeInputs(
     @CurrentAuth() auth: AuthContext | null,
     @Param('id') id: string,
   ): Promise<WorkflowRuntimeInputsResponseDto> {
     const workflow = await this.workflowsService.findById(id, auth);
-    
+
     // Find the entry point node by checking the component type
-    const entryNode = workflow.graph.nodes.find(node => 
-      ENTRY_POINT_COMPONENT_IDS.includes(node.type as any)
+    const entryNode = workflow.graph.nodes.find((node) =>
+      ENTRY_POINT_COMPONENT_IDS.includes(node.type as any),
     );
-    
+
     // Extract runtime inputs from the entry point's config
     const config = entryNode?.data?.config as Record<string, unknown> | undefined;
     const rawInputs = (config?.runtimeInputs as RuntimeInput[]) || [];
-    
+
     // Normalize and validate the inputs
-    const inputs: RuntimeInput[] = rawInputs.map(input => ({
+    const inputs: RuntimeInput[] = rawInputs.map((input) => ({
       id: input.id,
       label: input.label || input.id,
       type: input.type === 'string' ? 'text' : input.type,
@@ -480,7 +490,7 @@ export class WorkflowsController {
       description: input.description,
       defaultValue: input.defaultValue,
     }));
-    
+
     return {
       workflowId: workflow.id,
       inputs,
@@ -549,7 +559,6 @@ export class WorkflowsController {
       },
     },
   })
-  
   async commit(@Param('id') id: string, @CurrentAuth() auth: AuthContext | null) {
     try {
       return await this.workflowsService.commit(id, auth);
@@ -685,10 +694,7 @@ export class WorkflowsController {
     description: 'Inputs and version metadata captured for a workflow run',
     schema: runConfigSchema,
   })
-  async config(
-    @Param('runId') runId: string,
-    @CurrentAuth() auth: AuthContext | null,
-  ) {
+  async config(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
     return this.workflowsService.getRunConfig(runId, auth);
   }
 
@@ -741,10 +747,7 @@ export class WorkflowsController {
     description: 'Artifacts generated for a workflow run',
     type: RunArtifactsResponseDto,
   })
-  async runArtifacts(
-    @Param('runId') runId: string,
-    @CurrentAuth() auth: AuthContext | null,
-  ) {
+  async runArtifacts(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
     return this.artifactsService.listRunArtifacts(auth, runId);
   }
 
@@ -754,14 +757,14 @@ export class WorkflowsController {
   })
   async downloadRunArtifact(
     @Param('runId') runId: string,
-    @Param(new ZodValidationPipe(ArtifactIdParamSchema)) params: ArtifactIdParamDto,
+    @Param(new ZodValidationPipe(RunArtifactIdParamSchema)) params: RunArtifactIdParamDto,
     @CurrentAuth() auth: AuthContext | null,
     @Res({ passthrough: true }) res: Response,
   ) {
     const { artifact, buffer, file } = await this.artifactsService.downloadArtifactForRun(
       auth,
       runId,
-      params.id,
+      params.artifactId,
     );
 
     res.setHeader('Content-Type', file.mimeType);
@@ -769,6 +772,88 @@ export class WorkflowsController {
     res.setHeader('Content-Length', file.size.toString());
 
     return new StreamableFile(buffer);
+  }
+
+  @Get('/runs/:runId/node-io')
+  @ApiOkResponse({
+    description: 'Node inputs/outputs for a workflow run',
+    schema: {
+      type: 'object',
+      properties: {
+        runId: { type: 'string' },
+        nodes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              nodeRef: { type: 'string' },
+              componentId: { type: 'string' },
+              status: { type: 'string', enum: ['running', 'completed', 'failed', 'skipped'] },
+              startedAt: { type: 'string', format: 'date-time', nullable: true },
+              completedAt: { type: 'string', format: 'date-time', nullable: true },
+              durationMs: { type: 'number', nullable: true },
+              inputs: { type: 'object', additionalProperties: true, nullable: true },
+              outputs: { type: 'object', additionalProperties: true, nullable: true },
+              inputsSize: { type: 'number' },
+              outputsSize: { type: 'number' },
+              inputsSpilled: { type: 'boolean' },
+              outputsSpilled: { type: 'boolean' },
+              errorMessage: { type: 'string', nullable: true },
+            },
+          },
+        },
+      },
+    },
+  })
+  async getNodeIO(@Param('runId') runId: string, @CurrentAuth() auth: AuthContext | null) {
+    await this.workflowsService.ensureRunAccess(runId, auth);
+    const nodes = await this.nodeIOService.listDetails(runId, auth?.organizationId);
+    return { runId, nodes };
+  }
+
+  @Get('/runs/:runId/node-io/:nodeRef')
+  @ApiQuery({
+    name: 'full',
+    required: false,
+    type: Boolean,
+    description: 'Request full node I/O data instead of a preview',
+  })
+  @ApiOkResponse({
+    description: 'Specific node input/output for a workflow run',
+    schema: {
+      type: 'object',
+      properties: {
+        nodeRef: { type: 'string' },
+        componentId: { type: 'string' },
+        status: { type: 'string', enum: ['running', 'completed', 'failed', 'skipped'] },
+        startedAt: { type: 'string', format: 'date-time', nullable: true },
+        completedAt: { type: 'string', format: 'date-time', nullable: true },
+        durationMs: { type: 'number', nullable: true },
+        inputs: { type: 'object', additionalProperties: true, nullable: true },
+        outputs: { type: 'object', additionalProperties: true, nullable: true },
+        inputsSize: { type: 'number' },
+        outputsSize: { type: 'number' },
+        inputsSpilled: { type: 'boolean' },
+        outputsSpilled: { type: 'boolean' },
+        inputsTruncated: { type: 'boolean' },
+        outputsTruncated: { type: 'boolean' },
+        errorMessage: { type: 'string', nullable: true },
+      },
+    },
+  })
+  async getNodeIODetail(
+    @Param('runId') runId: string,
+    @Param('nodeRef') nodeRef: string,
+    @Query('full') full: string | undefined,
+    @CurrentAuth() auth: AuthContext | null,
+  ) {
+    await this.workflowsService.ensureRunAccess(runId, auth);
+    const isFull = full === 'true' || full === '1';
+    const nodeIO = await this.nodeIOService.getNodeIO(runId, nodeRef, isFull);
+    if (!nodeIO) {
+      throw new BadRequestException(`Node I/O not found for node ${nodeRef} in run ${runId}`);
+    }
+    return nodeIO;
   }
 
   @Get('/runs/:runId/stream')
@@ -801,6 +886,7 @@ export class WorkflowsController {
     let active = true;
     let lastStatusSignature: string | null = null;
     let intervalId: NodeJS.Timeout | undefined;
+    // eslint-disable-next-line prefer-const -- initialized later after cleanup function is defined
     let heartbeatId: NodeJS.Timeout | undefined;
     let earliestEventTimestamp: number | null = null;
     let latestEventTimestamp: number | null = null;
@@ -993,7 +1079,10 @@ export class WorkflowsController {
       }
     } catch (error) {
       // Fallback to polling mode if LISTEN/NOTIFY fails
-      console.warn(`[Stream] Failed to set up LISTEN/NOTIFY for run ${runId}, falling back to polling:`, error);
+      console.warn(
+        `[Stream] Failed to set up LISTEN/NOTIFY for run ${runId}, falling back to polling:`,
+        error,
+      );
       send('ready', { mode: 'polling', runId, interval: 1000 });
       intervalId = setInterval(() => {
         void pump();
@@ -1001,7 +1090,9 @@ export class WorkflowsController {
     }
 
     await pump();
-    console.log(`[Stream] Initial pump completed for run ${runId}, mode: ${useRealtime ? 'realtime' : 'polling'}`);
+    console.log(
+      `[Stream] Initial pump completed for run ${runId}, mode: ${useRealtime ? 'realtime' : 'polling'}`,
+    );
 
     // Always run a lightweight poll loop so terminal chunks are flushed even when TRACE notifications are realtime.
     // Only create this interval if we don't already have one (polling mode already has one)
@@ -1152,10 +1243,12 @@ export class WorkflowsController {
   @ApiOkResponse({ type: [WorkflowResponseDto] })
   async findAll(@CurrentAuth() auth: AuthContext | null): Promise<WorkflowResponseDto[]> {
     const serviceResponses = await this.workflowsService.list(auth);
-    return serviceResponses.map(response => this.transformServiceResponseToApi(response));
+    return serviceResponses.map((response) => this.transformServiceResponseToApi(response));
   }
 
-  private transformServiceResponseToApi(serviceResponse: ServiceWorkflowResponse): WorkflowResponseDto {
+  private transformServiceResponseToApi(
+    serviceResponse: ServiceWorkflowResponse,
+  ): WorkflowResponseDto {
     return {
       ...serviceResponse,
       lastRun: serviceResponse.lastRun?.toISOString() ?? null,

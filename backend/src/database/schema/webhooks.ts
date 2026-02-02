@@ -9,13 +9,15 @@ export const webhookConfigurationsTable = pgTable('webhook_configurations', {
   description: text('description'),
   webhookPath: varchar('webhook_path', { length: 255 }).notNull().unique(),
   parsingScript: text('parsing_script').notNull(),
-  expectedInputs: jsonb('expected_inputs').notNull().$type<Array<{
-    id: string;
-    label: string;
-    type: 'text' | 'number' | 'json' | 'array' | 'file';
-    required: boolean;
-    description?: string;
-  }>>(),
+  expectedInputs: jsonb('expected_inputs').notNull().$type<
+    {
+      id: string;
+      label: string;
+      type: 'text' | 'number' | 'json' | 'array' | 'file';
+      required: boolean;
+      description?: string;
+    }[]
+  >(),
   status: text('status').notNull().default('active').$type<'active' | 'inactive'>(),
   organizationId: varchar('organization_id', { length: 191 }),
   createdBy: varchar('created_by', { length: 191 }),
@@ -25,9 +27,14 @@ export const webhookConfigurationsTable = pgTable('webhook_configurations', {
 
 export const webhookDeliveriesTable = pgTable('webhook_deliveries', {
   id: uuid('id').primaryKey().defaultRandom(),
-  webhookId: uuid('webhook_id').notNull().references(() => webhookConfigurationsTable.id, { onDelete: 'cascade' }),
+  webhookId: uuid('webhook_id')
+    .notNull()
+    .references(() => webhookConfigurationsTable.id, { onDelete: 'cascade' }),
   workflowRunId: text('workflow_run_id'),
-  status: text('status').notNull().default('processing').$type<'processing' | 'delivered' | 'failed'>(),
+  status: text('status')
+    .notNull()
+    .default('processing')
+    .$type<'processing' | 'delivered' | 'failed'>(),
   payload: jsonb('payload').notNull().$type<Record<string, unknown>>(),
   headers: jsonb('headers').$type<Record<string, string> | undefined>(),
   parsedData: jsonb('parsed_data').$type<Record<string, unknown>>(),

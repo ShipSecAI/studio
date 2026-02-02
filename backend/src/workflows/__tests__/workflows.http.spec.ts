@@ -83,6 +83,11 @@ describe('WorkflowsController contract coverage', () => {
     download: vi.fn(),
   } as const;
 
+  const nodeIOService = {
+    listDetails: vi.fn().mockResolvedValue([]),
+    getNodeIO: vi.fn().mockResolvedValue(null),
+  } as const;
+
   beforeEach(() => {
     controller = new WorkflowsController(
       workflowService as any,
@@ -91,12 +96,17 @@ describe('WorkflowsController contract coverage', () => {
       artifactsService as any,
       terminalStreamService as any,
       terminalArchiveService as any,
+      nodeIOService as any,
     );
     vi.clearAllMocks();
   });
 
   it('returns status payload matching the shared contract', async () => {
-    const result = await controller.status('shipsec-run-123', { temporalRunId: undefined }, authContext as any);
+    const result = await controller.status(
+      'shipsec-run-123',
+      { temporalRunId: undefined },
+      authContext as any,
+    );
     const parsed = WorkflowRunStatusSchema.parse(result);
     expect(parsed.runId).toBe(sampleStatus.runId);
     expect(parsed.workflowId).toBe(sampleStatus.workflowId);

@@ -31,7 +31,9 @@ describe('ExecutionContext', () => {
         size: 4,
         uploadedAt: new Date(),
       }),
+      uploadFile: async () => {},
     };
+
 
     const context = createExecutionContext({
       runId: 'test-run',

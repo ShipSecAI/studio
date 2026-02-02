@@ -8,7 +8,10 @@ export interface TerminalStreamAdapterOptions {
 export class RedisTerminalStreamAdapter {
   private readonly maxEntries: number;
 
-  constructor(private readonly redis: Redis, options: TerminalStreamAdapterOptions = {}) {
+  constructor(
+    private readonly redis: Redis,
+    options: TerminalStreamAdapterOptions = {},
+  ) {
     this.maxEntries = options.maxEntries ?? 5000;
   }
 

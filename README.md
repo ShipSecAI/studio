@@ -1,181 +1,131 @@
 <div align="center">
-  <img src="docs/media/splash.png" alt="ShipSec AI">
+  <img src="docs/media/splash.png" alt="ShipSec AI" width="800">
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-stable-blue.svg" alt="Status">
-  <a href="https://github.com/ShipSecAI/studio/tree/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202-green.svg" alt="License"></a>
-  <a href="https://shipsec.ai"><img src="https://img.shields.io/badge/website-shipsec.ai-blue.svg" alt="Website"></a>
-  <img src="https://img.shields.io/badge/Security-Automation-orange" alt="Security Automation">
-  <img src="https://img.shields.io/badge/Live-Observability-blue" alt="Live Observability">
-  <img src="https://img.shields.io/badge/Component-Catalog-4CAF50" alt="Component Catalog">
+  <img src="https://img.shields.io/github/v/release/ShipSecAI/studio?color=blue&label=version" alt="Version">
+  <a href="https://github.com/ShipSecAI/studio/tree/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a>
+  <a href="https://discord.gg/fmMA4BtNXC"><img src="https://img.shields.io/discord/1175402031123447818?color=5865F2&label=discord&logo=discord&logoColor=white" alt="Discord"></a>
 </p>
-<p align="center">
-  <a href="https://discord.gg/fmMA4BtNXC"><img src="https://img.shields.io/badge/Discord-Join%20Chat-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="https://github.com/ShipSecAI/studio/discussions"><img src="https://img.shields.io/badge/GitHub-Discussions-181717?logo=github&logoColor=white" alt="Discussions"></a>
-  <a href="https://twitter.com/shipsecai"><img src="https://img.shields.io/badge/Twitter-Follow-1DA1F2?logo=X&logoColor=white" alt="Twitter"></a>
-</p>
-
 
 # ShipSec Studio
+**Open-Source Security Workflow Orchestration Platform.**
 
-The no-code security automation studio for security teams. Design reliable and reusable security workflows.
+> ShipSec is currently in active development. We are optimizing the platform for stable production use and high-performance security operations.
 
-ShipSec Studio is a security workflow orchestration platform that combines the power of visual programming with enterprise-grade reliability. Unlike traditional automation tools that require complex scripting, ShipSec Studio lets you build security workflows through an intuitive canvas while maintaining the robustness your team needs.
+ShipSec Studio provides a visual DSL and runtime for building, executing, and monitoring automated security workflows. It decouples security logic from infrastructure management, providing a durable and isolated environment for running security tooling at scale.
 
-## Demo
 
 <div align="center">
   <a href="https://youtu.be/7uyv43VforM">
     <img src="https://img.youtube.com/vi/7uyv43VforM/maxresdefault.jpg" alt="ShipSec Studio Demo" width="600">
   </a>
-  <p><em>Click to watch the demo (hosted on <a href="https://www.youtube.com/@hackingsimplifiedas">Hacking Simplified</a> YouTube)</em></p>
+  <p><em>Watch the platform in action on YouTube.</em></p>
 </div>
 
-## Why ShipSec Studio?
+---
 
-🎨 **Visual Workflow Builder** : Design security automations with drag-and-drop, no coding required
+### 🏗️ Core Pillars
 
-⚡ **Real-Time Execution** : Watch workflows run live with streaming logs and progress indicators
+*   **Durable, resumable workflows** powered by Temporal.io for stateful execution across failures.
+*   **Isolated security runtimes** using ephemeral containers with per-run volume management.
+*   **Unified telemetry streams** delivering terminal output, events, and logs via a low-latency SSE pipeline.
+*   **Visual no-code builder** that compiles complex security graphs into an executable DSL.
 
-🧩 **Pre-Built Security Components** : Subfinder, DNSX, HTTPx, Nuclei, and more ready to use
+---
 
-🔒 **Enterprise Reliability** : Built on Temporal for durable, resumable workflow executions
+## 🚀 Deployment Options
 
-🛡️ **Secure by Default** : Encrypted secrets, role-based access, and audit trails
-
-💻 **Run Anywhere** : Cloud hosted or self-hosted on your own infrastructure
-
-📅 **Scheduled Workflows** : Schedule your scans to run at specific times or intervals
-
-🔗 **Codify Your Workflows** : Trigger workflows via a simple POST request, through cURL, python etc.
-
-## Quick Start
-
-Get started with ShipSec Studio in minutes:
-
-### Option 1: Use the Hosted Platform
-
-1. **Sign up** at [studio.shipsec.ai](https://studio.shipsec.ai)
-2. **Create your first workflow** using the visual builder
-3. **Run a scan** with pre-built components like Subfinder, Nuclei, or HTTPx
-4. **View results** in real-time as the workflow executes
-
-### Option 2: Self-Host with Docker (Recommended)
+### 1. Shipsec Self-Host with Docker (Recommended)
 
 The easiest way to run ShipSec Studio on your own infrastructure:
 
-#### Prerequisites
+#### One-Line Install
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | bash
+```
+
+This installer will:
+- Check and install missing dependencies (docker, just, curl, jq, git)
+- Start Docker if not running
+- Clone the repository and start all services
+- Guide you through any required setup steps
+
+Once complete, visit **http://localhost:8090** to access ShipSec Studio.
+
+### 2. ShipSec Cloud (Preview)
+The fastest way to test ShipSec Studio without managing infrastructure.
+- **Try it out:** [studio.shipsec.ai](https://studio.shipsec.ai)
+- **Note:** ShipSec Studio is under active development. The cloud environment is a technical preview for evaluation and sandbox testing.
+
+### 3. Self-Host (Docker)
+For teams requiring data residency and air-gapped security orchestrations. This setup runs the full stack (Frontend, Backend, Worker, and Infrastructure).
+
+**Prerequisites:**
 - **[docker](https://www.docker.com/)** - For running the application and security components
 - **[just](https://github.com/casey/just)** - Command runner for simplified workflows
 - **curl** and **jq** - For fetching release information
 
-#### Quick Start
-
 ```bash
-# Clone the repository
+# Clone and start the latest stable release
 git clone https://github.com/ShipSecAI/studio.git
 cd studio
-
-# Download the latest release and start
 just prod start-latest
-
-# Visit http://localhost:8090 to access ShipSec Studio
 ```
+Access the studio at `http://localhost:8090`.
 
-This command automatically:
-- Fetches the latest release version from GitHub
-- Pulls pre-built Docker images from GHCR
-- Starts the full stack (frontend, backend, worker, and infrastructure)
+---
 
-#### Other Commands
+## 🛠️ Capabilities
 
-```bash
-just prod stop      # Stop the environment
-just prod logs      # View logs
-just prod status    # Check status
-just prod clean     # Remove all data
-```
+### Integrated Tooling
+Native support for industry-standard security tools including:
+- **Discovery**: `Subfinder`, `DNSX`, `Naabu`, `HTTPx`
+- **Vulnerability**: `Nuclei`, `TruffleHog`
+- **Utility**: `JSON Transform`, `Logic Scripts`, `HTTP Requests`
 
-### Option 3: Development Setup
+### Advanced Orchestration
+- **Human-in-the-Loop**: Pause workflows for approvals, form inputs, or manual validation before continuing.
+- **AI-Driven Analysis**: Leverage LLM nodes and MCP providers for intelligent results interpretation.
+- **Native Scheduling**: Integrated CRON support for recurring security posture and compliance monitoring.
+- **API First**: Trigger and monitor any workflow execution via a comprehensive REST API.
 
-For contributors who want to modify the source code:
+---
 
-#### Prerequisites
+## 🏛️ Architecture Overview
 
-- **[bun.sh](https://bun.sh)** - Fast JavaScript runtime and package manager
-- **[docker](https://www.docker.com/)** - For running security components in isolated containers
-- **[just](https://github.com/casey/just)** - Command runner for simplified development workflows
+ShipSec Studio is designed for enterprise-grade durability and horizontal scalability.
 
-#### Setup
+- **Management Plane (Backend)**: NestJS service handling DSL compilation, secret management (AES-256-GCM), and identity.
+- **Orchestration Plane (Temporal)**: Manages workflow state, concurrency, and persistent wait states.
+- **Execution Plane (Worker)**: Stateless agents that pull tasks from Temporal and execute tool-bound activities in isolated runtimes.
+- **Monitoring (SSE/Loki)**: Real-time telemetry pipeline for deterministic execution visibility.
 
-```bash
-# Clone the repository
-git clone https://github.com/ShipSecAI/studio.git
-cd studio
+Learn more about our design decisions and system components in the **[Architecture Deep-dive](/docs/architecture.mdx)**.
 
-# Initialize (installs dependencies and creates environment files)
-just init
+---
 
-# Start development environment with hot-reload
-just dev
+## 🤝 Community & Support
 
-# Visit http://localhost:5173 to access ShipSec Studio
-```
+- 💬 **[Discord](https://discord.gg/fmMA4BtNXC)** — Real-time support and community discussion.
+- 🗣️ **[GitHub Discussions](https://github.com/ShipSecAI/studio/discussions)** — Technical RFCs and feature requests.
+- 📚 **[Documentation](https://docs.shipsec.ai)** — Full guides on component development and deployment.
 
-### Your First Workflow
+---
 
-1. **Open the Workflow Builder** from the dashboard
-2. **Add a Manual Trigger node** for manual execution
-3. **Add a Subfinder node** for subdomain discovery
-4. **Run the workflow** and watch real-time execution
+## ✍️ Contributing
 
-🎉 **Congratulations!** You've just run your first security workflow in ShipSec Studio.
+We welcome contributions to the management plane, worker logic, or new security components.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for architectural guidelines and setup instructions.
 
-## 🔎 System Architecture
-
-<div align="center">
-  <img src="./docs/media/shipsec-studio-arch-diagram.png" alt="System Architecture">
-</div>
-
-## 🔥 Latest Updates
-
-- Dec 11, 2025 - **Execution Canvas Improvements** - Enhanced drag-and-drop experience
-- Dec 10, 2025 - **Modernized Documentation** - Updated terminology and cleaner structure
-- Dec 9, 2025 - **Backend Version Check** - Automatic compatibility verification on startup
-- Dec 8, 2025 - **Workflow Scheduling** - Schedule workflows to run at specific times or intervals
-
-
-## Documentation
-
-📚 **Complete documentation** is available at **[docs.shipsec.ai](https://docs.shipsec.ai)**
-
-- Getting Started Guides
-- Component Development
-- API Reference
-- Architecture Overview
-- And much more...
-
-## Community
-
-Join the ShipSec community to get help, share ideas, and stay updated:
-
-- 💬 **[Discord](https://discord.gg/fmMA4BtNXC)** — Chat with the team and community
-- 🗣️ **[Discussions](https://github.com/ShipSecAI/studio/discussions)** — Ask questions and share ideas
-- 🐛 **[Issues](https://github.com/ShipSecAI/studio/issues)** — Report bugs or request features
-- 🐦 **[Twitter](https://twitter.com/shipsecai)** — Follow for updates and announcements
-
-## Contributing
-
-We're excited that you're interested in ShipSec Studio! Whether you're fixing bugs, adding features, improving docs, or sharing ideas — every contribution helps make security automation more accessible.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+---
 
 ## License
 
-ShipSec Studio is licensed under the [Apache License 2.0](LICENSE).
+ShipSec Studio is licensed under the **Apache License 2.0**.
 
 <div align="center">
-  <p>Built with ❤️ by the ShipSec AI team</p>
+  <p>Engineered for security teams by the ShipSec AI team.</p>
 </div>
+

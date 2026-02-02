@@ -11,21 +11,27 @@
     "./interfaces": "./src/interfaces.ts",
     "./types": "./src/types.ts",
     "./registry": "./src/registry.ts",
-    "./ports": "./src/ports.ts"
+    "./port-meta": "./src/port-meta.ts",
+    "./zod-ports": "./src/zod-ports.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
-    "zod": "^4.1.12"
+    "zod": "^4.3.6"
   },
   "optionalDependencies": {
-    "node-pty": "^1.0.0"
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@types/har-format": "^1.2.16",
     "@types/node": "^20.16.11",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
     "bun-types": "^1.2.23",
+    "eslint": "^9.39.2",
     "typescript": "^5.6.3"
   }
 }

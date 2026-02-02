@@ -8,11 +8,11 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import { Client as MinioClient } from 'minio';
 import { randomUUID } from 'node:crypto';
-import { 
-  WorkflowGraphDto, 
+import {
+  WorkflowGraphDto,
   WorkflowGraphSchema,
   WorkflowResponseDto,
-  WorkflowNodeDto
+  WorkflowNodeDto,
 } from '../workflows/dto/workflow-graph.dto';
 import { WorkflowDefinition } from '../dsl/types';
 import { UploadedFile } from '../storage/storage.service';
@@ -31,12 +31,19 @@ const normalizeNode = (override: Partial<WorkflowNodeDto> = {}): WorkflowNodeDto
   position: override.position ?? { x: 0, y: 0 },
   data: {
     label: override.data?.label ?? 'Entry Point',
-    config: override.data?.config ?? {},
+    config: {
+      params: override.data?.config?.params ?? {},
+      inputOverrides: override.data?.config?.inputOverrides ?? {},
+      joinStrategy: override.data?.config?.joinStrategy,
+      streamId: override.data?.config?.streamId,
+      groupId: override.data?.config?.groupId,
+      maxConcurrency: override.data?.config?.maxConcurrency,
+    },
   },
 });
 
 type WorkflowGraphOverrides = Partial<Omit<WorkflowGraphDto, 'nodes'>> & {
-  nodes?: Array<Partial<WorkflowNodeDto>>;
+  nodes?: Partial<WorkflowNodeDto>[];
 };
 
 const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowGraphDto => {
@@ -47,13 +54,12 @@ const buildWorkflowGraph = (overrides: WorkflowGraphOverrides = {}): WorkflowGra
     edges: overrides.edges ?? [],
     viewport: overrides.viewport ?? { x: 0, y: 0, zoom: 1 },
   };
-  
+
   // Validate with Zod schema to ensure correct structure
   return WorkflowGraphSchema.parse(baseGraph);
 };
 
-const readJson = async <T>(response: Response): Promise<T> =>
-  (await response.json()) as T;
+const readJson = async <T>(response: Response): Promise<T> => (await response.json()) as T;
 
 interface Component {
   id: string;
@@ -80,37 +86,47 @@ interface Component {
     image: string | null;
     command: string[] | null;
   };
-  inputs: Array<{
+  inputs: {
     id: string;
     label: string;
-    dataType: Record<string, unknown>;
+    connectionType: Record<string, unknown>;
     required: boolean;
     description: string | null;
     valuePriority?: 'manual-first' | 'connection-first';
-  }>;
-  outputs: Array<{
+  }[];
+  outputs: {
     id: string;
     label: string;
-    dataType: Record<string, unknown>;
+    connectionType: Record<string, unknown>;
     description: string | null;
-  }>;
-  parameters: Array<{
+  }[];
+  parameters: {
     id: string;
     label: string;
-    type: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'multi-select' | 'json' | 'secret';
+    type:
+      | 'text'
+      | 'textarea'
+      | 'number'
+      | 'boolean'
+      | 'select'
+      | 'multi-select'
+      | 'json'
+      | 'secret';
     required: boolean;
     default: any;
     placeholder: string | null;
     description: string | null;
     helpText: string | null;
-    options: Array<{
-      label: string;
-      value: any;
-    }> | null;
+    options:
+      | {
+          label: string;
+          value: any;
+        }[]
+      | null;
     min: number | null;
     max: number | null;
     rows: number | null;
-  }>;
+  }[];
   examples: string[];
 }
 
@@ -260,7 +276,13 @@ interface Component {
         nodes: [
           {
             id: originalGraph.nodes[0].id,
-            data: { label: 'Updated Trigger', config: { message: 'hello' } },
+            data: {
+              label: 'Updated Trigger',
+              config: {
+                params: { message: 'hello' },
+                inputOverrides: {},
+              },
+            },
             position: { x: 42, y: 24 },
             type: originalGraph.nodes[0].type,
           },
@@ -278,7 +300,7 @@ interface Component {
       expect(updated.name).toBe('Updated Title');
       expect(updated.description).toBe('Updated description');
       expect(updated.graph.nodes[0].data.label).toBe('Updated Trigger');
-      expect(updated.graph.nodes[0].data.config).toEqual({ message: 'hello' });
+      expect(updated.graph.nodes[0].data.config.params).toEqual({ message: 'hello' });
     });
   });
 
@@ -430,7 +452,7 @@ interface Component {
       const components: Component[] = await readJson(response);
       expect(Array.isArray(components)).toBe(true);
       expect(components.length).toBeGreaterThanOrEqual(4); // We have at least 4 components registered
-      
+
       // Check component structure
       const component = components[0];
       expect(component).toHaveProperty('id');

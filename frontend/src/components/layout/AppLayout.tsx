@@ -16,146 +16,164 @@ import { setMobilePlacementSidebarClose } from '@/components/layout/Sidebar'
 import { useCommandPaletteStore } from '@/store/commandPaletteStore'
 
 interface AppLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
-interface SidebarContextValue {
-  isOpen: boolean
-  isMobile: boolean
-  toggle: () => void
-}
-
-export const SidebarContext = React.createContext<SidebarContextValue | undefined>(undefined)
-
-export function useSidebar() {
-  const context = React.useContext(SidebarContext)
-  if (context === undefined) {
-    throw new Error('useSidebar must be used within an AppLayout')
-  }
-  return context
-}
-
+import { SidebarContext, type SidebarContextValue } from './sidebar-context';
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  )
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false,
+  );
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < breakpoint)
-    }
+      setIsMobile(window.innerWidth < breakpoint);
+    };
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [breakpoint])
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [breakpoint]);
 
-  return isMobile
+  return isMobile;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const isMobile = useIsMobile()
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
-  const [, setIsHovered] = useState(false)
-  const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(!isMobile)
-  const location = useLocation()
-  const navigate = useNavigate()
-  const roles = useAuthStore((state) => state.roles)
-  const canManageWorkflows = hasAdminRole(roles)
-  const { isAuthenticated } = useAuth()
-  const authProvider = useAuthProvider()
-  const showUserButton = isAuthenticated || authProvider.name === 'clerk'
-  const { theme, startTransition } = useThemeStore()
-  const openCommandPalette = useCommandPaletteStore((state) => state.open)
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [, setIsHovered] = useState(false);
+  const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(!isMobile);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const roles = useAuthStore((state) => state.roles);
+  const canManageWorkflows = hasAdminRole(roles);
+  const { isAuthenticated } = useAuth();
+  const authProvider = useAuthProvider();
+  const showUserButton = isAuthenticated || authProvider.name === 'clerk';
+  const { theme, startTransition } = useThemeStore();
+  const openCommandPalette = useCommandPaletteStore((state) => state.open);
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
-  const gitSha = env.VITE_GIT_SHA
+  const gitSha = env.VITE_GIT_SHA;
   // If it's a tag (starts with v), show full tag. Otherwise show first 7 chars of SHA
-  const displayVersion = gitSha && gitSha !== '' && gitSha !== 'unknown'
-    ? (gitSha.startsWith('v') ? gitSha : gitSha.slice(0, 7))
-    : 'dev'
+  const displayVersion =
+    gitSha && gitSha !== '' && gitSha !== 'unknown'
+      ? gitSha.startsWith('v')
+        ? gitSha
+        : gitSha.slice(0, 7)
+      : 'dev';
 
   // Auto-collapse sidebar when opening workflow builder, expand for other routes
   // On mobile, always start collapsed
   useEffect(() => {
     if (isMobile) {
-      setSidebarOpen(false)
-      setWasExplicitlyOpened(false)
+      setSidebarOpen(false);
+      setWasExplicitlyOpened(false);
     } else {
-      const isWorkflowRoute = (location.pathname.startsWith('/workflows') || location.pathname.startsWith('/webhooks/')) && location.pathname !== '/'
-      setSidebarOpen(!isWorkflowRoute)
-      setWasExplicitlyOpened(!isWorkflowRoute)
+      const isWorkflowRoute =
+        (location.pathname.startsWith('/workflows') ||
+          location.pathname.startsWith('/webhooks/')) &&
+        location.pathname !== '/';
+      setSidebarOpen(!isWorkflowRoute);
+      setWasExplicitlyOpened(!isWorkflowRoute);
     }
-  }, [location.pathname, isMobile])
+  }, [location.pathname, isMobile]);
 
   // Close sidebar on mobile when navigating
   useEffect(() => {
     if (isMobile) {
-      setSidebarOpen(false)
+      setSidebarOpen(false);
     }
-  }, [location.pathname, isMobile])
+  }, [location.pathname, isMobile]);
 
   // Set up sidebar close callback for mobile component placement
   useEffect(() => {
     if (isMobile) {
       setMobilePlacementSidebarClose(() => {
-        setSidebarOpen(false)
-        setWasExplicitlyOpened(false)
-      })
+        setSidebarOpen(false);
+        setWasExplicitlyOpened(false);
+      });
     }
     return () => {
-      setMobilePlacementSidebarClose(() => { })
-    }
-  }, [isMobile])
+      setMobilePlacementSidebarClose(() => {});
+    };
+  }, [isMobile]);
 
   // Handle hover to expand sidebar when collapsed (desktop only)
   const handleMouseEnter = () => {
-    if (isMobile) return
-    setIsHovered(true)
+    if (isMobile) return;
+    setIsHovered(true);
     if (!sidebarOpen) {
-      setSidebarOpen(true)
+      setSidebarOpen(true);
     }
-  }
+  };
 
   const handleMouseLeave = () => {
-    if (isMobile) return
-    setIsHovered(false)
+    if (isMobile) return;
+    setIsHovered(false);
     // Only collapse if it was expanded due to hover (not explicitly opened)
     if (!wasExplicitlyOpened && sidebarOpen) {
-      setSidebarOpen(false)
+      setSidebarOpen(false);
     }
-  }
+  };
+
+  // Close sidebar when window loses focus (e.g., CMD+click opens new tab)
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      // Only collapse if it was expanded due to hover (not explicitly opened)
+      if (!isMobile && !wasExplicitlyOpened && sidebarOpen) {
+        setSidebarOpen(false);
+        setIsHovered(false);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      // When tab becomes hidden (e.g., user switched tabs), collapse hover-opened sidebar
+      if (document.hidden && !isMobile && !wasExplicitlyOpened && sidebarOpen) {
+        setSidebarOpen(false);
+        setIsHovered(false);
+      }
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isMobile, wasExplicitlyOpened, sidebarOpen]);
 
   const handleToggle = useCallback(() => {
-    const newState = !sidebarOpen
-    setSidebarOpen(newState)
-    setWasExplicitlyOpened(newState)
-  }, [sidebarOpen])
+    const newState = !sidebarOpen;
+    setSidebarOpen(newState);
+    setWasExplicitlyOpened(newState);
+  }, [sidebarOpen]);
 
   // --- Swipe Gesture Logic for Mobile ---
-  const [touchStart, setTouchStart] = useState<number | null>(null)
+  const [touchStart, setTouchStart] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!isMobile) return
+    if (!isMobile) return;
 
     const handleTouchStart = (e: TouchEvent) => {
-      const x = e.touches[0].clientX
+      const x = e.touches[0].clientX;
       // Start tracking if touching near the left edge to open
       if (!sidebarOpen && x < 30) {
-        setTouchStart(x)
+        setTouchStart(x);
       }
       // Or if sidebar is already open, track anywhere to detect closing swipe
       else if (sidebarOpen) {
-        setTouchStart(x)
+        setTouchStart(x);
       }
-    }
+    };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (touchStart === null) return
+      if (touchStart === null) return;
 
-      const currentX = e.touches[0].clientX
-      const diff = currentX - touchStart
+      const currentX = e.touches[0].clientX;
+      const diff = currentX - touchStart;
 
       // Prevent default scrolling if we are clearly swiping the sidebar
       if (Math.abs(diff) > 10) {
@@ -168,53 +186,53 @@ export function AppLayout({ children }: AppLayoutProps) {
           // e.preventDefault()
         }
       }
-    }
+    };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (touchStart === null) return
+      if (touchStart === null) return;
 
-      const endX = e.changedTouches[0].clientX
-      const diff = endX - touchStart
-      const threshold = 50 // px to trigger toggle
+      const endX = e.changedTouches[0].clientX;
+      const diff = endX - touchStart;
+      const threshold = 50; // px to trigger toggle
 
       // Swipe right to open
       if (!sidebarOpen && diff > threshold && touchStart < 30) {
-        setSidebarOpen(true)
-        setWasExplicitlyOpened(true)
+        setSidebarOpen(true);
+        setWasExplicitlyOpened(true);
       }
       // Swipe left to close
       else if (sidebarOpen && diff < -threshold) {
-        setSidebarOpen(false)
-        setWasExplicitlyOpened(false)
+        setSidebarOpen(false);
+        setWasExplicitlyOpened(false);
       }
 
-      setTouchStart(null)
-    }
+      setTouchStart(null);
+    };
 
-    window.addEventListener('touchstart', handleTouchStart, { passive: true })
-    window.addEventListener('touchmove', handleTouchMove, { passive: true })
-    window.addEventListener('touchend', handleTouchEnd, { passive: true })
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
-      window.removeEventListener('touchstart', handleTouchStart)
-      window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('touchend', handleTouchEnd)
-    }
-  }, [isMobile, sidebarOpen, touchStart])
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMobile, sidebarOpen, touchStart]);
 
   // Close sidebar when clicking backdrop on mobile
   const handleBackdropClick = useCallback(() => {
     if (isMobile && sidebarOpen) {
-      setSidebarOpen(false)
-      setWasExplicitlyOpened(false)
+      setSidebarOpen(false);
+      setWasExplicitlyOpened(false);
     }
-  }, [isMobile, sidebarOpen])
+  }, [isMobile, sidebarOpen]);
 
   const sidebarContextValue: SidebarContextValue = {
     isOpen: sidebarOpen,
     isMobile,
-    toggle: handleToggle
-  }
+    toggle: handleToggle,
+  };
 
   const navigationItems = [
     {
@@ -247,11 +265,15 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/api-keys',
       icon: Shield,
     },
-    ...(env.VITE_ENABLE_CONNECTIONS ? [{
-      name: 'Connections',
-      href: '/integrations',
-      icon: Plug,
-    }] : []),
+    ...(env.VITE_ENABLE_CONNECTIONS
+      ? [
+          {
+            name: 'Connections',
+            href: '/integrations',
+            icon: Plug,
+          },
+        ]
+      : []),
     {
       name: 'Artifact Library',
       href: '/artifacts',
@@ -266,10 +288,10 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const isActive = (path: string) => {
     if (path === '/') {
-      return location.pathname === '/' || location.pathname.startsWith('/workflows')
+      return location.pathname === '/' || location.pathname.startsWith('/workflows');
     }
-    return location.pathname === path || location.pathname.startsWith(`${path}/`)
-  }
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
 
   // Get page-specific actions
   const getPageActions = () => {
@@ -277,22 +299,24 @@ export function AppLayout({ children }: AppLayoutProps) {
       return (
         <Button
           onClick={() => {
-            if (!canManageWorkflows) return
-            navigate('/workflows/new')
+            if (!canManageWorkflows) return;
+            navigate('/workflows/new');
           }}
-          size={isMobile ? "sm" : "default"}
-          className={cn("gap-2", isMobile && "h-8 px-3 text-xs")}
+          size={isMobile ? 'sm' : 'default'}
+          className={cn('gap-2', isMobile && 'h-8 px-3 text-xs')}
           disabled={!canManageWorkflows}
           aria-disabled={!canManageWorkflows}
         >
-          <Plus className={cn("w-4 h-4", isMobile && "w-3.5 h-3.5")} />
-          <span>New <span className="hidden md:inline">Workflow</span></span>
+          <Plus className={cn('w-4 h-4', isMobile && 'w-3.5 h-3.5')} />
+          <span>
+            New <span className="hidden md:inline">Workflow</span>
+          </span>
         </Button>
-      )
+      );
     }
 
-    return null
-  }
+    return null;
+  };
 
   return (
     <SidebarContext.Provider value={sidebarContextValue}>
@@ -316,22 +340,26 @@ export function AppLayout({ children }: AppLayoutProps) {
             // Width based on state and device
             sidebarOpen ? 'w-72' : isMobile ? 'w-0 -translate-x-full' : 'w-16',
             // Ensure sidebar is above backdrop on mobile
-            isMobile && sidebarOpen && 'translate-x-0'
+            isMobile && sidebarOpen && 'translate-x-0',
           )}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
           {/* Sidebar Header - same style for mobile and desktop */}
           <SidebarHeader className="flex items-center justify-between p-4 border-b">
-            <Link to="/" className="flex items-center gap-2" onClick={() => isMobile && setSidebarOpen(false)}>
+            <Link
+              to="/"
+              className="flex items-center gap-2"
+              onClick={() => isMobile && setSidebarOpen(false)}
+            >
               <div className="flex-shrink-0">
                 <img
                   src="/favicon.ico"
                   alt="ShipSec Studio"
                   className="w-6 h-6"
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none'
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
                   }}
                 />
                 <span className="hidden text-sm font-bold">SS</span>
@@ -339,11 +367,11 @@ export function AppLayout({ children }: AppLayoutProps) {
               <span
                 className={cn(
                   'font-bold text-xl transition-all duration-300 whitespace-nowrap overflow-hidden',
-                  sidebarOpen ? 'opacity-100 max-w-48' : 'opacity-0 max-w-0'
+                  sidebarOpen ? 'opacity-100 max-w-48' : 'opacity-0 max-w-0',
                 )}
                 style={{
                   transitionDelay: sidebarOpen ? '150ms' : '0ms',
-                  transitionProperty: 'opacity, max-width'
+                  transitionProperty: 'opacity, max-width',
                 }}
               >
                 ShipSec Studio
@@ -352,26 +380,29 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarHeader>
 
           <SidebarContent className="py-0">
-            <div className={cn(
-              'px-2 mt-2 space-y-1'
-            )}>
+            <div className={cn('px-2 mt-2 space-y-1')}>
               {navigationItems.map((item) => {
-                const Icon = item.icon
-                const active = isActive(item.href)
+                const Icon = item.icon;
+                const active = isActive(item.href);
                 return (
                   <Link
                     key={item.href}
                     to={item.href}
-                    onClick={() => {
+                    onClick={(e) => {
+                      // If modifier key is held (CMD+click, Ctrl+click), link opens in new tab
+                      // Don't update sidebar state in this case
+                      if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                        return;
+                      }
                       // Close sidebar on mobile after navigation
                       if (isMobile) {
-                        setSidebarOpen(false)
-                        return
+                        setSidebarOpen(false);
+                        return;
                       }
                       // Keep sidebar open when navigating to non-workflow routes (desktop)
                       if (!item.href.startsWith('/workflows')) {
-                        setSidebarOpen(true)
-                        setWasExplicitlyOpened(true)
+                        setSidebarOpen(true);
+                        setWasExplicitlyOpened(true);
                       }
                     }}
                   >
@@ -379,25 +410,25 @@ export function AppLayout({ children }: AppLayoutProps) {
                       isActive={active}
                       className={cn(
                         'flex items-center gap-3',
-                        sidebarOpen ? 'justify-start px-4' : 'justify-center'
+                        sidebarOpen ? 'justify-start px-4' : 'justify-center',
                       )}
                     >
                       <Icon className="h-5 w-5 flex-shrink-0" />
                       <span
                         className={cn(
                           'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
-                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0'
+                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
                         )}
                         style={{
                           transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                          transitionProperty: 'opacity, max-width'
+                          transitionProperty: 'opacity, max-width',
                         }}
                       >
                         {item.name}
                       </span>
                     </SidebarItem>
                   </Link>
-                )
+                );
               })}
             </div>
 
@@ -408,7 +439,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 className={cn(
                   'w-full flex items-center gap-3 py-2.5 rounded-lg transition-colors',
                   'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground',
-                  sidebarOpen ? 'justify-between px-4' : 'justify-center'
+                  sidebarOpen ? 'justify-between px-4' : 'justify-center',
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -416,11 +447,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <span
                     className={cn(
                       'transition-all duration-300 whitespace-nowrap overflow-hidden text-sm',
-                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0'
+                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
                     )}
                     style={{
                       transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                      transitionProperty: 'opacity, max-width'
+                      transitionProperty: 'opacity, max-width',
                     }}
                   >
                     Search...
@@ -439,7 +470,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className="flex flex-col gap-1.5 p-1">
               {/* Auth components - UserButton includes organization switching */}
               {showUserButton && (
-                <div className={`flex items-center gap-2 ${sidebarOpen ? 'justify-between' : 'justify-center'}`}>
+                <div
+                  className={`flex items-center gap-2 ${sidebarOpen ? 'justify-between' : 'justify-center'}`}
+                >
                   <UserButton
                     className={sidebarOpen ? 'flex-1' : 'w-auto'}
                     sidebarCollapsed={!sidebarOpen}
@@ -485,11 +518,11 @@ export function AppLayout({ children }: AppLayoutProps) {
               <span
                 className={cn(
                   'text-xs text-muted-foreground transition-all duration-300 whitespace-nowrap overflow-hidden block text-center',
-                  sidebarOpen ? 'opacity-100 max-w-full' : 'opacity-0 max-w-0'
+                  sidebarOpen ? 'opacity-100 max-w-full' : 'opacity-0 max-w-0',
                 )}
                 style={{
                   transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                  transitionProperty: 'opacity, max-width'
+                  transitionProperty: 'opacity, max-width',
                 }}
               >
                 version: {displayVersion}
@@ -499,25 +532,26 @@ export function AppLayout({ children }: AppLayoutProps) {
         </Sidebar>
 
         {/* Main content area */}
-        <main className={cn(
-          'flex-1 flex flex-col overflow-hidden min-w-0',
-          // On mobile, main content takes full width since sidebar is overlay
-          isMobile ? 'w-full' : ''
-        )}>
-          {/* Only show AppTopBar for non-workflow-builder and non-webhook-editor pages */}
-          {!location.pathname.startsWith('/workflows') && !location.pathname.startsWith('/webhooks/') && (
-            <AppTopBar
-              sidebarOpen={sidebarOpen}
-              onSidebarToggle={handleToggle}
-              actions={getPageActions()}
-              isMobile={isMobile}
-            />
+        <main
+          className={cn(
+            'flex-1 flex flex-col overflow-hidden min-w-0',
+            // On mobile, main content takes full width since sidebar is overlay
+            isMobile ? 'w-full' : '',
           )}
-          <div className="flex-1 overflow-auto">
-            {children}
-          </div>
+        >
+          {/* Only show AppTopBar for non-workflow-builder and non-webhook-editor pages */}
+          {!location.pathname.startsWith('/workflows') &&
+            !location.pathname.startsWith('/webhooks/') && (
+              <AppTopBar
+                sidebarOpen={sidebarOpen}
+                onSidebarToggle={handleToggle}
+                actions={getPageActions()}
+                isMobile={isMobile}
+              />
+            )}
+          <div className="flex-1 overflow-auto">{children}</div>
         </main>
       </div>
     </SidebarContext.Provider>
-  )
+  );
 }

@@ -11,9 +11,7 @@ export const workflowRolesTable = pgTable(
       .references(() => workflowsTable.id, { onDelete: 'cascade' }),
     userId: varchar('user_id', { length: 191 }).notNull(),
     organizationId: varchar('organization_id', { length: 191 }),
-    role: text('role')
-      .$type<AuthRole>()
-      .notNull(),
+    role: text('role').$type<AuthRole>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

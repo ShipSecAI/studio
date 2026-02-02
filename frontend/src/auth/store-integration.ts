@@ -9,10 +9,7 @@ import { useAuthStore } from '../store/authStore';
 export function useAuthStoreIntegration() {
   const { user, token, isAuthenticated, isLoading, error } = useAuth();
   const authProvider = useAuthProvider();
-  const {
-    setAuthContext,
-    clear: clearStore,
-  } = useAuthStore();
+  const { setAuthContext, clear: clearStore } = useAuthStore();
 
   useEffect(() => {
     if (isLoading) {
@@ -25,16 +22,16 @@ export function useAuthStoreIntegration() {
         authProvider.name === 'clerk'
           ? 'clerk'
           : authProvider.name === 'local'
-          ? 'local'
-          : 'custom';
+            ? 'local'
+            : 'custom';
 
       // For Clerk: use selected org, or "user's workspace" if no org
       let organizationId: string | undefined;
       let roles: string[];
-      
+
       if (authProvider.name === 'clerk') {
         organizationId = user.organizationId || `workspace-${user.id}`;
-        
+
         // If user is in their own workspace, they are ADMIN by default
         if (organizationId === `workspace-${user.id}`) {
           roles = ['ADMIN'];
@@ -110,15 +107,14 @@ export function useAuthProviderSync() {
 
   useEffect(() => {
     // Check if frontend and backend auth providers are aligned
-    const configuredFrontendProvider =
-      (import.meta.env.VITE_AUTH_PROVIDER || providerForStore) as string;
-    const backendProvider =
-      import.meta.env.VITE_API_AUTH_PROVIDER || configuredFrontendProvider;
+    const configuredFrontendProvider = (import.meta.env.VITE_AUTH_PROVIDER ||
+      providerForStore) as string;
+    const backendProvider = import.meta.env.VITE_API_AUTH_PROVIDER || configuredFrontendProvider;
 
     if (configuredFrontendProvider !== backendProvider) {
       console.warn(
         `Auth provider mismatch: frontend=${configuredFrontendProvider}, backend=${backendProvider}. ` +
-        'This may cause authentication issues.'
+          'This may cause authentication issues.',
       );
     }
 
@@ -155,7 +151,7 @@ export function useAuthMigration() {
     // we might need to migrate them
     if (storeToken && !isAuthenticated && !providerToken) {
       console.info(
-        'Found existing token in store. You may need to sign in with the new auth system to continue.'
+        'Found existing token in store. You may need to sign in with the new auth system to continue.',
       );
 
       // Optionally, you could attempt to validate the existing token

@@ -1,30 +1,55 @@
 import { z } from 'zod';
-import { componentRegistry, type ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+} from '@shipsec/component-sdk';
 
-const inputSchema = z.object({
-  delay: z.number().int().nonnegative().describe('Artificial delay in milliseconds'),
-  label: z.string().describe('Label used for logs/emitted output'),
+const inputSchema = inputs({});
+
+const parameterSchema = parameters({
+  delay: param(z.number().int().nonnegative().describe('Artificial delay in milliseconds'), {
+    label: 'Delay',
+    editor: 'number',
+    description: 'Artificial delay in milliseconds.',
+    min: 0,
+  }),
+  label: param(z.string().describe('Label used for logs/emitted output'), {
+    label: 'Label',
+    editor: 'text',
+    description: 'Label used for logs/emitted output.',
+  }),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-const outputSchema = z.object({
-  label: z.string(),
-  startedAt: z.number(),
-  endedAt: z.number(),
+const outputSchema = outputs({
+  label: port(z.string(), {
+    label: 'Label',
+    description: 'Label emitted by the component.',
+  }),
+  startedAt: port(z.number(), {
+    label: 'Started At',
+    description: 'Timestamp when the sleep started.',
+  }),
+  endedAt: port(z.number(), {
+    label: 'Ended At',
+    description: 'Timestamp when the sleep ended.',
+  }),
 });
 
-type Output = z.infer<typeof outputSchema>;
-
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'test.sleep.parallel',
   label: 'Parallel Sleep (Test)',
   category: 'transform',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Deterministic wait used for testing scheduler parallelism and benchmarking.',
-  metadata: {
+  ui: {
     slug: 'test-sleep-parallel',
     version: '1.0.0',
     type: 'process',
@@ -35,12 +60,13 @@ const definition: ComponentDefinition<Input, Output> = {
       type: 'shipsecai',
     },
   },
-  async execute(params, context) {
+  async execute({ params }, context) {
+    const parsedParams = parameterSchema.parse(params);
     const startedAt = Date.now();
-    context.emitProgress({ level: 'debug', message: `Sleeping for ${params.delay}ms` });
+    context.emitProgress({ level: 'debug', message: `Sleeping for ${parsedParams.delay}ms` });
 
     await new Promise<void>((resolve) => {
-      setTimeout(resolve, params.delay);
+      setTimeout(resolve, parsedParams.delay);
     });
 
     const endedAt = Date.now();
@@ -50,15 +76,19 @@ const definition: ComponentDefinition<Input, Output> = {
     });
 
     return {
-      label: params.label,
+      label: parsedParams.label,
       startedAt,
       endedAt,
     };
   },
-};
+});
 
 if (!componentRegistry.has(definition.id)) {
   componentRegistry.register(definition);
 }
+
+// Create local type aliases for backward compatibility
+type Input = typeof inputSchema;
+type Output = typeof outputSchema;
 
 export type { Input as SleepParallelInput, Output as SleepParallelOutput };

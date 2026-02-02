@@ -1,32 +1,49 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
+import { componentRegistry, defineComponent, inputs, outputs, port } from '@shipsec/component-sdk';
 
-const inputSchema = z.object({
-  a: z.string().optional().describe('First value to include'),
-  b: z.string().optional().describe('Second value to include'),
-  c: z.string().optional().describe('Third value to include'),
-  d: z.string().optional().describe('Fourth value to include'),
-  e: z.string().optional().describe('Fifth value to include'),
+const inputSchema = inputs({
+  a: port(z.string().optional().describe('First value to include'), {
+    label: 'Item A',
+    description: 'First string input.',
+  }),
+  b: port(z.string().optional().describe('Second value to include'), {
+    label: 'Item B',
+    description: 'Second string input.',
+  }),
+  c: port(z.string().optional().describe('Third value to include'), {
+    label: 'Item C',
+    description: 'Third string input.',
+  }),
+  d: port(z.string().optional().describe('Fourth value to include'), {
+    label: 'Item D',
+    description: 'Fourth string input.',
+  }),
+  e: port(z.string().optional().describe('Fifth value to include'), {
+    label: 'Item E',
+    description: 'Fifth string input.',
+  }),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-const outputSchema = z.object({
-  items: z.array(z.string()),
-  count: z.number().int(),
+const outputSchema = outputs({
+  items: port(z.array(z.string()), {
+    label: 'Items',
+    description: 'Array of defined string inputs in order.',
+  }),
+  count: port(z.number().int(), {
+    label: 'Count',
+    description: 'Total number of strings packed.',
+  }),
 });
 
-type Output = z.infer<typeof outputSchema>;
-
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'core.array.pack',
   label: 'Array Pack',
   category: 'transform',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
   docs: 'Collect up to five string inputs into an ordered array for downstream components such as Text Joiner.',
-  metadata: {
+  ui: {
     slug: 'array-pack',
     version: '1.0.0',
     type: 'process',
@@ -38,32 +55,11 @@ const definition: ComponentDefinition<Input, Output> = {
       type: 'shipsecai',
     },
     isLatest: true,
-    inputs: [
-      { id: 'a', label: 'Item A', dataType: port.text(), description: 'First string input.' },
-      { id: 'b', label: 'Item B', dataType: port.text(), description: 'Second string input.' },
-      { id: 'c', label: 'Item C', dataType: port.text(), description: 'Third string input.' },
-      { id: 'd', label: 'Item D', dataType: port.text(), description: 'Fourth string input.' },
-      { id: 'e', label: 'Item E', dataType: port.text(), description: 'Fifth string input.' },
-    ],
-    outputs: [
-      {
-        id: 'items',
-        label: 'Items',
-        dataType: port.list(port.text()),
-        description: 'Array of defined string inputs in order.',
-      },
-      {
-        id: 'count',
-        label: 'Count',
-        dataType: port.number({ coerceFrom: [] }),
-        description: 'Total number of strings packed.',
-      },
-    ],
   },
-  async execute(params, context) {
+  async execute({ inputs }, context) {
     const entries: string[] = [];
     (['a', 'b', 'c', 'd', 'e'] as const).forEach((key) => {
-      const value = params[key];
+      const value = inputs[key];
       if (typeof value === 'string' && value.trim().length > 0) {
         entries.push(value);
       }
@@ -76,7 +72,6 @@ const definition: ComponentDefinition<Input, Output> = {
       count: entries.length,
     };
   },
-};
+});
 
 componentRegistry.register(definition);
-

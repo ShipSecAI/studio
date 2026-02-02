@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
 import '../../index';
-import { ExecutionContext } from '@shipsec/component-sdk';
 import { createMockExecutionContext } from '../../../testing/test-utils';
 
 // Mock the Okta SDK
@@ -23,18 +22,15 @@ mock.module('@okta/okta-sdk-nodejs', () => ({
 // Import the component definition
 import '../okta-user-offboard';
 import { componentRegistry } from '@shipsec/component-sdk';
-import { OktaUserOffboardOutput } from '../okta-user-offboard';
+import { OktaUserOffboardInput, OktaUserOffboardOutput } from '../okta-user-offboard';
 
-const definition = componentRegistry.get('it-automation.okta.user-offboard');
+const definition = componentRegistry.get<OktaUserOffboardInput, OktaUserOffboardOutput>(
+  'it-automation.okta.user-offboard',
+);
 
 if (!definition) {
   throw new Error('Component definition not found');
 }
-
-const execute = definition.execute as (
-  params: any,
-  context: ExecutionContext,
-) => Promise<OktaUserOffboardOutput>;
 
 describe('okta-user-offboard', () => {
   beforeEach(() => {
@@ -72,7 +68,18 @@ describe('okta-user-offboard', () => {
     mockUserApi.deactivateUser.mockResolvedValue({});
 
     const context = createContext();
-    const result = await execute(baseParams, context);
+    const executePayload = {
+      inputs: {
+        user_email: baseParams.user_email,
+        okta_domain: baseParams.okta_domain,
+        apiToken: baseParams.apiToken,
+      },
+      params: {
+        action: baseParams.action,
+        dry_run: baseParams.dry_run,
+      },
+    };
+    const result = await definition.execute(executePayload, context);
 
     expect(result.success).toBe(true);
     expect(result.userDeactivated).toBe(true);
@@ -81,7 +88,9 @@ describe('okta-user-offboard', () => {
     expect(mockUserApi.getUser).toHaveBeenCalledWith({ userId: 'test@example.com' });
     expect(mockUserApi.deactivateUser).toHaveBeenCalledWith({ userId: '12345' });
     expect(mockUserApi.deleteUser).not.toHaveBeenCalled();
-    expect(context.logger.info).toHaveBeenCalledWith('[Okta] Successfully deactivated user account: test@example.com');
+    expect(context.logger.info).toHaveBeenCalledWith(
+      '[Okta] Successfully deactivated user account: test@example.com',
+    );
   });
 
   it('deactivates and deletes when action=delete', async () => {
@@ -100,13 +109,18 @@ describe('okta-user-offboard', () => {
     mockUserApi.deleteUser.mockResolvedValue({});
 
     const context = createContext();
-    const result = await execute(
-      {
-        ...baseParams,
-        action: 'delete',
+    const executePayload = {
+      inputs: {
+        user_email: baseParams.user_email,
+        okta_domain: baseParams.okta_domain,
+        apiToken: baseParams.apiToken,
       },
-      context,
-    );
+      params: {
+        action: 'delete' as const,
+        dry_run: false,
+      },
+    };
+    const result = await definition.execute(executePayload, context);
 
     expect(result.success).toBe(true);
     expect(result.userDeactivated).toBe(true);
@@ -129,21 +143,27 @@ describe('okta-user-offboard', () => {
     mockUserApi.getUser.mockResolvedValue(mockUser);
 
     const context = createContext();
-    const result = await execute(
-      {
-        ...baseParams,
-        dry_run: true,
-        action: 'delete',
+    const executePayload = {
+      inputs: {
+        user_email: baseParams.user_email,
+        okta_domain: baseParams.okta_domain,
+        apiToken: baseParams.apiToken,
       },
-      context,
-    );
+      params: {
+        dry_run: true,
+        action: 'delete' as const,
+      },
+    };
+    const result = await definition.execute(executePayload, context);
 
     expect(result.success).toBe(true);
     expect(result.userDeactivated).toBe(true);
     expect(result.userDeleted).toBe(true);
     expect(mockUserApi.deactivateUser).not.toHaveBeenCalled();
     expect(mockUserApi.deleteUser).not.toHaveBeenCalled();
-    expect(context.logger.info).toHaveBeenCalledWith('[Okta] Running in DRY RUN mode - no changes will be made');
+    expect(context.logger.info).toHaveBeenCalledWith(
+      '[Okta] Running in DRY RUN mode - no changes will be made',
+    );
   });
 
   it('returns structured failure when user is not found', async () => {
@@ -152,7 +172,18 @@ describe('okta-user-offboard', () => {
     mockUserApi.getUser.mockRejectedValue(error);
 
     const context = createContext();
-    const result = await execute(baseParams, context);
+    const executePayload = {
+      inputs: {
+        user_email: baseParams.user_email,
+        okta_domain: baseParams.okta_domain,
+        apiToken: baseParams.apiToken,
+      },
+      params: {
+        action: baseParams.action,
+        dry_run: baseParams.dry_run,
+      },
+    };
+    const result = await definition.execute(executePayload, context);
 
     expect(result.success).toBe(false);
     expect(result.userDeactivated).toBe(false);
@@ -176,7 +207,18 @@ describe('okta-user-offboard', () => {
     mockUserApi.deactivateUser.mockRejectedValue(new Error('network down'));
 
     const context = createContext();
-    const result = await execute(baseParams, context);
+    const executePayload = {
+      inputs: {
+        user_email: baseParams.user_email,
+        okta_domain: baseParams.okta_domain,
+        apiToken: baseParams.apiToken,
+      },
+      params: {
+        action: baseParams.action,
+        dry_run: baseParams.dry_run,
+      },
+    };
+    const result = await definition.execute(executePayload, context);
 
     expect(result.success).toBe(false);
     expect(result.userDeactivated).toBe(false);
@@ -199,13 +241,18 @@ describe('okta-user-offboard', () => {
     mockUserApi.deleteUser.mockRejectedValue(new Error('timeout'));
 
     const context = createContext();
-    const result = await execute(
-      {
-        ...baseParams,
-        action: 'delete',
+    const executePayload = {
+      inputs: {
+        user_email: baseParams.user_email,
+        okta_domain: baseParams.okta_domain,
+        apiToken: baseParams.apiToken,
       },
-      context,
-    );
+      params: {
+        action: 'delete' as const,
+        dry_run: false,
+      },
+    };
+    const result = await definition.execute(executePayload, context);
 
     expect(result.success).toBe(false);
     expect(result.userDeactivated).toBe(false);
@@ -215,7 +262,7 @@ describe('okta-user-offboard', () => {
 
   it('rejects inputs without an API token', () => {
     expect(() =>
-      definition.inputSchema.parse({
+      definition.inputs.parse({
         user_email: 'test@example.com',
         okta_domain: 'company.okta.com',
       }),
@@ -223,13 +270,14 @@ describe('okta-user-offboard', () => {
   });
 
   it('throws when provided API token trims to an empty string', async () => {
-    const params = definition.inputSchema.parse({
-      ...baseParams,
+    const inputValues = {
+      user_email: baseParams.user_email,
+      okta_domain: baseParams.okta_domain,
       apiToken: '   ',
-    });
+    };
 
     const context = createContext();
-    const result = await execute(params, context);
+    const result = await definition.execute({ inputs: inputValues, params: {} }, context);
     expect(result.success).toBe(false);
     expect(result.error).toContain('API token is required to contact Okta');
   });

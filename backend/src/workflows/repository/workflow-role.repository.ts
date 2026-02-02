@@ -3,10 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { DRIZZLE_TOKEN } from '../../database/database.module';
-import {
-  workflowRolesTable,
-  type WorkflowRoleRecord,
-} from '../../database/schema';
+import { workflowRolesTable, type WorkflowRoleRecord } from '../../database/schema';
 import type { AuthRole } from '../../auth/types';
 
 export interface WorkflowRoleUpsertInput {

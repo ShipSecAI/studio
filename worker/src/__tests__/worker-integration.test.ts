@@ -8,7 +8,6 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { FileStorageAdapter } from '../adapters/file-storage.adapter';
-import { TraceAdapter } from '../adapters/trace.adapter';
 import * as schema from '../adapters/schema';
 import '../components'; // Register all components
 
@@ -28,9 +27,8 @@ workerDescribe('Worker Integration Tests', () => {
   let minioClient: MinioClient;
   let pool: Pool;
   let fileStorageAdapter: FileStorageAdapter;
-  let traceAdapter: TraceAdapter;
   let db: NodePgDatabase<typeof schema>;
-  
+
   // Use the test task queue - tests submit workflows to the test worker (pm2: shipsec-test-worker)
   // Main worker uses 'shipsec-default', test worker uses 'test-worker-integration'
   const taskQueue = 'test-worker-integration';
@@ -40,7 +38,7 @@ workerDescribe('Worker Integration Tests', () => {
     console.log('🚀 Starting worker integration test setup...');
     console.log(`   Task Queue: ${taskQueue}`);
     console.log(`   Namespace: ${testNamespace}`);
-    
+
     // Connect to Temporal (running in docker-compose)
     temporalClient = new Client({
       connection: await NativeConnection.connect({
@@ -67,7 +65,6 @@ workerDescribe('Worker Integration Tests', () => {
     // Initialize adapters
     const bucketName = process.env.MINIO_BUCKET_NAME || 'shipsec-files';
     fileStorageAdapter = new FileStorageAdapter(minioClient, db, bucketName);
-    traceAdapter = new TraceAdapter(db);
 
     // Ensure bucket exists
     const bucketExists = await minioClient.bucketExists(bucketName);
@@ -120,6 +117,7 @@ workerDescribe('Worker Integration Tests', () => {
                 message: 'Integration test',
               },
             },
+            inputOverrides: {},
             dependsOn: [],
             inputMappings: {},
           },
@@ -197,6 +195,7 @@ workerDescribe('Worker Integration Tests', () => {
             ref: 'trigger',
             componentId: 'core.workflow.entrypoint',
             params: {},
+            inputOverrides: {},
             dependsOn: [],
             inputMappings: {},
           },
@@ -206,6 +205,7 @@ workerDescribe('Worker Integration Tests', () => {
             params: {
               fileId,
             },
+            inputOverrides: {},
             dependsOn: ['trigger'],
             inputMappings: {},
           },
@@ -248,10 +248,7 @@ workerDescribe('Worker Integration Tests', () => {
       expect(loader.textContent).toBe(content);
 
       // Cleanup
-      await minioClient.removeObject(
-        process.env.MINIO_BUCKET_NAME || 'shipsec-files',
-        fileId,
-      );
+      await minioClient.removeObject(process.env.MINIO_BUCKET_NAME || 'shipsec-files', fileId);
     }, 60000);
 
     it('should handle workflow failures gracefully', async () => {
@@ -259,7 +256,7 @@ workerDescribe('Worker Integration Tests', () => {
 
       // Create workflow with non-existent file (valid UUID format)
       const nonExistentFileId = randomUUID();
-      
+
       const workflowDSL = {
         version: 1,
         title: 'Failing Workflow',
@@ -285,6 +282,7 @@ workerDescribe('Worker Integration Tests', () => {
             params: {
               fileId: nonExistentFileId,
             },
+            inputOverrides: {},
             dependsOn: [],
             inputMappings: {},
           },
@@ -316,9 +314,9 @@ workerDescribe('Worker Integration Tests', () => {
       expect(result.error).toBeDefined();
       // Error should mention file not being found
       expect(
-        result.error?.includes('not found') || 
-        result.error?.includes('does not exist') ||
-        result.error?.includes('NotFound')
+        result.error?.includes('not found') ||
+          result.error?.includes('does not exist') ||
+          result.error?.includes('NotFound'),
       ).toBe(true);
     }, 60000);
 
@@ -368,6 +366,7 @@ workerDescribe('Worker Integration Tests', () => {
             params: {
               payload: { step: 1 },
             },
+            inputOverrides: {},
             dependsOn: [],
             inputMappings: {},
           },
@@ -377,6 +376,7 @@ workerDescribe('Worker Integration Tests', () => {
             params: {
               payload: { step: 2 },
             },
+            inputOverrides: {},
             dependsOn: ['trigger'],
             inputMappings: {},
           },
@@ -386,6 +386,7 @@ workerDescribe('Worker Integration Tests', () => {
             params: {
               payload: { step: 3 },
             },
+            inputOverrides: {},
             dependsOn: ['step2'],
             inputMappings: {},
           },
@@ -465,6 +466,7 @@ workerDescribe('Worker Integration Tests', () => {
             ref: 'trigger',
             componentId: 'core.workflow.entrypoint',
             params: {},
+            inputOverrides: {},
             dependsOn: [],
             inputMappings: {},
           },
@@ -472,6 +474,7 @@ workerDescribe('Worker Integration Tests', () => {
             ref: 'willFail',
             componentId: 'core.file.loader',
             params: { fileId: missingFileId },
+            inputOverrides: {},
             dependsOn: ['trigger'],
             inputMappings: {},
           },
@@ -482,6 +485,7 @@ workerDescribe('Worker Integration Tests', () => {
               data: 'handled upstream failure',
               label: 'error-handler',
             },
+            inputOverrides: {},
             dependsOn: [],
             inputMappings: {},
           },
@@ -524,111 +528,114 @@ workerDescribe('Worker Integration Tests', () => {
       expect(failureEvent?.error ?? '').toMatch(/not found|does not exist|NotFound/i);
     }, 60000);
 
-  it('should persist ordered traces for parallel branches', async () => {
-    const { shipsecWorkflowRun } = await import('../temporal/workflows');
+    it('should persist ordered traces for parallel branches', async () => {
+      const { shipsecWorkflowRun } = await import('../temporal/workflows');
 
-    const workflowDSL = {
-      version: 1,
-      title: 'Trace Order Workflow',
-      description: 'Ensures trace events remain ordered across concurrent branches',
-      config: {
-        environment: 'test',
-        timeoutSeconds: 30,
-      },
-      entrypoint: {
-        ref: 'trigger',
-      },
-      nodes: {
-        trigger: { ref: 'trigger' },
-        branchA: { ref: 'branchA' },
-        branchB: { ref: 'branchB' },
-      },
-      edges: [
-        {
-          id: 'trigger->branchA',
-          sourceRef: 'trigger',
-          targetRef: 'branchA',
-          kind: 'success' as const,
+      const workflowDSL = {
+        version: 1,
+        title: 'Trace Order Workflow',
+        description: 'Ensures trace events remain ordered across concurrent branches',
+        config: {
+          environment: 'test',
+          timeoutSeconds: 30,
         },
-        {
-          id: 'trigger->branchB',
-          sourceRef: 'trigger',
-          targetRef: 'branchB',
-          kind: 'success' as const,
-        },
-      ],
-      dependencyCounts: {
-        trigger: 0,
-        branchA: 1,
-        branchB: 1,
-      },
-      actions: [
-        {
+        entrypoint: {
           ref: 'trigger',
-          componentId: 'core.workflow.entrypoint',
-          params: {},
-          dependsOn: [],
-          inputMappings: {},
         },
-        {
-          ref: 'branchA',
-          componentId: 'core.console.log',
-          params: { data: 'branchA' },
-          dependsOn: ['trigger'],
-          inputMappings: {},
+        nodes: {
+          trigger: { ref: 'trigger' },
+          branchA: { ref: 'branchA' },
+          branchB: { ref: 'branchB' },
         },
-        {
-          ref: 'branchB',
-          componentId: 'core.console.log',
-          params: { data: 'branchB' },
-          dependsOn: ['trigger'],
-          inputMappings: {},
+        edges: [
+          {
+            id: 'trigger->branchA',
+            sourceRef: 'trigger',
+            targetRef: 'branchA',
+            kind: 'success' as const,
+          },
+          {
+            id: 'trigger->branchB',
+            sourceRef: 'trigger',
+            targetRef: 'branchB',
+            kind: 'success' as const,
+          },
+        ],
+        dependencyCounts: {
+          trigger: 0,
+          branchA: 1,
+          branchB: 1,
         },
-      ],
-    };
+        actions: [
+          {
+            ref: 'trigger',
+            componentId: 'core.workflow.entrypoint',
+            params: {},
+            inputOverrides: {},
+            dependsOn: [],
+            inputMappings: {},
+          },
+          {
+            ref: 'branchA',
+            componentId: 'core.console.log',
+            params: { data: 'branchA' },
+            inputOverrides: {},
+            dependsOn: ['trigger'],
+            inputMappings: {},
+          },
+          {
+            ref: 'branchB',
+            componentId: 'core.console.log',
+            params: { data: 'branchB' },
+            inputOverrides: {},
+            dependsOn: ['trigger'],
+            inputMappings: {},
+          },
+        ],
+      };
 
-    const workflowId = `trace-order-workflow-${randomUUID()}`;
-    const runId = `trace-order-run-${randomUUID()}`;
+      const workflowId = `trace-order-workflow-${randomUUID()}`;
+      const runId = `trace-order-run-${randomUUID()}`;
 
-    const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
-      taskQueue,
-      workflowId,
-      args: [
-        {
-          runId,
-          workflowId,
-          definition: workflowDSL,
-          inputs: {},
-        },
-      ],
-    });
+      const handle = await temporalClient.workflow.start(shipsecWorkflowRun, {
+        taskQueue,
+        workflowId,
+        args: [
+          {
+            runId,
+            workflowId,
+            definition: workflowDSL,
+            inputs: {},
+          },
+        ],
+      });
 
-    const result = await handle.result();
-    expect(result.success).toBe(true);
+      const result = await handle.result();
+      expect(result.success).toBe(true);
 
-    // allow asynchronous persistence to flush
-    await new Promise((resolve) => setTimeout(resolve, 500));
+      // allow asynchronous persistence to flush
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const traces = await db
-      .select()
-      .from(schema.workflowTraces)
-      .where(eq(schema.workflowTraces.runId, runId))
-      .orderBy(schema.workflowTraces.sequence);
+      const traces = await db
+        .select()
+        .from(schema.workflowTraces)
+        .where(eq(schema.workflowTraces.runId, runId))
+        .orderBy(schema.workflowTraces.sequence);
 
-    expect(traces.length).toBeGreaterThanOrEqual(6);
+      expect(traces.length).toBeGreaterThanOrEqual(6);
 
-    const sequences = traces.map((trace) => trace.sequence);
-    sequences.forEach((sequence, index) => {
-      expect(sequence).toBe(index + 1);
-    });
+      const sequences = traces.map((trace) => trace.sequence);
+      sequences.forEach((sequence, index) => {
+        expect(sequence).toBe(index + 1);
+      });
 
-    const completedNodes = new Set(
-      traces.filter((trace) => trace.type === 'NODE_COMPLETED').map((trace) => trace.nodeRef),
-    );
+      const completedNodes = new Set(
+        traces.filter((trace) => trace.type === 'NODE_COMPLETED').map((trace) => trace.nodeRef),
+      );
 
-    expect(completedNodes.has('branchA')).toBe(true);
-    expect(completedNodes.has('branchB')).toBe(true);
-  }, 60000);
+      expect(completedNodes.has('branchA')).toBe(true);
+      expect(completedNodes.has('branchB')).toBe(true);
+    }, 60000);
   });
 
   describe('Worker Connection and Setup', () => {
@@ -640,7 +647,7 @@ workerDescribe('Worker Integration Tests', () => {
       // Verify we can list workflows (even if empty)
       const workflows = temporalClient.workflow.list();
       let count = 0;
-      for await (const workflow of workflows) {
+      for await (const _workflow of workflows) {
         count++;
         if (count > 10) break; // Just verify we can iterate
       }

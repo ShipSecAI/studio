@@ -1,58 +1,59 @@
-import { useEffect, useMemo } from 'react'
-import { Plus, Trash2, GripVertical } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
+import { useEffect, useMemo } from 'react';
+import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/ui/select';
 
-type RuntimeInputType = 'file' | 'text' | 'number' | 'json' | 'array' | 'string'
-type NormalizedRuntimeInputType = Exclude<RuntimeInputType, 'string'>
+type RuntimeInputType = 'file' | 'text' | 'number' | 'json' | 'array' | 'string' | 'secret';
+type NormalizedRuntimeInputType = Exclude<RuntimeInputType, 'string'>;
 
 const normalizeRuntimeInputType = (type: RuntimeInputType): NormalizedRuntimeInputType =>
-  type === 'string' ? 'text' : type
+  type === 'string' ? 'text' : type;
 
 interface RuntimeInput {
-  id: string
-  label: string
-  type: RuntimeInputType
-  required: boolean
-  description?: string
+  id: string;
+  label: string;
+  type: RuntimeInputType;
+  required: boolean;
+  description?: string;
 }
 
 interface RuntimeInputsEditorProps {
-  value: RuntimeInput[]
-  onChange: (value: RuntimeInput[]) => void
+  value: RuntimeInput[];
+  onChange: (value: RuntimeInput[]) => void;
 }
 
 export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProps) {
-  const rawInputs = Array.isArray(value) ? value : []
+  const rawInputs = Array.isArray(value) ? value : [];
   const normalizedInputs = useMemo(
-    () => rawInputs.map(input => ({
-      ...input,
-      type: normalizeRuntimeInputType(input.type),
-    })),
+    () =>
+      rawInputs.map((input) => ({
+        ...input,
+        type: normalizeRuntimeInputType(input.type),
+      })),
     [rawInputs],
-  )
+  );
 
   const hasLegacyType = useMemo(
-    () => rawInputs.some(input => input.type === 'string'),
+    () => rawInputs.some((input) => input.type === 'string'),
     [rawInputs],
-  )
+  );
 
   useEffect(() => {
     if (hasLegacyType) {
-      onChange(normalizedInputs)
+      onChange(normalizedInputs);
     }
-  }, [hasLegacyType, normalizedInputs, onChange])
+  }, [hasLegacyType, normalizedInputs, onChange]);
 
-  const inputs = normalizedInputs
+  const inputs = normalizedInputs;
 
   const addInput = () => {
     const newInput: RuntimeInput = {
@@ -61,20 +62,20 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
       type: 'array',
       required: true,
       description: '',
-    }
-    onChange([...inputs, newInput])
-  }
+    };
+    onChange([...inputs, newInput]);
+  };
 
   const removeInput = (index: number) => {
-    const newInputs = inputs.filter((_, i) => i !== index)
-    onChange(newInputs)
-  }
+    const newInputs = inputs.filter((_, i) => i !== index);
+    onChange(newInputs);
+  };
 
   const updateInput = (index: number, field: keyof RuntimeInput, fieldValue: any) => {
-    const newInputs = [...inputs]
-    newInputs[index] = { ...newInputs[index], [field]: fieldValue }
-    onChange(newInputs)
-  }
+    const newInputs = [...inputs];
+    newInputs[index] = { ...newInputs[index], [field]: fieldValue };
+    onChange(newInputs);
+  };
 
   return (
     <div className="space-y-3">
@@ -94,20 +95,12 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
 
       {inputs.length === 0 ? (
         <div className="p-6 border-2 border-dashed rounded-lg text-center">
-          <p className="text-sm text-muted-foreground mb-3">
-            No runtime inputs configured
-          </p>
+          <p className="text-sm text-muted-foreground mb-3">No runtime inputs configured</p>
           <p className="text-xs text-muted-foreground mb-4">
-            Runtime inputs allow users to provide data when the workflow is triggered.
-            Each input creates a corresponding output port.
+            Runtime inputs allow users to provide data when the workflow is triggered. Each input
+            creates a corresponding output port.
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addInput}
-            className="gap-1"
-          >
+          <Button type="button" variant="outline" size="sm" onClick={addInput} className="gap-1">
             <Plus className="h-3 w-3" />
             Add First Input
           </Button>
@@ -115,16 +108,11 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
       ) : (
         <div className="space-y-3">
           {inputs.map((input, index) => (
-            <div
-              key={index}
-              className="p-3 border rounded-lg bg-background space-y-3"
-            >
+            <div key={index} className="p-3 border rounded-lg bg-background space-y-3">
               {/* Header with drag handle and delete */}
               <div className="flex items-center gap-2">
                 <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-                <span className="text-sm font-medium flex-1">
-                  Input {index + 1}
-                </span>
+                <span className="text-sm font-medium flex-1">Input {index + 1}</span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -165,9 +153,7 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
                   placeholder="e.g., Input File"
                   className="h-8 text-xs"
                 />
-                <p className="text-[10px] text-muted-foreground">
-                  Display name shown to users
-                </p>
+                <p className="text-[10px] text-muted-foreground">Display name shown to users</p>
               </div>
 
               {/* Type Dropdown */}
@@ -177,7 +163,9 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
                 </Label>
                 <Select
                   value={input.type}
-                  onValueChange={(value) => updateInput(index, 'type', value as RuntimeInput['type'])}
+                  onValueChange={(value) =>
+                    updateInput(index, 'type', value as RuntimeInput['type'])
+                  }
                 >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
@@ -188,11 +176,10 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
                     <SelectItem value="number">Number</SelectItem>
                     <SelectItem value="json">JSON</SelectItem>
                     <SelectItem value="array">Array</SelectItem>
+                    <SelectItem value="secret">Secret</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] text-muted-foreground">
-                  Data type for this input
-                </p>
+                <p className="text-[10px] text-muted-foreground">Data type for this input</p>
               </div>
 
               {/* Description Field */}
@@ -254,5 +241,5 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
         </div>
       )}
     </div>
-  )
+  );
 }

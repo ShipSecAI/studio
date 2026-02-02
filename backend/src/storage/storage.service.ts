@@ -40,6 +40,21 @@ export class StorageService {
     };
   }
 
+  async downloadFilePreview(storageKey: string, length = 1024): Promise<Buffer> {
+    const client = this.minioConfig.getClient();
+    const bucket = this.minioConfig.getBucketName();
+
+    try {
+      const stream = await client.getPartialObject(bucket, storageKey, 0, length);
+      return await this.streamToBuffer(stream);
+    } catch (error: any) {
+      if (error.code === 'NoSuchKey') {
+        throw new NotFoundException(`File not found: ${storageKey}`);
+      }
+      throw error;
+    }
+  }
+
   async downloadFile(storageKey: string): Promise<Buffer> {
     const client = this.minioConfig.getClient();
     const bucket = this.minioConfig.getBucketName();
@@ -101,4 +116,3 @@ export class StorageService {
     });
   }
 }
-

@@ -1,14 +1,14 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
   port,
+  param,
 } from '@shipsec/component-sdk';
-import {
-  McpToolArgumentSchema,
-  McpToolDefinitionSchema,
-  mcpToolContractName,
-} from './mcp-tool-contract';
+import { McpToolArgumentSchema, McpToolDefinitionSchema } from '@shipsec/contracts';
 
 const toolEntrySchema = z.object({
   id: z.string().min(1),
@@ -18,106 +18,72 @@ const toolEntrySchema = z.object({
   arguments: z.array(McpToolArgumentSchema).optional(),
 });
 
-const inputSchema = z.object({
-  endpoint: z
-    .string()
-    .min(1, 'MCP endpoint is required')
-    .describe('HTTP endpoint that implements the MCP tool invocation contract.'),
-  headersJson: z
-    .string()
-    .optional()
-    .describe('Optional JSON object of HTTP headers (e.g., auth tokens).'),
-  tools: z
-    .array(toolEntrySchema)
-    .default([])
-    .describe('List of tool entries exposed by this MCP endpoint.'),
+const inputSchema = inputs({});
+
+const parameterSchema = parameters({
+  endpoint: param(
+    z
+      .string()
+      .min(1, 'MCP endpoint is required')
+      .describe('HTTP endpoint that implements the MCP tool invocation contract.'),
+    {
+      label: 'Endpoint',
+      editor: 'text',
+      description: 'HTTP endpoint that accepts MCP tool invocations.',
+    },
+  ),
+  headersJson: param(
+    z.string().optional().describe('Optional JSON object of HTTP headers (e.g., auth tokens).'),
+    {
+      label: 'Headers (JSON)',
+      editor: 'textarea',
+      description: 'Optional JSON object of headers (one per line).',
+    },
+  ),
+  tools: param(
+    z
+      .array(toolEntrySchema)
+      .default([])
+      .describe('List of tool entries exposed by this MCP endpoint.'),
+    {
+      label: 'Tools',
+      editor: 'json',
+      description:
+        'Array of tool entries, e.g., [{"id":"lookup_fact","title":"Lookup Fact","arguments":[{"name":"topic","type":"string"}]}].',
+    },
+  ),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-const outputSchema = z.object({
-  tools: z.array(McpToolDefinitionSchema),
+const outputSchema = outputs({
+  tools: port(z.array(McpToolDefinitionSchema()), {
+    label: 'MCP Tools',
+    description: 'List of MCP tool definitions emitted by this provider.',
+  }),
 });
 
-type Output = z.infer<typeof outputSchema>;
-
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'core.mcp.tools.http',
   label: 'MCP HTTP Tools',
   category: 'ai',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Expose a list of MCP tools backed by an HTTP endpoint (custom or third-party).',
-  metadata: {
+  ui: {
     slug: 'mcp-tools-http',
     version: '0.1.0',
     type: 'process',
     category: 'ai',
-    description: 'Package multiple tools served by an HTTP MCP endpoint for consumption by the AI agent.',
+    description:
+      'Package multiple tools served by an HTTP MCP endpoint for consumption by the AI agent.',
     icon: 'Globe',
     author: {
       name: 'ShipSecAI',
       type: 'shipsecai',
     },
-    inputs: [
-      {
-        id: 'endpoint',
-        label: 'MCP Endpoint',
-        dataType: port.text(),
-        required: true,
-        description: 'HTTP URL for the MCP tool server (POST requests are sent here).',
-      },
-      {
-        id: 'headersJson',
-        label: 'Headers (JSON)',
-        dataType: port.text(),
-        required: false,
-        description: 'Optional headers JSON (e.g., {"Authorization":"Bearer ..."}).',
-      },
-      {
-        id: 'tools',
-        label: 'Tools',
-        dataType: port.json(),
-        required: false,
-        description: 'Structured tool list (id,title,description,toolName).',
-      },
-    ],
-    outputs: [
-      {
-        id: 'tools',
-        label: 'MCP Tools',
-        dataType: port.list(port.contract(mcpToolContractName)),
-        description: 'List of MCP tool definitions emitted by this provider.',
-      },
-    ],
-    parameters: [
-      {
-        id: 'endpoint',
-        label: 'Endpoint',
-        type: 'text',
-        required: true,
-        description: 'HTTP endpoint that accepts MCP tool invocations.',
-      },
-      {
-        id: 'headersJson',
-        label: 'Headers (JSON)',
-        type: 'textarea',
-        required: false,
-        description: 'Optional JSON object of headers (one per line).',
-      },
-      {
-        id: 'tools',
-        label: 'Tools',
-        type: 'json',
-        required: false,
-        default: [],
-        description:
-          'Array of tool entries, e.g., [{"id":"lookup_fact","title":"Lookup Fact","arguments":[{"name":"topic","type":"string"}]}].',
-      },
-    ],
   },
-  async execute(params, context) {
+  async execute({ params }, context) {
     const headers = parseHeaders(params.headersJson);
     const tools = (params.tools ?? []).map((tool) => ({
       id: tool.id,
@@ -138,7 +104,7 @@ const definition: ComponentDefinition<Input, Output> = {
 
     return { tools };
   },
-};
+});
 
 function parseHeaders(headersJson?: string | null): Record<string, string> | undefined {
   if (!headersJson || headersJson.trim().length === 0) {

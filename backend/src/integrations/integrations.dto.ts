@@ -1,11 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsOptional,
-  IsString,
-  IsUrl,
-  MinLength,
-} from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
 
 export class StartOAuthDto {
   @ApiProperty({ description: 'Application user identifier to associate the connection with' })

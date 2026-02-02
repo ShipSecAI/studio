@@ -79,10 +79,7 @@ export class WorkflowRoleGuard implements CanActivate {
     return Array.isArray(auth.roles) && auth.roles.includes('ADMIN');
   }
 
-  private resolveWorkflowId(
-    request: RequestWithAuthContext,
-    param: string,
-  ): string | undefined {
+  private resolveWorkflowId(request: RequestWithAuthContext, param: string): string | undefined {
     if (request.params && typeof request.params[param] === 'string') {
       return request.params[param];
     }

@@ -76,6 +76,7 @@ const longLivedDefinition: WorkflowDefinition = {
       params: {},
       dependsOn: [],
       inputMappings: {},
+      inputOverrides: {},
     },
     ...Array.from({ length: 10 }, (_, index) => index + 1).map((idx) => ({
       ref: `step${idx}`,
@@ -83,11 +84,12 @@ const longLivedDefinition: WorkflowDefinition = {
       params: { delay: 200 + idx * 50, label: `step-${idx}` },
       dependsOn: [idx === 1 ? 'start' : `step${idx - 1}`],
       inputMappings: {},
+      inputOverrides: {},
     })),
   ],
 };
 
-type TraceRow = {
+interface TraceRow {
   sequence: number;
   node_ref: string;
   type: string;
@@ -95,7 +97,7 @@ type TraceRow = {
   level: string;
   message?: string | null;
   error?: string | null;
-};
+}
 
 async function ensureOutputDir() {
   await fs.mkdir(OUTPUT_DIR, { recursive: true });

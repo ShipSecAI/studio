@@ -1,0 +1,47 @@
+---
+title: "Workflow Compilation (DSL)"
+description: "How visual graphs are transformed into executable Domain Specific Language"
+---
+
+# Workflow Compilation
+
+Before a workflow is executed by Temporal, it must be compiled from a UI-friendly graph (nodes and edges) into an execution-efficient **DSL (Domain Specific Language)**.
+
+## The Compiler Logic
+The compiler lives in `backend/src/dsl/compiler.ts`.
+
+### 1. Filtering & Validation
+- Filters out **UI-only nodes** (e.g., text blocks, documentation).
+- Validates that every node references a registered component.
+- Ensures the workflow has exactly one **Entry Point**.
+
+### 2. Topological Sorting
+The compiler uses a standard topological sort algorithm to determine the execution order and detect cycles.
+- **Cycles**: If node A depends on B and B depends on A, compilation fails.
+- **Order**: Nodes with zero dependencies are placed first.
+
+### 3. Dependency Mapping
+For every node, the compiler calculates:
+- `dependsOn`: A list of node IDs that must complete before this node can start.
+- `dependencyCounts`: A pre-calculated map used by the executor to track readiness.
+
+### 4. Port & Variable Mapping
+This is the most critical phase. The compiler maps **Edges** to **Input Port** mappings:
+- Maps `sourceHandle` (e.g., `results`) to `targetHandle` (e.g., `domainList`).
+- Ensures that if a port is connected via an edge, manual configuration values are handled according to `valuePriority` (usually ignoring manual values if a connection exists).
+
+## Join Strategies
+When a node has multiple incoming edges, it must decide when to execute:
+
+| Strategy | Behavior | Use Case |
+|----------|----------|----------|
+| **all** (default) | Waits for ALL parent nodes to complete successfully. | Standard data aggregation. |
+| **any** | Executes as soon as ANY parent node completes. | Race conditions or fallback providers. |
+| **first** | Executes for the first parent that finishes, ignores others. | Redundant security scanners. |
+
+## DSL Schema
+The resulting JSON contains enough metadata for the Worker to rebuild the environment:
+- **`actions`**: Flat list of execution steps.
+- **`params`**: Manual configuration values.
+- **`inputMappings`**: Dynamic data flow instructions.
+- **`config`**: Global workflow settings (timeouts, environments).

@@ -12,15 +12,9 @@ export const workflowsTable = pgTable('workflows', {
   description: text('description'),
   graph: jsonb('graph').$type<WorkflowGraph>().notNull(),
   organizationId: varchar('organization_id', { length: 191 }),
-  compiledDefinition: jsonb('compiled_definition')
-    .$type<WorkflowDefinition | null>()
-    .default(null),
+  compiledDefinition: jsonb('compiled_definition').$type<WorkflowDefinition | null>().default(null),
   lastRun: timestamp('last_run', { withTimezone: true }),
   runCount: integer('run_count').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

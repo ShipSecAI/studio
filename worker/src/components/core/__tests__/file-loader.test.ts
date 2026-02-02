@@ -39,6 +39,9 @@ describe('file-loader component', () => {
       getFileMetadata: async () => {
         throw new Error('Not implemented');
       },
+      uploadFile: async () => {
+        throw new Error('Not implemented');
+      },
     };
 
     const context = createExecutionContext({
@@ -47,11 +50,14 @@ describe('file-loader component', () => {
       storage: mockStorage,
     });
 
-    const params = component.inputSchema.parse({
-      fileId: testFileId,
-    });
+    const executePayload = {
+      inputs: {
+        fileId: testFileId,
+      },
+      params: {},
+    };
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(executePayload, context);
 
     expect(result.file.id).toBe(testFileId);
     expect(result.file.name).toBe('test.txt');
@@ -71,11 +77,14 @@ describe('file-loader component', () => {
       // No storage service
     });
 
-    const params = component.inputSchema.parse({
-      fileId: '223e4567-e89b-12d3-a456-426614174001',
-    });
+    const executePayload = {
+      inputs: {
+        fileId: '223e4567-e89b-12d3-a456-426614174001',
+      },
+      params: {},
+    };
 
-    await expect(component.execute(params, context)).rejects.toThrow(
+    await expect(component.execute(executePayload, context)).rejects.toThrow(
       'Storage service not available',
     );
   });
@@ -100,6 +109,9 @@ describe('file-loader component', () => {
       getFileMetadata: async () => {
         throw new Error('Not implemented');
       },
+      uploadFile: async () => {
+        throw new Error('Not implemented');
+      },
     };
 
     const context = createExecutionContext({
@@ -108,11 +120,14 @@ describe('file-loader component', () => {
       storage: mockStorage,
     });
 
-    const params = component.inputSchema.parse({
-      fileId: imageFileId,
-    });
+    const executePayload = {
+      inputs: {
+        fileId: imageFileId,
+      },
+      params: {},
+    };
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(executePayload, context);
 
     expect(result.file.mimeType).toBe('image/png');
     expect(result.file.content).toBe(binaryData.toString('base64'));

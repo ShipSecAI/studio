@@ -32,9 +32,12 @@ const workflowGraph = WorkflowGraphSchema.parse({
       data: {
         label: 'Entry Point',
         config: {
-          runtimeInputs: [
-            { id: 'userPrompt', label: 'User Prompt', type: 'text', required: true },
-          ],
+          params: {
+            runtimeInputs: [
+              { id: 'userPrompt', label: 'User Prompt', type: 'text', required: true },
+            ],
+          },
+          inputOverrides: {},
         },
       },
     },
@@ -45,8 +48,12 @@ const workflowGraph = WorkflowGraphSchema.parse({
       data: {
         label: 'Gemini Provider',
         config: {
-          model: 'gemini-2.5-flash',
-          apiKey: 'secret:gemini-demo',
+          params: {
+            model: 'gemini-2.5-flash',
+          },
+          inputOverrides: {
+            apiKey: 'secret:gemini-demo',
+          },
         },
       },
     },
@@ -57,17 +64,14 @@ const workflowGraph = WorkflowGraphSchema.parse({
       data: {
         label: 'AI Agent',
         config: {
-          systemPrompt: 'Combine Gemini output with MCP knowledge.',
-          temperature: 0.5,
-          maxTokens: 1024,
-          memorySize: 8,
-          stepLimit: 4,
-          userInput: '{{entry-point.userPrompt}}',
-          chatModel: {
-            provider: 'gemini',
-            modelId: 'gemini-2.5-flash',
-            apiKeySecretId: 'secret:gemini-demo',
+          params: {
+            systemPrompt: 'Combine Gemini output with MCP knowledge.',
+            temperature: 0.5,
+            maxTokens: 1024,
+            memorySize: 8,
+            stepLimit: 4,
           },
+          inputOverrides: {},
         },
       },
     },
@@ -78,8 +82,10 @@ const workflowGraph = WorkflowGraphSchema.parse({
       data: {
         label: 'Console Log',
         config: {
-          label: 'Agent Output',
-          data: '{{agent-node.responseText}}',
+          params: {},
+          inputOverrides: {
+            label: 'Agent Output',
+          },
         },
       },
     },
@@ -285,6 +291,8 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
 
     expect(savedDefinition).not.toBeNull();
     expect(savedDefinition!.actions.length).toBe(4);
-    expect(definition.actions.find((action) => action.componentId === 'core.ai.agent')).toBeDefined();
+    expect(
+      definition.actions.find((action) => action.componentId === 'core.ai.agent'),
+    ).toBeDefined();
   });
 });

@@ -1,13 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  text,
-  varchar,
-  bigint,
-  timestamp,
-  jsonb,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, varchar, bigint, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 
 import { files } from './files.schema';
 
@@ -26,7 +17,7 @@ export const artifactsTable = pgTable(
     name: text('name').notNull(),
     mimeType: varchar('mime_type', { length: 150 }).notNull(),
     size: bigint('size', { mode: 'number' }).notNull(),
-    destinations: jsonb('destinations').$type<Array<'run' | 'library'>>().notNull().default(['run']),
+    destinations: jsonb('destinations').$type<('run' | 'library')[]>().notNull().default(['run']),
     metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
     organizationId: varchar('organization_id', { length: 191 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

@@ -26,44 +26,48 @@ dockerDescribe('DNSX Integration (Docker)', () => {
     });
   });
 
-  test(
-    'should resolve DNS records for a known domain using real dnsx',
-    async () => {
-      const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
-      expect(component).toBeDefined();
+  test('should resolve DNS records for a known domain using real dnsx', async () => {
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
+    expect(component).toBeDefined();
 
-      const typedComponent = component!;
-      const params = typedComponent.inputSchema.parse({ domains: ['example.com'], recordTypes: ['A'] });
-      const result = typedComponent.outputSchema.parse(await typedComponent.execute(params, context));
+    const typedComponent = component!;
 
-      expect(result).toHaveProperty('results');
-      expect(result.results.length).toBeGreaterThan(0);
-      expect(result.rawOutput.length).toBeGreaterThan(0);
-      expect(result.domainCount).toBe(1);
-      expect(result.recordCount).toBeGreaterThan(0);
-      expect(result.results[0].host).toBe('example.com');
-    },
-    180_000,
-  );
+    const result = typedComponent.outputs.parse(
+      await typedComponent.execute(
+        {
+          inputs: { domains: ['example.com'] },
+          params: { recordTypes: ['A'] },
+        },
+        context,
+      ),
+    );
 
-  test(
-    'should handle non-existent domains gracefully',
-    async () => {
-      const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
-      expect(component).toBeDefined();
+    expect(result).toHaveProperty('results');
+    expect(result.results.length).toBeGreaterThan(0);
+    expect(result.rawOutput.length).toBeGreaterThan(0);
+    expect(result.domainCount).toBe(1);
+    expect(result.recordCount).toBeGreaterThan(0);
+    expect(result.results[0].host).toBe('example.com');
+  }, 180_000);
 
-      const typedComponent = component!;
-      const params = typedComponent.inputSchema.parse({
-        domains: ['this-domain-definitely-does-not-exist-12345.invalid'],
-        recordTypes: ['A'],
-      });
+  test('should handle non-existent domains gracefully', async () => {
+    const component = componentRegistry.get<DnsxInput, DnsxOutput>('shipsec.dnsx.run');
+    expect(component).toBeDefined();
 
-      const result = typedComponent.outputSchema.parse(await typedComponent.execute(params, context));
+    const typedComponent = component!;
 
-      expect(result.domainCount).toBe(1);
-      expect(result.recordTypes).toContain('A');
-      expect(Array.isArray(result.results)).toBe(true);
-    },
-    180_000,
-  );
+    const result = typedComponent.outputs.parse(
+      await typedComponent.execute(
+        {
+          inputs: { domains: ['this-domain-definitely-does-not-exist-12345.invalid'] },
+          params: { recordTypes: ['A'] },
+        },
+        context,
+      ),
+    );
+
+    expect(result.domainCount).toBe(1);
+    expect(result.recordTypes).toContain('A');
+    expect(Array.isArray(result.results)).toBe(true);
+  }, 180_000);
 });

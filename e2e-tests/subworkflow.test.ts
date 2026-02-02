@@ -171,9 +171,11 @@ e2eDescribe('Subworkflow E2E Tests', () => {
           data: {
             label: 'Start',
             config: {
-              runtimeInputs: [
-                { id: 'multiplier', label: 'Multiplier', type: 'number', required: true },
-              ],
+              params: {
+                runtimeInputs: [
+                  { id: 'multiplier', label: 'Multiplier', type: 'number', required: true },
+                ],
+              },
             },
           },
         },
@@ -184,14 +186,15 @@ e2eDescribe('Subworkflow E2E Tests', () => {
           data: {
             label: 'Compute',
             config: {
-              variables: [
-                { name: 'mult', type: 'number' },
-              ],
-              returns: [
-                { name: 'result', type: 'number' },
-                { name: 'description', type: 'string' },
-              ],
-              code: `export async function script(input: Input): Promise<Output> {
+              params: {
+                variables: [
+                  { name: 'mult', type: 'number' },
+                ],
+                returns: [
+                  { name: 'result', type: 'number' },
+                  { name: 'description', type: 'string' },
+                ],
+                code: `export async function script(input: Input): Promise<Output> {
   const mult = typeof input.mult === 'number' ? input.mult : 1;
   const result = 21 * mult;
   return {
@@ -199,6 +202,7 @@ e2eDescribe('Subworkflow E2E Tests', () => {
     description: \`21 times \${mult} equals \${result}\`
   };
 }`,
+              },
             },
           },
         },
@@ -226,7 +230,7 @@ e2eDescribe('Subworkflow E2E Tests', () => {
           position: { x: 0, y: 0 },
           data: {
             label: 'Start',
-            config: { runtimeInputs: [] },
+            config: { params: { runtimeInputs: [] } },
           },
         },
         {
@@ -236,14 +240,18 @@ e2eDescribe('Subworkflow E2E Tests', () => {
           data: {
             label: 'Call Child',
             config: {
-              workflowId: childWorkflowId,
-              versionStrategy: 'latest',
-              timeoutSeconds: 60,
-              childRuntimeInputs: [
-                { id: 'multiplier', label: 'Multiplier', type: 'number', required: true },
-              ],
-              // Pass multiplier = 2, so child should compute 21 * 2 = 42
-              multiplier: 2,
+              params: {
+                workflowId: childWorkflowId,
+                versionStrategy: 'latest',
+                timeoutSeconds: 60,
+                childRuntimeInputs: [
+                  { id: 'multiplier', label: 'Multiplier', type: 'number', required: true },
+                ],
+              },
+              inputOverrides: {
+                // Pass multiplier = 2, so child should compute 21 * 2 = 42
+                multiplier: 2,
+              },
             },
           },
         },
@@ -254,14 +262,15 @@ e2eDescribe('Subworkflow E2E Tests', () => {
           data: {
             label: 'Consume Result',
             config: {
-              variables: [
-                { name: 'childOutput', type: 'json' },
-              ],
-              returns: [
-                { name: 'finalAnswer', type: 'number' },
-                { name: 'confirmation', type: 'string' },
-              ],
-              code: `export async function script(input: Input): Promise<Output> {
+              params: {
+                variables: [
+                  { name: 'childOutput', type: 'json' },
+                ],
+                returns: [
+                  { name: 'finalAnswer', type: 'number' },
+                  { name: 'confirmation', type: 'string' },
+                ],
+                code: `export async function script(input: Input): Promise<Output> {
   const childOutput = input.childOutput || {};
   const compute = childOutput.compute || {};
   return {
@@ -269,6 +278,7 @@ e2eDescribe('Subworkflow E2E Tests', () => {
     confirmation: compute.description ?? 'not found'
   };
 }`,
+              },
             },
           },
         },

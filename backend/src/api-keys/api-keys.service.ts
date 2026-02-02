@@ -8,7 +8,7 @@ import {
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../database/schema';
-import { apiKeys, type ApiKey, type ApiKeyPermissions } from '../database/schema/api-keys';
+import { apiKeys, type ApiKey } from '../database/schema/api-keys';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -60,7 +60,7 @@ export class ApiKeysService {
     }
 
     const conditions = [eq(apiKeys.organizationId, auth.organizationId)];
-    
+
     if (query.isActive !== undefined) {
       conditions.push(eq(apiKeys.isActive, query.isActive));
     }
@@ -135,17 +135,17 @@ export class ApiKeysService {
     const parts = plainKey.split('_');
     // Expected format: sk_live_<8-char-id>_<secret>
     if (parts.length !== 4) return null;
-    
-    const [sk, env, id, secret] = parts;
+
+    const [sk, env, id, _secret] = parts;
     if (sk !== 'sk' || env !== 'live') return null;
-    
+
     // Look up by keyHint (which stores the ID part of the key)
     // This allows us to find the specific key record without scanning all keys
     const candidates = await this.db
       .select()
       .from(apiKeys)
       .where(and(eq(apiKeys.keyHint, id), eq(apiKeys.isActive, true)));
-      
+
     for (const key of candidates) {
       const match = await bcrypt.compare(plainKey, key.keyHash);
       if (match) {
@@ -153,17 +153,17 @@ export class ApiKeysService {
         if (key.expiresAt && key.expiresAt < new Date()) {
           return null;
         }
-        
+
         // Update stats (async, don't await)
         this.updateUsage(key.id);
-        
+
         return key;
       }
     }
-    
+
     return null;
   }
-  
+
   private async updateUsage(id: string) {
     try {
       await this.db
@@ -177,14 +177,20 @@ export class ApiKeysService {
       this.logger.error(`Failed to update usage for key ${id}`, e);
     }
   }
-  
+
   // Adjusted generation to match the lookup strategy
   private generateKeyWithId(): { key: string; id: string } {
-    const id = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
-    const secret = crypto.randomBytes(24).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+    const id = crypto
+      .randomBytes(6)
+      .toString('base64')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 8);
+    const secret = crypto
+      .randomBytes(24)
+      .toString('base64')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 32);
     const key = `${KEY_PREFIX}${id}_${secret}`;
     return { key, id };
   }
-  
-
 }

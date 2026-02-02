@@ -1,42 +1,44 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Switch } from '@/components/ui/switch'
-import { Button } from '@/components/ui/button'
-import { useNavigate } from 'react-router-dom'
-import { RuntimeInputsEditor } from './RuntimeInputsEditor'
-import { SimpleVariableListEditor } from './SimpleVariableListEditor'
-import { ScriptCodeEditor } from './ScriptCodeEditor'
-import { FormFieldsEditor } from './FormFieldsEditor'
-import { SelectionOptionsEditor } from './SelectionOptionsEditor'
-import type { Parameter } from '@/schemas/component'
-import type { InputMapping } from '@/schemas/node'
-import { useSecretStore } from '@/store/secretStore'
-import { useIntegrationStore } from '@/store/integrationStore'
-import { getCurrentUserId } from '@/lib/currentUser'
-import { useArtifactStore } from '@/store/artifactStore'
-import { env } from '@/config/env'
-import { api } from '@/services/api'
-import { useWorkflowStore } from '@/store/workflowStore'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+import { RuntimeInputsEditor } from './RuntimeInputsEditor';
+import { SimpleVariableListEditor } from './SimpleVariableListEditor';
+import { ScriptCodeEditor } from './ScriptCodeEditor';
+import { FormFieldsEditor } from './FormFieldsEditor';
+import { SelectionOptionsEditor } from './SelectionOptionsEditor';
+import { SecretSelect } from '@/components/inputs/SecretSelect';
+import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
+import type { Parameter } from '@/schemas/component';
+import type { InputMapping } from '@/schemas/node';
+import { useSecretStore } from '@/store/secretStore';
+import { useIntegrationStore } from '@/store/integrationStore';
+import { getCurrentUserId } from '@/lib/currentUser';
+import { useArtifactStore } from '@/store/artifactStore';
+import { env } from '@/config/env';
+import { api } from '@/services/api';
+import { useWorkflowStore } from '@/store/workflowStore';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog'
-import { Search } from 'lucide-react'
-import type { ArtifactMetadata } from '@shipsec/shared'
+} from '@/components/ui/dialog';
+import { Search } from 'lucide-react';
+import type { ArtifactMetadata } from '@shipsec/shared';
 
 interface ParameterFieldProps {
-  parameter: Parameter
-  value: any
-  onChange: (value: any) => void
-  connectedInput?: InputMapping
-  componentId?: string
-  parameters?: Record<string, unknown> | undefined
-  onUpdateParameter?: (paramId: string, value: any) => void
+  parameter: Parameter;
+  value: any;
+  onChange: (value: any) => void;
+  connectedInput?: InputMapping;
+  componentId?: string;
+  parameters?: Record<string, unknown> | undefined;
+  onUpdateParameter?: (paramId: string, value: any) => void;
 }
 
 /**
@@ -51,167 +53,160 @@ export function ParameterField({
   parameters,
   onUpdateParameter,
 }: ParameterFieldProps) {
-  const currentValue = value !== undefined ? value : parameter.default
-  const [jsonError, setJsonError] = useState<string | null>(null)
-  const navigate = useNavigate()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const currentValue = value !== undefined ? value : parameter.default;
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const secrets = useSecretStore((state) => state.secrets)
-  const secretsLoading = useSecretStore((state) => state.loading)
-  const secretsError = useSecretStore((state) => state.error)
-  const fetchSecrets = useSecretStore((state) => state.fetchSecrets)
-  const refreshSecrets = useSecretStore((state) => state.refresh)
+  const secrets = useSecretStore((state) => state.secrets);
+  const secretsError = useSecretStore((state) => state.error);
+  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
+  const refreshSecrets = useSecretStore((state) => state.refresh);
 
-  const integrationConnections = useIntegrationStore((state) => state.connections)
-  const fetchIntegrationConnections = useIntegrationStore((state) => state.fetchConnections)
-  const integrationLoading = useIntegrationStore((state) => state.loadingConnections)
-  const integrationError = useIntegrationStore((state) => state.error)
+  const integrationConnections = useIntegrationStore((state) => state.connections);
+  const fetchIntegrationConnections = useIntegrationStore((state) => state.fetchConnections);
+  const integrationLoading = useIntegrationStore((state) => state.loadingConnections);
+  const integrationError = useIntegrationStore((state) => state.error);
 
-  const currentUserId = useMemo(() => getCurrentUserId(), [])
-  const hasFetchedConnectionsRef = useRef(false)
-  const autoSelectedConnectionRef = useRef(false)
+  const currentUserId = useMemo(() => getCurrentUserId(), []);
+  const hasFetchedConnectionsRef = useRef(false);
+  const autoSelectedConnectionRef = useRef(false);
 
   const authModeFromParameters: 'manual' | 'connection' = useMemo(() => {
-    const map = parameters as Record<string, unknown> | undefined
+    const map = parameters as Record<string, unknown> | undefined;
     if (map && typeof map.authMode === 'string') {
-      return map.authMode as 'manual' | 'connection'
+      return map.authMode as 'manual' | 'connection';
     }
-    const connectionCandidate = map?.connectionId
+    const connectionCandidate = map?.connectionId;
     if (typeof connectionCandidate === 'string' && connectionCandidate.trim().length > 0) {
-      return 'connection'
+      return 'connection';
     }
-    return 'manual'
-  }, [parameters])
+    return 'manual';
+  }, [parameters]);
 
-  const isRemoveGithubComponent = componentId === 'github.org.membership.remove'
-  const isProviderGithubComponent = componentId === 'github.connection.provider'
-  const isGitHubConnectionComponent = isRemoveGithubComponent || isProviderGithubComponent
-  const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId'
-  const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection'
+  const isRemoveGithubComponent = componentId === 'github.org.membership.remove';
+  const isProviderGithubComponent = componentId === 'github.connection.provider';
+  const isGitHubConnectionComponent = isRemoveGithubComponent || isProviderGithubComponent;
+  const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId';
+  const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection';
 
-  const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id)
-  const isWorkflowCallComponent = componentId === 'core.workflow.call'
-  const isWorkflowSelector = isWorkflowCallComponent && parameter.id === 'workflowId'
+  const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id);
+  const isWorkflowCallComponent = componentId === 'core.workflow.call';
+  const isWorkflowSelector = isWorkflowCallComponent && parameter.id === 'workflowId';
 
   const githubConnections = useMemo(
     () => integrationConnections.filter((connection) => connection.provider === 'github'),
     [integrationConnections],
-  )
+  );
 
-  const [workflowOptions, setWorkflowOptions] = useState<Array<{ id: string; name: string }>>([])
-  const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false)
-  const [workflowOptionsError, setWorkflowOptionsError] = useState<string | null>(null)
-  const [workflowPortSyncError, setWorkflowPortSyncError] = useState<string | null>(null)
+  const [workflowOptions, setWorkflowOptions] = useState<{ id: string; name: string }[]>([]);
+  const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false);
+  const [workflowOptionsError, setWorkflowOptionsError] = useState<string | null>(null);
+  const [workflowPortSyncError, setWorkflowPortSyncError] = useState<string | null>(null);
 
   const selectedWorkflowId =
-    typeof currentValue === 'string' && currentValue.trim().length > 0 ? currentValue.trim() : ''
+    typeof currentValue === 'string' && currentValue.trim().length > 0 ? currentValue.trim() : '';
 
   const syncCallWorkflowPorts = useCallback(
     async (workflowId: string) => {
-      setWorkflowPortSyncError(null)
+      setWorkflowPortSyncError(null);
       try {
-        const workflow = await api.workflows.get(workflowId)
-        const graph = workflow.graph
-        const entrypoint = graph.nodes.find((node) => node.type === 'core.workflow.entrypoint')
+        const workflow = await api.workflows.get(workflowId);
+        const graph = workflow.graph;
+        const entrypoint = graph.nodes.find((node) => node.type === 'core.workflow.entrypoint');
 
-        const runtimeInputsCandidate = entrypoint?.data?.config?.runtimeInputs
+        const runtimeInputsCandidate = entrypoint?.data?.config?.runtimeInputs;
 
-        const runtimeInputs = Array.isArray(runtimeInputsCandidate)
-          ? runtimeInputsCandidate
-          : []
+        const runtimeInputs = Array.isArray(runtimeInputsCandidate) ? runtimeInputsCandidate : [];
 
-        onUpdateParameter?.('childWorkflowName', workflow.name)
-        onUpdateParameter?.('childRuntimeInputs', runtimeInputs)
+        onUpdateParameter?.('childWorkflowName', workflow.name);
+        onUpdateParameter?.('childRuntimeInputs', runtimeInputs);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        setWorkflowPortSyncError(message)
-        onUpdateParameter?.('childRuntimeInputs', [])
+        const message = error instanceof Error ? error.message : String(error);
+        setWorkflowPortSyncError(message);
+        onUpdateParameter?.('childRuntimeInputs', []);
       }
     },
     [onUpdateParameter],
-  )
+  );
 
   useEffect(() => {
-    if (!isWorkflowSelector) return
+    if (!isWorkflowSelector) return;
 
-    let cancelled = false
-    setWorkflowOptionsLoading(true)
-    setWorkflowOptionsError(null)
+    let cancelled = false;
+    setWorkflowOptionsLoading(true);
+    setWorkflowOptionsError(null);
 
     api.workflows
       .list()
       .then((workflows) => {
-        if (cancelled) return
+        if (cancelled) return;
         const options = workflows
           .filter((workflow) => workflow.id !== currentBuilderWorkflowId)
           .map((workflow) => ({ id: workflow.id, name: workflow.name }))
-          .sort((a, b) => a.name.localeCompare(b.name))
-        setWorkflowOptions(options)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setWorkflowOptions(options);
       })
       .catch((error) => {
-        if (cancelled) return
-        setWorkflowOptionsError(error instanceof Error ? error.message : String(error))
+        if (cancelled) return;
+        setWorkflowOptionsError(error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (cancelled) return
-        setWorkflowOptionsLoading(false)
-      })
+        if (cancelled) return;
+        setWorkflowOptionsLoading(false);
+      });
 
     return () => {
-      cancelled = true
-    }
-  }, [isWorkflowSelector, currentBuilderWorkflowId])
+      cancelled = true;
+    };
+  }, [isWorkflowSelector, currentBuilderWorkflowId]);
 
   useEffect(() => {
-    if (!isWorkflowSelector) return
-    if (!selectedWorkflowId) return
+    if (!isWorkflowSelector) return;
+    if (!selectedWorkflowId) return;
 
-    const existingRuntimeInputs = (parameters as any)?.childRuntimeInputs
-    const shouldSync =
-      !Array.isArray(existingRuntimeInputs) || existingRuntimeInputs.length === 0
+    const existingRuntimeInputs = (parameters as any)?.childRuntimeInputs;
+    const shouldSync = !Array.isArray(existingRuntimeInputs) || existingRuntimeInputs.length === 0;
 
-    if (!shouldSync) return
-    void syncCallWorkflowPorts(selectedWorkflowId)
-  }, [isWorkflowSelector, selectedWorkflowId, parameters, syncCallWorkflowPorts])
+    if (!shouldSync) return;
+    void syncCallWorkflowPorts(selectedWorkflowId);
+  }, [isWorkflowSelector, selectedWorkflowId, parameters, syncCallWorkflowPorts]);
 
   useEffect(() => {
     if (!isConnectionSelector) {
-      return
+      return;
     }
     if (hasFetchedConnectionsRef.current) {
-      return
+      return;
     }
-    hasFetchedConnectionsRef.current = true
-    fetchIntegrationConnections(currentUserId)
-      .catch((error) => {
-        console.error('Failed to load integration connections', error)
-      })
-  }, [isConnectionSelector, fetchIntegrationConnections, currentUserId])
+    hasFetchedConnectionsRef.current = true;
+    fetchIntegrationConnections(currentUserId).catch((error) => {
+      console.error('Failed to load integration connections', error);
+    });
+  }, [isConnectionSelector, fetchIntegrationConnections, currentUserId]);
 
   useEffect(() => {
     if (!isConnectionSelector || integrationLoading) {
-      return
+      return;
     }
 
     const selectedValue =
-      typeof currentValue === 'string' && currentValue.trim().length > 0
-        ? currentValue.trim()
-        : ''
+      typeof currentValue === 'string' && currentValue.trim().length > 0 ? currentValue.trim() : '';
 
     if (selectedValue) {
-      autoSelectedConnectionRef.current = true
-      return
+      autoSelectedConnectionRef.current = true;
+      return;
     }
 
     if (githubConnections.length === 1 && !autoSelectedConnectionRef.current) {
-      const [firstConnection] = githubConnections
+      const [firstConnection] = githubConnections;
       if (firstConnection) {
-        autoSelectedConnectionRef.current = true
-        onChange(firstConnection.id)
+        autoSelectedConnectionRef.current = true;
+        onChange(firstConnection.id);
         if (isRemoveGithubComponent) {
-          onUpdateParameter?.('authMode', 'connection')
-          onUpdateParameter?.('clientId', undefined)
-          onUpdateParameter?.('clientSecret', undefined)
+          onUpdateParameter?.('authMode', 'connection');
+          onUpdateParameter?.('clientId', undefined);
+          onUpdateParameter?.('clientSecret', undefined);
         }
       }
     }
@@ -223,86 +218,76 @@ export function ParameterField({
     onChange,
     onUpdateParameter,
     isRemoveGithubComponent,
-  ])
+  ]);
 
   const handleRefreshConnections = async () => {
     try {
-      await fetchIntegrationConnections(currentUserId, true)
+      await fetchIntegrationConnections(currentUserId, true);
     } catch (error) {
-      console.error('Failed to refresh integration connections', error)
+      console.error('Failed to refresh integration connections', error);
     }
-  }
+  };
 
-  const isReceivingInput = Boolean(connectedInput)
+  const isReceivingInput = Boolean(connectedInput);
 
-  const [secretMode, setSecretMode] = useState<'select' | 'manual'>(() => {
-    if (parameter.type !== 'secret') {
-      return 'manual'
-    }
-    if (
-      typeof currentValue === 'string' &&
-      secrets.some((secret) => secret.id === currentValue || secret.name === currentValue)
-    ) {
-      return 'select'
-    }
-    return secrets.length > 0 ? 'select' : 'manual'
-  })
+  // Secret IDs are resolved to actual values at runtime by the worker
+  // and selecting from store is mandatory to ensure security and portability.
 
   useEffect(() => {
     if (parameter.type !== 'secret') {
-      return
+      return;
     }
     fetchSecrets().catch((error) => {
-      console.error('Failed to load secrets', error)
-    })
-  }, [parameter.type, fetchSecrets])
+      console.error('Failed to load secrets', error);
+    });
+  }, [parameter.type, fetchSecrets]);
 
   useEffect(() => {
     if (parameter.type !== 'secret' || isReceivingInput) {
-      return
+      return;
     }
 
-    if (secrets.length === 0) {
-      setSecretMode('manual')
-      return
-    }
-
+    // Only auto-migrate if current value is a non-empty string that doesn't match any secret ID
+    // Do NOT auto-select if value is undefined/null/empty (user intentionally cleared it)
     if (
-      secretMode === 'select' &&
-      (typeof currentValue !== 'string' ||
-        !secrets.some((secret) => secret.id === currentValue || secret.name === currentValue))
+      typeof currentValue === 'string' &&
+      currentValue.trim().length > 0 &&
+      secrets.length > 0 &&
+      !secrets.some((secret) => secret.id === currentValue)
     ) {
-      const firstSecret = secrets[0]
-      if (firstSecret) {
-        onChange(firstSecret.name)
+      // The value looks like a legacy name-based reference, try to find matching secret
+      const matchingSecret = secrets.find((secret) => secret.name === currentValue);
+      if (matchingSecret) {
+        // Migrate to ID-based reference
+        onChange(matchingSecret.id);
       }
     }
-  }, [parameter.type, secretMode, secrets, currentValue, onChange, isReceivingInput])
+  }, [parameter.type, secrets, currentValue, onChange, isReceivingInput]);
 
   useEffect(() => {
     if (parameter.type !== 'secret') {
-      return
+      return;
     }
     // Log connection status for debugging secret input flow
     console.debug(
       `[ParameterField] secret parameter "${parameter.id}" connection state:`,
-      connectedInput ?? 'manual'
-    )
-  }, [parameter.type, parameter.id, connectedInput])
+      connectedInput ?? 'manual',
+    );
+  }, [parameter.type, parameter.id, connectedInput]);
 
   const updateSecretValue = (nextValue: any) => {
     if (isReceivingInput) {
       console.debug(
         `[ParameterField] manual update blocked for secret "${parameter.id}" while receiving from upstream.`,
-        connectedInput
-      )
-      return
+        connectedInput,
+      );
+      return;
     }
-    onChange(nextValue)
-  }
+    onChange(nextValue);
+  };
 
   if (isWorkflowSelector) {
-    const disabled = isReceivingInput || workflowOptionsLoading
+    const disabled = isReceivingInput || workflowOptionsLoading;
 
     return (
       <div className="space-y-2">
@@ -310,16 +295,16 @@ export function ParameterField({
           id={parameter.id}
           value={selectedWorkflowId}
           onChange={(event) => {
-            const nextValue = event.target.value
-            onChange(nextValue || undefined)
+            const nextValue = event.target.value;
+            onChange(nextValue || undefined);
 
             if (!nextValue) {
-              onUpdateParameter?.('childRuntimeInputs', [])
-              onUpdateParameter?.('childWorkflowName', undefined)
-              return
+              onUpdateParameter?.('childRuntimeInputs', []);
+              onUpdateParameter?.('childWorkflowName', undefined);
+              return;
             }
 
-            void syncCallWorkflowPorts(nextValue)
+            void syncCallWorkflowPorts(nextValue);
           }}
           className="w-full px-3 py-2 text-sm border rounded-md bg-background"
           disabled={disabled}
@@ -360,32 +345,32 @@ export function ParameterField({
           </div>
         )}
       </div>
-    )
+    );
   }
 
   if (isConnectionSelector) {
-    const selectedValue = typeof currentValue === 'string' ? currentValue : ''
-    const disabled = isReceivingInput || integrationLoading
+    const selectedValue = typeof currentValue === 'string' ? currentValue : '';
+    const disabled = isReceivingInput || integrationLoading;
 
     return (
       <div className="space-y-2">
         <select
           value={selectedValue}
           onChange={(event) => {
-            autoSelectedConnectionRef.current = true
-            const nextValue = event.target.value
-            console.log('Selected GitHub connection ID:', nextValue)
+            autoSelectedConnectionRef.current = true;
+            const nextValue = event.target.value;
+            console.log('Selected GitHub connection ID:', nextValue);
             if (nextValue === '') {
-              onChange(undefined)
+              onChange(undefined);
               if (isRemoveGithubComponent) {
-                onUpdateParameter?.('authMode', 'manual')
+                onUpdateParameter?.('authMode', 'manual');
               }
             } else {
-              onChange(nextValue)
+              onChange(nextValue);
               if (isRemoveGithubComponent) {
-                onUpdateParameter?.('authMode', 'connection')
-                onUpdateParameter?.('clientId', undefined)
-                onUpdateParameter?.('clientSecret', undefined)
+                onUpdateParameter?.('authMode', 'connection');
+                onUpdateParameter?.('clientId', undefined);
+                onUpdateParameter?.('clientSecret', undefined);
               }
             }
           }}
@@ -404,9 +389,7 @@ export function ParameterField({
           <p className="text-xs text-muted-foreground">Loading connections…</p>
         )}
 
-        {integrationError && (
-          <p className="text-xs text-destructive">{integrationError}</p>
-        )}
+        {integrationError && <p className="text-xs text-destructive">{integrationError}</p>}
 
         {!integrationLoading && githubConnections.length === 0 && (
           <p className="text-xs text-muted-foreground">
@@ -431,7 +414,7 @@ export function ParameterField({
             size="sm"
             variant="ghost"
             onClick={() => {
-              void handleRefreshConnections()
+              void handleRefreshConnections();
             }}
             disabled={integrationLoading || isReceivingInput}
           >
@@ -443,9 +426,9 @@ export function ParameterField({
               size="sm"
               variant="ghost"
               onClick={() => {
-                onChange(undefined)
+                onChange(undefined);
                 if (isRemoveGithubComponent) {
-                  onUpdateParameter?.('authMode', 'manual')
+                  onUpdateParameter?.('authMode', 'manual');
                 }
               }}
               disabled={isReceivingInput}
@@ -455,13 +438,13 @@ export function ParameterField({
           )}
         </div>
       </div>
-    )
+    );
   }
 
   switch (parameter.type) {
     case 'text': {
       const disableForGitHubConnection =
-        isRemoveGithubComponent && parameter.id === 'clientId' && isGithubConnectionMode
+        isRemoveGithubComponent && parameter.id === 'clientId' && isGithubConnectionMode;
 
       const inputElement = (
         <Input
@@ -473,7 +456,7 @@ export function ParameterField({
           className="text-sm"
           disabled={isReceivingInput || disableForGitHubConnection}
         />
-      )
+      );
 
       if (disableForGitHubConnection) {
         return (
@@ -483,30 +466,30 @@ export function ParameterField({
               Using a stored GitHub connection, so the client ID is managed automatically.
             </p>
           </div>
-        )
+        );
       }
 
-      return inputElement
+      return inputElement;
     }
 
     case 'textarea': {
-      const isExternalUpdateRef = useRef(false)
+      const isExternalUpdateRef = useRef(false);
 
       // Sync external changes to textarea (e.g., workflow undo)
       useEffect(() => {
         if (textareaRef.current && textareaRef.current.value !== (currentValue || '')) {
-          isExternalUpdateRef.current = true
-          textareaRef.current.value = currentValue || ''
-          isExternalUpdateRef.current = false
+          isExternalUpdateRef.current = true;
+          textareaRef.current.value = currentValue || '';
+          isExternalUpdateRef.current = false;
         }
-      }, [currentValue])
+      }, [currentValue]);
 
       // Sync to parent only on blur for native undo behavior
       const handleBlur = useCallback(() => {
         if (textareaRef.current) {
-          onChange(textareaRef.current.value)
+          onChange(textareaRef.current.value);
         }
-      }, [onChange])
+      }, [onChange]);
 
       return (
         <textarea
@@ -518,7 +501,7 @@ export function ParameterField({
           rows={parameter.rows || 3}
           className="w-full px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono"
         />
-      )
+      );
     }
 
     case 'number':
@@ -529,26 +512,23 @@ export function ParameterField({
           placeholder={parameter.placeholder}
           value={currentValue ?? ''}
           onChange={(e) => {
-            const inputValue = e.target.value
+            const inputValue = e.target.value;
             if (inputValue === '') {
-              onChange(undefined)
-              return
+              onChange(undefined);
+              return;
             }
-            onChange(Number(inputValue))
+            onChange(Number(inputValue));
           }}
           min={parameter.min}
           max={parameter.max}
           className="text-sm"
         />
-      )
+      );
 
     case 'boolean':
       return (
         <div className="flex items-center justify-between">
-          <label
-            htmlFor={parameter.id}
-            className="text-sm font-medium cursor-pointer select-none"
-          >
+          <label htmlFor={parameter.id} className="text-sm font-medium cursor-pointer select-none">
             {parameter.label}
           </label>
           <Switch
@@ -557,44 +537,41 @@ export function ParameterField({
             onCheckedChange={(checked) => onChange(checked)}
           />
         </div>
-      )
+      );
 
     case 'select': {
-      const isAuthModeField = isRemoveGithubComponent && parameter.id === 'authMode'
+      const isAuthModeField = isRemoveGithubComponent && parameter.id === 'authMode';
+
+      const options: SelectOption[] =
+        parameter.options?.map((o) => ({
+          label: o.label,
+          value: o.value,
+        })) || [];
 
       return (
-        <select
-          id={parameter.id}
-          value={currentValue || ''}
-          onChange={(e) => {
-            const nextValue = e.target.value
-            onChange(nextValue)
+        <LeanSelect
+          value={currentValue}
+          options={options}
+          onChange={(nextValue) => {
+            onChange(nextValue);
 
             if (isAuthModeField && nextValue === 'manual') {
-              onUpdateParameter?.('connectionId', undefined)
+              onUpdateParameter?.('connectionId', undefined);
             }
           }}
-          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
           disabled={isReceivingInput && !isAuthModeField}
-        >
-          {!parameter.required && !parameter.default && (
-            <option value="">Select an option...</option>
-          )}
-          {parameter.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      )
+          placeholder={parameter.required ? 'Select an option...' : 'Select an option (optional)'}
+          clearable={!parameter.required}
+        />
+      );
     }
 
-    case 'multi-select':
-      const selectedValues = Array.isArray(currentValue) ? currentValue : []
+    case 'multi-select': {
+      const selectedValues = Array.isArray(currentValue) ? currentValue : [];
       return (
         <div className="space-y-2">
           {parameter.options?.map((option) => {
-            const isSelected = selectedValues.includes(option.value)
+            const isSelected = selectedValues.includes(option.value);
             return (
               <div
                 key={option.value}
@@ -606,8 +583,8 @@ export function ParameterField({
                   onCheckedChange={(checked) => {
                     const newValues = checked
                       ? [...selectedValues, option.value]
-                      : selectedValues.filter((v) => v !== option.value)
-                    onChange(newValues)
+                      : selectedValues.filter((v) => v !== option.value);
+                    onChange(newValues);
                   }}
                 />
                 <label
@@ -617,22 +594,23 @@ export function ParameterField({
                   {option.label}
                 </label>
               </div>
-            )
+            );
           })}
           {selectedValues.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {selectedValues.map((val) => {
-                const option = parameter.options?.find((o) => o.value === val)
+                const option = parameter.options?.find((o) => o.value === val);
                 return (
                   <Badge key={val} variant="secondary" className="text-xs">
                     {option?.label || val}
                   </Badge>
-                )
+                );
               })}
             </div>
           )}
         </div>
-      )
+      );
+    }
 
     case 'file':
       return (
@@ -641,9 +619,9 @@ export function ParameterField({
             id={parameter.id}
             type="file"
             onChange={(e) => {
-              const file = e.target.files?.[0]
+              const file = e.target.files?.[0];
               if (file) {
-                onChange(file.name)
+                onChange(file.name);
               }
             }}
             className="text-sm"
@@ -654,7 +632,7 @@ export function ParameterField({
             </div>
           )}
         </div>
-      )
+      );
 
     case 'artifact':
       return (
@@ -663,59 +641,24 @@ export function ParameterField({
           value={typeof currentValue === 'string' ? currentValue : ''}
           onChange={(nextValue) => onChange(nextValue)}
         />
-      )
+      );
 
     case 'secret': {
-      const hasSecrets = secrets.length > 0
-      const activeSecret = secrets.find(
-        (s) => s.id === currentValue || s.name === currentValue
-      )
-
-      const selectedSecretKey = activeSecret?.name ?? ''
-
-      const manualValue =
-        typeof currentValue === 'string' && !activeSecret
-          ? currentValue
-          : ''
       const disableForGithubConnection =
-        isRemoveGithubComponent && parameter.id === 'clientSecret' && isGithubConnectionMode
+        isRemoveGithubComponent && parameter.id === 'clientSecret' && isGithubConnectionMode;
 
       const connectionLabel =
         connectedInput?.source && connectedInput?.output
           ? `${connectedInput.source}.${connectedInput.output}`
-          : connectedInput?.source
-
-      const handleModeChange = (mode: 'select' | 'manual') => {
-        if (disableForGithubConnection) {
-          return
-        }
-        if (isReceivingInput) {
-          return
-        }
-        if (mode === 'select') {
-          if (!hasSecrets) {
-            setSecretMode('manual')
-            return
-          }
-          const existing =
-            secrets.find((s) => s.id === currentValue || s.name === currentValue) ?? secrets[0]
-          setSecretMode('select')
-          updateSecretValue(existing?.name ?? undefined)
-          return
-        }
-
-        setSecretMode('manual')
-        if (selectedSecretKey) {
-          updateSecretValue(undefined)
-        }
-      }
+          : connectedInput?.source;
 
       return (
         <div className="space-y-3">
           {isReceivingInput && (
             <div className="rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               Receiving input from upstream node
-              {connectionLabel ? ` (${connectionLabel})` : ''}. Disconnect the mapping to edit manually.
+              {connectionLabel ? ` (${connectionLabel})` : ''}. Disconnect the mapping to edit
+              manually.
             </div>
           )}
           {disableForGithubConnection && (
@@ -723,173 +666,91 @@ export function ParameterField({
               Using a stored GitHub connection, so the OAuth client secret is managed automatically.
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
 
-              size="sm"
-              variant={secretMode === 'select' ? 'default' : 'outline'}
-              onClick={() => handleModeChange('select')}
-              disabled={!hasSecrets || isReceivingInput || disableForGithubConnection}
-            >
-              From store
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={secretMode === 'manual' ? 'default' : 'outline'}
-              onClick={() => handleModeChange('manual')}
-              disabled={isReceivingInput || disableForGithubConnection}
-            >
-              Manual ID
-            </Button>
-            <div className="ml-auto flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  refreshSecrets().catch((error) => {
-                    console.error('Failed to refresh secrets', error)
-                  })
-                }}
-                disabled={secretsLoading || isReceivingInput || disableForGithubConnection}
-              >
-                {secretsLoading ? 'Refreshing…' : 'Refresh'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => navigate('/secrets')}
-                disabled={isReceivingInput || disableForGithubConnection}
-              >
-                Manage secrets
-              </Button>
-            </div>
-          </div>
+          {secretsError && <p className="text-xs text-destructive">{secretsError}</p>}
 
-          {secretsError && (
-            <p className="text-xs text-destructive">
-              {secretsError}
-            </p>
-          )}
+          <SecretSelect
+            value={typeof currentValue === 'string' ? currentValue : ''}
+            onChange={(nextValue) => {
+              // Handle both undefined (from clear button) and empty string
+              const valueToSet =
+                nextValue === undefined || nextValue === '' || nextValue === null
+                  ? undefined
+                  : nextValue;
+              updateSecretValue(valueToSet);
+            }}
+            disabled={isReceivingInput || disableForGithubConnection}
+            onRefresh={() => {
+              void refreshSecrets();
+            }}
+          />
 
-          {secretMode === 'select' && hasSecrets && (
-            <select
-              value={selectedSecretKey}
-              onChange={(e) => {
-                const nextValue = e.target.value
-                updateSecretValue(nextValue === '' ? undefined : nextValue)
-              }}
-              className="w-full px-3 py-2 text-sm border rounded-md bg-background"
-              disabled={isReceivingInput || disableForGithubConnection}
-            >
-              <option value="">Select a secret…</option>
-              {secrets.map((secret) => (
-                <option key={secret.id} value={secret.name}>
-                  {secret.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {secretMode === 'select' && !hasSecrets && (
-            <p className="text-xs text-muted-foreground">
-              No stored secrets yet. Create one in the Secret Manager or switch to manual entry.
-            </p>
-          )}
-
-          {secretMode === 'manual' && (
-            <Input
-              id={`${parameter.id}-manual`}
-              type="text"
-              placeholder="Paste secret ID…"
-              value={manualValue}
-              onChange={(e) => updateSecretValue(e.target.value)}
-              className="text-sm"
-              disabled={isReceivingInput || disableForGithubConnection}
-            />
-          )}
-
-          {secretMode === 'select' && activeSecret && (
-            <p className="text-xs text-muted-foreground">
-              Reference: <span className="font-mono">{activeSecret.name}</span> (ID: {activeSecret.id.substring(0, 8)}...)
-            </p>
-          )}
-
-          {secretsError && (
-            <p className="text-xs text-destructive">
-              {secretsError}
-            </p>
-          )}
-
-          <p className="text-xs text-muted-foreground">
-            Secrets are securely stored; only references are shared with components.
+          <p className="text-xs text-muted-foreground opacity-70">
+            Secrets are resolved at runtime. Only the secret reference is stored in the workflow.
           </p>
         </div>
-      )
+      );
     }
 
     case 'json': {
-      const jsonTextareaRef = useRef<HTMLTextAreaElement>(null)
-      const isExternalJsonUpdateRef = useRef(false)
+      const jsonTextareaRef = useRef<HTMLTextAreaElement>(null);
+      const isExternalJsonUpdateRef = useRef(false);
 
       // Sync external changes to JSON textarea
       useEffect(() => {
-        if (!jsonTextareaRef.current) return
+        if (!jsonTextareaRef.current) return;
 
-        let textValue = ''
-        let needsNormalization = false
+        let textValue = '';
+        let needsNormalization = false;
 
         if (value === undefined || value === null || value === '') {
-          textValue = ''
+          textValue = '';
         } else if (typeof value === 'string') {
-          textValue = value
+          textValue = value;
         } else {
           // If Value is an object - normalize to string
           try {
-            textValue = JSON.stringify(value, null, 2)
-            needsNormalization = true
+            textValue = JSON.stringify(value, null, 2);
+            needsNormalization = true;
           } catch (error) {
-            console.error('Failed to serialize JSON parameter value', error)
-            return
+            console.error('Failed to serialize JSON parameter value', error);
+            return;
           }
         }
 
         if (jsonTextareaRef.current.value !== textValue) {
-          isExternalJsonUpdateRef.current = true
-          jsonTextareaRef.current.value = textValue
-          setJsonError(null)
-          isExternalJsonUpdateRef.current = false
+          isExternalJsonUpdateRef.current = true;
+          jsonTextareaRef.current.value = textValue;
+          setJsonError(null);
+          isExternalJsonUpdateRef.current = false;
         }
 
         // Normalize object values to string
         if (needsNormalization) {
-          onChange(textValue)
+          onChange(textValue);
         }
-      }, [value, onChange])
+      }, [value, onChange]);
 
       // Sync to parent only on blur for native undo behavior
       const handleJsonBlur = useCallback(() => {
-        if (!jsonTextareaRef.current) return
-        const nextValue = jsonTextareaRef.current.value
+        if (!jsonTextareaRef.current) return;
+        const nextValue = jsonTextareaRef.current.value;
 
         if (nextValue.trim() === '') {
-          setJsonError(null)
-          onChange(undefined)
-          return
+          setJsonError(null);
+          onChange(undefined);
+          return;
         }
 
         try {
-          JSON.parse(nextValue) // Validate JSON syntax
-          setJsonError(null)
-          onChange(nextValue) // Pass string, not parsed object
-        } catch (error) {
-          setJsonError('Invalid JSON')
+          JSON.parse(nextValue); // Validate JSON syntax
+          setJsonError(null);
+          onChange(nextValue); // Pass string, not parsed object
+        } catch (_error) {
+          setJsonError('Invalid JSON');
           // Keep showing error, don't update parent
         }
-      }, [onChange])
+      }, [onChange]);
 
       return (
         <div className="space-y-2">
@@ -908,11 +769,9 @@ export function ParameterField({
             rows={parameter.rows || 4}
             placeholder={parameter.placeholder || '{\n  "key": "value"\n}'}
           />
-          {jsonError && (
-            <p className="text-xs text-red-500">{jsonError}</p>
-          )}
+          {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
         </div>
-      )
+      );
     }
 
     default:
@@ -920,7 +779,7 @@ export function ParameterField({
         <div className="text-xs text-muted-foreground italic">
           Unsupported parameter type: {parameter.type}
         </div>
-      )
+      );
   }
 }
 
@@ -929,41 +788,41 @@ function ArtifactSelector({
   value,
   onChange,
 }: {
-  parameterId: string
-  value?: string
-  onChange: (value: string | undefined) => void
+  parameterId: string;
+  value?: string;
+  onChange: (value: string | undefined) => void;
 }) {
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [hasRequestedLibrary, setHasRequestedLibrary] = useState(false)
-  const fetchLibrary = useArtifactStore((state) => state.fetchLibrary)
-  const libraryLoading = useArtifactStore((state) => state.libraryLoading)
-  const libraryError = useArtifactStore((state) => state.libraryError)
-  const library = useArtifactStore((state) => state.library)
-  const runArtifacts = useArtifactStore((state) => state.runArtifacts)
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [hasRequestedLibrary, setHasRequestedLibrary] = useState(false);
+  const fetchLibrary = useArtifactStore((state) => state.fetchLibrary);
+  const libraryLoading = useArtifactStore((state) => state.libraryLoading);
+  const libraryError = useArtifactStore((state) => state.libraryError);
+  const library = useArtifactStore((state) => state.library);
+  const runArtifacts = useArtifactStore((state) => state.runArtifacts);
 
   useEffect(() => {
     if (pickerOpen && !hasRequestedLibrary) {
-      setHasRequestedLibrary(true)
-      void fetchLibrary()
+      setHasRequestedLibrary(true);
+      void fetchLibrary();
     }
-  }, [pickerOpen, hasRequestedLibrary, fetchLibrary])
+  }, [pickerOpen, hasRequestedLibrary, fetchLibrary]);
 
   const knownArtifacts = useMemo(() => {
-    const map = new Map<string, ArtifactMetadata>()
+    const map = new Map<string, ArtifactMetadata>();
     for (const artifact of library) {
-      map.set(artifact.id, artifact)
+      map.set(artifact.id, artifact);
     }
     Object.values(runArtifacts).forEach((entry) => {
       entry?.artifacts.forEach((artifact) => {
         if (!map.has(artifact.id)) {
-          map.set(artifact.id, artifact)
+          map.set(artifact.id, artifact);
         }
-      })
-    })
-    return map
-  }, [library, runArtifacts])
+      });
+    });
+    return map;
+  }, [library, runArtifacts]);
 
-  const selectedArtifact = value ? knownArtifacts.get(value) ?? null : null
+  const selectedArtifact = value ? (knownArtifacts.get(value) ?? null) : null;
 
   return (
     <div className="space-y-3">
@@ -972,13 +831,15 @@ function ArtifactSelector({
           <span>
             Selected artifact:{' '}
             <span className="font-medium text-foreground">{selectedArtifact.name}</span>{' '}
-            <span className="font-mono text-[11px] text-muted-foreground">({selectedArtifact.id})</span>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              ({selectedArtifact.id})
+            </span>
           </span>
         ) : value ? (
           <span>
             Artifact ID:{' '}
-            <span className="font-mono text-[11px] text-muted-foreground">{value}</span>{' '}
-            (not in cached list)
+            <span className="font-mono text-[11px] text-muted-foreground">{value}</span> (not in
+            cached list)
           </span>
         ) : (
           'No artifact selected.'
@@ -990,14 +851,19 @@ function ArtifactSelector({
           type="text"
           value={value || ''}
           onChange={(e) => {
-            const nextValue = e.target.value.trim()
-            onChange(nextValue.length > 0 ? nextValue : undefined)
+            const nextValue = e.target.value.trim();
+            onChange(nextValue.length > 0 ? nextValue : undefined);
           }}
           placeholder="Artifact ID (e.g. 123e4567-e89b-12d3-a456-426614174000)"
           className="text-sm"
         />
         <div className="flex gap-2">
-          <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setPickerOpen(true)}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1 sm:flex-none"
+            onClick={() => setPickerOpen(true)}
+          >
             Browse…
           </Button>
           {value && (
@@ -1016,8 +882,8 @@ function ArtifactSelector({
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         onSelect={(artifactId) => {
-          onChange(artifactId)
-          setPickerOpen(false)
+          onChange(artifactId);
+          setPickerOpen(false);
         }}
         libraryLoading={libraryLoading}
         libraryError={libraryError}
@@ -1025,7 +891,7 @@ function ArtifactSelector({
         onRefresh={fetchLibrary}
       />
     </div>
-  )
+  );
 }
 
 function ArtifactPickerDialog({
@@ -1037,35 +903,35 @@ function ArtifactPickerDialog({
   artifacts,
   onRefresh,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSelect: (artifactId: string) => void
-  libraryLoading: boolean
-  libraryError: string | null
-  artifacts: ArtifactMetadata[]
-  onRefresh: () => Promise<void>
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (artifactId: string) => void;
+  libraryLoading: boolean;
+  libraryError: string | null;
+  artifacts: ArtifactMetadata[];
+  onRefresh: () => Promise<void>;
 }) {
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (!open) {
-      setSearchTerm('')
+      setSearchTerm('');
     }
-  }, [open])
+  }, [open]);
 
   const filteredArtifacts = useMemo(() => {
     if (!searchTerm.trim()) {
-      return artifacts
+      return artifacts;
     }
-    const term = searchTerm.toLowerCase()
+    const term = searchTerm.toLowerCase();
     return artifacts.filter((artifact) => {
       return (
         artifact.name.toLowerCase().includes(term) ||
         artifact.componentRef.toLowerCase().includes(term) ||
         artifact.id.toLowerCase().includes(term)
-      )
-    })
-  }, [artifacts, searchTerm])
+      );
+    });
+  }, [artifacts, searchTerm]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1073,7 +939,8 @@ function ArtifactPickerDialog({
         <DialogHeader>
           <DialogTitle>Select an artifact</DialogTitle>
           <DialogDescription>
-            Choose an artifact from the workspace library. Only artifacts saved to the library are listed here.
+            Choose an artifact from the workspace library. Only artifacts saved to the library are
+            listed here.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -1087,7 +954,12 @@ function ArtifactPickerDialog({
                 className="pl-8"
               />
             </div>
-            <Button type="button" variant="outline" disabled={libraryLoading} onClick={() => void onRefresh()}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={libraryLoading}
+              onClick={() => void onRefresh()}
+            >
               Refresh
             </Button>
           </div>
@@ -1131,7 +1003,11 @@ function ArtifactPickerDialog({
                       <td className="px-3 py-2 align-top">
                         <div className="flex flex-wrap gap-1">
                           {artifact.destinations.map((destination) => (
-                            <Badge key={`${artifact.id}-${destination}`} variant="outline" className="text-[10px] uppercase">
+                            <Badge
+                              key={`${artifact.id}-${destination}`}
+                              variant="outline"
+                              className="text-[10px] uppercase"
+                            >
                               {destination}
                             </Badge>
                           ))}
@@ -1154,17 +1030,17 @@ function ArtifactPickerDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 interface ParameterFieldWrapperProps {
-  parameter: Parameter
-  value: any
-  onChange: (value: any) => void
-  connectedInput?: InputMapping
-  componentId?: string
-  parameters?: Record<string, unknown> | undefined
-  onUpdateParameter?: (paramId: string, value: any) => void
-  allComponentParameters?: Parameter[]
+  parameter: Parameter;
+  value: any;
+  onChange: (value: any) => void;
+  connectedInput?: InputMapping;
+  componentId?: string;
+  parameters?: Record<string, unknown> | undefined;
+  onUpdateParameter?: (paramId: string, value: any) => void;
+  allComponentParameters?: Parameter[];
 }
 
 /**
@@ -1173,27 +1049,27 @@ interface ParameterFieldWrapperProps {
  */
 function shouldShowParameter(
   parameter: Parameter,
-  allParameters: Record<string, unknown> | undefined
+  allParameters: Record<string, unknown> | undefined,
 ): boolean {
   // If no visibleWhen conditions, always show
   if (!parameter.visibleWhen) {
-    return true
+    return true;
   }
 
   // If we have conditions but no parameter values to check against, hide by default
   if (!allParameters) {
-    return false
+    return false;
   }
 
   // Check all conditions in visibleWhen object
   for (const [key, expectedValue] of Object.entries(parameter.visibleWhen)) {
-    const actualValue = allParameters[key]
+    const actualValue = allParameters[key];
     if (actualValue !== expectedValue) {
-      return false
+      return false;
     }
   }
 
-  return true
+  return true;
 }
 
 /**
@@ -1202,14 +1078,12 @@ function shouldShowParameter(
  */
 function isHeaderToggleParameter(
   parameter: Parameter,
-  allComponentParameters: Parameter[] | undefined
+  allComponentParameters: Parameter[] | undefined,
 ): boolean {
-  if (parameter.type !== 'boolean' || !allComponentParameters) return false
+  if (parameter.type !== 'boolean' || !allComponentParameters) return false;
 
   // Check if any other parameter has visibleWhen referencing this param
-  return allComponentParameters.some(
-    (p) => p.visibleWhen && parameter.id in p.visibleWhen
-  )
+  return allComponentParameters.some((p) => p.visibleWhen && parameter.id in p.visibleWhen);
 }
 
 /**
@@ -1227,7 +1101,7 @@ export function ParameterFieldWrapper({
 }: ParameterFieldWrapperProps) {
   // Check visibility conditions
   if (!shouldShowParameter(parameter, parameters)) {
-    return null
+    return null;
   }
 
   // Special case: Runtime Inputs Editor for Entry Point
@@ -1235,33 +1109,27 @@ export function ParameterFieldWrapper({
     return (
       <div className="space-y-2">
         {parameter.description && (
-          <p className="text-xs text-muted-foreground mb-2">
-            {parameter.description}
-          </p>
+          <p className="text-xs text-muted-foreground mb-2">{parameter.description}</p>
         )}
 
         <RuntimeInputsEditor value={value || []} onChange={onChange} />
 
         {parameter.helpText && (
-          <p className="text-xs text-muted-foreground italic mt-2">
-            💡 {parameter.helpText}
-          </p>
+          <p className="text-xs text-muted-foreground italic mt-2">💡 {parameter.helpText}</p>
         )}
       </div>
-    )
+    );
   }
 
   // Special case: Variable list editor (Logic Script, Slack, Manual Actions, etc.)
   if (parameter.type === 'variable-list') {
-    const isInput = parameter.id === 'variables'
-    const title = parameter.label || (isInput ? 'Input Variables' : 'Return Variables')
+    const isInput = parameter.id === 'variables';
+    const title = parameter.label || (isInput ? 'Input Variables' : 'Return Variables');
 
     return (
       <div className="space-y-2">
         {parameter.description && (
-          <p className="text-xs text-muted-foreground mb-2">
-            {parameter.description}
-          </p>
+          <p className="text-xs text-muted-foreground mb-2">{parameter.description}</p>
         )}
 
         <SimpleVariableListEditor
@@ -1272,12 +1140,10 @@ export function ParameterFieldWrapper({
         />
 
         {parameter.helpText && (
-          <p className="text-xs text-muted-foreground italic mt-2">
-            💡 {parameter.helpText}
-          </p>
+          <p className="text-xs text-muted-foreground italic mt-2">💡 {parameter.helpText}</p>
         )}
       </div>
-    )
+    );
   }
 
   // Special case: Form Fields Designer
@@ -1285,23 +1151,16 @@ export function ParameterFieldWrapper({
     return (
       <div className="space-y-2">
         {parameter.description && (
-          <p className="text-xs text-muted-foreground mb-2">
-            {parameter.description}
-          </p>
+          <p className="text-xs text-muted-foreground mb-2">{parameter.description}</p>
         )}
 
-        <FormFieldsEditor
-          value={value || []}
-          onChange={onChange}
-        />
+        <FormFieldsEditor value={value || []} onChange={onChange} />
 
         {parameter.helpText && (
-          <p className="text-xs text-muted-foreground italic mt-2">
-            💡 {parameter.helpText}
-          </p>
+          <p className="text-xs text-muted-foreground italic mt-2">💡 {parameter.helpText}</p>
         )}
       </div>
-    )
+    );
   }
 
   // Special case: Selection Options Editor
@@ -1309,29 +1168,26 @@ export function ParameterFieldWrapper({
     return (
       <div className="space-y-2">
         {parameter.description && (
-          <p className="text-xs text-muted-foreground mb-2">
-            {parameter.description}
-          </p>
+          <p className="text-xs text-muted-foreground mb-2">{parameter.description}</p>
         )}
 
-        <SelectionOptionsEditor
-          value={value || []}
-          onChange={onChange}
-        />
+        <SelectionOptionsEditor value={value || []} onChange={onChange} />
 
         {parameter.helpText && (
-          <p className="text-xs text-muted-foreground italic mt-2">
-            💡 {parameter.helpText}
-          </p>
+          <p className="text-xs text-muted-foreground italic mt-2">💡 {parameter.helpText}</p>
         )}
       </div>
-    )
+    );
   }
 
   // Special case: Logic Script Code Editor
   if (componentId === 'core.logic.script' && parameter.id === 'code') {
-    const inputVariables = Array.isArray(parameters?.variables) ? parameters.variables as { name: string; type: string }[] : []
-    const outputVariables = Array.isArray(parameters?.returns) ? parameters.returns as { name: string; type: string }[] : []
+    const inputVariables = Array.isArray(parameters?.variables)
+      ? (parameters.variables as { name: string; type: string }[])
+      : [];
+    const outputVariables = Array.isArray(parameters?.returns)
+      ? (parameters.returns as { name: string; type: string }[])
+      : [];
 
     return (
       <ScriptCodeEditor
@@ -1340,14 +1196,14 @@ export function ParameterFieldWrapper({
         inputVariables={inputVariables}
         outputVariables={outputVariables}
       />
-    )
+    );
   }
 
   // Check if this is a nested/conditional parameter (has visibleWhen)
-  const isNestedParameter = Boolean(parameter.visibleWhen)
+  const isNestedParameter = Boolean(parameter.visibleWhen);
 
   // Check if this is a header toggle (boolean that controls other params' visibility)
-  const isHeaderToggle = isHeaderToggleParameter(parameter, allComponentParameters)
+  const isHeaderToggle = isHeaderToggleParameter(parameter, allComponentParameters);
 
   // Header toggle rendering
   if (isHeaderToggle) {
@@ -1364,36 +1220,35 @@ export function ParameterFieldWrapper({
           />
         </div>
         {parameter.description && (
-          <p className="text-xs text-muted-foreground">
-            {parameter.description}
-          </p>
+          <p className="text-xs text-muted-foreground">{parameter.description}</p>
         )}
       </div>
-    )
+    );
   }
 
   // Standard parameter field rendering
-  const isBooleanParameter = parameter.type === 'boolean'
+  const isBooleanParameter = parameter.type === 'boolean';
 
   return (
-    <div className={`space-y-2 ${isNestedParameter ? 'ml-2 px-3 py-2.5 mt-1 bg-muted/80 rounded-lg' : ''}`}>
+    <div
+      className={`space-y-2 ${isNestedParameter ? 'ml-2 px-3 py-2.5 mt-1 bg-muted/80 rounded-lg' : ''}`}
+    >
       {/* Label and required indicator - skip for boolean (label is inside) */}
       {!isBooleanParameter && (
         <div className="flex items-center justify-between mb-1">
-          <label className={`${isNestedParameter ? 'text-xs' : 'text-sm'} font-medium`} htmlFor={parameter.id}>
+          <label
+            className={`${isNestedParameter ? 'text-xs' : 'text-sm'} font-medium`}
+            htmlFor={parameter.id}
+          >
             {parameter.label}
           </label>
-          {parameter.required && (
-            <span className="text-xs text-red-500">*required</span>
-          )}
+          {parameter.required && <span className="text-xs text-red-500">*required</span>}
         </div>
       )}
 
       {/* Description before the input field - for non-boolean parameters */}
       {!isBooleanParameter && parameter.description && (
-        <p className="text-xs text-muted-foreground mb-2">
-          {parameter.description}
-        </p>
+        <p className="text-xs text-muted-foreground mb-2">{parameter.description}</p>
       )}
 
       <ParameterField
@@ -1408,16 +1263,12 @@ export function ParameterFieldWrapper({
 
       {/* Description after field (toggle control) - for boolean parameters */}
       {isBooleanParameter && parameter.description && (
-        <p className="text-xs text-muted-foreground">
-          {parameter.description}
-        </p>
+        <p className="text-xs text-muted-foreground">{parameter.description}</p>
       )}
 
       {parameter.helpText && (
-        <p className="text-xs text-muted-foreground italic mt-2">
-          💡 {parameter.helpText}
-        </p>
+        <p className="text-xs text-muted-foreground italic mt-2">💡 {parameter.helpText}</p>
       )}
     </div>
-  )
+  );
 }

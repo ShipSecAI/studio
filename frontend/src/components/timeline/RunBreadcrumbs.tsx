@@ -1,22 +1,22 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { GitBranch, ArrowLeft } from 'lucide-react'
-import { api } from '@/services/api'
-import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { GitBranch, ArrowLeft } from 'lucide-react';
+import { api } from '@/services/api';
+import { cn } from '@/lib/utils';
 
 interface RunInfo {
-  id: string
-  workflowId: string
-  workflowName: string
-  parentRunId?: string | null
-  parentNodeRef?: string | null
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  parentRunId?: string | null;
+  parentNodeRef?: string | null;
 }
 
 interface RunBreadcrumbsProps {
-  currentRun: RunInfo | null
-  className?: string
+  currentRun: RunInfo | null;
+  className?: string;
   /** 'floating' for canvas overlay, 'inline' for panel integration */
-  variant?: 'floating' | 'inline'
+  variant?: 'floating' | 'inline';
 }
 
 /**
@@ -24,20 +24,20 @@ interface RunBreadcrumbsProps {
  * Shows a link to navigate back to the parent run.
  */
 export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: RunBreadcrumbsProps) {
-  const navigate = useNavigate()
-  const [parentRun, setParentRun] = useState<RunInfo | null>(null)
-  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate();
+  const [parentRun, setParentRun] = useState<RunInfo | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!currentRun?.parentRunId) {
-      setParentRun(null)
-      return
+      setParentRun(null);
+      return;
     }
 
     const fetchParentRun = async () => {
-      setLoading(true)
+      setLoading(true);
       try {
-        const run = await api.executions.getRun(currentRun.parentRunId!)
+        const run = await api.executions.getRun(currentRun.parentRunId!);
         if (run) {
           setParentRun({
             id: run.id as string,
@@ -45,28 +45,28 @@ export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: Ru
             workflowName: (run as any).workflowName || 'Parent Workflow',
             parentRunId: (run as any).parentRunId,
             parentNodeRef: (run as any).parentNodeRef,
-          })
+          });
         }
       } catch (err) {
-        console.error('Failed to fetch parent run:', err)
+        console.error('Failed to fetch parent run:', err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchParentRun()
-  }, [currentRun?.parentRunId])
+    fetchParentRun();
+  }, [currentRun?.parentRunId]);
 
   // Only show breadcrumbs if this is a child run
   if (!currentRun?.parentRunId) {
-    return null
+    return null;
   }
 
   const handleNavigateToParent = () => {
     if (parentRun) {
-      navigate(`/workflows/${parentRun.workflowId}/runs/${parentRun.id}`)
+      navigate(`/workflows/${parentRun.workflowId}/runs/${parentRun.id}`);
     }
-  }
+  };
 
   if (variant === 'floating') {
     return (
@@ -74,12 +74,12 @@ export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: Ru
         className={cn(
           'flex items-center gap-2 px-3 py-2 rounded-md border bg-background shadow-sm',
           'text-xs font-medium transition-all duration-200',
-          className
+          className,
         )}
       >
         <GitBranch className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         <span className="text-muted-foreground">Child of</span>
-        
+
         {loading ? (
           <span className="text-muted-foreground animate-pulse">loading...</span>
         ) : parentRun ? (
@@ -104,7 +104,7 @@ export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: Ru
           </code>
         )}
       </div>
-    )
+    );
   }
 
   // Inline variant (for panel integration)
@@ -112,7 +112,7 @@ export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: Ru
     <div className={cn('flex items-center gap-1.5 text-xs', className)}>
       <GitBranch className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
       <span className="text-muted-foreground">Sub-workflow of</span>
-      
+
       {loading ? (
         <span className="text-muted-foreground animate-pulse">loading...</span>
       ) : parentRun ? (
@@ -138,10 +138,13 @@ export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: Ru
         <>
           <span className="text-muted-foreground mx-1">•</span>
           <span className="text-muted-foreground">
-            node <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">{currentRun.parentNodeRef}</code>
+            node{' '}
+            <code className="font-mono text-[10px] bg-muted px-1 py-0.5 rounded">
+              {currentRun.parentNodeRef}
+            </code>
           </span>
         </>
       )}
     </div>
-  )
+  );
 }

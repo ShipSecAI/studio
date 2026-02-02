@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { components } from '@shipsec/backend-client'
-import type { WorkflowSchedule, ScheduleOverlapPolicy } from '@shipsec/shared'
-import { Button } from '@/components/ui/button'
+import { useEffect, useMemo, useState } from 'react';
+import type { components } from '@shipsec/backend-client';
+import type { WorkflowSchedule, ScheduleOverlapPolicy } from '@shipsec/shared';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -9,74 +9,72 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
-import { api } from '@/services/api'
-import { cn } from '@/lib/utils'
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { api } from '@/services/api';
+import { cn } from '@/lib/utils';
 
-const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint'
+const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
 
-type WorkflowResponseDto = components['schemas']['WorkflowResponseDto']
+type WorkflowResponseDto = components['schemas']['WorkflowResponseDto'];
 
-type RuntimeInputType = 'file' | 'text' | 'number' | 'json' | 'array' | 'string'
-type NormalizedRuntimeInputType = Exclude<RuntimeInputType, 'string'>
+type RuntimeInputType = 'file' | 'text' | 'number' | 'json' | 'array' | 'string';
+type NormalizedRuntimeInputType = Exclude<RuntimeInputType, 'string'>;
 
 export interface RuntimeInputDefinition {
-  id: string
-  label: string
-  type: RuntimeInputType
-  required: boolean
-  description?: string
-  defaultValue?: unknown
+  id: string;
+  label: string;
+  type: RuntimeInputType;
+  required: boolean;
+  description?: string;
+  defaultValue?: unknown;
 }
 
 export interface WorkflowOption {
-  id: string
-  name: string
+  id: string;
+  name: string;
 }
 
-type ScheduleEditorMode = 'create' | 'edit'
+type ScheduleEditorMode = 'create' | 'edit';
 
 interface ScheduleEditorDrawerProps {
-  open: boolean
-  mode: ScheduleEditorMode
-  schedule?: WorkflowSchedule | null
-  defaultWorkflowId?: string | null
-  workflowOptions: WorkflowOption[]
-  onClose: () => void
-  onSaved?: (schedule: WorkflowSchedule, mode: ScheduleEditorMode) => void
+  open: boolean;
+  mode: ScheduleEditorMode;
+  schedule?: WorkflowSchedule | null;
+  defaultWorkflowId?: string | null;
+  workflowOptions: WorkflowOption[];
+  onClose: () => void;
+  onSaved?: (schedule: WorkflowSchedule, mode: ScheduleEditorMode) => void;
 }
 
 interface ScheduleFormState {
-  workflowId: string
-  name: string
-  description: string
-  cronExpression: string
-  timezone: string
-  humanLabel: string
-  overlapPolicy: ScheduleOverlapPolicy
-  catchupWindowSeconds: string
+  workflowId: string;
+  name: string;
+  description: string;
+  cronExpression: string;
+  timezone: string;
+  humanLabel: string;
+  overlapPolicy: ScheduleOverlapPolicy;
+  catchupWindowSeconds: string;
 }
 
-interface OverrideDraft {
-  [nodeId: string]: string
-}
+type OverrideDraft = Record<string, string>;
 
 const OVERLAP_OPTIONS: {
-  value: ScheduleOverlapPolicy
-  label: string
-  description: string
+  value: ScheduleOverlapPolicy;
+  label: string;
+  description: string;
 }[] = [
   {
     value: 'skip',
@@ -93,50 +91,49 @@ const OVERLAP_OPTIONS: {
     label: 'Allow overlap',
     description: 'Always start the run even when previous executions are in-flight.',
   },
-]
+];
 
 const getLocalTimezone = (): string => {
   try {
-    const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone
-    return resolved ?? 'UTC'
+    const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return resolved ?? 'UTC';
   } catch {
-    return 'UTC'
+    return 'UTC';
   }
-}
+};
 
 const normalizeRuntimeInputs = (value: unknown): RuntimeInputDefinition[] => {
   if (Array.isArray(value)) {
-    return value as RuntimeInputDefinition[]
+    return value as RuntimeInputDefinition[];
   }
   if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? (parsed as RuntimeInputDefinition[]) : []
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as RuntimeInputDefinition[]) : [];
     } catch {
-      return []
+      return [];
     }
   }
-  return []
-}
+  return [];
+};
 
-const normalizeRuntimeInputType = (
-  type: RuntimeInputType,
-): NormalizedRuntimeInputType => (type === 'string' ? 'text' : type)
+const normalizeRuntimeInputType = (type: RuntimeInputType): NormalizedRuntimeInputType =>
+  type === 'string' ? 'text' : type;
 
 const toOverrideDrafts = (
   overrides: Record<string, Record<string, unknown>> | undefined,
 ): OverrideDraft => {
   if (!overrides) {
-    return {}
+    return {};
   }
   return Object.entries(overrides).reduce<OverrideDraft>((acc, [nodeId, value]) => {
-    acc[nodeId] = JSON.stringify(value, null, 2)
-    return acc
-  }, {})
-}
+    acc[nodeId] = JSON.stringify(value, null, 2);
+    return acc;
+  }, {});
+};
 
 const ENTRY_SECTION_COPY =
-  'Configure how this workflow should run on a cadence. Provide runtime inputs for the Entry Point and optional node overrides before saving the schedule.'
+  'Configure how this workflow should run on a cadence. Provide runtime inputs for the Entry Point and optional node overrides before saving the schedule.';
 
 export function ScheduleEditorDrawer({
   open,
@@ -156,26 +153,26 @@ export function ScheduleEditorDrawer({
     humanLabel: '',
     overlapPolicy: 'skip',
     catchupWindowSeconds: '0',
-  }))
-  const [workflowDetail, setWorkflowDetail] = useState<WorkflowResponseDto | null>(null)
-  const [workflowCache, setWorkflowCache] = useState<Record<string, WorkflowResponseDto>>({})
-  const [workflowLoading, setWorkflowLoading] = useState(false)
-  const [runtimeInputs, setRuntimeInputs] = useState<RuntimeInputDefinition[]>([])
-  const [runtimeValues, setRuntimeValues] = useState<Record<string, unknown>>({})
-  const [runtimeErrors, setRuntimeErrors] = useState<Record<string, string>>({})
-  const [uploading, setUploading] = useState<Record<string, boolean>>({})
-  const [nodeOverridesDraft, setNodeOverridesDraft] = useState<OverrideDraft>({})
-  const [nodeOverrideErrors, setNodeOverrideErrors] = useState<Record<string, string>>({})
-  const [pendingOverrideNode, setPendingOverrideNode] = useState('')
-  const [formError, setFormError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [formSeed, setFormSeed] = useState(0)
+  }));
+  const [workflowDetail, setWorkflowDetail] = useState<WorkflowResponseDto | null>(null);
+  const [workflowCache, setWorkflowCache] = useState<Record<string, WorkflowResponseDto>>({});
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [runtimeInputs, setRuntimeInputs] = useState<RuntimeInputDefinition[]>([]);
+  const [runtimeValues, setRuntimeValues] = useState<Record<string, unknown>>({});
+  const [runtimeErrors, setRuntimeErrors] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const [nodeOverridesDraft, setNodeOverridesDraft] = useState<OverrideDraft>({});
+  const [nodeOverrideErrors, setNodeOverrideErrors] = useState<Record<string, string>>({});
+  const [pendingOverrideNode, setPendingOverrideNode] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formSeed, setFormSeed] = useState(0);
 
   const resetForm = () => {
     const baseWorkflowId =
       mode === 'edit' && schedule
         ? schedule.workflowId
-        : (defaultWorkflowId ?? schedule?.workflowId ?? '')
+        : (defaultWorkflowId ?? schedule?.workflowId ?? '');
     setForm({
       workflowId: baseWorkflowId,
       name: schedule?.name ?? '',
@@ -185,289 +182,282 @@ export function ScheduleEditorDrawer({
       humanLabel: schedule?.humanLabel ?? '',
       overlapPolicy: schedule?.overlapPolicy ?? 'skip',
       catchupWindowSeconds: String(schedule?.catchupWindowSeconds ?? 0),
-    })
-    setRuntimeValues(schedule?.inputPayload.runtimeInputs ?? {})
-    setRuntimeErrors({})
-    setUploading({})
-    setNodeOverridesDraft(toOverrideDrafts(schedule?.inputPayload.nodeOverrides))
-    setNodeOverrideErrors({})
-    setPendingOverrideNode('')
-    setFormError(null)
-    setFormSeed((seed) => seed + 1)
+    });
+    setRuntimeValues(schedule?.inputPayload.runtimeInputs ?? {});
+    setRuntimeErrors({});
+    setUploading({});
+    setNodeOverridesDraft(toOverrideDrafts(schedule?.inputPayload.nodeOverrides));
+    setNodeOverrideErrors({});
+    setPendingOverrideNode('');
+    setFormError(null);
+    setFormSeed((seed) => seed + 1);
     if (!baseWorkflowId) {
-      setWorkflowDetail(null)
-      setRuntimeInputs([])
+      setWorkflowDetail(null);
+      setRuntimeInputs([]);
     }
-  }
+  };
 
   useEffect(() => {
     if (open) {
-      resetForm()
+      resetForm();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, schedule, defaultWorkflowId])
+  }, [open, mode, schedule, defaultWorkflowId]);
 
   const selectedWorkflow = useMemo(
     () => workflowOptions.find((workflow) => workflow.id === form.workflowId) ?? null,
     [workflowOptions, form.workflowId],
-  )
+  );
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     if (!form.workflowId) {
-      setWorkflowDetail(null)
-      setRuntimeInputs([])
-      return
+      setWorkflowDetail(null);
+      setRuntimeInputs([]);
+      return;
     }
-    const cached = workflowCache[form.workflowId]
+    const cached = workflowCache[form.workflowId];
     if (cached) {
-      setWorkflowDetail(cached)
-      setRuntimeInputs(normalizeRuntimeInputs(cached.graph.nodes.find(
-        (node) => node.type === ENTRY_COMPONENT_ID,
-      )?.data?.config?.runtimeInputs))
-      return
+      setWorkflowDetail(cached);
+      setRuntimeInputs(
+        normalizeRuntimeInputs(
+          cached.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID)?.data?.config
+            ?.runtimeInputs,
+        ),
+      );
+      return;
     }
-    let cancelled = false
-    setWorkflowLoading(true)
-    ;(async () => {
+    let cancelled = false;
+    setWorkflowLoading(true);
+    (async () => {
       try {
-        const detail = await api.workflows.get(form.workflowId)
-        if (cancelled) return
-        setWorkflowCache((prev) => ({ ...prev, [detail.id]: detail }))
-        setWorkflowDetail(detail)
-        const entryNode = detail.graph.nodes.find(
-          (node) => node.type === ENTRY_COMPONENT_ID,
-        )
-        setRuntimeInputs(normalizeRuntimeInputs(entryNode?.data?.config?.runtimeInputs))
+        const detail = await api.workflows.get(form.workflowId);
+        if (cancelled) return;
+        setWorkflowCache((prev) => ({ ...prev, [detail.id]: detail }));
+        setWorkflowDetail(detail);
+        const entryNode = detail.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID);
+        setRuntimeInputs(normalizeRuntimeInputs(entryNode?.data?.config?.runtimeInputs));
       } catch (error) {
         if (!cancelled) {
-          setFormError(
-            error instanceof Error
-              ? error.message
-              : 'Unable to load workflow details',
-          )
-          setWorkflowDetail(null)
-          setRuntimeInputs([])
+          setFormError(error instanceof Error ? error.message : 'Unable to load workflow details');
+          setWorkflowDetail(null);
+          setRuntimeInputs([]);
         }
       } finally {
         if (!cancelled) {
-          setWorkflowLoading(false)
+          setWorkflowLoading(false);
         }
       }
-    })()
+    })();
     return () => {
-      cancelled = true
-    }
-  }, [form.workflowId, open, workflowCache])
+      cancelled = true;
+    };
+  }, [form.workflowId, open, workflowCache]);
 
   const workflowNodes = useMemo(() => {
-    if (!workflowDetail) return []
-    return workflowDetail.graph.nodes.filter(
-      (node) => node.type !== ENTRY_COMPONENT_ID,
-    )
-  }, [workflowDetail])
+    if (!workflowDetail) return [];
+    return workflowDetail.graph.nodes.filter((node) => node.type !== ENTRY_COMPONENT_ID);
+  }, [workflowDetail]);
 
   const availableOverrideNodes = useMemo(() => {
-    const selected = new Set(Object.keys(nodeOverridesDraft))
-    return workflowNodes.filter((node) => !selected.has(node.id))
-  }, [nodeOverridesDraft, workflowNodes])
+    const selected = new Set(Object.keys(nodeOverridesDraft));
+    return workflowNodes.filter((node) => !selected.has(node.id));
+  }, [nodeOverridesDraft, workflowNodes]);
 
   const handleFieldChange = <K extends keyof ScheduleFormState>(
     key: K,
     value: ScheduleFormState[K],
   ) => {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const handleRuntimeInputChange = (
-    input: RuntimeInputDefinition,
-    value: unknown,
-  ) => {
-    const inputType = normalizeRuntimeInputType(input.type)
+  const handleRuntimeInputChange = (input: RuntimeInputDefinition, value: unknown) => {
+    const inputType = normalizeRuntimeInputType(input.type);
     setRuntimeErrors((prev) => {
-      const next = { ...prev }
-      delete next[input.id]
-      return next
-    })
+      const { [input.id]: _removed, ...rest } = prev;
+      return rest;
+    });
 
-    let parsedValue: unknown = value
+    let parsedValue: unknown = value;
     if (inputType === 'number') {
-      const numeric = value ? Number(value) : undefined
-      parsedValue = Number.isFinite(numeric) ? numeric : undefined
+      const numeric = value ? Number(value) : undefined;
+      parsedValue = Number.isFinite(numeric) ? numeric : undefined;
     } else if (inputType === 'array') {
-      const textValue = typeof value === 'string' ? value : ''
-      const trimmed = textValue.trim()
+      const textValue = typeof value === 'string' ? value : '';
+      const trimmed = textValue.trim();
       if (trimmed.length === 0) {
-        parsedValue = undefined
+        parsedValue = undefined;
       } else {
         try {
-          const parsed = JSON.parse(trimmed)
-          parsedValue = Array.isArray(parsed) ? parsed : trimmed.split(',').map((entry) => entry.trim()).filter(Boolean)
+          const parsed = JSON.parse(trimmed);
+          parsedValue = Array.isArray(parsed)
+            ? parsed
+            : trimmed
+                .split(',')
+                .map((entry) => entry.trim())
+                .filter(Boolean);
         } catch {
-          parsedValue = trimmed.split(',').map((entry) => entry.trim()).filter(Boolean)
+          parsedValue = trimmed
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter(Boolean);
         }
       }
     } else if (inputType === 'json') {
       try {
-        parsedValue = value ? JSON.parse(String(value)) : undefined
+        parsedValue = value ? JSON.parse(String(value)) : undefined;
       } catch {
         setRuntimeErrors((prev) => ({
           ...prev,
           [input.id]: 'Invalid JSON value',
-        }))
-        return
+        }));
+        return;
       }
     }
 
     setRuntimeValues((prev) => ({
       ...prev,
       [input.id]: parsedValue,
-    }))
-  }
+    }));
+  };
 
   const handleFileUpload = async (inputId: string, file: File) => {
-    setUploading((prev) => ({ ...prev, [inputId]: true }))
+    setUploading((prev) => ({ ...prev, [inputId]: true }));
     setRuntimeErrors((prev) => {
-      const next = { ...prev }
-      delete next[inputId]
-      return next
-    })
+      const { [inputId]: _removed, ...rest } = prev;
+      return rest;
+    });
     try {
-      const fileData = await api.files.upload(file)
-      setRuntimeValues((prev) => ({ ...prev, [inputId]: fileData.id }))
+      const fileData = await api.files.upload(file);
+      setRuntimeValues((prev) => ({ ...prev, [inputId]: fileData.id }));
     } catch (error) {
       setRuntimeErrors((prev) => ({
         ...prev,
-        [inputId]:
-          error instanceof Error ? error.message : 'File upload failed',
-      }))
+        [inputId]: error instanceof Error ? error.message : 'File upload failed',
+      }));
     } finally {
-      setUploading((prev) => ({ ...prev, [inputId]: false }))
+      setUploading((prev) => ({ ...prev, [inputId]: false }));
     }
-  }
+  };
 
   const addOverrideNode = () => {
-    if (!pendingOverrideNode) return
+    if (!pendingOverrideNode) return;
     setNodeOverridesDraft((prev) => ({
       ...prev,
       [pendingOverrideNode]: nodeOverridesDraft[pendingOverrideNode] ?? '{\n}',
-    }))
-    setPendingOverrideNode('')
-  }
+    }));
+    setPendingOverrideNode('');
+  };
 
   const removeOverrideNode = (nodeId: string) => {
     setNodeOverridesDraft((prev) => {
-      const next = { ...prev }
-      delete next[nodeId]
-      return next
-    })
+      const { [nodeId]: _removed, ...rest } = prev;
+      return rest;
+    });
     setNodeOverrideErrors((prev) => {
-      const next = { ...prev }
-      delete next[nodeId]
-      return next
-    })
-  }
+      const { [nodeId]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
 
   const handleOverrideChange = (nodeId: string, value: string) => {
-    setNodeOverridesDraft((prev) => ({ ...prev, [nodeId]: value }))
+    setNodeOverridesDraft((prev) => ({ ...prev, [nodeId]: value }));
     if (!value.trim()) {
       setNodeOverrideErrors((prev) => {
-        const next = { ...prev }
-        delete next[nodeId]
-        return next
-      })
-      return
+        const { [nodeId]: _removed, ...rest } = prev;
+        return rest;
+      });
+      return;
     }
     try {
-      const parsed = JSON.parse(value)
+      const parsed = JSON.parse(value);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         setNodeOverrideErrors((prev) => {
-          const next = { ...prev }
-          delete next[nodeId]
-          return next
-        })
+          const { [nodeId]: _removed, ...rest } = prev;
+          return rest;
+        });
       } else {
         setNodeOverrideErrors((prev) => ({
           ...prev,
           [nodeId]: 'Provide a JSON object',
-        }))
+        }));
       }
     } catch {
       setNodeOverrideErrors((prev) => ({
         ...prev,
         [nodeId]: 'Invalid JSON object',
-      }))
+      }));
     }
-  }
+  };
 
   const normalizeRuntimeValues = () => {
-    return Object.entries(runtimeValues).reduce<Record<string, unknown>>(
-      (acc, [key, value]) => {
-        if (value === undefined || value === null || value === '') {
-          return acc
-        }
-        acc[key] = value
-        return acc
-      },
-      {},
-    )
-  }
+    return Object.entries(runtimeValues).reduce<Record<string, unknown>>((acc, [key, value]) => {
+      if (value === undefined || value === null || value === '') {
+        return acc;
+      }
+      acc[key] = value;
+      return acc;
+    }, {});
+  };
 
   const parseNodeOverrides = () => {
-    return Object.entries(nodeOverridesDraft).reduce<
-      Record<string, Record<string, unknown>>
-    >((acc, [nodeId, value]) => {
-      const trimmed = value.trim()
-      if (!trimmed) {
-        return acc
-      }
-      const parsed = JSON.parse(trimmed)
-      acc[nodeId] = parsed as Record<string, unknown>
-      return acc
-    }, {})
-  }
+    return Object.entries(nodeOverridesDraft).reduce<Record<string, Record<string, unknown>>>(
+      (acc, [nodeId, value]) => {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return acc;
+        }
+        const parsed = JSON.parse(trimmed);
+        acc[nodeId] = parsed as Record<string, unknown>;
+        return acc;
+      },
+      {},
+    );
+  };
 
   const validateRequiredInputs = () => {
-    const missing: Record<string, string> = {}
+    const missing: Record<string, string> = {};
     for (const input of runtimeInputs) {
-      if (!input.required) continue
-      const hasValue = runtimeValues[input.id] !== undefined && runtimeValues[input.id] !== null && runtimeValues[input.id] !== ''
+      if (!input.required) continue;
+      const hasValue =
+        runtimeValues[input.id] !== undefined &&
+        runtimeValues[input.id] !== null &&
+        runtimeValues[input.id] !== '';
       if (!hasValue) {
-        missing[input.id] = 'This field is required'
+        missing[input.id] = 'This field is required';
       }
     }
     if (Object.keys(missing).length > 0) {
-      setRuntimeErrors(missing)
-      return false
+      setRuntimeErrors(missing);
+      return false;
     }
-    return true
-  }
+    return true;
+  };
 
   const handleSubmit = async () => {
     if (!form.workflowId) {
-      setFormError('Select a workflow before continuing.')
-      return
+      setFormError('Select a workflow before continuing.');
+      return;
     }
     if (!form.name.trim()) {
-      setFormError('Provide a schedule name.')
-      return
+      setFormError('Provide a schedule name.');
+      return;
     }
     if (!form.cronExpression.trim()) {
-      setFormError('Provide a cron expression.')
-      return
+      setFormError('Provide a cron expression.');
+      return;
     }
     if (!form.timezone.trim()) {
-      setFormError('Provide a timezone (e.g., UTC or America/New_York).')
-      return
+      setFormError('Provide a timezone (e.g., UTC or America/New_York).');
+      return;
     }
     if (!validateRequiredInputs()) {
-      return
+      return;
     }
     if (Object.keys(nodeOverrideErrors).length > 0) {
-      setFormError('Resolve node override errors before saving.')
-      return
+      setFormError('Resolve node override errors before saving.');
+      return;
     }
-    setFormError(null)
+    setFormError(null);
     const payload = {
       workflowId: form.workflowId,
       name: form.name.trim(),
@@ -481,29 +471,27 @@ export function ScheduleEditorDrawer({
         runtimeInputs: normalizeRuntimeValues(),
         nodeOverrides: parseNodeOverrides(),
       },
-    }
-    setSubmitting(true)
+    };
+    setSubmitting(true);
     try {
       const saved =
         mode === 'create'
           ? await api.schedules.create(payload)
-          : await api.schedules.update(schedule!.id, payload)
-      onSaved?.(saved, mode)
-      onClose()
+          : await api.schedules.update(schedule!.id, payload);
+      onSaved?.(saved, mode);
+      onClose();
     } catch (error) {
-      setFormError(
-        error instanceof Error ? error.message : 'Failed to save schedule',
-      )
+      setFormError(error instanceof Error ? error.message : 'Failed to save schedule');
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   const renderRuntimeInputField = (input: RuntimeInputDefinition) => {
-    const type = normalizeRuntimeInputType(input.type)
-    const error = runtimeErrors[input.id]
-    const uploadingState = uploading[input.id]
-    const currentValue = runtimeValues[input.id]
+    const type = normalizeRuntimeInputType(input.type);
+    const error = runtimeErrors[input.id];
+    const uploadingState = uploading[input.id];
+    const currentValue = runtimeValues[input.id];
     switch (type) {
       case 'file':
         return (
@@ -517,9 +505,9 @@ export function ScheduleEditorDrawer({
               type="file"
               disabled={uploadingState}
               onChange={(event) => {
-                const file = event.target.files?.[0]
+                const file = event.target.files?.[0];
                 if (file) {
-                  void handleFileUpload(input.id, file)
+                  void handleFileUpload(input.id, file);
                 }
               }}
             />
@@ -539,7 +527,7 @@ export function ScheduleEditorDrawer({
             ) : null}
             {error ? <p className="text-xs text-red-500">{error}</p> : null}
           </div>
-        )
+        );
       case 'json':
         return (
           <div className="space-y-2">
@@ -555,8 +543,8 @@ export function ScheduleEditorDrawer({
                 typeof currentValue === 'string'
                   ? currentValue
                   : currentValue != null
-                  ? JSON.stringify(currentValue, null, 2)
-                  : ''
+                    ? JSON.stringify(currentValue, null, 2)
+                    : ''
               }
               onBlur={(event) => handleRuntimeInputChange(input, event.target.value)}
             />
@@ -565,7 +553,7 @@ export function ScheduleEditorDrawer({
             ) : null}
             {error ? <p className="text-xs text-red-500">{error}</p> : null}
           </div>
-        )
+        );
       case 'array':
         return (
           <div className="space-y-2">
@@ -582,8 +570,8 @@ export function ScheduleEditorDrawer({
                 typeof currentValue === 'string'
                   ? currentValue
                   : Array.isArray(currentValue)
-                  ? JSON.stringify(currentValue)
-                  : ''
+                    ? JSON.stringify(currentValue)
+                    : ''
               }
               onBlur={(event) => handleRuntimeInputChange(input, event.target.value)}
             />
@@ -592,7 +580,7 @@ export function ScheduleEditorDrawer({
             ) : null}
             {error ? <p className="text-xs text-red-500">{error}</p> : null}
           </div>
-        )
+        );
       default:
         return (
           <div className="space-y-2">
@@ -617,9 +605,9 @@ export function ScheduleEditorDrawer({
             ) : null}
             {error ? <p className="text-xs text-red-500">{error}</p> : null}
           </div>
-        )
+        );
     }
-  }
+  };
 
   const runtimeSection = (() => {
     if (!form.workflowId) {
@@ -627,7 +615,7 @@ export function ScheduleEditorDrawer({
         <p className="text-sm text-muted-foreground">
           Select a workflow above to load its Entry Point inputs.
         </p>
-      )
+      );
     }
     if (workflowLoading) {
       return (
@@ -635,25 +623,24 @@ export function ScheduleEditorDrawer({
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading Entry Point inputs…
         </p>
-      )
+      );
     }
     if (runtimeInputs.length === 0) {
       return (
         <p className="text-sm text-muted-foreground">
-          This workflow does not define runtime inputs. Scheduled runs will execute without additional payload.
+          This workflow does not define runtime inputs. Scheduled runs will execute without
+          additional payload.
         </p>
-      )
+      );
     }
     return (
       <div className="grid gap-4">
         {runtimeInputs.map((input) => (
-          <div key={`${input.id}-${formSeed}`}>
-            {renderRuntimeInputField(input)}
-          </div>
+          <div key={`${input.id}-${formSeed}`}>{renderRuntimeInputField(input)}</div>
         ))}
       </div>
-    )
-  })()
+    );
+  })();
 
   const nodeOverrideSection = (
     <div className="space-y-3">
@@ -663,9 +650,9 @@ export function ScheduleEditorDrawer({
         </p>
       ) : (
         Object.entries(nodeOverridesDraft).map(([nodeId, draftValue]) => {
-          const node = workflowNodes.find((candidate) => candidate.id === nodeId)
-          const label = node?.data?.label ?? nodeId
-          const error = nodeOverrideErrors[nodeId]
+          const node = workflowNodes.find((candidate) => candidate.id === nodeId);
+          const label = node?.data?.label ?? nodeId;
+          const error = nodeOverrideErrors[nodeId];
           return (
             <div key={nodeId} className="border rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -691,7 +678,7 @@ export function ScheduleEditorDrawer({
               />
               {error ? <p className="text-xs text-red-500">{error}</p> : null}
             </div>
-          )
+          );
         })
       )}
       {workflowNodes.length > 0 && availableOverrideNodes.length > 0 ? (
@@ -699,8 +686,8 @@ export function ScheduleEditorDrawer({
           <Select
             value={pendingOverrideNode || 'select-node'}
             onValueChange={(value) => {
-              if (value === 'select-node') return
-              setPendingOverrideNode(value)
+              if (value === 'select-node') return;
+              setPendingOverrideNode(value);
             }}
           >
             <SelectTrigger>
@@ -737,24 +724,22 @@ export function ScheduleEditorDrawer({
         </p>
       ) : null}
     </div>
-  )
+  );
 
-  const workflowDisabled = mode === 'edit'
+  const workflowDisabled = mode === 'edit';
 
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
         if (!nextOpen && !submitting) {
-          onClose()
+          onClose();
         }
       }}
     >
       <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'create' ? 'Create schedule' : 'Edit schedule'}
-          </DialogTitle>
+          <DialogTitle>{mode === 'create' ? 'Create schedule' : 'Edit schedule'}</DialogTitle>
           <DialogDescription>{ENTRY_SECTION_COPY}</DialogDescription>
         </DialogHeader>
 
@@ -768,14 +753,14 @@ export function ScheduleEditorDrawer({
                   disabled={workflowDisabled || workflowOptions.length === 0}
                   onValueChange={(value) => {
                     if (value === 'none') {
-                      handleFieldChange('workflowId', '')
-                      return
+                      handleFieldChange('workflowId', '');
+                      return;
                     }
-                    handleFieldChange('workflowId', value)
-                    setRuntimeValues({})
-                    setNodeOverridesDraft({})
-                    setNodeOverrideErrors({})
-                    setRuntimeErrors({})
+                    handleFieldChange('workflowId', value);
+                    setRuntimeValues({});
+                    setNodeOverridesDraft({});
+                    setNodeOverrideErrors({});
+                    setRuntimeErrors({});
                   }}
                 >
                   <SelectTrigger>
@@ -793,9 +778,7 @@ export function ScheduleEditorDrawer({
                   </SelectContent>
                 </Select>
                 {selectedWorkflow ? (
-                  <p className="text-xs text-muted-foreground">
-                    {selectedWorkflow.name}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{selectedWorkflow.name}</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Choose which workflow this cadence should invoke.
@@ -831,9 +814,7 @@ export function ScheduleEditorDrawer({
                 <Label className="text-sm font-medium">Cron expression</Label>
                 <Input
                   value={form.cronExpression}
-                  onChange={(event) =>
-                    handleFieldChange('cronExpression', event.target.value)
-                  }
+                  onChange={(event) => handleFieldChange('cronExpression', event.target.value)}
                   placeholder="0 9 * * MON-FRI"
                   className="font-mono text-sm"
                 />
@@ -927,12 +908,11 @@ export function ScheduleEditorDrawer({
               <div>
                 <h3 className="text-sm font-semibold">Node overrides</h3>
                 <p className="text-xs text-muted-foreground">
-                  Override component parameters for this schedule without touching the workflow graph.
+                  Override component parameters for this schedule without touching the workflow
+                  graph.
                 </p>
               </div>
-              <Badge variant="outline">
-                {Object.keys(nodeOverridesDraft).length} overrides
-              </Badge>
+              <Badge variant="outline">{Object.keys(nodeOverridesDraft).length} overrides</Badge>
             </div>
             {nodeOverrideSection}
           </section>
@@ -961,5 +941,5 @@ export function ScheduleEditorDrawer({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

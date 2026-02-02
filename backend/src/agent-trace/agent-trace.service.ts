@@ -2,14 +2,14 @@ import { Injectable } from '@nestjs/common';
 
 import { AgentTraceRepository } from './agent-trace.repository';
 
-export type AgentTracePartEntry = {
+export interface AgentTracePartEntry {
   agentRunId: string;
   workflowRunId: string;
   nodeRef: string;
   sequence: number;
   timestamp: string;
   part: Record<string, unknown>;
-};
+}
 
 @Injectable()
 export class AgentTraceService {
@@ -19,7 +19,9 @@ export class AgentTraceService {
     await this.repository.append(event);
   }
 
-  async getRunMetadata(agentRunId: string): Promise<{ workflowRunId: string; nodeRef: string } | null> {
+  async getRunMetadata(
+    agentRunId: string,
+  ): Promise<{ workflowRunId: string; nodeRef: string } | null> {
     return this.repository.getRunMetadata(agentRunId);
   }
 
@@ -34,7 +36,10 @@ export class AgentTraceService {
       workflowRunId: row.workflowRunId,
       nodeRef: row.nodeRef,
       sequence: row.sequence,
-      timestamp: row.timestamp instanceof Date ? row.timestamp.toISOString() : new Date(row.timestamp).toISOString(),
+      timestamp:
+        row.timestamp instanceof Date
+          ? row.timestamp.toISOString()
+          : new Date(row.timestamp).toISOString(),
       part: (row.payload ?? {}) as Record<string, unknown>,
     }));
   }

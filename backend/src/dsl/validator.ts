@@ -1,15 +1,24 @@
 import { ZodError, ZodIssue } from 'zod';
 
-import { componentRegistry, type ComponentPortMetadata } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  type ComponentPortMetadata,
+  type ConnectionType,
+} from '@shipsec/component-sdk';
+import {
+  extractPorts,
+  canConnect,
+  describeConnectionType,
+  createPlaceholderForConnectionType,
+} from '@shipsec/component-sdk/zod-ports';
 
 import type { WorkflowGraphDto } from '../workflows/dto/workflow-graph.dto';
 import type { WorkflowAction, WorkflowDefinition } from './types';
-import {
-  ActionPortSnapshot,
-  arePortDataTypesCompatible,
-  createPlaceholderForPort,
-  describePortDataType,
-} from './port-utils';
+
+interface ActionPortSnapshot {
+  inputs: ComponentPortMetadata[];
+  outputs: ComponentPortMetadata[];
+}
 
 export interface ValidationError {
   node: string;
@@ -64,21 +73,43 @@ export function validateWorkflowGraph(
     actionPorts.set(action.ref, portSnapshot);
 
     const paramsForValidation = { ...(action.params ?? {}) } as Record<string, unknown>;
+    const inputOverrides = { ...(action.inputOverrides ?? {}) } as Record<string, unknown>;
     const placeholderFields = new Set<string>();
 
     for (const inputPort of portSnapshot.inputs) {
       const hasStaticValue =
-        Object.prototype.hasOwnProperty.call(paramsForValidation, inputPort.id) &&
-        paramsForValidation[inputPort.id] !== undefined;
-      const hasMapping = Object.prototype.hasOwnProperty.call(action.inputMappings ?? {}, inputPort.id);
+        Object.prototype.hasOwnProperty.call(inputOverrides, inputPort.id) &&
+        inputOverrides[inputPort.id] !== undefined;
+      const hasMapping = Object.prototype.hasOwnProperty.call(
+        action.inputMappings ?? {},
+        inputPort.id,
+      );
 
       if (!hasStaticValue && hasMapping) {
-        paramsForValidation[inputPort.id] = createPlaceholderForPort(inputPort.dataType);
+        const connectionType = getPortConnectionType(inputPort);
+        inputOverrides[inputPort.id] = createPlaceholderForConnectionType(connectionType);
         placeholderFields.add(inputPort.id);
       }
     }
 
-    const validation = component.inputSchema.safeParse(paramsForValidation);
+    const paramValidation = component.parameters
+      ? component.parameters.safeParse(paramsForValidation)
+      : {
+          success: Object.keys(paramsForValidation).length === 0,
+          error: new Error('Component does not accept parameters'),
+        };
+
+    if (!paramValidation.success) {
+      errors.push({
+        node: action.ref,
+        field: 'params',
+        message: `Component parameter validation failed: ${paramValidation.error?.message ?? 'Invalid parameters'}`,
+        severity: 'error',
+        suggestion: 'Check component parameter schema for required fields and correct types',
+      });
+    }
+
+    const validation = component.inputs.safeParse(inputOverrides);
     if (!validation.success) {
       const relevantIssues = validation.error.issues.filter(
         (issue) => !isPlaceholderIssue(issue, placeholderFields),
@@ -92,10 +123,10 @@ export function validateWorkflowGraph(
 
         errors.push({
           node: action.ref,
-          field: 'params',
-          message: `Component parameter validation failed: ${filteredError.message}`,
+          field: 'inputOverrides',
+          message: `Component input validation failed: ${filteredError.message}`,
           severity: 'error',
-          suggestion: 'Check component schema for required parameters and correct types',
+          suggestion: 'Check component input schema for required ports and correct types',
         });
       }
     }
@@ -139,6 +170,10 @@ function isPlaceholderIssue(issue: ZodIssue, placeholderFields: Set<string>): bo
       return true;
     case 'too_big':
       return true;
+    case 'custom':
+      // Custom validations (from .refine()) fail on placeholders but will pass at runtime
+      // when the actual value comes from the connected edge
+      return true;
     case 'invalid_union':
       if ('unionErrors' in issue) {
         const unionIssue = issue as ZodIssue & { unionErrors: ZodError[] };
@@ -161,7 +196,10 @@ function validateSecretParameters(
   errors: ValidationError[],
   warnings: ValidationError[],
 ) {
-  const secretParams = component.metadata?.parameters?.filter((p: any) => p.type === 'secret') || [];
+  const secretParams =
+    componentRegistry
+      .getMetadata(action.componentId)
+      ?.parameters?.filter((p) => p.type === 'secret') ?? [];
 
   for (const secretParam of secretParams) {
     const paramValue = action.params?.[secretParam.id];
@@ -216,7 +254,7 @@ function validateInputMappings(
   compiledDefinition: WorkflowDefinition,
   actionPorts: Map<string, ActionPortSnapshot>,
   errors: ValidationError[],
-  warnings: ValidationError[],
+  _warnings: ValidationError[],
 ) {
   const nodes = new Map(graph.nodes.map((n) => [n.id, n]));
 
@@ -225,8 +263,8 @@ function validateInputMappings(
 
     // Check if all required inputs have mappings or static values
     for (const input of componentInputs) {
-      const hasStaticValue = action.params?.hasOwnProperty(input.id);
-      const hasMapping = action.inputMappings?.hasOwnProperty(input.id);
+      const hasStaticValue = Object.hasOwn(action.inputOverrides ?? {}, input.id);
+      const hasMapping = Object.hasOwn(action.inputMappings ?? {}, input.id);
 
       if (input.required && !hasStaticValue && !hasMapping) {
         errors.push({
@@ -241,7 +279,7 @@ function validateInputMappings(
     }
 
     // Validate edge mappings point to valid nodes
-    for (const [targetHandle, mapping] of Object.entries(action.inputMappings ?? {})) {
+    for (const [_targetHandle, mapping] of Object.entries(action.inputMappings ?? {})) {
       const sourceNode = nodes.get(mapping.sourceRef);
       if (!sourceNode) {
         errors.push({
@@ -255,20 +293,20 @@ function validateInputMappings(
     }
 
     // Check raw edges for multiple inputs to the same port
-    const edgesToThisNode = graph.edges.filter(e => e.target === action.ref);
+    const edgesToThisNode = graph.edges.filter((e) => e.target === action.ref);
     const portsSeen = new Map<string, number>();
     for (const edge of edgesToThisNode) {
       const targetHandle = edge.targetHandle ?? edge.sourceHandle;
       if (!targetHandle) continue;
-      
+
       portsSeen.set(targetHandle, (portsSeen.get(targetHandle) ?? 0) + 1);
     }
 
     for (const [portId, count] of portsSeen.entries()) {
-      if (count > 1) {
-        const inputMetadata = actionPorts.get(action.ref)?.inputs.find(i => i.id === portId);
+      if (count > 1 && portId !== 'tools') {
+        const inputMetadata = actionPorts.get(action.ref)?.inputs.find((i) => i.id === portId);
         const portLabel = inputMetadata?.label || portId;
-        
+
         errors.push({
           node: action.ref,
           field: 'inputMappings',
@@ -319,33 +357,35 @@ function validateEdgeCompatibility(
 
     const sourceHandle = edge.sourceHandle;
     const targetHandle = edge.targetHandle;
-    
+
     // Check for malformed data edges: if one handle is present but not the other
     const hasSourceHandle = !!sourceHandle;
     const hasTargetHandle = !!targetHandle;
-    
+
     if (hasSourceHandle && !hasTargetHandle) {
       errors.push({
         node: targetAction.ref,
         field: 'inputMappings',
         message: `Edge has sourceHandle "${sourceHandle}" but missing targetHandle. Data edges must specify both source and target handles.`,
         severity: 'error',
-        suggestion: 'Add targetHandle to specify which input port on the target node should receive the data',
+        suggestion:
+          'Add targetHandle to specify which input port on the target node should receive the data',
       });
       continue;
     }
-    
+
     if (!hasSourceHandle && hasTargetHandle) {
       errors.push({
         node: targetAction.ref,
         field: 'inputMappings',
         message: `Edge has targetHandle "${targetHandle}" but missing sourceHandle. Data edges must specify both source and target handles.`,
         severity: 'error',
-        suggestion: 'Add sourceHandle to specify which output port on the source node provides the data',
+        suggestion:
+          'Add sourceHandle to specify which output port on the source node provides the data',
       });
       continue;
     }
-    
+
     if (!hasSourceHandle && !hasTargetHandle) {
       // Control edge used for ordering only; skip type validation
       continue;
@@ -355,14 +395,19 @@ function validateEdgeCompatibility(
     const targetPort = targetPorts.inputs.find((port) => port.id === targetHandle);
 
     if (!sourcePort) {
-      errors.push({
-        node: targetAction.ref,
-        field: 'inputMappings',
-        message: `Source port '${sourceHandle}' not found on ${edge.sourceRef}`,
-        severity: 'error',
-        suggestion: 'Confirm the source component exposes this output port',
-      });
-      continue;
+      const sourceNodeMetadata = compiledDefinition.nodes[sourceAction.ref];
+      if (sourceHandle === 'tools' && sourceNodeMetadata?.mode === 'tool') {
+        // Allow explicit tool connection bypass
+      } else {
+        errors.push({
+          node: targetAction.ref,
+          field: 'inputMappings',
+          message: `Source port '${sourceHandle}' not found on ${edge.sourceRef}`,
+          severity: 'error',
+          suggestion: 'Confirm the source component exposes this output port',
+        });
+        continue;
+      }
     }
 
     if (!targetPort) {
@@ -376,22 +421,25 @@ function validateEdgeCompatibility(
       continue;
     }
 
-    if (!sourcePort.dataType || !targetPort.dataType) {
+    const sourceType = sourcePort ? getPortConnectionType(sourcePort) : { kind: 'any' as const };
+    const targetType = getPortConnectionType(targetPort);
+
+    if (!sourceType || !targetType) {
       errors.push({
         node: targetAction.ref,
         field: 'inputMappings',
         message: `Missing port type metadata for ${edge.sourceRef}.${sourceHandle} -> ${edge.targetRef}.${targetHandle}`,
         severity: 'error',
-        suggestion: 'Ensure both ports declare a data type',
+        suggestion: 'Ensure both ports declare a connection type or have derivable schemas',
       });
       continue;
     }
 
-    if (!arePortDataTypesCompatible(sourcePort.dataType, targetPort.dataType)) {
+    if (!canConnect(sourceType, targetType)) {
       errors.push({
         node: targetAction.ref,
         field: 'inputMappings',
-        message: `Type mismatch: ${describePortDataType(sourcePort.dataType)} cannot connect to ${describePortDataType(targetPort.dataType)}`,
+        message: `Type mismatch: ${describeConnectionType(sourceType)} cannot connect to ${describeConnectionType(targetType)}`,
         severity: 'error',
         suggestion: 'Use matching port types or add a transformer component',
       });
@@ -471,7 +519,7 @@ function validateEntryPointConfiguration(
  */
 function isValidSecretId(secretId: string): boolean {
   // Secret IDs should be reasonable-length identifiers, not raw secret values
-  
+
   // 1. Explicitly allow UUIDs (common format for internal IDs)
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidPattern.test(secretId)) {
@@ -497,27 +545,26 @@ function isValidSecretId(secretId: string): boolean {
   return secretId.length >= 1 && secretId.length <= 100;
 }
 
-function resolveActionPortSnapshot(
-  action: WorkflowAction,
-  component: any,
-): ActionPortSnapshot {
-  let inputs: ComponentPortMetadata[] = Array.isArray(component.metadata?.inputs)
-    ? component.metadata.inputs.map((port: ComponentPortMetadata) => ({ ...port }))
-    : [];
-
-  let outputs: ComponentPortMetadata[] = Array.isArray(component.metadata?.outputs)
-    ? component.metadata.outputs.map((port: ComponentPortMetadata) => ({ ...port }))
-    : [];
+function resolveActionPortSnapshot(action: WorkflowAction, component: any): ActionPortSnapshot {
+  let inputs: ComponentPortMetadata[] = [];
+  let outputs: ComponentPortMetadata[] = [];
 
   if (typeof component.resolvePorts === 'function') {
     const resolved = component.resolvePorts(action.params ?? {});
-    if (Array.isArray(resolved?.inputs)) {
-      inputs = resolved.inputs.map((port: ComponentPortMetadata) => ({ ...port }));
+    if (resolved?.inputs) {
+      inputs = extractPorts(resolved.inputs);
     }
-    if (Array.isArray(resolved?.outputs)) {
-      outputs = resolved.outputs.map((port: ComponentPortMetadata) => ({ ...port }));
+    if (resolved?.outputs) {
+      outputs = extractPorts(resolved.outputs);
     }
+  } else {
+    inputs = extractPorts(component.inputs);
+    outputs = extractPorts(component.outputs);
   }
 
   return { inputs, outputs };
+}
+
+function getPortConnectionType(port: ComponentPortMetadata): ConnectionType | undefined {
+  return port.connectionType;
 }

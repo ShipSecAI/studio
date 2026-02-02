@@ -1,41 +1,43 @@
-import type { Node, Edge, Connection } from 'reactflow'
-import type { FrontendNodeData } from '@/schemas/node'
-import type { ComponentMetadata } from '@/schemas/component'
+import type { Node, Edge, Connection } from 'reactflow';
+import type { FrontendNodeData } from '@/schemas/node';
+import type { ComponentMetadata } from '@/schemas/component';
 import {
-  arePortDataTypesCompatible,
-  describePortDataType,
+  arePortTypesCompatible,
+  describePortType,
+  resolvePortType,
   inputSupportsManualValue,
-  runtimeInputTypeToPortDataType,
-} from '@/utils/portUtils'
+  runtimeInputTypeToConnectionType,
+  isCredentialInput,
+} from '@/utils/portUtils';
 
 export interface ValidationResult {
-  isValid: boolean
-  error?: string
+  isValid: boolean;
+  error?: string;
 }
 
 export function validateConnection(
   connection: Connection,
   nodes: Node<FrontendNodeData>[],
   edges: Edge[],
-  getComponent: (slug: string) => ComponentMetadata | null
+  getComponent: (slug: string) => ComponentMetadata | null,
 ): ValidationResult {
-  const { source, target, sourceHandle, targetHandle } = connection
+  const { source, target, sourceHandle, targetHandle } = connection;
 
   // Basic validation
   if (!source || !target) {
-    return { isValid: false, error: 'Invalid connection' }
+    return { isValid: false, error: 'Invalid connection' };
   }
 
   if (source === target) {
-    return { isValid: false, error: 'Cannot connect node to itself' }
+    return { isValid: false, error: 'Cannot connect node to itself' };
   }
 
   // Get source and target nodes
-  const sourceNode = nodes.find((node) => node.id === source)
-  const targetNode = nodes.find((node) => node.id === target)
+  const sourceNode = nodes.find((node) => node.id === source);
+  const targetNode = nodes.find((node) => node.id === target);
 
   if (!sourceNode || !targetNode) {
-    return { isValid: false, error: 'Source or target node not found' }
+    return { isValid: false, error: 'Source or target node not found' };
   }
 
   const sourceComponentSlug = sourceNode.data.componentId ?? sourceNode.data.componentSlug;
@@ -52,111 +54,143 @@ export function validateConnection(
   const targetComponent = getComponent(targetComponentSlug);
 
   if (!sourceComponent || !targetComponent) {
-    return { isValid: false, error: 'Component metadata not found' }
+    return { isValid: false, error: 'Component metadata not found' };
   }
 
   // Validate handles exist
   if (!sourceHandle || !targetHandle) {
-    return { isValid: false, error: 'Connection handles not specified' }
+    return { isValid: false, error: 'Connection handles not specified' };
   }
 
   // Get port metadata (with support for dynamic outputs/inputs)
   // 1. DYNAMIC OUTPUTS from source
-  let sourceOutputs = (sourceNode.data as any).dynamicOutputs || sourceComponent.outputs || []
-  
+  let sourceOutputs = (sourceNode.data as any).dynamicOutputs || sourceComponent.outputs || [];
+
+  // Special case: Tool Mode virtual port
+  const sourceConfig = sourceNode.data.config as any;
+  if (sourceConfig?.isToolMode || sourceConfig?.mode === 'tool') {
+    sourceOutputs = [
+      ...sourceOutputs,
+      {
+        id: 'tools',
+        label: 'Tool Export',
+        connectionType: { kind: 'contract' as const, name: 'mcp.tool' },
+        description: 'Exposes this node as a tool for Agents',
+      },
+    ];
+  }
+
   // Special case: Entry Point legacy support if dynamicOutputs is missing
-  if (sourceComponent.id === 'core.workflow.entrypoint' && !(sourceNode.data as any).dynamicOutputs) {
-    const sourceNodeData = sourceNode.data
-    const runtimeInputsParam = sourceNodeData.parameters?.runtimeInputs
-    
+  if (
+    sourceComponent.id === 'core.workflow.entrypoint' &&
+    !(sourceNode.data as any).dynamicOutputs
+  ) {
+    const sourceNodeData = sourceNode.data;
+    const runtimeInputsParam = sourceNodeData.config?.params?.runtimeInputs;
+
     if (runtimeInputsParam) {
       try {
-        const runtimeInputs = typeof runtimeInputsParam === 'string'
-          ? JSON.parse(runtimeInputsParam)
-          : runtimeInputsParam
-        
+        const runtimeInputs =
+          typeof runtimeInputsParam === 'string'
+            ? JSON.parse(runtimeInputsParam)
+            : runtimeInputsParam;
+
         if (Array.isArray(runtimeInputs) && runtimeInputs.length > 0) {
-          sourceOutputs = runtimeInputs.map((input: any) => {
-            const runtimeType = (input.type || 'text') as string
-            const dataType = runtimeInputTypeToPortDataType(runtimeType)
-            return {
-              id: input.id,
-              label: input.label,
-              dataType,
-              description: input.description || `Runtime input: ${input.label}`,
-            }
-          })
+          sourceOutputs = [
+            ...sourceOutputs,
+            ...runtimeInputs.map((input: any) => {
+              const runtimeType = (input.type || 'text') as string;
+              const connectionType = runtimeInputTypeToConnectionType(runtimeType);
+              return {
+                id: input.id,
+                label: input.label,
+                connectionType,
+                description: input.description || `Runtime input: ${input.label}`,
+              };
+            }),
+          ];
         }
       } catch (error) {
-        console.error('Failed to parse runtimeInputs for validation:', error)
+        console.error('Failed to parse runtimeInputs for validation:', error);
       }
     }
   }
 
   // 2. DYNAMIC INPUTS from target
-  const targetInputs = (targetNode.data as any).dynamicInputs || targetComponent.inputs || []
-  
-  const sourcePort = sourceOutputs.find((p: any) => p.id === sourceHandle)
-  const targetPort = targetInputs.find((p: any) => p.id === targetHandle)
+  const targetInputs = (targetNode.data as any).dynamicInputs || targetComponent.inputs || [];
+
+  const sourcePort = sourceOutputs.find((p: any) => p.id === sourceHandle);
+  const targetPort = targetInputs.find((p: any) => p.id === targetHandle);
 
   if (!sourcePort || !targetPort) {
-    const detail = !sourcePort ? `Source port "${sourceHandle}" not found` : `Target port "${targetHandle}" not found`
-    return { isValid: false, error: `Invalid connection ports: ${detail}` }
+    const detail = !sourcePort
+      ? `Source port "${sourceHandle}" not found`
+      : `Target port "${targetHandle}" not found`;
+    return { isValid: false, error: `Invalid connection ports: ${detail}` };
   }
 
-  if (!sourcePort.dataType || !targetPort.dataType) {
-    return { isValid: false, error: 'Port type metadata unavailable' }
+  const hasSourceType = Boolean(sourcePort.connectionType);
+  const hasTargetType = Boolean(targetPort.connectionType);
+
+  if (!hasSourceType || !hasTargetType) {
+    return { isValid: false, error: 'Port type metadata unavailable' };
   }
 
   // Check type compatibility
-  if (!arePortDataTypesCompatible(sourcePort.dataType, targetPort.dataType)) {
-    const targetTypeLabel = describePortDataType(targetPort.dataType)
+  const sourceType = resolvePortType(sourcePort);
+  const targetType = resolvePortType(targetPort);
+
+  if (!arePortTypesCompatible(sourceType, targetType)) {
+    const targetTypeLabel = describePortType(targetType);
     return {
       isValid: false,
-      error: `Type mismatch: ${describePortDataType(sourcePort.dataType)} cannot connect to ${targetTypeLabel}`,
-    }
+      error: `Type mismatch: ${describePortType(sourceType)} cannot connect to ${targetTypeLabel}`,
+    };
   }
 
   // Check if target input already has a connection
   const existingConnection = edges.find(
-    (edge) => edge.target === target && edge.targetHandle === targetHandle
-  )
-  if (existingConnection) {
+    (edge) => edge.target === target && edge.targetHandle === targetHandle,
+  );
+
+  // Special case: 'mcp.tool' contract allows many-to-one connections (e.g., many tools to one agent port)
+  const isToolContract = targetType.kind === 'contract' && targetType.name === 'mcp.tool';
+  if (existingConnection && !isToolContract) {
     return {
       isValid: false,
       error: `Input "${targetPort.label}" already has a connection`,
-    }
+    };
   }
 
   // Check for cycles
   if (wouldCreateCycle(connection, edges)) {
-    return { isValid: false, error: 'Connection would create a cycle' }
+    return { isValid: false, error: 'Connection would create a cycle' };
   }
 
-  return { isValid: true }
+  return { isValid: true };
 }
 
 /**
  * Detect if a connection would create a cycle
  */
 function wouldCreateCycle(newConnection: Connection, existingEdges: Edge[]): boolean {
-  const { source, target } = newConnection
+  const { source, target } = newConnection;
 
-  if (!source || !target) return false
+  if (!source || !target) return false;
 
-  const visited = new Set<string>()
+  const visited = new Set<string>();
 
   function hasPath(from: string, to: string): boolean {
-    if (from === to) return true
-    if (visited.has(from)) return false
+    if (from === to) return true;
+    if (visited.has(from)) return false;
 
-    visited.add(from)
+    visited.add(from);
 
-    const outgoingEdges = existingEdges.filter((edge) => edge.source === from)
-    return outgoingEdges.some((edge) => hasPath(edge.target, to))
+    const outgoingEdges = existingEdges.filter((edge) => edge.source === from);
+    return outgoingEdges.some((edge) => hasPath(edge.target, to));
   }
 
-  return hasPath(target, source)
+  return hasPath(target, source);
 }
 
 /**
@@ -165,41 +199,89 @@ function wouldCreateCycle(newConnection: Connection, existingEdges: Edge[]): boo
 export function getNodeValidationWarnings(
   node: Node<FrontendNodeData>,
   edges: Edge[],
-  component: ComponentMetadata
+  component: ComponentMetadata,
+  secrets?: { id: string; name: string }[],
 ): string[] {
-  const warnings: string[] = []
+  const warnings: string[] = [];
 
   // Check for required inputs that are not connected
-  const manualParameters = (node.data.parameters ?? {}) as Record<string, unknown>
+  const manualParameters = (node.data.config?.params ?? {}) as Record<string, unknown>;
+  const inputOverrides = (node.data.config?.inputOverrides ?? {}) as Record<string, unknown>;
+  const config = node.data.config as any;
+  const isToolMode = Boolean(config?.isToolMode || config?.mode === 'tool');
 
   component.inputs.forEach((input) => {
+    // In Tool Mode, skip validation for non-credential inputs
+    if (isToolMode && !isCredentialInput(input)) {
+      return;
+    }
+
     if (input.required) {
       const hasConnection = edges.some(
-        (edge) => edge.target === node.id && edge.targetHandle === input.id
-      )
+        (edge) => edge.target === node.id && edge.targetHandle === input.id,
+      );
 
-      const manualOverridesPort = input.valuePriority === 'manual-first'
-      const allowsManualInput = inputSupportsManualValue(input) || manualOverridesPort
-      const manualCandidate = manualParameters[input.id]
-      const manualValueProvided = allowsManualInput && (!hasConnection || manualOverridesPort) && manualCandidate !== undefined && manualCandidate !== null && (
-        typeof manualCandidate === 'string' ? manualCandidate.trim().length > 0 : true
-      )
+      const manualOverridesPort = input.valuePriority === 'manual-first';
+      const allowsManualInput = inputSupportsManualValue(input) || manualOverridesPort;
+      const manualCandidate = inputOverrides[input.id];
+      const manualValueProvided =
+        allowsManualInput &&
+        (!hasConnection || manualOverridesPort) &&
+        manualCandidate !== undefined &&
+        manualCandidate !== null &&
+        (typeof manualCandidate === 'string' ? manualCandidate.trim().length > 0 : true);
 
       if (!hasConnection && !manualValueProvided) {
-        warnings.push(`Required input "${input.label}" is not connected`)
+        warnings.push(`Required input "${input.label}" is not connected`);
       }
     }
-  })
+  });
 
   // Check for required parameters that are not set
   component.parameters.forEach((param) => {
     if (param.required) {
-      const value = node.data.parameters?.[param.id]
+      const value = manualParameters[param.id];
       if (value === undefined || value === null || value === '') {
-        warnings.push(`Required parameter "${param.label}" is not set`)
+        warnings.push(`Required parameter "${param.label}" is not set`);
       }
     }
-  })
+  });
 
-  return warnings
+  // Check for missing secrets if secrets catalog is provided
+  if (secrets) {
+    const secretIds = secrets.map((s) => s.id);
+    const secretNames = secrets.map((s) => s.name);
+
+    // 1. Check params
+    component.parameters.forEach((param) => {
+      if (param.type === 'secret') {
+        const val = manualParameters[param.id];
+        if (
+          val &&
+          typeof val === 'string' &&
+          !secretIds.includes(val) &&
+          !secretNames.includes(val)
+        ) {
+          warnings.push(`Parameter "${param.label}" refers to a missing secret`);
+        }
+      }
+    });
+
+    // 2. Check inputOverrides
+    component.inputs.forEach((input) => {
+      if (input.editor === 'secret') {
+        const val = inputOverrides[input.id];
+        if (
+          val &&
+          typeof val === 'string' &&
+          !secretIds.includes(val) &&
+          !secretNames.includes(val)
+        ) {
+          warnings.push(`Input "${input.label}" refers to a missing secret`);
+        }
+      }
+    });
+  }
+
+  return warnings;
 }

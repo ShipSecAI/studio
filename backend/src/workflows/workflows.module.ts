@@ -5,6 +5,7 @@ import { TemporalModule } from '../temporal/temporal.module';
 import { StorageModule } from '../storage/storage.module';
 import { TerminalModule } from '../terminal/terminal.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { NodeIOModule } from '../node-io/node-io.module';
 import { WorkflowRepository } from './repository/workflow.repository';
 import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
@@ -18,7 +19,14 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
 // import { WorkflowsBootstrapService } from './workflows.bootstrap';
 
 @Module({
-  imports: [DatabaseModule, TemporalModule, StorageModule, TerminalModule, AnalyticsModule],
+  imports: [
+    DatabaseModule,
+    TemporalModule,
+    StorageModule,
+    TerminalModule,
+    AnalyticsModule,
+    NodeIOModule,
+  ],
   controllers: [WorkflowsController, InternalRunsController],
   providers: [
     WorkflowsService,
@@ -30,6 +38,6 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
     TerminalArchiveService,
     WorkflowRoleGuard,
   ],
-  exports: [WorkflowsService],
+  exports: [WorkflowsService, WorkflowRepository, WorkflowRunRepository, WorkflowVersionRepository],
 })
 export class WorkflowsModule {}

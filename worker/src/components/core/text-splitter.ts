@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port, ValidationError } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  defineComponent,
+  ValidationError,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+} from '@shipsec/component-sdk';
 
 // Support both direct text and file objects from entry point
 const manualTriggerFileSchema = z.object({
@@ -20,32 +29,51 @@ const fileLoaderFileSchema = z.object({
   content: z.string(), // base64 encoded
 });
 
-const inputSchema = z.object({
-  text: z.union([z.string(), manualTriggerFileSchema, fileLoaderFileSchema]).describe('Text content to split (string or file object)'),
-  separator: z.string().default('\n').describe('Separator to split by'),
+const inputSchema = inputs({
+  text: port(
+    z
+      .union([z.string(), manualTriggerFileSchema, fileLoaderFileSchema])
+      .describe('Text content to split (string or file object)'),
+    {
+      label: 'Text Input',
+      description:
+        'Text content to be split into lines or items. Accepts either plain text string or file object with content property.',
+      connectionType: { kind: 'primitive', name: 'text' },
+    },
+  ),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-type Output = {
-  items: string[];
-  count: number;
-};
-
-const outputSchema = z.object({
-  items: z.array(z.string()),
-  count: z.number(),
+const outputSchema = outputs({
+  items: port(z.array(z.string()), {
+    label: 'Items',
+    description: 'Array of strings after splitting.',
+  }),
+  count: port(z.number(), {
+    label: 'Count',
+    description: 'Number of items after splitting.',
+  }),
 });
 
-const definition: ComponentDefinition<Input, Output> = {
+const parameterSchema = parameters({
+  separator: param(z.string().default('\n').describe('Separator to split by'), {
+    label: 'Separator',
+    editor: 'text',
+    placeholder: '\\n',
+    description: 'Character or string to split by (default: newline).',
+    helpText: 'Use \\n for newline, \\t for tab, or any custom separator.',
+  }),
+});
+
+const definition = defineComponent({
   id: 'core.text.splitter',
   label: 'Text Splitter',
   category: 'transform',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Splits text into an array of strings based on a separator character or pattern.',
-  metadata: {
+  ui: {
     slug: 'text-splitter',
     version: '1.0.0',
     type: 'process',
@@ -58,47 +86,12 @@ const definition: ComponentDefinition<Input, Output> = {
     },
     isLatest: true,
     deprecated: false,
-    inputs: [
-      {
-        id: 'text',
-        label: 'Text Input',
-        dataType: port.text(),
-        required: true,
-        description: 'Text content to be split into lines or items. Accepts either plain text string or file object with content property.',
-      },
-    ],
-    outputs: [
-      {
-        id: 'items',
-        label: 'Items',
-        dataType: port.list(port.text()),
-        description: 'Array of strings after splitting.',
-      },
-      {
-        id: 'count',
-        label: 'Count',
-        dataType: port.number({ coerceFrom: [] }),
-        description: 'Number of items after splitting.',
-      },
-    ],
     examples: [
       'Split newline-delimited subdomains before enrichment components.',
       'Break CSV exports into individual entries for looping workflows.',
     ],
-    parameters: [
-      {
-        id: 'separator',
-        label: 'Separator',
-        type: 'text',
-        required: false,
-        default: '\\n',
-        placeholder: '\\n',
-        description: 'Character or string to split by (default: newline).',
-        helpText: 'Use \\n for newline, \\t for tab, or any custom separator.',
-      },
-    ],
   },
-  async execute(params, context) {
+  async execute({ inputs, params }, context) {
     context.logger.info(`[TextSplitter] Splitting text by separator: "${params.separator}"`);
 
     // Handle escape sequences
@@ -109,22 +102,29 @@ const definition: ComponentDefinition<Input, Output> = {
 
     // Extract text content from input (handle three different input types)
     let textContent: string;
-    if (typeof params.text === 'string') {
+    if (typeof inputs.text === 'string') {
       // Case 1: Direct text input
-      textContent = params.text;
-      context.logger.info(`[TextSplitter] Processing direct text input (${textContent.length} characters)`);
-    } else if ('content' in params.text) {
+      textContent = inputs.text;
+      context.logger.info(
+        `[TextSplitter] Processing direct text input (${textContent.length} characters)`,
+      );
+    } else if ('content' in inputs.text) {
       // Case 2: File object from file-loader (has base64 content)
-      const base64Content = params.text.content;
+      const base64Content = inputs.text.content;
       textContent = Buffer.from(base64Content, 'base64').toString('utf-8');
-      context.logger.info(`[TextSplitter] Processing file-loader input: ${params.text.name} (${textContent.length} characters)`);
+      context.logger.info(
+        `[TextSplitter] Processing file-loader input: ${inputs.text.name} (${textContent.length} characters)`,
+      );
     } else {
       // Case 3: File object from entry point (only metadata, no content)
-      throw new ValidationError(`File object from entry point has no content. File ID: ${params.text.id}, Name: ${params.text.fileName}.
+      throw new ValidationError(
+        `File object from entry point has no content. File ID: ${inputs.text.id}, Name: ${inputs.text.fileName}.
 Please use a File Loader component to extract file content before passing to Text Splitter.
-Expected workflow: Entry Point → File Loader → Text Splitter`, {
-        fieldErrors: { text: ['File content is required - use File Loader first'] },
-      });
+Expected workflow: Entry Point → File Loader → Text Splitter`,
+        {
+          fieldErrors: { text: ['File content is required - use File Loader first'] },
+        },
+      );
     }
 
     // Split the text
@@ -141,6 +141,6 @@ Expected workflow: Entry Point → File Loader → Text Splitter`, {
       count: items.length,
     };
   },
-};
+});
 
 componentRegistry.register(definition);

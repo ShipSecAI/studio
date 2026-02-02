@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import { parseHttpxOutput } from '../httpx';
-import type { HttpxInput, HttpxOutput } from '../httpx';
+import type { HttpxOutput, InputShape, OutputShape } from '../httpx';
 
 const runHttpxTests = process.env.ENABLE_HTTPX_COMPONENT_TESTS === 'true';
 const describeHttpx = runHttpxTests ? describe : describe.skip;
@@ -65,14 +65,14 @@ describeHttpx('httpx component', () => {
   });
 
   test('registers the httpx component', () => {
-    const component = componentRegistry.get<HttpxInput, HttpxOutput>('shipsec.httpx.scan');
+    const component = componentRegistry.get<InputShape, OutputShape>('shipsec.httpx.scan');
     expect(component).toBeDefined();
     expect(component!.label).toBe('httpx Web Probe');
     expect(component!.category).toBe('security');
   });
 
   test('normalises docker runner JSON output', async () => {
-    const component = componentRegistry.get<HttpxInput, HttpxOutput>('shipsec.httpx.scan');
+    const component = componentRegistry.get<InputShape, OutputShape>('shipsec.httpx.scan');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -80,7 +80,7 @@ describeHttpx('httpx component', () => {
       componentRef: 'httpx-test',
     });
 
-    const params = component.inputSchema.parse({
+    const params = component.inputs.parse({
       targets: ['https://example.com'],
     });
 
@@ -122,7 +122,10 @@ describeHttpx('httpx component', () => {
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(payload);
 
-    const result = (await component.execute(params, context)) as HttpxOutput;
+    const result = (await component.execute(
+      { inputs: params, params: {} },
+      context,
+    )) as HttpxOutput;
 
     expect(result.results).toHaveLength(1);
     expect(result.resultCount).toBe(1);
@@ -131,7 +134,7 @@ describeHttpx('httpx component', () => {
   });
 
   test('falls back to parsing raw string output when provided', async () => {
-    const component = componentRegistry.get<HttpxInput, HttpxOutput>('shipsec.httpx.scan');
+    const component = componentRegistry.get<InputShape, OutputShape>('shipsec.httpx.scan');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -139,7 +142,7 @@ describeHttpx('httpx component', () => {
       componentRef: 'httpx-test',
     });
 
-    const params = component.inputSchema.parse({
+    const params = component.inputs.parse({
       targets: ['https://example.com'],
       followRedirects: true,
     });
@@ -151,7 +154,7 @@ describeHttpx('httpx component', () => {
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(raw);
 
-    const result = await component.execute(params, context);
+    const result = await component.execute({ inputs: params, params: {} }, context);
 
     expect(result.results).toHaveLength(2);
     expect(result.options.followRedirects).toBe(true);
@@ -159,7 +162,7 @@ describeHttpx('httpx component', () => {
   });
 
   test('skips execution when no targets are provided', async () => {
-    const component = componentRegistry.get<HttpxInput, HttpxOutput>('shipsec.httpx.scan');
+    const component = componentRegistry.get<InputShape, OutputShape>('shipsec.httpx.scan');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -167,12 +170,12 @@ describeHttpx('httpx component', () => {
       componentRef: 'httpx-test',
     });
 
-    const params = component.inputSchema.parse({
+    const params = component.inputs.parse({
       targets: [],
     });
 
     const spy = vi.spyOn(sdk, 'runComponentWithRunner');
-    const result = await component.execute(params, context);
+    const result = await component.execute({ inputs: params, params: {} }, context);
 
     expect(spy).not.toHaveBeenCalled();
     expect(result.results).toHaveLength(0);
@@ -182,7 +185,7 @@ describeHttpx('httpx component', () => {
   });
 
   test('throws when httpx exits with a non-zero status', async () => {
-    const component = componentRegistry.get<HttpxInput, HttpxOutput>('shipsec.httpx.scan');
+    const component = componentRegistry.get<InputShape, OutputShape>('shipsec.httpx.scan');
     if (!component) throw new Error('Component not registered');
 
     const context = sdk.createExecutionContext({
@@ -190,7 +193,7 @@ describeHttpx('httpx component', () => {
       componentRef: 'httpx-test',
     });
 
-    const params = component.inputSchema.parse({
+    const params = component.inputs.parse({
       targets: ['https://example.com'],
     });
 
@@ -201,6 +204,8 @@ describeHttpx('httpx component', () => {
       exitCode: 2,
     });
 
-    await expect(component.execute(params, context)).rejects.toThrow(/httpx exited with code 2/);
+    await expect(component.execute({ inputs: params, params: {} }, context)).rejects.toThrow(
+      /httpx exited with code 2/,
+    );
   });
 });

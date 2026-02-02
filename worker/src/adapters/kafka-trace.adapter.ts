@@ -9,12 +9,12 @@ interface KafkaTraceAdapterConfig {
   logLevel?: keyof typeof KafkaLogLevel;
 }
 
-type RunMetadata = {
+interface RunMetadata {
   workflowId?: string;
   organizationId?: string | null;
-};
+}
 
-type SerializedTraceEvent = {
+interface SerializedTraceEvent {
   runId: string;
   workflowId?: string;
   organizationId?: string | null;
@@ -27,7 +27,7 @@ type SerializedTraceEvent = {
   outputSummary?: unknown;
   data?: Record<string, unknown> | null;
   sequence: number;
-};
+}
 
 export class KafkaTraceAdapter implements ITraceService {
   private readonly producer: Producer;
@@ -130,7 +130,7 @@ export class KafkaTraceAdapter implements ITraceService {
 
     if (hasMetadata) {
       packed._metadata = {
-        ...((event.context as unknown) as Record<string, unknown>),
+        ...(event.context as unknown as Record<string, unknown>),
       };
     }
 

@@ -1,12 +1,15 @@
 import {
   Controller,
   Get,
+  Delete,
   Query,
   Param,
   Res,
   StreamableFile,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiNoContentResponse, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
 import type { Response } from 'express';
 
@@ -56,12 +59,27 @@ export class ArtifactsController {
     @Param(new ZodValidationPipe(ArtifactIdParamSchema)) params: ArtifactIdParamDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { artifact, buffer, file } = await this.artifactsService.downloadArtifact(auth, params.id);
+    const { artifact, buffer, file } = await this.artifactsService.downloadArtifact(
+      auth,
+      params.id,
+    );
 
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${artifact.name}"`);
     res.setHeader('Content-Length', file.size.toString());
 
     return new StreamableFile(buffer);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description: 'Artifact deleted successfully',
+  })
+  async deleteArtifact(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param(new ZodValidationPipe(ArtifactIdParamSchema)) params: ArtifactIdParamDto,
+  ) {
+    await this.artifactsService.deleteArtifact(auth, params.id);
   }
 }

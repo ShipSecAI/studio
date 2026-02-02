@@ -1,31 +1,70 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
-  port,
   ValidationError,
   ConfigurationError,
   fromHttpResponse,
   ComponentRetryPolicy,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
 } from '@shipsec/component-sdk';
 
-const inputSchema = z.object({
-  indicator: z.string().describe('The IP, Domain, File Hash, or URL to inspect.'),
-  type: z.enum(['ip', 'domain', 'file', 'url']).default('ip').describe('The type of indicator.'),
-  apiKey: z.string().describe('Your VirusTotal API Key.'),
+const inputSchema = inputs({
+  indicator: port(z.string().describe('The IP, Domain, File Hash, or URL to inspect.'), {
+    label: 'Indicator',
+  }),
+  apiKey: port(z.string().describe('Your VirusTotal API Key.'), {
+    label: 'API Key',
+    editor: 'secret',
+    connectionType: { kind: 'primitive', name: 'secret' },
+  }),
 });
 
-const outputSchema = z.object({
-  malicious: z.number().describe('Number of engines flagging this as malicious.'),
-  suspicious: z.number().describe('Number of engines flagging this as suspicious.'),
-  harmless: z.number().describe('Number of engines flagging this as harmless.'),
-  tags: z.array(z.string()).optional(),
-  reputation: z.number().optional(),
-  full_report: z.record(z.string(), z.any()).describe('The full raw JSON response from VirusTotal.'),
+const parameterSchema = parameters({
+  type: param(
+    z.enum(['ip', 'domain', 'file', 'url']).default('ip').describe('The type of indicator.'),
+    {
+      label: 'Indicator Type',
+      editor: 'select',
+      options: [
+        { label: 'IP Address', value: 'ip' },
+        { label: 'Domain', value: 'domain' },
+        { label: 'File Hash (MD5/SHA1/SHA256)', value: 'file' },
+        { label: 'URL', value: 'url' },
+      ],
+    },
+  ),
 });
 
-type Input = z.infer<typeof inputSchema>;
-type Output = z.infer<typeof outputSchema>;
+const outputSchema = outputs({
+  malicious: port(z.number().describe('Number of engines flagging this as malicious.'), {
+    label: 'Malicious Count',
+  }),
+  suspicious: port(z.number().describe('Number of engines flagging this as suspicious.'), {
+    label: 'Suspicious Count',
+  }),
+  harmless: port(z.number().describe('Number of engines flagging this as harmless.'), {
+    label: 'Harmless Count',
+  }),
+  tags: port(z.array(z.string()).optional(), {
+    label: 'Tags',
+    description: 'Tags returned by VirusTotal for the indicator.',
+  }),
+  reputation: port(z.number().optional(), {
+    label: 'Reputation',
+  }),
+  full_report: port(
+    z.record(z.string(), z.any()).describe('The full raw JSON response from VirusTotal.'),
+    {
+      label: 'Full Report',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
+});
 
 // Retry policy for VirusTotal API - handles rate limits and transient failures
 const virusTotalRetryPolicy: ComponentRetryPolicy = {
@@ -33,71 +72,38 @@ const virusTotalRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 2,
   maximumIntervalSeconds: 120,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'AuthenticationError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['AuthenticationError', 'ValidationError', 'ConfigurationError'],
 };
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'security.virustotal.lookup',
   label: 'VirusTotal Lookup',
   category: 'security',
   runner: { kind: 'inline' },
   retryPolicy: virusTotalRetryPolicy,
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Check the reputation of an IP, Domain, File Hash, or URL using the VirusTotal v3 API.',
-  metadata: {
+  ui: {
     slug: 'virustotal-lookup',
     version: '1.0.0',
-    type: 'scan', 
+    type: 'scan',
     category: 'security',
     description: 'Get threat intelligence reports for IOCs from VirusTotal.',
     icon: 'Shield', // We can update this if there's a better one, or generic Shield
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
-    inputs: [
-      { id: 'indicator', label: 'Indicator', dataType: port.text(), required: true },
-      { id: 'apiKey', label: 'API Key', dataType: port.secret(), required: true },
-    ],
-    outputs: [
-      { id: 'malicious', label: 'Malicious Count', dataType: port.number() },
-      { id: 'reputation', label: 'Reputation', dataType: port.number() },
-      { id: 'full_report', label: 'Full Report', dataType: port.json() },
-    ],
-    parameters: [
-       {
-        id: 'type',
-        label: 'Indicator Type',
-        type: 'select',
-        default: 'ip',
-        options: [
-          { label: 'IP Address', value: 'ip' },
-          { label: 'Domain', value: 'domain' },
-          { label: 'File Hash (MD5/SHA1/SHA256)', value: 'file' },
-          { label: 'URL', value: 'url' },
-        ],
-      },
-    ],
+    agentTool: {
+      enabled: true,
+      toolDescription:
+        'Threat intelligence lookup for IPs, domains, hashes, and URLs (VirusTotal).',
+    },
   },
-  resolvePorts(params) {
-      return {
-          inputs: [
-              { id: 'indicator', label: 'Indicator', dataType: port.text(), required: true },
-              { id: 'apiKey', label: 'API Key', dataType: port.secret(), required: true }
-          ],
-          outputs: [
-              { id: 'malicious', label: 'Malicious Count', dataType: port.number() },
-              { id: 'reputation', label: 'Reputation', dataType: port.number() },
-              { id: 'full_report', label: 'Full Report', dataType: port.json() },
-          ]
-      };
-  },
-  async execute(params, context) {
-    const { indicator, type, apiKey } = params;
+  async execute({ inputs, params }, context) {
+    const { indicator, apiKey } = inputs;
+    const { type } = params;
 
     if (!indicator) {
       throw new ValidationError('Indicator is required', {
@@ -111,7 +117,7 @@ const definition: ComponentDefinition<Input, Output> = {
     }
 
     let endpoint = '';
-    
+
     // API v3 Base URL
     const baseUrl = 'https://www.virustotal.com/api/v3';
 
@@ -126,25 +132,30 @@ const definition: ComponentDefinition<Input, Output> = {
       case 'file':
         endpoint = `${baseUrl}/files/${indicator}`;
         break;
-      case 'url':
+      case 'url': {
         // URL endpoints usually require the URL to be base64 encoded without padding
-        const b64Url = Buffer.from(indicator).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+        const b64Url = Buffer.from(indicator)
+          .toString('base64')
+          .replace(/=/g, '')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_');
         endpoint = `${baseUrl}/urls/${b64Url}`;
         break;
+      }
     }
 
     context.logger.info(`[VirusTotal] Checking ${type}: ${indicator}`);
 
-    // If type is URL, we might need to "scan" it first if it hasn't been seen, 
-    // but typically "lookup" implies retrieving existing info. 
+    // If type is URL, we might need to "scan" it first if it hasn't been seen,
+    // but typically "lookup" implies retrieving existing info.
     // The GET endpoint retrieves the last analysis.
 
-    const response = await fetch(endpoint, {
+    const response = await context.http.fetch(endpoint, {
       method: 'GET',
       headers: {
         'x-apikey': apiKey,
-        'Accept': 'application/json'
-      }
+        Accept: 'application/json',
+      },
     });
 
     if (response.status === 404) {
@@ -156,16 +167,16 @@ const definition: ComponentDefinition<Input, Output> = {
         suspicious: 0,
         harmless: 0,
         tags: [],
-        full_report: { error: 'Not Found in VirusTotal' }
+        full_report: { error: 'Not Found in VirusTotal' },
       };
     }
 
     if (!response.ok) {
-       const text = await response.text();
-       throw fromHttpResponse(response, text);
+      const text = await response.text();
+      throw fromHttpResponse(response, text);
     }
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     const attrs = data.data?.attributes || {};
     const stats = attrs.last_analysis_stats || {};
 
@@ -175,7 +186,9 @@ const definition: ComponentDefinition<Input, Output> = {
     const tags = attrs.tags || [];
     const reputation = attrs.reputation || 0;
 
-    context.logger.info(`[VirusTotal] Results for ${indicator}: ${malicious} malicious, ${suspicious} suspicious.`);
+    context.logger.info(
+      `[VirusTotal] Results for ${indicator}: ${malicious} malicious, ${suspicious} suspicious.`,
+    );
 
     return {
       malicious,
@@ -186,7 +199,7 @@ const definition: ComponentDefinition<Input, Output> = {
       full_report: data,
     };
   },
-};
+});
 
 componentRegistry.register(definition);
 

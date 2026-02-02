@@ -1,26 +1,26 @@
-import { create } from 'zustand'
+import { create } from 'zustand';
 
 interface WorkflowMetadata {
-  id: string | null
-  name: string
-  description: string
-  currentVersionId: string | null
-  currentVersion: number | null
+  id: string | null;
+  name: string;
+  description: string;
+  currentVersionId: string | null;
+  currentVersion: number | null;
 }
 
 interface WorkflowStore {
   // State
-  metadata: WorkflowMetadata
-  isDirty: boolean // Track if workflow has unsaved changes
+  metadata: WorkflowMetadata;
+  isDirty: boolean; // Track if workflow has unsaved changes
 
   // Actions
-  setWorkflowId: (id: string) => void
-  setWorkflowName: (name: string) => void
-  setWorkflowDescription: (description: string) => void
-  setMetadata: (metadata: Partial<WorkflowMetadata>) => void
-  markDirty: () => void
-  markClean: () => void
-  resetWorkflow: () => void
+  setWorkflowId: (id: string) => void;
+  setWorkflowName: (name: string) => void;
+  setWorkflowDescription: (description: string) => void;
+  setMetadata: (metadata: Partial<WorkflowMetadata>) => void;
+  markDirty: () => void;
+  markClean: () => void;
+  resetWorkflow: () => void;
 }
 
 const initialMetadata: WorkflowMetadata = {
@@ -29,7 +29,7 @@ const initialMetadata: WorkflowMetadata = {
   description: '',
   currentVersionId: null,
   currentVersion: null,
-}
+};
 
 /**
  * Workflow Store
@@ -45,7 +45,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setWorkflowId: (id: string) => {
     set((state) => ({
       metadata: { ...state.metadata, id },
-    }))
+    }));
   },
 
   /**
@@ -54,7 +54,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setWorkflowName: (name: string) => {
     set((state) => ({
       metadata: { ...state.metadata, name },
-    }))
+    }));
   },
 
   /**
@@ -63,7 +63,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setWorkflowDescription: (description: string) => {
     set((state) => ({
       metadata: { ...state.metadata, description },
-    }))
+    }));
   },
 
   /**
@@ -72,27 +72,27 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setMetadata: (metadata: Partial<WorkflowMetadata>) => {
     set((state) => ({
       metadata: { ...state.metadata, ...metadata },
-    }))
+    }));
   },
 
   /**
    * Mark workflow as having unsaved changes
    */
   markDirty: () => {
-    set({ isDirty: true })
+    set({ isDirty: true });
   },
 
   /**
    * Mark workflow as saved (no unsaved changes)
    */
   markClean: () => {
-    set({ isDirty: false })
+    set({ isDirty: false });
   },
 
   /**
    * Reset to initial state (for new workflow)
    */
   resetWorkflow: () => {
-    set({ metadata: initialMetadata, isDirty: false })
+    set({ metadata: initialMetadata, isDirty: false });
   },
-}))
+}));

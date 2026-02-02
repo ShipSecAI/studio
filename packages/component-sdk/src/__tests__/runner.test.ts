@@ -2,7 +2,8 @@ import { describe, it, expect } from 'bun:test';
 import { z } from 'zod';
 import { runComponentInline, runComponentWithRunner } from '../runner';
 import { createExecutionContext } from '../context';
-import type { ComponentDefinition } from '../types';
+import { defineComponent } from '../define-component';
+import { inputs, outputs, port } from '../schema-builders';
 
 const enableDockerRunnerTests = process.env.ENABLE_DOCKER_TESTS === 'true';
 
@@ -130,29 +131,26 @@ describe('Component Runner', () => {
 
   describe('Integration: Component with Runner', () => {
     it('should execute a complete component definition', async () => {
-      const inputSchema = z.object({
-        text: z.string(),
-        repeat: z.number(),
+      const inputSchema = inputs({
+        text: port(z.string(), { label: 'Text' }),
+        repeat: port(z.number(), { label: 'Repeat' }),
       });
 
-      const outputSchema = z.object({
-        result: z.string(),
+      const outputSchema = outputs({
+        result: port(z.string(), { label: 'Result' }),
       });
 
-      const component: ComponentDefinition<
-        z.infer<typeof inputSchema>,
-        z.infer<typeof outputSchema>
-      > = {
+      const component = defineComponent({
         id: 'test.repeat',
         label: 'Repeat Text',
         category: 'transform',
         runner: { kind: 'inline' },
-        inputSchema,
-        outputSchema,
-        async execute(params) {
-          return { result: params.text.repeat(params.repeat) };
-        },
-      };
+        inputs: inputSchema,
+        outputs: outputSchema,
+      async execute({ inputs }) {
+        return { result: inputs.text.repeat(inputs.repeat) };
+      },
+    });
 
       const context = createExecutionContext({
         runId: 'integration-test',
@@ -160,7 +158,7 @@ describe('Component Runner', () => {
       });
 
       // Validate input
-      const params = component.inputSchema.parse({
+      const inputValues = component.inputs.parse({
         text: 'Hi!',
         repeat: 3,
       });
@@ -169,12 +167,12 @@ describe('Component Runner', () => {
       const result = await runComponentWithRunner(
         component.runner,
         component.execute,
-        params,
+        { inputs: inputValues, params: {} },
         context,
       );
 
       // Validate output
-      const validatedOutput = component.outputSchema.parse(result);
+      const validatedOutput = component.outputs.parse(result);
 
       expect(validatedOutput.result).toBe('Hi!Hi!Hi!');
     });

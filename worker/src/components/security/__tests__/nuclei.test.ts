@@ -10,7 +10,7 @@ describe('Nuclei Component', () => {
 
   beforeEach(() => {
     // Get the registered component
-    nucleiComponent = componentRegistry.get('shipsec.nuclei.scan');
+    nucleiComponent = componentRegistry.get<NucleiInput, NucleiOutput>('shipsec.nuclei.scan');
 
     // Mock execution context
     mockContext = {
@@ -34,19 +34,19 @@ describe('Nuclei Component', () => {
     test('should require at least one target', () => {
       const input = {
         targets: [],
-        templateIds: ['CVE-2024-1234'],
       };
 
-      expect(() => nucleiComponent.inputSchema.parse(input)).toThrow();
+      expect(() => nucleiComponent.inputs.parse(input)).toThrow();
     });
 
-    test('should require at least one template source', () => {
-      const input = {
+    test('should require at least one template source', async () => {
+      const inputs = {
         targets: ['https://example.com'],
-        // No template source provided
       };
+      const params = {};
 
-      expect(() => nucleiComponent.inputSchema.parse(input)).toThrow(
+      // The validation for at least one template source is in execute, not in parse
+      await expect(nucleiComponent.execute({ inputs, params }, mockContext)).rejects.toThrow(
         /at least one template source/i,
       );
     });
@@ -57,7 +57,7 @@ describe('Nuclei Component', () => {
         templateIds: ['CVE-2024-1234'],
       };
 
-      const parsed = nucleiComponent.inputSchema.parse(input);
+      const parsed = nucleiComponent.inputs.parse(input);
       expect(parsed.templateIds).toEqual(['CVE-2024-1234']);
     });
 
@@ -69,7 +69,7 @@ describe('Nuclei Component', () => {
         customTemplateYaml: 'id: test\ninfo:\n  name: Test',
       };
 
-      const parsed = nucleiComponent.inputSchema.parse(input);
+      const parsed = nucleiComponent.inputs.parse(input);
       expect(parsed.customTemplateYaml).toBeDefined();
     });
 
@@ -79,7 +79,7 @@ describe('Nuclei Component', () => {
         customTemplateArchive: 'base64encodedzip',
       };
 
-      const parsed = nucleiComponent.inputSchema.parse(input);
+      const parsed = nucleiComponent.inputs.parse(input);
       expect(parsed.customTemplateArchive).toBeDefined();
     });
 
@@ -90,7 +90,7 @@ describe('Nuclei Component', () => {
         customTemplateYaml: 'id: test\ninfo:\n  name: Test',
       };
 
-      const parsed = nucleiComponent.inputSchema.parse(input);
+      const parsed = nucleiComponent.inputs.parse(input);
       expect(parsed.templateIds).toEqual(['CVE-2024-1234', 'CVE-2024-5678']);
       expect(parsed.customTemplateYaml).toBeDefined();
     });
@@ -98,40 +98,39 @@ describe('Nuclei Component', () => {
     test('should apply default values for scan configuration', () => {
       const input = {
         targets: ['https://example.com'],
-        templateIds: ['CVE-2024-1234'],
       };
+      const params = {};
 
-      const parsed = nucleiComponent.inputSchema.parse(input);
-      expect(parsed.rateLimit).toBe(150);
-      expect(parsed.concurrency).toBe(25);
-      expect(parsed.timeout).toBe(10);
-      expect(parsed.retries).toBe(1);
-      expect(parsed.includeRaw).toBe(false);
-      expect(parsed.followRedirects).toBe(false);
-      expect(parsed.updateTemplates).toBe(false);
-      expect(parsed.disableHttpx).toBe(true);
+      const parsedInputs = nucleiComponent.inputs.parse(input);
+      const parsedParams = nucleiComponent.parameters.parse(params);
+
+      expect(parsedInputs.targets).toEqual(['https://example.com']);
+      expect(parsedParams.rateLimit).toBe(150);
+      expect(parsedParams.concurrency).toBe(25);
+      expect(parsedParams.timeout).toBe(10);
+      expect(parsedParams.retries).toBe(1);
+      expect(parsedParams.includeRaw).toBe(false);
+      expect(parsedParams.followRedirects).toBe(false);
+      expect(parsedParams.updateTemplates).toBe(false);
+      expect(parsedParams.disableHttpx).toBe(true);
     });
 
     // Severity parameter removed - use specific template IDs instead
 
     test('should enforce rateLimit max value', () => {
-      const input = {
-        targets: ['https://example.com'],
-        templateIds: ['CVE-2024-1234'],
+      const params = {
         rateLimit: 2000, // exceeds max of 1000
       };
 
-      expect(() => nucleiComponent.inputSchema.parse(input)).toThrow();
+      expect(() => nucleiComponent.parameters.parse(params)).toThrow();
     });
 
     test('should enforce concurrency max value', () => {
-      const input = {
-        targets: ['https://example.com'],
-        templateIds: ['CVE-2024-1234'],
+      const params = {
         concurrency: 150, // exceeds max of 100
       };
 
-      expect(() => nucleiComponent.inputSchema.parse(input)).toThrow();
+      expect(() => nucleiComponent.parameters.parse(params)).toThrow();
     });
   });
 
@@ -158,7 +157,7 @@ describe('Nuclei Component', () => {
         },
       };
 
-      const parsed = nucleiComponent.outputSchema.parse(output);
+      const parsed = nucleiComponent.outputs.parse(output);
       expect(parsed.findings).toHaveLength(1);
       expect(parsed.findingCount).toBe(1);
     });
@@ -181,7 +180,7 @@ describe('Nuclei Component', () => {
         stats: { templatesLoaded: 0, requestsSent: 0, duration: 0 },
       };
 
-      expect(() => nucleiComponent.outputSchema.parse(output)).toThrow();
+      expect(() => nucleiComponent.outputs.parse(output)).toThrow();
     });
 
     test('should allow optional finding fields', () => {
@@ -207,7 +206,7 @@ describe('Nuclei Component', () => {
         stats: { templatesLoaded: 0, requestsSent: 0, duration: 0 },
       };
 
-      const parsed = nucleiComponent.outputSchema.parse(output);
+      const parsed = nucleiComponent.outputs.parse(output);
       expect(parsed.findings[0].extractedResults).toEqual(['result1']);
       expect(parsed.findings[0].host).toBe('example.com');
     });
@@ -336,7 +335,6 @@ not-valid-json
     });
 
     test('should return zeros for missing stats', () => {
-      const stderr = '';
       const stats = {
         templatesLoaded: 0,
         requestsSent: 0,
@@ -402,7 +400,7 @@ describe('Nuclei Security Validations', () => {
 
 describe('Nuclei Integration', () => {
   test('should be registered in component registry', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan');
+    const component = componentRegistry.get<NucleiInput, NucleiOutput>('shipsec.nuclei.scan')!;
     expect(component).toBeDefined();
     expect(component.id).toBe('shipsec.nuclei.scan');
     expect(component.label).toBe('Nuclei Vulnerability Scanner');
@@ -410,26 +408,25 @@ describe('Nuclei Integration', () => {
   });
 
   test('should have correct metadata', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan');
-    expect(component.metadata?.slug).toBe('nuclei');
-    expect(component.metadata?.version).toBe('1.0.0');
-    expect(component.metadata?.type).toBe('scan');
-    expect(component.metadata?.author?.name).toBe('ShipSecAI');
+    const component = componentRegistry.get<NucleiInput, NucleiOutput>('shipsec.nuclei.scan')!;
+    expect(component.ui!.slug).toBe('nuclei');
+    expect(component.ui!.version).toBe('1.0.0');
+    expect(component.ui!.type).toBe('scan');
+    expect(component.ui!.author!.name).toBe('ShipSecAI');
   });
 
   test('should have Docker runner configuration', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan');
-    expect(component.runner.kind).toBe('docker');
-    if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('ghcr.io/shipsecai/nuclei:latest');
-      expect(component.runner.network).toBe('bridge');
-      expect(component.runner.timeoutSeconds).toBeGreaterThan(0);
+    const component = componentRegistry.get('shipsec.nuclei.scan')!;
+    expect(component!.runner.kind).toBe('docker');
+    if (component!.runner.kind === 'docker') {
+      expect(component!.runner.image).toBe('ghcr.io/shipsecai/nuclei:latest');
+      expect(component!.runner.entrypoint).toBe('nuclei');
     }
   });
 
   test('should have documented inputs', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan');
-    const inputs = component.metadata?.inputs || [];
+    const entry = componentRegistry.getMetadata('shipsec.nuclei.scan');
+    const inputs = entry?.inputs || [];
 
     const targetInput = inputs.find((i) => i.id === 'targets');
     expect(targetInput).toBeDefined();
@@ -443,8 +440,8 @@ describe('Nuclei Integration', () => {
   });
 
   test('should have documented outputs', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan');
-    const outputs = component.metadata?.outputs || [];
+    const entry = componentRegistry.getMetadata('shipsec.nuclei.scan');
+    const outputs = entry?.outputs || [];
 
     const findingsOutput = outputs.find((o) => o.id === 'findings');
     expect(findingsOutput).toBeDefined();
@@ -457,8 +454,8 @@ describe('Nuclei Integration', () => {
   });
 
   test('should have configuration parameters', () => {
-    const component = componentRegistry.get('shipsec.nuclei.scan');
-    const params = component.metadata?.parameters || [];
+    const metadata = componentRegistry.getMetadata('shipsec.nuclei.scan');
+    const params = metadata?.parameters || [];
 
     const rateLimitParam = params.find((p) => p.id === 'rateLimit');
     expect(rateLimitParam).toBeDefined();
@@ -476,7 +473,7 @@ describe('Nuclei Integration', () => {
 
   test('should have usage examples', () => {
     const component = componentRegistry.get('shipsec.nuclei.scan');
-    const examples = component.metadata?.examples || [];
+    const examples = component!.ui!.examples || [];
 
     expect(examples.length).toBeGreaterThan(0);
     expect(examples.some((e) => e.toLowerCase().includes('cve'))).toBe(true);

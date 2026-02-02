@@ -1,0 +1,7 @@
+{
+  "active": true,
+  "started_at": "2026-02-02T08:59:26.234Z",
+  "original_prompt": "/oh-my-claudecode:ultrawork \"https://github.com/ShipSecAI/studio/pull/209 We need to merge this PR but it is out-of-date with the work we did for the tool mode. https://github.com/ShipSecAI/studio/pull/243. Go through both changes and first of all cleanly merge the main branch on this PR. Post that, we need to decide what has to be kept or what we have to get rid of from that PR. For example, the MCP library spawns MCP servers as a stdio process in the worker, but the new approach we want to take is to use docker container for stdio server with an http proxy over it, and all mcp tool call traffic going via mcp gateway to the agents via streamable http. go through the PRs in great detail to figure out what's the best way, and how the final state would look like. The goal is to prepare a doc of the projected final state before making any changes\"",
+  "reinforcement_count": 1,
+  "last_checked_at": "2026-02-02T09:32:58.226Z"
+}

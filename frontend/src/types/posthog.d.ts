@@ -1,7 +1,7 @@
 declare module 'posthog-js' {
   interface SessionRecordingOptions {
-    maskAllText?: boolean
+    maskAllText?: boolean;
   }
 }
 
-export {}
+export {};

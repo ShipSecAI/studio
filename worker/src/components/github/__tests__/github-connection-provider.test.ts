@@ -26,11 +26,14 @@ describe('github.connection.provider component', () => {
 
     const progressSpy = vi.spyOn(context, 'emitProgress');
 
-    const params = component.inputSchema.parse({
-      connectionId: '  connection-abc  ',
-    });
+    const executePayload = {
+      inputs: {},
+      params: {
+        connectionId: '  connection-abc  ',
+      },
+    };
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(executePayload, context);
 
     expect(result.connectionId).toBe('connection-abc');
     expect(progressSpy).toHaveBeenCalledWith('Selected GitHub connection connection-abc.');
@@ -43,7 +46,9 @@ describe('github.connection.provider component', () => {
     >('github.connection.provider');
     if (!component) throw new Error('Component not registered');
 
-    const parsed = component.inputSchema.safeParse({
+    if (!component.parameters) throw new Error('Component has no parameters');
+
+    const parsed = component.parameters.safeParse({
       connectionId: '   ',
     });
 

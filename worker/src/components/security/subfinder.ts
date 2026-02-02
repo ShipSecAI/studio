@@ -1,29 +1,332 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
-  port,
   runComponentWithRunner,
   type DockerRunnerConfig,
   ContainerError,
   ComponentRetryPolicy,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const domainValueSchema = z.union([z.string(), z.array(z.string())]);
+const SUBFINDER_IMAGE = 'projectdiscovery/subfinder:v2.12.0';
+const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
+const INPUT_MOUNT_NAME = 'inputs';
+const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
+const DOMAIN_FILE_NAME = 'domains.txt';
+const PROVIDER_CONFIG_FILE_NAME = 'provider-config.yaml';
 
-const inputSchema = z
-  .object({
-    domains: domainValueSchema.optional().describe('Array of target domains'),
-    domain: domainValueSchema.optional().describe('Legacy single domain input'),
-    providerConfig: z
+const domainValueSchema = z.preprocess(
+  (val) => (typeof val === 'string' ? [val] : val),
+  z.array(z.string().min(1)),
+);
+
+const inputSchema = inputs({
+  domains: port(domainValueSchema.optional().describe('Array of target domains'), {
+    label: 'Target Domains',
+    description: 'Array of domain names to enumerate for subdomains.',
+    connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
+  }),
+  providerConfig: port(
+    z
       .string()
       .optional()
       .describe('Resolved provider-config.yaml content (connect via Secret Loader)'),
-  })
-  .transform(({ domains, domain, providerConfig }) => {
-    const values = new Set<string>();
+    {
+      label: 'Provider Config',
+      description:
+        'Connect the provider-config.yaml contents via a Secret Loader if authenticated sources are needed.',
+      editor: 'secret',
+      connectionType: { kind: 'primitive', name: 'secret' },
+    },
+  ),
+});
 
+const parameterSchema = parameters({
+  domain: param(z.string().optional().describe('Legacy single domain input'), {
+    label: 'Legacy Domain',
+    editor: 'text',
+    description: 'Legacy single-domain input (prefer Target Domains).',
+    visibleWhen: { __legacy: true },
+  }),
+  threads: param(z.number().int().min(1).max(100).default(10), {
+    label: 'Threads',
+    editor: 'number',
+    min: 1,
+    max: 100,
+    description: 'Number of concurrent threads for subdomain enumeration.',
+  }),
+  timeout: param(z.number().int().min(1).max(300).default(30), {
+    label: 'Timeout (seconds)',
+    editor: 'number',
+    min: 1,
+    max: 300,
+    description: 'Timeout per source in seconds.',
+  }),
+  maxEnumerationTime: param(z.number().int().min(1).max(60).optional(), {
+    label: 'Max Enumeration Time (minutes)',
+    editor: 'number',
+    min: 1,
+    max: 60,
+    description: 'Maximum enumeration time in minutes (optional).',
+  }),
+  rateLimit: param(z.number().int().min(1).max(1000).optional(), {
+    label: 'Rate Limit',
+    editor: 'number',
+    min: 1,
+    max: 1000,
+    description: 'Maximum rate limit per source (requests per minute).',
+  }),
+  allSources: param(z.boolean().default(false), {
+    label: 'Use All Sources',
+    editor: 'boolean',
+    description: 'Use all available sources (slow but comprehensive).',
+  }),
+  recursive: param(z.boolean().default(false), {
+    label: 'Recursive Enumeration',
+    editor: 'boolean',
+    description: 'Enable recursive subdomain enumeration.',
+  }),
+  customFlags: param(
+    z.string().trim().optional().describe('Raw CLI flags to append to the subfinder command'),
+    {
+      label: 'Custom CLI Flags',
+      editor: 'textarea',
+      rows: 3,
+      placeholder: '-sources shodan,censys',
+      description:
+        'Paste additional subfinder CLI options exactly as you would on the command line.',
+      helpText: 'Flags are appended after the generated options.',
+    },
+  ),
+});
+
+const outputSchema = outputs({
+  subdomains: port(z.array(z.string()), {
+    label: 'Discovered Subdomains',
+    description: 'Array of all subdomain hostnames discovered.',
+  }),
+  rawOutput: port(z.string(), {
+    label: 'Raw Output',
+    description: 'Raw tool output for debugging.',
+  }),
+  domainCount: port(z.number(), {
+    label: 'Domain Count',
+    description: 'Number of domains scanned.',
+  }),
+  subdomainCount: port(z.number(), {
+    label: 'Subdomain Count',
+    description: 'Number of subdomains discovered.',
+  }),
+});
+
+// Split custom CLI flags into an array of arguments
+const splitCliArgs = (input: string): string[] => {
+  const args: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let escape = false;
+
+  for (const ch of input) {
+    if (escape) {
+      current += ch;
+      escape = false;
+      continue;
+    }
+
+    if (ch === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (quote) {
+      if (ch === quote) {
+        quote = null;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      quote = ch as '"' | "'";
+      continue;
+    }
+
+    if (/\s/.test(ch)) {
+      if (current.length > 0) {
+        args.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (current.length > 0) {
+    args.push(current);
+  }
+
+  return args;
+};
+
+interface BuildSubfinderArgsOptions {
+  domainFile: string;
+  providerConfigFile?: string;
+  threads?: number;
+  timeout?: number;
+  maxEnumerationTime?: number;
+  rateLimit?: number;
+  allSources: boolean;
+  recursive: boolean;
+  customFlags: string[];
+}
+
+/**
+ * Build Subfinder CLI arguments in TypeScript.
+ * This follows the Dynamic Args Pattern recommended in component-development.md
+ */
+const buildSubfinderArgs = (options: BuildSubfinderArgsOptions): string[] => {
+  const args: string[] = [];
+
+  // Always use silent mode for clean output
+  args.push('-silent');
+
+  // Domain list file input
+  args.push('-dL', options.domainFile);
+
+  // Provider config file (if provided)
+  if (options.providerConfigFile) {
+    args.push('-pc', options.providerConfigFile);
+  }
+
+  // Thread count
+  if (typeof options.threads === 'number' && options.threads >= 1) {
+    args.push('-t', String(options.threads));
+  }
+
+  // Timeout per source
+  if (typeof options.timeout === 'number' && options.timeout >= 1) {
+    args.push('-timeout', String(options.timeout));
+  }
+
+  // Max enumeration time
+  if (typeof options.maxEnumerationTime === 'number' && options.maxEnumerationTime >= 1) {
+    args.push('-max-time', String(options.maxEnumerationTime));
+  }
+
+  // Rate limit
+  if (typeof options.rateLimit === 'number' && options.rateLimit >= 1) {
+    args.push('-rl', String(options.rateLimit));
+  }
+
+  // All sources
+  if (options.allSources) {
+    args.push('-all');
+  }
+
+  // Recursive enumeration
+  if (options.recursive) {
+    args.push('-recursive');
+  }
+
+  // Custom flags (appended last)
+  for (const flag of options.customFlags) {
+    if (flag.length > 0) {
+      args.push(flag);
+    }
+  }
+
+  return args;
+};
+
+// Retry policy for Subfinder - long-running discovery operations
+const subfinderRetryPolicy: ComponentRetryPolicy = {
+  maxAttempts: 2, // Only retry once for expensive scans
+  initialIntervalSeconds: 5,
+  maximumIntervalSeconds: 30,
+  backoffCoefficient: 2.0,
+  nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
+};
+
+const definition = defineComponent({
+  id: 'shipsec.subfinder.run',
+  label: 'Subfinder',
+  category: 'security',
+  retryPolicy: subfinderRetryPolicy,
+  runner: {
+    kind: 'docker',
+    image: SUBFINDER_IMAGE,
+    // IMPORTANT: Use shell wrapper for PTY compatibility
+    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
+    // The shell wrapper ensures proper TTY signal handling and clean exit
+    // See docs/component-development.md "Docker Entrypoint Pattern" for details
+    entrypoint: 'sh',
+    network: 'bridge',
+    timeoutSeconds: SUBFINDER_TIMEOUT_SECONDS,
+    env: {
+      HOME: '/root',
+    },
+    // Shell wrapper pattern: sh -c 'subfinder "$@"' -- [args...]
+    // This allows dynamic args to be appended and properly passed to subfinder
+    command: ['-c', 'subfinder "$@"', '--'],
+  },
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
+  docs: 'Runs projectdiscovery/subfinder to discover subdomains for a given domain. Optionally accepts a provider config secret to enable authenticated sources.',
+  ui: {
+    slug: 'subfinder',
+    version: '1.0.0',
+    type: 'scan',
+    category: 'security',
+    description: 'Discover subdomains for a target domain using ProjectDiscovery subfinder.',
+    documentation:
+      'ProjectDiscovery Subfinder documentation details configuration, data sources, and usage examples.',
+    documentationUrl: 'https://github.com/projectdiscovery/subfinder',
+    icon: 'Radar',
+    author: {
+      name: 'ShipSecAI',
+      type: 'shipsecai',
+    },
+    isLatest: true,
+    deprecated: false,
+    example:
+      '`subfinder -d example.com -silent` - Passively gathers subdomains before chaining into deeper discovery tools.',
+    examples: [
+      'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
+      'Quick passive discovery during scope triage workflows.',
+    ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Passive subdomain enumeration tool (Subfinder).',
+    },
+  },
+  async execute({ inputs, params }, context) {
+    const parsedParams = parameterSchema.parse(params);
+    const {
+      domain: legacyDomain,
+      threads,
+      timeout,
+      maxEnumerationTime,
+      rateLimit,
+      allSources,
+      recursive,
+      customFlags,
+    } = parsedParams;
+
+    const trimmedCustomFlags =
+      typeof customFlags === 'string' && customFlags.length > 0 ? customFlags : null;
+    const customFlagArgs = trimmedCustomFlags ? splitCliArgs(trimmedCustomFlags) : [];
+
+    // Collect domains from both inputs and legacy parameter
+    const values = new Set<string>();
     const addValue = (value: string | string[] | undefined) => {
       if (Array.isArray(value)) {
         value.forEach((item) => {
@@ -34,7 +337,6 @@ const inputSchema = z
         });
         return;
       }
-
       if (typeof value === 'string') {
         const trimmed = value.trim();
         if (trimmed.length > 0) {
@@ -43,145 +345,19 @@ const inputSchema = z
       }
     };
 
-    addValue(domains);
-    addValue(domain);
+    addValue(inputs.domains);
+    addValue(legacyDomain);
 
-    return {
-      domains: Array.from(values),
-      providerConfig: typeof providerConfig === 'string' && providerConfig.trim().length > 0
-        ? providerConfig
-        : undefined,
-    };
-  });
+    const domains = Array.from(values);
+    const domainCount = domains.length;
 
-type Input = z.infer<typeof inputSchema>;
+    const providerConfig =
+      typeof inputs.providerConfig === 'string' && inputs.providerConfig.trim().length > 0
+        ? inputs.providerConfig
+        : undefined;
 
-type Output = {
-  subdomains: string[];
-  rawOutput: string;
-  domainCount: number;
-  subdomainCount: number;
-};
-
-const outputSchema = z.object({
-  subdomains: z.array(z.string()),
-  rawOutput: z.string(),
-  domainCount: z.number(),
-  subdomainCount: z.number(),
-});
-
-const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
-
-// Retry policy for Subfinder - long-running discovery operations
-const subfinderRetryPolicy: ComponentRetryPolicy = {
-  maxAttempts: 2, // Only retry once for expensive scans
-  initialIntervalSeconds: 5,
-  maximumIntervalSeconds: 30,
-  backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'ContainerError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
-};
-
-const definition: ComponentDefinition<Input, Output> = {
-  id: 'shipsec.subfinder.run',
-  label: 'Subfinder',
-  category: 'security',
-  retryPolicy: subfinderRetryPolicy,
-  runner: {
-    kind: 'docker',
-    image: 'projectdiscovery/subfinder:v2.10.1',
-    entrypoint: 'sh',
-    network: 'bridge',
-    command: [
-      '-c',
-      String.raw`set -eo pipefail
-
-if [ -n "$SUBFINDER_PROVIDER_CONFIG_B64" ]; then
-  CONFIG_DIR="$HOME/.config/subfinder"
-  mkdir -p "$CONFIG_DIR"
-  printf '%s' "$SUBFINDER_PROVIDER_CONFIG_B64" | base64 -d > "$CONFIG_DIR/provider-config.yaml"
-fi
-
-# NOTE: We intentionally DO NOT use the -json flag for subfinder
-# Reason: Subfinder's -json outputs JSONL (one JSON per line), not a JSON array
-# JSONL requires line-by-line parsing: output.split('\n').map(line => JSON.parse(line))
-# Plain text is simpler: output.split('\n').filter(line => line.length > 0)
-# See docs/component-development.md "Output Format Selection" for details
-subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
-`,
-      ],
-    timeoutSeconds: SUBFINDER_TIMEOUT_SECONDS,
-    env: {
-      HOME: '/root',
-    },
-  },
-  inputSchema,
-  outputSchema,
-  docs: 'Runs projectdiscovery/subfinder to discover subdomains for a given domain. Optionally accepts a provider config secret to enable authenticated sources.',
-  metadata: {
-    slug: 'subfinder',
-    version: '1.0.0',
-    type: 'scan',
-    category: 'security',
-    description: 'Discover subdomains for a target domain using ProjectDiscovery subfinder.',
-    documentation: 'ProjectDiscovery Subfinder documentation details configuration, data sources, and usage examples.',
-    documentationUrl: 'https://github.com/projectdiscovery/subfinder',
-    icon: 'Radar',
-    author: {
-      name: 'ShipSecAI',
-      type: 'shipsecai',
-    },
-    isLatest: true,
-    deprecated: false,
-    example: '`subfinder -d example.com -silent` - Passively gathers subdomains before chaining into deeper discovery tools.',
-    inputs: [
-      {
-        id: 'domains',
-        label: 'Target Domains',
-        dataType: port.list(port.text()),
-        required: true,
-        description: 'Array of domain names to enumerate for subdomains.',
-      },
-      {
-        id: 'providerConfig',
-        label: 'Provider Config',
-        dataType: port.secret(),
-        required: false,
-        description: 'Connect the provider-config.yaml contents via a Secret Loader if authenticated sources are needed.',
-      },
-    ],
-    outputs: [
-      {
-        id: 'subdomains',
-        label: 'Discovered Subdomains',
-        dataType: port.list(port.text()),
-        description: 'Array of all subdomain hostnames discovered.',
-      },
-      {
-        id: 'rawOutput',
-        label: 'Raw Output',
-        dataType: port.text(),
-        description: 'Raw tool output for debugging.',
-      },
-    ],
-    examples: [
-      'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
-      'Quick passive discovery during scope triage workflows.',
-    ],
-    parameters: [],
-  },
-  async execute(input, context) {
-    const baseRunner = definition.runner;
-    if (baseRunner.kind !== 'docker') {
-      throw new ContainerError('Subfinder runner is expected to be docker-based.', {
-        details: { expectedKind: 'docker', actualKind: baseRunner.kind },
-      });
-    }
-
-    if (input.domains.length === 0) {
+    if (domainCount === 0) {
+      context.logger.info('[Subfinder] Skipping execution because no domains were provided.');
       return {
         subdomains: [],
         rawOutput: '',
@@ -190,102 +366,165 @@ subfinder -silent -dL /inputs/domains.txt 2>/dev/null || true
       };
     }
 
+    context.logger.info(`[Subfinder] Enumerating ${domainCount} domain(s)`);
+    context.emitProgress({
+      message: `Launching Subfinder for ${domainCount} domain${domainCount === 1 ? '' : 's'}`,
+      level: 'info',
+      data: { domains },
+    });
+
+    // Extract tenant ID from context
     const tenantId = (context as any).tenantId ?? 'default-tenant';
+
+    // Create isolated volume for this execution
     const volume = new IsolatedContainerVolume(tenantId, context.runId);
 
-    try {
-      await volume.initialize({
-        'domains.txt': input.domains.join('\n'),
+    const baseRunner = definition.runner;
+    if (baseRunner.kind !== 'docker') {
+      throw new ContainerError('Subfinder runner is expected to be docker-based.', {
+        details: { expectedKind: 'docker', actualKind: baseRunner.kind },
       });
-      context.logger.info(`[Subfinder] Created isolated volume for ${input.domains.length} domain(s).`);
+    }
+
+    let rawOutput: string;
+    try {
+      // Prepare input files for the volume
+      const inputFiles: Record<string, string> = {
+        [DOMAIN_FILE_NAME]: domains.join('\n'),
+      };
+
+      // Add provider config file if provided
+      if (providerConfig) {
+        inputFiles[PROVIDER_CONFIG_FILE_NAME] = providerConfig;
+        context.logger.info('[Subfinder] Provider configuration will be mounted.');
+      }
+
+      // Initialize the volume with input files
+      const volumeName = await volume.initialize(inputFiles);
+      context.logger.info(`[Subfinder] Created isolated volume: ${volumeName}`);
+
+      // Build Subfinder arguments in TypeScript
+      const subfinderArgs = buildSubfinderArgs({
+        domainFile: `${CONTAINER_INPUT_DIR}/${DOMAIN_FILE_NAME}`,
+        providerConfigFile: providerConfig
+          ? `${CONTAINER_INPUT_DIR}/${PROVIDER_CONFIG_FILE_NAME}`
+          : undefined,
+        threads: threads ?? 10,
+        timeout: timeout ?? 30,
+        maxEnumerationTime,
+        rateLimit,
+        allSources: allSources ?? false,
+        recursive: recursive ?? false,
+        customFlags: customFlagArgs,
+      });
 
       const runnerConfig: DockerRunnerConfig = {
-        ...baseRunner,
+        kind: 'docker',
+        image: baseRunner.image,
+        network: baseRunner.network,
+        timeoutSeconds: baseRunner.timeoutSeconds ?? SUBFINDER_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
-        volumes: [volume.getVolumeConfig('/inputs', true)],
+        // Preserve the shell wrapper from baseRunner (sh -c 'subfinder "$@"' --)
+        entrypoint: baseRunner.entrypoint,
+        // Append subfinder arguments to shell wrapper command
+        command: [...(baseRunner.command ?? []), ...subfinderArgs],
+        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
 
-      if (input.providerConfig) {
-        const encoded = Buffer.from(input.providerConfig, 'utf8').toString('base64');
-
-        runnerConfig.env = {
-          ...(runnerConfig.env ?? {}),
-          SUBFINDER_PROVIDER_CONFIG_B64: encoded,
-        };
-
-        context.logger.info('[Subfinder] Provider configuration secret injected into runner environment.');
-      }
-
-      const result = await runComponentWithRunner(
-        runnerConfig,
-        async () => ({}),
-        input,
-        context,
-      );
-
-      if (typeof result === 'string') {
-        const rawOutput = result;
-        const dedupedSubdomains = Array.from(
-          new Set(
-            rawOutput
-              .split('\n')
-              .map(line => line.trim())
-              .filter(line => line.length > 0),
-          ),
+      try {
+        const result = await runComponentWithRunner(
+          runnerConfig,
+          async () => ({}) as Output,
+          { domains, providerConfig },
+          context,
         );
 
-        return {
-          subdomains: dedupedSubdomains,
-          rawOutput,
-          domainCount: input.domains.length,
-          subdomainCount: dedupedSubdomains.length,
-        };
-      }
-
-      if (result && typeof result === 'object') {
-        const parsed = outputSchema.safeParse(result);
-        if (parsed.success) {
-          return parsed.data;
+        // Get raw output (either string or from object)
+        if (typeof result === 'string') {
+          rawOutput = result;
+        } else if (result && typeof result === 'object' && 'rawOutput' in result) {
+          rawOutput = String((result as any).rawOutput ?? '');
+        } else {
+          rawOutput = '';
         }
-
-        // Fallback: attempt to normalise unexpected object shapes
-        const maybeRaw = 'rawOutput' in result ? String((result as any).rawOutput ?? '') : '';
-        const subdomainsValue = Array.isArray((result as any).subdomains)
-          ? ((result as any).subdomains as unknown[])
-              .map(value => (typeof value === 'string' ? value.trim() : String(value)))
-              .filter(value => value.length > 0)
-          : maybeRaw
-              .split('\n')
-              .map(line => line.trim())
-              .filter(line => line.length > 0);
-
-        const output: Output = {
-          subdomains: subdomainsValue,
-          rawOutput: maybeRaw || subdomainsValue.join('\n'),
-          domainCount: typeof (result as any).domainCount === 'number'
-            ? (result as any).domainCount
-            : input.domains.length,
-          subdomainCount: typeof (result as any).subdomainCount === 'number'
-            ? (result as any).subdomainCount
-            : subdomainsValue.length,
-        };
-
-        return output;
+      } catch (error) {
+        // Subfinder can exit non-zero when some sources fail or rate-limit,
+        // even though it still printed valid findings. Preserve partial results
+        // instead of failing the entire workflow.
+        if (error instanceof ContainerError) {
+          const details = (error as any).details as Record<string, unknown> | undefined;
+          const capturedStdout = details?.stdout;
+          if (typeof capturedStdout === 'string' && capturedStdout.trim().length > 0) {
+            context.logger.warn(
+              `[Subfinder] Container exited non-zero but produced output. Preserving partial results.`,
+            );
+            context.emitProgress({
+              message: 'Subfinder exited with errors but found some results',
+              level: 'warn',
+              data: { exitCode: details?.exitCode },
+            });
+            rawOutput = capturedStdout;
+          } else {
+            // No output captured - re-throw the original error
+            throw error;
+          }
+        } else {
+          throw error;
+        }
       }
-
-      return {
-        subdomains: [],
-        rawOutput: '',
-        domainCount: input.domains.length,
-        subdomainCount: 0,
-      };
     } finally {
+      // Always cleanup the volume
       await volume.cleanup();
-      context.logger.info('[Subfinder] Cleaned up isolated volume.');
+      context.logger.info('[Subfinder] Cleaned up isolated volume');
     }
+
+    // Parse output in TypeScript (not shell)
+    // NOTE: We intentionally DO NOT use the -json flag for subfinder
+    // Reason: Subfinder's -json outputs JSONL (one JSON per line), not a JSON array
+    // JSONL requires line-by-line parsing: output.split('\n').map(line => JSON.parse(line))
+    // Plain text is simpler: output.split('\n').filter(line => line.length > 0)
+    const lines = rawOutput
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    // Deduplicate subdomains
+    const subdomainSet = new Set(lines);
+    const subdomains = Array.from(subdomainSet);
+    const subdomainCount = subdomains.length;
+
+    context.logger.info(
+      `[Subfinder] Found ${subdomainCount} unique subdomains across ${domainCount} domains`,
+    );
+
+    if (subdomainCount === 0) {
+      context.emitProgress({
+        message: 'No subdomains discovered by Subfinder',
+        level: 'warn',
+      });
+    } else {
+      context.emitProgress({
+        message: `Subfinder discovered ${subdomainCount} subdomains`,
+        level: 'info',
+        data: { subdomains: subdomains.slice(0, 10) },
+      });
+    }
+
+    return {
+      subdomains,
+      rawOutput,
+      domainCount,
+      subdomainCount,
+    };
   },
-};
+});
 
 componentRegistry.register(definition);
 
-export type { Input as SubfinderInput, Output as SubfinderOutput };
+type Output = (typeof outputSchema)['__inferred'];
+
+type SubfinderInput = typeof inputSchema;
+type SubfinderOutput = typeof outputSchema;
+
+export type { SubfinderInput, SubfinderOutput };

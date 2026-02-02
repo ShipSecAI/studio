@@ -16,22 +16,21 @@ export const integrationTokens = pgTable(
     userId: varchar('user_id', { length: 191 }).notNull(),
     provider: varchar('provider', { length: 64 }).notNull(),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
-    accessToken: jsonb('access_token').$type<{
-      ciphertext: string;
-      iv: string;
-      authTag: string;
-      keyId: string;
-    }>().notNull(),
+    accessToken: jsonb('access_token')
+      .$type<{
+        ciphertext: string;
+        iv: string;
+        authTag: string;
+        keyId: string;
+      }>()
+      .notNull(),
     refreshToken: jsonb('refresh_token')
-      .$type<
-        | {
-            ciphertext: string;
-            iv: string;
-            authTag: string;
-            keyId: string;
-          }
-        | null
-      >()
+      .$type<{
+        ciphertext: string;
+        iv: string;
+        authTag: string;
+        keyId: string;
+      } | null>()
       .default(null),
     tokenType: varchar('token_type', { length: 32 }).default('Bearer'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
@@ -63,21 +62,20 @@ export const integrationOAuthStates = pgTable(
   }),
 );
 
-export const integrationProviderConfigs = pgTable(
-  'integration_provider_configs',
-  {
-    provider: varchar('provider', { length: 64 }).primaryKey(),
-    clientId: varchar('client_id', { length: 191 }).notNull(),
-    clientSecret: jsonb('client_secret').$type<{
+export const integrationProviderConfigs = pgTable('integration_provider_configs', {
+  provider: varchar('provider', { length: 64 }).primaryKey(),
+  clientId: varchar('client_id', { length: 191 }).notNull(),
+  clientSecret: jsonb('client_secret')
+    .$type<{
       ciphertext: string;
       iv: string;
       authTag: string;
       keyId: string;
-    }>().notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  },
-);
+    }>()
+    .notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
 export type IntegrationTokenRecord = typeof integrationTokens.$inferSelect;
 export type NewIntegrationTokenRecord = typeof integrationTokens.$inferInsert;

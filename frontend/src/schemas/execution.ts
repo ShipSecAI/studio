@@ -9,19 +9,19 @@ import {
   type TraceEventPayload,
   type TraceStreamEnvelope,
   type WorkflowRunStatusPayload,
-} from '@shipsec/shared'
+} from '@shipsec/shared';
 
-export const ExecutionStatusEnum = SharedExecutionStatusSchema
-export type ExecutionStatus = SharedExecutionStatus
+export const ExecutionStatusEnum = SharedExecutionStatusSchema;
+export type ExecutionStatus = SharedExecutionStatus;
 
-export const TraceEventSchema = SharedTraceEventSchema
-export type ExecutionLog = TraceEventPayload
+export const TraceEventSchema = SharedTraceEventSchema;
+export type ExecutionLog = TraceEventPayload;
 
-export const TraceEventLevelEnum = TraceEventLevelSchema
-export const TraceEventTypeEnum = TraceEventTypeSchema
+export const TraceEventLevelEnum = TraceEventLevelSchema;
+export const TraceEventTypeEnum = TraceEventTypeSchema;
 
-export const TraceStreamEnvelopeSchema = SharedTraceStreamEnvelopeSchema
-export type ExecutionTraceStream = TraceStreamEnvelope
+export const TraceStreamEnvelopeSchema = SharedTraceStreamEnvelopeSchema;
+export type ExecutionTraceStream = TraceStreamEnvelope;
 
-export const ExecutionStatusResponseSchema = SharedWorkflowRunStatusSchema
-export type ExecutionStatusResponse = WorkflowRunStatusPayload
+export const ExecutionStatusResponseSchema = SharedWorkflowRunStatusSchema;
+export type ExecutionStatusResponse = WorkflowRunStatusPayload;

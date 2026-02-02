@@ -26,10 +26,7 @@ export class ArtifactsRepository {
   ) {}
 
   async create(record: NewArtifactRecord): Promise<ArtifactRecord> {
-    const [artifact] = await this.db
-      .insert(artifactsTable)
-      .values(record)
-      .returning();
+    const [artifact] = await this.db.insert(artifactsTable).values(record).returning();
     return artifact;
   }
 
@@ -49,12 +46,8 @@ export class ArtifactsRepository {
 
     const query = this.db.select().from(artifactsTable);
     const filtered =
-      filters.length > 0
-        ? query.where(filters.length > 1 ? and(...filters) : filters[0])
-        : query;
-    return filtered
-      .orderBy(desc(artifactsTable.createdAt))
-      .limit(options.limit ?? 50);
+      filters.length > 0 ? query.where(filters.length > 1 ? and(...filters) : filters[0]) : query;
+    return filtered.orderBy(desc(artifactsTable.createdAt)).limit(options.limit ?? 50);
   }
 
   async findById(
@@ -95,6 +88,16 @@ export class ArtifactsRepository {
     return and(base, eq(artifactsTable.organizationId, organizationId));
   }
 
+  async delete(id: string, options: { organizationId?: string | null } = {}): Promise<boolean> {
+    const filters = [eq(artifactsTable.id, id)];
+    if (options.organizationId) {
+      filters.push(eq(artifactsTable.organizationId, options.organizationId));
+    }
+    const where = filters.length > 1 ? and(...filters) : filters[0];
+    const result = await this.db.delete(artifactsTable).where(where).returning();
+    return result.length > 0;
+  }
+
   private buildFilters(options: ArtifactQueryOptions) {
     const filters = [];
 
@@ -109,9 +112,7 @@ export class ArtifactsRepository {
     }
     if (options.destination) {
       filters.push(
-        sql`${artifactsTable.destinations} @> ${JSON.stringify([
-          options.destination,
-        ])}::jsonb`,
+        sql`${artifactsTable.destinations} @> ${JSON.stringify([options.destination])}::jsonb`,
       );
     }
     if (options.search) {

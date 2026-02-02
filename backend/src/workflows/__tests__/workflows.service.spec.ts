@@ -33,9 +33,10 @@ const sampleGraph = WorkflowGraphSchema.parse({
       data: {
         label: 'Trigger',
         config: {
-          runtimeInputs: [
-            { id: 'fileId', label: 'File ID', type: 'text', required: true },
-          ],
+          params: {
+            runtimeInputs: [{ id: 'fileId', label: 'File ID', type: 'file', required: true }],
+          },
+          inputOverrides: {},
         },
       },
     },
@@ -46,7 +47,10 @@ const sampleGraph = WorkflowGraphSchema.parse({
       data: {
         label: 'Loader',
         config: {
-          fileId: '11111111-1111-4111-8111-111111111111',
+          params: {},
+          inputOverrides: {
+            fileId: '11111111-1111-4111-8111-111111111111',
+          },
         },
       },
     },
@@ -75,7 +79,7 @@ describe('WorkflowsService', () => {
   let storedRunMeta: any = null;
   let completedCount = 0;
 
-  type MockWorkflowVersion = {
+  interface MockWorkflowVersion {
     id: string;
     workflowId: string;
     version: number;
@@ -83,7 +87,7 @@ describe('WorkflowsService', () => {
     compiledDefinition: WorkflowDefinition | null;
     createdAt: Date;
     organizationId: string | null;
-  };
+  }
 
   let workflowVersionSeq = 0;
   let workflowVersionStore = new Map<string, MockWorkflowVersion>();
@@ -207,9 +211,11 @@ describe('WorkflowsService', () => {
       }
       return record;
     },
-    async findByWorkflowAndVersion(
-      input: { workflowId: string; version: number; organizationId?: string | null },
-    ) {
+    async findByWorkflowAndVersion(input: {
+      workflowId: string;
+      version: number;
+      organizationId?: string | null;
+    }) {
       const list = workflowVersionsByWorkflow.get(input.workflowId) ?? [];
       return list.find(
         (record) =>
@@ -337,7 +343,11 @@ describe('WorkflowsService', () => {
   const buildTemporalStub = (overrides?: Partial<WorkflowRunStatus>) => {
     const temporalStub: Pick<
       TemporalService,
-      'startWorkflow' | 'describeWorkflow' | 'getWorkflowResult' | 'cancelWorkflow' | 'getDefaultTaskQueue'
+      | 'startWorkflow'
+      | 'describeWorkflow'
+      | 'getWorkflowResult'
+      | 'cancelWorkflow'
+      | 'getDefaultTaskQueue'
     > = {
       async startWorkflow(options) {
         startCalls.push(options);

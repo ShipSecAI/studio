@@ -1,74 +1,87 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition, port } from '@shipsec/component-sdk';
-import { DestinationConfigSchema, type DestinationConfig } from '@shipsec/shared';
-import { awsCredentialSchema, awsCredentialContractName } from './credentials/aws-contract';
+import {
+  componentRegistry,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+} from '@shipsec/component-sdk';
+import { awsCredentialSchema, destinationWriterSchema } from '@shipsec/contracts';
+import { type DestinationConfig } from '@shipsec/shared';
 
-const inputSchema = z.object({
-  bucket: z.string().min(1, 'Bucket is required'),
-  region: z.string().optional(),
-  pathPrefix: z.string().optional(),
-  objectKey: z.string().optional(),
-  endpoint: z.string().optional(),
-  forcePathStyle: z.boolean().default(false),
-  publicUrl: z.string().optional(),
-  credentials: awsCredentialSchema.describe('Resolved AWS credentials bundle'),
-  label: z.string().optional(),
-  description: z.string().optional(),
+const inputSchema = inputs({
+  credentials: port(awsCredentialSchema(), {
+    label: 'AWS Credentials',
+    description: 'Connect the AWS Credentials bundle component.',
+  }),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-const outputSchema = z.object({
-  destination: DestinationConfigSchema,
+const parameterSchema = parameters({
+  bucket: param(z.string().min(1, 'Bucket is required'), {
+    label: 'Bucket',
+    editor: 'text',
+  }),
+  region: param(z.string().optional(), {
+    label: 'Region',
+    editor: 'text',
+  }),
+  pathPrefix: param(z.string().optional(), {
+    label: 'Path prefix',
+    editor: 'text',
+  }),
+  objectKey: param(z.string().optional(), {
+    label: 'Explicit object key',
+    editor: 'text',
+  }),
+  endpoint: param(z.string().optional(), {
+    label: 'Custom endpoint',
+    editor: 'text',
+  }),
+  forcePathStyle: param(z.boolean().default(false), {
+    label: 'Force path style',
+    editor: 'boolean',
+  }),
+  publicUrl: param(z.string().optional(), {
+    label: 'Public URL prefix',
+    editor: 'text',
+  }),
+  label: param(z.string().optional(), {
+    label: 'Label override',
+    editor: 'text',
+  }),
+  description: param(z.string().optional(), {
+    label: 'Description',
+    editor: 'textarea',
+  }),
 });
 
-type Output = z.infer<typeof outputSchema>;
+const outputSchema = outputs({
+  destination: port(destinationWriterSchema(), {
+    label: 'Destination',
+    description: 'Connect to writer components to upload artifacts to S3.',
+  }),
+});
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'core.destination.s3',
   label: 'S3 Destination',
   category: 'output',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Produces a destination configuration that uploads files to an S3 bucket (or compatible storage).',
-  metadata: {
+  ui: {
     slug: 'destination-s3',
     version: '1.0.0',
     type: 'process',
     category: 'output',
     description: 'Configure uploads to S3 buckets for downstream writer components.',
     icon: 'CloudUpload',
-    inputs: [
-      {
-        id: 'credentials',
-        label: 'AWS Credentials',
-        dataType: port.credential(awsCredentialContractName),
-        required: true,
-        description: 'Connect the AWS Credentials bundle component.',
-      },
-    ],
-    outputs: [
-      {
-        id: 'destination',
-        label: 'Destination',
-        dataType: port.contract('destination.writer'),
-        description: 'Connect to writer components to upload artifacts to S3.',
-      },
-    ],
-    parameters: [
-      { id: 'bucket', label: 'Bucket', type: 'text', required: true },
-      { id: 'region', label: 'Region', type: 'text' },
-      { id: 'pathPrefix', label: 'Path prefix', type: 'text' },
-      { id: 'objectKey', label: 'Explicit object key', type: 'text' },
-      { id: 'endpoint', label: 'Custom endpoint', type: 'text' },
-      { id: 'forcePathStyle', label: 'Force path style', type: 'boolean', default: false },
-      { id: 'publicUrl', label: 'Public URL prefix', type: 'text' },
-      { id: 'label', label: 'Label override', type: 'text' },
-      { id: 'description', label: 'Description', type: 'textarea' },
-    ],
   },
-  async execute(params, context): Promise<Output> {
+  async execute({ inputs, params }, context) {
     context.logger.info(`[S3Destination] Configured for bucket: ${params.bucket}`);
 
     const destination: DestinationConfig = {
@@ -81,7 +94,7 @@ const definition: ComponentDefinition<Input, Output> = {
         endpoint: params.endpoint,
         forcePathStyle: params.forcePathStyle,
         publicUrl: params.publicUrl,
-        credentials: params.credentials,
+        credentials: inputs.credentials,
       },
       metadata: {
         label: params.label,
@@ -91,6 +104,6 @@ const definition: ComponentDefinition<Input, Output> = {
 
     return { destination };
   },
-};
+});
 
 componentRegistry.register(definition);

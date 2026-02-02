@@ -1,36 +1,36 @@
-import { create } from 'zustand'
-import type { components } from '@shipsec/backend-client'
-import { api } from '@/services/api'
+import { create } from 'zustand';
+import type { components } from '@shipsec/backend-client';
+import { api } from '@/services/api';
 
-type IntegrationProvider = components['schemas']['IntegrationProviderResponse']
-type IntegrationConnection = components['schemas']['IntegrationConnectionResponse']
+type IntegrationProvider = components['schemas']['IntegrationProviderResponse'];
+type IntegrationConnection = components['schemas']['IntegrationConnectionResponse'];
 
 interface IntegrationStoreState {
-  providers: IntegrationProvider[]
-  connections: IntegrationConnection[]
-  loadingProviders: boolean
-  loadingConnections: boolean
-  error: string | null
-  initialized: boolean
+  providers: IntegrationProvider[];
+  connections: IntegrationConnection[];
+  loadingProviders: boolean;
+  loadingConnections: boolean;
+  error: string | null;
+  initialized: boolean;
 }
 
 interface IntegrationStoreActions {
-  fetchProviders: () => Promise<void>
-  fetchConnections: (userId: string, force?: boolean) => Promise<void>
-  refreshConnection: (id: string, userId: string) => Promise<IntegrationConnection>
-  disconnect: (id: string, userId: string) => Promise<void>
-  upsertConnection: (connection: IntegrationConnection) => void
-  resetError: () => void
+  fetchProviders: () => Promise<void>;
+  fetchConnections: (userId: string, force?: boolean) => Promise<void>;
+  refreshConnection: (id: string, userId: string) => Promise<IntegrationConnection>;
+  disconnect: (id: string, userId: string) => Promise<void>;
+  upsertConnection: (connection: IntegrationConnection) => void;
+  resetError: () => void;
 }
 
-type IntegrationStore = IntegrationStoreState & IntegrationStoreActions
+type IntegrationStore = IntegrationStoreState & IntegrationStoreActions;
 
 function sortProviders(providers: IntegrationProvider[]) {
-  return [...providers].sort((a, b) => a.name.localeCompare(b.name))
+  return [...providers].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function sortConnections(connections: IntegrationConnection[]) {
-  return [...connections].sort((a, b) => a.providerName.localeCompare(b.providerName))
+  return [...connections].sort((a, b) => a.providerName.localeCompare(b.providerName));
 }
 
 export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
@@ -43,43 +43,43 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
 
   fetchProviders: async () => {
     if (get().loadingProviders) {
-      return
+      return;
     }
 
-    set({ loadingProviders: true, error: null })
+    set({ loadingProviders: true, error: null });
     try {
-      const providers = await api.integrations.listProviders()
+      const providers = await api.integrations.listProviders();
       set({
         providers: sortProviders(providers),
         loadingProviders: false,
-      })
+      });
     } catch (error) {
       set({
         loadingProviders: false,
         error: error instanceof Error ? error.message : 'Failed to load providers',
-      })
+      });
     }
   },
 
   fetchConnections: async (userId: string, force = false) => {
-    const { loadingConnections, initialized } = get()
+    const { loadingConnections, initialized } = get();
     if (loadingConnections || (!force && initialized)) {
-      return
+      return;
     }
 
-    set({ loadingConnections: true, error: null })
+    set({ loadingConnections: true, error: null });
     try {
-      const connections = await api.integrations.listConnections(userId)
+      const connections = await api.integrations.listConnections(userId);
       set({
         connections: sortConnections(connections),
         loadingConnections: false,
         initialized: true,
-      })
+      });
     } catch (error) {
       set({
         loadingConnections: false,
         error: error instanceof Error ? error.message : 'Failed to load integrations',
-      })
+      });
     }
   },
 
@@ -90,41 +90,40 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
           ? state.connections.map((item) => (item.id === connection.id ? connection : item))
           : [...state.connections, connection],
       ),
-    }))
+    }));
   },
 
   refreshConnection: async (id: string, userId: string) => {
     try {
-      const refreshed = await api.integrations.refreshConnection(id, userId)
+      const refreshed = await api.integrations.refreshConnection(id, userId);
       set((state) => ({
         connections: sortConnections(
           state.connections.map((connection) => (connection.id === id ? refreshed : connection)),
         ),
-      }))
-      return refreshed
+      }));
+      return refreshed;
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to refresh integration token'
-      set({ error: message })
-      throw error instanceof Error ? error : new Error(message)
+        error instanceof Error ? error.message : 'Failed to refresh integration token';
+      set({ error: message });
+      throw error instanceof Error ? error : new Error(message);
     }
   },
 
   disconnect: async (id: string, userId: string) => {
     try {
-      await api.integrations.disconnect(id, userId)
+      await api.integrations.disconnect(id, userId);
       set((state) => ({
         connections: state.connections.filter((connection) => connection.id !== id),
-      }))
+      }));
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to disconnect integration'
-      set({ error: message })
-      throw error instanceof Error ? error : new Error(message)
+      const message = error instanceof Error ? error.message : 'Failed to disconnect integration';
+      set({ error: message });
+      throw error instanceof Error ? error : new Error(message);
     }
   },
 
   resetError: () => {
-    set({ error: null })
+    set({ error: null });
   },
-}))
+}));

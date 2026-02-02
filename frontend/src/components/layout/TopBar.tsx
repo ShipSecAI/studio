@@ -1,7 +1,7 @@
-import { useState, useRef, type ChangeEvent, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { useState, useRef, type ChangeEvent, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   ArrowLeft,
   Save,
@@ -16,33 +16,33 @@ import {
   MoreHorizontal,
   Undo2,
   Redo2,
-} from 'lucide-react'
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { useWorkflowStore } from '@/store/workflowStore'
-import { useWorkflowUiStore } from '@/store/workflowUiStore'
-import { cn } from '@/lib/utils'
+} from '@/components/ui/dropdown-menu';
+import { useWorkflowStore } from '@/store/workflowStore';
+import { useWorkflowUiStore } from '@/store/workflowUiStore';
+import { cn } from '@/lib/utils';
 
 interface TopBarProps {
-  workflowId?: string
-  selectedRunId?: string | null
-  isNew?: boolean
-  onRun?: () => void
-  onSave: () => Promise<void> | void
-  onImport?: (file: File) => Promise<void> | void
-  onExport?: () => void
-  canManageWorkflows?: boolean
-  onUndo?: () => void
-  onRedo?: () => void
-  canUndo?: boolean
-  canRedo?: boolean
+  workflowId?: string;
+  selectedRunId?: string | null;
+  isNew?: boolean;
+  onRun?: () => void;
+  onSave: () => Promise<void> | void;
+  onImport?: (file: File) => Promise<void> | void;
+  onExport?: () => void;
+  canManageWorkflows?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
-const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow'
+const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow';
 
 export function TopBar({
   workflowId,
@@ -57,122 +57,120 @@ export function TopBar({
   canUndo,
   canRedo,
 }: TopBarProps) {
-  const navigate = useNavigate()
-  const [isSaving, setIsSaving] = useState(false)
-  const [isImporting, setIsImporting] = useState(false)
-  const [tempWorkflowName, setTempWorkflowName] = useState('')
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [showPencil, setShowPencil] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const titleInputRef = useRef<HTMLInputElement | null>(null)
+  const navigate = useNavigate();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [tempWorkflowName, setTempWorkflowName] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [showPencil, setShowPencil] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { metadata, isDirty, setWorkflowName } = useWorkflowStore()
-  const mode = useWorkflowUiStore((state) => state.mode)
-  const canEdit = Boolean(canManageWorkflows)
+  const { metadata, isDirty, setWorkflowName } = useWorkflowStore();
+  const mode = useWorkflowUiStore((state) => state.mode);
+  const canEdit = Boolean(canManageWorkflows);
 
   const handleChangeWorkflowName = () => {
-    const trimmed = (tempWorkflowName ?? '').trim()
+    const trimmed = (tempWorkflowName ?? '').trim();
     if (!trimmed) {
-      setWorkflowName(DEFAULT_WORKFLOW_NAME)
-      setTempWorkflowName(DEFAULT_WORKFLOW_NAME)
-      setIsEditingTitle(false)
-      return
+      setWorkflowName(DEFAULT_WORKFLOW_NAME);
+      setTempWorkflowName(DEFAULT_WORKFLOW_NAME);
+      setIsEditingTitle(false);
+      return;
     }
     if (trimmed !== metadata.name) {
-      setWorkflowName(trimmed)
+      setWorkflowName(trimmed);
     }
-    setIsEditingTitle(false)
-  }
+    setIsEditingTitle(false);
+  };
 
   const handleStartEditing = () => {
-    if (!canEdit) return
-    setIsEditingTitle(true)
+    if (!canEdit) return;
+    setIsEditingTitle(true);
     // Focus the input after a brief delay to ensure it's rendered
     setTimeout(() => {
-      titleInputRef.current?.focus()
-      titleInputRef.current?.select()
-    }, 0)
-  }
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }, 0);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      handleChangeWorkflowName()
+      handleChangeWorkflowName();
     } else if (e.key === 'Escape') {
-      setTempWorkflowName(metadata.name || DEFAULT_WORKFLOW_NAME)
-      setIsEditingTitle(false)
+      setTempWorkflowName(metadata.name || DEFAULT_WORKFLOW_NAME);
+      setIsEditingTitle(false);
     }
-  }
+  };
 
   const handleSave = async () => {
     if (!canEdit) {
-      return
+      return;
     }
-    setIsSaving(true)
+    setIsSaving(true);
     try {
-      await Promise.resolve(onSave())
+      await Promise.resolve(onSave());
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   const handleRun = () => {
     if (!canEdit) {
-      return
+      return;
     }
     if (onRun) {
-      onRun()
+      onRun();
     }
-  }
-
-
+  };
 
   const handleExport = () => {
     if (!canEdit) {
-      return
+      return;
     }
     if (onExport) {
-      onExport()
+      onExport();
     }
-  }
+  };
 
   const handleImportClick = () => {
     if (!canEdit) {
-      return
+      return;
     }
-    if (!onImport) return
-    fileInputRef.current?.click()
-  }
+    if (!onImport) return;
+    fileInputRef.current?.click();
+  };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!canEdit) {
-      event.target.value = ''
-      return
+      event.target.value = '';
+      return;
     }
-    if (!onImport) return
-    const file = event.target.files?.[0]
-    event.target.value = ''
+    if (!onImport) return;
+    const file = event.target.files?.[0];
+    event.target.value = '';
 
     if (!file) {
-      return
+      return;
     }
 
     try {
-      setIsImporting(true)
-      await onImport(file)
+      setIsImporting(true);
+      await onImport(file);
     } catch (error) {
-      console.error('Failed to import workflow:', error)
+      console.error('Failed to import workflow:', error);
     } finally {
-      setIsImporting(false)
+      setIsImporting(false);
     }
-  }
+  };
 
   useEffect(() => {
     if (metadata.name) {
-      setTempWorkflowName(metadata.name)
+      setTempWorkflowName(metadata.name);
     } else {
-      setTempWorkflowName(DEFAULT_WORKFLOW_NAME)
+      setTempWorkflowName(DEFAULT_WORKFLOW_NAME);
     }
-  }, [metadata.name])
+  }, [metadata.name]);
 
   const modeToggle = (
     <div className="flex rounded-lg border bg-muted/40 overflow-hidden text-xs font-medium shadow-sm flex-shrink-0">
@@ -181,9 +179,9 @@ export function TopBar({
         size="sm"
         className="h-8 md:h-9 px-2 md:px-3 gap-1.5 md:gap-2 rounded-none"
         onClick={() => {
-          if (!canEdit || !workflowId) return
+          if (!canEdit || !workflowId) return;
           // Navigate to design URL - this triggers mode update via useLayoutEffect
-          navigate(`/workflows/${workflowId}`)
+          navigate(`/workflows/${workflowId}`);
         }}
         disabled={!canEdit}
         aria-pressed={mode === 'design'}
@@ -194,7 +192,7 @@ export function TopBar({
           <span
             className={cn(
               'text-[10px] hidden xl:inline',
-              mode === 'design' ? 'text-primary-foreground/80' : 'text-muted-foreground'
+              mode === 'design' ? 'text-primary-foreground/80' : 'text-muted-foreground',
             )}
           >
             Edit workflow
@@ -206,13 +204,13 @@ export function TopBar({
         size="sm"
         className="h-8 md:h-9 px-2 md:px-3 gap-1.5 md:gap-2 rounded-none border-l border-border/50"
         onClick={() => {
-          if (!workflowId) return
+          if (!workflowId) return;
           // Navigate to execution URL - this triggers mode update via useLayoutEffect
           // If a run is selected, navigate to that specific run
           const executionPath = selectedRunId
             ? `/workflows/${workflowId}/runs/${selectedRunId}`
-            : `/workflows/${workflowId}/runs`
-          navigate(executionPath)
+            : `/workflows/${workflowId}/runs`;
+          navigate(executionPath);
         }}
         aria-pressed={mode === 'execution'}
       >
@@ -222,7 +220,7 @@ export function TopBar({
           <span
             className={cn(
               'text-[10px] hidden xl:inline',
-              mode === 'execution' ? 'text-primary-foreground/80' : 'text-muted-foreground'
+              mode === 'execution' ? 'text-primary-foreground/80' : 'text-muted-foreground',
             )}
           >
             Inspect executions
@@ -230,32 +228,35 @@ export function TopBar({
         </span>
       </Button>
     </div>
-  )
+  );
 
-  const saveState = isSaving ? 'saving' : isDirty ? 'dirty' : 'clean'
+  const saveState = isSaving ? 'saving' : isDirty ? 'dirty' : 'clean';
 
-  const saveLabel = saveState === 'clean' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Save'
-  const saveBadgeText = saveState === 'clean' ? 'Synced' : saveState === 'saving' ? 'Syncing' : 'Pending'
+  const saveLabel = saveState === 'clean' ? 'Saved' : saveState === 'saving' ? 'Saving…' : 'Save';
+  const saveBadgeText =
+    saveState === 'clean' ? 'Synced' : saveState === 'saving' ? 'Syncing' : 'Pending';
   const saveBadgeTone =
     saveState === 'clean'
       ? '!bg-emerald-50 !text-emerald-700 !border-emerald-300 dark:!bg-emerald-900 dark:!text-emerald-100 dark:!border-emerald-500'
       : saveState === 'saving'
         ? '!bg-blue-50 !text-blue-700 !border-blue-300 dark:!bg-blue-900 dark:!text-blue-100 dark:!border-blue-500'
-        : '!bg-amber-50 !text-amber-700 !border-amber-300 dark:!bg-amber-900 dark:!text-amber-100 dark:!border-amber-500'
+        : '!bg-amber-50 !text-amber-700 !border-amber-300 dark:!bg-amber-900 dark:!text-amber-100 dark:!border-amber-500';
 
   const saveButtonClasses = cn(
     'gap-2 min-w-0 transition-all duration-200',
     saveState === 'clean' && 'border-emerald-200 dark:border-emerald-700',
     saveState === 'dirty' && 'border-gray-300 dark:border-gray-600',
-    saveState === 'saving' && 'border-blue-300 dark:border-blue-700'
-  )
+    saveState === 'saving' && 'border-blue-300 dark:border-blue-700',
+  );
 
   const saveIcon =
-    saveState === 'clean'
-      ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-      : saveState === 'saving'
-        ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-        : <Save className="h-4 w-4" />
+    saveState === 'clean' ? (
+      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+    ) : saveState === 'saving' ? (
+      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+    ) : (
+      <Save className="h-4 w-4" />
+    );
 
   return (
     <div className="min-h-[56px] md:min-h-[60px] border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
@@ -270,22 +271,22 @@ export function TopBar({
       </Button>
 
       <div className="flex-1 min-w-0">
-        <div className="flex w-full gap-2 md:gap-4 items-center relative">
-          {/* Workflow name - always visible, truncated on mobile, tappable to edit */}
-          <div className="flex items-center justify-start gap-2 min-w-0 flex-shrink">
+        <div className="flex w-full gap-2 md:gap-4 items-center">
+          {/* Workflow name - fixed width left section for consistent centering */}
+          <div className="flex items-center justify-start gap-2 min-w-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px] flex-shrink-0">
             <div
               className={cn(
                 'flex items-center gap-2 min-w-0 max-w-[120px] sm:max-w-[180px] md:max-w-[280px] lg:max-w-[360px]',
                 isEditingTitle
                   ? 'rounded-lg border border-border/60 bg-muted/40 px-2 md:px-3 py-1 md:py-1.5 shadow-sm'
-                  : 'group relative cursor-pointer'
+                  : 'group relative cursor-pointer',
               )}
               onMouseEnter={() => canEdit && !isEditingTitle && setShowPencil(true)}
               onMouseLeave={() => setShowPencil(false)}
               onClick={() => {
                 // Allow tap to edit on mobile
                 if (canEdit && !isEditingTitle) {
-                  handleStartEditing()
+                  handleStartEditing();
                 }
               }}
             >
@@ -306,10 +307,12 @@ export function TopBar({
                     {metadata.name || DEFAULT_WORKFLOW_NAME}
                   </h1>
                   {canEdit && (
-                    <Pencil className={cn(
-                      'h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground flex-shrink-0 transition-opacity',
-                      showPencil ? 'opacity-100' : 'opacity-50 sm:opacity-0'
-                    )} />
+                    <Pencil
+                      className={cn(
+                        'h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground flex-shrink-0 transition-opacity',
+                        showPencil ? 'opacity-100' : 'opacity-50 sm:opacity-0',
+                      )}
+                    />
                   )}
                 </>
               )}
@@ -320,11 +323,12 @@ export function TopBar({
               </span>
             )}
           </div>
-          {/* Mode toggle - absolutely positioned to stay centered */}
-          <div className="absolute left-1/2 -translate-x-1/2 z-10">{modeToggle}</div>
-          {/* Spacer to push actions to the right */}
-          <div className="flex-1" />
-          <div className="flex items-center justify-end gap-1 md:gap-2 shrink-0">
+          {/* Mode toggle - flex-centered, won't overlap with other elements */}
+          <div className="flex-1 flex justify-center min-w-0">
+            <div className="flex-shrink-0">{modeToggle}</div>
+          </div>
+          {/* Actions on the right - fixed width to match left section for consistent centering */}
+          <div className="flex items-center justify-end gap-1 md:gap-2 flex-shrink-0 w-[140px] sm:w-[200px] md:w-[280px] lg:w-[360px]">
             <div className="flex items-center gap-1 md:gap-2">
               {mode === 'design' && (
                 <>
@@ -402,7 +406,10 @@ export function TopBar({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {onImport && (
-                            <DropdownMenuItem onClick={handleImportClick} disabled={!canEdit || isImporting}>
+                            <DropdownMenuItem
+                              onClick={handleImportClick}
+                              disabled={!canEdit || isImporting}
+                            >
                               <Upload className="mr-2 h-4 w-4" />
                               <span>Import</span>
                             </DropdownMenuItem>
@@ -438,7 +445,7 @@ export function TopBar({
                       className={cn(
                         'text-[10px] font-medium px-1.5 py-0.5 rounded border ml-0 xl:ml-1',
                         saveBadgeTone,
-                        'hidden sm:inline-block'
+                        'hidden sm:inline-block',
                       )}
                     >
                       {saveBadgeText}
@@ -461,5 +468,5 @@ export function TopBar({
         </div>
       </div>
     </div>
-  )
+  );
 }

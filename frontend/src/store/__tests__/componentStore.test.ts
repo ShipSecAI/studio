@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-import { useComponentStore } from '../componentStore'
-import type { ComponentMetadata } from '@/schemas/component'
+import { useComponentStore } from '../componentStore';
+import type { ComponentMetadata } from '@/schemas/component';
 
 const mockComponents: ComponentMetadata[] = [
   {
@@ -16,7 +16,7 @@ const mockComponents: ComponentMetadata[] = [
       color: 'text-blue-600',
       description: 'Data sources, triggers, and credential access',
       emoji: '📥',
-      icon: 'Download'
+      icon: 'Download',
     },
     description: '',
     documentation: null,
@@ -45,7 +45,7 @@ const mockComponents: ComponentMetadata[] = [
       color: 'text-red-600',
       description: 'Security scanning and assessment tools',
       emoji: '🔒',
-      icon: 'Shield'
+      icon: 'Shield',
     },
     description: '',
     documentation: null,
@@ -74,7 +74,7 @@ const mockComponents: ComponentMetadata[] = [
       color: 'text-red-600',
       description: 'Security scanning and assessment tools',
       emoji: '🔒',
-      icon: 'Shield'
+      icon: 'Shield',
     },
     description: '',
     documentation: null,
@@ -91,9 +91,9 @@ const mockComponents: ComponentMetadata[] = [
     parameters: [],
     examples: [],
   },
-]
+];
 
-const listComponentsMock = mock(async () => mockComponents)
+const listComponentsMock = mock(async () => mockComponents);
 
 mock.module('@/services/api', () => ({
   api: {
@@ -101,7 +101,7 @@ mock.module('@/services/api', () => ({
       list: listComponentsMock,
     },
   },
-}))
+}));
 
 describe('componentStore', () => {
   beforeEach(() => {
@@ -110,15 +110,15 @@ describe('componentStore', () => {
       slugIndex: {},
       loading: false,
       error: null,
-    })
-  })
+    });
+  });
 
   it('loads security scan components including httpx from the API', async () => {
-    await useComponentStore.getState().fetchComponents()
+    await useComponentStore.getState().fetchComponents();
 
-    const scanComponents = useComponentStore.getState().getComponentsByType('scan')
-    const scanSlugs = scanComponents.map((component) => component.slug)
+    const scanComponents = useComponentStore.getState().getComponentsByType('scan');
+    const scanSlugs = scanComponents.map((component) => component.slug);
 
-    expect(scanSlugs).toContain('httpx')
-  })
-})
+    expect(scanSlugs).toContain('httpx');
+  });
+});

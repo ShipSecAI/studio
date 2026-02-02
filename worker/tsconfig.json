@@ -18,10 +18,21 @@
     "sourceMap": true,
     "types": ["bun-types"],
     "incremental": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
     "composite": true,
     "assumeChangesOnlyAffectDirectDependencies": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts", "**/__tests__"]
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    {
+      "path": "../packages/shared"
+    },
+    {
+      "path": "../packages/component-sdk"
+    },
+    {
+      "path": "../packages/contracts"
+    }
+  ]
 }
-

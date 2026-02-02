@@ -48,16 +48,14 @@ export class IntegrationsRepository {
     return record;
   }
 
-  async findByProvider(userId: string, provider: string): Promise<IntegrationTokenRecord | undefined> {
+  async findByProvider(
+    userId: string,
+    provider: string,
+  ): Promise<IntegrationTokenRecord | undefined> {
     const [record] = await this.db
       .select()
       .from(integrationTokens)
-      .where(
-        and(
-          eq(integrationTokens.userId, userId),
-          eq(integrationTokens.provider, provider),
-        ),
-      )
+      .where(and(eq(integrationTokens.userId, userId), eq(integrationTokens.provider, provider)))
       .limit(1);
     return record;
   }
@@ -93,20 +91,13 @@ export class IntegrationsRepository {
   async deleteConnection(id: string, userId: string): Promise<void> {
     await this.db
       .delete(integrationTokens)
-      .where(
-        and(eq(integrationTokens.id, id), eq(integrationTokens.userId, userId)),
-      );
+      .where(and(eq(integrationTokens.id, id), eq(integrationTokens.userId, userId)));
   }
 
   async deleteByProvider(userId: string, provider: string): Promise<void> {
     await this.db
       .delete(integrationTokens)
-      .where(
-        and(
-          eq(integrationTokens.userId, userId),
-          eq(integrationTokens.provider, provider),
-        ),
-      );
+      .where(and(eq(integrationTokens.userId, userId), eq(integrationTokens.provider, provider)));
   }
 
   async createOAuthState(payload: {
@@ -148,9 +139,7 @@ export class IntegrationsRepository {
       return undefined;
     }
 
-    await this.db
-      .delete(integrationOAuthStates)
-      .where(eq(integrationOAuthStates.id, record.id));
+    await this.db.delete(integrationOAuthStates).where(eq(integrationOAuthStates.id, record.id));
 
     return record;
   }

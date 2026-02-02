@@ -1,4 +1,4 @@
-import type { InputPort, PortDataType } from '@/schemas/component'
+import type { ConnectionType, InputPort } from '@/schemas/component';
 
 const primitiveLabelMap: Record<string, string> = {
   any: 'any',
@@ -8,157 +8,193 @@ const primitiveLabelMap: Record<string, string> = {
   boolean: 'boolean',
   file: 'file',
   json: 'json',
+};
+
+type PortLike = ConnectionType | undefined;
+
+const DEFAULT_TEXT_CONNECTION: ConnectionType = { kind: 'primitive', name: 'text' };
+
+const normalizePortType = (portType: PortLike): ConnectionType =>
+  portType ?? DEFAULT_TEXT_CONNECTION;
+
+export const resolvePortType = (port: { connectionType?: ConnectionType }): ConnectionType =>
+  normalizePortType(port.connectionType);
+
+interface PrimitivePort {
+  kind: 'primitive';
+  name?: string;
+}
+interface ListPort {
+  kind: 'list';
+  element?: ConnectionType;
+}
+interface MapPort {
+  kind: 'map';
+  element?: ConnectionType;
+}
+interface ContractPort {
+  kind: 'contract';
+  name?: string;
+  credential?: boolean;
 }
 
-const isPrimitive = (
-  dataType: PortDataType,
-): dataType is Extract<PortDataType, { kind: 'primitive' }> =>
-  dataType?.kind === 'primitive'
+const isPrimitive = (dataType: ConnectionType): dataType is PrimitivePort =>
+  dataType?.kind === 'primitive';
 
-const isList = (
-  dataType: PortDataType,
-): dataType is Extract<PortDataType, { kind: 'list' }> =>
-  dataType?.kind === 'list'
+const isList = (dataType: ConnectionType): dataType is ListPort => dataType?.kind === 'list';
 
-const isMap = (
-  dataType: PortDataType,
-): dataType is Extract<PortDataType, { kind: 'map' }> =>
-  dataType?.kind === 'map'
+const isMap = (dataType: ConnectionType): dataType is MapPort => dataType?.kind === 'map';
 
-type ContractPort = Extract<
-  PortDataType,
-  {
-    kind: 'contract';
-    name: string;
-    credential?: boolean;
-  }
->
-
-const isContract = (dataType: PortDataType): dataType is ContractPort =>
-  dataType?.kind === 'contract'
+const isContract = (dataType: ConnectionType): dataType is ContractPort =>
+  dataType?.kind === 'contract';
 
 const canCoercePrimitive = (
-  source: Extract<PortDataType, { kind: 'primitive' }>,
-  target: Extract<PortDataType, { kind: 'primitive' }>,
+  source: Extract<ConnectionType, { kind: 'primitive' }>,
+  target: Extract<ConnectionType, { kind: 'primitive' }>,
 ): boolean => {
   if (source.name === target.name) {
-    return true
+    return true;
   }
-  const allowed = target.coercion?.from ?? []
-  return allowed.includes(source.name)
-}
-
-const comparePortDataTypes = (source: PortDataType, target: PortDataType): boolean => {
-  if (isPrimitive(target) && target.name === 'any') {
-    return true
+  if (target.name === 'text' && (source.name === 'number' || source.name === 'boolean')) {
+    return true;
   }
+  if (target.name === 'number' && source.name === 'text') {
+    return true;
+  }
+  if (target.name === 'boolean' && source.name === 'text') {
+    return true;
+  }
+  return false;
+};
 
-  if (isPrimitive(source) && source.name === 'any') {
-    return true
+const comparePortTypes = (source: ConnectionType, target: ConnectionType): boolean => {
+  if (target.kind === 'any' || source.kind === 'any') {
+    return true;
   }
 
   if (isPrimitive(source) && isPrimitive(target)) {
-    return canCoercePrimitive(source, target)
+    return canCoercePrimitive(source, target);
   }
 
   if (isContract(source) && isContract(target)) {
-    return source.name === target.name
+    return source.name === target.name && source.credential === target.credential;
   }
 
   if (isList(source) && isList(target)) {
-    return comparePortDataTypes(source.element, target.element)
+    return comparePortTypes(normalizePortType(source.element), normalizePortType(target.element));
   }
 
   if (isMap(source) && isMap(target)) {
-    return comparePortDataTypes(source.value, target.value)
+    return comparePortTypes(normalizePortType(source.element), normalizePortType(target.element));
   }
 
-  return false
-}
+  return false;
+};
 
-export const arePortDataTypesCompatible = (
-  source: PortDataType,
-  target: PortDataType,
-): boolean => comparePortDataTypes(source, target)
+export const arePortTypesCompatible = (source: PortLike, target: PortLike): boolean =>
+  comparePortTypes(normalizePortType(source), normalizePortType(target));
 
-const isPrimitiveAnd = (
-  dataType: PortDataType,
-  predicate: (name: string) => boolean,
-): boolean => isPrimitive(dataType) && predicate(dataType.name)
+const isPrimitiveAnd = (dataType: ConnectionType, predicate: (name: string) => boolean): boolean =>
+  isPrimitive(dataType) && predicate(dataType.name ?? 'text');
 
-export const isTextLikePort = (dataType: PortDataType): boolean =>
-  isPrimitiveAnd(dataType, (name) => name === 'text')
+export const isTextLikePort = (dataType: PortLike): boolean =>
+  isPrimitiveAnd(normalizePortType(dataType), (name) => name === 'text');
 
-export const isListOfTextPortDataType = (dataType: PortDataType): boolean =>
-  isList(dataType) &&
-  isPrimitive(dataType.element) &&
-  dataType.element.name === 'text'
+export const isListOfTextPort = (dataType: PortLike): boolean => {
+  const normalized = normalizePortType(dataType);
+  return (
+    isList(normalized) &&
+    normalized.element !== undefined &&
+    isPrimitive(normalizePortType(normalized.element)) &&
+    normalizePortType(normalized.element).name === 'text'
+  );
+};
 
-export const describePortDataType = (dataType: PortDataType): string => {
-  if (!dataType) {
-    return 'unknown'
+export const describePortType = (dataType: PortLike): string => {
+  const normalized = normalizePortType(dataType);
+
+  if (normalized.kind === 'any') {
+    return 'any';
   }
 
-  if (isPrimitive(dataType)) {
-    return primitiveLabelMap[dataType.name] ?? dataType.name
+  if (isPrimitive(normalized)) {
+    return primitiveLabelMap[normalized.name ?? 'text'] ?? normalized.name ?? 'text';
   }
 
-  if (isContract(dataType)) {
-    return dataType.credential ? `credential:${dataType.name}` : `contract:${dataType.name}`
+  if (isContract(normalized)) {
+    return normalized.credential ? `credential:${normalized.name}` : `contract:${normalized.name}`;
   }
 
-  if (isList(dataType)) {
-    return `list<${describePortDataType(dataType.element)}>`
+  if (isList(normalized)) {
+    return `list<${describePortType(normalized.element)}>`;
   }
 
-  if (isMap(dataType)) {
-    return `map<${describePortDataType(dataType.value)}>`
+  if (isMap(normalized)) {
+    return `map<${describePortType(normalized.element)}>`;
   }
 
-  return 'unknown'
-}
+  return 'unknown';
+};
 
-export const inputSupportsManualValue = (input: InputPort): boolean =>
-  isPrimitiveAnd(input.dataType, (name) =>
-    name === 'text' || name === 'number' || name === 'boolean',
-  ) || isListOfTextPortDataType(input.dataType)
+export const inputSupportsManualValue = (input: InputPort): boolean => {
+  const normalized = resolvePortType(input);
+  const isSecret =
+    input.editor === 'secret' || isPrimitiveAnd(normalized, (name) => name === 'secret');
+  return (
+    isPrimitiveAnd(
+      normalized,
+      (name) => name === 'text' || name === 'number' || name === 'boolean',
+    ) ||
+    isListOfTextPort(normalized) ||
+    isSecret
+  );
+};
 
-export const runtimeInputTypeToPortDataType = (type: string): PortDataType => {
-  const normalized = type.toLowerCase()
+export const isCredentialInput = (input: InputPort): boolean => {
+  const resolved = resolvePortType(input);
+  return (
+    (resolved.kind === 'contract' && resolved.credential) ||
+    input.editor === 'secret' ||
+    input.id === 'connection'
+  );
+};
+
+export const runtimeInputTypeToConnectionType = (type: string): ConnectionType => {
+  const normalized = type.toLowerCase();
 
   if (normalized === 'credential') {
-    return { kind: 'contract', name: '__runtime.credential__', credential: true }
+    return { kind: 'contract', name: '__runtime.credential__', credential: true };
   }
 
   if (normalized.startsWith('credential:')) {
-    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.credential__'
-    return { kind: 'contract', name: contractName, credential: true }
+    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.credential__';
+    return { kind: 'contract', name: contractName, credential: true };
   }
 
   if (normalized.startsWith('contract:')) {
-    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.contract__'
-    return { kind: 'contract', name: contractName }
+    const contractName = type.slice(type.indexOf(':') + 1).trim() || '__runtime.contract__';
+    return { kind: 'contract', name: contractName };
   }
 
   switch (normalized) {
     case 'any':
-      return { kind: 'primitive', name: 'any' }
+      return { kind: 'any' };
     case 'text':
     case 'string':
-      return { kind: 'primitive', name: 'text' }
+      return { kind: 'primitive', name: 'text' };
     case 'number':
-      return { kind: 'primitive', name: 'number' }
+      return { kind: 'primitive', name: 'number' };
     case 'boolean':
-      return { kind: 'primitive', name: 'boolean' }
+      return { kind: 'primitive', name: 'boolean' };
     case 'secret':
-      return { kind: 'primitive', name: 'secret' }
+      return { kind: 'primitive', name: 'secret' };
     case 'file':
-      return { kind: 'primitive', name: 'file' }
+      return { kind: 'primitive', name: 'file' };
     case 'json':
-      return { kind: 'primitive', name: 'json' }
+      return { kind: 'primitive', name: 'json' };
     case 'array':
-      return { kind: 'list', element: { kind: 'primitive', name: 'text' } }
+      return { kind: 'list', element: { kind: 'primitive', name: 'text' } };
     default:
-      return { kind: 'primitive', name: 'text' }
+      return { kind: 'primitive', name: 'text' };
   }
-}
+};

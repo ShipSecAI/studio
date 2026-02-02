@@ -250,6 +250,21 @@ export class ShipSecApiClient {
     });
   }
 
+  async listWorkflowRunNodeIO(runId: string) {
+    return this.client.GET('/api/v1/workflows/runs/{runId}/node-io', {
+      params: { path: { runId } },
+    });
+  }
+
+  async getWorkflowNodeIO(runId: string, nodeRef: string, options?: { full?: boolean }) {
+    return this.client.GET('/api/v1/workflows/runs/{runId}/node-io/{nodeRef}', {
+      params: {
+        path: { runId, nodeRef },
+        query: options?.full !== undefined ? { full: options.full } : undefined,
+      },
+    });
+  }
+
   async downloadWorkflowRunArtifact(runId: string, artifactId: string): Promise<Blob> {
     const response = (await this.client.GET(
       '/api/v1/workflows/runs/{runId}/artifacts/{artifactId}/download',

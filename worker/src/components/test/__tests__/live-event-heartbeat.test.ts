@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 import { componentRegistry, createExecutionContext } from '@shipsec/component-sdk';
 
+import { LiveEventHeartbeatInput, LiveEventHeartbeatOutput } from '../live-event-heartbeat';
 import '../live-event-heartbeat';
 
 describe('test.live.event.heartbeat component', () => {
   it('emits heartbeat events on the requested cadence', async () => {
-    const component = componentRegistry.get('test.live.event.heartbeat');
+    const component = componentRegistry.get<LiveEventHeartbeatInput, LiveEventHeartbeatOutput>(
+      'test.live.event.heartbeat',
+    );
     expect(component).toBeDefined();
 
     const recordedEvents: unknown[] = [];
@@ -21,10 +24,13 @@ describe('test.live.event.heartbeat component', () => {
 
     const execPromise = component!.execute(
       {
-        label: 'Diagnostics',
-        durationSeconds: 5,
-        intervalSeconds: 5,
-        annotations: { source: 'unit-test' },
+        inputs: {},
+        params: {
+          label: 'Diagnostics',
+          durationSeconds: 5,
+          intervalSeconds: 5,
+          annotations: { source: 'unit-test' },
+        },
       },
       context,
     );

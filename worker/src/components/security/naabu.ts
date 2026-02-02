@@ -1,61 +1,122 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
-  port,
   runComponentWithRunner,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
 } from '@shipsec/component-sdk';
 
-const inputSchema = z.object({
-  targets: z
-    .array(z.string().min(1, 'Target cannot be empty'))
-    .min(1, 'Provide at least one target')
-    .describe('Hostnames or IP addresses to scan for open ports'),
-  ports: z
-    .string()
-    .trim()
-    .min(1, 'Port list cannot be empty')
-    .optional()
-    .describe('Specific ports or ranges to scan (e.g. "80,443,1000-2000")'),
-  topPorts: z
-    .number()
-    .int()
-    .positive()
-    .max(65535)
-    .optional()
-    .describe('Scan the top N most common ports'),
-  excludePorts: z
-    .string()
-    .trim()
-    .min(1, 'Exclude ports cannot be empty')
-    .optional()
-    .describe('Comma-separated list of ports to exclude'),
-  rate: z
-    .number()
-    .int()
-    .positive()
-    .max(1_000_000)
-    .optional()
-    .describe('Maximum number of packets per second'),
-  retries: z
-    .number()
-    .int()
-    .min(0)
-    .max(10)
-    .optional()
-    .default(1)
-    .describe('Number of retries per port'),
-  enablePing: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('Use ICMP/SYN ping probe to discover live hosts before scanning'),
-  interface: z
-    .string()
-    .trim()
-    .min(1, 'Interface cannot be empty')
-    .optional()
-    .describe('Network interface to use from inside the container'),
+const inputSchema = inputs({
+  targets: port(
+    z
+      .array(z.string().min(1, 'Target cannot be empty'))
+      .min(1, 'Provide at least one target')
+      .describe('Hostnames or IP addresses to scan for open ports'),
+    {
+      label: 'Targets',
+      description: 'Hostnames or IP addresses to scan for open ports.',
+      connectionType: { kind: 'list', element: { kind: 'primitive', name: 'text' } },
+    },
+  ),
+});
+
+const parameterSchema = parameters({
+  ports: param(
+    z
+      .string()
+      .trim()
+      .min(1, 'Port list cannot be empty')
+      .optional()
+      .describe('Specific ports or ranges to scan (e.g. "80,443,1000-2000")'),
+    {
+      label: 'Ports',
+      editor: 'text',
+      placeholder: '80,443,1000-2000',
+      description: 'Custom ports or ranges to scan (comma-separated).',
+    },
+  ),
+  topPorts: param(
+    z.number().int().positive().max(65535).optional().describe('Scan the top N most common ports'),
+    {
+      label: 'Top Ports',
+      editor: 'number',
+      min: 1,
+      max: 65535,
+      description: 'Scan the top N most common ports.',
+      helpText: 'Leave blank to scan Naabu default port set.',
+    },
+  ),
+  excludePorts: param(
+    z
+      .string()
+      .trim()
+      .min(1, 'Exclude ports cannot be empty')
+      .optional()
+      .describe('Comma-separated list of ports to exclude'),
+    {
+      label: 'Exclude Ports',
+      editor: 'text',
+      placeholder: '21,22,25',
+      description: 'Ports that should be excluded from the scan.',
+    },
+  ),
+  rate: param(
+    z
+      .number()
+      .int()
+      .positive()
+      .max(1_000_000)
+      .optional()
+      .describe('Maximum number of packets per second'),
+    {
+      label: 'Rate (pps)',
+      editor: 'number',
+      min: 1,
+      max: 1000000,
+      description: 'Maximum packets per second to send during scanning.',
+      helpText: 'Tune to match available bandwidth. Defaults to Naabu managed rate.',
+    },
+  ),
+  retries: param(
+    z.number().int().min(0).max(10).optional().default(1).describe('Number of retries per port'),
+    {
+      label: 'Retries',
+      editor: 'number',
+      min: 0,
+      max: 10,
+      description: 'Number of retry attempts per port.',
+    },
+  ),
+  enablePing: param(
+    z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Use ICMP/SYN ping probe to discover live hosts before scanning'),
+    {
+      label: 'Ping Probes',
+      editor: 'boolean',
+      description: 'Send ICMP/SYN probes to detect live hosts before scanning.',
+    },
+  ),
+  interface: param(
+    z
+      .string()
+      .trim()
+      .min(1, 'Interface cannot be empty')
+      .optional()
+      .describe('Network interface to use from inside the container'),
+    {
+      label: 'Interface',
+      editor: 'text',
+      description: 'Specific network interface to use inside the container.',
+      placeholder: 'eth0',
+    },
+  ),
 });
 
 const findingSchema = z.object({
@@ -65,24 +126,42 @@ const findingSchema = z.object({
   protocol: z.string(),
 });
 
-const outputSchema = z.object({
-  findings: z.array(findingSchema),
-  rawOutput: z.string(),
-  targetCount: z.number(),
-  openPortCount: z.number(),
-  options: z.object({
-    ports: z.string().nullable(),
-    topPorts: z.number().nullable(),
-    excludePorts: z.string().nullable(),
-    rate: z.number().nullable(),
-    retries: z.number(),
-    enablePing: z.boolean(),
-    interface: z.string().nullable(),
+const outputSchema = outputs({
+  findings: port(z.array(findingSchema), {
+    label: 'Findings',
+    description: 'List of open ports discovered by Naabu.',
+    connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
   }),
+  rawOutput: port(z.string(), {
+    label: 'Raw Output',
+    description: 'Raw Naabu console output.',
+  }),
+  targetCount: port(z.number(), {
+    label: 'Target Count',
+    description: 'Number of targets scanned.',
+  }),
+  openPortCount: port(z.number(), {
+    label: 'Open Port Count',
+    description: 'Total number of open ports discovered.',
+  }),
+  options: port(
+    z.object({
+      ports: z.string().nullable(),
+      topPorts: z.number().nullable(),
+      excludePorts: z.string().nullable(),
+      rate: z.number().nullable(),
+      retries: z.number(),
+      enablePing: z.boolean(),
+      interface: z.string().nullable(),
+    }),
+    {
+      label: 'Options',
+      description: 'Effective Naabu scan options applied for the run.',
+      connectionType: { kind: 'primitive', name: 'json' },
+    },
+  ),
 });
 
-type Input = z.infer<typeof inputSchema>;
-type Output = z.infer<typeof outputSchema>;
 type Finding = z.infer<typeof findingSchema>;
 
 const dockerTimeoutSeconds = (() => {
@@ -94,7 +173,7 @@ const dockerTimeoutSeconds = (() => {
   return parsed;
 })();
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'shipsec.naabu.scan',
   label: 'Naabu Port Scan',
   category: 'security',
@@ -196,16 +275,18 @@ eval "$CMD"
       HOME: '/root',
     },
   },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Run ProjectDiscovery Naabu to identify open TCP ports across a list of targets.',
-  metadata: {
+  ui: {
     slug: 'naabu',
     version: '1.0.0',
     type: 'scan',
     category: 'security',
     description: 'Fast active port scanning using ProjectDiscovery Naabu.',
-    documentation: 'ProjectDiscovery Naabu documentation covers usage, CLI flags, and configuration examples.',
+    documentation:
+      'ProjectDiscovery Naabu documentation covers usage, CLI flags, and configuration examples.',
     documentationUrl: 'https://github.com/projectdiscovery/naabu',
     icon: 'Radar',
     author: {
@@ -214,99 +295,25 @@ eval "$CMD"
     },
     isLatest: true,
     deprecated: false,
-    example: '`naabu -host scanme.sh -top-ports 100` - Quickly identifies the most common open TCP ports on a target host.',
-    inputs: [
-      {
-        id: 'targets',
-        label: 'Targets',
-        dataType: port.list(port.text()),
-        required: true,
-        description: 'Hostnames or IP addresses to scan for open ports.',
-      },
-    ],
-    outputs: [
-      {
-        id: 'findings',
-        label: 'Open Ports',
-        dataType: port.list(port.json()),
-        description: 'List of open ports discovered per target.',
-      },
-      {
-        id: 'rawOutput',
-        label: 'Raw Output',
-        dataType: port.text(),
-        description: 'Raw Naabu output lines (JSON per host:port).',
-      },
-    ],
+    example:
+      '`naabu -host scanme.sh -top-ports 100` - Quickly identifies the most common open TCP ports on a target host.',
     examples: [
       'Scan Amass or Subfinder discoveries to identify exposed services.',
       'Target a custom list of IPs with tuned rate and retries for stealth scans.',
     ],
-    parameters: [
-      {
-        id: 'ports',
-        label: 'Ports',
-        type: 'text',
-        placeholder: '80,443,1000-2000',
-        description: 'Custom ports or ranges to scan (comma-separated).',
-      },
-      {
-        id: 'topPorts',
-        label: 'Top Ports',
-        type: 'number',
-        min: 1,
-        max: 65535,
-        description: 'Scan the top N most common ports.',
-        helpText: 'Leave blank to scan Naabu default port set.',
-      },
-      {
-        id: 'excludePorts',
-        label: 'Exclude Ports',
-        type: 'text',
-        placeholder: '21,22,25',
-        description: 'Ports that should be excluded from the scan.',
-      },
-      {
-        id: 'rate',
-        label: 'Rate (pps)',
-        type: 'number',
-        min: 1,
-        max: 1000000,
-        description: 'Maximum packets per second to send during scanning.',
-        helpText: 'Tune to match available bandwidth. Defaults to Naabu managed rate.',
-      },
-      {
-        id: 'retries',
-        label: 'Retries',
-        type: 'number',
-        min: 0,
-        max: 10,
-        default: 1,
-        description: 'Number of retry attempts per port.',
-      },
-      {
-        id: 'enablePing',
-        label: 'Ping Probes',
-        type: 'boolean',
-        default: false,
-        description: 'Send ICMP/SYN probes to detect live hosts before scanning.',
-      },
-      {
-        id: 'interface',
-        label: 'Interface',
-        type: 'text',
-        description: 'Specific network interface to use inside the container.',
-        placeholder: 'eth0',
-      },
-    ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Fast TCP port scanner (Naabu).',
+    },
   },
-  async execute(input, context) {
-    const trimmedPorts = input.ports?.trim();
-    const trimmedExclude = input.excludePorts?.trim();
-    const trimmedInterface = input.interface?.trim();
+  async execute({ inputs, params }, context) {
+    const trimmedPorts = params.ports?.trim();
+    const trimmedExclude = params.excludePorts?.trim();
+    const trimmedInterface = params.interface?.trim();
 
-    const runnerParams: Input = {
-      ...input,
+    const runnerParams = {
+      ...params,
+      targets: inputs.targets,
       ports: trimmedPorts && trimmedPorts.length > 0 ? trimmedPorts : undefined,
       excludePorts: trimmedExclude && trimmedExclude.length > 0 ? trimmedExclude : undefined,
       interface: trimmedInterface && trimmedInterface.length > 0 ? trimmedInterface : undefined,
@@ -372,7 +379,7 @@ eval "$CMD"
       },
     };
   },
-};
+});
 
 function parseNaabuOutput(raw: string): Finding[] {
   if (!raw.trim()) {
@@ -383,9 +390,9 @@ function parseNaabuOutput(raw: string): Finding[] {
 
   raw
     .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .forEach(line => {
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .forEach((line) => {
       let payload: any = null;
       try {
         payload = JSON.parse(line);
@@ -394,21 +401,23 @@ function parseNaabuOutput(raw: string): Finding[] {
       }
 
       if (payload && typeof payload === 'object') {
-        const host = typeof payload.host === 'string' && payload.host.length > 0
-          ? payload.host
-          : typeof payload.ip === 'string'
-            ? payload.ip
-            : '';
+        const host =
+          typeof payload.host === 'string' && payload.host.length > 0
+            ? payload.host
+            : typeof payload.ip === 'string'
+              ? payload.ip
+              : '';
         const portValue = Number(payload.port);
         if (!host || !Number.isFinite(portValue)) {
           return;
         }
 
-        const protocol = typeof payload.proto === 'string'
-          ? payload.proto
-          : typeof payload.protocol === 'string'
-            ? payload.protocol
-            : 'tcp';
+        const protocol =
+          typeof payload.proto === 'string'
+            ? payload.proto
+            : typeof payload.protocol === 'string'
+              ? payload.protocol
+              : 'tcp';
 
         const finding: Finding = {
           host,
@@ -439,4 +448,12 @@ function parseNaabuOutput(raw: string): Finding[] {
 
 componentRegistry.register(definition);
 
-export type { Input as NaabuInput, Output as NaabuOutput };
+// Create local type aliases for internal use (inferred types)
+type Input = (typeof inputSchema)['__inferred'];
+type Output = (typeof outputSchema)['__inferred'];
+
+// Export schema types for the registry
+export type NaabuInput = typeof inputSchema;
+export type NaabuOutput = typeof outputSchema;
+
+export type { Input as NaabuInputData, Output as NaabuOutputData };

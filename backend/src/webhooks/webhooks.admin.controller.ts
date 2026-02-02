@@ -1,14 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
-  Body,
-  UseGuards,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
 
@@ -94,7 +84,8 @@ export class WebhooksAdminController {
   @ApiOkResponse({ type: TestWebhookScriptResponseDto })
   async testScript(
     @CurrentAuth() auth: AuthContext,
-    @Body(new ZodValidationPipe(TestWebhookScriptRequestDto.schema)) dto: TestWebhookScriptRequestDto,
+    @Body(new ZodValidationPipe(TestWebhookScriptRequestDto.schema))
+    dto: TestWebhookScriptRequestDto,
   ) {
     return this.webhooksService.testParsingScript(auth, dto);
   }

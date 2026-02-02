@@ -1,81 +1,128 @@
 import { z } from 'zod';
 import {
   componentRegistry,
-  ComponentDefinition,
-  port,
   ValidationError,
   ConfigurationError,
   fromHttpResponse,
   ComponentRetryPolicy,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
+  coerceBooleanFromText,
+  coerceNumberFromText,
 } from '@shipsec/component-sdk';
 
-const inputSchema = z.object({
-  ipAddress: z.string().describe('The IPv4 or IPv6 address you want to check.'),
-  maxAgeInDays: z.number().default(90).describe('Max age in days for reports to be included (default: 90).'),
-  verbose: z.boolean().default(false).describe('Include verbose information.'),
-  apiKey: z.string().describe('Your AbuseIPDB API Key.'),
+const inputSchema = inputs({
+  ipAddress: port(z.string().describe('The IPv4 or IPv6 address you want to check.'), {
+    label: 'IP Address',
+  }),
+  apiKey: port(z.string().describe('Your AbuseIPDB API Key.'), {
+    label: 'API Key',
+    editor: 'secret',
+    connectionType: { kind: 'primitive', name: 'secret' },
+  }),
 });
 
-const outputSchema = z.object({
-  ipAddress: z.string().describe('The IP address that was checked.'),
-  isPublic: z.boolean().optional(),
-  ipVersion: z.number().optional(),
-  isWhitelisted: z.boolean().optional(),
-  abuseConfidenceScore: z.number().describe('The confidence score (0-100).'),
-  countryCode: z.string().optional(),
-  usageType: z.string().optional(),
-  isp: z.string().optional(),
-  domain: z.string().optional(),
-  hostnames: z.array(z.string()).optional(),
-  totalReports: z.number().optional(),
-  numDistinctUsers: z.number().optional(),
-  lastReportedAt: z.string().optional(),
-  reports: z.array(z.record(z.string(), z.any())).optional(),
-  full_report: z.record(z.string(), z.any()).describe('The full raw JSON response.'),
+const parameterSchema = parameters({
+  maxAgeInDays: param(
+    coerceNumberFromText(z.number())
+      .default(90)
+      .describe('Max age in days for reports to be included (default: 90).'),
+    {
+      label: 'Max Age (Days)',
+      editor: 'number',
+    },
+  ),
+  verbose: param(coerceBooleanFromText().default(false).describe('Include verbose information.'), {
+    label: 'Verbose',
+    editor: 'boolean',
+  }),
 });
 
-type Input = z.infer<typeof inputSchema>;
-type Output = z.infer<typeof outputSchema>;
+const outputSchema = outputs({
+  ipAddress: port(z.string().describe('The IP address that was checked.'), {
+    label: 'IP Address',
+  }),
+  isPublic: port(z.boolean().optional(), {
+    label: 'Public IP',
+    description: 'Whether the IP address is public.',
+  }),
+  ipVersion: port(z.number().optional(), {
+    label: 'IP Version',
+    description: 'IP version (4 or 6).',
+  }),
+  isWhitelisted: port(z.boolean().optional(), {
+    label: 'Whitelisted',
+  }),
+  abuseConfidenceScore: port(z.number().describe('The confidence score (0-100).'), {
+    label: 'Confidence Score',
+  }),
+  countryCode: port(z.string().optional(), {
+    label: 'Country',
+  }),
+  usageType: port(z.string().optional(), {
+    label: 'Usage Type',
+    description: 'ISP usage classification from AbuseIPDB.',
+  }),
+  isp: port(z.string().optional(), {
+    label: 'ISP',
+  }),
+  domain: port(z.string().optional(), {
+    label: 'Domain',
+    description: 'Associated domain, if available.',
+  }),
+  hostnames: port(z.array(z.string()).optional(), {
+    label: 'Hostnames',
+    description: 'Associated hostnames reported by AbuseIPDB.',
+  }),
+  totalReports: port(z.number().optional(), {
+    label: 'Total Reports',
+  }),
+  numDistinctUsers: port(z.number().optional(), {
+    label: 'Distinct Users',
+    description: 'Number of distinct reporters.',
+  }),
+  lastReportedAt: port(z.string().optional(), {
+    label: 'Last Reported At',
+    description: 'Timestamp of the most recent report.',
+  }),
+  reports: port(z.array(z.record(z.string(), z.any())).optional(), {
+    label: 'Reports',
+    description: 'Detailed reports returned by AbuseIPDB.',
+    allowAny: true,
+    reason: 'Report entries vary by plan and API version.',
+    connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  full_report: port(z.record(z.string(), z.any()).describe('The full raw JSON response.'), {
+    label: 'Full Report',
+    allowAny: true,
+    reason: 'Full AbuseIPDB response payload varies by plan and API version.',
+    connectionType: { kind: 'primitive', name: 'json' },
+  }),
+});
 
 const abuseIPDBRetryPolicy: ComponentRetryPolicy = {
   maxAttempts: 4,
   initialIntervalSeconds: 2,
   maximumIntervalSeconds: 120,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'AuthenticationError',
-    'ValidationError',
-    'ConfigurationError',
-  ],
+  nonRetryableErrorTypes: ['AuthenticationError', 'ValidationError', 'ConfigurationError'],
 };
 
-// Port definitions shared between metadata and resolvePorts
-const inputPorts = [
-  { id: 'ipAddress', label: 'IP Address', dataType: port.text(), required: true },
-  { id: 'apiKey', label: 'API Key', dataType: port.secret(), required: true },
-  { id: 'maxAgeInDays', label: 'Max Age (Days)', dataType: port.number(), required: false },
-  { id: 'verbose', label: 'Verbose', dataType: port.boolean(), required: false },
-];
-
-const outputPorts = [
-  { id: 'abuseConfidenceScore', label: 'Confidence Score', dataType: port.number() },
-  { id: 'isWhitelisted', label: 'Whitelisted', dataType: port.boolean() },
-  { id: 'countryCode', label: 'Country', dataType: port.text() },
-  { id: 'isp', label: 'ISP', dataType: port.text() },
-  { id: 'totalReports', label: 'Total Reports', dataType: port.number() },
-  { id: 'full_report', label: 'Full Report', dataType: port.json() },
-];
-
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'security.abuseipdb.check',
   label: 'AbuseIPDB Check',
   category: 'security',
   runner: { kind: 'inline' },
   retryPolicy: abuseIPDBRetryPolicy,
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Check the reputation of an IP address using the AbuseIPDB API.',
-  metadata: {
+  ui: {
     slug: 'abuseipdb-check',
     version: '1.0.0',
     type: 'scan',
@@ -85,18 +132,14 @@ const definition: ComponentDefinition<Input, Output> = {
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
-    inputs: inputPorts,
-    outputs: outputPorts,
-    parameters: [
-      { id: 'maxAgeInDays', label: 'Max Age (Days)', type: 'number', default: 90 },
-      { id: 'verbose', label: 'Verbose Output', type: 'boolean', default: false },
-    ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'IP reputation and abuse report lookup (AbuseIPDB).',
+    },
   },
-  resolvePorts() {
-    return { inputs: inputPorts, outputs: outputPorts };
-  },
-  async execute(params, context) {
-    const { ipAddress, apiKey, maxAgeInDays, verbose } = params;
+  async execute({ inputs, params }, context) {
+    const { ipAddress, apiKey } = inputs;
+    const { maxAgeInDays, verbose } = params;
 
     if (!ipAddress) {
       throw new ValidationError('IP Address is required', {
@@ -122,29 +165,29 @@ const definition: ComponentDefinition<Input, Output> = {
 
     context.logger.info(`[AbuseIPDB] Checking IP: ${ipAddress}`);
 
-    const response = await fetch(url, {
+    const response = await context.http.fetch(url, {
       method: 'GET',
       headers: {
-        'Key': apiKey,
-        'Accept': 'application/json'
-      }
+        Key: apiKey,
+        Accept: 'application/json',
+      },
     });
 
     if (response.status === 404) {
       context.logger.warn(`[AbuseIPDB] IP not found: ${ipAddress}`);
-       return {
+      return {
         ipAddress,
         abuseConfidenceScore: 0,
-        full_report: { error: 'Not Found' }
+        full_report: { error: 'Not Found' },
       };
     }
 
     if (!response.ok) {
-       const text = await response.text();
-       throw fromHttpResponse(response, text);
+      const text = await response.text();
+      throw fromHttpResponse(response, text);
     }
 
-    const data = await response.json() as Record<string, unknown>;
+    const data = (await response.json()) as Record<string, unknown>;
     const info = (data.data || {}) as Record<string, unknown>;
 
     context.logger.info(`[AbuseIPDB] Score for ${ipAddress}: ${info.abuseConfidenceScore}`);
@@ -167,8 +210,11 @@ const definition: ComponentDefinition<Input, Output> = {
       full_report: data,
     };
   },
-};
+});
 
 componentRegistry.register(definition);
+
+export type AbuseIPDBInput = typeof inputSchema;
+export type AbuseIPDBOutput = typeof outputSchema;
 
 export { definition };

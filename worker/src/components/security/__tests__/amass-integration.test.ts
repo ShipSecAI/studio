@@ -4,7 +4,11 @@
  * Enable by setting RUN_SECURITY_DOCKER_TESTS=1 or RUN_AMASS_TESTS=1.
  */
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { componentRegistry, createExecutionContext, type ExecutionContext } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  createExecutionContext,
+  type ExecutionContext,
+} from '@shipsec/component-sdk';
 import type { AmassInput, AmassOutput } from '../amass';
 import '../amass';
 
@@ -26,25 +30,25 @@ const shouldRunIntegration =
     });
   });
 
-  test(
-    'enumerates subdomains for a known domain',
-    async () => {
-      const component = componentRegistry.get<AmassInput, AmassOutput>('shipsec.amass.enum');
-      expect(component).toBeDefined();
+  test('enumerates subdomains for a known domain', async () => {
+    const component = componentRegistry.get<AmassInput, AmassOutput>('shipsec.amass.enum');
+    expect(component).toBeDefined();
 
-      const params = component!.inputSchema.parse({
-        domains: ['owasp.org'],
-        active: false,
-        bruteForce: false,
-        timeoutMinutes: 1,
-      });
-      const result = await component!.execute(params, context);
+    const result = await component!.execute(
+      {
+        inputs: { domains: ['owasp.org'] },
+        params: {
+          active: false,
+          bruteForce: false,
+          timeoutMinutes: 1,
+        },
+      },
+      context,
+    );
 
-      expect(result).toHaveProperty('subdomains');
-      expect(Array.isArray(result.subdomains)).toBe(true);
-      expect(result.domainCount).toBeGreaterThanOrEqual(1);
-      expect(result.options.timeoutMinutes).toBe(1);
-    },
-    180_000,
-  );
+    expect(result).toHaveProperty('subdomains');
+    expect(Array.isArray(result.subdomains)).toBe(true);
+    expect(result.domainCount).toBeGreaterThanOrEqual(1);
+    expect(result.options.timeoutMinutes).toBe(1);
+  }, 180_000);
 });

@@ -1,4 +1,8 @@
-import { componentRegistry, createExecutionContext, runComponentWithRunner } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  createExecutionContext,
+  runComponentWithRunner,
+} from '@shipsec/component-sdk';
 
 import '../src/components/security/subfinder';
 
@@ -13,11 +17,19 @@ async function main() {
     componentRef: 'subfinder-smoke',
   });
 
-  const input = component.inputSchema.parse({
+  const input = component.inputs.parse({
     domains: ['hackerone.com', 'bugcrowd.com', 'projectdiscovery.io'],
   });
 
-  const result = await runComponentWithRunner(component.runner, component.execute, input, context);
+  const result = await runComponentWithRunner(
+    component.runner,
+    component.execute,
+    {
+      inputs: input,
+      params: {},
+    },
+    context,
+  );
   console.log(JSON.stringify(result, null, 2));
 }
 

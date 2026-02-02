@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Shield, User, LogOut, Settings } from 'lucide-react';
@@ -46,12 +46,7 @@ export const UserButton: React.FC<UserButtonProps> = ({
   // If not authenticated, show sign in button
   if (!isAuthenticated || !user) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={authProvider.signIn}
-        className={className}
-      >
+      <Button variant="outline" size="sm" onClick={authProvider.signIn} className={className}>
         <User className="w-4 h-4 mr-2" />
         Sign In
       </Button>
@@ -79,27 +74,29 @@ export const UserButton: React.FC<UserButtonProps> = ({
   }
 
   // Fallback custom user button for other providers
-  const userInitials = user.firstName && user.lastName
-    ? `${user.firstName[0]}${user.lastName[0]}`
-    : user.username
-    ? user.username.substring(0, 2).toUpperCase()
-    : user.email
-    ? user.email.substring(0, 2).toUpperCase()
-    : 'U';
+  const userInitials =
+    user.firstName && user.lastName
+      ? `${user.firstName[0]}${user.lastName[0]}`
+      : user.username
+        ? user.username.substring(0, 2).toUpperCase()
+        : user.email
+          ? user.email.substring(0, 2).toUpperCase()
+          : 'U';
 
-  const displayName = user.firstName && user.lastName
-    ? `${user.firstName} ${user.lastName}`
-    : user.username || user.email?.split('@')[0] || 'User';
+  const displayName =
+    user.firstName && user.lastName
+      ? `${user.firstName} ${user.lastName}`
+      : user.username || user.email?.split('@')[0] || 'User';
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className={cn(
             'relative flex items-center gap-3 justify-start h-auto p-2 w-full',
             sidebarCollapsed ? 'justify-center w-auto' : '',
-            className
+            className,
           )}
         >
           <Avatar className={cn('h-8 w-8 flex-shrink-0', sidebarCollapsed ? 'h-8 w-8' : 'h-8 w-8')}>
@@ -108,17 +105,21 @@ export const UserButton: React.FC<UserButtonProps> = ({
           </Avatar>
           {!sidebarCollapsed && (
             <div className="flex flex-col items-start min-w-0 flex-1">
-              <span className={cn(
-                'text-sm font-medium truncate w-full transition-all duration-300',
-                sidebarCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-full'
-              )}>
+              <span
+                className={cn(
+                  'text-sm font-medium truncate w-full transition-all duration-300',
+                  sidebarCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-full',
+                )}
+              >
                 {displayName}
               </span>
               {user.email && (
-                <span className={cn(
-                  'text-xs text-muted-foreground truncate w-full transition-all duration-300',
-                  sidebarCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-full'
-                )}>
+                <span
+                  className={cn(
+                    'text-xs text-muted-foreground truncate w-full transition-all duration-300',
+                    sidebarCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-full',
+                  )}
+                >
                   {user.email}
                 </span>
               )}
@@ -136,9 +137,7 @@ export const UserButton: React.FC<UserButtonProps> = ({
                     ? `${user.firstName} ${user.lastName}`
                     : user.username || 'User'}
                 </p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {user.email}
-                </p>
+                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                 {user.organizationName && (
                   <p className="text-xs leading-none text-muted-foreground">
                     {user.organizationName}
@@ -172,10 +171,7 @@ export const UserButton: React.FC<UserButtonProps> = ({
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem
-          onClick={() => authProvider.signOut()}
-          className="text-red-600"
-        >
+        <DropdownMenuItem onClick={() => authProvider.signOut()} className="text-red-600">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign out</span>
         </DropdownMenuItem>
@@ -206,24 +202,14 @@ export const UserButtonText: React.FC<{ className?: string }> = ({ className = '
 
   if (!isAuthenticated || !user) {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={authProvider.signIn}
-        className={className}
-      >
+      <Button variant="ghost" size="sm" onClick={authProvider.signIn} className={className}>
         Sign In
       </Button>
     );
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={() => authProvider.signOut()}
-      className={className}
-    >
+    <Button variant="ghost" size="sm" onClick={() => authProvider.signOut()} className={className}>
       Sign Out
     </Button>
   );

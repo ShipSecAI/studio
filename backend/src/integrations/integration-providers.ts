@@ -33,20 +33,21 @@ export interface IntegrationProviderSummary {
 }
 
 export function loadIntegrationProviders(): Record<string, IntegrationProviderConfig> {
-  const githubScopes =
-    process.env.GITHUB_OAUTH_SCOPES?.split(',').map((scope) => scope.trim()).filter(Boolean) ??
-    ['repo', 'read:user'];
+  const githubScopes = process.env.GITHUB_OAUTH_SCOPES?.split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean) ?? ['repo', 'read:user'];
 
-  const zoomScopes =
-    process.env.ZOOM_OAUTH_SCOPES?.split(',').map((scope) => scope.trim()).filter(Boolean) ??
-    ['user:read:admin'];
+  const zoomScopes = process.env.ZOOM_OAUTH_SCOPES?.split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean) ?? ['user:read:admin'];
 
   return {
     github: {
       id: 'github',
       name: 'GitHub',
       description: 'Connect to GitHub APIs on behalf of this user/workspace.',
-      docsUrl: 'https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps',
+      docsUrl:
+        'https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps',
       authorizeUrl: 'https://github.com/login/oauth/authorize',
       tokenUrl: 'https://github.com/login/oauth/access_token',
       defaultScopes: githubScopes,

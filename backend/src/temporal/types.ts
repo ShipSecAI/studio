@@ -6,6 +6,7 @@ export interface WorkflowAction {
   ref: string;
   componentId: string;
   params: Record<string, unknown>;
+  inputOverrides: Record<string, unknown>;
   dependsOn: string[];
 }
 

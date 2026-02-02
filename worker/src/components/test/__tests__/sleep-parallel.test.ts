@@ -8,29 +8,36 @@ describe('test.sleep.parallel component', () => {
   });
 
   it('should be registered', () => {
-    const component = componentRegistry.get<SleepParallelInput, SleepParallelOutput>('test.sleep.parallel');
+    const component = componentRegistry.get<SleepParallelInput, SleepParallelOutput>(
+      'test.sleep.parallel',
+    );
     expect(component).toBeDefined();
     expect(component!.label).toBe('Parallel Sleep (Test)');
   });
 
   it('should respect delay parameter and return timing metadata', async () => {
-    const component = componentRegistry.get<SleepParallelInput, SleepParallelOutput>('test.sleep.parallel');
+    const component = componentRegistry.get<SleepParallelInput, SleepParallelOutput>(
+      'test.sleep.parallel',
+    );
     if (!component) {
       throw new Error('test.sleep.parallel not registered');
     }
-
-    const params = component.inputSchema.parse({
-      delay: 20,
-      label: 'demo',
-    });
 
     const context = createExecutionContext({
       runId: 'sleep-test-run',
       componentRef: 'sleep-node',
     });
 
+    const executePayload = {
+      inputs: {},
+      params: {
+        delay: 20,
+        label: 'demo',
+      },
+    };
+
     const started = Date.now();
-    const result = await component.execute(params, context);
+    const result = await component.execute(executePayload, context);
     const ended = Date.now();
 
     expect(result.label).toBe('demo');

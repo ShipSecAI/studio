@@ -119,10 +119,12 @@ e2eDescribe('Smart Webhooks E2E Tests', () => {
           data: {
             label: 'Start',
             config: {
-              runtimeInputs: [
-                { id: 'repo_name', label: 'Repo', type: 'text', required: true },
-                { id: 'is_push', label: 'Is Push', type: 'text', required: true },
-              ],
+              params: {
+                runtimeInputs: [
+                  { id: 'repo_name', label: 'Repo', type: 'text', required: true },
+                  { id: 'is_push', label: 'Is Push', type: 'text', required: true },
+                ],
+              },
             },
           },
           position: { x: 0, y: 0 },
@@ -133,12 +135,14 @@ e2eDescribe('Smart Webhooks E2E Tests', () => {
           data: {
             label: 'Process',
             config: {
-              variables: [
-                  { name: 'repo', type: 'string' },
-                  { name: 'push', type: 'string' }
-              ],
-              returns: [{ name: 'ok', type: 'boolean' }],
-              code: 'export async function script(input) { return { ok: input.push === "true" }; }',
+              params: {
+                variables: [
+                    { name: 'repo', type: 'string' },
+                    { name: 'push', type: 'string' }
+                ],
+                returns: [{ name: 'ok', type: 'boolean' }],
+                code: 'export async function script(input) { return { ok: input.push === "true" }; }',
+              },
             },
           },
           position: { x: 200, y: 0 },

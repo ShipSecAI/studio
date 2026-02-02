@@ -1,17 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
-import {
-  LokiLogAdapter,
-  type LokiPushClient,
-  type LokiStreamLine,
-} from '../loki-log.adapter';
+import { LokiLogAdapter, type LokiPushClient, type LokiStreamLine } from '../loki-log.adapter';
 import type { WorkflowLogEntry } from '../../temporal/types';
 import { workflowLogStreams } from '../schema';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type * as schema from '../schema';
 
 class FakeClient implements LokiPushClient {
-  public calls: Array<{ labels: Record<string, string>; lines: LokiStreamLine[] }> = [];
+  public calls: { labels: Record<string, string>; lines: LokiStreamLine[] }[] = [];
 
   async push(labels: Record<string, string>, lines: LokiStreamLine[]): Promise<void> {
     this.calls.push({ labels, lines });
@@ -25,7 +21,7 @@ class FailingClient implements LokiPushClient {
 }
 
 class FakeDb {
-  public inserted: Array<{ table: unknown; input: unknown }> = [];
+  public inserted: { table: unknown; input: unknown }[] = [];
 
   insert(table: unknown) {
     return {
@@ -67,10 +63,7 @@ describe('LokiLogAdapter', () => {
   beforeEach(() => {
     client = new FakeClient();
     db = new FakeDb();
-    adapter = new LokiLogAdapter(
-      client,
-      db as unknown as NodePgDatabase<typeof schema>,
-    );
+    adapter = new LokiLogAdapter(client, db as unknown as NodePgDatabase<typeof schema>);
   });
 
   it('pushes logs to Loki and persists metadata', async () => {

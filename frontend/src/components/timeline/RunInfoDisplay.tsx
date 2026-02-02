@@ -1,16 +1,16 @@
-import { Badge } from '@/components/ui/badge'
-import { formatDuration, formatStartTime } from '@/utils/timeFormat'
-import { getTriggerDisplay } from '@/utils/triggerDisplay'
-import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles'
-import type { ExecutionRun } from '@/store/runStore'
-import { cn } from '@/lib/utils'
-import { Wifi } from 'lucide-react'
+import { Badge } from '@/components/ui/badge';
+import { formatDuration, formatStartTime } from '@/utils/timeFormat';
+import { getTriggerDisplay } from '@/utils/triggerDisplay';
+import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
+import type { ExecutionRun } from '@/store/runStore';
+import { cn } from '@/lib/utils';
+import { Wifi } from 'lucide-react';
 
 interface RunInfoDisplayProps {
-  run: ExecutionRun
-  currentWorkflowVersion?: number | null
-  showBadges?: boolean
-  className?: string
+  run: ExecutionRun;
+  currentWorkflowVersion?: number | null;
+  showBadges?: boolean;
+  className?: string;
 }
 
 /**
@@ -23,23 +23,31 @@ export function RunInfoDisplay({
   showBadges = true,
   className,
 }: RunInfoDisplayProps) {
-  const triggerDisplay = getTriggerDisplay(run.triggerType, run.triggerLabel)
-  const runVersion = typeof run.workflowVersion === 'number' ? run.workflowVersion : null
-  const hasVersion = runVersion !== null
+  const triggerDisplay = getTriggerDisplay(run.triggerType, run.triggerLabel);
+  const runVersion = typeof run.workflowVersion === 'number' ? run.workflowVersion : null;
+  const hasVersion = runVersion !== null;
   const isOlderVersion =
-    hasVersion && typeof currentWorkflowVersion === 'number' && runVersion !== currentWorkflowVersion
+    hasVersion &&
+    typeof currentWorkflowVersion === 'number' &&
+    runVersion !== currentWorkflowVersion;
 
   const isRunLive = (run: ExecutionRun) => {
-    const TERMINAL_STATUSES: ExecutionRun['status'][] = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT']
-    if (run.isLive) return true
-    return !TERMINAL_STATUSES.includes(run.status)
-  }
+    const TERMINAL_STATUSES: ExecutionRun['status'][] = [
+      'COMPLETED',
+      'FAILED',
+      'CANCELLED',
+      'TERMINATED',
+      'TIMED_OUT',
+    ];
+    if (run.isLive) return true;
+    return !TERMINAL_STATUSES.includes(run.status);
+  };
 
   const infoItems = [
     formatStartTime(run.startTime),
     `${run.eventCount} events`,
     run.duration ? formatDuration(run.duration) : undefined,
-  ].filter((item): item is string => item !== undefined)
+  ].filter((item): item is string => item !== undefined);
 
   return (
     <div className={cn('space-y-2', className)}>
@@ -67,12 +75,18 @@ export function RunInfoDisplay({
                 v{runVersion}
               </Badge>
             )}
-            <Badge variant={triggerDisplay.variant} className="text-[10px] gap-1 max-w-[160px] truncate">
+            <Badge
+              variant={triggerDisplay.variant}
+              className="text-[10px] gap-1 max-w-[160px] truncate"
+            >
               <span aria-hidden="true">{triggerDisplay.icon}</span>
               <span className="truncate">{triggerDisplay.label}</span>
             </Badge>
             {isRunLive(run) && (
-              <Badge variant="outline" className="text-[10px] gap-1 animate-pulse !bg-blue-50 !text-blue-700 !border-blue-300 dark:!bg-blue-900 dark:!text-blue-100 dark:!border-blue-500">
+              <Badge
+                variant="outline"
+                className="text-[10px] gap-1 animate-pulse !bg-blue-50 !text-blue-700 !border-blue-300 dark:!bg-blue-900 dark:!text-blue-100 dark:!border-blue-500"
+              >
                 <Wifi className="h-3 w-3" />
                 Live
               </Badge>
@@ -87,6 +101,5 @@ export function RunInfoDisplay({
         </div>
       )}
     </div>
-  )
+  );
 }
-

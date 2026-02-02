@@ -4,63 +4,116 @@ import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
 import {
   componentRegistry,
-  ComponentDefinition,
-  port,
   ConfigurationError,
   ComponentRetryPolicy,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  port,
+  param,
 } from '@shipsec/component-sdk';
-import { llmProviderContractName, LLMProviderSchema } from './chat-model-contract';
+import { LLMProviderSchema, type LlmProviderConfig } from '@shipsec/contracts';
 
-const inputSchema = z.object({
-  systemPrompt: z
-    .string()
-    .default('')
-    .describe('Optional system instructions that prime the model.'),
-  userPrompt: z
-    .string()
-    .min(1, 'User prompt cannot be empty')
-    .describe('Primary user prompt sent to the model.'),
-  temperature: z
-    .number()
-    .min(0)
-    .max(2)
-    .default(0.7)
-    .describe('Sampling temperature for the response (0-2).'),
-  maxTokens: z
-    .number()
-    .int()
-    .min(1)
-    .max(1_000_000)
-    .default(1024)
-    .describe('Maximum number of tokens to request from the model.'),
-  chatModel: LLMProviderSchema.describe('Provider configuration emitted by a provider component.'),
-  modelApiKey: z
-    .string()
-    .optional()
-    .describe('Optional API key override (connect Secret Loader) to supersede the provider config.'),
+const inputSchema = inputs({
+  userPrompt: port(
+    z
+      .string()
+      .min(1, 'User prompt cannot be empty')
+      .describe('Primary user prompt sent to the model.'),
+    {
+      label: 'User Prompt',
+      description: 'User input sent to the model.',
+    },
+  ),
+  chatModel: port(LLMProviderSchema(), {
+    label: 'Provider Config',
+    description: 'Connect an OpenAI/Gemini/OpenRouter provider component output.',
+  }),
+  modelApiKey: port(
+    z
+      .string()
+      .optional()
+      .describe(
+        'Optional API key override (connect Secret Loader) to supersede the provider config.',
+      ),
+    {
+      label: 'API Key Override',
+      description: 'Optional override API key to supersede the provider config.',
+      editor: 'secret',
+      connectionType: { kind: 'primitive', name: 'secret' },
+    },
+  ),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-type Output = {
-  responseText: string;
-  finishReason: string | null;
-  rawResponse: unknown;
-  usage?: unknown;
-};
-
-const outputSchema = z.object({
-  responseText: z.string(),
-  finishReason: z.string().nullable(),
-  rawResponse: z.unknown(),
-  usage: z.unknown().optional(),
+const parameterSchema = parameters({
+  systemPrompt: param(
+    z.string().default('').describe('Optional system instructions that prime the model.'),
+    {
+      label: 'System Prompt',
+      editor: 'textarea',
+      rows: 3,
+      description: 'Optional system instructions that guide the model response.',
+    },
+  ),
+  temperature: param(
+    z.number().min(0).max(2).default(0.7).describe('Sampling temperature for the response (0-2).'),
+    {
+      label: 'Temperature',
+      editor: 'number',
+      min: 0,
+      max: 2,
+      description: 'Higher values increase creativity, lower values improve determinism.',
+    },
+  ),
+  maxTokens: param(
+    z
+      .number()
+      .int()
+      .min(1)
+      .max(1_000_000)
+      .default(1024)
+      .describe('Maximum number of tokens to request from the model.'),
+    {
+      label: 'Max Tokens',
+      editor: 'number',
+      min: 1,
+      max: 1_000_000,
+      description: 'Maximum number of tokens to request from the provider.',
+    },
+  ),
 });
 
-type Dependencies = {
+const outputSchema = outputs({
+  responseText: port(z.string(), {
+    label: 'Response Text',
+    description: 'Assistant response returned by the provider.',
+  }),
+  finishReason: port(z.string().nullable(), {
+    label: 'Finish Reason',
+    description: 'Provider finish reason, if supplied.',
+  }),
+  rawResponse: port(z.unknown(), {
+    label: 'Raw Response',
+    description: 'Raw response metadata returned by the provider for debugging.',
+    allowAny: true,
+    reason: 'Provider response payloads vary by model and API.',
+    connectionType: { kind: 'primitive', name: 'json' },
+  }),
+  usage: port(z.unknown().optional(), {
+    label: 'Token Usage',
+    description: 'Token usage metadata returned by the provider, if available.',
+    allowAny: true,
+    reason: 'Provider usage payloads vary by model and API.',
+    connectionType: { kind: 'primitive', name: 'json' },
+  }),
+});
+
+interface Dependencies {
   generateText?: typeof generateTextImpl;
   createOpenAI?: typeof createOpenAIImpl;
   createGoogleGenerativeAI?: typeof createGoogleGenerativeAIImpl;
-};
+}
 
 // Retry policy for LLM generation - handle transient API errors
 const llmGenerateTextRetryPolicy: ComponentRetryPolicy = {
@@ -68,23 +121,20 @@ const llmGenerateTextRetryPolicy: ComponentRetryPolicy = {
   initialIntervalSeconds: 2,
   maximumIntervalSeconds: 30,
   backoffCoefficient: 2.0,
-  nonRetryableErrorTypes: [
-    'AuthenticationError',
-    'ConfigurationError',
-    'ValidationError',
-  ],
+  nonRetryableErrorTypes: ['AuthenticationError', 'ConfigurationError', 'ValidationError'],
 };
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'core.ai.generate-text',
   label: 'AI Generate Text',
   category: 'ai',
   runner: { kind: 'inline' },
   retryPolicy: llmGenerateTextRetryPolicy,
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Runs a single LLM completion using a provider config emitted by the provider components.',
-  metadata: {
+  ui: {
     slug: 'ai-generate-text',
     version: '1.0.0',
     type: 'process',
@@ -96,83 +146,10 @@ const definition: ComponentDefinition<Input, Output> = {
       name: 'ShipSecAI',
       type: 'shipsecai',
     },
-    inputs: [
-      {
-        id: 'userPrompt',
-        label: 'User Prompt',
-        dataType: port.text(),
-        required: true,
-        description: 'User input sent to the model.',
-      },
-      {
-        id: 'chatModel',
-        label: 'Provider Config',
-        dataType: port.credential(llmProviderContractName),
-        required: true,
-        description: 'Connect an OpenAI/Gemini/OpenRouter provider component output.',
-      },
-      {
-        id: 'modelApiKey',
-        label: 'API Key Override',
-        dataType: port.secret(),
-        required: false,
-        description: 'Optional override API key to supersede the provider config.',
-      },
-    ],
-    outputs: [
-      {
-        id: 'responseText',
-        label: 'Response Text',
-        dataType: port.text(),
-        description: 'Assistant response returned by the provider.',
-      },
-      {
-        id: 'rawResponse',
-        label: 'Raw Response',
-        dataType: port.json(),
-        description: 'Raw response metadata returned by the provider for debugging.',
-      },
-      {
-        id: 'usage',
-        label: 'Token Usage',
-        dataType: port.json(),
-        description: 'Token usage metadata returned by the provider, if available.',
-      },
-    ],
-    parameters: [
-      {
-        id: 'systemPrompt',
-        label: 'System Prompt',
-        type: 'textarea',
-        required: false,
-        default: '',
-        rows: 3,
-        description: 'Optional system instructions that guide the model response.',
-      },
-      {
-        id: 'temperature',
-        label: 'Temperature',
-        type: 'number',
-        required: false,
-        default: 0.7,
-        min: 0,
-        max: 2,
-        description: 'Higher values increase creativity, lower values improve determinism.',
-      },
-      {
-        id: 'maxTokens',
-        label: 'Max Tokens',
-        type: 'number',
-        required: false,
-        default: 1024,
-        min: 1,
-        max: 1_000_000,
-        description: 'Maximum number of tokens to request from the provider.',
-      },
-    ],
   },
-  async execute(params, context, dependencies?: Dependencies) {
-    const { systemPrompt, userPrompt, temperature, maxTokens, chatModel, modelApiKey } = params;
+  async execute({ inputs, params }, context, dependencies?: Dependencies) {
+    const { systemPrompt, temperature, maxTokens } = params;
+    const { userPrompt, chatModel, modelApiKey } = inputs;
 
     const generateText = dependencies?.generateText ?? generateTextImpl;
     const createOpenAI = dependencies?.createOpenAI ?? createOpenAIImpl;
@@ -183,7 +160,7 @@ const definition: ComponentDefinition<Input, Output> = {
     if (!resolvedApiKey) {
       throw new ConfigurationError(
         'No API key available. Provide a key via the provider component or connect an override.',
-        { configKey: 'apiKey' }
+        { configKey: 'apiKey' },
       );
     }
 
@@ -193,7 +170,9 @@ const definition: ComponentDefinition<Input, Output> = {
       createGoogleGenerativeAI,
     });
 
-    context.logger.info(`[AIGenerateText] Calling ${chatModel.provider} model ${chatModel.modelId}`);
+    context.logger.info(
+      `[AIGenerateText] Calling ${chatModel.provider} model ${chatModel.modelId}`,
+    );
 
     const result = await generateText({
       model,
@@ -210,10 +189,10 @@ const definition: ComponentDefinition<Input, Output> = {
       usage: result.usage,
     };
   },
-};
+});
 
 function buildModelFactory(
-  config: z.infer<typeof LLMProviderSchema>,
+  config: LlmProviderConfig,
   apiKey: string,
   factories: {
     createOpenAI: typeof createOpenAIImpl;

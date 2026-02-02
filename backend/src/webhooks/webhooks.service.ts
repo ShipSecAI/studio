@@ -8,14 +8,11 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { sub } from 'date-fns';
-
 import {
   type WebhookConfiguration,
   type WebhookDelivery,
   type TestWebhookScriptResponse,
   type WebhookUrlResponse,
-  WebhookInputDefinitionSchema,
 } from '@shipsec/shared';
 import type { AuthContext } from '../auth/types';
 import { WorkflowsService } from '../workflows/workflows.service';
@@ -61,7 +58,13 @@ export class WebhooksService {
       name: string;
       description?: string;
       parsingScript: string;
-      expectedInputs: Array<{ id: string; label: string; type: string; required: boolean; description?: string }>;
+      expectedInputs: {
+        id: string;
+        label: string;
+        type: string;
+        required: boolean;
+        description?: string;
+      }[];
     },
   ): Promise<WebhookConfiguration> {
     // Validate workflow exists and user has admin access
@@ -103,7 +106,13 @@ export class WebhooksService {
       name?: string;
       description?: string;
       parsingScript?: string;
-      expectedInputs?: Array<{ id: string; label: string; type: string; required: boolean; description?: string }>;
+      expectedInputs?: {
+        id: string;
+        label: string;
+        type: string;
+        required: boolean;
+        description?: string;
+      }[];
       status?: 'active' | 'inactive';
     },
   ): Promise<WebhookConfiguration> {
@@ -213,7 +222,7 @@ export class WebhooksService {
       );
 
       // If webhookId provided, validate against expected inputs
-      let validationErrors: Array<{ inputId: string; message: string }> | undefined;
+      let validationErrors: { inputId: string; message: string }[] | undefined;
       if (dto.webhookId) {
         const webhook = await this.repository.findById(dto.webhookId, {
           organizationId: auth?.organizationId,
@@ -427,7 +436,7 @@ plugin({
     }
 });
 `,
-      ).toString('base64');
+    ).toString('base64');
 
     const harnessCode = Buffer.from(
       `
@@ -448,13 +457,16 @@ async function run() {
 
 run();
 `,
-      ).toString('base64');
+    ).toString('base64');
 
     // Ensure script has export keyword
     let processedScript = script;
     const exportRegex = /^(?!\s*export\s+)(.*?\s*(?:async\s+)?function\s+script\b)/m;
     if (exportRegex.test(processedScript)) {
-      processedScript = processedScript.replace(exportRegex, (match) => `export ${match.trimStart()}`);
+      processedScript = processedScript.replace(
+        exportRegex,
+        (match) => `export ${match.trimStart()}`,
+      );
     }
     const userScriptB64 = Buffer.from(processedScript).toString('base64');
 
@@ -469,10 +481,14 @@ run();
       'run',
       '--rm',
       '-i',
-      '--network', 'bridge',
-      '-e', `WEBHOOK_INPUT=${JSON.stringify({ payload, headers })}`,
+      '--network',
+      'bridge',
+      '-e',
+      `WEBHOOK_INPUT=${JSON.stringify({ payload, headers })}`,
       'oven/bun:alpine',
-      'sh', '-c', shellCommand,
+      'sh',
+      '-c',
+      shellCommand,
     ];
 
     return new Promise((resolve, reject) => {
@@ -528,16 +544,19 @@ run();
   }
 
   private validateParsedData(
-    expectedInputs: Array<{ id: string; label: string; type: string; required: boolean }>,
+    expectedInputs: { id: string; label: string; type: string; required: boolean }[],
     parsedData: Record<string, unknown>,
-  ): Array<{ inputId: string; message: string }> {
-    const errors: Array<{ inputId: string; message: string }> = [];
+  ): { inputId: string; message: string }[] {
+    const errors: { inputId: string; message: string }[] = [];
 
     for (const inputDef of expectedInputs) {
       const value = parsedData[inputDef.id];
 
       if (inputDef.required && (value === undefined || value === null)) {
-        errors.push({ inputId: inputDef.id, message: `Required input '${inputDef.label}' is missing` });
+        errors.push({
+          inputId: inputDef.id,
+          message: `Required input '${inputDef.label}' is missing`,
+        });
       }
     }
 
@@ -546,19 +565,21 @@ run();
 
   private async validateExpectedInputs(
     workflowId: string,
-    expectedInputs: Array<{ id: string; label: string; type: string; required: boolean }>,
+    expectedInputs: { id: string; label: string; type: string; required: boolean }[],
     auth: AuthContext | null,
   ): Promise<void> {
     // Get the workflow definition to check entry point
     const context = await this.workflowsService.getCompiledWorkflowContext(workflowId, {}, auth);
     const definition = context.definition;
 
-    const entryAction = definition.actions.find((a) => a.componentId === 'core.workflow.entrypoint');
+    const entryAction = definition.actions.find(
+      (a) => a.componentId === 'core.workflow.entrypoint',
+    );
     if (!entryAction) {
       throw new BadRequestException('Workflow must have an Entry Point component to use webhooks');
     }
 
-    const runtimeInputs: Array<{ id?: string; required?: boolean }> = Array.isArray(
+    const runtimeInputs: { id?: string; required?: boolean }[] = Array.isArray(
       entryAction.params?.runtimeInputs,
     )
       ? entryAction.params.runtimeInputs

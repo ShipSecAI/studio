@@ -28,9 +28,9 @@ export class LokiLogClient {
     }
 
     if (this.config.username && this.config.password) {
-      const credentials = Buffer.from(
-        `${this.config.username}:${this.config.password}`,
-      ).toString('base64');
+      const credentials = Buffer.from(`${this.config.username}:${this.config.password}`).toString(
+        'base64',
+      );
       headers.Authorization = `Basic ${credentials}`;
     }
 
@@ -51,9 +51,7 @@ export class LokiLogClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Loki push failed: ${response.status} ${response.statusText} - ${errorText}`,
-      );
+      throw new Error(`Loki push failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
   }
 

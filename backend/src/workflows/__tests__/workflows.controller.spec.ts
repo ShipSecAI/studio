@@ -1,23 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'bun:test';
 
 import '@shipsec/studio-worker/components'; // Register components
-import type {
-  TemporalService,
-  WorkflowRunStatus,
-} from '../../temporal/temporal.service';
+import type { TemporalService, WorkflowRunStatus } from '../../temporal/temporal.service';
 import { WorkflowDefinition } from '../../dsl/types';
 import { TraceService } from '../../trace/trace.service';
-import {
-  WorkflowGraphDto,
-  WorkflowGraphSchema,
-} from '../dto/workflow-graph.dto';
+import { WorkflowGraphDto, WorkflowGraphSchema } from '../dto/workflow-graph.dto';
 import { WorkflowRecord, WorkflowRepository } from '../repository/workflow.repository';
 import { WorkflowsService } from '../workflows.service';
 import { WorkflowsController } from '../workflows.controller';
 import type { AuthContext } from '../../auth/types';
 
 const TEST_ORG = 'test-org';
-type RepositoryOptions = { organizationId?: string | null };
+interface RepositoryOptions {
+  organizationId?: string | null;
+}
 
 const baseGraph: WorkflowGraphDto = WorkflowGraphSchema.parse({
   name: 'Controller workflow',
@@ -30,9 +26,10 @@ const baseGraph: WorkflowGraphDto = WorkflowGraphSchema.parse({
       data: {
         label: 'Trigger',
         config: {
-          runtimeInputs: [
-            { id: 'fileId', label: 'File ID', type: 'text', required: true },
-          ],
+          params: {
+            runtimeInputs: [{ id: 'fileId', label: 'File ID', type: 'file', required: true }],
+          },
+          inputOverrides: {},
         },
       },
     },
@@ -43,12 +40,23 @@ const baseGraph: WorkflowGraphDto = WorkflowGraphSchema.parse({
       data: {
         label: 'Loader',
         config: {
-          fileId: '11111111-1111-4111-8111-111111111111',
+          params: {},
+          inputOverrides: {
+            fileId: '11111111-1111-4111-8111-111111111111',
+          },
         },
       },
     },
   ],
-  edges: [{ id: 'edge', source: 'trigger', target: 'loader', sourceHandle: 'fileId', targetHandle: 'fileId' }],
+  edges: [
+    {
+      id: 'edge',
+      source: 'trigger',
+      target: 'loader',
+      sourceHandle: 'fileId',
+      targetHandle: 'fileId',
+    },
+  ],
   viewport: { x: 0, y: 0, zoom: 1 },
 });
 
@@ -57,7 +65,7 @@ describe('WorkflowsController', () => {
   let repositoryStore: Map<string, WorkflowRecord>;
   let runStore: Map<string, any>;
   let lastCancelledRun: { workflowId: string; runId?: string } | null = null;
-  type MockWorkflowVersion = {
+  interface MockWorkflowVersion {
     id: string;
     workflowId: string;
     version: number;
@@ -65,7 +73,7 @@ describe('WorkflowsController', () => {
     compiledDefinition: WorkflowDefinition | null;
     createdAt: Date;
     organizationId: string | null;
-  };
+  }
 
   let versionSeq = 0;
   let versionStore: Map<string, MockWorkflowVersion>;
@@ -130,9 +138,11 @@ describe('WorkflowsController', () => {
       }
       return record;
     },
-    async findByWorkflowAndVersion(
-      input: { workflowId: string; version: number; organizationId?: string | null },
-    ) {
+    async findByWorkflowAndVersion(input: {
+      workflowId: string;
+      version: number;
+      organizationId?: string | null;
+    }) {
       const list = versionsByWorkflow.get(input.workflowId) ?? [];
       return list.find(
         (record) =>
@@ -331,7 +341,11 @@ describe('WorkflowsController', () => {
 
     const temporalStub: Pick<
       TemporalService,
-      'startWorkflow' | 'describeWorkflow' | 'getWorkflowResult' | 'cancelWorkflow' | 'getDefaultTaskQueue'
+      | 'startWorkflow'
+      | 'describeWorkflow'
+      | 'getWorkflowResult'
+      | 'cancelWorkflow'
+      | 'getDefaultTaskQueue'
     > = {
       async startWorkflow(options) {
         return {
@@ -380,7 +394,9 @@ describe('WorkflowsController', () => {
       fetch: async () => ({ runId: 'shipsec-run-controller', streams: [] }),
     };
     const artifactsService = {
-      listRunArtifacts: vi.fn().mockResolvedValue({ runId: 'shipsec-run-controller', artifacts: [] }),
+      listRunArtifacts: vi
+        .fn()
+        .mockResolvedValue({ runId: 'shipsec-run-controller', artifacts: [] }),
     };
     const terminalStreamService = {
       fetchChunks: vi.fn().mockResolvedValue({ cursor: '{}', chunks: [] }),
@@ -405,6 +421,10 @@ describe('WorkflowsController', () => {
         file: { mimeType: 'text/plain', fileName: 'terminal.cast', size: 0 },
       }),
     };
+    const nodeIOService = {
+      listDetails: vi.fn().mockResolvedValue([]),
+      getNodeIO: vi.fn().mockResolvedValue(null),
+    };
     controller = new WorkflowsController(
       workflowsService,
       traceService,
@@ -412,6 +432,7 @@ describe('WorkflowsController', () => {
       artifactsService as any,
       terminalStreamService as any,
       terminalArchiveService as any,
+      nodeIOService as any,
     );
   });
 
@@ -419,8 +440,8 @@ describe('WorkflowsController', () => {
     const created = await controller.create(authContext, baseGraph);
     expect(created.id).toBeDefined();
     expect(created.name).toBe('Controller workflow');
-     expect(created.currentVersion).toBe(1);
-     expect(created.currentVersionId).toBeDefined();
+    expect(created.currentVersion).toBe(1);
+    expect(created.currentVersionId).toBeDefined();
 
     const list = await controller.findAll(authContext);
     expect(list).toHaveLength(1);
@@ -457,19 +478,31 @@ describe('WorkflowsController', () => {
     expect(run.workflowVersion).toBeDefined();
     expect(run.workflowVersionId).toBeDefined();
 
-    const status = await controller.status(run.runId, { temporalRunId: run.temporalRunId }, authContext);
+    const status = await controller.status(
+      run.runId,
+      { temporalRunId: run.temporalRunId },
+      authContext,
+    );
     expect(status.runId).toBe(run.runId);
     expect(status.workflowId).toBe(created.id);
     expect(status.status).toBe('RUNNING');
     expect(status.progress).toEqual({ completedActions: 1, totalActions: 2 });
 
-    const result = await controller.result(run.runId, { temporalRunId: run.temporalRunId }, authContext);
+    const result = await controller.result(
+      run.runId,
+      { temporalRunId: run.temporalRunId },
+      authContext,
+    );
     expect(result).toEqual({
       runId: run.runId,
       result: { workflowId: run.runId, success: true },
     });
 
-    const cancelResponse = await controller.cancel(run.runId, { temporalRunId: run.temporalRunId }, authContext);
+    const cancelResponse = await controller.cancel(
+      run.runId,
+      { temporalRunId: run.temporalRunId },
+      authContext,
+    );
     expect(cancelResponse).toEqual({ status: 'cancelled', runId: run.runId });
     expect(lastCancelledRun).toEqual({
       workflowId: run.runId,

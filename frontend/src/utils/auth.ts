@@ -18,6 +18,5 @@ export function normalizeRole(role: string): string {
  * Check if a user has admin role
  */
 export function hasAdminRole(roles: string[]): boolean {
-  return roles.some(role => normalizeRole(role) === 'ADMIN');
+  return roles.some((role) => normalizeRole(role) === 'ADMIN');
 }
-

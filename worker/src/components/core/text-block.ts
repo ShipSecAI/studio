@@ -1,23 +1,38 @@
 import { z } from 'zod';
-import { componentRegistry, ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  defineComponent,
+  inputs,
+  outputs,
+  parameters,
+  param,
+} from '@shipsec/component-sdk';
 
-const inputSchema = z.object({
-  content: z.string().default('').describe('Markdown content for notes and documentation'),
+const inputSchema = inputs({});
+
+const outputSchema = outputs({});
+
+const parameterSchema = parameters({
+  content: param(z.string().default('').describe('Markdown content for notes and documentation'), {
+    label: 'Content',
+    editor: 'textarea',
+    placeholder: 'Add your notes here... Supports **Markdown**!',
+    description: 'Markdown content for notes and documentation',
+    rows: 10,
+    helpText: 'Supports GitHub Flavored Markdown including checklists, tables, and code blocks',
+  }),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-const outputSchema = z.void();
-
-const definition: ComponentDefinition<Input, void> = {
+const definition = defineComponent({
   id: 'core.ui.text',
   label: 'Text',
   category: 'input',
   runner: { kind: 'inline' },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
+  parameters: parameterSchema,
   docs: 'Add markdown notes and documentation to your workflow. Supports GFM including checklists, tables, and code blocks.',
-  metadata: {
+  ui: {
     slug: 'text-block',
     version: '1.0.0',
     type: 'input',
@@ -28,32 +43,17 @@ const definition: ComponentDefinition<Input, void> = {
       name: 'ShipSecAI',
       type: 'shipsecai',
     },
-    inputs: [],
-    outputs: [],
     // UI-only component - should not be included in workflow execution
     uiOnly: true,
-    parameters: [
-      {
-        id: 'content',
-        label: 'Content',
-        type: 'textarea',
-        required: false,
-        default: '',
-        placeholder: 'Add your notes here... Supports **Markdown**!',
-        description: 'Markdown content for notes and documentation',
-        rows: 10,
-        helpText: 'Supports GitHub Flavored Markdown including checklists, tables, and code blocks',
-      },
-    ],
     examples: [
       'Add workflow documentation with markdown headings, lists, and code blocks',
       'Create task checklists to track progress: - [ ] Task 1\\n- [x] Task 2',
     ],
   },
-  async execute() {
-    // Documentation component - no output
+  async execute(_payload, _context) {
+    return {};
   },
-};
+});
 
 componentRegistry.register(definition);
 

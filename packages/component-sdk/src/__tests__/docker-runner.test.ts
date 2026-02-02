@@ -42,6 +42,10 @@ dockerDescribe('Docker Runner', () => {
         const message = typeof progress === 'string' ? progress : progress.message;
         logs.push(`PROGRESS: ${message}`);
       },
+      http: {
+        fetch: async (input, init) => fetch(input as any, init),
+        toCurl: () => '',
+      },
     };
   });
 

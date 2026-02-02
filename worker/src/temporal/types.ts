@@ -8,6 +8,7 @@ export interface WorkflowAction {
   ref: string;
   componentId: string;
   params: Record<string, unknown>;
+  inputOverrides: Record<string, unknown>;
   dependsOn: string[];
   inputMappings: Record<
     string,
@@ -39,6 +40,12 @@ export interface WorkflowNodeMetadata {
   maxConcurrency?: number;
   groupId?: string;
   streamId?: string;
+  mode?: 'normal' | 'tool';
+  toolConfig?: {
+    boundInputIds: string[];
+    exposedInputIds: string[];
+  };
+  connectedToolNodeIds?: string[];
 }
 
 export interface WorkflowFailureMetadata {
@@ -60,7 +67,7 @@ export interface WorkflowDefinition {
   actions: WorkflowAction[];
   config: {
     environment: string;
-  timeoutSeconds: number;
+    timeoutSeconds: number;
   };
 }
 
@@ -73,19 +80,23 @@ export interface RunComponentActivityInput {
     ref: string;
     componentId: string;
   };
+  inputs: Record<string, unknown>;
   params: Record<string, unknown>;
-  warnings?: Array<{
+  warnings?: {
     target: string;
     sourceRef: string;
     sourceHandle: string;
-  }>;
+  }[];
   metadata?: {
     streamId?: string;
     joinStrategy?: WorkflowJoinStrategy;
     groupId?: string;
     triggeredBy?: string;
     failure?: WorkflowFailureMetadata;
+    connectedToolNodeIds?: string[];
   };
+  inputOverrides?: Record<string, unknown>;
+  rawParams?: Record<string, unknown>;
 }
 
 export interface RunComponentActivityOutput {
@@ -161,10 +172,71 @@ export interface PrepareRunPayloadActivityInput {
   versionId?: string;
   version?: number;
   inputs?: Record<string, unknown>;
-  nodeOverrides?: Record<string, Record<string, unknown>>;
+  nodeOverrides?: Record<
+    string,
+    { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
+  >;
   trigger?: ExecutionTriggerMetadata;
   runId?: string;
   organizationId?: string | null;
   parentRunId?: string;
   parentNodeRef?: string;
+}
+
+// MCP Activity types
+
+export interface RegisterComponentToolActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  componentId: string;
+  description: string;
+  inputSchema: any;
+  credentials: Record<string, unknown>;
+}
+
+export interface RegisterRemoteMcpActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  description: string;
+  inputSchema: any;
+  endpoint: string;
+  authToken?: string;
+}
+
+export interface RegisterLocalMcpActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  description: string;
+  inputSchema: any;
+  image: string;
+  command?: string;
+  args?: string;
+  env?: Record<string, string>;
+  port: number;
+  endpoint: string;
+  containerId: string;
+}
+
+export interface PrepareAndRegisterToolActivityInput {
+  runId: string;
+  nodeId: string;
+  componentId: string;
+  inputs: Record<string, unknown>;
+  params: Record<string, unknown>;
+}
+
+export interface CleanupLocalMcpActivityInput {
+  runId: string;
+}
+
+export interface AreAllToolsReadyActivityInput {
+  runId: string;
+  requiredNodeIds: string[];
+}
+
+export interface AreAllToolsReadyActivityOutput {
+  ready: boolean;
 }

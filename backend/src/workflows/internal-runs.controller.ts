@@ -4,10 +4,7 @@ import type { ExecutionTriggerMetadata } from '@shipsec/shared';
 
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
-import {
-  PrepareRunRequestDto,
-  PrepareRunRequestSchema,
-} from './dto/workflow-graph.dto';
+import { PrepareRunRequestDto, PrepareRunRequestSchema } from './dto/workflow-graph.dto';
 import { WorkflowsService } from './workflows.service';
 
 @Controller('internal/runs')

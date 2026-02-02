@@ -46,8 +46,10 @@ export class SchedulesService {
       auth,
     );
 
-    const normalizedPayload: ScheduleInputPayload =
-      dto.inputPayload ?? { runtimeInputs: {}, nodeOverrides: {} };
+    const normalizedPayload: ScheduleInputPayload = dto.inputPayload ?? {
+      runtimeInputs: {},
+      nodeOverrides: {},
+    };
 
     this.validateSchedulePayload(context.definition, normalizedPayload);
 
@@ -129,8 +131,7 @@ export class SchedulesService {
       auth,
     );
 
-    const nextPayload =
-      dto.inputPayload ?? (existing.inputPayload as ScheduleInputPayload);
+    const nextPayload = dto.inputPayload ?? (existing.inputPayload as ScheduleInputPayload);
     this.validateSchedulePayload(context.definition, nextPayload);
 
     const dispatchArgs = this.buildDispatchArgs({
@@ -275,11 +276,10 @@ export class SchedulesService {
   }
 
   private mapRecord(record: WorkflowScheduleRecord): WorkflowSchedule {
-    const payload: ScheduleInputPayload =
-      (record.inputPayload as ScheduleInputPayload) ?? {
-        runtimeInputs: {},
-        nodeOverrides: {},
-      };
+    const payload: ScheduleInputPayload = (record.inputPayload as ScheduleInputPayload) ?? {
+      runtimeInputs: {},
+      nodeOverrides: {},
+    };
 
     return {
       id: record.id,
@@ -318,8 +318,8 @@ export class SchedulesService {
 
     return {
       workflowId: options.workflowId,
-      workflowVersionId: hasVersionId ? options.workflowVersionId ?? undefined : undefined,
-      workflowVersion: hasVersionId ? undefined : options.workflowVersion ?? undefined,
+      workflowVersionId: hasVersionId ? (options.workflowVersionId ?? undefined) : undefined,
+      workflowVersion: hasVersionId ? undefined : (options.workflowVersion ?? undefined),
       organizationId: options.organizationId ?? null,
       scheduleId: options.scheduleId,
       scheduleName: options.scheduleName,
@@ -344,7 +344,7 @@ export class SchedulesService {
       throw new BadRequestException('Workflow requires an Entry Point to use schedules');
     }
 
-    const runtimeInputs: Array<{ id?: string; required?: boolean }> = Array.isArray(
+    const runtimeInputs: { id?: string; required?: boolean }[] = Array.isArray(
       entrypoint.params?.runtimeInputs,
     )
       ? entrypoint.params.runtimeInputs
@@ -356,9 +356,7 @@ export class SchedulesService {
       }
       const value = payload.runtimeInputs?.[inputDef.id];
       if (inputDef.required !== false && (value === undefined || value === null)) {
-        throw new BadRequestException(
-          `Schedule requires value for runtime input "${inputDef.id}"`,
-        );
+        throw new BadRequestException(`Schedule requires value for runtime input "${inputDef.id}"`);
       }
     }
 
@@ -369,8 +367,16 @@ export class SchedulesService {
           throw new BadRequestException(`Unknown node override target "${nodeRef}"`);
         }
         const overrides = payload.nodeOverrides[nodeRef];
-        if (overrides && typeof overrides !== 'object') {
+        if (!overrides || typeof overrides !== 'object') {
           throw new BadRequestException(`Node override for "${nodeRef}" must be an object`);
+        }
+        if (overrides.params && typeof overrides.params !== 'object') {
+          throw new BadRequestException(`Node override params for "${nodeRef}" must be an object`);
+        }
+        if (overrides.inputOverrides && typeof overrides.inputOverrides !== 'object') {
+          throw new BadRequestException(
+            `Node override inputOverrides for "${nodeRef}" must be an object`,
+          );
         }
       }
     }

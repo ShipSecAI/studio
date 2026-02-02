@@ -43,13 +43,18 @@ dockerDescribe('Subfinder Integration (Docker)', () => {
   });
 
   test('should discover subdomains for a known domain using real subfinder', async () => {
-    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>(
+      'shipsec.subfinder.run',
+    )!;
     expect(component).toBeDefined();
 
-    const typedComponent = component!;
-    const params = typedComponent.inputSchema.parse({ domains: ['example.com'] });
-
-    const result = typedComponent.outputSchema.parse(await typedComponent.execute(params, context));
+    const result = await component.execute(
+      {
+        inputs: { domains: ['example.com'] },
+        params: {},
+      },
+      context,
+    );
 
     console.log('Subfinder result:', result);
 
@@ -62,23 +67,26 @@ dockerDescribe('Subfinder Integration (Docker)', () => {
     expect(typeof result.rawOutput).toBe('string');
     expect(typeof result.domainCount).toBe('number');
     expect(typeof result.subdomainCount).toBe('number');
-    
+
     // Subfinder might find 0 subdomains for example.com (it's protected)
     // but should still return valid structure
     expect(result.domainCount).toBe(1);
 
     // Check logs
-    expect(logs.some(log => log.includes('subfinder'))).toBe(true);
+    expect(logs.some((log) => log.includes('subfinder'))).toBe(true);
   }, 120000); // 2 minute timeout for Docker pull + execution
 
   test('should handle invalid domain gracefully', async () => {
-    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>('shipsec.subfinder.run');
-    const typedComponent = component!;
-    const params = typedComponent.inputSchema.parse({
-      domains: ['this-domain-definitely-does-not-exist-12345.invalid'],
-    });
-
-    const result = typedComponent.outputSchema.parse(await typedComponent.execute(params, context));
+    const component = componentRegistry.get<SubfinderInput, SubfinderOutput>(
+      'shipsec.subfinder.run',
+    )!;
+    const result = await component.execute(
+      {
+        inputs: { domains: ['example.com'] },
+        params: { providerConfig: 'test-config' },
+      },
+      context,
+    );
 
     expect(result).toHaveProperty('subdomains');
     expect(Array.isArray(result.subdomains)).toBe(true);

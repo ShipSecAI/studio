@@ -1,0 +1,58 @@
+---
+title: "Temporal Orchestration"
+description: "How ShipSec Studio uses Temporal for workflow and activity management"
+---
+
+# Temporal Orchestration
+
+ShipSec Studio uses [Temporal.io](https://temporal.io) as its core orchestration engine. Temporal ensures that workflows are durable, retriable, and scalable.
+
+## Workflows vs. Activities
+
+- **Workflows**: Contain the orchestration logic. They must be **deterministic** because Temporal may "replay" them to reconstruct state.
+- **Activities**: Perform the actual work (e.g., running a Docker container, making an HTTP request). They can be **non-deterministic** and are automatically retried by Temporal on failure.
+
+## Worker Architecture
+
+ShipSec uses a specialized worker architecture to handle different types of workloads.
+
+### Default Worker
+- **Task Queue**: `shipsec-default`
+- **Responsibilities**: 
+  - Executing workflow logic (orchestration).
+  - Running lightweight "inline" activities (logic, simple transforms).
+
+### Specialized Workers (Scaling)
+For high-volume or heavy workloads, we can deploy specialized workers:
+
+| Worker Type | Task Queue | Activities | Resource Profile |
+|-------------|------------|------------|------------------|
+| **Security** | `security-tools` | Nmap, Subfinder, Nuclei | High CPU, High RAM |
+| **I/O Bound** | `file-ops` | MinIO/S3 uploads, ZIP ops | High Network/Disk I/O |
+| **Long-Running** | `heavy-scans` | Massive port scans | High Timeout, Reserved Capacity |
+
+## Execution Flow
+
+1.  **Backend** starts a workflow via the Temporal Client.
+2.  **Temporal Server** places a "Workflow Task" on the `shipsec-default` queue.
+3.  **Default Worker** picks up the task and starts the workflow.
+4.  When the workflow reaches a node, it schedules an **Activity Task**.
+5.  The **Activity worker** (could be the same worker or a specialized one) executes the activity and returns the result.
+6.  Temporal persists every step in its **Event History**, allowing it to recover from worker crashes.
+
+## Routing Logic
+
+In the workflow code, we route activities to specific queues using `proxyActivities`:
+
+```typescript
+// Inside a workflow
+const heavyActivities = proxyActivities<SecurityActivities>({
+  taskQueue: 'security-tools',  // Routes to specialized security worker
+  startToCloseTimeout: '1 hour',
+});
+
+const results = await heavyActivities.runScanner({ target: 'example.com' });
+```
+
+## Scaling
+ShipSec workers are horizontally scalable. Multiple workers can poll the same task queue, and Temporal will automatically load-balance tasks between them. Workers can be deployed as separate Docker containers or Kubernetes pods.

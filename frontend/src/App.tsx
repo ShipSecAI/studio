@@ -23,18 +23,18 @@ import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge'
 import { CommandPalette, useCommandPaletteKeyboard } from '@/features/command-palette'
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
-  useAuthStoreIntegration()
-  return <>{children}</>
+  useAuthStoreIntegration();
+  return <>{children}</>;
 }
 
 function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
-  useCommandPaletteKeyboard()
+  useCommandPaletteKeyboard();
   return (
     <>
       {children}
       <CommandPalette />
     </>
-  )
+  );
 }
 
 function App() {
@@ -101,7 +101,7 @@ function App() {
         </ToastProvider>
       </AuthIntegration>
     </AuthProvider>
-  )
+  );
 }
 
-export default App
+export default App;

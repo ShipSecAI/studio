@@ -43,13 +43,9 @@ export class ArtifactAdapter {
         ? input.destinations
         : (['run'] as ArtifactDestination[]);
 
-    await this.minioClient.putObject(
-      this.bucketName,
-      fileId,
-      input.content,
-      input.content.length,
-      { 'Content-Type': input.mimeType },
-    );
+    await this.minioClient.putObject(this.bucketName, fileId, input.content, input.content.length, {
+      'Content-Type': input.mimeType,
+    });
 
     await this.db.insert(schema.files).values({
       id: fileId,

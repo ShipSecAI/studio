@@ -3,19 +3,23 @@
  * Used to verify Docker runner implementation
  */
 import { z } from 'zod';
-import type { ComponentDefinition } from '@shipsec/component-sdk';
-import { ContainerError } from '@shipsec/component-sdk';
+import { ContainerError, defineComponent, inputs, outputs, port } from '@shipsec/component-sdk';
 
-type Input = { message: string };
-type Output = string;
-
-const inputSchema = z.object({
-  message: z.string(),
+const inputSchema = inputs({
+  message: port(z.string(), {
+    label: 'Message',
+    description: 'Message to echo via the Docker container.',
+  }),
 });
 
-const outputSchema = z.string();
+const outputSchema = outputs({
+  message: port(z.string(), {
+    label: 'Message',
+    description: 'Echoed message from the container.',
+  }),
+});
 
-const definition: ComponentDefinition<Input, Output> = {
+const definition = defineComponent({
   id: 'test.docker.echo',
   label: 'Docker Echo Test',
   category: 'transform',
@@ -25,17 +29,16 @@ const definition: ComponentDefinition<Input, Output> = {
     command: ['sh', '-c', 'cat'],
     timeoutSeconds: 10,
   },
-  inputSchema,
-  outputSchema,
+  inputs: inputSchema,
+  outputs: outputSchema,
   docs: 'Test component that echoes input using Docker (alpine)',
-  async execute(params, context) {
+  async execute(_params, _context) {
     // This should never be called when using Docker runner
     // The Docker runner intercepts and runs the container directly
     throw new ContainerError('This component should run in Docker, not inline', {
       details: { reason: 'inline_fallback_not_supported' },
     });
   },
-};
+});
 
 export default definition;
-

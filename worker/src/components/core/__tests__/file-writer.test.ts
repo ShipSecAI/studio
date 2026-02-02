@@ -1,6 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, mock, vi } from 'bun:test';
-import { componentRegistry, createExecutionContext, type IArtifactService } from '@shipsec/component-sdk';
-import type { ComponentDefinition } from '@shipsec/component-sdk';
+import {
+  componentRegistry,
+  createExecutionContext,
+  type IArtifactService,
+} from '@shipsec/component-sdk';
 import type { FileWriterInput, FileWriterOutput } from '../file-writer';
 
 const s3SendMock = vi.fn();
@@ -15,11 +18,11 @@ mock.module('@aws-sdk/client-s3', () => {
 });
 
 describe('core.file.writer component', () => {
-  let component: ComponentDefinition<FileWriterInput, FileWriterOutput> | undefined;
+  let component: ReturnType<typeof componentRegistry.get<FileWriterInput, FileWriterOutput>>;
 
   beforeAll(async () => {
     await import('../../index');
-    component = componentRegistry.get('core.file.writer');
+    component = componentRegistry.get<FileWriterInput, FileWriterOutput>('core.file.writer');
   });
 
   beforeEach(() => {
@@ -29,7 +32,7 @@ describe('core.file.writer component', () => {
   it('registers with the expected metadata', () => {
     expect(component).toBeDefined();
     expect(component?.label).toBe('File Writer');
-    expect(component?.metadata?.slug).toBe('file-writer');
+    expect(component?.ui?.slug).toBe('file-writer');
   });
 
   it('uploads to the artifact service when local destinations are selected', async () => {
@@ -53,16 +56,20 @@ describe('core.file.writer component', () => {
       artifacts,
     });
 
-    const params = component.inputSchema.parse({
-      fileName: 'output.txt',
-      content: 'Hello world',
-      destination: {
-        adapterId: 'artifact',
-        config: { destinations: ['run'] },
+    const executePayload = {
+      inputs: {
+        content: 'Hello world',
+        destination: {
+          adapterId: 'artifact',
+          config: { destinations: ['run'] },
+        },
       },
-    });
+      params: {
+        fileName: 'output.txt',
+      },
+    };
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(executePayload, context);
 
     expect(uploadMock).toHaveBeenCalledTimes(1);
     const payload = uploadMock.mock.calls[0][0];
@@ -78,7 +85,7 @@ describe('core.file.writer component', () => {
     if (!component) throw new Error('Component not registered');
 
     expect(() =>
-      component?.inputSchema.parse({
+      component?.inputs.parse({
         fileName: 'noop.txt',
         content: 'Missing destinations',
       }),
@@ -106,16 +113,20 @@ describe('core.file.writer component', () => {
       artifacts,
     });
 
-    const params = component.inputSchema.parse({
-      fileName: 'adapter.txt',
-      content: 'Destination registry FTW',
-      destination: {
-        adapterId: 'artifact',
-        config: { destinations: ['library'] },
+    const executePayload = {
+      inputs: {
+        content: 'Destination registry FTW',
+        destination: {
+          adapterId: 'artifact',
+          config: { destinations: ['library'] },
+        },
       },
-    });
+      params: {
+        fileName: 'adapter.txt',
+      },
+    };
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(executePayload, context);
     expect(uploadMock).toHaveBeenCalledTimes(1);
     expect(result.destinations).toEqual(['library']);
     expect(result.artifactId).toBe('dest-1');
@@ -131,26 +142,30 @@ describe('core.file.writer component', () => {
       componentRef: 'node-3',
     });
 
-    const params = component.inputSchema.parse({
-      fileName: 'report.json',
-      mimeType: 'application/json',
-      content: { status: 'ok' },
-      contentFormat: 'json',
-      destination: {
-        adapterId: 's3',
-        config: {
-          bucket: 'shipsec-artifacts',
-          credentials: {
-            accessKeyId: 'AKIA123',
-            secretAccessKey: 'secret',
+    const executePayload = {
+      inputs: {
+        content: { status: 'ok' },
+        destination: {
+          adapterId: 's3',
+          config: {
+            bucket: 'shipsec-artifacts',
+            credentials: {
+              accessKeyId: 'AKIA123',
+              secretAccessKey: 'secret',
+            },
+            pathPrefix: 'runs/demo',
+            publicUrl: 'https://cdn.example.com/artifacts',
           },
-          pathPrefix: 'runs/demo',
-          publicUrl: 'https://cdn.example.com/artifacts',
         },
       },
-    });
+      params: {
+        fileName: 'report.json',
+        mimeType: 'application/json',
+        contentFormat: 'json' as const,
+      },
+    };
 
-    const result = await component.execute(params, context);
+    const result = await component.execute(executePayload, context);
 
     expect(s3SendMock).toHaveBeenCalledTimes(1);
     const commandInput = (s3SendMock.mock.calls[0][0] as { input: Record<string, unknown> }).input;
@@ -158,7 +173,7 @@ describe('core.file.writer component', () => {
     expect(commandInput.Key).toBe('runs/demo/report.json');
 
     expect(result.remoteUploads).toHaveLength(1);
-    expect(result.remoteUploads?.[0]).toMatchObject({
+    expect(result.remoteUploads![0]).toMatchObject({
       bucket: 'shipsec-artifacts',
       key: 'runs/demo/report.json',
       url: 'https://cdn.example.com/artifacts/runs/demo/report.json',
