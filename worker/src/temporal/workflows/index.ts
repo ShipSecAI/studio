@@ -741,7 +741,9 @@ export async function shipsecWorkflowRun(
           } catch (error) {
             // Cleanup any MCP containers that were started before failure
             if (startedContainerId) {
-              console.warn(`[Workflow] Cleaning up MCP container ${startedContainerId} after registration failure`);
+              console.warn(
+                `[Workflow] Cleaning up MCP container ${startedContainerId} after registration failure`,
+              );
               try {
                 await cleanupLocalMcpActivity({ runId: input.runId });
               } catch (cleanupError) {
