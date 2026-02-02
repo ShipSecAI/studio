@@ -245,6 +245,7 @@
         "@aws-sdk/client-s3": "^3.975.0",
         "@googleapis/admin": "^29.0.0",
         "@grpc/grpc-js": "^1.14.3",
+        "@modelcontextprotocol/sdk": "^1.25.1",
         "@okta/okta-sdk-nodejs": "^7.3.0",
         "@shipsec/component-sdk": "*",
         "@shipsec/contracts": "*",
