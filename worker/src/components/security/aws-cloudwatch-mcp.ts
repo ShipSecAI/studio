@@ -49,9 +49,16 @@ const parameterSchema = parameters({
   }),
 });
 
+/**
+ * AWS CloudWatch MCP Server Component
+ *
+ * @deprecated Use `security.aws-mcp-group` instead. This component will be removed in a future version.
+ * The new AWS MCP group node provides a unified interface for all AWS MCP servers including CloudTrail,
+ * CloudWatch, and other AWS services in a single component.
+ */
 const definition = defineComponent({
   id: 'security.aws-cloudwatch-mcp',
-  label: 'AWS CloudWatch MCP Server',
+  label: 'AWS CloudWatch MCP (DEPRECATED)',
   category: 'mcp',
   runner: {
     kind: 'docker',
@@ -62,13 +69,14 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Runs the AWS CloudWatch MCP server in a container and exposes it via the MCP gateway (tool-mode only).',
+  docs: 'DEPRECATED: Use the AWS MCPs node instead. This component provides CloudWatch MCP server access.',
   ui: {
     slug: 'aws-cloudwatch-mcp',
     version: '1.0.0',
     type: 'process',
     category: 'mcp',
-    description: 'Expose AWS CloudWatch via MCP for tool-mode agents.',
+    description:
+      'DEPRECATED: Use the AWS MCPs node instead. This component provides CloudWatch MCP server access. Migrate to the unified AWS MCP group for better management.',
     icon: 'Plug',
     author: {
       name: 'ShipSecAI',

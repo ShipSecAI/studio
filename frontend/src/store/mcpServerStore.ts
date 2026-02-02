@@ -19,6 +19,8 @@ export interface McpServerResponse {
   lastHealthStatus?: McpHealthStatus | null;
   createdAt: string;
   updatedAt: string;
+  groupId?: string | null;
+  groupName?: string | null;
 }
 
 export interface McpToolResponse {
@@ -81,6 +83,10 @@ interface McpServerStoreActions {
 
   // Filters
   setFilters: (filters: Partial<McpServerFilters>) => void;
+
+  // Group-related methods
+  getUngroupedServers: () => McpServerResponse[];
+  getServersByGroup: (groupId: string) => McpServerResponse[];
 
   // Local state
   upsertServer: (server: McpServerResponse) => void;
@@ -338,6 +344,14 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
 
   setError: (message) => {
     set({ error: message });
+  },
+
+  getUngroupedServers: () => {
+    return get().servers.filter((s) => !s.groupId);
+  },
+
+  getServersByGroup: (groupId) => {
+    return get().servers.filter((s) => s.groupId === groupId);
   },
 }));
 

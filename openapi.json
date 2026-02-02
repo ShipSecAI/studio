@@ -1399,7 +1399,7 @@
             }
           },
           {
-            "name": "id",
+            "name": "artifactId",
             "required": true,
             "in": "path",
             "schema": {
@@ -2277,6 +2277,29 @@
         "tags": ["artifacts"]
       }
     },
+    "/api/v1/artifacts/{id}": {
+      "delete": {
+        "operationId": "ArtifactsController_deleteArtifact",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Artifact deleted successfully"
+          }
+        },
+        "tags": ["artifacts"]
+      }
+    },
     "/api/v1/api-keys": {
       "get": {
         "operationId": "ApiKeysController_list",
@@ -2786,6 +2809,23 @@
                         "items": {
                           "type": "string"
                         }
+                      },
+                      "agentTool": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "toolName": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "toolDescription": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
                       }
                     }
                   }
@@ -3005,10 +3045,6 @@
                     "examples": {
                       "type": "array"
                     },
-                    "isLatest": {
-                      "type": "boolean",
-                      "nullable": true
-                    },
                     "deprecated": {
                       "type": "boolean",
                       "nullable": true
@@ -3016,6 +3052,23 @@
                     "example": {
                       "type": "string",
                       "nullable": true
+                    },
+                    "agentTool": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "toolName": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "toolDescription": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
                     }
                   }
                 }
@@ -4378,6 +4431,745 @@
         "tags": ["Human Inputs"]
       }
     },
+    "/api/v1/mcp-servers": {
+      "get": {
+        "operationId": "McpServersController_listServers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpServerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List all MCP servers",
+        "tags": ["mcp-servers"]
+      },
+      "post": {
+        "operationId": "McpServersController_createServer",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMcpServerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create a new MCP server configuration",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/enabled": {
+      "get": {
+        "operationId": "McpServersController_listEnabledServers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpServerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List enabled MCP servers only",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/tools": {
+      "get": {
+        "operationId": "McpServersController_getAllTools",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpToolResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List all tools from enabled MCP servers",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/health": {
+      "get": {
+        "operationId": "McpServersController_getHealthStatuses",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthStatusResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get health status of all enabled servers",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/{id}": {
+      "get": {
+        "operationId": "McpServersController_getServer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a specific MCP server",
+        "tags": ["mcp-servers"]
+      },
+      "patch": {
+        "operationId": "McpServersController_updateServer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpServerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update an MCP server configuration",
+        "tags": ["mcp-servers"]
+      },
+      "delete": {
+        "operationId": "McpServersController_deleteServer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Delete an MCP server configuration",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/{id}/tools": {
+      "get": {
+        "operationId": "McpServersController_getServerTools",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpToolResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List discovered tools from a server",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/{id}/toggle": {
+      "post": {
+        "operationId": "McpServersController_toggleServer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Toggle MCP server enabled/disabled status",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/{id}/test": {
+      "post": {
+        "operationId": "McpServersController_testConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Test connection to an MCP server",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/{id}/discover": {
+      "post": {
+        "operationId": "McpServersController_discoverTools",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpToolResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Force re-discover tools from an MCP server",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-servers/{serverId}/tools/{toolId}/toggle": {
+      "post": {
+        "operationId": "McpServersController_toggleToolEnabled",
+        "parameters": [
+          {
+            "name": "serverId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "toolId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpToolResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Toggle a tool enabled/disabled state",
+        "tags": ["mcp-servers"]
+      }
+    },
+    "/api/v1/mcp-groups": {
+      "get": {
+        "operationId": "McpGroupsController_listGroups",
+        "parameters": [
+          {
+            "name": "enabled",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpGroupResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List all MCP groups",
+        "tags": ["mcp-groups"]
+      },
+      "post": {
+        "operationId": "McpGroupsController_createGroup",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMcpGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpGroupResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create a new MCP group (admin only)",
+        "tags": ["mcp-groups"]
+      }
+    },
+    "/api/v1/mcp-groups/slug/{slug}": {
+      "get": {
+        "operationId": "McpGroupsController_getGroupBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpGroupResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a group by slug",
+        "tags": ["mcp-groups"]
+      }
+    },
+    "/api/v1/mcp-groups/{id}": {
+      "get": {
+        "operationId": "McpGroupsController_getGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpGroupResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a specific MCP group",
+        "tags": ["mcp-groups"]
+      },
+      "patch": {
+        "operationId": "McpGroupsController_updateGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpGroupResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update an MCP group",
+        "tags": ["mcp-groups"]
+      },
+      "delete": {
+        "operationId": "McpGroupsController_deleteGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Delete an MCP group (admin only)",
+        "tags": ["mcp-groups"]
+      }
+    },
+    "/api/v1/mcp-groups/{id}/servers": {
+      "get": {
+        "operationId": "McpGroupsController_getServersInGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpGroupServerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get servers in a group",
+        "tags": ["mcp-groups"]
+      },
+      "post": {
+        "operationId": "McpGroupsController_addServerToGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddServerToGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpGroupServerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Add a server to a group (admin only)",
+        "tags": ["mcp-groups"]
+      }
+    },
+    "/api/v1/mcp-groups/{id}/servers/{serverId}": {
+      "patch": {
+        "operationId": "McpGroupsController_updateServerInGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "serverId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServerInGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpGroupServerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update server metadata in a group (admin only)",
+        "tags": ["mcp-groups"]
+      },
+      "delete": {
+        "operationId": "McpGroupsController_removeServerFromGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "serverId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Remove a server from a group (admin only)",
+        "tags": ["mcp-groups"]
+      }
+    },
+    "/api/v1/mcp-groups/sync-templates": {
+      "post": {
+        "operationId": "McpGroupsController_syncTemplates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncTemplatesResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sync group templates from code (admin only)",
+        "tags": ["mcp-groups"]
+      }
+    },
+    "/api/v1/mcp-groups/{id}/discover-tools": {
+      "post": {
+        "operationId": "McpGroupsController_discoverGroupTools",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverGroupToolsResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Discover tools for all enabled servers in a group (admin only)",
+        "tags": ["mcp-groups"]
+      }
+    },
     "/api/v1/mcp/gateway": {
       "get": {
         "operationId": "McpGatewayController_handleGateway_get",
@@ -4538,6 +5330,30 @@
             }
           }
         },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["InternalMcp"]
+      }
+    },
+    "/api/v1/internal/mcp/cleanup": {
+      "post": {
+        "operationId": "InternalMcpController_cleanupRun",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["InternalMcp"]
+      }
+    },
+    "/api/v1/internal/mcp/tools-ready": {
+      "post": {
+        "operationId": "InternalMcpController_areToolsReady",
+        "parameters": [],
         "responses": {
           "201": {
             "description": ""
@@ -4727,6 +5543,35 @@
                           "type": "integer",
                           "exclusiveMinimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": ["normal", "tool"]
+                        },
+                        "toolConfig": {
+                          "type": "object",
+                          "properties": {
+                            "boundInputIds": {
+                              "default": [],
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "exposedInputIds": {
+                              "default": [],
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "connectedToolNodeIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
@@ -4900,6 +5745,35 @@
                               "type": "integer",
                               "exclusiveMinimum": 0,
                               "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": ["normal", "tool"]
+                            },
+                            "toolConfig": {
+                              "type": "object",
+                              "properties": {
+                                "boundInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "exposedInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "connectedToolNodeIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           }
                         },
@@ -5104,6 +5978,35 @@
                           "type": "integer",
                           "exclusiveMinimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": ["normal", "tool"]
+                        },
+                        "toolConfig": {
+                          "type": "object",
+                          "properties": {
+                            "boundInputIds": {
+                              "default": [],
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "exposedInputIds": {
+                              "default": [],
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "connectedToolNodeIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
@@ -5328,6 +6231,35 @@
                               "type": "integer",
                               "exclusiveMinimum": 0,
                               "maximum": 9007199254740991
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": ["normal", "tool"]
+                            },
+                            "toolConfig": {
+                              "type": "object",
+                              "properties": {
+                                "boundInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "exposedInputIds": {
+                                  "default": [],
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "connectedToolNodeIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           }
                         },
@@ -7398,6 +8330,514 @@
           }
         },
         "required": ["success", "message", "input"]
+      },
+      "McpServerResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "transportType": {
+            "type": "string",
+            "enum": ["http", "stdio", "sse", "websocket"]
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hasHeaders": {
+            "type": "boolean",
+            "description": "Whether encrypted headers are configured"
+          },
+          "headerKeys": {
+            "nullable": true,
+            "description": "Header key names (values are encrypted server-side)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "healthCheckUrl": {
+            "type": "string"
+          },
+          "lastHealthCheck": {
+            "type": "string"
+          },
+          "lastHealthStatus": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy", "unknown"]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "transportType",
+          "hasHeaders",
+          "enabled",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "McpToolResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputSchema": {
+            "type": "object"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "discoveredAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "toolName", "serverId", "serverName", "enabled", "discoveredAt"]
+      },
+      "HealthStatusResponse": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy", "unknown"]
+          },
+          "checkedAt": {
+            "type": "string"
+          }
+        },
+        "required": ["serverId", "status"]
+      },
+      "CreateMcpServerDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable unique name for the MCP server"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description"
+          },
+          "transportType": {
+            "type": "string",
+            "description": "Transport type for connecting to the MCP server",
+            "enum": ["http", "stdio", "sse", "websocket"]
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "URL endpoint for HTTP/SSE/WebSocket transports"
+          },
+          "command": {
+            "type": "string",
+            "description": "Command to run for stdio transport"
+          },
+          "args": {
+            "description": "Arguments for stdio command",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "headers": {
+            "type": "object",
+            "description": "HTTP headers for authentication (will be encrypted)",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "healthCheckUrl": {
+            "type": "string",
+            "description": "Custom health check URL (optional)"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server is enabled",
+            "default": true
+          }
+        },
+        "required": ["name", "transportType"]
+      },
+      "UpdateMcpServerDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable unique name for the MCP server"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description"
+          },
+          "transportType": {
+            "type": "string",
+            "description": "Transport type for connecting to the MCP server",
+            "enum": ["http", "stdio", "sse", "websocket"]
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "URL endpoint for HTTP/SSE/WebSocket transports"
+          },
+          "command": {
+            "type": "string",
+            "description": "Command to run for stdio transport"
+          },
+          "args": {
+            "description": "Arguments for stdio command",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "headers": {
+            "type": "object",
+            "description": "HTTP headers for authentication (will be encrypted). Set to null to clear.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "healthCheckUrl": {
+            "type": "string",
+            "description": "Custom health check URL (optional)"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server is enabled"
+          }
+        }
+      },
+      "TestConnectionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "toolCount": {
+            "type": "number"
+          },
+          "protocolVersion": {
+            "type": "string",
+            "description": "MCP protocol version reported by the server"
+          },
+          "responseTimeMs": {
+            "type": "number",
+            "description": "Response time in milliseconds"
+          }
+        },
+        "required": ["success"]
+      },
+      "McpGroupResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Group ID"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-friendly slug"
+          },
+          "name": {
+            "type": "string",
+            "description": "Group name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Group description"
+          },
+          "credentialContractName": {
+            "type": "string",
+            "description": "Credential contract name"
+          },
+          "credentialMapping": {
+            "type": "object",
+            "description": "Credential mapping"
+          },
+          "defaultDockerImage": {
+            "type": "string",
+            "description": "Default Docker image"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether group is enabled"
+          },
+          "templateHash": {
+            "type": "string",
+            "description": "Template hash for seeded groups"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation timestamp"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Last update timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "credentialContractName",
+          "enabled",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateMcpGroupDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "URL-friendly slug for the group"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the group"
+          },
+          "credentialContractName": {
+            "type": "string",
+            "description": "Credential contract name for authentication"
+          },
+          "credentialMapping": {
+            "type": "object",
+            "description": "Mapping of credentials for servers in this group"
+          },
+          "defaultDockerImage": {
+            "type": "string",
+            "description": "Default Docker image for servers in this group"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the group is enabled"
+          }
+        },
+        "required": ["slug", "name", "credentialContractName"]
+      },
+      "UpdateMcpGroupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the group"
+          },
+          "credentialContractName": {
+            "type": "string",
+            "description": "Credential contract name for authentication"
+          },
+          "credentialMapping": {
+            "type": "object",
+            "description": "Mapping of credentials for servers in this group"
+          },
+          "defaultDockerImage": {
+            "type": "string",
+            "description": "Default Docker image for servers in this group"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the group is enabled"
+          }
+        }
+      },
+      "McpGroupServerResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Server ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Server name (display name)"
+          },
+          "serverName": {
+            "type": "string",
+            "description": "Server name (alias for frontend)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Server description"
+          },
+          "transportType": {
+            "type": "string",
+            "description": "Transport type",
+            "enum": ["http", "stdio", "sse", "websocket"]
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "HTTP endpoint URL"
+          },
+          "command": {
+            "type": "string",
+            "description": "Command for stdio transport"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether server is enabled"
+          },
+          "healthStatus": {
+            "type": "string",
+            "description": "Health status"
+          },
+          "toolCount": {
+            "type": "number",
+            "description": "Number of tools available"
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether server is recommended for this group"
+          },
+          "defaultSelected": {
+            "type": "boolean",
+            "description": "Whether server is selected by default"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "serverName",
+          "transportType",
+          "enabled",
+          "toolCount",
+          "recommended",
+          "defaultSelected"
+        ]
+      },
+      "AddServerToGroupDto": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "description": "Server ID to add to group"
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether this server is recommended"
+          },
+          "defaultSelected": {
+            "type": "boolean",
+            "description": "Whether this server is selected by default"
+          }
+        },
+        "required": ["serverId"]
+      },
+      "UpdateServerInGroupDto": {
+        "type": "object",
+        "properties": {
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether this server is recommended"
+          },
+          "defaultSelected": {
+            "type": "boolean",
+            "description": "Whether this server is selected by default"
+          }
+        }
+      },
+      "SyncTemplatesResponse": {
+        "type": "object",
+        "properties": {
+          "syncedCount": {
+            "type": "number",
+            "description": "Number of templates synced"
+          },
+          "createdCount": {
+            "type": "number",
+            "description": "Number of templates created"
+          },
+          "updatedCount": {
+            "type": "number",
+            "description": "Number of templates updated"
+          },
+          "templates": {
+            "description": "Template slugs that were synced",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["syncedCount", "createdCount", "updatedCount", "templates"]
+      },
+      "DiscoverGroupToolsResponse": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "description": "Group ID"
+          },
+          "totalServers": {
+            "type": "number",
+            "description": "Total servers processed"
+          },
+          "successCount": {
+            "type": "number",
+            "description": "Servers where tools were discovered successfully"
+          },
+          "failureCount": {
+            "type": "number",
+            "description": "Servers where discovery failed"
+          },
+          "results": {
+            "description": "Per-server results",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["groupId", "totalServers", "successCount", "failureCount", "results"]
       },
       "RegisterComponentToolInput": {
         "type": "object",

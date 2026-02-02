@@ -5,6 +5,11 @@ export { WorkflowNode } from './WorkflowNode';
 export { TerminalButton } from './TerminalButton';
 export { ParametersDisplay } from './ParametersDisplay';
 export { NodeProgressBar } from './NodeProgressBar';
+export { McpServersDisplay } from './McpServersDisplay';
+
+// Export MCP-related components from workflow directory
+export { McpGroupConfig } from '@/components/workflow/McpGroupConfig';
+export { McpGroupServersDisplay } from '@/components/workflow/McpGroupServersDisplay';
 
 // Export types
 export type {

@@ -11,6 +11,7 @@ import { ScriptCodeEditor } from './ScriptCodeEditor';
 import { FormFieldsEditor } from './FormFieldsEditor';
 import { SelectionOptionsEditor } from './SelectionOptionsEditor';
 import { McpLibraryConfig } from './McpLibraryConfig';
+import { McpGroupConfig } from './McpGroupConfig';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
@@ -446,7 +447,20 @@ export function ParameterField({
   if (componentId === 'core.mcp.library' && parameter.id === 'enabledServers') {
     const selectedServers = Array.isArray(currentValue) ? currentValue : [];
     return (
-      <McpLibraryConfig
+      <McpLibraryConfig value={selectedServers} onChange={onChange} disabled={isReceivingInput} />
+    );
+  }
+
+  // MCP Groups - enabledServers parameter uses group-specific configuration
+  // Group IDs: aws-mcps, github-mcps, gcp-mcps
+  const mcpGroupIds = ['core.mcp.aws', 'core.mcp.github', 'core.mcp.gcp'];
+  if (componentId && mcpGroupIds.includes(componentId) && parameter.id === 'enabledServers') {
+    // Extract group ID from component ID
+    const groupId = componentId.replace('core.mcp.', '') + '-mcps';
+    const selectedServers = Array.isArray(currentValue) ? currentValue : [];
+    return (
+      <McpGroupConfig
+        groupId={groupId}
         value={selectedServers}
         onChange={onChange}
         disabled={isReceivingInput}
