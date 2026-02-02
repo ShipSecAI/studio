@@ -55,6 +55,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 // Import extracted components
 import { TerminalButton } from './TerminalButton';
 import { ParametersDisplay } from './ParametersDisplay';
+import { McpServersDisplay } from './McpServersDisplay';
 import { NodeProgressBar } from './NodeProgressBar';
 import { STATUS_ICONS, TEXT_BLOCK_SIZES } from './constants';
 
@@ -926,6 +927,15 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
             requiredParams={requiredParams}
             nodeParameters={nodeData.config?.params}
             position="top"
+          />
+        )}
+
+        {/* MCP Servers Display - Show selected servers for MCP Library component */}
+        {component?.id === 'core.mcp.library' && (
+          <McpServersDisplay
+            enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}
+            position="bottom"
+            compact={true}
           />
         )}
 
