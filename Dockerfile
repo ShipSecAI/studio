@@ -103,6 +103,9 @@ ENV VITE_PUBLIC_POSTHOG_HOST=${VITE_PUBLIC_POSTHOG_HOST}
 USER shipsec
 WORKDIR /app/frontend
 
+# Build TypeScript declarations for workspace packages first (project references require this)
+RUN cd /app && bunx tsc --build packages/shared packages/backend-client
+
 # Build production assets ahead of time so Vite embeds the env vars
 RUN bun run build
 
