@@ -9,12 +9,12 @@
 </p>
 
 # ShipSec Studio
+
 **Open-Source Security Workflow Orchestration Platform.**
 
 > ShipSec is currently in active development. We are optimizing the platform for stable production use and high-performance security operations.
 
 ShipSec Studio provides a visual DSL and runtime for building, executing, and monitoring automated security workflows. It decouples security logic from infrastructure management, providing a durable and isolated environment for running security tooling at scale.
-
 
 <div align="center">
   <a href="https://youtu.be/7uyv43VforM">
@@ -27,10 +27,10 @@ ShipSec Studio provides a visual DSL and runtime for building, executing, and mo
 
 ### 🏗️ Core Pillars
 
-*   **Durable, resumable workflows** powered by Temporal.io for stateful execution across failures.
-*   **Isolated security runtimes** using ephemeral containers with per-run volume management.
-*   **Unified telemetry streams** delivering terminal output, events, and logs via a low-latency SSE pipeline.
-*   **Visual no-code builder** that compiles complex security graphs into an executable DSL.
+- **Durable, resumable workflows** powered by Temporal.io for stateful execution across failures.
+- **Isolated security runtimes** using ephemeral containers with per-run volume management.
+- **Unified telemetry streams** delivering terminal output, events, and logs via a low-latency SSE pipeline.
+- **Visual no-code builder** that compiles complex security graphs into an executable DSL.
 
 ---
 
@@ -47,6 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | 
 ```
 
 This installer will:
+
 - Check and install missing dependencies (docker, just, curl, jq, git)
 - Start Docker if not running
 - Clone the repository and start all services
@@ -55,14 +56,18 @@ This installer will:
 Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 
 ### 2. ShipSec Cloud (Preview)
+
 The fastest way to test ShipSec Studio without managing infrastructure.
+
 - **Try it out:** [studio.shipsec.ai](https://studio.shipsec.ai)
 - **Note:** ShipSec Studio is under active development. The cloud environment is a technical preview for evaluation and sandbox testing.
 
 ### 3. Self-Host (Docker)
+
 For teams requiring data residency and air-gapped security orchestrations. This setup runs the full stack (Frontend, Backend, Worker, and Infrastructure).
 
 **Prerequisites:**
+
 - **[docker](https://www.docker.com/)** - For running the application and security components
 - **[just](https://github.com/casey/just)** - Command runner for simplified workflows
 - **curl** and **jq** - For fetching release information
@@ -73,6 +78,7 @@ git clone https://github.com/ShipSecAI/studio.git
 cd studio
 just prod start-latest
 ```
+
 Access the studio at `http://localhost:8090`.
 
 ---
@@ -80,16 +86,25 @@ Access the studio at `http://localhost:8090`.
 ## 🛠️ Capabilities
 
 ### Integrated Tooling
+
 Native support for industry-standard security tools including:
+
 - **Discovery**: `Subfinder`, `DNSX`, `Naabu`, `HTTPx`
 - **Vulnerability**: `Nuclei`, `TruffleHog`
 - **Utility**: `JSON Transform`, `Logic Scripts`, `HTTP Requests`
 
 ### Advanced Orchestration
+
 - **Human-in-the-Loop**: Pause workflows for approvals, form inputs, or manual validation before continuing.
 - **AI-Driven Analysis**: Leverage LLM nodes and MCP providers for intelligent results interpretation.
 - **Native Scheduling**: Integrated CRON support for recurring security posture and compliance monitoring.
 - **API First**: Trigger and monitor any workflow execution via a comprehensive REST API.
+
+### MCP Integration
+
+- **MCP Library**: Centralized MCP server management with multi-server selection and automatic tool registration
+- **Built-in MCP Servers**: AWS CloudTrail, CloudWatch, and Filesystem support out-of-the-box
+- **Seamless Tool Discovery**: AI Agents automatically discover and use MCP tools via standardized contracts
 
 ---
 
@@ -128,4 +143,3 @@ ShipSec Studio is licensed under the **Apache License 2.0**.
 <div align="center">
   <p>Engineered for security teams by the ShipSec AI team.</p>
 </div>
-

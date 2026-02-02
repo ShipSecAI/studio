@@ -1,691 +1,1554 @@
-# MCP Architecture Merge Plan: PR #209 + PR #243
+# MCP Architecture Merge Plan: PR #209 (MCP Library) + PR #243 (Tool Mode)
 
-**Date**: 2026-02-02
-**Branches**: `mcp-library` (PR #209) ← `main` (includes PR #243)
-**Status**: Draft - Pending Review
-
----
-
-## Executive Summary
-
-This document outlines the integration plan for merging **PR #209 (MCP Library)** with **PR #243 (Tool Mode + MCP Gateway)**. PR #243 is already merged into main, while PR #209 remains open with merge conflicts.
-
-### The Conflict
-
-- **PR #209** implements a centralized "MCP Library" that manages MCP servers via backend API, with worker spawning stdio processes directly
-- **PR #243** implements "Tool Mode" with MCP Gateway using Docker containers + Streamable HTTP protocol
-
-### The Vision
-
-The goal is a unified architecture where:
-1. **Docker containers** host stdio-based MCP servers (not direct process spawning)
-2. **HTTP proxy** (mcp-stdio-proxy) bridges stdio to Streamable HTTP
-3. **MCP Gateway** orchestrates all tool calls via unified JSON-RPC endpoint
-4. **MCP Library** provides UI/UX for managing server configurations
-5. **Tool Registry** (Redis-backed) manages tool metadata and credentials
+**Document Version:** 1.0
+**Date:** 2026-02-02
+**Author:** Technical Documentation Team
+**Status:** DRAFT - Pending Review
 
 ---
 
-## Architecture Comparison
+## Table of Contents
 
-| Aspect | PR #209 (MCP Library) | PR #243 (Tool Mode) | Proposed Final |
-|--------|----------------------|---------------------|----------------|
-| **Server Lifecycle** | Direct stdio process spawn in worker | Docker container with HTTP proxy | Docker + HTTP proxy |
-| **Tool Discovery** | Backend API → Worker → MCP Client | MCP Gateway → Tool Registry | MCP Gateway → Tool Registry |
-| **Communication** | Direct MCP SDK calls | Streamable HTTP (JSON-RPC) | Streamable HTTP |
-| **Agent Integration** | Manual tool registration in ai-agent.ts | `@ai-sdk/mcp` via MCP Gateway | `@ai-sdk/mcp` via MCP Gateway |
-| **Credential Storage** | PostgreSQL (encrypted headers) | Redis (per-run) | Both: PG for config, Redis for runtime |
-| **UI Management** | McpLibraryPage (full CRUD) | Tool mode nodes in workflows | Both: MCP Library page + tool mode nodes |
-
----
-
-## Current Architecture: PR #209
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           MCP LIBRARY (PR #209)                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Frontend: McpLibraryPage.tsx                                              │
-│    ↓                                                                       │
-│  Backend: /api/v1/mcp-servers/* (McpServersController)                     │
-│    ↓                                                                       │
-│  PostgreSQL: mcp_servers table (encrypted headers)                         │
-│    ↓                                                                       │
-│  Worker: fetchEnabledMcpServersActivity()                                  │
-│    ↓                                                                       │
-│  Worker: McpClientService (connection pooling)                             │
-│    ↓                                                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │     StdioClientTransport (spawns child process)                     │   │
-│  │     HTTP/SSE/WebSocket transports (direct connection)               │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│    ↓                                                                       │
-│  AI Agent: Manual tool registration (jsonSchemaToZod + registerMcpLibraryTool) │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**Key Files:**
-- `backend/src/mcp-servers/mcp-servers.service.ts` (670 lines)
-- `backend/src/database/schema/mcp-servers.ts` (mcp_servers, mcp_server_tools tables)
-- `worker/src/services/mcp-client.service.ts` (stdio process spawning)
-- `worker/src/components/ai/ai-agent.ts` (+270 lines for MCP Library integration)
+1. [Executive Summary](#section-1-executive-summary)
+2. [Architecture Comparison](#section-2-architecture-comparison)
+3. [Proposed Final Architecture](#section-3-proposed-final-architecture)
+4. [File-by-File Merge Analysis](#section-4-file-by-file-merge-analysis)
+5. [Migration Strategy](#section-5-migration-strategy)
+6. [Components to Keep vs Remove](#section-6-components-to-keep-vs-remove)
+7. [Architecture Diagrams](#section-7-architecture-diagrams)
+8. [Testing Checklist](#section-8-testing-checklist)
 
 ---
 
-## Current Architecture: PR #243
+## Section 1: Executive Summary
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           TOOL MODE (PR #243)                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Workflow: Tool-mode nodes marked with `mode: 'tool'`                      │
-│    ↓                                                                       │
-│  Compiler: Generates tool registration signals (not execution)              │
-│    ↓                                                                       │
-│  Temporal: Registers tools in Tool Registry (Redis)                        │
-│    ↓                                                                       │
-│  Tool Registry: mcp:run:{runId}:tools (1-hour TTL)                         │
-│    ↓                                                                       │
-│  MCP Gateway: GET/POST /mcp/gateway (Streamable HTTP)                      │
-│    ↓                                                                       │
-│  Agent: createMCPClient() → tools/list → tools/call                        │
-│                                                                             │
-│  For External MCP Servers:                                                 │
-│    ┌───────────────────────────────────────────────────────────────────┐   │
-│  Docker: mcp-server-* container                                        │   │
-│    ↓                                                                  │   │
-│  HTTP Proxy: mcp-stdio-proxy (StdioClientTransport → Express)         │   │
-│    ↓                                                                  │   │
-│  Stdio MCP: python/node MCP server                                     │   │
-│    └───────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+### 1.1 Overview
 
-**Key Files:**
-- `backend/src/mcp/mcp-gateway.service.ts` (539 lines)
-- `backend/src/mcp/tool-registry.service.ts` (Redis-backed)
-- `worker/src/components/core/mcp-runtime.ts` (Docker container launcher)
-- `worker/src/components/core/mcp-server.ts` (MCP server component)
-- `docker/mcp-stdio-proxy/server.mjs` (stdio → HTTP bridge)
+**PR #209: MCP Library** (Open - `mcp-library` branch)
 
----
+- **Purpose:** Globally manage MCP servers and their respective tools across the organization
+- **Approach:** Database-backed persistent storage of MCP server configurations
+- **Key Features:**
+  - CRUD operations for MCP server configurations
+  - Encrypted header storage for authentication
+  - Health check polling and status tracking
+  - Tool discovery and management UI
+  - Direct stdio process execution
 
-## Proposed Final Architecture
+**PR #243: Tool Mode + OpenCode Agent + MCP Gateway** (Merged - `main` branch)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      UNIFIED MCP ARCHITECTURE                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    CONFIGURATION LAYER                              │   │
-│  │                                                                      │   │
-│  │  Frontend: McpLibraryPage (server CRUD) + Workflow tool-mode nodes  │   │
-│  │     ↓                                                                │   │
-│  │  Backend: McpServersModule (/api/v1/mcp-servers/*)                 │   │
-│  │     + McpModule (/mcp/gateway)                                      │   │
-│  │     ↓                                                                │   │
-│  │  PostgreSQL: mcp_servers (persistent config)                        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                     WORKFLOW EXECUTION                              │   │
-│  │                                                                      │   │
-│  │  1. User creates workflow with tool-mode nodes                      │   │
-│  │  2. Compiler detects mode='tool' → generates registration           │   │
-│  │  3. Temporal workflow:                                              │   │
-│  │     - Registers component tools in Tool Registry                    │   │
-│  │     - For MCP server nodes: starts Docker container                 │   │
-│  │     - Registers external MCP tools in Tool Registry                │   │
-│  │  4. Tool Registry (Redis): mcp:run:{runId}:tools                    │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    AGENT EXECUTION                                  │   │
-│  │                                                                      │   │
-│  │  Agent Component (ai-agent.ts):                                     │   │
-│  │    1. Receives MCP Gateway URL + session token (runId, nodeIds)    │   │
-│  │    2. createMCPClient() → connects to /mcp/gateway                 │   │
-│  │    3. tools/list → discovers scoped tools                          │   │
-│  │    4. tools/call → executes via gateway                             │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    MCP GATEWAY                                      │   │
-│  │                                                                      │   │
-│  │  GET/POST/DELETE /mcp/gateway:                                      │   │
-│  │    - Creates McpServer instance per run                             │   │
-│  │    - Registers tools from Tool Registry                            │   │
-│  │    - Proxies external MCP calls via StreamableHTTPClientTransport  │   │
-│  │    - Executes component tools via Temporal signal                   │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    EXTERNAL MCP SERVERS                             │   │
-│  │                                                                      │   │
-│  │  Docker container: shipsec/mcp-stdio-proxy                          │   │
-│  │    Environment: MCP_COMMAND, MCP_ARGS, PORT                         │   │
-│  │    → Spawns stdio MCP server as subprocess                          │   │
-│  │    → Exposes HTTP endpoint: /mcp (Streamable HTTP)                 │   │
-│  │                                                                      │   │
-│  │  Examples:                                                          │   │
-│  │  - shipsec/mcp-aws-cloudtrail (python awslabs.cloudtrail-mcp-server)│   │
-│  │  - shipsec/mcp-aws-cloudwatch (python awslabs.cloudwatch-mcp-server)│   │
-│  │  - Any stdio MCP server (node, python, etc.)                        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+- **Purpose:** Enable AI agents to call workflow components and MCP servers as tools
+- **Approach:** Runtime tool registration with MCP Gateway as centralized proxy
+- **Key Features:**
+  - MCP Gateway with StreamableHTTP transport
+  - Tool Registry (Redis-backed) for runtime tool metadata
+  - Docker containerized stdio MCP servers with HTTP proxy
+  - Tool scoping via workflow graph connections
+  - OpenCode agent component with MCP client integration
+
+### 1.2 The Conflict
+
+| Aspect                | PR #209 (MCP Library)                      | PR #243 (Tool Mode)                            | Conflict                                   |
+| --------------------- | ------------------------------------------ | ---------------------------------------------- | ------------------------------------------ |
+| **Storage**           | PostgreSQL database (`mcp_servers` table)  | Redis runtime registry                         | Different persistence layers               |
+| **Tool Registration** | Direct tool discovery from stdio processes | Gateway-mediated registration via internal API | Duplicate registration mechanisms          |
+| **Agent Integration** | Direct MCP client connections in agent     | MCP Gateway as single proxy endpoint           | Two different agent communication patterns |
+| **Transport**         | Direct stdio, HTTP, SSE, WebSocket         | StreamableHTTP via proxy                       | PR #209 bypasses gateway                   |
+| **Server Management** | Database CRUD with health checks           | Docker runtime with proxy endpoints            | No lifecycle coordination                  |
+
+### 1.3 Proposed Final Architecture
+
+**Vision:** Combine PR #209's persistent MCP Library with PR #243's runtime infrastructure
+
+**Key Design Decisions:**
+
+1. **MCP Library** becomes the source of truth for server configurations
+2. **Docker + HTTP Proxy** architecture from PR #243 handles all stdio servers
+3. **MCP Gateway** remains the single entry point for all tool calls
+4. **StreamableHTTP** becomes the universal transport protocol
+5. **Tool Registry** provides runtime metadata bridge between library and gateway
+
+**Result:** Persistent, manageable MCP servers that execute through the proven gateway infrastructure.
 
 ---
 
-## File-by-File Merge Analysis
+## Section 2: Architecture Comparison
 
-### 1. backend/src/database/schema/index.ts ✅ SIMPLE
+### 2.1 PR #209: MCP Library Approach
 
-**Conflict**: Both branches add new exports
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         MCP Library Architecture                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐         ┌──────────────┐         ┌─────────────────┐
+│   Frontend  │         │   Backend    │         │   Worker        │
+│             │         │              │         │                 │
+│ ┌─────────┐ │         │ ┌──────────┐ │         │ ┌─────────────┐ │
+│ │MCP Library│ │         │ │   MCP    │ │         │ │  AI Agent   │ │
+│ │   UI     │ │         │ │ Servers  │ │         │ │             │ │
+│ └────┬──────┘ │         │ │ Controller│ │         │ └──────┬──────┘ │
+│      │       │         │ └────┬─────┘ │         │        │        │
+│      │       │         │      │       │         │        │        │
+│      │       │         │ ┌────▼─────┐ │         │        │        │
+│      │       │         │ │   MCP    │ │         │        │        │
+│      │       │         │ │  Service │ │         │        │        │
+│      │       │         │ └────┬─────┘ │         │        │        │
+│      │       │         │      │       │         │        │        │
+│      │       │         │ ┌────▼──────┴───────────────┐│        │        │
+│      │       │         │ │     MCP Servers Table     ││        │        │
+│      │       │         │ │   (PostgreSQL)            ││        │        │
+│      │       │         │ └───────────────────────────┘│        │        │
+└──────┼───────┘         └─────────────────────────────┘└────────┼────────┘
+       │                                                     │
+       │ REST API                                            │ Direct stdio
+       │                                                     │
+       ▼                                                     ▼
+┌─────────────────┐                              ┌──────────────────┐
+│  MCP Server     │                              │  Stdio Processes │
+│  Configurations │                              │  (npx @modelcontext│
+│  (HTTP, stdio,  │                              │   protocol-server │
+│   SSE, WebSocket)│                              │   ...)            │
+└─────────────────┘                              └──────────────────┘
+
+Key Characteristics:
+✓ Persistent configuration storage
+✓ CRUD operations for server management
+✓ Health check polling
+✓ Direct stdio process execution
+✗ No runtime tool registration
+✗ Agent bypasses gateway
+✗ No tool scoping
+```
+
+### 2.2 PR #243: Tool Mode Approach
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Tool Mode Architecture                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐         ┌──────────────┐         ┌─────────────────┐
+│   Frontend  │         │   Backend    │         │   Worker        │
+│             │         │              │         │                 │
+│ ┌─────────┐ │         │ ┌──────────┐ │         │ ┌─────────────┐ │
+│ │Tool Mode│ │         │ │   MCP    │ │         │ │  AI Agent   │ │
+│ │   UI    │ │         │ │ Gateway  │ │         │ │             │ │
+│ └────┬──────┘ │         │ │Service   │ │         │ └──────┬──────┘ │
+│      │       │         │ └────┬─────┘ │         │        │        │
+│      │       │         │      │       │         │        │ Streamable│
+│      │       │         │ ┌────▼─────┐ │         │        │ HTTP     │
+│      │       │         │ │  Tool    │ │         │        │        │
+│      │       │         │ │ Registry │ │         │        │        │
+│      │       │         │ │ (Redis)  │ │         │        │        │
+└──────┼───────┘         └────┬────────┘         └────────┼────────┘
+       │                      │                          │
+       │ Internal API         │                          │
+       │                      │                          │
+       ▼                      ▼                          ▼
+┌─────────────┐      ┌──────────────┐        ┌──────────────────┐
+│  Workflow   │      │  MCP Gateway │        │  Docker          │
+│  Nodes      │      │   Controller │        │  Containers      │
+│  (Tool Mode)│      │  /mcp/gateway│        │  (stdio MCPs)    │
+└─────────────┘      └──────┬───────┘        └────────┬─────────┘
+                            │                         │
+                            │                         │
+                            │   HTTP Proxy (stdio)    │
+                            └─────────────────────────┘
+                                     │
+                                     ▼
+                            ┌──────────────────┐
+                            │  MCP Servers     │
+                            │  (HTTP endpoints)│
+                            └──────────────────┘
+
+Key Characteristics:
+✓ Centralized MCP Gateway
+✓ Runtime tool registration
+✓ Tool scoping via graph connections
+✓ Docker containerized stdio servers
+✓ StreamableHTTP protocol
+✓ Redis-backed tool registry
+✗ No persistent server configuration UI
+✗ Manual server configuration per workflow
+```
+
+### 2.3 Key Differences Table
+
+| Aspect                           | PR #209 (MCP Library)        | PR #243 (Tool Mode)            | Winner (Merge)    |
+| -------------------------------- | ---------------------------- | ------------------------------ | ----------------- |
+| **Server Configuration Storage** | PostgreSQL (persistent)      | None (ephemeral)               | PR #209           |
+| **Tool Discovery**               | Direct from server           | Via gateway registration       | PR #243           |
+| **Agent Communication**          | Direct MCP client            | MCP Gateway proxy              | PR #243           |
+| **Stdio Server Handling**        | Direct process spawn         | Docker + HTTP proxy            | PR #243           |
+| **Transport Protocol**           | Multiple (stdio/HTTP/SSE/WS) | StreamableHTTP only            | PR #243           |
+| **Tool Scoping**                 | None                         | Graph-based (connectedNodeIds) | PR #243           |
+| **Health Checks**                | Polling-based                | Runtime availability           | PR #243           |
+| **UI/UX**                        | Full management UI           | Workflow-only UI               | PR #209 + PR #243 |
+| **Authentication**               | Encrypted headers            | JWT session tokens             | Both              |
+| **Multi-tenancy**                | Organization-scoped          | Run-scoped                     | Both              |
+
+---
+
+## Section 3: Proposed Final Architecture
+
+### 3.1 Design Principles
+
+1. **Single Source of Truth:** MCP Library (PostgreSQL) stores all server configurations
+2. **Unified Gateway:** All tool calls flow through MCP Gateway
+3. **Container Isolation:** Stdio servers run in Docker with HTTP proxy
+4. **Standardized Transport:** StreamableHTTP for all communication
+5. **Runtime Registration:** Tool Registry bridges persistent config to runtime
+
+### 3.2 Architecture Overview
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                    MERGED ARCHITECTURE: MCP Library + Tool Mode            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────┐         ┌──────────────────────┐         ┌──────────────────────┐
+│      Frontend        │         │       Backend        │         │       Worker         │
+│                      │         │                      │         │                      │
+│ ┌────────────────┐   │         │ ┌────────────────┐   │         │ ┌────────────────┐   │
+│ │  MCP Library   │   │         │ │   MCP Gateway  │   │         │ │   AI Agent     │   │
+│ │  Management UI │   │         │ │   Service      │   │         │ │                │   │
+│ └───────┬────────┘   │         │ └───────┬────────┘   │         │ └───────┬────────┘   │
+│         │            │         │         │            │         │         │            │
+│ ┌───────▼────────┐   │         │ ┌───────▼────────┐   │         │ ┌───────▼────────┐   │
+│ │  Tool Mode UI  │   │         │ │  Tool Registry │   │         │ │ MCP Client     │   │
+│ │  (per workflow)│   │         │ │  (Redis)       │   │         │ │ (SDK)          │   │
+│ └────────────────┘   │         │ └───────┬────────┘   │         │ └───────┬────────┘   │
+└────────┼─────────────┘         └─────────┼────────────┘         └─────────┼────────────┘
+         │                                 │                               │
+         │ REST API                        │ Internal API                 │
+         │                                 │                               │
+         ▼                                 ▼                               │
+┌─────────────────────┐         ┌─────────────────────┐                   │
+│   MCP Servers API   │         │  Internal MCP API   │                   │
+│   /mcp-servers/*    │         │  /internal/mcp/*    │                   │
+└──────────┬──────────┘         └──────────┬──────────┘                   │
+           │                               │                               │
+           │                               │                               │
+           ▼                               ▼                               │
+┌─────────────────────┐         ┌─────────────────────┐                   │
+│  PostgreSQL DB      │         │   MCP Gateway       │                   │
+│  (mcp_servers table)│         │   Controller        │                   │
+└─────────────────────┘         │   /mcp/gateway      │                   │
+                               └──────────┬──────────┘                   │
+                                          │ StreamableHTTP                │
+                                          │                               │
+                  ┌─────────────────────────┼─────────────────────────┐    │
+                  │                         │                         │    │
+                  ▼                         ▼                         ▼    ▼
+         ┌────────────────┐        ┌────────────────┐      ┌────────────────┐
+         │  Docker        │        │  Remote HTTP   │      │  Component    │
+         │  Containers    │        │  MCP Servers   │      │  Tools        │
+         │  (stdio MCPs)  │        │  (external)    │      │  (ShipSec)    │
+         │                │        │                │      │                │
+         │ ┌────────────┐ │        │                │      │                │
+         │ │ Stdio Proxy│ │        │                │      │                │
+         │ └────────────┘ │        │                │      │                │
+         └────────────────┘        └────────────────┘      └────────────────┘
+
+Data Flow:
+1. User configures MCP server in Library UI → PostgreSQL
+2. Workflow with tool-mode node triggers → Internal MCP API
+3. Internal API reads config from DB → spawns Docker container (if stdio)
+4. Docker container gets HTTP proxy endpoint → registers with Tool Registry
+5. AI Agent discovers tools via MCP Gateway → executes through gateway
+6. Gateway routes to appropriate destination (Docker/HTTP/Component)
+```
+
+### 3.3 Component Responsibilities
+
+**MCP Library (PR #209):**
+
+- ✓ Server configuration CRUD (keep from PR #209)
+- ✓ Encrypted header storage (keep from PR #209)
+- ✓ Health check tracking (keep from PR #209)
+- ✓ Management UI (keep from PR #209)
+- ✗ Direct stdio execution (replace with Docker + proxy from PR #243)
+- ✗ Direct agent tool loading (replace with gateway discovery from PR #243)
+
+**MCP Gateway (PR #243):**
+
+- ✓ Single entry point for all tool calls (keep)
+- ✓ StreamableHTTP transport (keep)
+- ✓ Tool registration and discovery (keep)
+- ✓ Component tool execution via Temporal (keep)
+- ✓ External MCP proxying (keep)
+- ✓ Stdio Docker container coordination (keep)
+
+**Tool Registry (PR #243):**
+
+- ✓ Runtime tool metadata bridge (keep)
+- ✓ Credential encryption (keep)
+- ✓ Tool scoping via connectedNodeIds (keep)
+
+### 3.4 How MCP Library Fits In
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│            MCP Library Integration Points                    │
+└─────────────────────────────────────────────────────────────┘
+
+1. CONFIGURATION PHASE (User Action)
+   User → MCP Library UI → /mcp-servers API → PostgreSQL
+   Stores: server name, transport type, endpoint, command, args, headers
+
+2. WORKFLOW BUILD PHASE (User Action)
+   User → Workflow Canvas → Add MCP Server Node (Tool Mode)
+   Node Config: references MCP Library server ID
+
+3. RUNTIME INITIALIZATION (Temporal Workflow)
+   Workflow → Internal MCP API → /internal/mcp/register-local-mcp
+   API Action:
+   a. Read server config from PostgreSQL by ID
+   b. If stdio: spawn Docker container with HTTP proxy
+   c. Get proxy endpoint URL
+   d. Register with Tool Registry (Redis)
+
+4. TOOL DISCOVERY (AI Agent)
+   Agent → MCP Gateway → /mcp/gateway (with session token)
+   Gateway Action:
+   a. Validate session token (runId, organizationId, allowedNodeIds)
+   b. Query Tool Registry for allowed tools
+   c. Return tool list to agent
+
+5. TOOL EXECUTION (AI Agent)
+   Agent → MCP Gateway → /mcp/gateway (tool call)
+   Gateway Action:
+   a. Route to appropriate handler:
+      - Component tool → Temporal signal
+      - Local MCP (stdio) → HTTP proxy in Docker
+      - Remote MCP (HTTP) → External HTTP call
+   b. Return result to agent
+```
+
+---
+
+## Section 4: File-by-File Merge Analysis
+
+### 4.1 Backend Files
+
+#### 4.1.1 `backend/src/database/schema/index.ts`
+
+**PR #209 Change:**
+
 ```typescript
-<<<<<<< HEAD
 export * from './mcp-servers';
-=======
-export * from './node-io';
->>>>>>> main
 ```
 
-**Resolution**: Keep both
+**PR #243 State:** No MCP schema exports (uses different schema)
+
+**Resolution:** ✓ **KEEP PR #209 change**
+
+The `mcp-servers` schema provides persistent storage for MCP Library configurations.
+
+**Action:** Add the export from PR #209
+
+---
+
+#### 4.1.2 `backend/src/app.module.ts`
+
+**PR #209 Change:**
+
 ```typescript
-export * from './mcp-servers';
-export * from './node-io';
+import { McpServersModule } from './mcp-servers/mcp-servers.module';
+
+@Module({
+  imports: [
+    // ... existing imports
+    McpServersModule,
+  ],
+})
+```
+
+**PR #243 State:** Has `McpModule` for gateway/tool-registry
+
+**Resolution:** ✓ **KEEP BOTH MODULES**
+
+They serve different purposes:
+
+- `McpServersModule` (PR #209): CRUD for server configurations
+- `McpModule` (PR #243): Gateway and runtime tool registration
+
+**Action:** Import both modules
+
+```typescript
+@Module({
+  imports: [
+    // ... existing imports
+    McpModule,           // PR #243: Gateway + Tool Registry
+    McpServersModule,    // PR #209: Server Configuration CRUD
+  ],
+})
 ```
 
 ---
 
-### 2. bun.lock ✅ AUTO-RESOLVABLE
+#### 4.1.3 `bun.lock`
 
-**Conflict**: Lockfile ordering conflict
-- PR #209 adds `@modelcontextprotocol/sdk`
-- PR #243 adds `@ai-sdk/mcp`
+**Conflict:** Both PRs add dependencies
 
-**Resolution**: Run `bun install` to regenerate
+**PR #209 additions:**
 
----
+- MCP SDK dependencies
+- Encryption libraries
 
-### 3. frontend/src/App.tsx ✅ KEEP HEAD
+**PR #243 additions:**
 
-**Conflict**: Import formatting + McpLibraryPage import
-```typescript
-<<<<<<< HEAD
-// No semicolons
-import { McpLibraryPage } from '@/pages/McpLibraryPage'
-=======
-// Semicolons, missing McpLibraryPage
->>>>>>> main
+- MCP SDK (may overlap)
+- Different versions possible
+
+**Resolution:** ⚠️ **RESOLVE DEPENDENCY CONFLICTS**
+
+**Action:**
+
+1. Use `git merge-file` or manual resolution
+2. Prefer newer versions where duplicates exist
+3. Ensure MCP SDK versions are compatible
+4. Run `bun install` and test
+
+```bash
+# On main branch
+git checkout mcp-library -- backend/package.json
+# Resolve conflicts keeping highest versions
+bun install
 ```
 
-**Resolution**: Accept HEAD (preserves MCP Library page integration)
+---
+
+### 4.2 Frontend Files
+
+#### 4.2.1 `frontend/src/App.tsx`
+
+**PR #209 Change:**
+
+```tsx
+import { McpLibraryPage } from '@/pages/McpLibraryPage';
+
+// ... in routes
+<Route path="/mcp-library" element={<McpLibraryPage />} />;
+```
+
+**PR #243 State:** No MCP Library route
+
+**Resolution:** ✓ **KEEP PR #209 change**
+
+Adds the MCP Library management UI.
+
+**Action:** Add route from PR #209
 
 ---
 
-### 4. frontend/src/components/layout/AppLayout.tsx ✅ KEEP HEAD
+#### 4.2.2 `frontend/src/components/layout/AppLayout.tsx`
 
-**Conflict 1**: Import differences
-```typescript
-<<<<<<< HEAD
+**PR #209 Change:**
+
+```tsx
 import { ServerCog } from 'lucide-react'
-import { setMobilePlacementSidebarClose } from '@/components/layout/Sidebar'
-=======
-// Missing ServerCog
-import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-state'
->>>>>>> main
-```
 
-**Conflict 2**: Navigation items
-```typescript
-<<<<<<< HEAD
+// ... in navigation items
 {
   name: 'MCP Library',
   href: '/mcp-library',
   icon: ServerCog,
-},
-=======
-// No MCP Library nav item
->>>>>>> main
-```
-
-**Resolution**: Accept HEAD, verify import paths
-
----
-
-### 5. frontend/src/components/workflow/ConfigPanel.tsx ✅ KEEP HEAD
-
-**Conflict**: TODO comment
-```typescript
-<<<<<<< HEAD
-// TODO: McpLibraryToolSelector will be integrated in a future PR
-// import { McpLibraryToolSelector } from './McpLibraryToolSelector'
-=======
-// No TODO comment
->>>>>>> main
-```
-
-**Resolution**: Accept HEAD (preserves forward-looking comment)
-
----
-
-### 6. worker/src/components/ai/ai-agent.ts ⚠️ CRITICAL REFACTORING NEEDED
-
-**Conflict Type**: Architectural incompatibility
-
-**PR #209 approach** (lines 33-46):
-```typescript
-import { mcpToolContractName } from './mcp-tool-contract';
-import { getMcpClientService } from '../../services/mcp-client.service.js';
-// Manual tool registration with jsonSchemaToZod
-```
-
-**PR #243 approach** (main):
-```typescript
-import { llmProviderContractName, McpToolDefinition } from '@shipsec/contracts';
-import { createMCPClient } from '@ai-sdk/mcp';
-// Uses inputs()/parameters() helpers
-```
-
-**Resolution Strategy**: Main-first integration
-
-1. **Accept main's import structure**
-   - Use `@shipsec/contracts` for all contract types
-   - Add MCP Library service imports separately
-
-2. **Accept main's schema architecture**
-   - Use `inputs()` for connection-carrying ports
-   - Use `parameters()` for configuration
-   - Add MCP Library parameters to `parameters()`:
-
-```typescript
-const parameterSchema = parameters({
-  // ... existing parameters from main ...
-  mcpLibraryEnabled: param(
-    z.boolean().default(true),
-    {
-      label: 'MCP Library',
-      editor: 'boolean',
-      description: 'Automatically load tools from MCP servers configured in the MCP Library.',
-    }
-  ),
-  mcpLibraryServerExclusions: param(
-    z.array(z.string()).optional(),
-    {
-      label: 'Excluded MCP Servers',
-      editor: 'json',
-      description: 'List of MCP server IDs to exclude from the library.',
-      visibleWhen: { mcpLibraryEnabled: true },
-    }
-  ),
-  mcpLibraryToolExclusions: param(
-    z.array(z.string()).optional(),
-    {
-      label: 'Excluded MCP Tools',
-      editor: 'json',
-      description: 'List of tool names to exclude from MCP Library servers.',
-      visibleWhen: { mcpLibraryEnabled: true },
-    }
-  ),
-});
-```
-
-3. **Preserve MCP Library execution logic**
-   - Keep `jsonSchemaToZod()`, `registerMcpLibraryTool()`, `loadMcpLibraryTools()` functions
-   - Integrate into main's execute() function
-
-4. **Remove duplicate UI metadata**
-   - Accept main's schema-driven approach
-
----
-
-### 7. worker/tsconfig.tsbuildinfo ✅ DELETE
-
-**Conflict**: Modify/delete conflict
-- File deleted in main, modified in HEAD
-
-**Resolution**: Delete (accept main)
-
----
-
-## Migration Strategy
-
-### Phase 1: Prepare PR #209 Branch
-
-```bash
-# On mcp-library branch
-git fetch origin main
-git checkout main -- .gitignore  # Update any ignore patterns
-git checkout main -- worker/tsconfig.tsbuildinfo  # Remove deleted file
-```
-
-### Phase 2: Manual Merge
-
-```bash
-git merge main --no-commit --no-ff
-```
-
-Resolve conflicts in order:
-1. `backend/src/database/schema/index.ts` - Add both exports
-2. `bun.lock` - Accept both, then `bun install`
-3. `frontend/src/App.tsx` - Keep HEAD
-4. `frontend/src/components/layout/AppLayout.tsx` - Keep HEAD, verify imports
-5. `frontend/src/components/workflow/ConfigPanel.tsx` - Keep HEAD
-6. `worker/src/components/ai/ai-agent.ts` - **CRITICAL** - Follow refactoring guide below
-7. `worker/tsconfig.tsbuildinfo` - Delete
-
-### Phase 3: Refactor ai-agent.ts
-
-**Step 1**: Update imports
-```typescript
-// From main
-import {
-  LLMProviderSchema,
-  McpToolArgumentSchema,
-  McpToolDefinitionSchema,
-  llmProviderContractName,
-  type McpToolDefinition,
-} from '@shipsec/contracts';
-
-// ADD for MCP Library
-import {
-  getMcpClientService,
-  type McpServerConfig,
-  type McpToolInfo,
-} from '../../services/mcp-client.service.js';
-```
-
-**Step 2**: Add MCP Library parameters
-```typescript
-const parameterSchema = parameters({
-  // ... existing parameters from main ...
-
-  // MCP Library integration
-  mcpLibraryEnabled: param(
-    z.boolean().default(true),
-    {
-      label: 'MCP Library',
-      editor: 'boolean',
-      description: 'Automatically load tools from MCP servers configured in the MCP Library.',
-    }
-  ),
-  mcpLibraryServerExclusions: param(
-    z.array(z.string()).optional(),
-    {
-      label: 'Excluded MCP Servers',
-      editor: 'json',
-      description: 'List of MCP server IDs to exclude from the library.',
-    }
-  ),
-  mcpLibraryToolExclusions: param(
-    z.array(z.string()).optional(),
-    {
-      label: 'Excluded MCP Tools',
-      editor: 'json',
-      description: 'List of tool names to exclude from MCP Library servers.',
-    }
-  ),
-});
-```
-
-**Step 3**: Preserve MCP Library functions (from HEAD)
-Keep these functions from PR #209:
-- `jsonSchemaToZod()` - Convert JSON Schema to Zod
-- `registerMcpLibraryTool()` - Register single MCP Library tool
-- `loadMcpLibraryTools()` - Load all MCP Library tools
-
-**Step 4**: Integrate into execute() function
-After main's tool registration, add:
-```typescript
-// Load MCP Library tools if enabled
-if (params.mcpLibraryEnabled !== false) {
-  const mcpLibraryTools = await loadMcpLibraryTools({
-    serverExclusions: params.mcpLibraryServerExclusions,
-    toolExclusions: params.mcpLibraryToolExclusions,
-    sessionId, toolFactory, agentStream, usedToolNames, organizationId, logger
-  });
-
-  for (const entry of mcpLibraryTools) {
-    registeredTools[entry.name] = entry.tool;
-  }
 }
 ```
 
-### Phase 4: Build and Test
+**PR #243 State:** No MCP Library nav item
 
-```bash
-# Backend
-cd backend && npm run build
+**Resolution:** ✓ **KEEP PR #209 change**
 
-# Frontend
-cd frontend && npm run build
+Adds sidebar navigation to MCP Library.
 
-# Worker
-cd worker && npm run build && npm run test
+**Action:** Add nav item from PR #209
 
-# Full project
-npm run typecheck && npm run lint
+---
+
+#### 4.2.3 `frontend/src/components/workflow/ConfigPanel.tsx`
+
+**PR #209 Change:**
+
+```tsx
+// TODO: McpLibraryToolSelector will be integrated in a future PR
+// import { McpLibraryToolSelector } from './McpLibraryToolSelector'
+```
+
+**PR #243 State:** Already has tool mode integration
+
+**Resolution:** ⚠️ **CONDITIONAL INTEGRATION**
+
+**Action:**
+
+1. Keep PR #243's tool mode implementation as base
+2. Add `McpLibraryToolSelector` as an OPTION for selecting MCP Library servers
+3. Implement in follow-up PR (not part of this merge)
+
+**Merge Result:**
+
+```tsx
+import { ToolModeConfigPanel } from './ToolModeConfigPanel'; // From PR #243
+// import { McpLibraryToolSelector } from './McpLibraryToolSelector'  // PR #209 (future)
+
+// Use ToolModeConfigPanel for now
+// McpLibraryToolSelector to be integrated separately
 ```
 
 ---
 
-## Components to Keep vs Remove
+### 4.3 Worker Files (CRITICAL)
 
-### From PR #209 - KEEP
+#### 4.3.1 `worker/src/components/ai/ai-agent.ts`
 
-| Component | File | Reason |
-|-----------|------|--------|
-| MCP Library UI | `frontend/src/pages/McpLibraryPage.tsx` | Server management UI |
-| MCP Server CRUD | `backend/src/mcp-servers/*` | Persistent config storage |
-| MCP Server schema | `backend/src/database/schema/mcp-servers.ts` | Database tables |
-| Encryption service | `backend/src/mcp-servers/mcp-servers.encryption.ts` | Header encryption |
-| Health check | `backend/src/mcp-servers/mcp-servers.service.ts` | Server health monitoring |
-| API client | `packages/backend-client/src/client.ts` | Frontend API bindings |
-| Shared types | `packages/shared/src/mcp.ts` | MCP type definitions |
+**CRITICAL CONFLICT** - This is the most significant merge conflict.
 
-### From PR #209 - REMOVE/REFACTOR
+**PR #209 Approach:**
 
-| Component | File | Action | Replacement |
-|-----------|------|--------|-------------|
-| MCP Client Service | `worker/src/services/mcp-client.service.ts` | **DEPRECATE** | Use MCP Gateway + `@ai-sdk/mcp` |
-| Stdio process spawning | `worker/src/services/mcp-client.service.ts` | **REMOVE** | Use Docker + mcp-stdio-proxy |
-| Direct MCP SDK usage | `worker/src/components/ai/ai-agent.ts` | **REFACTOR** | Use `createMCPClient()` |
-| Manual tool registration | `worker/src/components/ai/ai-agent.ts` | **REFACTOR** | Use MCP Gateway pattern |
-| JSON Schema to Zod | `worker/src/components/ai/ai-agent.ts` | **KEEP** | Still needed for MCP Library |
-| `mcp-tool-contract.ts` | `worker/src/components/ai/mcp-tool-contract.ts` | **REMOVE** | Use `@shipsec/contracts` |
+```typescript
+// Direct MCP client connections
+import { getMcpClientService } from '../../services/mcp-client.service.js';
 
-### From PR #243 - FOUNDATION (KEEP ALL)
+const mcpClientService = getMcpClientService();
+const client = await mcpClientService.connect(serverConfig);
+const tools = await client.listTools();
+```
 
-| Component | File | Reason |
-|-----------|------|--------|
-| MCP Gateway | `backend/src/mcp/mcp-gateway.service.ts` | Central orchestration |
-| Tool Registry | `backend/src/mcp/tool-registry.service.ts` | Runtime tool state |
-| MCP Gateway Controller | `backend/src/mcp/mcp-gateway.controller.ts` | Streamable HTTP endpoint |
-| MCP Runtime | `worker/src/components/core/mcp-runtime.ts` | Docker container mgmt |
-| MCP Server Component | `worker/src/components/core/mcp-server.ts` | Workflow node |
-| Stdio Proxy | `docker/mcp-stdio-proxy/server.mjs` | stdio → HTTP bridge |
-| Agent Integration | `worker/src/components/ai/ai-agent.ts` | `@ai-sdk/mcp` usage |
+**PR #243 Approach:**
 
----
+```typescript
+// MCP Gateway via createMCPClient
+import { createMCPClient } from '@ai-sdk/mcp';
 
-## Architecture Decision Records
+const mcpClient = createMCPClient({
+  gatewayUrl: `${gatewayUrl}/mcp/gateway`,
+  token: gatewayToken,
+});
+const tools = await mcpClient.getTools();
+```
 
-### ADR-001: Docker Over Direct Process Spawning
+**Resolution:** ✓ **USE PR #243 APPROACH (GATEWAY)**
 
-**Status**: Accepted
+**Rationale:**
 
-**Context**: PR #209 spawns stdio MCP servers as child processes in the worker. PR #243 uses Docker containers.
+1. Gateway provides centralized logging and monitoring
+2. Gateway handles tool scoping via connectedNodeIds
+3. Gateway enables multi-agent isolation
+4. Gateway is already deployed and working
+5. Direct connections bypass security and monitoring
 
-**Decision**: Use Docker containers for all stdio MCP servers.
+**Action:** **KEEP PR #243 implementation, REMOVE PR #209 direct MCP client code**
 
-**Rationale**:
-- **Isolation**: Containers provide resource limits and cleanup guarantees
-- **Portability**: Consistent environment across deployments
-- **Security**: Containers can run with minimal privileges
-- **Monitoring**: Docker stats and logs are easier to aggregate
-- **Scaling**: Can orchestrate with Docker Swarm/Kubernetes
+**Specific Changes:**
 
-**Consequences**:
-- Must maintain mcp-stdio-proxy image
-- Container startup latency (~1-2s)
-- Port allocation management required
+```typescript
+// REMOVE (from PR #209):
+import { getMcpClientService } from '../../services/mcp-client.service.js';
+import type { McpServerConfig, McpToolInfo } from '../../services/mcp-client.service.js';
 
----
+// KEEP (from PR #243):
+import { createMCPClient } from '@ai-sdk/mcp';
+import { DEFAULT_GATEWAY_URL, getGatewaySessionToken } from './utils';
 
-### ADR-002: Streamable HTTP Protocol
+// REMOVE (from PR #209):
+const mcpLibraryEnabled = input.mcpLibraryEnabled ?? true;
+const mcpLibraryServerExclusions = input.mcpLibraryServerExclusions ?? [];
+const mcpLibraryToolExclusions = input.mcpLibraryToolExclusions ?? [];
 
-**Status**: Accepted
+// REMOVE (from PR #209):
+if (mcpLibraryEnabled) {
+  const mcpClientService = getMcpClientService();
+  const libraryServers = await mcpClientService.getLibraryServers(auth);
+  // ... direct connection logic
+}
 
-**Context**: PR #209 uses direct MCP SDK calls (stdio/HTTP/SSE/WebSocket). PR #243 standardizes on Streamable HTTP.
+// KEEP (from PR #243):
+const gatewayUrl = process.env.MCP_GATEWAY_URL ?? DEFAULT_GATEWAY_URL;
+const gatewayToken = await getGatewaySessionToken(context, {
+  runId: context.executionId,
+  allowedNodeIds: connectedToolNodeIds,
+});
+const mcpClient = createMCPClient({ gatewayUrl, token: gatewayToken });
+```
 
-**Decision**: All MCP communication uses Streamable HTTP (JSON-RPC over HTTP).
-
-**Rationale**:
-- **Web-native**: Works with existing HTTP infrastructure
-- **Stateless**: Easier to scale horizontally (with sticky sessions)
-- **Observable**: Standard HTTP metrics and tracing
-- **Session-based**: Natural multi-tenancy via session tokens
-
-**Consequences**:
-- Stdio servers must use mcp-stdio-proxy
-- HTTP SSE for streaming responses
-- Session affinity required for horizontal scaling
+**Result:** Agent uses gateway for all MCP tool access (both library and runtime servers)
 
 ---
 
-### ADR-003: Dual Storage Pattern
+#### 4.3.2 `worker/src/services/mcp-client.service.ts`
 
-**Status**: Accepted
+**PR #209 Status:** Creates this file with direct MCP client implementation
 
-**Context**: PR #209 stores config in PostgreSQL. PR #243 stores runtime state in Redis.
+**PR #243 Status:** Does not have this file (uses gateway instead)
 
-**Decision**: Use PostgreSQL for persistent configuration, Redis for runtime state.
+**Resolution:** ⚠️ **CONDITIONAL - KEEP BUT MARK AS DEPRECATED**
 
-**Pattern**:
-| Storage | Purpose | TTL | Example |
-|---------|---------|-----|---------|
-| PostgreSQL | Server definitions, user preferences | Permanent | `mcp_servers` table |
-| Redis | Tool registry, active sessions | 1 hour | `mcp:run:{runId}:tools` |
+**Rationale:**
 
-**Rationale**:
-- **PG**: ACID guarantees, relational queries, audit trail
-- **Redis**: Fast lookups, automatic expiration, pub/sub ready
+1. May be useful for health checks in MCP Library
+2. Should NOT be used by AI agent
+3. Mark as deprecated for future removal
 
-**Consequences**:
-- Tool discovery hits PG once, caches in Redis
-- Session cleanup handled by Redis TTL
-- Two systems to monitor
+**Action:**
 
----
+1. Keep the file for MCP Library health checks
+2. Add deprecation notice
+3. Update documentation to indicate AI agent should use gateway
 
-### ADR-004: MCP Gateway as Single Entry Point
-
-**Status**: Accepted
-
-**Context**: PR #209 has agents call MCP servers directly. PR #243 routes all calls through MCP Gateway.
-
-**Decision**: All agent → MCP tool communication flows through MCP Gateway.
-
-**Rationale**:
-- **Security**: Single auth point, credential isolation
-- **Observability**: One place to log all tool calls
-- **Flexibility**: Can swap implementations without changing agents
-- **Tool Registry Integration**: Gateway has full context of available tools
-
-**Consequences**:
-- Gateway is scaling bottleneck (documented limitation)
-- Adds hop latency (~10-50ms)
-- Gateway failure blocks all tool calls
+```typescript
+/**
+ * @deprecated Use MCP Gateway for agent tool access.
+ * This service is maintained for MCP Library health checks only.
+ */
+export class McpClientService {
+  // ... existing implementation
+}
+```
 
 ---
 
-## Testing Checklist
+#### 4.3.3 `worker/src/temporal/activities/mcp-library.activity.ts`
 
-### Unit Tests
-- [ ] `mcp-servers.service.ts`: CRUD, encryption, health check
-- [ ] `tool-registry.service.ts`: Registration, scoping, cleanup
-- [ ] `mcp-gateway.service.ts`: Tool discovery, execution, proxying
-- [ ] `mcp-runtime.ts`: Container launch, port allocation
-- [ ] `ai-agent.ts`: MCP Library integration with new schema
+**PR #209 Status:** Creates this file for MCP Library operations
 
-### Integration Tests
-- [ ] MCP Library → Tool Registry flow
-- [ ] MCP Gateway → Docker container flow
-- [ ] Agent → MCP Gateway → Temporal flow
-- [ ] Multi-agent tool scoping
+**PR #243 Status:** Has `mcp-runtime.activity.ts` for runtime MCP operations
 
-### E2E Tests
-- [ ] Create MCP server in UI → Agent can use tools
-- [ ] Workflow with tool-mode node → Agent execution
-- [ ] Docker container lifecycle (start → use → cleanup)
-- [ ] MCP Library exclusions (server/tool level)
+**Resolution:** ✓ **RENAME AND INTEGRATE**
 
-### Load Tests
-- [ ] 100 concurrent MCP Gateway sessions
-- [ ] 1000 tools in single registry
-- [ ] 50 Docker containers running simultaneously
+**Action:**
+
+1. Rename PR #209's `mcp-library.activity.ts` → `mcp-library-config.activity.ts`
+2. Keep PR #243's `mcp-runtime.activity.ts` for runtime operations
+3. Both activities can coexist
 
 ---
 
-## Rollout Plan
+#### 4.3.4 `worker/tsconfig.tsbuildinfo`
 
-### Step 1: Merge Preparation (1 day)
-- [ ] Create integration branch from `mcp-library`
-- [ ] Resolve all merge conflicts per this plan
-- [ ] Run full test suite
-- [ ] Create PR for review
+**Conflict:** Build artifact file
 
-### Step 2: Code Review (2-3 days)
-- [ ] Architectural review
-- [ ] Security review (credential handling)
-- [ ] Performance review (scalability concerns)
-- [ ] Documentation review
+**Resolution:** ⚠️ **DELETE AND REBUILD**
 
-### Step 3: Staged Rollout (1 week)
-- [ ] Deploy to dev environment
-- [ ] Test with sample workflows
-- [ ] Deploy to staging
-- [ ] E2E testing with real MCP servers
+**Action:**
 
-### Step 4: Production Launch
-- [ ] Feature flag: MCP Library enabled
-- [ ] Monitor: Gateway latency, error rates
-- [ ] Monitor: Docker resource usage
-- [ ] Monitor: Redis memory usage
+```bash
+rm worker/tsconfig.tsbuildinfo
+cd worker && bun run build
+```
 
 ---
 
-## Open Questions
+### 4.4 New Files from PR #209 to Keep
 
-1. **MCP SDK Duplication**: We have both `@modelcontextprotocol/sdk` (PR #209) and `@ai-sdk/mcp` (PR #243). Can we consolidate?
+**Backend:**
 
-2. **Gateway Scaling**: Current implementation is single-instance. When do we need horizontal scaling?
+- ✓ `backend/src/mcp-servers/` - Entire directory (configuration CRUD)
+- ✓ `backend/src/database/schema/mcp-servers.ts` - Database schema
+- ✓ `backend/src/database/migrations/*` - Any migrations (check)
 
-3. **Container Cleanup**: Who is responsible for stopping Docker containers after workflow completion?
+**Frontend:**
 
-4. **Credential Rotation**: How do we handle rotated API keys without restarting workflows?
+- ✓ `frontend/src/pages/McpLibraryPage.tsx` - Main library UI
+- ✓ `frontend/src/components/workflow/McpLibraryToolSelector.tsx` - Future integration
+- ✓ `frontend/src/store/mcpServerStore.ts` - MCP server state management
+- ✓ `frontend/src/hooks/useMcpHealthPolling.ts` - Health check hook
 
-5. **Tool Discovery Caching**: Should we cache external tool metadata to reduce startup latency?
+**Worker:**
+
+- ✓ `worker/src/services/mcp-client.service.ts` - For health checks only (marked deprecated)
+- ✓ `worker/src/temporal/activities/mcp-library-config.activity.ts` - Renamed from mcp-library.activity.ts
+
+**Shared:**
+
+- ✓ `packages/shared/src/mcp.ts` - MCP types shared between frontend/backend
 
 ---
 
-## References
+### 4.5 Files to Remove from PR #209
 
-- **PR #209**: https://github.com/ShipSecAI/studio/pull/209
-- **PR #243**: https://github.com/ShipSecAI/studio/pull/243
-- **MCP Protocol**: https://modelcontextprotocol.io/
-- **AI SDK MCP**: https://sdk.vercel.ai/docs/ai-sdk-core/mcp
-- **Issue Tracking**: ENG-96, ENG-97, ENG-98, ENG-100, ENG-101, ENG-102, ENG-103, ENG-132
+**Worker:**
+
+- ✗ Direct MCP client usage in `ai-agent.ts` (replaced with gateway)
+- ✗ `mcpTools` input port (use gateway discovery instead)
+- ✗ `mcpLibraryEnabled`, `mcpLibraryServerExclusions`, `mcpLibraryToolExclusions` parameters
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-02-02
-**Authors**: Generated via Claude Code (Ultrawork Mode)
+## Section 5: Migration Strategy
+
+### 5.1 Pre-Merge Checklist
+
+**Environment Setup:**
+
+- [ ] Ensure PostgreSQL is running
+- [ ] Ensure Redis is running
+- [ ] Ensure Docker is running
+- [ ] Backup existing database
+
+**Branch Preparation:**
+
+- [ ] Update `main` branch: `git checkout main && git pull origin main`
+- [ ] Create merge branch: `git checkout -b merge/mcp-library-tool-mode`
+
+### 5.2 Step-by-Step Merge Process
+
+#### Step 1: Merge PR #209 into merge branch
+
+```bash
+git checkout main
+git checkout -b merge/mcp-library-tool-mode
+git merge origin/mcp-library --no-commit
+```
+
+#### Step 2: Resolve conflicts systematically
+
+**2.1 Backend Schema**
+
+```bash
+# Edit backend/src/database/schema/index.ts
+# Add: export * from './mcp-servers';
+git add backend/src/database/schema/index.ts
+```
+
+**2.2 Backend Modules**
+
+```bash
+# Edit backend/src/app.module.ts
+# Add: McpServersModule to imports
+git add backend/src/app.module.ts
+```
+
+**2.3 Frontend Routes**
+
+```bash
+# Edit frontend/src/App.tsx
+# Add McpLibraryPage route
+git add frontend/src/App.tsx
+```
+
+**2.4 Frontend Navigation**
+
+```bash
+# Edit frontend/src/components/layout/AppLayout.tsx
+# Add MCP Library nav item
+git add frontend/src/components/layout/AppLayout.tsx
+```
+
+**2.5 Worker AI Agent (CRITICAL)**
+
+```bash
+# Edit worker/src/components/ai/ai-agent.ts
+# KEEP PR #243 (gateway), REMOVE PR #209 (direct client)
+# Remove: mcp-client.service imports
+# Remove: mcpLibraryEnabled parameters
+# Remove: direct MCP connection logic
+git add worker/src/components/ai/ai-agent.ts
+```
+
+**2.6 Dependencies**
+
+```bash
+# Resolve bun.lock conflicts
+# Keep highest version numbers
+# Run: bun install
+git add bun.lock
+```
+
+**2.7 Build Artifacts**
+
+```bash
+# Remove and rebuild
+rm worker/tsconfig.tsbuildinfo
+cd worker && bun run build
+git add worker/tsconfig.tsbuildinfo worker/dist/
+```
+
+#### Step 3: Handle new files from PR #209
+
+```bash
+# Backend MCP servers module
+git add backend/src/mcp-servers/
+
+# Frontend MCP Library UI
+git add frontend/src/pages/McpLibraryPage.tsx
+git add frontend/src/store/mcpServerStore.ts
+git add frontend/src/hooks/useMcpHealthPolling.ts
+# Note: McpLibraryToolSelector to be integrated later
+
+# Worker services (health check only)
+git add worker/src/services/mcp-client.service.ts
+git add worker/src/temporal/activities/mcp-library.activity.ts
+```
+
+#### Step 4: Database migrations
+
+```bash
+# Check if PR #209 has migrations
+ls backend/src/database/migrations/ | grep mcp
+
+# If migrations exist, create a combined migration
+cd backend
+bun run migrate:generate --name=merge_mcp_library_tool_mode
+bun run migrate:run
+```
+
+#### Step 5: Complete merge
+
+```bash
+git commit -m "feat: merge MCP Library (PR #209) with Tool Mode (PR #243)
+
+- Add MCP Library configuration CRUD (PR #209)
+- Keep MCP Gateway for all tool execution (PR #243)
+- Add MCP Library management UI (PR #209)
+- Integrate with existing Tool Registry (PR #243)
+- Remove direct MCP client connections from agent (use gateway)
+- Add database schema for mcp_servers table
+- Add health check polling for MCP servers
+
+Resolves conflicts in:
+- backend/src/database/schema/index.ts
+- backend/src/app.module.ts
+- frontend/src/App.tsx
+- frontend/src/components/layout/AppLayout.tsx
+- worker/src/components/ai/ai-agent.ts (CRITICAL: kept gateway approach)
+- bun.lock (dependency resolution)
+- worker/tsconfig.tsbuildinfo (rebuilt)
+
+Co-Authored-By: Krishna <krishna@shipsec.ai>
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+### 5.3 Post-Merge Actions
+
+**Database:**
+
+```bash
+cd backend
+bun run migrate:run
+```
+
+**Dependencies:**
+
+```bash
+bun install
+cd frontend && bun install
+cd worker && bun install
+```
+
+**Build:**
+
+```bash
+# Backend
+cd backend && bun run build
+
+# Frontend
+cd frontend && bun run build
+
+# Worker
+cd worker && bun run build
+```
+
+**Tests:**
+
+```bash
+# Backend tests
+cd backend && bun run test
+
+# Worker tests
+cd worker && bun run test
+
+# E2E tests
+cd e2e-tests && bun run test
+```
+
+---
+
+## Section 6: Components to Keep vs Remove
+
+### 6.1 KEEP from PR #209
+
+**Backend:**
+✓ `backend/src/mcp-servers/` - Complete MCP servers module
+
+- Controller (CRUD endpoints)
+- Service (business logic)
+- Repository (database operations)
+- DTOs (API contracts)
+- Encryption service (header encryption)
+- Module definition
+
+✓ `backend/src/database/schema/mcp-servers.ts` - Database schema
+
+✓ MCP Library management endpoints:
+
+- `GET /mcp-servers` - List all servers
+- `GET /mcp-servers/:id` - Get server details
+- `POST /mcp-servers` - Create server
+- `PATCH /mcp-servers/:id` - Update server
+- `DELETE /mcp-servers/:id` - Delete server
+- `POST /mcp-servers/:id/toggle` - Enable/disable
+- `POST /mcp-servers/:id/test` - Test connection
+- `GET /mcp-servers/:id/tools` - List tools
+- `GET /mcp-servers/health` - Health status
+
+**Frontend:**
+✓ `frontend/src/pages/McpLibraryPage.tsx` - Main management UI
+✓ `frontend/src/store/mcpServerStore.ts` - State management
+✓ `frontend/src/hooks/useMcpHealthPolling.ts` - Health polling
+✓ `frontend/src/components/layout/AppLayout.tsx` - Nav item
+✓ `frontend/src/App.tsx` - Route
+
+**Worker:**
+✓ `worker/src/services/mcp-client.service.ts` - **For health checks only** (mark deprecated)
+✓ `worker/src/temporal/activities/mcp-library.activity.ts` - Rename to `mcp-library-config.activity.ts`
+
+**Shared:**
+✓ `packages/shared/src/mcp.ts` - Shared MCP types
+
+### 6.2 REMOVE/REFACTOR from PR #209
+
+**Worker:**
+✗ `worker/src/components/ai/ai-agent.ts` - Direct MCP client code
+
+- Remove: `getMcpClientService()` usage
+- Remove: `mcpLibraryEnabled` parameter
+- Remove: `mcpLibraryServerExclusions` parameter
+- Remove: `mcpLibraryToolExclusions` parameter
+- Remove: Direct stdio/HTTP/SSE/WebSocket transport creation
+- Keep: Gateway-based tool discovery (from PR #243)
+
+✗ `worker/src/components/ai/ai-agent.ts` - MCP tool loading logic
+
+- Remove: Direct tool discovery from library
+- Keep: Gateway tool discovery via `createMCPClient`
+
+### 6.3 KEEP from PR #243 (Foundation)
+
+**Backend:**
+✓ `backend/src/mcp/` - Complete MCP module
+
+- Gateway service (tool routing)
+- Gateway controller (StreamableHTTP endpoint)
+- Tool registry (Redis-backed)
+- Internal MCP API (registration endpoints)
+- Auth guard (JWT session tokens)
+- Auth service (token generation)
+
+✓ Docker-based stdio server handling
+✓ StreamableHTTP transport
+✓ Tool scoping via connectedNodeIds
+✓ Runtime tool registration
+
+**Worker:**
+✓ `worker/src/components/ai/ai-agent.ts` - Gateway-based implementation
+✓ `worker/src/components/core/mcp-runtime.ts` - Docker container management
+✓ `worker/src/temporal/activities/` - MCP runtime activities
+
+**Frontend:**
+✓ Tool mode UI (workflow canvas integration)
+✓ Agent configuration panels
+
+---
+
+## Section 7: Architecture Diagrams
+
+### 7.1 PR #209 Current Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PR #209: MCP Library Architecture                    │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────┐                    ┌────────────────┐
+│   Frontend     │                    │   Backend      │
+│                │                    │                │
+│ ┌────────────┐ │                    │ ┌────────────┐ │
+│ │   MCP      │ │                    │ │   MCP      │ │
+│ │  Library   │ │                    │ │  Servers   │ │
+│ │    UI      │ │                    │ │ Controller │ │
+│ └─────┬──────┘ │                    │ └─────┬──────┘ │
+│       │        │                    │       │        │
+│       │ REST   │                    │       │        │
+│       │ API    │                    │       │        │
+└───────┼────────┘                    └───────┼────────┘
+        │                                     │
+        │                                     │
+        ▼                                     ▼
+┌────────────────┐                   ┌────────────────┐
+│   MCP Server   │                   │   PostgreSQL   │
+│  Configurations│                   │    Database    │
+│                │                   │                │
+│ • HTTP         │                   │ ┌────────────┐ │
+│ • Stdio        │                   │ │mcp_servers │ │
+│ • SSE          │                   │ │   table    │ │
+│ • WebSocket    │                   │ └────────────┘ │
+└────────────────┘                   └────────────────┘
+
+         │
+         │ Direct Connection
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│                     Worker / AI Agent                   │
+│                                                          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  McpClientService (Direct Connections)         │    │
+│  │                                                │    │
+│  │  • HTTP Client                                 │    │
+│  │  • SSE Client                                  │    │
+│  │  • WebSocket Client                            │    │
+│  │  • Stdio Process (direct spawn)                │    │
+│  └────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+         │
+         │ Direct Calls
+         │
+         ▼
+┌────────────────┐
+│  MCP Servers   │
+│                │
+│ • npx @modelcontextprotocol-server-github
+│ • npx @modelcontextprotocol-server-postgres
+│ • Custom HTTP endpoints
+└────────────────┘
+
+KEY CHARACTERISTICS:
+✓ Persistent configuration storage
+✓ Management UI
+✓ Health check polling
+✗ Direct stdio processes (no isolation)
+✗ Agent bypasses gateway (no monitoring)
+✗ No tool scoping
+```
+
+### 7.2 PR #243 Current Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  PR #243: Tool Mode Architecture                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────┐                    ┌────────────────┐
+│   Frontend     │                    │   Backend      │
+│                │                    │                │
+│ ┌────────────┐ │                    │ ┌────────────┐ │
+│ │  Tool Mode │ │                    │ │   MCP      │ │
+│ │    UI      │ │                    │ │  Gateway   │ │
+│ └─────┬──────┘ │                    │ │  Service   │ │
+│       │        │                    │ └─────┬──────┘ │
+│       │        │                    │       │        │
+│       │        │                    │ ┌─────┴──────┐ │
+│       │        │                    │ │   Tool     │ │
+│       │        │                    │ │  Registry  │ │
+│       │        │                    │ │  (Redis)   │ │
+└───────┼────────┘                    │ └─────────────┘ │
+        │                             └───────┬────────┘
+        │                                     │
+        │ Internal API                        │
+        │                                     │
+        ▼                                     │
+┌────────────────┐                   ┌────────────────┐
+│   Workflow     │                   │   MCP Gateway  │
+│  Configuration │                   │   Controller   │
+│                │                   │  /mcp/gateway  │
+│ • Tool Mode    │                   └───────┬────────┘
+│   Nodes        │                           │ StreamableHTTP
+└────────────────┘                           │
+                                            │
+        │                                     │
+        │ Internal Registration                │
+        │                                     │
+        ▼                                     │
+┌─────────────────────────────────────┐       │
+│         Internal MCP API            │       │
+│         /internal/mcp/*             │       │
+│                                     │       │
+│  • register-component-tool          │       │
+│  • register-remote-mcp              │       │
+│  • register-local-mcp (stdio)       │       │
+│  • generate-gateway-token           │       │
+└──────────────┬──────────────────────┘       │
+               │                              │
+               │                              │
+               ▼                              │
+      ┌────────────────┐                     │
+      │  Docker        │                     │
+      │  Containers    │                     │
+      │  (stdio MCPs)  │                     │
+      │                │                     │
+      │ ┌────────────┐ │                     │
+      │ │ HTTP Proxy │◄┼─────────────────────┘
+      │ └────────────┘ │
+      └────────────────┘
+               │
+               │
+               ▼
+┌─────────────────────────────────────────────────────────┐
+│                     Worker / AI Agent                   │
+│                                                          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  createMCPClient (via SDK)                     │    │
+│  │                                                │    │
+│  │  gatewayUrl: /mcp/gateway                      │    │
+│  │  token: JWT session token                     │    │
+│  │                                                │    │
+│  │  Tools discovered from gateway                 │    │
+│  │  Tool calls routed through gateway             │    │
+│  └────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+         │
+         │ Via Gateway
+         │
+         ▼
+┌────────────────┐
+│  Tool Targets  │
+│                │
+│ • Components   │
+│ • Docker MCPs  │
+│ • Remote MCPs  │
+└────────────────┘
+
+KEY CHARACTERISTICS:
+✓ Centralized gateway (monitoring, logging)
+✓ Docker isolation for stdio servers
+✓ Tool scoping via connectedNodeIds
+✓ Runtime tool registration
+✗ No persistent server configuration UI
+```
+
+### 7.3 Proposed Merged Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│              MERGED: MCP Library + Tool Mode Architecture                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────┐         ┌───────────────────────┐
+│      Frontend         │         │       Backend          │
+│                       │         │                       │
+│ ┌─────────────────┐   │         │ ┌─────────────────┐   │
+│ │   MCP Library   │   │         │ │   MCP Gateway   │   │
+│ │  Management UI  │   │         │ │    Service      │   │
+│ │                 │   │         │ │                 │   │
+│ │ • CRUD Servers  │   │         │ │ • Tool Routing  │   │
+│ │ • Health Checks │   │         │ │ • Component Exec│   │
+│ │ • Tool Discovery│   │         │ │ • MCP Proxying  │   │
+│ └────────┬────────┘   │         │ └────────┬────────┘   │
+│          │            │         │          │            │
+│ ┌────────▼────────┐   │         │ ┌────────▼────────┐   │
+│ │  Tool Mode UI   │   │         │ │  Tool Registry  │   │
+│ │  (Per Workflow) │   │         │ │   (Redis)       │   │
+│ └─────────────────┘   │         │ └────────┬────────┘   │
+└──────────┼────────────┘         └──────────┼────────────┘
+           │                                │
+           │                                │
+           │ REST API                       │ Internal API
+           │                                │
+           ▼                                ▼
+┌──────────────────────┐         ┌──────────────────────┐
+│   MCP Servers API    │         │   Internal MCP API    │
+│   /mcp-servers/*     │         │   /internal/mcp/*     │
+│                      │         │                      │
+│ • List servers       │         │ • Register tools      │
+│ • Create server      │         │ • Generate token      │
+│ • Update server      │         │ • Health check        │
+│ • Delete server      │         │ • Cleanup             │
+└──────────┬───────────┘         └──────────┬───────────┘
+           │                                │
+           │                                │
+           │                                │
+           ▼                                ▼
+┌──────────────────────┐         ┌──────────────────────┐
+│    PostgreSQL        │         │   MCP Gateway         │
+│    mcp_servers table │         │   Controller          │
+│                      │         │   /mcp/gateway        │
+│ • Server configs     │         └──────────┬───────────┘
+│ • Encrypted headers              │ StreamableHTTP
+│ • Transport settings             │
+│ • Health status                  │
+└───────────────────────────────────┼──────────────────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+                    ▼               ▼               ▼
+           ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+           │   Docker     │ │   Remote     │ │  Component   │
+           │ Containers   │ │   HTTP MCPs  │ │    Tools     │
+           │              │ │              │ │              │
+           │ ┌──────────┐ │ │              │ │              │
+           │ │ Stdio    │ │ │              │ │              │
+           │ │ Proxy    │ │ │              │ │              │
+           │ └──────────┘ │ │              │ │              │
+           └──────────────┘ └──────────────┘ └──────────────┘
+
+                              │
+                              │ Via Gateway
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Worker / AI Agent                           │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │  AI Agent Component                                    │    │
+│  │                                                        │    │
+│  │  1. Get gateway token from Internal MCP API           │    │
+│  │  2. Create MCP client:                                │    │
+│  │     createMCPClient({ gatewayUrl, token })            │    │
+│  │  3. Discover tools (scoped by connectedNodeIds)       │    │
+│  │  4. Execute tools via gateway                         │    │
+│  └────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+
+DATA FLOW:
+
+1. CONFIGURATION (User Action)
+   User → MCP Library UI → /mcp-servers API → PostgreSQL
+   Result: Server configuration stored
+
+2. WORKFLOW DESIGN (User Action)
+   User → Workflow Canvas → Add MCP Server Node
+   Result: Node references server ID from library
+
+3. RUNTIME INITIALIZATION (Temporal Workflow)
+   Workflow → Internal MCP API → /internal/mcp/register-local-mcp
+   Steps:
+   a. Read server config from PostgreSQL
+   b. If stdio: Spawn Docker container with HTTP proxy
+   c. Get proxy endpoint
+   d. Register tool in Redis Tool Registry
+
+4. TOOL DISCOVERY (AI Agent)
+   Agent → MCP Gateway → /mcp/gateway (with JWT token)
+   Steps:
+   a. Validate token (runId, organizationId, allowedNodeIds)
+   b. Query Tool Registry for allowed tools
+   c. Return tool list to agent
+
+5. TOOL EXECUTION (AI Agent)
+   Agent → MCP Gateway → Tool Target
+   Routes:
+   • Component tool → Temporal workflow signal
+   • Local MCP (stdio) → HTTP proxy in Docker
+   • Remote MCP (HTTP) → External HTTP call
+
+6. HEALTH MONITORING
+   MCP Library UI → Poll /mcp-servers/health
+   Updates PostgreSQL health status
+
+KEY BENEFITS:
+✓ Persistent server configuration (from PR #209)
+✓ Centralized gateway with monitoring (from PR #243)
+✓ Docker isolation for stdio servers (from PR #243)
+✓ Tool scoping via graph connections (from PR #243)
+✓ Management UI (from PR #209)
+✓ Runtime registration and discovery (from PR #243)
+✓ Unified architecture using best of both PRs
+```
+
+---
+
+## Section 8: Testing Checklist
+
+### 8.1 Unit Tests
+
+**Backend:**
+
+- [ ] MCP Servers Service tests
+  - [ ] `createServer()` - Creates server with encrypted headers
+  - [ ] `updateServer()` - Updates server configuration
+  - [ ] `toggleServer()` - Enables/disables server
+  - [ ] `testServerConnection()` - Tests server connectivity
+  - [ ] `getAllTools()` - Aggregates tools from all enabled servers
+  - [ ] `getHealthStatuses()` - Returns health of all servers
+
+- [ ] MCP Servers Encryption tests
+  - [ ] Header encryption/decryption
+  - [ ] Key rotation (if implemented)
+  - [ ] Invalid ciphertext handling
+
+- [ ] MCP Gateway Service tests
+  - [ ] `getServerForRun()` - Creates/retrieves MCP server instance
+  - [ ] `registerTools()` - Registers component and MCP tools
+  - [ ] `callComponentTool()` - Executes component via Temporal
+  - [ ] `proxyCallToExternal()` - Proxies to external MCP
+  - [ ] Tool scoping with `allowedNodeIds`
+  - [ ] Refresh servers on new tool registration
+
+- [ ] Tool Registry tests
+  - [ ] `registerComponentTool()` - Registers component tool
+  - [ ] `registerLocalMcp()` - Registers stdio MCP
+  - [ ] `registerRemoteMcp()` - Registers HTTP MCP
+  - [ ] `getToolsForRun()` - Retrieves tools with scoping
+  - [ ] Redis TTL expiration
+
+**Worker:**
+
+- [ ] AI Agent tests
+  - [ ] Gateway-based tool discovery
+  - [ ] Tool execution via gateway
+  - [ ] Tool scoping with `connectedToolNodeIds`
+  - [ ] Error handling for gateway failures
+  - [ ] Conversation state management
+
+- [ ] MCP Client Service tests (health check only)
+  - [ ] `healthCheck()` - Tests server connectivity
+  - [ ] Connection pooling and cleanup
+
+### 8.2 Integration Tests
+
+**Backend:**
+
+- [ ] MCP Servers API integration
+  - [ ] Create server via POST /mcp-servers
+  - [ ] List servers via GET /mcp-servers
+  - [ ] Update server via PATCH /mcp-servers/:id
+  - [ ] Delete server via DELETE /mcp-servers/:id
+  - [ ] Toggle server via POST /mcp-servers/:id/toggle
+  - [ ] Test connection via POST /mcp-servers/:id/test
+  - [ ] Get tools via GET /mcp-servers/:id/tools
+  - [ ] Get health via GET /mcp-servers/health
+
+- [ ] MCP Gateway integration
+  - [ ] Session token generation via /internal/mcp/generate-token
+  - [ ] Tool registration via /internal/mcp/register-\*
+  - [ ] Tool discovery via /mcp/gateway
+  - [ ] Tool execution via /mcp/gateway
+  - [ ] Multi-agent tool scoping
+
+**Worker → Backend:**
+
+- [ ] MCP Library server discovery
+- [ ] Docker container spawning for stdio servers
+- [ ] HTTP proxy creation for stdio servers
+- [ ] Tool registration with gateway
+- [ ] Tool execution via gateway
+- [ ] Container cleanup on completion
+
+### 8.3 E2E Tests
+
+**Full Workflow:**
+
+- [ ] Create MCP server in Library UI
+- [ ] Configure workflow with tool-mode node
+- [ ] Run workflow with agent
+- [ ] Verify agent discovers tools from gateway
+- [ ] Verify agent executes tools successfully
+- [ ] Verify tool execution is logged
+- [ ] Verify container cleanup
+
+**Multi-Agent Scenarios:**
+
+- [ ] Two agents with different tool scopes
+- [ ] Verify agents only see allowed tools
+- [ ] Verify tool isolation between agents
+
+**Error Scenarios:**
+
+- [ ] MCP server unavailable (health check fails)
+- [ ] Docker container fails to start
+- [ ] Gateway token expires
+- [ ] Tool execution timeout
+- [ ] Invalid tool parameters
+
+### 8.4 Performance Tests
+
+**Concurrent Access:**
+
+- [ ] Multiple workflows using same MCP server
+- [ ] Multiple agents with different scopes
+- [ ] Health check polling under load
+
+**Resource Management:**
+
+- [ ] Docker container cleanup
+- [ ] Redis memory usage (tool registry)
+- [ ] Connection pool limits
+
+### 8.5 Security Tests
+
+**Authentication:**
+
+- [ ] Invalid session token rejected
+- [ ] Expired session token rejected
+- [ ] Cross-run access prevented
+
+**Authorization:**
+
+- [ ] Organization isolation enforced
+- [ ] Tool scoping enforced via `allowedNodeIds`
+
+**Data Protection:**
+
+- [ ] Encrypted headers cannot be decrypted without key
+- [ ] Credentials not logged
+- [ ] Tool execution results not leaked
+
+### 8.6 Migration Tests
+
+**Database Migration:**
+
+- [ ] Migration runs successfully
+- [ ] Schema created correctly
+- [ ] No data loss
+
+**Backward Compatibility:**
+
+- [ ] Existing workflows still work
+- [ ] Tool mode nodes function correctly
+
+---
+
+## Appendix A: File Inventory
+
+### PR #209 Files to Integrate
+
+```
+backend/src/mcp-servers/
+├── mcp-servers.controller.ts
+├── mcp-servers.dto.ts
+├── mcp-servers.encryption.ts
+├── mcp-servers.module.ts
+├── mcp-servers.repository.ts
+├── mcp-servers.service.ts
+└── index.ts
+
+backend/src/database/schema/
+└── mcp-servers.ts
+
+frontend/src/pages/
+└── McpLibraryPage.tsx
+
+frontend/src/store/
+└── mcpServerStore.ts
+
+frontend/src/hooks/
+└── useMcpHealthPolling.ts
+
+worker/src/services/
+└── mcp-client.service.ts (health check only, mark deprecated)
+
+worker/src/temporal/activities/
+└── mcp-library.activity.ts (rename to mcp-library-config.activity.ts)
+
+packages/shared/src/
+└── mcp.ts
+```
+
+### PR #243 Files (Already on main)
+
+```
+backend/src/mcp/
+├── mcp-gateway.controller.ts
+├── mcp-gateway.service.ts
+├── mcp-auth.guard.ts
+├── mcp-auth.service.ts
+├── mcp.module.ts
+├── tool-registry.service.ts
+├── internal-mcp.controller.ts
+├── dto/
+│   ├── mcp.dto.ts
+│   └── mcp-gateway.dto.ts
+└── index.ts
+
+worker/src/components/ai/
+└── ai-agent.ts (gateway implementation)
+
+worker/src/components/core/
+└── mcp-runtime.ts
+```
+
+---
+
+## Appendix B: Command Reference
+
+### Merge Commands
+
+```bash
+# Start from main
+git checkout main
+git pull origin main
+
+# Create merge branch
+git checkout -b merge/mcp-library-tool-mode
+
+# Merge PR #209
+git merge origin/mcp-library --no-commit
+
+# Resolve conflicts (see Section 4)
+# ... edit files ...
+
+# Check status
+git status
+
+# Add resolved files
+git add <resolved-files>
+
+# Complete merge
+git commit -m "feat: merge MCP Library with Tool Mode"
+
+# Push to remote (optional)
+git push origin merge/mcp-library-tool-mode
+```
+
+### Database Migration Commands
+
+```bash
+cd backend
+
+# Generate migration (if needed)
+bun run migrate:generate --name=add_mcp_servers_table
+
+# Run migrations
+bun run migrate:run
+
+# Revert migration (if needed)
+bun run migrate:revert
+```
+
+### Testing Commands
+
+```bash
+# Backend tests
+cd backend
+bun run test
+
+# Worker tests
+cd worker
+bun run test
+
+# E2E tests
+cd e2e-tests
+bun run test
+
+# Linting
+bun run lint
+
+# Type checking
+bun run typecheck
+```
+
+---
+
+## Appendix C: Contact and Resources
+
+**Document Maintainer:** Technical Documentation Team
+**Last Updated:** 2026-02-02
+**Version:** 1.0
+
+**Related Resources:**
+
+- PR #209: https://github.com/ShipSecAI/studio/pull/209
+- PR #243: https://github.com/ShipSecAI/studio/pull/243
+- MCP Specification: https://modelcontextprotocol.io/
+
+**Change Log:**
+
+| Version | Date       | Changes                   |
+| ------- | ---------- | ------------------------- |
+| 1.0     | 2026-02-02 | Initial document creation |
+
+---
+
+**END OF DOCUMENT**

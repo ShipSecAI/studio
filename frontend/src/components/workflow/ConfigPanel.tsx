@@ -927,7 +927,8 @@ export function ConfigPanel({
           )}
 
           {/* Parameters Section (Moved to Top) */}
-          {!isToolMode && componentParameters.length > 0 && (
+          {/* Show parameters if not tool mode, OR if we're in tool mode but have parameters to configure (e.g., MCP components) */}
+          {(!isToolMode || componentParameters.length > 0) && (
             <CollapsibleSection
               title="Parameters"
               count={componentParameters.length}

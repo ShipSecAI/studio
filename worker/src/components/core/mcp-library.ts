@@ -28,6 +28,9 @@ const outputSchema = outputs({
     label: 'Tools',
     description: 'MCP tools from selected servers',
     connectionType: { kind: 'contract', name: 'mcp.tool' },
+    allowAny: true,
+    reason:
+      'MCP tools are dynamically discovered from the server at runtime and cannot have a fixed schema',
   }),
 });
 
