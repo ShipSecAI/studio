@@ -10,6 +10,7 @@ import { SimpleVariableListEditor } from './SimpleVariableListEditor';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
 import { FormFieldsEditor } from './FormFieldsEditor';
 import { SelectionOptionsEditor } from './SelectionOptionsEditor';
+import { McpLibraryConfig } from './McpLibraryConfig';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
@@ -438,6 +439,18 @@ export function ParameterField({
           )}
         </div>
       </div>
+    );
+  }
+
+  // MCP Library - enabledServers parameter uses custom multi-select from MCP servers API
+  if (componentId === 'core.mcp.library' && parameter.id === 'enabledServers') {
+    const selectedServers = Array.isArray(currentValue) ? currentValue : [];
+    return (
+      <McpLibraryConfig
+        value={selectedServers}
+        onChange={onChange}
+        disabled={isReceivingInput}
+      />
     );
   }
 
