@@ -1,6 +1,6 @@
 import { Inject, Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { and, eq, sql, type SQL, or, isNull } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 
 import { DRIZZLE_TOKEN } from '../database/database.module';
 import {
@@ -46,25 +46,19 @@ export class McpServersRepository {
   async list(options: McpServerQueryOptions = {}): Promise<McpServerRecord[]> {
     const conditions: SQL[] = [];
     if (options.organizationId) {
-      conditions.push(
-        or(
-          eq(mcpServers.organizationId, options.organizationId),
-          isNull(mcpServers.organizationId),
-        ),
-      );
+      conditions.push(eq(mcpServers.organizationId, options.organizationId));
     }
 
     const whereClause =
       conditions.length === 0
         ? undefined
         : conditions.length === 1
-          ? conditions[0]
-          : and(...conditions);
+        ? conditions[0]
+        : and(...conditions);
 
-    const rows = await (
-      whereClause
-        ? this.db.select().from(mcpServers).where(whereClause)
-        : this.db.select().from(mcpServers)
+    const rows = await (whereClause
+      ? this.db.select().from(mcpServers).where(whereClause)
+      : this.db.select().from(mcpServers)
     ).orderBy(mcpServers.name);
 
     return rows;
@@ -73,12 +67,7 @@ export class McpServersRepository {
   async listEnabled(options: McpServerQueryOptions = {}): Promise<McpServerRecord[]> {
     const conditions: SQL[] = [eq(mcpServers.enabled, true)];
     if (options.organizationId) {
-      conditions.push(
-        or(
-          eq(mcpServers.organizationId, options.organizationId),
-          isNull(mcpServers.organizationId),
-        ),
-      );
+      conditions.push(eq(mcpServers.organizationId, options.organizationId));
     }
 
     const rows = await this.db
@@ -93,12 +82,7 @@ export class McpServersRepository {
   async findById(id: string, options: McpServerQueryOptions = {}): Promise<McpServerRecord> {
     const conditions: SQL[] = [eq(mcpServers.id, id)];
     if (options.organizationId) {
-      conditions.push(
-        or(
-          eq(mcpServers.organizationId, options.organizationId),
-          isNull(mcpServers.organizationId),
-        ),
-      );
+      conditions.push(eq(mcpServers.organizationId, options.organizationId));
     }
 
     const rows = await this.db
@@ -115,18 +99,10 @@ export class McpServersRepository {
     return row;
   }
 
-  async findByName(
-    name: string,
-    options: McpServerQueryOptions = {},
-  ): Promise<McpServerRecord | null> {
+  async findByName(name: string, options: McpServerQueryOptions = {}): Promise<McpServerRecord | null> {
     const conditions: SQL[] = [eq(mcpServers.name, name)];
     if (options.organizationId) {
-      conditions.push(
-        or(
-          eq(mcpServers.organizationId, options.organizationId),
-          isNull(mcpServers.organizationId),
-        ),
-      );
+      conditions.push(eq(mcpServers.organizationId, options.organizationId));
     }
 
     const rows = await this.db
@@ -199,12 +175,7 @@ export class McpServersRepository {
   ): Promise<void> {
     const conditions: SQL[] = [eq(mcpServers.id, id)];
     if (options.organizationId) {
-      conditions.push(
-        or(
-          eq(mcpServers.organizationId, options.organizationId),
-          isNull(mcpServers.organizationId),
-        ),
-      );
+      conditions.push(eq(mcpServers.organizationId, options.organizationId));
     }
 
     await this.db
@@ -245,15 +216,10 @@ export class McpServersRepository {
 
   async listAllToolsForOrganization(
     options: McpServerQueryOptions = {},
-  ): Promise<(McpServerToolRecord & { serverName: string })[]> {
+  ): Promise<Array<McpServerToolRecord & { serverName: string }>> {
     const conditions: SQL[] = [eq(mcpServers.enabled, true)];
     if (options.organizationId) {
-      conditions.push(
-        or(
-          eq(mcpServers.organizationId, options.organizationId),
-          isNull(mcpServers.organizationId),
-        ),
-      );
+      conditions.push(eq(mcpServers.organizationId, options.organizationId));
     }
 
     const rows = await this.db
@@ -299,7 +265,7 @@ export class McpServersRepository {
 
   async upsertTools(
     serverId: string,
-    tools: Omit<NewMcpServerToolRecord, 'id' | 'serverId' | 'discoveredAt' | 'enabled'>[],
+    tools: Array<Omit<NewMcpServerToolRecord, 'id' | 'serverId' | 'discoveredAt' | 'enabled'>>,
   ): Promise<McpServerToolRecord[]> {
     if (tools.length === 0) {
       // Clear existing tools if none discovered
@@ -321,15 +287,14 @@ export class McpServersRepository {
       // Delete tools that no longer exist
       const toolsToDelete = existingTools.filter((t) => !discoveredToolNames.has(t.toolName));
       if (toolsToDelete.length > 0) {
-        await tx.delete(mcpServerTools).where(
-          and(
-            eq(mcpServerTools.serverId, serverId),
-            sql`${mcpServerTools.toolName} IN (${sql.join(
-              toolsToDelete.map((t) => sql`${t.toolName}`),
-              sql`, `,
-            )})`,
-          ),
-        );
+        await tx
+          .delete(mcpServerTools)
+          .where(
+            and(
+              eq(mcpServerTools.serverId, serverId),
+              sql`${mcpServerTools.toolName} IN (${sql.join(toolsToDelete.map((t) => sql`${t.toolName}`), sql`, `)})`
+            )
+          );
       }
 
       // Upsert each tool

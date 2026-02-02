@@ -56,7 +56,6 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { TerminalButton } from './TerminalButton';
 import { ParametersDisplay } from './ParametersDisplay';
 import { McpServersDisplay } from './McpServersDisplay';
-import { McpGroupServersDisplay } from '@/components/workflow/McpGroupServersDisplay';
 import { NodeProgressBar } from './NodeProgressBar';
 import { STATUS_ICONS, TEXT_BLOCK_SIZES } from './constants';
 
@@ -71,9 +70,6 @@ const {
 
 const TOOL_MODE_ONLY_COMPONENTS = new Set([
   'core.mcp.server',
-  'core.mcp.aws',
-  'core.mcp.github',
-  'core.mcp.gcp',
   'security.aws-cloudtrail-mcp',
   'security.aws-cloudwatch-mcp',
 ]);
@@ -153,10 +149,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const componentCategory: ComponentCategory =
     (component?.category as ComponentCategory) || (isEntryPoint ? 'input' : 'input');
   const isToolModeOnly = component?.id ? TOOL_MODE_ONLY_COMPONENTS.has(component.id) : false;
-  const isMcpGroup = component?.id
-    ? ['core.mcp.aws', 'core.mcp.github', 'core.mcp.gcp'].includes(component.id)
-    : false;
-  const showMcpBadge = componentCategory === 'mcp' || isToolModeOnly || isMcpGroup;
+  const showMcpBadge = componentCategory === 'mcp' || isToolModeOnly;
   const isToolMode = Boolean(
     (nodeData.config as any)?.isToolMode || (nodeData.config as any)?.mode === 'tool',
   );
@@ -940,18 +933,6 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         {/* MCP Servers Display - Show selected servers for MCP Library component */}
         {component?.id === 'core.mcp.library' && (
           <McpServersDisplay
-            enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}
-            position="bottom"
-            compact={true}
-          />
-        )}
-
-        {/* MCP Group Servers Display - Show selected servers for MCP Group components */}
-        {(component?.id === 'core.mcp.aws' ||
-          component?.id === 'core.mcp.github' ||
-          component?.id === 'core.mcp.gcp') && (
-          <McpGroupServersDisplay
-            groupId={component?.id.replace('core.mcp.', '') + '-mcps'}
             enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}
             position="bottom"
             compact={true}

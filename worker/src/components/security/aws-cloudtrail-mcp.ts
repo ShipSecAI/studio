@@ -49,16 +49,9 @@ const parameterSchema = parameters({
   }),
 });
 
-/**
- * AWS CloudTrail MCP Server Component
- *
- * @deprecated Use `security.aws-mcp-group` instead. This component will be removed in a future version.
- * The new AWS MCP group node provides a unified interface for all AWS MCP servers including CloudTrail,
- * CloudWatch, and other AWS services in a single component.
- */
 const definition = defineComponent({
   id: 'security.aws-cloudtrail-mcp',
-  label: 'AWS CloudTrail MCP (DEPRECATED)',
+  label: 'AWS CloudTrail MCP Server',
   category: 'mcp',
   runner: {
     kind: 'docker',
@@ -69,14 +62,13 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'DEPRECATED: Use the AWS MCPs node instead. This component provides CloudTrail MCP server access.',
+  docs: 'Runs the AWS CloudTrail MCP server in a container and exposes it via the MCP gateway (tool-mode only).',
   ui: {
     slug: 'aws-cloudtrail-mcp',
     version: '1.0.0',
     type: 'process',
     category: 'mcp',
-    description:
-      'DEPRECATED: Use the AWS MCPs node instead. This component provides CloudTrail MCP server access. Migrate to the unified AWS MCP group for better management.',
+    description: 'Expose AWS CloudTrail via MCP for tool-mode agents.',
     icon: 'Plug',
     author: {
       name: 'ShipSecAI',

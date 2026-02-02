@@ -1,25 +1,27 @@
-import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Server, Wrench, RefreshCw, AlertCircle } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { useMcpServerStore } from '@/store/mcpServerStore';
+import { useEffect, useState } from 'react'
+import { ChevronDown, ChevronRight, Server, Wrench, RefreshCw, AlertCircle } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+import { useMcpServerStore } from '@/store/mcpServerStore'
 
 interface McpLibraryToolSelectorProps {
   /** Whether MCP Library is enabled (controls visibility) */
-  enabled?: boolean;
+  enabled?: boolean
   /** List of excluded server IDs */
-  serverExclusions?: string[];
+  serverExclusions?: string[]
   /** List of excluded tool names */
-  toolExclusions?: string[];
+  toolExclusions?: string[]
   /** Callback when server exclusions change */
-  onServerExclusionChange?: (exclusions: string[] | undefined) => void;
+  onServerExclusionChange?: (exclusions: string[] | undefined) => void
   /** Callback when tool exclusions change */
-  onToolExclusionChange?: (exclusions: string[] | undefined) => void;
+  onToolExclusionChange?: (exclusions: string[] | undefined) => void
 }
 
-type ExpandedState = Record<string, boolean>;
+interface ExpandedState {
+  [serverId: string]: boolean
+}
 
 /**
  * MCP Library Tool Selector
@@ -43,77 +45,85 @@ export function McpLibraryToolSelector({
     fetchServers,
     fetchAllTools,
     refreshHealth,
-  } = useMcpServerStore();
+  } = useMcpServerStore()
 
-  const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [expanded, setExpanded] = useState<ExpandedState>({})
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Fetch servers and tools on mount
   useEffect(() => {
     if (enabled) {
-      fetchServers();
-      fetchAllTools();
+      fetchServers()
+      fetchAllTools()
     }
-  }, [enabled, fetchServers, fetchAllTools]);
+  }, [enabled, fetchServers, fetchAllTools])
 
   // Only show enabled servers
-  const enabledServers = servers.filter((s) => s.enabled);
+  const enabledServers = servers.filter(s => s.enabled)
 
   const handleRefresh = async () => {
-    setIsRefreshing(true);
+    setIsRefreshing(true)
     try {
-      await Promise.all([fetchServers({ force: true }), fetchAllTools(), refreshHealth()]);
+      await Promise.all([
+        fetchServers({ force: true }),
+        fetchAllTools(),
+        refreshHealth(),
+      ])
     } finally {
-      setIsRefreshing(false);
+      setIsRefreshing(false)
     }
-  };
+  }
 
   const toggleServer = (serverId: string) => {
-    setExpanded((prev) => ({
+    setExpanded(prev => ({
       ...prev,
       [serverId]: !prev[serverId],
-    }));
-  };
+    }))
+  }
 
-  const isServerExcluded = (serverId: string) => serverExclusions.includes(serverId);
-  const isToolExcluded = (toolName: string) => toolExclusions.includes(toolName);
+  const isServerExcluded = (serverId: string) => serverExclusions.includes(serverId)
+  const isToolExcluded = (toolName: string) => toolExclusions.includes(toolName)
 
   const handleServerExclusionToggle = (serverId: string) => {
     const newExclusions = isServerExcluded(serverId)
-      ? serverExclusions.filter((id) => id !== serverId)
-      : [...serverExclusions, serverId];
+      ? serverExclusions.filter(id => id !== serverId)
+      : [...serverExclusions, serverId]
 
-    onServerExclusionChange?.(newExclusions.length > 0 ? newExclusions : undefined);
-  };
+    onServerExclusionChange?.(newExclusions.length > 0 ? newExclusions : undefined)
+  }
 
   const handleToolExclusionToggle = (toolName: string) => {
     const newExclusions = isToolExcluded(toolName)
-      ? toolExclusions.filter((name) => name !== toolName)
-      : [...toolExclusions, toolName];
+      ? toolExclusions.filter(name => name !== toolName)
+      : [...toolExclusions, toolName]
 
-    onToolExclusionChange?.(newExclusions.length > 0 ? newExclusions : undefined);
-  };
+    onToolExclusionChange?.(newExclusions.length > 0 ? newExclusions : undefined)
+  }
 
   const getHealthIndicator = (serverId: string) => {
-    const status = healthStatus[serverId] ?? 'unknown';
+    const status = healthStatus[serverId] ?? 'unknown'
     switch (status) {
       case 'healthy':
-        return <span className="w-2 h-2 rounded-full bg-green-500" title="Healthy" />;
+        return <span className="w-2 h-2 rounded-full bg-green-500" title="Healthy" />
       case 'unhealthy':
-        return <span className="w-2 h-2 rounded-full bg-red-500" title="Unhealthy" />;
+        return <span className="w-2 h-2 rounded-full bg-red-500" title="Unhealthy" />
       default:
-        return <span className="w-2 h-2 rounded-full bg-gray-400" title="Unknown" />;
+        return <span className="w-2 h-2 rounded-full bg-gray-400" title="Unknown" />
     }
-  };
+  }
 
-  const getServerTools = (serverId: string) => tools.filter((t) => t.serverId === serverId);
+  const getServerTools = (serverId: string) => tools.filter(t => t.serverId === serverId)
 
   if (!enabled) {
-    return null;
+    return null
   }
 
   if (isLoading && servers.length === 0) {
-    return <div className="text-xs text-muted-foreground py-2">Loading MCP servers...</div>;
+    return (
+      <div className="text-xs text-muted-foreground py-2">
+        Loading MCP servers...
+      </div>
+    )
   }
 
   if (error) {
@@ -122,7 +132,7 @@ export function McpLibraryToolSelector({
         <AlertCircle className="h-3.5 w-3.5" />
         <span>{error}</span>
       </div>
-    );
+    )
   }
 
   if (enabledServers.length === 0) {
@@ -134,7 +144,7 @@ export function McpLibraryToolSelector({
         </a>
         .
       </div>
-    );
+    )
   }
 
   return (
@@ -152,26 +162,26 @@ export function McpLibraryToolSelector({
           disabled={isRefreshing}
           title="Refresh servers"
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
+          <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
         </Button>
       </div>
 
       {/* Server list */}
       <div className="space-y-1 max-h-64 overflow-y-auto">
-        {enabledServers.map((server) => {
-          const serverTools = getServerTools(server.id);
-          const isExpanded = expanded[server.id] ?? false;
-          const excluded = isServerExcluded(server.id);
-          const status = healthStatus[server.id] ?? 'unknown';
-          const isUnhealthy = status === 'unhealthy';
+        {enabledServers.map(server => {
+          const serverTools = getServerTools(server.id)
+          const isExpanded = expanded[server.id] ?? false
+          const excluded = isServerExcluded(server.id)
+          const status = healthStatus[server.id] ?? 'unknown'
+          const isUnhealthy = status === 'unhealthy'
 
           return (
             <div
               key={server.id}
               className={cn(
-                'rounded-md border',
-                excluded && 'opacity-50',
-                isUnhealthy && 'border-red-200 dark:border-red-900',
+                "rounded-md border",
+                excluded && "opacity-50",
+                isUnhealthy && "border-red-200 dark:border-red-900"
               )}
             >
               {/* Server header */}
@@ -202,8 +212,8 @@ export function McpLibraryToolSelector({
                 <label
                   htmlFor={`server-${server.id}`}
                   className={cn(
-                    'flex-1 text-xs font-medium cursor-pointer truncate',
-                    excluded && 'line-through text-muted-foreground',
+                    "flex-1 text-xs font-medium cursor-pointer truncate",
+                    excluded && "line-through text-muted-foreground"
                   )}
                   title={server.name}
                 >
@@ -224,10 +234,13 @@ export function McpLibraryToolSelector({
               {/* Expanded tools list */}
               {isExpanded && serverTools.length > 0 && (
                 <div className="border-t px-2 py-1.5 space-y-1 bg-muted/30">
-                  {serverTools.map((tool) => {
-                    const toolExcluded = isToolExcluded(tool.toolName);
+                  {serverTools.map(tool => {
+                    const toolExcluded = isToolExcluded(tool.toolName)
                     return (
-                      <div key={tool.id} className="flex items-center gap-2 pl-6">
+                      <div
+                        key={tool.id}
+                        className="flex items-center gap-2 pl-6"
+                      >
                         <Checkbox
                           id={`tool-${tool.id}`}
                           checked={!toolExcluded && !excluded}
@@ -239,15 +252,15 @@ export function McpLibraryToolSelector({
                         <label
                           htmlFor={`tool-${tool.id}`}
                           className={cn(
-                            'flex-1 text-[11px] cursor-pointer truncate',
-                            (toolExcluded || excluded) && 'line-through text-muted-foreground',
+                            "flex-1 text-[11px] cursor-pointer truncate",
+                            (toolExcluded || excluded) && "line-through text-muted-foreground"
                           )}
                           title={tool.description ?? tool.toolName}
                         >
                           {tool.toolName}
                         </label>
                       </div>
-                    );
+                    )
                   })}
                 </div>
               )}
@@ -261,7 +274,7 @@ export function McpLibraryToolSelector({
                 </div>
               )}
             </div>
-          );
+          )
         })}
       </div>
 
@@ -269,17 +282,13 @@ export function McpLibraryToolSelector({
       {(serverExclusions.length > 0 || toolExclusions.length > 0) && (
         <div className="text-[10px] text-muted-foreground pt-1 border-t">
           {serverExclusions.length > 0 && (
-            <div>
-              {serverExclusions.length} server{serverExclusions.length !== 1 ? 's' : ''} excluded
-            </div>
+            <div>{serverExclusions.length} server{serverExclusions.length !== 1 ? 's' : ''} excluded</div>
           )}
           {toolExclusions.length > 0 && (
-            <div>
-              {toolExclusions.length} tool{toolExclusions.length !== 1 ? 's' : ''} excluded
-            </div>
+            <div>{toolExclusions.length} tool{toolExclusions.length !== 1 ? 's' : ''} excluded</div>
           )}
         </div>
       )}
     </div>
-  );
+  )
 }
