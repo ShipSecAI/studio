@@ -1269,7 +1269,7 @@ export function McpLibraryPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
           <Package className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Your Groups</h2>
+          <h2 className="text-lg font-semibold">MCP groups</h2>
           <Badge variant="secondary" className="text-xs">
             {filteredGroups.length} {filteredGroups.length === 1 ? 'group' : 'groups'}
           </Badge>
@@ -1282,7 +1282,7 @@ export function McpLibraryPage() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Import curated MCP groups to auto-register servers and discover tools.
+                    Import curated MCP groups to auto-register servers and discover tools.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
