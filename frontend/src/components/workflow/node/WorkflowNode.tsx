@@ -931,7 +931,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
           />
         )}
 
-        {/* MCP Servers Display - Show selected servers for MCP Library component */}
+        {/* MCP Servers Display - Show selected servers for Custom MCPs component */}
         {component?.id === 'core.mcp.library' && (
           <McpServersDisplay
             enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}

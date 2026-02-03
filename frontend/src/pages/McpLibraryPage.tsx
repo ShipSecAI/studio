@@ -1136,7 +1136,7 @@ export function McpLibraryPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">MCP Library</h1>
+          <h1 className="text-2xl font-bold">MCP Servers</h1>
           <p className="text-muted-foreground">
             Configure Model Context Protocol servers for AI agents
           </p>

@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { useMcpServerStore } from '@/store/mcpServerStore'
 
 interface McpLibraryToolSelectorProps {
-  /** Whether MCP Library is enabled (controls visibility) */
+  /** Whether Custom MCPs is enabled (controls visibility) */
   enabled?: boolean
   /** List of excluded server IDs */
   serverExclusions?: string[]
@@ -24,7 +24,7 @@ interface ExpandedState {
 }
 
 /**
- * MCP Library Tool Selector
+ * Custom MCPs Tool Selector
  *
  * Shows MCP servers from the library with health status indicators.
  * Allows users to exclude specific servers or tools from being available to the AI agent.
@@ -140,7 +140,7 @@ export function McpLibraryToolSelector({
       <div className="text-xs text-muted-foreground py-2">
         No MCP servers configured. Add servers in the{' '}
         <a href="/mcp-library" className="text-primary hover:underline">
-          MCP Library
+          Custom MCPs
         </a>
         .
       </div>

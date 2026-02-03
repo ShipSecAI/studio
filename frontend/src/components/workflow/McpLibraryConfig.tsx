@@ -16,9 +16,9 @@ interface McpLibraryConfigProps {
 }
 
 /**
- * MCP Library Configuration Panel
+ * Custom MCPs Configuration Panel
  *
- * Provides a multi-select interface for choosing MCP servers from the library.
+ * Provides a multi-select interface for choosing custom MCP servers.
  * Displays server name, description, health status, and tool count for each server.
  * Fetches available servers from /api/v1/mcp-servers.
  */
@@ -149,7 +149,7 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
         <p className="text-xs text-muted-foreground/70 mb-4">
           Add servers in the{' '}
           <a href="/mcp-library" className="text-primary hover:underline">
-            MCP Library
+            Custom MCPs
           </a>{' '}
           to use them in your workflows.
         </p>

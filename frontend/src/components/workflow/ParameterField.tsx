@@ -443,7 +443,7 @@ export function ParameterField({
     );
   }
 
-  // MCP Library - enabledServers parameter uses custom multi-select from MCP servers API
+  // Custom MCPs - enabledServers parameter uses custom multi-select from MCP servers API
   if (componentId === 'core.mcp.library' && parameter.id === 'enabledServers') {
     const selectedServers = Array.isArray(currentValue) ? currentValue : [];
     return (
