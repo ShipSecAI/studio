@@ -46,9 +46,16 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Search,
   Plus,
   ArrowDownToLine,
+  ChevronDown,
   Trash2,
   Edit3,
   RefreshCw,
@@ -466,6 +473,11 @@ export function McpLibraryPage() {
         template.description?.toLowerCase().includes(query),
     );
   }, [groupTemplates, searchQuery]);
+
+  const importableTemplates = useMemo(
+    () => filteredTemplates.filter((template) => !importedGroupSlugs.has(template.slug)),
+    [filteredTemplates, importedGroupSlugs],
+  );
 
   const filteredGroups = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -1160,93 +1172,98 @@ export function McpLibraryPage() {
         </Button>
       </div>
 
-      {/* Available Group Templates */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Layers className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Available Groups</h2>
-          <Badge variant="secondary" className="text-xs">
-            {filteredTemplates.length} {filteredTemplates.length === 1 ? 'group' : 'groups'}
-          </Badge>
-        </div>
-
-        {isLoadingTemplates ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <CardHeader className="pb-4">
-                  <Skeleton className="h-5 w-40 mb-2" />
-                  <Skeleton className="h-4 w-64" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-12 w-full" />
-                </CardContent>
-              </Card>
-            ))}
+      {/* Group Templates */}
+      {groups.length === 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Layers className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Available Groups</h2>
+            <Badge variant="secondary" className="text-xs">
+              {filteredTemplates.length} {filteredTemplates.length === 1 ? 'group' : 'groups'}
+            </Badge>
           </div>
-        ) : filteredTemplates.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-8">
-              <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground text-sm">
-                {searchQuery ? 'No groups match your search.' : 'No group templates available.'}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-            {filteredTemplates.map((template) => {
-              const theme = getGroupTheme(template.slug);
-              const isImported = importedGroupSlugs.has(template.slug);
-              const isImporting = importingTemplates.has(template.slug);
 
-              return (
-                <Card key={template.slug} className={cn('overflow-hidden border', theme.container)}>
-                  <CardHeader
-                    className={cn('flex flex-row items-center gap-3 py-3 border-b', theme.headerBorder)}
-                  >
-                    <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
-                      <GroupLogo slug={template.slug} name={template.name} className={theme.iconText} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-base">{template.name}</h3>
-                        <Badge variant="secondary" className="text-xs">
-                          {template.servers.length} servers
-                        </Badge>
-                      </div>
-                      {template.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {template.description}
-                        </p>
-                      )}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={isImported ? 'secondary' : 'default'}
-                      disabled={isImported || isImporting}
-                      onClick={() => handleImportTemplate(template)}
-                    >
-                      {isImporting ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <ArrowDownToLine className="h-4 w-4 mr-2" />
-                      )}
-                      {isImported ? 'Imported' : 'Import'}
-                    </Button>
+          {isLoadingTemplates ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Card key={i} className="overflow-hidden">
+                  <CardHeader className="pb-4">
+                    <Skeleton className="h-5 w-40 mb-2" />
+                    <Skeleton className="h-4 w-64" />
                   </CardHeader>
-                  <CardContent className="py-2">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>Default image:</span>
-                      <span className="font-mono truncate">{template.defaultDockerImage}</span>
-                    </div>
+                  <CardContent>
+                    <Skeleton className="h-12 w-full" />
                   </CardContent>
                 </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          ) : filteredTemplates.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
+                <p className="text-muted-foreground text-sm">
+                  {searchQuery ? 'No groups match your search.' : 'No group templates available.'}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              {filteredTemplates.map((template) => {
+                const theme = getGroupTheme(template.slug);
+                const isImported = importedGroupSlugs.has(template.slug);
+                const isImporting = importingTemplates.has(template.slug);
+
+                return (
+                  <Card key={template.slug} className={cn('overflow-hidden border', theme.container)}>
+                    <CardHeader
+                      className={cn(
+                        'flex flex-row items-center gap-3 py-3 border-b',
+                        theme.headerBorder,
+                      )}
+                    >
+                      <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
+                        <GroupLogo slug={template.slug} name={template.name} className={theme.iconText} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-base">{template.name}</h3>
+                          <Badge variant="secondary" className="text-xs">
+                            {template.servers.length} servers
+                          </Badge>
+                        </div>
+                        {template.description && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {template.description}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={isImported ? 'secondary' : 'default'}
+                        disabled={isImported || isImporting}
+                        onClick={() => handleImportTemplate(template)}
+                      >
+                        {isImporting ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <ArrowDownToLine className="h-4 w-4 mr-2" />
+                        )}
+                        {isImported ? 'Imported' : 'Import'}
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="py-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Default image:</span>
+                        <span className="font-mono truncate">{template.defaultDockerImage}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Imported Groups Section */}
       <div className="mb-8">
@@ -1256,6 +1273,43 @@ export function McpLibraryPage() {
           <Badge variant="secondary" className="text-xs">
             {filteredGroups.length} {filteredGroups.length === 1 ? 'group' : 'groups'}
           </Badge>
+          {groups.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Import group
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[240px]">
+                {importableTemplates.length === 0 ? (
+                  <DropdownMenuItem disabled>No groups available</DropdownMenuItem>
+                ) : (
+                  importableTemplates.map((template) => {
+                    const isImporting = importingTemplates.has(template.slug);
+                    return (
+                      <DropdownMenuItem
+                        key={template.slug}
+                        disabled={isImporting}
+                        onClick={() => handleImportTemplate(template)}
+                        className="flex items-center gap-2"
+                      >
+                        <GroupLogo
+                          slug={template.slug}
+                          name={template.name}
+                          className="h-4 w-4 text-muted-foreground"
+                        />
+                        <span className="flex-1">{template.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {template.servers.length}
+                        </span>
+                      </DropdownMenuItem>
+                    );
+                  })
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {isLoading && groups.length === 0 ? (
