@@ -260,7 +260,7 @@ export function AgentPage() {
       {/* Input area */}
       <div className="border-t bg-background/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto px-4 py-4">
-          <div className="relative flex items-end gap-2">
+          <div className="flex items-end gap-2">
             <div className="flex-1 relative">
               <textarea
                 ref={textareaRef}
@@ -270,21 +270,21 @@ export function AgentPage() {
                 placeholder="Message ShipSec AI..."
                 rows={1}
                 className={cn(
-                  'w-full resize-none rounded-xl border border-input bg-background px-4 py-3 pr-12',
+                  'w-full resize-none rounded-xl border border-input bg-background px-4 py-3',
                   'text-sm placeholder:text-muted-foreground',
                   'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
                   'min-h-[48px] max-h-[200px]',
                 )}
               />
-              <Button
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                size="icon"
-                className="absolute right-2 bottom-2 h-8 w-8 rounded-lg"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
             </div>
+            <Button
+              onClick={handleSend}
+              disabled={!inputValue.trim()}
+              size="icon"
+              className="h-12 w-12 rounded-xl flex-shrink-0"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground text-center mt-2">
             ShipSec AI may produce inaccurate information. Always verify security findings.
