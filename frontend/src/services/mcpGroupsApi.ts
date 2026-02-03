@@ -232,4 +232,22 @@ export const mcpGroupsApi = {
 
     return response.json();
   },
+
+  /**
+   * Delete an imported group
+   */
+  async deleteGroup(groupId: string): Promise<void> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to delete group' }));
+      throw new Error(error.message || 'Failed to delete group');
+    }
+  },
 };

@@ -797,6 +797,26 @@ export function McpLibraryPage() {
     }
   };
 
+  const handleRemoveGroup = async (groupId: string, groupName: string) => {
+    const confirmed = window.confirm(`Remove ${groupName}? This will delete the group.`);
+    if (!confirmed) return;
+
+    try {
+      await mcpGroupsApi.deleteGroup(groupId);
+      toast({
+        title: 'Group removed',
+        description: `${groupName} was removed.`,
+      });
+      await fetchGroups({ force: true });
+    } catch (err) {
+      toast({
+        title: 'Remove failed',
+        description: err instanceof Error ? err.message : 'Failed to remove group',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleToggleTool = async (serverId: string, toolId: string) => {
     try {
       const tool = await toggleTool(serverId, toolId);
@@ -1109,7 +1129,7 @@ export function McpLibraryPage() {
       </div>
 
       {/* Available Group Templates */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="flex items-center gap-3 mb-4">
           <Layers className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">Available Groups</h2>
@@ -1142,7 +1162,7 @@ export function McpLibraryPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {filteredTemplates.map((template) => {
               const theme = getGroupTheme(template.slug);
               const GroupIcon = getGroupIcon(template.slug, template.name);
@@ -1152,10 +1172,7 @@ export function McpLibraryPage() {
               return (
                 <Card key={template.slug} className={cn('overflow-hidden border', theme.container)}>
                   <CardHeader
-                    className={cn(
-                      'flex flex-row items-center gap-3 py-4 border-b',
-                      theme.headerBorder,
-                    )}
+                    className={cn('flex flex-row items-center gap-3 py-3 border-b', theme.headerBorder)}
                   >
                     <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
                       <GroupIcon className={cn('h-5 w-5', theme.iconText)} />
@@ -1187,7 +1204,7 @@ export function McpLibraryPage() {
                       {isImported ? 'Imported' : 'Import'}
                     </Button>
                   </CardHeader>
-                  <CardContent className="py-3">
+                  <CardContent className="py-2">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>Default image:</span>
                       <span className="font-mono truncate">{template.defaultDockerImage}</span>
@@ -1265,6 +1282,18 @@ export function McpLibraryPage() {
                           </p>
                         )}
                       </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleRemoveGroup(group.id, group.name);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
@@ -1343,7 +1372,15 @@ export function McpLibraryPage() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Custom Servers */}
+      <div className="flex items-center gap-3 mb-4">
+        <Package className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold">Custom MCP Servers</h2>
+        <Badge variant="secondary" className="text-xs">
+          {filteredCustomServers.length}{' '}
+          {filteredCustomServers.length === 1 ? 'server' : 'servers'}
+        </Badge>
+      </div>
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
