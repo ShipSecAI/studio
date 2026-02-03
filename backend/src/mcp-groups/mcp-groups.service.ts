@@ -183,6 +183,18 @@ export class McpGroupsService implements OnModuleInit {
   }
 
   async deleteGroup(id: string): Promise<void> {
+    // Verify group exists and collect servers to clean up
+    await this.repository.findById(id);
+    const servers = await this.repository.findServersByGroup(id);
+
+    for (const server of servers) {
+      // Remove group relation first
+      await this.repository.removeServerFromGroup(id, server.id);
+      // Clear tools and delete the server itself
+      await this.mcpServersRepository.clearTools(server.id);
+      await this.mcpServersRepository.delete(server.id);
+    }
+
     await this.repository.delete(id);
   }
 
