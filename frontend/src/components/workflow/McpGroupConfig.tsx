@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Server, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
+import { Loader2, Server, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fetch group servers on mount
-  const fetchServers = async (force = false) => {
+  const fetchServers = async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -93,7 +93,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
 
     setIsRefreshing(true);
     try {
-      await fetchServers(true);
+      await fetchServers();
     } finally {
       setIsRefreshing(false);
     }

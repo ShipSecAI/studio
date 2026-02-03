@@ -132,7 +132,7 @@ function GroupLogo({
 
   return (
     <img
-      src={logoUrl}
+      src={logoUrl ?? undefined}
       alt={`${name} logo`}
       className={cn('h-5 w-5 object-contain', className)}
       onError={(event) => {
