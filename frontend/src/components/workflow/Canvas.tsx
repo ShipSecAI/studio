@@ -166,6 +166,7 @@ export function Canvas({
   const prevModeRef = useRef<typeof mode>(mode);
   const prevNodesLengthRef = useRef(nodes.length);
   const prevEdgesLengthRef = useRef(edges.length);
+  const lastSelectedNodeIdRef = useRef<string | null>(null);
   const [configPanelWidth, setConfigPanelWidth] = useState(432); // Default panel width
   const [canvasOpacity, setCanvasOpacity] = useState(1); // For fade transition
 
@@ -845,6 +846,60 @@ export function Canvas({
   useEffect(() => {
     onNodeSelectionChange?.(selectedNode);
   }, [selectedNode, onNodeSelectionChange]);
+
+  // Auto-center on selected node, or zoom to fit all when sidebar closes
+  useEffect(() => {
+    if (mode !== 'design' || !reactFlowInstance) return;
+
+    // Case 1: Node Selected -> Zoom In
+    if (selectedNode?.id) {
+      if (selectedNode.id !== lastSelectedNodeIdRef.current) {
+        lastSelectedNodeIdRef.current = selectedNode.id;
+
+        // Wait for sidebar transition to open
+        const timer = setTimeout(() => {
+          if (!reactFlowInstance) return;
+
+          const currentNodes = reactFlowInstance.getNodes();
+          const targetNode = currentNodes.find((n: any) => n.id === selectedNode.id);
+
+          if (targetNode) {
+            reactFlowInstance.fitView({
+              nodes: [targetNode],
+              padding: 0.8,
+              minZoom: 0.5,
+              maxZoom: 1.0,
+              duration: 800,
+            });
+          }
+        }, 200);
+
+        return () => clearTimeout(timer);
+      }
+    }
+    // Case 2: Node Deselected (Sidebar Closed) -> Zoom Out to Fit All
+    else if (!selectedNode && lastSelectedNodeIdRef.current) {
+      lastSelectedNodeIdRef.current = null;
+
+      // Wait for sidebar transition to close so we fit defined to the full width
+      setTimeout(() => {
+        if (!reactFlowInstance) return;
+
+        // Exclude terminal nodes from the fit calculation for a cleaner view
+        const currentNodes = reactFlowInstance.getNodes();
+        const workflowNodes = currentNodes.filter((n: any) => n.type !== 'terminal');
+
+        if (workflowNodes.length > 0) {
+          reactFlowInstance.fitView({
+            padding: 0.2,
+            maxZoom: 0.85,
+            duration: 800,
+            nodes: workflowNodes,
+          });
+        }
+      }, 300);
+    }
+  }, [selectedNode?.id, mode, reactFlowInstance]);
 
   // Update edges with data flow highlighting and packet data
   useEffect(() => {
