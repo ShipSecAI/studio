@@ -36,7 +36,7 @@ const outputSchema = outputs({
 
 const definition = defineComponent({
   id: 'core.mcp.library',
-  label: 'MCP Library',
+  label: 'Custom MCPs',
   category: 'mcp',
   runner: {
     kind: 'inline',
@@ -44,13 +44,13 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Select and enable MCP servers from the MCP Library. All tools from selected servers will be available to connected AI agents.',
+  docs: 'Select and enable custom MCP servers. All tools from selected servers will be available to connected AI agents.',
   ui: {
     slug: 'mcp-library',
     version: '1.0.0',
     type: 'process',
     category: 'mcp',
-    description: 'Select multiple MCP servers from a library to expose their tools to AI agents.',
+    description: 'Select multiple custom MCP servers to expose their tools to AI agents.',
     icon: 'Library',
     author: {
       name: 'ShipSecAI',
@@ -59,7 +59,7 @@ const definition = defineComponent({
     agentTool: {
       enabled: true,
       toolName: 'mcp_library',
-      toolDescription: 'Expose MCP Library tools from configured servers.',
+      toolDescription: 'Expose custom MCP tools from configured servers.',
     },
     isLatest: true,
   },
