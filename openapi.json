@@ -4772,7 +4772,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpServerResponse"
+                    "$ref": "#/components/schemas/McpServerResponseDto"
                   }
                 }
               }
@@ -4803,7 +4803,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpServerResponse"
+                  "$ref": "#/components/schemas/McpServerResponseDto"
                 }
               }
             }
@@ -4827,7 +4827,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpServerResponse"
+                    "$ref": "#/components/schemas/McpServerResponseDto"
                   }
                 }
               }
@@ -4852,7 +4852,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpToolResponse"
+                    "$ref": "#/components/schemas/McpToolResponseDto"
                   }
                 }
               }
@@ -4877,7 +4877,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/HealthStatusResponse"
+                    "$ref": "#/components/schemas/HealthStatusResponseDto"
                   }
                 }
               }
@@ -4909,7 +4909,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpServerResponse"
+                  "$ref": "#/components/schemas/McpServerResponseDto"
                 }
               }
             }
@@ -4948,7 +4948,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpServerResponse"
+                  "$ref": "#/components/schemas/McpServerResponseDto"
                 }
               }
             }
@@ -5003,7 +5003,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpToolResponse"
+                    "$ref": "#/components/schemas/McpToolResponseDto"
                   }
                 }
               }
@@ -5035,7 +5035,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpServerResponse"
+                  "$ref": "#/components/schemas/McpServerResponseDto"
                 }
               }
             }
@@ -5066,7 +5066,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TestConnectionResponse"
+                  "$ref": "#/components/schemas/TestConnectionResponseDto"
                 }
               }
             }
@@ -5099,7 +5099,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpToolResponse"
+                    "$ref": "#/components/schemas/McpToolResponseDto"
                   }
                 }
               }
@@ -5139,13 +5139,44 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpToolResponse"
+                  "$ref": "#/components/schemas/McpToolResponseDto"
                 }
               }
             }
           }
         },
         "summary": "Toggle a tool enabled/disabled state",
+        "tags": [
+          "mcp-servers"
+        ]
+      }
+    },
+    "/api/v1/mcp-servers/{id}/resolve": {
+      "get": {
+        "operationId": "McpServersController_getResolvedConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get resolved MCP server configuration (with secrets resolved)",
         "tags": [
           "mcp-servers"
         ]
@@ -5172,7 +5203,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpGroupResponse"
+                    "$ref": "#/components/schemas/McpGroupResponseDto"
                   }
                 }
               }
@@ -5203,7 +5234,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpGroupResponse"
+                  "$ref": "#/components/schemas/McpGroupResponseDto"
                 }
               }
             }
@@ -5259,7 +5290,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpGroupResponse"
+                  "$ref": "#/components/schemas/McpGroupResponseDto"
                 }
               }
             }
@@ -5290,7 +5321,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpGroupResponse"
+                  "$ref": "#/components/schemas/McpGroupResponseDto"
                 }
               }
             }
@@ -5329,7 +5360,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpGroupResponse"
+                  "$ref": "#/components/schemas/McpGroupResponseDto"
                 }
               }
             }
@@ -5384,7 +5415,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpGroupServerResponse"
+                    "$ref": "#/components/schemas/McpGroupServerResponseDto"
                   }
                 }
               }
@@ -5426,7 +5457,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpGroupServerResponse"
+                    "$ref": "#/components/schemas/McpGroupServerResponseDto"
                   }
                 }
               }
@@ -5478,7 +5509,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpGroupServerResponse"
+                    "$ref": "#/components/schemas/McpGroupServerResponseDto"
                   }
                 }
               }
@@ -5531,7 +5562,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SyncTemplatesResponse"
+                  "$ref": "#/components/schemas/SyncTemplatesResponseDto"
                 }
               }
             }
@@ -5562,7 +5593,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportGroupTemplateResponse"
+                  "$ref": "#/components/schemas/ImportGroupTemplateResponseDto"
                 }
               }
             }
@@ -5593,7 +5624,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DiscoverGroupToolsResponse"
+                  "$ref": "#/components/schemas/DiscoverGroupToolsResponseDto"
                 }
               }
             }
@@ -9227,7 +9258,7 @@
           "input"
         ]
       },
-      "McpServerResponse": {
+      "McpServerResponseDto": {
         "type": "object",
         "properties": {
           "id": {
@@ -9237,7 +9268,8 @@
             "type": "string"
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "transportType": {
             "type": "string",
@@ -9249,37 +9281,42 @@
             ]
           },
           "endpoint": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "command": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "args": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "nullable": true
           },
           "hasHeaders": {
-            "type": "boolean",
-            "description": "Whether encrypted headers are configured"
+            "type": "boolean"
           },
           "headerKeys": {
-            "nullable": true,
-            "description": "Header key names (values are encrypted server-side)",
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "nullable": true
           },
           "enabled": {
             "type": "boolean"
           },
           "healthCheckUrl": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "lastHealthCheck": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
           },
           "lastHealthStatus": {
             "type": "string",
@@ -9287,30 +9324,44 @@
               "healthy",
               "unhealthy",
               "unknown"
-            ]
+            ],
+            "nullable": true
           },
           "createdAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "updatedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "groupId": {
             "type": "string",
-            "description": "Group ID if this server belongs to a group"
+            "nullable": true
           }
         },
         "required": [
           "id",
           "name",
+          "description",
           "transportType",
+          "endpoint",
+          "command",
+          "args",
           "hasHeaders",
+          "headerKeys",
           "enabled",
+          "healthCheckUrl",
+          "lastHealthCheck",
+          "lastHealthStatus",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "groupId"
         ]
       },
-      "McpToolResponse": {
+      "McpToolResponseDto": {
         "type": "object",
         "properties": {
           "id": {
@@ -9320,10 +9371,16 @@
             "type": "string"
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "inputSchema": {
-            "type": "object"
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
           },
           "serverId": {
             "type": "string"
@@ -9335,19 +9392,23 @@
             "type": "boolean"
           },
           "discoveredAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           }
         },
         "required": [
           "id",
           "toolName",
+          "description",
+          "inputSchema",
           "serverId",
           "serverName",
           "enabled",
           "discoveredAt"
         ]
       },
-      "HealthStatusResponse": {
+      "HealthStatusResponseDto": {
         "type": "object",
         "properties": {
           "serverId": {
@@ -9362,12 +9423,16 @@
             ]
           },
           "checkedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "nullable": true
           }
         },
         "required": [
           "serverId",
-          "status"
+          "status",
+          "checkedAt"
         ]
       },
       "CreateMcpServerDto": {
@@ -9375,15 +9440,13 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Human-readable unique name for the MCP server"
+            "minLength": 1
           },
           "description": {
-            "type": "string",
-            "description": "Optional description"
+            "type": "string"
           },
           "transportType": {
             "type": "string",
-            "description": "Transport type for connecting to the MCP server",
             "enum": [
               "http",
               "stdio",
@@ -9393,14 +9456,13 @@
           },
           "endpoint": {
             "type": "string",
-            "description": "URL endpoint for HTTP/SSE/WebSocket transports"
+            "format": "uri"
           },
           "command": {
             "type": "string",
-            "description": "Command to run for stdio transport"
+            "minLength": 1
           },
           "args": {
-            "description": "Arguments for stdio command",
             "type": "array",
             "items": {
               "type": "string"
@@ -9408,19 +9470,22 @@
           },
           "headers": {
             "type": "object",
-            "description": "HTTP headers for authentication (will be encrypted)",
+            "propertyNames": {
+              "type": "string"
+            },
             "additionalProperties": {
               "type": "string"
             }
           },
           "healthCheckUrl": {
             "type": "string",
-            "description": "Custom health check URL (optional)"
+            "format": "uri"
           },
           "enabled": {
-            "type": "boolean",
-            "description": "Whether the server is enabled",
-            "default": true
+            "type": "boolean"
+          },
+          "groupId": {
+            "type": "string"
           }
         },
         "required": [
@@ -9433,15 +9498,14 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Human-readable unique name for the MCP server"
+            "minLength": 1
           },
           "description": {
             "type": "string",
-            "description": "Optional description"
+            "nullable": true
           },
           "transportType": {
             "type": "string",
-            "description": "Transport type for connecting to the MCP server",
             "enum": [
               "http",
               "stdio",
@@ -9451,22 +9515,26 @@
           },
           "endpoint": {
             "type": "string",
-            "description": "URL endpoint for HTTP/SSE/WebSocket transports"
+            "format": "uri",
+            "nullable": true
           },
           "command": {
             "type": "string",
-            "description": "Command to run for stdio transport"
+            "minLength": 1,
+            "nullable": true
           },
           "args": {
-            "description": "Arguments for stdio command",
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "nullable": true
           },
           "headers": {
             "type": "object",
-            "description": "HTTP headers for authentication (will be encrypted). Set to null to clear.",
+            "propertyNames": {
+              "type": "string"
+            },
             "additionalProperties": {
               "type": "string"
             },
@@ -9474,15 +9542,15 @@
           },
           "healthCheckUrl": {
             "type": "string",
-            "description": "Custom health check URL (optional)"
+            "format": "uri",
+            "nullable": true
           },
           "enabled": {
-            "type": "boolean",
-            "description": "Whether the server is enabled"
+            "type": "boolean"
           }
         }
       },
-      "TestConnectionResponse": {
+      "TestConnectionResponseDto": {
         "type": "object",
         "properties": {
           "success": {
@@ -9495,126 +9563,76 @@
             "type": "number"
           },
           "protocolVersion": {
-            "type": "string",
-            "description": "MCP protocol version reported by the server"
+            "type": "string"
           },
           "responseTimeMs": {
-            "type": "number",
-            "description": "Response time in milliseconds"
+            "type": "number"
           }
         },
         "required": [
           "success"
         ]
       },
-      "McpGroupResponse": {
+      "McpGroupResponseDto": {
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "description": "Group ID"
+            "type": "string"
           },
           "slug": {
-            "type": "string",
-            "description": "URL-friendly slug"
+            "type": "string"
           },
           "name": {
-            "type": "string",
-            "description": "Group name"
+            "type": "string"
           },
           "description": {
             "type": "string",
-            "description": "Group description"
+            "nullable": true
           },
           "credentialContractName": {
-            "type": "string",
-            "description": "Credential contract name"
+            "type": "string"
           },
           "credentialMapping": {
             "type": "object",
-            "description": "Credential mapping"
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
           },
           "defaultDockerImage": {
             "type": "string",
-            "description": "Default Docker image"
+            "nullable": true
           },
           "enabled": {
-            "type": "boolean",
-            "description": "Whether group is enabled"
+            "type": "boolean"
           },
           "templateHash": {
             "type": "string",
-            "description": "Template hash for seeded groups"
+            "nullable": true
           },
           "createdAt": {
             "type": "string",
-            "description": "Creation timestamp"
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "updatedAt": {
             "type": "string",
-            "description": "Last update timestamp"
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           }
         },
         "required": [
           "id",
           "slug",
           "name",
+          "description",
           "credentialContractName",
+          "credentialMapping",
+          "defaultDockerImage",
           "enabled",
           "createdAt",
           "updatedAt"
-        ]
-      },
-      "GroupTemplateServerDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Server name"
-          },
-          "description": {
-            "type": "string",
-            "description": "Server description"
-          },
-          "transportType": {
-            "type": "string",
-            "description": "Transport type",
-            "enum": [
-              "http",
-              "stdio",
-              "sse",
-              "websocket"
-            ]
-          },
-          "endpoint": {
-            "type": "string",
-            "description": "URL endpoint"
-          },
-          "command": {
-            "type": "string",
-            "description": "Command for stdio transport"
-          },
-          "args": {
-            "description": "Command arguments",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "recommended": {
-            "type": "boolean",
-            "description": "Whether recommended"
-          },
-          "defaultSelected": {
-            "type": "boolean",
-            "description": "Whether selected by default"
-          }
-        },
-        "required": [
-          "name",
-          "transportType",
-          "recommended",
-          "defaultSelected"
         ]
       },
       "GroupTemplateDto": {
@@ -9622,31 +9640,32 @@
         "properties": {
           "slug": {
             "type": "string",
-            "description": "Template slug (unique identifier)"
+            "minLength": 1
           },
           "name": {
             "type": "string",
-            "description": "Template name"
+            "minLength": 1
           },
           "description": {
-            "type": "string",
-            "description": "Template description"
+            "type": "string"
           },
           "credentialContractName": {
             "type": "string",
-            "description": "Required credential contract name"
+            "minLength": 1
           },
           "credentialMapping": {
             "type": "object",
-            "description": "Credential field mapping"
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
           },
           "defaultDockerImage": {
             "type": "string",
-            "description": "Default Docker image"
+            "minLength": 1
           },
           "version": {
             "type": "object",
-            "description": "Template version",
             "properties": {
               "major": {
                 "type": "number"
@@ -9657,18 +9676,63 @@
               "patch": {
                 "type": "number"
               }
-            }
+            },
+            "required": [
+              "major",
+              "minor",
+              "patch"
+            ]
           },
           "servers": {
-            "description": "Servers in this template",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/GroupTemplateServerDto"
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "transportType": {
+                  "type": "string",
+                  "enum": [
+                    "http",
+                    "stdio",
+                    "sse",
+                    "websocket"
+                  ]
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "recommended": {
+                  "type": "boolean"
+                },
+                "defaultSelected": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "transportType",
+                "recommended",
+                "defaultSelected"
+              ]
             }
           },
           "templateHash": {
-            "type": "string",
-            "description": "Deterministic hash for change detection"
+            "type": "string"
           }
         },
         "required": [
@@ -9686,31 +9750,34 @@
         "properties": {
           "slug": {
             "type": "string",
-            "description": "URL-friendly slug for the group"
+            "minLength": 1
           },
           "name": {
             "type": "string",
-            "description": "Human-readable name"
+            "minLength": 1
           },
           "description": {
             "type": "string",
-            "description": "Description of the group"
+            "nullable": true
           },
           "credentialContractName": {
             "type": "string",
-            "description": "Credential contract name for authentication"
+            "minLength": 1
           },
           "credentialMapping": {
             "type": "object",
-            "description": "Mapping of credentials for servers in this group"
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
           },
           "defaultDockerImage": {
             "type": "string",
-            "description": "Default Docker image for servers in this group"
+            "nullable": true
           },
           "enabled": {
-            "type": "boolean",
-            "description": "Whether the group is enabled"
+            "type": "boolean"
           }
         },
         "required": [
@@ -9724,52 +9791,51 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Human-readable name"
+            "minLength": 1
           },
           "description": {
             "type": "string",
-            "description": "Description of the group"
+            "nullable": true
           },
           "credentialContractName": {
             "type": "string",
-            "description": "Credential contract name for authentication"
+            "minLength": 1
           },
           "credentialMapping": {
             "type": "object",
-            "description": "Mapping of credentials for servers in this group"
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "nullable": true
           },
           "defaultDockerImage": {
             "type": "string",
-            "description": "Default Docker image for servers in this group"
+            "nullable": true
           },
           "enabled": {
-            "type": "boolean",
-            "description": "Whether the group is enabled"
+            "type": "boolean"
           }
         }
       },
-      "McpGroupServerResponse": {
+      "McpGroupServerResponseDto": {
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "description": "Server ID"
+            "type": "string"
           },
           "name": {
-            "type": "string",
-            "description": "Server name (display name)"
+            "type": "string"
           },
           "serverName": {
-            "type": "string",
-            "description": "Server name (alias for frontend)"
+            "type": "string"
           },
           "description": {
             "type": "string",
-            "description": "Server description"
+            "nullable": true
           },
           "transportType": {
             "type": "string",
-            "description": "Transport type",
             "enum": [
               "http",
               "stdio",
@@ -9779,39 +9845,43 @@
           },
           "endpoint": {
             "type": "string",
-            "description": "HTTP endpoint URL"
+            "nullable": true
           },
           "command": {
             "type": "string",
-            "description": "Command for stdio transport"
+            "nullable": true
           },
           "enabled": {
-            "type": "boolean",
-            "description": "Whether server is enabled"
+            "type": "boolean"
           },
           "healthStatus": {
             "type": "string",
-            "description": "Health status"
+            "enum": [
+              "healthy",
+              "unhealthy",
+              "unknown"
+            ]
           },
           "toolCount": {
-            "type": "number",
-            "description": "Number of tools available"
+            "type": "number"
           },
           "recommended": {
-            "type": "boolean",
-            "description": "Whether server is recommended for this group"
+            "type": "boolean"
           },
           "defaultSelected": {
-            "type": "boolean",
-            "description": "Whether server is selected by default"
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "name",
           "serverName",
+          "description",
           "transportType",
+          "endpoint",
+          "command",
           "enabled",
+          "healthStatus",
           "toolCount",
           "recommended",
           "defaultSelected"
@@ -9822,15 +9892,14 @@
         "properties": {
           "serverId": {
             "type": "string",
-            "description": "Server ID to add to group"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "recommended": {
-            "type": "boolean",
-            "description": "Whether this server is recommended"
+            "type": "boolean"
           },
           "defaultSelected": {
-            "type": "boolean",
-            "description": "Whether this server is selected by default"
+            "type": "boolean"
           }
         },
         "required": [
@@ -9841,32 +9910,26 @@
         "type": "object",
         "properties": {
           "recommended": {
-            "type": "boolean",
-            "description": "Whether this server is recommended"
+            "type": "boolean"
           },
           "defaultSelected": {
-            "type": "boolean",
-            "description": "Whether this server is selected by default"
+            "type": "boolean"
           }
         }
       },
-      "SyncTemplatesResponse": {
+      "SyncTemplatesResponseDto": {
         "type": "object",
         "properties": {
           "syncedCount": {
-            "type": "number",
-            "description": "Number of templates synced"
+            "type": "number"
           },
           "createdCount": {
-            "type": "number",
-            "description": "Number of templates created"
+            "type": "number"
           },
           "updatedCount": {
-            "type": "number",
-            "description": "Number of templates updated"
+            "type": "number"
           },
           "templates": {
-            "description": "Template slugs that were synced",
             "type": "array",
             "items": {
               "type": "string"
@@ -9880,12 +9943,11 @@
           "templates"
         ]
       },
-      "ImportGroupTemplateResponse": {
+      "ImportGroupTemplateResponseDto": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "description": "Sync action taken",
             "enum": [
               "created",
               "updated",
@@ -9893,7 +9955,66 @@
             ]
           },
           "group": {
-            "$ref": "#/components/schemas/McpGroupResponse"
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
+              "credentialContractName": {
+                "type": "string"
+              },
+              "credentialMapping": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {},
+                "nullable": true
+              },
+              "defaultDockerImage": {
+                "type": "string",
+                "nullable": true
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "templateHash": {
+                "type": "string",
+                "nullable": true
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              }
+            },
+            "required": [
+              "id",
+              "slug",
+              "name",
+              "description",
+              "credentialContractName",
+              "credentialMapping",
+              "defaultDockerImage",
+              "enabled",
+              "createdAt",
+              "updatedAt"
+            ]
           }
         },
         "required": [
@@ -9901,30 +10022,48 @@
           "group"
         ]
       },
-      "DiscoverGroupToolsResponse": {
+      "DiscoverGroupToolsResponseDto": {
         "type": "object",
         "properties": {
           "groupId": {
-            "type": "string",
-            "description": "Group ID"
+            "type": "string"
           },
           "totalServers": {
-            "type": "number",
-            "description": "Total servers processed"
+            "type": "number"
           },
           "successCount": {
-            "type": "number",
-            "description": "Servers where tools were discovered successfully"
+            "type": "number"
           },
           "failureCount": {
-            "type": "number",
-            "description": "Servers where discovery failed"
+            "type": "number"
           },
           "results": {
-            "description": "Per-server results",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object",
+              "properties": {
+                "serverId": {
+                  "type": "string"
+                },
+                "serverName": {
+                  "type": "string"
+                },
+                "toolCount": {
+                  "type": "number"
+                },
+                "success": {
+                  "type": "boolean"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "serverId",
+                "serverName",
+                "toolCount",
+                "success"
+              ]
             }
           }
         },
