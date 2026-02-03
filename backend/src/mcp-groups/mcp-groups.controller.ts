@@ -30,6 +30,8 @@ import {
   UpdateServerInGroupDto,
   SyncTemplatesResponse,
   DiscoverGroupToolsResponse,
+  GroupTemplateDto,
+  ImportGroupTemplateResponse,
 } from './mcp-groups.dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentAuth } from '../auth/auth-context.decorator';
@@ -47,6 +49,13 @@ export class McpGroupsController {
   async listGroups(@Query('enabled') enabled?: string): Promise<McpGroupResponse[]> {
     const enabledOnly = enabled === 'true';
     return this.mcpGroupsService.listGroups(enabledOnly);
+  }
+
+  @Get('templates')
+  @ApiOperation({ summary: 'List available MCP group templates' })
+  @ApiOkResponse({ type: [GroupTemplateDto] })
+  async listTemplates(): Promise<GroupTemplateDto[]> {
+    return this.mcpGroupsService.listTemplates();
   }
 
   @Get('slug/:slug')
@@ -154,6 +163,17 @@ export class McpGroupsController {
   @ApiOkResponse({ type: SyncTemplatesResponse })
   async syncTemplates(@CurrentAuth() _auth: AuthContext | null): Promise<SyncTemplatesResponse> {
     return this.mcpGroupsService.syncTemplates();
+  }
+
+  @Post('templates/:slug/import')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Import a group template (admin only)' })
+  @ApiOkResponse({ type: ImportGroupTemplateResponse })
+  async importTemplate(
+    @CurrentAuth() _auth: AuthContext | null,
+    @Param('slug') slug: string,
+  ): Promise<ImportGroupTemplateResponse> {
+    return this.mcpGroupsService.importTemplate(slug);
   }
 
   @Post(':id/discover-tools')

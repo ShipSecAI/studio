@@ -5215,6 +5215,31 @@
         ]
       }
     },
+    "/api/v1/mcp-groups/templates": {
+      "get": {
+        "operationId": "McpGroupsController_listTemplates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupTemplateDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List available MCP group templates",
+        "tags": [
+          "mcp-groups"
+        ]
+      }
+    },
     "/api/v1/mcp-groups/slug/{slug}": {
       "get": {
         "operationId": "McpGroupsController_getGroupBySlug",
@@ -5513,6 +5538,37 @@
           }
         },
         "summary": "Sync group templates from code (admin only)",
+        "tags": [
+          "mcp-groups"
+        ]
+      }
+    },
+    "/api/v1/mcp-groups/templates/{slug}/import": {
+      "post": {
+        "operationId": "McpGroupsController_importTemplate",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportGroupTemplateResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Import a group template (admin only)",
         "tags": [
           "mcp-groups"
         ]
@@ -9509,6 +9565,122 @@
           "updatedAt"
         ]
       },
+      "GroupTemplateServerDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Server name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Server description"
+          },
+          "transportType": {
+            "type": "string",
+            "description": "Transport type",
+            "enum": [
+              "http",
+              "stdio",
+              "sse",
+              "websocket"
+            ]
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "URL endpoint"
+          },
+          "command": {
+            "type": "string",
+            "description": "Command for stdio transport"
+          },
+          "args": {
+            "description": "Command arguments",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Whether recommended"
+          },
+          "defaultSelected": {
+            "type": "boolean",
+            "description": "Whether selected by default"
+          }
+        },
+        "required": [
+          "name",
+          "transportType",
+          "recommended",
+          "defaultSelected"
+        ]
+      },
+      "GroupTemplateDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "Template slug (unique identifier)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Template name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Template description"
+          },
+          "credentialContractName": {
+            "type": "string",
+            "description": "Required credential contract name"
+          },
+          "credentialMapping": {
+            "type": "object",
+            "description": "Credential field mapping"
+          },
+          "defaultDockerImage": {
+            "type": "string",
+            "description": "Default Docker image"
+          },
+          "version": {
+            "type": "object",
+            "description": "Template version",
+            "properties": {
+              "major": {
+                "type": "number"
+              },
+              "minor": {
+                "type": "number"
+              },
+              "patch": {
+                "type": "number"
+              }
+            }
+          },
+          "servers": {
+            "description": "Servers in this template",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupTemplateServerDto"
+            }
+          },
+          "templateHash": {
+            "type": "string",
+            "description": "Deterministic hash for change detection"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "credentialContractName",
+          "defaultDockerImage",
+          "version",
+          "servers",
+          "templateHash"
+        ]
+      },
       "CreateMcpGroupDto": {
         "type": "object",
         "properties": {
@@ -9706,6 +9878,27 @@
           "createdCount",
           "updatedCount",
           "templates"
+        ]
+      },
+      "ImportGroupTemplateResponse": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Sync action taken",
+            "enum": [
+              "created",
+              "updated",
+              "skipped"
+            ]
+          },
+          "group": {
+            "$ref": "#/components/schemas/McpGroupResponse"
+          }
+        },
+        "required": [
+          "action",
+          "group"
         ]
       },
       "DiscoverGroupToolsResponse": {

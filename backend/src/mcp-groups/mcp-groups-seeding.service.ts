@@ -16,7 +16,7 @@ import { SyncTemplatesResponse, GroupTemplateDto, GroupTemplateServerDto } from 
 /**
  * Result of syncing a single template
  */
-interface TemplateSyncResult {
+export interface TemplateSyncResult {
   slug: string;
   action: 'created' | 'updated' | 'skipped';
   groupId?: string;

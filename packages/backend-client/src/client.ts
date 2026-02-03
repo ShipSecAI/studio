@@ -1461,6 +1461,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp-groups/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List available MCP group templates */
+        get: operations["McpGroupsController_listTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp-groups/slug/{slug}": {
         parameters: {
             query?: never;
@@ -1544,6 +1561,23 @@ export interface paths {
         put?: never;
         /** Sync group templates from code (admin only) */
         post: operations["McpGroupsController_syncTemplates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/templates/{slug}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a group template (admin only) */
+        post: operations["McpGroupsController_importTemplate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2864,6 +2898,51 @@ export interface components {
             /** @description Last update timestamp */
             updatedAt: string;
         };
+        GroupTemplateServerDto: {
+            /** @description Server name */
+            name: string;
+            /** @description Server description */
+            description?: string;
+            /**
+             * @description Transport type
+             * @enum {string}
+             */
+            transportType: "http" | "stdio" | "sse" | "websocket";
+            /** @description URL endpoint */
+            endpoint?: string;
+            /** @description Command for stdio transport */
+            command?: string;
+            /** @description Command arguments */
+            args?: string[];
+            /** @description Whether recommended */
+            recommended: boolean;
+            /** @description Whether selected by default */
+            defaultSelected: boolean;
+        };
+        GroupTemplateDto: {
+            /** @description Template slug (unique identifier) */
+            slug: string;
+            /** @description Template name */
+            name: string;
+            /** @description Template description */
+            description?: string;
+            /** @description Required credential contract name */
+            credentialContractName: string;
+            /** @description Credential field mapping */
+            credentialMapping?: Record<string, never>;
+            /** @description Default Docker image */
+            defaultDockerImage: string;
+            /** @description Template version */
+            version: {
+                major?: number;
+                minor?: number;
+                patch?: number;
+            };
+            /** @description Servers in this template */
+            servers: components["schemas"]["GroupTemplateServerDto"][];
+            /** @description Deterministic hash for change detection */
+            templateHash: string;
+        };
         CreateMcpGroupDto: {
             /** @description URL-friendly slug for the group */
             slug: string;
@@ -2946,6 +3025,14 @@ export interface components {
             updatedCount: number;
             /** @description Template slugs that were synced */
             templates: string[];
+        };
+        ImportGroupTemplateResponse: {
+            /**
+             * @description Sync action taken
+             * @enum {string}
+             */
+            action: "created" | "updated" | "skipped";
+            group: components["schemas"]["McpGroupResponse"];
         };
         DiscoverGroupToolsResponse: {
             /** @description Group ID */
@@ -5931,6 +6018,25 @@ export interface operations {
             };
         };
     };
+    McpGroupsController_listTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupTemplateDto"][];
+                };
+            };
+        };
+    };
     McpGroupsController_getGroupBySlug: {
         parameters: {
             query?: never;
@@ -6124,6 +6230,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncTemplatesResponse"];
+                };
+            };
+        };
+    };
+    McpGroupsController_importTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportGroupTemplateResponse"];
                 };
             };
         };

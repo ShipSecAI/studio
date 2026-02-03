@@ -13,8 +13,11 @@ import type {
   UpdateServerInGroupDto,
   SyncTemplatesResponse,
   DiscoverGroupToolsResponse,
+  GroupTemplateDto,
+  ImportGroupTemplateResponse,
 } from './mcp-groups.dto';
 import type { McpGroupRecord } from '../database/schema';
+import type { TemplateSyncResult } from './mcp-groups-seeding.service';
 
 @Injectable()
 export class McpGroupsService implements OnModuleInit {
@@ -91,6 +94,10 @@ export class McpGroupsService implements OnModuleInit {
     return groups.map((g) => this.mapGroupToResponse(g));
   }
 
+  listTemplates(): GroupTemplateDto[] {
+    return this.seedingService.getAllTemplates();
+  }
+
   async getGroup(id: string): Promise<McpGroupResponse> {
     const group = await this.repository.findById(id);
     return this.mapGroupToResponse(group);
@@ -102,6 +109,16 @@ export class McpGroupsService implements OnModuleInit {
       throw new BadRequestException(`MCP group with slug '${slug}' not found`);
     }
     return this.mapGroupToResponse(group);
+  }
+
+  async importTemplate(slug: string): Promise<ImportGroupTemplateResponse> {
+    const result: TemplateSyncResult = await this.seedingService.syncTemplate(slug);
+    const group = await this.getGroupBySlug(slug);
+
+    return {
+      action: result.action,
+      group,
+    };
   }
 
   async createGroup(input: CreateMcpGroupDto): Promise<McpGroupResponse> {

@@ -181,6 +181,14 @@ export class SyncTemplatesResponse {
   templates!: string[];
 }
 
+export class ImportGroupTemplateResponse {
+  @ApiProperty({ description: 'Sync action taken', enum: ['created', 'updated', 'skipped'] })
+  action!: 'created' | 'updated' | 'skipped';
+
+  @ApiProperty({ type: McpGroupResponse })
+  group!: McpGroupResponse;
+}
+
 export class DiscoverGroupToolsResponse {
   @ApiProperty({ description: 'Group ID' })
   groupId!: string;

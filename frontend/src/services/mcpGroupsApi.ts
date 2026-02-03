@@ -24,6 +24,31 @@ export interface McpGroupServerResponse {
   toolCount: number;
 }
 
+export interface McpGroupTemplateResponse {
+  slug: string;
+  name: string;
+  description?: string | null;
+  credentialContractName: string;
+  credentialMapping?: Record<string, unknown> | null;
+  defaultDockerImage: string;
+  version: {
+    major: number;
+    minor: number;
+    patch: number;
+  };
+  servers: {
+    name: string;
+    description?: string | null;
+    transportType: 'http' | 'stdio' | 'sse' | 'websocket';
+    endpoint?: string | null;
+    command?: string | null;
+    args?: string[] | null;
+    recommended: boolean;
+    defaultSelected: boolean;
+  }[];
+  templateHash: string;
+}
+
 /**
  * MCP Groups API Service
  *
@@ -43,6 +68,25 @@ export const mcpGroupsApi = {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Failed to fetch groups' }));
       throw new Error(error.message || 'Failed to fetch MCP groups');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Fetch available group templates
+   */
+  async listTemplates(): Promise<McpGroupTemplateResponse[]> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/templates`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to fetch group templates' }));
+      throw new Error(error.message || 'Failed to fetch group templates');
     }
 
     return response.json();
@@ -130,6 +174,28 @@ export const mcpGroupsApi = {
         .json()
         .catch(() => ({ message: 'Failed to sync group templates' }));
       throw new Error(error.message || 'Failed to sync group templates');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Import a specific group template
+   */
+  async importTemplate(
+    slug: string,
+  ): Promise<{ action: 'created' | 'updated' | 'skipped'; group: McpGroupResponse }> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/templates/${slug}/import`, {
+      method: 'POST',
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to import group template' }));
+      throw new Error(error.message || 'Failed to import group template');
     }
 
     return response.json();

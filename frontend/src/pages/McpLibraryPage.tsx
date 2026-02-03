@@ -48,6 +48,7 @@ import {
 import {
   Search,
   Plus,
+  ArrowDownToLine,
   Trash2,
   Edit3,
   RefreshCw,
@@ -59,7 +60,6 @@ import {
   FileJson,
   Layers,
   Cloud,
-  FlaskConical,
   Package,
   GitBranch,
   Globe,
@@ -68,7 +68,7 @@ import { useMcpServerStore } from '@/store/mcpServerStore';
 import { useMcpGroupStore } from '@/store/mcpGroupStore';
 import { useMcpHealthPolling } from '@/hooks/useMcpHealthPolling';
 import { useToast } from '@/components/ui/use-toast';
-import { mcpGroupsApi } from '@/services/mcpGroupsApi';
+import { mcpGroupsApi, type McpGroupTemplateResponse } from '@/services/mcpGroupsApi';
 import type { McpHealthStatus, CreateMcpServer } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
 import { MarkdownView } from '@/components/ui/markdown';
@@ -82,13 +82,48 @@ const TRANSPORT_TYPES = [
 
 type TransportType = (typeof TRANSPORT_TYPES)[number]['value'];
 
+function AwsIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} fill="currentColor" aria-hidden="true">
+      <text x="3" y="20" fontSize="12" fontWeight="700" fontFamily="ui-sans-serif">
+        AWS
+      </text>
+      <path d="M6 23.5c4.2 2.6 9.5 3.9 15.8 3.6" stroke="currentColor" strokeWidth="1.8" fill="none" />
+    </svg>
+  );
+}
+
 // Group icon mapping for visual distinction
-function getGroupIcon(groupName: string) {
+function getGroupIcon(groupSlug: string, groupName: string) {
+  const slug = groupSlug.toLowerCase();
   const name = groupName.toLowerCase();
-  if (name.includes('aws') || name.includes('amazon')) return Cloud;
-  if (name.includes('github') || name.includes('git')) return GitBranch;
-  if (name.includes('gcp') || name.includes('google')) return Globe;
+
+  if (slug === 'aws' || name.includes('aws') || name.includes('amazon')) return AwsIcon;
+  if (slug.includes('github') || name.includes('github') || name.includes('git')) return GitBranch;
+  if (slug.includes('gcp') || name.includes('gcp') || name.includes('google')) return Globe;
   return Package;
+}
+
+function getGroupTheme(groupSlug: string) {
+  if (groupSlug === 'aws') {
+    return {
+      container: 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800',
+      headerBorder: 'border-orange-200 dark:border-orange-800',
+      iconWrapper: 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800',
+      iconText: 'text-orange-700 dark:text-orange-300',
+      pillBorder: 'border-orange-200 dark:border-orange-800',
+      accentText: 'text-orange-700 dark:text-orange-300',
+    };
+  }
+
+  return {
+    container: 'bg-background border-border',
+    headerBorder: 'border-border',
+    iconWrapper: 'bg-muted border-border',
+    iconText: 'text-muted-foreground',
+    pillBorder: 'border-border',
+    accentText: 'text-muted-foreground',
+  };
 }
 
 function HealthIndicator({
@@ -210,7 +245,9 @@ export function McpLibraryPage() {
   const [activeTab, setActiveTab] = useState<'manual' | 'json'>('manual');
   const [headerEntries, setHeaderEntries] = useState<HeaderEntry[]>([]);
   const [discoveringGroupIds, setDiscoveringGroupIds] = useState<Set<string>>(new Set());
-  const [isSyncingTemplates, setIsSyncingTemplates] = useState(false);
+  const [groupTemplates, setGroupTemplates] = useState<McpGroupTemplateResponse[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [importingTemplates, setImportingTemplates] = useState<Set<string>>(new Set());
 
   const {
     servers,
@@ -240,6 +277,39 @@ export function McpLibraryPage() {
     fetchAllTools();
     fetchGroups();
   }, [fetchServers, fetchAllTools, fetchGroups]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadTemplates = async () => {
+      setIsLoadingTemplates(true);
+      try {
+        const templates = await mcpGroupsApi.listTemplates();
+        if (isMounted) {
+          setGroupTemplates(templates);
+        }
+      } catch (error) {
+        if (isMounted) {
+          toast({
+            title: 'Failed to load group templates',
+            description:
+              error instanceof Error ? error.message : 'Could not fetch available groups.',
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingTemplates(false);
+        }
+      }
+    };
+
+    loadTemplates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [toast]);
 
   useEffect(() => {
     if (groups.length > 0) {
@@ -351,9 +421,31 @@ export function McpLibraryPage() {
     );
   }, [servers, searchQuery, groupedServerIds]);
 
+  const importedGroupSlugs = useMemo(() => new Set(groups.map((group) => group.slug)), [groups]);
+
+  const filteredTemplates = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return groupTemplates;
+
+    return groupTemplates.filter(
+      (template) =>
+        template.name.toLowerCase().includes(query) ||
+        template.slug.toLowerCase().includes(query) ||
+        template.description?.toLowerCase().includes(query),
+    );
+  }, [groupTemplates, searchQuery]);
+
   const filteredGroups = useMemo(() => {
-    return groups.filter((group) => group.slug === 'aws');
-  }, [groups]);
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return groups;
+
+    return groups.filter(
+      (group) =>
+        group.name.toLowerCase().includes(query) ||
+        group.slug.toLowerCase().includes(query) ||
+        group.description?.toLowerCase().includes(query),
+    );
+  }, [groups, searchQuery]);
 
   // Calculate tool counts per server (enabled/total)
   const toolCountsByServer = useMemo(() => {
@@ -659,26 +751,49 @@ export function McpLibraryPage() {
     }
   };
 
-  const handleSyncTemplates = async () => {
-    if (isSyncingTemplates) return;
-
-    setIsSyncingTemplates(true);
+  const refreshTemplates = async () => {
+    setIsLoadingTemplates(true);
     try {
-      const result = await mcpGroupsApi.syncTemplates();
+      const templates = await mcpGroupsApi.listTemplates();
+      setGroupTemplates(templates);
+    } catch (error) {
       toast({
-        title: 'Templates synced',
-        description: `Created ${result.createdCount}, updated ${result.updatedCount}.`,
-      });
-      await fetchGroups({ force: true });
-      await fetchAllTools();
-    } catch (err) {
-      toast({
-        title: 'Sync failed',
-        description: err instanceof Error ? err.message : 'Failed to sync templates',
+        title: 'Failed to load group templates',
+        description: error instanceof Error ? error.message : 'Could not fetch available groups.',
         variant: 'destructive',
       });
     } finally {
-      setIsSyncingTemplates(false);
+      setIsLoadingTemplates(false);
+    }
+  };
+
+  const handleImportTemplate = async (template: McpGroupTemplateResponse) => {
+    if (importingTemplates.has(template.slug)) return;
+
+    setImportingTemplates((prev) => new Set(prev).add(template.slug));
+    try {
+      const result = await mcpGroupsApi.importTemplate(template.slug);
+      await fetchGroups({ force: true });
+      await fetchGroupServers(result.group.id, { force: true });
+
+      toast({
+        title: 'Group imported',
+        description: `Imported ${result.group.name}. Running discovery...`,
+      });
+
+      await handleDiscoverGroupTools(result.group.id);
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description: err instanceof Error ? err.message : 'Failed to import group',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingTemplates((prev) => {
+        const next = new Set(prev);
+        next.delete(template.slug);
+        return next;
+      });
     }
   };
 
@@ -985,6 +1100,7 @@ export function McpLibraryPage() {
           onClick={() => {
             fetchServers({ force: true });
             fetchGroups();
+            void refreshTemplates();
           }}
           disabled={isLoading}
         >
@@ -992,25 +1108,106 @@ export function McpLibraryPage() {
         </Button>
       </div>
 
-      {/* Curated Groups Section */}
+      {/* Available Group Templates */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
           <Layers className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">AWS Integration</h2>
+          <h2 className="text-lg font-semibold">Available Groups</h2>
+          <Badge variant="secondary" className="text-xs">
+            {filteredTemplates.length} {filteredTemplates.length === 1 ? 'group' : 'groups'}
+          </Badge>
+        </div>
+
+        {isLoadingTemplates ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Card key={i} className="overflow-hidden">
+                <CardHeader className="pb-4">
+                  <Skeleton className="h-5 w-40 mb-2" />
+                  <Skeleton className="h-4 w-64" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-12 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : filteredTemplates.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-8">
+              <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
+              <p className="text-muted-foreground text-sm">
+                {searchQuery ? 'No groups match your search.' : 'No group templates available.'}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {filteredTemplates.map((template) => {
+              const theme = getGroupTheme(template.slug);
+              const GroupIcon = getGroupIcon(template.slug, template.name);
+              const isImported = importedGroupSlugs.has(template.slug);
+              const isImporting = importingTemplates.has(template.slug);
+
+              return (
+                <Card key={template.slug} className={cn('overflow-hidden border', theme.container)}>
+                  <CardHeader
+                    className={cn(
+                      'flex flex-row items-center gap-3 py-4 border-b',
+                      theme.headerBorder,
+                    )}
+                  >
+                    <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
+                      <GroupIcon className={cn('h-5 w-5', theme.iconText)} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-base">{template.name}</h3>
+                        <Badge variant="secondary" className="text-xs">
+                          {template.servers.length} servers
+                        </Badge>
+                      </div>
+                      {template.description && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {template.description}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={isImported ? 'secondary' : 'default'}
+                      disabled={isImported || isImporting}
+                      onClick={() => handleImportTemplate(template)}
+                    >
+                      {isImporting ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <ArrowDownToLine className="h-4 w-4 mr-2" />
+                      )}
+                      {isImported ? 'Imported' : 'Import'}
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="py-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Default image:</span>
+                      <span className="font-mono truncate">{template.defaultDockerImage}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Imported Groups Section */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <Package className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Your Groups</h2>
           <Badge variant="secondary" className="text-xs">
             {filteredGroups.length} {filteredGroups.length === 1 ? 'group' : 'groups'}
           </Badge>
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSyncTemplates}
-              disabled={isSyncingTemplates}
-            >
-              <RefreshCw className={cn('h-4 w-4 mr-2', isSyncingTemplates && 'animate-spin')} />
-              Sync templates
-            </Button>
-          </div>
         </div>
 
         {isLoading && groups.length === 0 ? (
@@ -1032,24 +1229,28 @@ export function McpLibraryPage() {
             <CardContent className="flex flex-col items-center justify-center py-8">
               <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-muted-foreground text-sm">
-                No AWS groups available. Sync templates to seed them.
+                {searchQuery ? 'No imported groups match your search.' : 'No groups imported yet.'}
               </p>
             </CardContent>
           </Card>
         ) : (
           <Accordion type="multiple" className="space-y-3">
             {filteredGroups.map((group) => {
-              const GroupIcon = getGroupIcon(group.name);
+              const theme = getGroupTheme(group.slug);
+              const GroupIcon = getGroupIcon(group.slug, group.name);
               const groupServerList = getGroupServers(group.id);
               const serverCount = groupServerList.length;
-              const isDiscovering = discoveringGroupIds.has(group.id);
 
               return (
-                <AccordionItem key={group.id} value={group.id} className="rounded-lg border">
-                  <AccordionTrigger className="hover:no-underline px-4 py-3">
+                <AccordionItem
+                  key={group.id}
+                  value={group.id}
+                  className={cn('rounded-lg border overflow-hidden', theme.container)}
+                >
+                  <AccordionTrigger className={cn('hover:no-underline px-4 py-3', theme.headerBorder)}>
                     <div className="flex items-center gap-3 flex-1">
-                      <div className="p-2 rounded-lg border">
-                        <GroupIcon className="h-4 w-4" />
+                      <div className={cn('p-2 rounded-lg border', theme.iconWrapper)}>
+                        <GroupIcon className={cn('h-4 w-4', theme.iconText)} />
                       </div>
                       <div className="flex-1 text-left">
                         <div className="flex items-center gap-3">
@@ -1063,35 +1264,6 @@ export function McpLibraryPage() {
                             {group.description}
                           </p>
                         )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleDiscoverGroupTools(group.id);
-                                }}
-                                disabled={isDiscovering}
-                              >
-                                {isDiscovering ? (
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <FlaskConical className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {isDiscovering
-                                ? 'Discovering tools...'
-                                : 'Discovery mode (test credentials)'}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
                       </div>
                     </div>
                   </AccordionTrigger>
@@ -1108,7 +1280,10 @@ export function McpLibraryPage() {
                           return (
                             <div
                               key={server.serverId}
-                              className="p-4 rounded-lg border bg-background hover:bg-accent/5 transition-colors"
+                              className={cn(
+                                'p-4 rounded-lg border bg-background hover:bg-accent/5 transition-colors',
+                                theme.pillBorder,
+                              )}
                             >
                               <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="flex-1 min-w-0">
