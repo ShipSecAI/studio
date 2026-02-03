@@ -101,6 +101,62 @@ dev action="start":
 
 # === Production (Docker-based) ===
 
+# Initialize production environment with secure secrets
+# Creates docker/.env with auto-generated secrets if not present
+prod-init:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ENV_FILE="docker/.env"
+
+    echo "🔧 Initializing production environment..."
+
+    # Create docker/.env if it doesn't exist
+    if [ ! -f "$ENV_FILE" ]; then
+        echo "📝 Creating $ENV_FILE..."
+        touch "$ENV_FILE"
+    fi
+
+    # Source existing env file to check for existing values
+    set -a
+    [ -f "$ENV_FILE" ] && source "$ENV_FILE"
+    set +a
+
+    UPDATED=false
+
+    # Generate INTERNAL_SERVICE_TOKEN if not set
+    if [ -z "${INTERNAL_SERVICE_TOKEN:-}" ]; then
+        TOKEN=$(openssl rand -hex 32)
+        echo "INTERNAL_SERVICE_TOKEN=$TOKEN" >> "$ENV_FILE"
+        echo "🔑 Generated INTERNAL_SERVICE_TOKEN"
+        UPDATED=true
+    else
+        echo "✅ INTERNAL_SERVICE_TOKEN already set"
+    fi
+
+    # Generate SECRET_STORE_MASTER_KEY if not set (64 hex chars = 32 bytes)
+    if [ -z "${SECRET_STORE_MASTER_KEY:-}" ]; then
+        KEY=$(openssl rand -hex 32)
+        echo "SECRET_STORE_MASTER_KEY=$KEY" >> "$ENV_FILE"
+        echo "🔑 Generated SECRET_STORE_MASTER_KEY"
+        UPDATED=true
+    else
+        echo "✅ SECRET_STORE_MASTER_KEY already set"
+    fi
+
+    if [ "$UPDATED" = true ]; then
+        echo ""
+        echo "✅ Secrets generated and saved to $ENV_FILE"
+        echo "⚠️  Keep this file secure and never commit it to git!"
+    fi
+
+    echo ""
+    echo "📋 Current configuration in $ENV_FILE:"
+    echo "   Run 'cat $ENV_FILE' to view"
+    echo ""
+    echo "💡 Next steps:"
+    echo "   1. Edit $ENV_FILE to add other required variables (CLERK keys, etc.)"
+    echo "   2. Run 'just prod start-latest' to start with latest release"
+
 # Run production environment in Docker
 prod action="start":
     #!/usr/bin/env bash
@@ -108,7 +164,10 @@ prod action="start":
     case "{{action}}" in
         start)
             echo "🚀 Starting production environment..."
-            docker compose -f docker/docker-compose.full.yml up -d
+            # Use --env-file if docker/.env exists
+            ENV_FLAG=""
+            [ -f "docker/.env" ] && ENV_FLAG="--env-file docker/.env"
+            docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d
             echo ""
             echo "✅ Production environment ready"
             echo "   Frontend:    http://localhost:8090"
@@ -136,7 +195,10 @@ prod action="start":
                 echo "📌 Building with commit: $GIT_SHA"
             fi
 
-            docker compose -f docker/docker-compose.full.yml up -d --build
+            # Use --env-file if docker/.env exists
+            ENV_FLAG=""
+            [ -f "docker/.env" ] && ENV_FLAG="--env-file docker/.env"
+            docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d --build
             echo "✅ Production built and started"
             echo "   Frontend: http://localhost:8090"
             echo "   Backend:  http://localhost:3211"
@@ -157,6 +219,12 @@ prod action="start":
             echo "✅ Production cleaned"
             ;;
         start-latest)
+            # Auto-initialize secrets if docker/.env doesn't exist
+            if [ ! -f "docker/.env" ]; then
+                echo "⚠️  docker/.env not found, running prod-init..."
+                just prod-init
+            fi
+
             echo "🔍 Fetching latest release information from GitHub API..."
             if ! command -v curl &> /dev/null || ! command -v jq &> /dev/null; then
                 echo "❌ curl or jq is not installed. Please install them first."
@@ -182,8 +250,11 @@ prod action="start":
             
             echo "🚀 Starting production environment with version $LATEST_TAG..."
             export SHIPSEC_TAG=$LATEST_TAG
-            docker compose -f docker/docker-compose.full.yml up -d
-            
+            # Use --env-file if docker/.env exists
+            ENV_FLAG=""
+            [ -f "docker/.env" ] && ENV_FLAG="--env-file docker/.env"
+            docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d
+
             echo ""
             echo "✅ ShipSec Studio $LATEST_TAG ready"
             echo "   Frontend:    http://localhost:8090"
@@ -205,6 +276,12 @@ prod-images action="start":
     set -euo pipefail
     case "{{action}}" in
         start)
+            # Auto-initialize secrets if docker/.env doesn't exist
+            if [ ! -f "docker/.env" ]; then
+                echo "⚠️  docker/.env not found, running prod-init..."
+                just prod-init
+            fi
+
             echo "🚀 Starting production environment with GHCR images..."
 
             # Check if images exist locally, pull if needed
@@ -227,7 +304,10 @@ prod-images action="start":
             fi
 
             # Start with GHCR images, fallback to local build
-            DOCKER_BUILDKIT=1 docker compose -f docker/docker-compose.full.yml up -d
+            # Use --env-file if docker/.env exists
+            ENV_FLAG=""
+            [ -f "docker/.env" ] && ENV_FLAG="--env-file docker/.env"
+            DOCKER_BUILDKIT=1 docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d
             echo ""
             echo "✅ Production environment ready"
             echo "   Frontend:    http://localhost:8090"
@@ -363,6 +443,7 @@ help:
     @echo "  just dev clean    Stop and remove all data"
     @echo ""
     @echo "Production (Docker):"
+    @echo "  just prod-init     Generate secrets in docker/.env (run once)"
     @echo "  just prod          Start with cached images"
     @echo "  just prod build    Rebuild and start"
     @echo "  just prod start-latest  Download latest release and start"
@@ -370,6 +451,7 @@ help:
     @echo "  just prod logs     View production logs"
     @echo "  just prod status   Check production status"
     @echo "  just prod clean    Remove all data"
+    @echo "  just prod-images   Start with GHCR images (uses cache)"
     @echo ""
     @echo "Infrastructure:"
     @echo "  just infra up      Start infrastructure only"
