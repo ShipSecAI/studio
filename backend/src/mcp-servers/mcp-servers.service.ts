@@ -55,6 +55,7 @@ export class McpServersService {
       lastHealthStatus: record.lastHealthStatus as HealthStatus | null,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
+      groupId: record.groupId ?? null,
     };
   }
 

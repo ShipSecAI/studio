@@ -163,6 +163,9 @@ export class McpServerResponse {
 
   @ApiProperty()
   updatedAt!: string;
+
+  @ApiPropertyOptional({ description: 'Group ID if this server belongs to a group' })
+  groupId?: string | null;
 }
 
 export class McpToolResponse {

@@ -2759,6 +2759,8 @@ export interface components {
             lastHealthStatus?: "healthy" | "unhealthy" | "unknown";
             createdAt: string;
             updatedAt: string;
+            /** @description Group ID if this server belongs to a group */
+            groupId?: string;
         };
         McpToolResponse: {
             id: string;

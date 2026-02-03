@@ -19,6 +19,7 @@ export interface McpServerResponse {
   lastHealthStatus?: McpHealthStatus | null;
   createdAt: string;
   updatedAt: string;
+  groupId?: string | null;
 }
 
 export interface McpToolResponse {
