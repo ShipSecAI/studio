@@ -11,7 +11,11 @@ import {
   computeTemplateHash,
   type McpGroupTemplate,
 } from './mcp-group-templates';
-import { SyncTemplatesResponse, GroupTemplateDto, GroupTemplateServerDto } from './mcp-groups.dto';
+import {
+  SyncTemplatesResponse,
+  GroupTemplateDto,
+  GroupTemplateServerDto,
+} from './dto/mcp-groups.dto';
 
 /**
  * Result of syncing a single template

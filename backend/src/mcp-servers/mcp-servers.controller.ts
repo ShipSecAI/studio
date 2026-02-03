@@ -26,7 +26,7 @@ import {
   McpToolResponse,
   TestConnectionResponse,
   HealthStatusResponse,
-} from './mcp-servers.dto';
+} from './dto/mcp-servers.dto';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';
 

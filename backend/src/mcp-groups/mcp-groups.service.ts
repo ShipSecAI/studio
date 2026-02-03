@@ -15,7 +15,7 @@ import type {
   DiscoverGroupToolsResponse,
   GroupTemplateDto,
   ImportGroupTemplateResponse,
-} from './mcp-groups.dto';
+} from './dto/mcp-groups.dto';
 import type { McpGroupRecord } from '../database/schema';
 import type { TemplateSyncResult } from './mcp-groups-seeding.service';
 

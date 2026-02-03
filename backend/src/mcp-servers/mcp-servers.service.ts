@@ -11,7 +11,7 @@ import type {
   McpToolResponse,
   TransportType,
   HealthStatus,
-} from './mcp-servers.dto';
+} from './dto/mcp-servers.dto';
 import type { McpServerRecord, McpServerToolRecord } from '../database/schema';
 import { SecretResolver } from '../secrets/secret-resolver';
 

@@ -32,7 +32,7 @@ import {
   DiscoverGroupToolsResponse,
   GroupTemplateDto,
   ImportGroupTemplateResponse,
-} from './mcp-groups.dto';
+} from './dto/mcp-groups.dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import type { AuthContext } from '../auth/types';

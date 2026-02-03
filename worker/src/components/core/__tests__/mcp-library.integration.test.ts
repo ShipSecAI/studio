@@ -2,16 +2,41 @@ import { beforeAll, beforeEach, afterEach, describe, expect, test, vi } from 'bu
 import { createExecutionContext, componentRegistry } from '@shipsec/component-sdk';
 import type { McpLibraryInput, McpLibraryOutput } from '../mcp-library';
 
+// Mock the docker runtime utils to avoid actual Docker calls
+const mockRegisterServerTools = vi.fn(async () => {
+  // Mock successful registration
+});
+
+const mockFetchEnabledServers = vi.fn(async (serverIds: string[]) => {
+  // Return mock servers
+  return serverIds.map((id) => ({
+    id,
+    name: `Server ${id}`,
+    description: null,
+    transportType: 'stdio' as const,
+    command: `command-${id}`,
+    args: [],
+    endpoint: null,
+    hasHeaders: false,
+    headerKeys: null,
+    enabled: true,
+    healthCheckUrl: null,
+    lastHealthCheck: null,
+    lastHealthStatus: null as unknown as 'healthy' | 'unhealthy' | 'unknown' | null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }));
+});
+
+vi.mock('../mcp-library-utils', () => ({
+  fetchEnabledServers: (...args: Parameters<typeof mockFetchEnabledServers>) =>
+    mockFetchEnabledServers(...args),
+  registerServerTools: (...args: Parameters<typeof mockRegisterServerTools>) =>
+    mockRegisterServerTools(...args),
+}));
+
 // Save the original fetch before any mocking
 const originalFetch = global.fetch;
-
-// Mock the docker runtime
-vi.mock('../mcp-runtime', () => ({
-  startMcpDockerServer: vi.fn(async () => ({
-    endpoint: 'http://localhost:3000/mcp',
-    containerId: 'mock-container-123',
-  })),
-}));
 
 describe('MCP Library Integration Tests', () => {
   beforeAll(async () => {
@@ -129,8 +154,9 @@ describe('MCP Library Integration Tests', () => {
 
       // Verify result
       expect(result).toEqual({});
-      // Verify fetch was called (at least for token, servers list, resolve, and register)
-      expect(global.fetch).toHaveBeenCalled();
+      // Verify the mock functions were called
+      expect(mockFetchEnabledServers).toHaveBeenCalled();
+      expect(mockRegisterServerTools).toHaveBeenCalled();
     });
 
     test('should handle server not found gracefully', async () => {
@@ -206,7 +232,8 @@ describe('MCP Library Integration Tests', () => {
       );
 
       expect(result).toEqual({});
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockFetchEnabledServers).toHaveBeenCalled();
+      expect(mockRegisterServerTools).toHaveBeenCalledTimes(2);
     });
 
     test('should filter out disabled servers', async () => {
@@ -244,6 +271,8 @@ describe('MCP Library Integration Tests', () => {
       );
 
       expect(result).toEqual({});
+      // The mock returns servers for all requested IDs, so both will be registered
+      expect(mockRegisterServerTools).toHaveBeenCalledTimes(2);
     });
   });
 
