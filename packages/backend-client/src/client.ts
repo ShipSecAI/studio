@@ -1443,6 +1443,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp-servers/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get resolved MCP server configuration (with secrets resolved) */
+        get: operations["McpServersController_getResolvedConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp-groups": {
         parameters: {
             query?: never;
@@ -2773,278 +2790,219 @@ export interface components {
                 respondedAt: string | null;
             };
         };
-        McpServerResponse: {
+        McpServerResponseDto: {
             id: string;
             name: string;
-            description?: string;
+            description: string | null;
             /** @enum {string} */
             transportType: "http" | "stdio" | "sse" | "websocket";
-            endpoint?: string;
-            command?: string;
-            args?: string[];
-            /** @description Whether encrypted headers are configured */
+            endpoint: string | null;
+            command: string | null;
+            args: string[] | null;
             hasHeaders: boolean;
-            /** @description Header key names (values are encrypted server-side) */
-            headerKeys?: string[] | null;
+            headerKeys: string[] | null;
             enabled: boolean;
-            healthCheckUrl?: string;
-            lastHealthCheck?: string;
-            /** @enum {string} */
-            lastHealthStatus?: "healthy" | "unhealthy" | "unknown";
+            healthCheckUrl: string | null;
+            /** Format: date-time */
+            lastHealthCheck: string | null;
+            /** @enum {string|null} */
+            lastHealthStatus: "healthy" | "unhealthy" | "unknown" | null;
+            /** Format: date-time */
             createdAt: string;
+            /** Format: date-time */
             updatedAt: string;
-            /** @description Group ID if this server belongs to a group */
-            groupId?: string;
+            groupId: string | null;
         };
-        McpToolResponse: {
+        McpToolResponseDto: {
             id: string;
             toolName: string;
-            description?: string;
-            inputSchema?: Record<string, never>;
+            description: string | null;
+            inputSchema: {
+                [key: string]: unknown;
+            } | null;
             serverId: string;
             serverName: string;
             enabled: boolean;
+            /** Format: date-time */
             discoveredAt: string;
         };
-        HealthStatusResponse: {
+        HealthStatusResponseDto: {
             serverId: string;
             /** @enum {string} */
             status: "healthy" | "unhealthy" | "unknown";
-            checkedAt?: string;
+            /** Format: date-time */
+            checkedAt: string | null;
         };
         CreateMcpServerDto: {
-            /** @description Human-readable unique name for the MCP server */
             name: string;
-            /** @description Optional description */
             description?: string;
-            /**
-             * @description Transport type for connecting to the MCP server
-             * @enum {string}
-             */
+            /** @enum {string} */
             transportType: "http" | "stdio" | "sse" | "websocket";
-            /** @description URL endpoint for HTTP/SSE/WebSocket transports */
+            /** Format: uri */
             endpoint?: string;
-            /** @description Command to run for stdio transport */
             command?: string;
-            /** @description Arguments for stdio command */
             args?: string[];
-            /** @description HTTP headers for authentication (will be encrypted) */
             headers?: {
                 [key: string]: string;
             };
-            /** @description Custom health check URL (optional) */
+            /** Format: uri */
             healthCheckUrl?: string;
-            /**
-             * @description Whether the server is enabled
-             * @default true
-             */
-            enabled: boolean;
+            enabled?: boolean;
+            groupId?: string;
         };
         UpdateMcpServerDto: {
-            /** @description Human-readable unique name for the MCP server */
             name?: string;
-            /** @description Optional description */
-            description?: string;
-            /**
-             * @description Transport type for connecting to the MCP server
-             * @enum {string}
-             */
+            description?: string | null;
+            /** @enum {string} */
             transportType?: "http" | "stdio" | "sse" | "websocket";
-            /** @description URL endpoint for HTTP/SSE/WebSocket transports */
-            endpoint?: string;
-            /** @description Command to run for stdio transport */
-            command?: string;
-            /** @description Arguments for stdio command */
-            args?: string[];
-            /** @description HTTP headers for authentication (will be encrypted). Set to null to clear. */
+            /** Format: uri */
+            endpoint?: string | null;
+            command?: string | null;
+            args?: string[] | null;
             headers?: {
                 [key: string]: string;
             } | null;
-            /** @description Custom health check URL (optional) */
-            healthCheckUrl?: string;
-            /** @description Whether the server is enabled */
+            /** Format: uri */
+            healthCheckUrl?: string | null;
             enabled?: boolean;
         };
-        TestConnectionResponse: {
+        TestConnectionResponseDto: {
             success: boolean;
             message?: string;
             toolCount?: number;
-            /** @description MCP protocol version reported by the server */
             protocolVersion?: string;
-            /** @description Response time in milliseconds */
             responseTimeMs?: number;
         };
-        McpGroupResponse: {
-            /** @description Group ID */
+        McpGroupResponseDto: {
             id: string;
-            /** @description URL-friendly slug */
             slug: string;
-            /** @description Group name */
             name: string;
-            /** @description Group description */
-            description?: string;
-            /** @description Credential contract name */
+            description: string | null;
             credentialContractName: string;
-            /** @description Credential mapping */
-            credentialMapping?: Record<string, never>;
-            /** @description Default Docker image */
-            defaultDockerImage?: string;
-            /** @description Whether group is enabled */
+            credentialMapping: {
+                [key: string]: unknown;
+            } | null;
+            defaultDockerImage: string | null;
             enabled: boolean;
-            /** @description Template hash for seeded groups */
-            templateHash?: string;
-            /** @description Creation timestamp */
+            templateHash?: string | null;
+            /** Format: date-time */
             createdAt: string;
-            /** @description Last update timestamp */
+            /** Format: date-time */
             updatedAt: string;
         };
-        GroupTemplateServerDto: {
-            /** @description Server name */
-            name: string;
-            /** @description Server description */
-            description?: string;
-            /**
-             * @description Transport type
-             * @enum {string}
-             */
-            transportType: "http" | "stdio" | "sse" | "websocket";
-            /** @description URL endpoint */
-            endpoint?: string;
-            /** @description Command for stdio transport */
-            command?: string;
-            /** @description Command arguments */
-            args?: string[];
-            /** @description Whether recommended */
-            recommended: boolean;
-            /** @description Whether selected by default */
-            defaultSelected: boolean;
-        };
         GroupTemplateDto: {
-            /** @description Template slug (unique identifier) */
             slug: string;
-            /** @description Template name */
             name: string;
-            /** @description Template description */
             description?: string;
-            /** @description Required credential contract name */
             credentialContractName: string;
-            /** @description Credential field mapping */
-            credentialMapping?: Record<string, never>;
-            /** @description Default Docker image */
-            defaultDockerImage: string;
-            /** @description Template version */
-            version: {
-                major?: number;
-                minor?: number;
-                patch?: number;
+            credentialMapping?: {
+                [key: string]: unknown;
             };
-            /** @description Servers in this template */
-            servers: components["schemas"]["GroupTemplateServerDto"][];
-            /** @description Deterministic hash for change detection */
+            defaultDockerImage: string;
+            version: {
+                major: number;
+                minor: number;
+                patch: number;
+            };
+            servers: {
+                name: string;
+                description?: string;
+                /** @enum {string} */
+                transportType: "http" | "stdio" | "sse" | "websocket";
+                endpoint?: string;
+                command?: string;
+                args?: string[];
+                recommended: boolean;
+                defaultSelected: boolean;
+            }[];
             templateHash: string;
         };
         CreateMcpGroupDto: {
-            /** @description URL-friendly slug for the group */
             slug: string;
-            /** @description Human-readable name */
             name: string;
-            /** @description Description of the group */
-            description?: string;
-            /** @description Credential contract name for authentication */
+            description?: string | null;
             credentialContractName: string;
-            /** @description Mapping of credentials for servers in this group */
-            credentialMapping?: Record<string, never>;
-            /** @description Default Docker image for servers in this group */
-            defaultDockerImage?: string;
-            /** @description Whether the group is enabled */
+            credentialMapping?: {
+                [key: string]: unknown;
+            } | null;
+            defaultDockerImage?: string | null;
             enabled?: boolean;
         };
         UpdateMcpGroupDto: {
-            /** @description Human-readable name */
             name?: string;
-            /** @description Description of the group */
-            description?: string;
-            /** @description Credential contract name for authentication */
+            description?: string | null;
             credentialContractName?: string;
-            /** @description Mapping of credentials for servers in this group */
-            credentialMapping?: Record<string, never>;
-            /** @description Default Docker image for servers in this group */
-            defaultDockerImage?: string;
-            /** @description Whether the group is enabled */
+            credentialMapping?: {
+                [key: string]: unknown;
+            } | null;
+            defaultDockerImage?: string | null;
             enabled?: boolean;
         };
-        McpGroupServerResponse: {
-            /** @description Server ID */
+        McpGroupServerResponseDto: {
             id: string;
-            /** @description Server name (display name) */
             name: string;
-            /** @description Server name (alias for frontend) */
             serverName: string;
-            /** @description Server description */
-            description?: string;
-            /**
-             * @description Transport type
-             * @enum {string}
-             */
+            description: string | null;
+            /** @enum {string} */
             transportType: "http" | "stdio" | "sse" | "websocket";
-            /** @description HTTP endpoint URL */
-            endpoint?: string;
-            /** @description Command for stdio transport */
-            command?: string;
-            /** @description Whether server is enabled */
+            endpoint: string | null;
+            command: string | null;
             enabled: boolean;
-            /** @description Health status */
-            healthStatus?: string;
-            /** @description Number of tools available */
+            /** @enum {string} */
+            healthStatus: "healthy" | "unhealthy" | "unknown";
             toolCount: number;
-            /** @description Whether server is recommended for this group */
             recommended: boolean;
-            /** @description Whether server is selected by default */
             defaultSelected: boolean;
         };
         AddServerToGroupDto: {
-            /** @description Server ID to add to group */
+            /** Format: uuid */
             serverId: string;
-            /** @description Whether this server is recommended */
             recommended?: boolean;
-            /** @description Whether this server is selected by default */
             defaultSelected?: boolean;
         };
         UpdateServerInGroupDto: {
-            /** @description Whether this server is recommended */
             recommended?: boolean;
-            /** @description Whether this server is selected by default */
             defaultSelected?: boolean;
         };
-        SyncTemplatesResponse: {
-            /** @description Number of templates synced */
+        SyncTemplatesResponseDto: {
             syncedCount: number;
-            /** @description Number of templates created */
             createdCount: number;
-            /** @description Number of templates updated */
             updatedCount: number;
-            /** @description Template slugs that were synced */
             templates: string[];
         };
-        ImportGroupTemplateResponse: {
-            /**
-             * @description Sync action taken
-             * @enum {string}
-             */
+        ImportGroupTemplateResponseDto: {
+            /** @enum {string} */
             action: "created" | "updated" | "skipped";
-            group: components["schemas"]["McpGroupResponse"];
+            group: {
+                id: string;
+                slug: string;
+                name: string;
+                description: string | null;
+                credentialContractName: string;
+                credentialMapping: {
+                    [key: string]: unknown;
+                } | null;
+                defaultDockerImage: string | null;
+                enabled: boolean;
+                templateHash?: string | null;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+            };
         };
-        DiscoverGroupToolsResponse: {
-            /** @description Group ID */
+        DiscoverGroupToolsResponseDto: {
             groupId: string;
-            /** @description Total servers processed */
             totalServers: number;
-            /** @description Servers where tools were discovered successfully */
             successCount: number;
-            /** @description Servers where discovery failed */
             failureCount: number;
-            /** @description Per-server results */
-            results: string[];
+            results: {
+                serverId: string;
+                serverName: string;
+                toolCount: number;
+                success: boolean;
+                error?: string;
+            }[];
         };
         RegisterComponentToolInput: Record<string, never>;
         RegisterRemoteMcpInput: Record<string, never>;
@@ -5718,7 +5676,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpServerResponse"][];
+                    "application/json": components["schemas"]["McpServerResponseDto"][];
                 };
             };
         };
@@ -5741,7 +5699,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpServerResponse"];
+                    "application/json": components["schemas"]["McpServerResponseDto"];
                 };
             };
         };
@@ -5760,7 +5718,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpServerResponse"][];
+                    "application/json": components["schemas"]["McpServerResponseDto"][];
                 };
             };
         };
@@ -5779,7 +5737,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpToolResponse"][];
+                    "application/json": components["schemas"]["McpToolResponseDto"][];
                 };
             };
         };
@@ -5798,7 +5756,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthStatusResponse"][];
+                    "application/json": components["schemas"]["HealthStatusResponseDto"][];
                 };
             };
         };
@@ -5819,7 +5777,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpServerResponse"];
+                    "application/json": components["schemas"]["McpServerResponseDto"];
                 };
             };
         };
@@ -5863,7 +5821,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpServerResponse"];
+                    "application/json": components["schemas"]["McpServerResponseDto"];
                 };
             };
         };
@@ -5884,7 +5842,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpToolResponse"][];
+                    "application/json": components["schemas"]["McpToolResponseDto"][];
                 };
             };
         };
@@ -5905,7 +5863,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpServerResponse"];
+                    "application/json": components["schemas"]["McpServerResponseDto"];
                 };
             };
         };
@@ -5926,7 +5884,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TestConnectionResponse"];
+                    "application/json": components["schemas"]["TestConnectionResponseDto"];
                 };
             };
         };
@@ -5947,7 +5905,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpToolResponse"][];
+                    "application/json": components["schemas"]["McpToolResponseDto"][];
                 };
             };
         };
@@ -5969,7 +5927,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpToolResponse"];
+                    "application/json": components["schemas"]["McpToolResponseDto"];
+                };
+            };
+        };
+    };
+    McpServersController_getResolvedConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -5990,7 +5969,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupResponse"][];
+                    "application/json": components["schemas"]["McpGroupResponseDto"][];
                 };
             };
         };
@@ -6013,7 +5992,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupResponse"];
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
                 };
             };
         };
@@ -6053,7 +6032,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupResponse"];
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
                 };
             };
         };
@@ -6074,7 +6053,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupResponse"];
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
                 };
             };
         };
@@ -6118,7 +6097,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupResponse"];
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
                 };
             };
         };
@@ -6139,7 +6118,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupServerResponse"][];
+                    "application/json": components["schemas"]["McpGroupServerResponseDto"][];
                 };
             };
         };
@@ -6164,7 +6143,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupServerResponse"][];
+                    "application/json": components["schemas"]["McpGroupServerResponseDto"][];
                 };
             };
         };
@@ -6210,7 +6189,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpGroupServerResponse"][];
+                    "application/json": components["schemas"]["McpGroupServerResponseDto"][];
                 };
             };
         };
@@ -6229,7 +6208,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SyncTemplatesResponse"];
+                    "application/json": components["schemas"]["SyncTemplatesResponseDto"];
                 };
             };
         };
@@ -6250,7 +6229,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ImportGroupTemplateResponse"];
+                    "application/json": components["schemas"]["ImportGroupTemplateResponseDto"];
                 };
             };
         };
@@ -6271,7 +6250,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DiscoverGroupToolsResponse"];
+                    "application/json": components["schemas"]["DiscoverGroupToolsResponseDto"];
                 };
             };
         };
