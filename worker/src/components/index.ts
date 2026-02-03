@@ -27,7 +27,6 @@ import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
 import './core/workflow-call';
-import './core/mcp-server';
 import './core/mcp-library';
 // Manual Action components
 import './manual-action/manual-approval';
