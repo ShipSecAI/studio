@@ -44,7 +44,7 @@ export class McpServersRepository {
   ) {}
 
   async list(options: McpServerQueryOptions = {}): Promise<McpServerRecord[]> {
-    const conditions: SQL[] = [];
+    const conditions: (SQL | undefined)[] = [];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -59,7 +59,7 @@ export class McpServersRepository {
         ? undefined
         : conditions.length === 1
           ? conditions[0]
-          : and(...conditions);
+          : and(...conditions.filter((c): c is SQL => c !== undefined));
 
     const rows = await (
       whereClause
@@ -71,7 +71,7 @@ export class McpServersRepository {
   }
 
   async listEnabled(options: McpServerQueryOptions = {}): Promise<McpServerRecord[]> {
-    const conditions: SQL[] = [eq(mcpServers.enabled, true)];
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.enabled, true)];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -84,14 +84,14 @@ export class McpServersRepository {
     const rows = await this.db
       .select()
       .from(mcpServers)
-      .where(and(...conditions))
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
       .orderBy(mcpServers.name);
 
     return rows;
   }
 
   async findById(id: string, options: McpServerQueryOptions = {}): Promise<McpServerRecord> {
-    const conditions: SQL[] = [eq(mcpServers.id, id)];
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.id, id)];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -104,7 +104,7 @@ export class McpServersRepository {
     const rows = await this.db
       .select()
       .from(mcpServers)
-      .where(and(...conditions))
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
       .limit(1);
 
     const row = rows[0];
@@ -119,7 +119,7 @@ export class McpServersRepository {
     name: string,
     options: McpServerQueryOptions = {},
   ): Promise<McpServerRecord | null> {
-    const conditions: SQL[] = [eq(mcpServers.name, name)];
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.name, name)];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -132,7 +132,7 @@ export class McpServersRepository {
     const rows = await this.db
       .select()
       .from(mcpServers)
-      .where(and(...conditions))
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
       .limit(1);
 
     return rows[0] ?? null;
@@ -164,7 +164,7 @@ export class McpServersRepository {
     data: McpServerUpdateData,
     options: McpServerQueryOptions = {},
   ): Promise<McpServerRecord> {
-    const conditions: SQL[] = [eq(mcpServers.id, id)];
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.id, id)];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -181,7 +181,7 @@ export class McpServersRepository {
           ...data,
           updatedAt: sql`now()`,
         })
-        .where(and(...conditions))
+        .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
         .returning();
 
       if (!updated) {
@@ -202,7 +202,7 @@ export class McpServersRepository {
     status: 'healthy' | 'unhealthy' | 'unknown',
     options: McpServerQueryOptions = {},
   ): Promise<void> {
-    const conditions: SQL[] = [eq(mcpServers.id, id)];
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.id, id)];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -219,11 +219,11 @@ export class McpServersRepository {
         lastHealthStatus: status,
         updatedAt: sql`now()`,
       })
-      .where(and(...conditions));
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)));
   }
 
   async delete(id: string, options: McpServerQueryOptions = {}): Promise<void> {
-    const conditions: SQL[] = [eq(mcpServers.id, id)];
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.id, id)];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -235,7 +235,7 @@ export class McpServersRepository {
 
     const deleted = await this.db
       .delete(mcpServers)
-      .where(and(...conditions))
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
       .returning({ id: mcpServers.id });
 
     if (deleted.length === 0) {
@@ -256,7 +256,7 @@ export class McpServersRepository {
   async listAllToolsForOrganization(
     options: McpServerQueryOptions = {},
   ): Promise<(McpServerToolRecord & { serverName: string })[]> {
-    const conditions: SQL[] = [eq(mcpServers.enabled, true)];
+    const conditions: (SQL | undefined)[] = [eq(mcpServers.enabled, true)];
     if (options.organizationId) {
       conditions.push(
         or(
@@ -279,7 +279,7 @@ export class McpServersRepository {
       })
       .from(mcpServerTools)
       .innerJoin(mcpServers, eq(mcpServerTools.serverId, mcpServers.id))
-      .where(and(...conditions))
+      .where(and(...conditions.filter((c): c is SQL => c !== undefined)))
       .orderBy(mcpServers.name, mcpServerTools.toolName);
 
     return rows;

@@ -35,7 +35,7 @@ const outputSchema = outputs({
 });
 
 const definition = defineComponent({
-  id: 'core.mcp.library',
+  id: 'mcp.custom',
   label: 'Custom MCPs',
   category: 'mcp',
   runner: {

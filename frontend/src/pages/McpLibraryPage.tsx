@@ -38,6 +38,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SecretSelect } from '@/components/inputs/SecretSelect';
+import { KeyRound } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Accordion,
@@ -112,15 +114,7 @@ function getGroupLogoUrl(groupSlug: string) {
   return `https://img.logo.dev/${domain}?token=${env.VITE_LOGO_DEV_PUBLIC_KEY}`;
 }
 
-function GroupLogo({
-  slug,
-  name,
-  className,
-}: {
-  slug: string;
-  name: string;
-  className?: string;
-}) {
+function GroupLogo({ slug, name, className }: { slug: string; name: string; className?: string }) {
   const logoUrl = getGroupLogoUrl(slug);
   const FallbackIcon = getGroupIcon(slug, name);
 
@@ -249,7 +243,7 @@ interface ServerFormData {
 interface HeaderEntry {
   key: string;
   value: string;
-  isStored: boolean; // True if this key came from backend (value is encrypted)
+  secretId?: string; // If set, value references a secret by ID
 }
 
 const INITIAL_FORM_DATA: ServerFormData = {
@@ -283,6 +277,7 @@ export function McpLibraryPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'manual' | 'json'>('manual');
   const [headerEntries, setHeaderEntries] = useState<HeaderEntry[]>([]);
+  const [secretPickerEntryIndex, setSecretPickerEntryIndex] = useState<number | null>(null);
   const [discoveringGroupIds, setDiscoveringGroupIds] = useState<Set<string>>(new Set());
   const [groupTemplates, setGroupTemplates] = useState<McpGroupTemplateResponse[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
@@ -400,7 +395,7 @@ export function McpLibraryPage() {
     if (editingServer) {
       const server = servers.find((s) => s.id === editingServer);
       if (server?.headerKeys && server.headerKeys.length > 0) {
-        setHeaderEntries(server.headerKeys.map((key) => ({ key, value: '', isStored: true })));
+        setHeaderEntries(server.headerKeys.map((key) => ({ key, value: '' })));
       } else {
         setHeaderEntries([]);
       }
@@ -412,16 +407,16 @@ export function McpLibraryPage() {
 
   // Header entry management functions
   const addHeaderEntry = () => {
-    setHeaderEntries((prev) => [...prev, { key: '', value: '', isStored: false }]);
+    setHeaderEntries((prev) => [...prev, { key: '', value: '' }]);
   };
 
-  const updateHeaderEntry = (index: number, field: 'key' | 'value', value: string) => {
+  const updateHeaderEntry = (index: number, field: 'key' | 'value' | 'secretId', value: string) => {
     setHeaderEntries((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      // If user starts typing in a stored entry's value, mark it as being edited
-      if (field === 'value' && updated[index].isStored && value) {
-        // Keep isStored true but value will indicate replacement
+      if (field === 'secretId') {
+        updated[index] = { ...updated[index], secretId: value || undefined, value: '' };
+      } else {
+        updated[index] = { ...updated[index], [field]: value, secretId: undefined };
       }
       return updated;
     });
@@ -547,7 +542,7 @@ export function McpLibraryPage() {
       if (entry.key.trim()) {
         if (entry.value.trim()) {
           headersToShow[entry.key] = '****'; // Mask new values too in JSON view
-        } else if (entry.isStored) {
+        } else if (entry.secretId) {
           headersToShow[entry.key] = '****';
         }
       }
@@ -603,12 +598,15 @@ export function McpLibraryPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Build headers from headerEntries - only include entries with new values
+      // Build headers from headerEntries - include entries with value OR secretId
       const headersPayload = headerEntries
-        .filter((e) => e.key.trim() && e.value.trim()) // Only entries with key AND new value
+        .filter((e) => e.key.trim() && (e.value.trim() || e.secretId))
         .reduce(
           (acc, entry) => {
-            acc[entry.key.trim()] = entry.value.trim();
+            const key = entry.key.trim();
+            // Use secret reference format if secretId is set, otherwise use the value
+            const value = entry.secretId ? `{{secret:${entry.secretId}}}` : entry.value.trim();
+            acc[key] = value;
             return acc;
           },
           {} as Record<string, string>,
@@ -1214,7 +1212,10 @@ export function McpLibraryPage() {
                 const isImporting = importingTemplates.has(template.slug);
 
                 return (
-                  <Card key={template.slug} className={cn('overflow-hidden border', theme.container)}>
+                  <Card
+                    key={template.slug}
+                    className={cn('overflow-hidden border', theme.container)}
+                  >
                     <CardHeader
                       className={cn(
                         'flex flex-row items-center gap-3 py-3 border-b',
@@ -1222,7 +1223,11 @@ export function McpLibraryPage() {
                       )}
                     >
                       <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
-                        <GroupLogo slug={template.slug} name={template.name} className={theme.iconText} />
+                        <GroupLogo
+                          slug={template.slug}
+                          name={template.name}
+                          className={theme.iconText}
+                        />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -1282,7 +1287,7 @@ export function McpLibraryPage() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                    Import curated MCP groups to auto-register servers and discover tools.
+                  Import curated MCP groups to auto-register servers and discover tools.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -1295,26 +1300,11 @@ export function McpLibraryPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[240px]">
-                  {importableTemplates.length === 0 ? (
-                    groupTemplates.map((template) => (
-                      <DropdownMenuItem key={template.slug} disabled className="flex items-center gap-2">
-                        <GroupLogo
-                          slug={template.slug}
-                          name={template.name}
-                          className="h-4 w-4 text-muted-foreground"
-                        />
-                        <span className="flex-1">{template.name}</span>
-                        <span className="text-xs text-muted-foreground">Imported</span>
-                      </DropdownMenuItem>
-                    ))
-                  ) : (
-                    importableTemplates.map((template) => {
-                      const isImporting = importingTemplates.has(template.slug);
-                      return (
+                  {importableTemplates.length === 0
+                    ? groupTemplates.map((template) => (
                         <DropdownMenuItem
                           key={template.slug}
-                          disabled={isImporting}
-                          onClick={() => handleImportTemplate(template)}
+                          disabled
                           className="flex items-center gap-2"
                         >
                           <GroupLogo
@@ -1323,13 +1313,30 @@ export function McpLibraryPage() {
                             className="h-4 w-4 text-muted-foreground"
                           />
                           <span className="flex-1">{template.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {template.servers.length}
-                          </span>
+                          <span className="text-xs text-muted-foreground">Imported</span>
                         </DropdownMenuItem>
-                      );
-                    })
-                  )}
+                      ))
+                    : importableTemplates.map((template) => {
+                        const isImporting = importingTemplates.has(template.slug);
+                        return (
+                          <DropdownMenuItem
+                            key={template.slug}
+                            disabled={isImporting}
+                            onClick={() => handleImportTemplate(template)}
+                            className="flex items-center gap-2"
+                          >
+                            <GroupLogo
+                              slug={template.slug}
+                              name={template.name}
+                              className="h-4 w-4 text-muted-foreground"
+                            />
+                            <span className="flex-1">{template.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {template.servers.length}
+                            </span>
+                          </DropdownMenuItem>
+                        );
+                      })}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -1372,7 +1379,9 @@ export function McpLibraryPage() {
                   value={group.id}
                   className={cn('rounded-lg border overflow-hidden', theme.container)}
                 >
-                  <AccordionTrigger className={cn('hover:no-underline px-4 py-3', theme.headerBorder)}>
+                  <AccordionTrigger
+                    className={cn('hover:no-underline px-4 py-3', theme.headerBorder)}
+                  >
                     <div className="flex items-center gap-3 flex-1">
                       <div className={cn('p-2 rounded-lg border', theme.iconWrapper)}>
                         <GroupLogo slug={group.slug} name={group.name} className={theme.iconText} />
@@ -1485,8 +1494,7 @@ export function McpLibraryPage() {
         <Package className="h-5 w-5 text-primary" />
         <h2 className="text-lg font-semibold">Custom MCP Servers</h2>
         <Badge variant="secondary" className="text-xs">
-          {filteredCustomServers.length}{' '}
-          {filteredCustomServers.length === 1 ? 'server' : 'servers'}
+          {filteredCustomServers.length} {filteredCustomServers.length === 1 ? 'server' : 'servers'}
         </Badge>
       </div>
       <div className="border rounded-lg">
@@ -1766,14 +1774,69 @@ export function McpLibraryPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="args">Arguments (one per line)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="args">Arguments (one per line)</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setSecretPickerEntryIndex(-1)}
+                      >
+                        <KeyRound className="h-3 w-3 mr-1" />
+                        Insert Secret
+                      </Button>
+                    </div>
                     <Textarea
+                      ref={(el) => {
+                        if (el && secretPickerEntryIndex === -1) {
+                          // Store textarea ref for cursor positioning
+                          (el as any)._argsTextarea = el;
+                        }
+                      }}
                       id="args"
                       value={formData.args}
                       onChange={(e) => setFormData({ ...formData, args: e.target.value })}
-                      placeholder="-y&#10;@modelcontextprotocol/server-everything"
+                      placeholder="-y&#10;@modelcontextprotocol/server-everything&#10;{{secret:SECRET_ID}}"
                       rows={3}
                     />
+                    {secretPickerEntryIndex === -1 && (
+                      <div className="mt-1">
+                        <SecretSelect
+                          value={undefined}
+                          onChange={(secretId) => {
+                            if (secretId) {
+                              const textarea = document.getElementById(
+                                'args',
+                              ) as HTMLTextAreaElement;
+                              if (textarea) {
+                                const cursorPos = textarea.selectionStart;
+                                const textBefore = formData.args.substring(0, cursorPos);
+                                const textAfter = formData.args.substring(cursorPos);
+                                const secretRef = `{{secret:${secretId}}}`;
+                                setFormData({
+                                  ...formData,
+                                  args: textBefore + secretRef + textAfter,
+                                });
+                                // Move cursor after the inserted secret reference
+                                setTimeout(() => {
+                                  textarea.selectionStart = textarea.selectionEnd =
+                                    cursorPos + secretRef.length;
+                                  textarea.focus();
+                                }, 0);
+                              }
+                            }
+                            setSecretPickerEntryIndex(null);
+                          }}
+                          placeholder="Select a secret to insert..."
+                          clearable={false}
+                        />
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Use &quot;Insert Secret&quot; to add secret references. Each line becomes a
+                      separate argument.
+                    </p>
                   </div>
                 </>
               )}
@@ -1789,23 +1852,43 @@ export function McpLibraryPage() {
                           onChange={(e) => updateHeaderEntry(index, 'key', e.target.value)}
                           placeholder="Header name"
                           className="flex-1 font-mono text-sm"
-                          disabled={entry.isStored}
                         />
                         <div className="relative flex-1">
                           <Input
-                            type="password"
-                            value={entry.isStored && !entry.value ? '••••••••' : entry.value}
+                            type={entry.secretId ? 'text' : 'password'}
+                            value={entry.secretId ? `🔐 Secret` : entry.value}
                             onChange={(e) => updateHeaderEntry(index, 'value', e.target.value)}
-                            placeholder={entry.isStored ? 'Enter new value to replace' : 'Value'}
-                            className="font-mono text-sm pr-10"
-                            readOnly={entry.isStored && !entry.value}
-                            onFocus={(e) => {
-                              if (entry.isStored && !entry.value) {
-                                e.target.readOnly = false;
-                                e.target.value = '';
-                              }
-                            }}
+                            placeholder="Value"
+                            className={cn(
+                              'font-mono text-sm pr-20',
+                              entry.secretId && 'text-green-600 dark:text-green-400',
+                            )}
                           />
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setSecretPickerEntryIndex(index)}
+                              title="Pick a secret"
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          {secretPickerEntryIndex === index && (
+                            <div className="absolute top-full right-0 mt-1 z-50 w-64 bg-popover border rounded-md shadow-lg p-2">
+                              <SecretSelect
+                                value={entry.secretId}
+                                onChange={(secretId) => {
+                                  updateHeaderEntry(index, 'secretId', secretId ?? '');
+                                  setSecretPickerEntryIndex(null);
+                                }}
+                                placeholder="Select a secret..."
+                                clearable={true}
+                              />
+                            </div>
+                          )}
                         </div>
                         <Button
                           type="button"
@@ -1835,9 +1918,8 @@ export function McpLibraryPage() {
                   Add Header
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  {editingServer && headerEntries.some((e) => e.isStored)
-                    ? 'Existing header values are encrypted. Enter a new value to replace.'
-                    : 'Headers are securely encrypted when stored.'}
+                  Pick a secret to reference stored values, or enter values directly. Headers are
+                  securely encrypted when stored.
                 </p>
               </div>
 

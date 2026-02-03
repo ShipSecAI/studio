@@ -19,13 +19,13 @@ import type { Tool as McpSdkTool } from '@modelcontextprotocol/sdk/types.js';
 
 // Custom type for tool call results that covers both new and legacy response shapes
 export interface McpToolCallResult {
-  content?: Array<{
+  content?: {
     type: string;
     text?: string;
     data?: string;
     mimeType?: string;
     [key: string]: unknown;
-  }>;
+  }[];
   toolResult?: unknown;
   isError?: boolean;
   _meta?: Record<string, unknown>;
@@ -44,6 +44,9 @@ export interface McpServerConfig {
   args?: string[] | null;
   headers?: Record<string, string> | null;
   enabled: boolean;
+  // Resolved configuration (with secrets already resolved)
+  resolvedHeaders?: Record<string, string> | null;
+  resolvedArgs?: string[] | null;
 }
 
 export interface McpToolInfo {
@@ -96,7 +99,11 @@ export class McpClientService {
           throw new Error(`HTTP transport requires an endpoint for server "${config.name}"`);
         }
         const url = new URL(config.endpoint);
-        const transport = new StreamableHTTPClientTransport(url);
+        const transport = new StreamableHTTPClientTransport(url, {
+          requestInit: {
+            headers: config.resolvedHeaders ?? {},
+          },
+        });
         return transport;
       }
 
@@ -124,7 +131,7 @@ export class McpClientService {
         }
         const transport = new StdioClientTransport({
           command: config.command,
-          args: config.args ?? undefined,
+          args: config.resolvedArgs ?? config.args ?? undefined,
         });
         return transport;
       }
@@ -186,7 +193,7 @@ export class McpClientService {
       const client = await Promise.race([
         this.connect(config),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Connection timeout')), HEALTH_CHECK_TIMEOUT_MS)
+          setTimeout(() => reject(new Error('Connection timeout')), HEALTH_CHECK_TIMEOUT_MS),
         ),
       ]);
 
@@ -194,7 +201,7 @@ export class McpClientService {
       const toolsResult = await Promise.race([
         client.listTools(),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('List tools timeout')), HEALTH_CHECK_TIMEOUT_MS)
+          setTimeout(() => reject(new Error('List tools timeout')), HEALTH_CHECK_TIMEOUT_MS),
         ),
       ]);
 
@@ -238,7 +245,7 @@ export class McpClientService {
   async callTool(
     config: McpServerConfig,
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
   ): Promise<McpToolCallResult> {
     const client = await this.connect(config);
 
@@ -248,7 +255,7 @@ export class McpClientService {
         arguments: args,
       }),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Tool call timeout')), TOOL_CALL_TIMEOUT_MS)
+        setTimeout(() => reject(new Error('Tool call timeout')), TOOL_CALL_TIMEOUT_MS),
       ),
     ]);
 
@@ -294,7 +301,7 @@ export class McpClientService {
     }
 
     const disconnectPromises = Array.from(this.connections.keys()).map((serverId) =>
-      this.disconnect(serverId)
+      this.disconnect(serverId),
     );
 
     await Promise.all(disconnectPromises);

@@ -27,6 +27,12 @@ const ListMcpServersResponseSchema = z.object({
   servers: z.array(McpServerSchema),
 });
 
+// Schema for resolved configuration response
+const ResolvedConfigSchema = z.object({
+  headers: z.record(z.string(), z.string()).optional(),
+  args: z.array(z.string()).optional(),
+});
+
 /**
  * Fetch server details from backend API
  */
@@ -59,12 +65,62 @@ export async function fetchEnabledServers(
 }
 
 /**
+ * Fetch resolved configuration for a specific server (with secrets resolved)
+ * This is used when connecting to an MCP server that has secret references
+ */
+export async function fetchResolvedConfig(
+  serverId: string,
+  context: ExecutionContext,
+): Promise<{ headers?: Record<string, string>; args?: string[] }> {
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+  const internalApiUrl = `${backendUrl}/internal/mcp`;
+
+  // Get internal API token for authentication
+  const tokenResponse = await fetch(`${internalApiUrl}/generate-token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      runId: context.runId,
+      allowedNodeIds: [context.componentRef],
+    }),
+  });
+
+  if (!tokenResponse.ok) {
+    throw new Error(`Failed to generate internal API token: ${tokenResponse.statusText}`);
+  }
+
+  const { token } = (await tokenResponse.json()) as { token: string };
+
+  // Fetch resolved configuration
+  const resolveResponse = await fetch(`${backendUrl}/api/v1/mcp-servers/${serverId}/resolve`, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resolveResponse.ok) {
+    throw new Error(
+      `Failed to fetch resolved config for server ${serverId}: ${resolveResponse.statusText}`,
+    );
+  }
+
+  const data = await resolveResponse.json();
+  return ResolvedConfigSchema.parse(data);
+}
+
+/**
  * Register a single server's tools with Tool Registry
  */
 export async function registerServerTools(
   server: McpServer,
   context: ExecutionContext,
 ): Promise<void> {
+  // Fetch resolved configuration (with secrets resolved)
+  const resolvedConfig = await fetchResolvedConfig(server.id, context);
+
   // For stdio servers, we need to spawn a Docker container
   if (server.transportType === 'stdio') {
     const { endpoint, containerId } = await startMcpDockerServer({
@@ -72,7 +128,7 @@ export async function registerServerTools(
       command: [],
       env: {
         MCP_COMMAND: server.command || '',
-        MCP_ARGS: JSON.stringify(server.args || []),
+        MCP_ARGS: JSON.stringify((resolvedConfig.args ?? server.args) || []),
       },
       port: 0, // Auto-assign port
       params: {},
@@ -80,11 +136,25 @@ export async function registerServerTools(
     });
 
     // Register the stdio server with the endpoint
-    await registerWithBackend(server.id, server.name, endpoint, containerId, context);
+    await registerWithBackend(
+      server.id,
+      server.name,
+      endpoint,
+      containerId,
+      context,
+      resolvedConfig.headers,
+    );
   }
-  // For HTTP servers, register directly
+  // For HTTP servers, register directly with resolved headers
   else if (server.transportType === 'http' && server.endpoint) {
-    await registerWithBackend(server.id, server.name, server.endpoint, undefined, context);
+    await registerWithBackend(
+      server.id,
+      server.name,
+      server.endpoint,
+      undefined,
+      context,
+      resolvedConfig.headers,
+    );
   } else {
     throw new Error(`Unsupported server type: ${server.transportType}`);
   }
@@ -99,6 +169,7 @@ async function registerWithBackend(
   endpoint: string,
   containerId: string | undefined,
   context: ExecutionContext,
+  resolvedHeaders?: Record<string, string> | null,
 ): Promise<void> {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
   const internalApiUrl = `${backendUrl}/internal/mcp`;
@@ -139,6 +210,7 @@ async function registerWithBackend(
       },
       endpoint,
       containerId,
+      resolvedHeaders, // Pass resolved headers so backend can use them when connecting
     }),
   });
 

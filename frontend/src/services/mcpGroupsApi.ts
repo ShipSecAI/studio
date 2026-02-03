@@ -244,9 +244,7 @@ export const mcpGroupsApi = {
     });
 
     if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: 'Failed to delete group' }));
+      const error = await response.json().catch(() => ({ message: 'Failed to delete group' }));
       throw new Error(error.message || 'Failed to delete group');
     }
   },

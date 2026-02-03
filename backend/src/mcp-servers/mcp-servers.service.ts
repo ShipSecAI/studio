@@ -13,6 +13,7 @@ import type {
   HealthStatus,
 } from './mcp-servers.dto';
 import type { McpServerRecord, McpServerToolRecord } from '../database/schema';
+import { SecretResolver } from '../secrets/secret-resolver';
 
 @Injectable()
 export class McpServersService {
@@ -21,6 +22,7 @@ export class McpServersService {
   constructor(
     private readonly repository: McpServersRepository,
     private readonly encryption: McpServersEncryptionService,
+    private readonly secretResolver: SecretResolver,
   ) {}
 
   private resolveOrganizationId(auth: AuthContext | null): string {
@@ -62,9 +64,7 @@ export class McpServersService {
   /**
    * Extract header keys from encrypted headers without exposing values
    */
-  private async extractHeaderKeys(
-    headers: McpServerRecord['headers'],
-  ): Promise<string[] | null> {
+  private async extractHeaderKeys(headers: McpServerRecord['headers']): Promise<string[] | null> {
     if (!headers) return null;
     try {
       const decrypted = await this.encryption.decryptHeaders({
@@ -177,7 +177,11 @@ export class McpServersService {
     const effectiveEndpoint = input.endpoint !== undefined ? input.endpoint : current.endpoint;
     const effectiveCommand = input.command !== undefined ? input.command : current.command;
 
-    if (input.transportType !== undefined || input.endpoint !== undefined || input.command !== undefined) {
+    if (
+      input.transportType !== undefined ||
+      input.endpoint !== undefined ||
+      input.command !== undefined
+    ) {
       this.validateTransportConfig({
         transportType: effectiveTransportType as TransportType,
         endpoint: effectiveEndpoint ?? undefined,
@@ -311,7 +315,11 @@ export class McpServersService {
   async updateServerTools(
     auth: AuthContext | null,
     serverId: string,
-    tools: Array<{ toolName: string; description?: string | null; inputSchema?: Record<string, unknown> | null }>,
+    tools: {
+      toolName: string;
+      description?: string | null;
+      inputSchema?: Record<string, unknown> | null;
+    }[],
   ): Promise<McpToolResponse[]> {
     const organizationId = this.assertOrganizationId(auth);
     const server = await this.repository.findById(serverId, { organizationId });
@@ -342,7 +350,7 @@ export class McpServersService {
 
   async getHealthStatuses(
     auth: AuthContext | null,
-  ): Promise<Array<{ serverId: string; status: HealthStatus; checkedAt: string | null }>> {
+  ): Promise<{ serverId: string; status: HealthStatus; checkedAt: string | null }[]> {
     const organizationId = this.assertOrganizationId(auth);
     const servers = await this.repository.listEnabled({ organizationId });
     return servers.map((s) => ({
@@ -360,7 +368,13 @@ export class McpServersService {
   async testServerConnection(
     auth: AuthContext | null,
     id: string,
-  ): Promise<{ success: boolean; message: string; protocolVersion?: string; responseTimeMs?: number; toolCount?: number }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    protocolVersion?: string;
+    responseTimeMs?: number;
+    toolCount?: number;
+  }> {
     const organizationId = this.assertOrganizationId(auth);
     const { server, headers } = await this.getServerWithDecryptedHeaders(auth, id);
 
@@ -397,11 +411,9 @@ export class McpServersService {
       const responseTimeMs = Date.now() - startTime;
 
       // Update health status in database
-      await this.repository.updateHealthStatus(
-        id,
-        result.success ? 'healthy' : 'unhealthy',
-        { organizationId },
-      );
+      await this.repository.updateHealthStatus(id, result.success ? 'healthy' : 'unhealthy', {
+        organizationId,
+      });
 
       // If connection successful, discover tools
       let toolCount: number | undefined;
@@ -587,7 +599,13 @@ export class McpServersService {
   private async discoverMcpTools(
     endpoint: string,
     headers: Record<string, string> | null,
-  ): Promise<Array<{ toolName: string; description?: string | null; inputSchema?: Record<string, unknown> | null }>> {
+  ): Promise<
+    {
+      toolName: string;
+      description?: string | null;
+      inputSchema?: Record<string, unknown> | null;
+    }[]
+  > {
     const TIMEOUT_MS = 10_000;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -626,11 +644,11 @@ export class McpServersService {
       const data = (await response.json()) as {
         error?: { message?: string };
         result?: {
-          tools?: Array<{
+          tools?: {
             name: string;
             description?: string;
             inputSchema?: Record<string, unknown>;
-          }>;
+          }[];
         };
       };
 
@@ -659,13 +677,46 @@ export class McpServersService {
     const requiresCommand = config.transportType === 'stdio';
 
     if (requiresEndpoint && !config.endpoint) {
-      throw new BadRequestException(
-        `${config.transportType} transport requires an endpoint URL`,
-      );
+      throw new BadRequestException(`${config.transportType} transport requires an endpoint URL`);
     }
 
     if (requiresCommand && !config.command) {
       throw new BadRequestException('stdio transport requires a command');
     }
+  }
+
+  /**
+   * Get resolved MCP server configuration (with secret references resolved)
+   * This is used by the worker to get actual credentials for connecting to MCP servers
+   */
+  async getResolvedConfig(
+    auth: AuthContext | null,
+    serverId: string,
+  ): Promise<{ headers?: Record<string, string>; args?: string[] }> {
+    const organizationId = this.assertOrganizationId(auth);
+    const record = await this.repository.findById(serverId, { organizationId });
+
+    if (!record) {
+      throw new BadRequestException(`MCP server ${serverId} not found`);
+    }
+
+    // Decrypt headers
+    let headers: Record<string, string> | undefined;
+    if (record.headers) {
+      const decryptedJson = await this.encryption.decrypt(record.headers);
+      headers = JSON.parse(decryptedJson) as Record<string, string>;
+    }
+
+    // Get args
+    const args = record.args;
+
+    // Use SecretResolver to resolve secret references
+    const resolved = await this.secretResolver.resolveMcpConfig(headers, args, { auth });
+
+    // Convert null to undefined for return type
+    return {
+      headers: resolved.headers ?? undefined,
+      args: resolved.args ?? undefined,
+    };
   }
 }

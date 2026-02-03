@@ -80,11 +80,7 @@ export function McpGroupServersDisplay({
       {selectedServers.map((server) => {
         const status = server.healthStatus ?? 'unknown';
         const StatusIcon =
-          status === 'healthy'
-            ? CheckCircle2
-            : status === 'unhealthy'
-              ? AlertCircle
-              : HelpCircle;
+          status === 'healthy' ? CheckCircle2 : status === 'unhealthy' ? AlertCircle : HelpCircle;
         const statusColor =
           status === 'healthy'
             ? 'text-green-500'

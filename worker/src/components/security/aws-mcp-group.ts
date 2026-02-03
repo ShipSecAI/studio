@@ -98,10 +98,12 @@ const inputSchema = inputs({
 const outputSchema = outputs({
   tools: port(z.unknown().optional().describe('MCP tools from selected AWS services'), {
     label: 'Tools',
-    description: 'MCP tools from selected AWS services (CloudTrail, IAM, S3, CloudWatch, Lambda, DynamoDB, Documentation, Well-Architected, API)',
+    description:
+      'MCP tools from selected AWS services (CloudTrail, IAM, S3, CloudWatch, Lambda, DynamoDB, Documentation, Well-Architected, API)',
     connectionType: { kind: 'contract', name: 'mcp.tool' },
     allowAny: true,
-    reason: 'MCP tools are dynamically discovered from AWS servers at runtime and cannot have a fixed schema',
+    reason:
+      'MCP tools are dynamically discovered from AWS servers at runtime and cannot have a fixed schema',
   }),
 });
 
@@ -143,7 +145,7 @@ const parameterSchema = parameters({
 });
 
 const definition = defineComponent({
-  id: 'security.aws-mcp-group',
+  id: 'mcp.group.aws',
   label: 'AWS MCPs',
   category: 'mcp',
   runner: {
@@ -184,12 +186,7 @@ const definition = defineComponent({
     }
 
     // Use the group runtime helper to register tools
-    await executeMcpGroupNode(
-      context,
-      { credentials },
-      { enabledServers },
-      AwsGroupTemplate,
-    );
+    await executeMcpGroupNode(context, { credentials }, { enabledServers }, AwsGroupTemplate);
 
     // Tools are registered, return empty (like MCP Library)
     return {};

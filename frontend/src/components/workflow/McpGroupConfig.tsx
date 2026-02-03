@@ -24,7 +24,12 @@ interface McpGroupConfigProps {
  * Displays server name, description, health status, and tool count for each server.
  * Fetches group servers from /api/v1/mcp-groups/{groupId}/servers.
  */
-export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }: McpGroupConfigProps) {
+export function McpGroupConfig({
+  groupSlug,
+  value,
+  onChange,
+  disabled = false,
+}: McpGroupConfigProps) {
   const [servers, setServers] = useState<McpGroupServerResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +44,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
 
       // First, find the group by slug
       const groups = await mcpGroupsApi.listGroups();
-      const group = groups.find(g => g.slug === groupSlug);
+      const group = groups.find((g) => g.slug === groupSlug);
 
       if (!group) {
         throw new Error(`Group "${groupSlug}" not found`);
@@ -47,7 +52,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
 
       // Then fetch the servers
       const groupServers = await mcpGroupsApi.getGroupServers(group.id);
-      setServers(groupServers.filter(s => s.enabled));
+      setServers(groupServers.filter((s) => s.enabled));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load group servers');
       setServers([]);
@@ -162,9 +167,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
       <div className="text-center py-8 px-4">
         <Server className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
         <p className="text-sm text-muted-foreground mb-1">No MCP servers configured</p>
-        <p className="text-xs text-muted-foreground/70">
-          This group has no available servers.
-        </p>
+        <p className="text-xs text-muted-foreground/70">This group has no available servers.</p>
       </div>
     );
   }
@@ -222,7 +225,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
                 isSelected
                   ? 'bg-primary/5 border-primary/30'
                   : 'bg-background hover:bg-muted/50 border-border',
-                disabled && 'opacity-50 cursor-not-allowed'
+                disabled && 'opacity-50 cursor-not-allowed',
               )}
             >
               <Checkbox
@@ -238,7 +241,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
                     htmlFor={`server-${server.serverId}`}
                     className={cn(
                       'text-sm font-medium cursor-pointer truncate',
-                      disabled && 'cursor-not-allowed'
+                      disabled && 'cursor-not-allowed',
                     )}
                     onClick={() => !disabled && toggleServer(server.serverId)}
                   >
@@ -252,9 +255,7 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
                   )}
                 </div>
                 {server.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {server.description}
-                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{server.description}</p>
                 )}
               </div>
             </div>
@@ -264,7 +265,8 @@ export function McpGroupConfig({ groupSlug, value, onChange, disabled = false }:
 
       {/* Helper text */}
       <div className="text-xs text-muted-foreground px-1">
-        Select the AWS MCP servers to enable in this workflow. Each server runs in its own container with your credentials.
+        Select the AWS MCP servers to enable in this workflow. Each server runs in its own container
+        with your credentials.
       </div>
     </div>
   );

@@ -92,7 +92,7 @@ function getInternalToken(): string {
   if (!token) {
     throw new ConfigurationError(
       'INTERNAL_SERVICE_TOKEN env var must be set to call MCP library API',
-      { configKey: 'INTERNAL_SERVICE_TOKEN' }
+      { configKey: 'INTERNAL_SERVICE_TOKEN' },
     );
   }
   return token;
@@ -118,7 +118,7 @@ function buildHeaders(organizationId?: string | null): Record<string, string> {
  * decrypted headers for authentication.
  */
 export async function fetchEnabledMcpServersActivity(
-  input: FetchEnabledMcpServersInput
+  input: FetchEnabledMcpServersInput,
 ): Promise<FetchEnabledMcpServersOutput> {
   const baseUrl = normalizeBaseUrl(DEFAULT_API_BASE_URL);
   const headers = buildHeaders(input.organizationId);
@@ -133,13 +133,10 @@ export async function fetchEnabledMcpServersActivity(
 
   if (!response.ok) {
     const raw = await readErrorBody(response);
-    throw new ServiceError(
-      `Failed to fetch enabled MCP servers: ${raw}`,
-      {
-        statusCode: response.status,
-        details: { statusText: response.statusText },
-      }
-    );
+    throw new ServiceError(`Failed to fetch enabled MCP servers: ${raw}`, {
+      statusCode: response.status,
+      details: { statusText: response.statusText },
+    });
   }
 
   const apiServers = (await response.json()) as McpServerWithHeadersApiResponse[];
@@ -165,7 +162,7 @@ export async function fetchEnabledMcpServersActivity(
  * Attempts to connect to the server and list its tools to verify it's responsive.
  */
 export async function healthCheckMcpServerActivity(
-  input: HealthCheckMcpServerInput
+  input: HealthCheckMcpServerInput,
 ): Promise<HealthCheckMcpServerOutput> {
   const mcpClient = getMcpClientService();
   const result = await mcpClient.healthCheck(input.server);
@@ -179,7 +176,7 @@ export async function healthCheckMcpServerActivity(
  * along with their schemas.
  */
 export async function discoverMcpServerToolsActivity(
-  input: DiscoverMcpServerToolsInput
+  input: DiscoverMcpServerToolsInput,
 ): Promise<DiscoverMcpServerToolsOutput> {
   const mcpClient = getMcpClientService();
 
@@ -200,13 +197,11 @@ export async function discoverMcpServerToolsActivity(
  * Checks health of all provided servers in parallel and returns results.
  */
 export async function batchHealthCheckMcpServersActivity(
-  input: BatchHealthCheckInput
+  input: BatchHealthCheckInput,
 ): Promise<BatchHealthCheckOutput> {
   const mcpClient = getMcpClientService();
 
-  const results = await Promise.all(
-    input.servers.map((server) => mcpClient.healthCheck(server))
-  );
+  const results = await Promise.all(input.servers.map((server) => mcpClient.healthCheck(server)));
 
   return { results };
 }
@@ -220,9 +215,6 @@ export async function reportMcpHealthStatusActivity(input: {
   organizationId?: string | null;
   healthResults: McpHealthResult[];
 }): Promise<void> {
-  const baseUrl = normalizeBaseUrl(DEFAULT_API_BASE_URL);
-  const headers = buildHeaders(input.organizationId);
-
   // Report each health status update
   await Promise.all(
     input.healthResults.map(async (result) => {
@@ -231,14 +223,11 @@ export async function reportMcpHealthStatusActivity(input: {
         // For now, just log the status
         console.log(
           `[MCP Health] Server ${result.serverId}: ${result.status}`,
-          result.error ? `(${result.error})` : ''
+          result.error ? `(${result.error})` : '',
         );
       } catch (error) {
-        console.error(
-          `[MCP Health] Failed to report status for ${result.serverId}:`,
-          error
-        );
+        console.error(`[MCP Health] Failed to report status for ${result.serverId}:`, error);
       }
-    })
+    }),
   );
 }

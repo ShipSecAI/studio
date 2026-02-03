@@ -24,3 +24,11 @@ export const ListMcpServersResponseSchema = z.object({
 });
 
 export type ListMcpServersResponse = z.infer<typeof ListMcpServersResponseSchema>;
+
+// Schema for resolved MCP server configuration (with secrets resolved)
+export const ResolvedMcpConfigSchema = z.object({
+  headers: z.record(z.string(), z.string()).optional(),
+  args: z.array(z.string()).optional(),
+});
+
+export type ResolvedMcpConfig = z.infer<typeof ResolvedMcpConfigSchema>;

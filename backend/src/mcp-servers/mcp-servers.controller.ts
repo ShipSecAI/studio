@@ -38,27 +38,21 @@ export class McpServersController {
   @Get()
   @ApiOperation({ summary: 'List all MCP servers' })
   @ApiOkResponse({ type: [McpServerResponse] })
-  async listServers(
-    @CurrentAuth() auth: AuthContext | null,
-  ): Promise<McpServerResponse[]> {
+  async listServers(@CurrentAuth() auth: AuthContext | null): Promise<McpServerResponse[]> {
     return this.mcpServersService.listServers(auth);
   }
 
   @Get('enabled')
   @ApiOperation({ summary: 'List enabled MCP servers only' })
   @ApiOkResponse({ type: [McpServerResponse] })
-  async listEnabledServers(
-    @CurrentAuth() auth: AuthContext | null,
-  ): Promise<McpServerResponse[]> {
+  async listEnabledServers(@CurrentAuth() auth: AuthContext | null): Promise<McpServerResponse[]> {
     return this.mcpServersService.listEnabledServers(auth);
   }
 
   @Get('tools')
   @ApiOperation({ summary: 'List all tools from enabled MCP servers' })
   @ApiOkResponse({ type: [McpToolResponse] })
-  async getAllTools(
-    @CurrentAuth() auth: AuthContext | null,
-  ): Promise<McpToolResponse[]> {
+  async getAllTools(@CurrentAuth() auth: AuthContext | null): Promise<McpToolResponse[]> {
     return this.mcpServersService.getAllTools(auth);
   }
 
@@ -164,5 +158,15 @@ export class McpServersController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<void> {
     await this.mcpServersService.deleteServer(auth, id);
+  }
+
+  @Get(':id/resolve')
+  @ApiOperation({ summary: 'Get resolved MCP server configuration (with secrets resolved)' })
+  @ApiOkResponse({ type: Object })
+  async getResolvedConfig(
+    @CurrentAuth() auth: AuthContext | null,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<{ headers?: Record<string, string>; args?: string[] }> {
+    return this.mcpServersService.getResolvedConfig(auth, id);
   }
 }

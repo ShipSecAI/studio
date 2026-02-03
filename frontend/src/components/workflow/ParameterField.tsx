@@ -117,7 +117,7 @@ export function ParameterField({
         const graph = workflow.graph;
         const entrypoint = graph.nodes.find((node) => node.type === 'core.workflow.entrypoint');
 
-        const runtimeInputsCandidate = entrypoint?.data?.config?.runtimeInputs;
+        const runtimeInputsCandidate = (entrypoint?.data as any)?.config?.runtimeInputs;
 
         const runtimeInputs = Array.isArray(runtimeInputsCandidate) ? runtimeInputsCandidate : [];
 
@@ -444,20 +444,16 @@ export function ParameterField({
   }
 
   // Custom MCPs - enabledServers parameter uses custom multi-select from MCP servers API
-  if (componentId === 'core.mcp.library' && parameter.id === 'enabledServers') {
+  if (componentId === 'mcp.custom' && parameter.id === 'enabledServers') {
     const selectedServers = Array.isArray(currentValue) ? currentValue : [];
     return (
-      <McpLibraryConfig
-        value={selectedServers}
-        onChange={onChange}
-        disabled={isReceivingInput}
-      />
+      <McpLibraryConfig value={selectedServers} onChange={onChange} disabled={isReceivingInput} />
     );
   }
 
   // MCP Groups - enabledServers parameter uses dynamic group servers
-  if (componentId?.startsWith('security.') && componentId?.endsWith('-mcp-group') && parameter.id === 'enabledServers') {
-    const groupSlug = componentId.replace('security.', '').replace('-mcp-group', '');
+  if (componentId?.startsWith('mcp.group.') && parameter.id === 'enabledServers') {
+    const groupSlug = componentId.replace('mcp.group.', '');
     const selectedServers = Array.isArray(currentValue) ? currentValue : [];
     return (
       <McpGroupConfig

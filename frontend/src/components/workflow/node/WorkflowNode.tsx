@@ -932,7 +932,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         )}
 
         {/* MCP Servers Display - Show selected servers for Custom MCPs component */}
-        {component?.id === 'core.mcp.library' && (
+        {component?.id === 'mcp.custom' && (
           <McpServersDisplay
             enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}
             position="bottom"
@@ -941,9 +941,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
         )}
 
         {/* MCP Servers Display - Show selected servers for MCP Group components */}
-        {component?.id?.startsWith('security.') && component?.id?.endsWith('-mcp-group') && (
+        {component?.id?.startsWith('mcp.group.') && (
           <McpGroupServersDisplay
-            groupSlug={component?.id?.replace('security.', '').replace('-mcp-group', '') || ''}
+            groupSlug={component?.id?.replace('mcp.group.', '') || ''}
             enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}
             position="top"
           />
