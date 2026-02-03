@@ -185,14 +185,13 @@ prod action="start":
         build)
             echo "🔨 Building and starting production..."
 
-            # Auto-detect git version: combine tag and SHA for display
-            GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-            GIT_COMMIT=$(git rev-parse --short=7 HEAD 2>/dev/null || echo "dev")
+            # Auto-detect git version: prioritize tag, then SHA, then "dev"
+            GIT_TAG=$(git describe --exact-match --tags 2>/dev/null || echo "")
             if [ -n "$GIT_TAG" ]; then
-                export GIT_SHA="${GIT_TAG} (${GIT_COMMIT})"
-                echo "📌 Building with version: $GIT_SHA"
+                export GIT_SHA="$GIT_TAG"
+                echo "📌 Building with tag: $GIT_SHA"
             else
-                export GIT_SHA="$GIT_COMMIT"
+                export GIT_SHA=$(git rev-parse --short=7 HEAD 2>/dev/null || echo "dev")
                 echo "📌 Building with commit: $GIT_SHA"
             fi
 
