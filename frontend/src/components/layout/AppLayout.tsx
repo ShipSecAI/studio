@@ -307,7 +307,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       icon: Shield,
     },
     {
-      name: 'MCP Library',
+      name: 'MCP Servers',
       href: '/mcp-library',
       icon: ServerCog,
     },
