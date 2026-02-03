@@ -23,6 +23,8 @@ import {
   Shield,
   Archive,
   ChevronRight,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useThemeStore } from '@/store/themeStore';
@@ -73,7 +75,12 @@ export function AgentLayout({ children }: AgentLayoutProps) {
     setActiveConversation,
     createConversation,
     deleteConversation,
+    renameConversation,
   } = useChatStore();
+
+  // Rename editing state
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   // Update sidebar state based on mobile
   useEffect(() => {
@@ -104,6 +111,29 @@ export function AgentLayout({ children }: AgentLayoutProps) {
     },
     [deleteConversation],
   );
+
+  const handleStartRename = useCallback((e: React.MouseEvent, id: string, currentTitle: string) => {
+    e.stopPropagation();
+    setEditingConversationId(id);
+    setEditTitle(currentTitle);
+  }, []);
+
+  const handleSaveRename = useCallback(
+    (e: React.MouseEvent | React.KeyboardEvent, id: string) => {
+      e.stopPropagation();
+      if (editTitle.trim()) {
+        renameConversation(id, editTitle.trim());
+      }
+      setEditingConversationId(null);
+      setEditTitle('');
+    },
+    [editTitle, renameConversation],
+  );
+
+  const handleCancelRename = useCallback(() => {
+    setEditingConversationId(null);
+    setEditTitle('');
+  }, []);
 
   const filteredConversations = conversations.filter((conv) =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -232,12 +262,14 @@ export function AgentLayout({ children }: AgentLayoutProps) {
                 </div>
               ) : (
                 filteredConversations.map((conv) => (
-                  <button
+                  <div
                     key={conv.id}
-                    onClick={() => handleSelectConversation(conv.id)}
+                    onClick={() =>
+                      editingConversationId !== conv.id && handleSelectConversation(conv.id)
+                    }
                     className={cn(
                       'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left',
-                      'transition-colors group',
+                      'transition-colors group cursor-pointer',
                       activeConversationId === conv.id
                         ? 'bg-accent text-accent-foreground'
                         : 'hover:bg-muted text-muted-foreground hover:text-foreground',
@@ -245,21 +277,64 @@ export function AgentLayout({ children }: AgentLayoutProps) {
                   >
                     <Bot className="h-4 w-4 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{conv.title}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {conv.messages.length} messages
-                      </p>
-                    </div>
-                    <button
-                      onClick={(e) => handleDeleteConversation(e, conv.id)}
-                      className={cn(
-                        'p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
-                        'hover:bg-destructive/10 text-destructive',
+                      {editingConversationId === conv.id ? (
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveRename(e, conv.id);
+                            if (e.key === 'Escape') handleCancelRename();
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                          className={cn(
+                            'w-full text-sm font-medium bg-background border border-input rounded px-2 py-0.5',
+                            'focus:outline-none focus:ring-1 focus:ring-ring',
+                          )}
+                        />
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium truncate">{conv.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {conv.messages.length} messages
+                          </p>
+                        </>
                       )}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </button>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      {editingConversationId === conv.id ? (
+                        <button
+                          onClick={(e) => handleSaveRename(e, conv.id)}
+                          className={cn(
+                            'p-1 rounded transition-opacity',
+                            'hover:bg-primary/10 text-primary',
+                          )}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => handleStartRename(e, conv.id, conv.title)}
+                          className={cn(
+                            'p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+                            'hover:bg-muted-foreground/10 text-muted-foreground',
+                          )}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleDeleteConversation(e, conv.id)}
+                        className={cn(
+                          'p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+                          'hover:bg-destructive/10 text-destructive',
+                        )}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 ))
               )}
             </div>

@@ -26,6 +26,7 @@ interface ChatStore {
   addMessage: (conversationId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   getActiveConversation: () => Conversation | null;
   deleteConversation: (id: string) => void;
+  renameConversation: (id: string, newTitle: string) => void;
   clearConversations: () => void;
 }
 
@@ -93,6 +94,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set((state) => ({
       conversations: state.conversations.filter((c) => c.id !== id),
       activeConversationId: state.activeConversationId === id ? null : state.activeConversationId,
+    }));
+  },
+
+  renameConversation: (id, newTitle) => {
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === id ? { ...conv, title: newTitle, updatedAt: new Date() } : conv,
+      ),
     }));
   },
 
