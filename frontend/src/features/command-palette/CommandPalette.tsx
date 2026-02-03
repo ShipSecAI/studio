@@ -576,8 +576,10 @@ export function CommandPalette() {
                       onClick={() => executeCommand(command)}
                       onMouseEnter={() => setSelectedIndex(flatIndex)}
                       className={cn(
-                        'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75',
-                        isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
+                        'w-full flex items-center gap-3 px-3 py-2.5 pl-3 border-l-2 text-left transition-colors duration-75',
+                        isSelected
+                          ? 'bg-primary/10 border-primary text-foreground'
+                          : 'hover:bg-accent/50 border-transparent text-muted-foreground',
                         isComponent && !canPlaceComponents && 'opacity-50',
                       )}
                       disabled={isComponent && !canPlaceComponents}
@@ -597,7 +599,7 @@ export function CommandPalette() {
                           <Icon
                             className={cn(
                               'w-4 h-4',
-                              isSelected ? 'text-accent-foreground' : 'text-muted-foreground',
+                              isSelected ? 'text-primary' : 'text-muted-foreground',
                             )}
                           />
                         ) : null}
@@ -608,16 +610,14 @@ export function CommandPalette() {
                           <div
                             className={cn(
                               'text-xs truncate',
-                              isSelected ? 'text-accent-foreground/70' : 'text-muted-foreground',
+                              isSelected ? 'text-muted-foreground' : 'text-muted-foreground',
                             )}
                           >
                             {command.description}
                           </div>
                         )}
                       </div>
-                      {isSelected && (
-                        <ArrowRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-                      )}
+                      {isSelected && <ArrowRight className="w-4 h-4 flex-shrink-0 text-primary" />}
                     </button>
                   );
                 })}
