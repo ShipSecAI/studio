@@ -72,6 +72,7 @@ import { mcpGroupsApi, type McpGroupTemplateResponse } from '@/services/mcpGroup
 import type { McpHealthStatus, CreateMcpServer } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
 import { MarkdownView } from '@/components/ui/markdown';
+import { env } from '@/config/env';
 
 const TRANSPORT_TYPES = [
   { value: 'http', label: 'HTTP' },
@@ -82,26 +83,57 @@ const TRANSPORT_TYPES = [
 
 type TransportType = (typeof TRANSPORT_TYPES)[number]['value'];
 
-function AwsIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} fill="currentColor" aria-hidden="true">
-      <text x="3" y="20" fontSize="12" fontWeight="700" fontFamily="ui-sans-serif">
-        AWS
-      </text>
-      <path d="M6 23.5c4.2 2.6 9.5 3.9 15.8 3.6" stroke="currentColor" strokeWidth="1.8" fill="none" />
-    </svg>
-  );
-}
-
 // Group icon mapping for visual distinction
 function getGroupIcon(groupSlug: string, groupName: string) {
   const slug = groupSlug.toLowerCase();
   const name = groupName.toLowerCase();
 
-  if (slug === 'aws' || name.includes('aws') || name.includes('amazon')) return AwsIcon;
+  if (slug === 'aws' || name.includes('aws') || name.includes('amazon')) return Cloud;
   if (slug.includes('github') || name.includes('github') || name.includes('git')) return GitBranch;
   if (slug.includes('gcp') || name.includes('gcp') || name.includes('google')) return Globe;
   return Package;
+}
+
+function getGroupLogoUrl(groupSlug: string) {
+  const domainMap: Record<string, string> = {
+    aws: 'aws.amazon.com',
+  };
+
+  const domain = domainMap[groupSlug.toLowerCase()];
+  if (!domain || !env.VITE_LOGO_DEV_PUBLIC_KEY) return null;
+
+  return `https://img.logo.dev/${domain}?token=${env.VITE_LOGO_DEV_PUBLIC_KEY}`;
+}
+
+function GroupLogo({
+  slug,
+  name,
+  className,
+}: {
+  slug: string;
+  name: string;
+  className?: string;
+}) {
+  const logoUrl = getGroupLogoUrl(slug);
+  const FallbackIcon = getGroupIcon(slug, name);
+
+  const [showFallback, setShowFallback] = useState(!logoUrl);
+
+  if (showFallback) {
+    return <FallbackIcon className={className} aria-hidden="true" />;
+  }
+
+  return (
+    <img
+      src={logoUrl}
+      alt={`${name} logo`}
+      className={cn('h-5 w-5 object-contain', className)}
+      onError={(event) => {
+        event.currentTarget.style.display = 'none';
+        setShowFallback(true);
+      }}
+    />
+  );
 }
 
 function getGroupTheme(groupSlug: string) {
@@ -1165,7 +1197,6 @@ export function McpLibraryPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {filteredTemplates.map((template) => {
               const theme = getGroupTheme(template.slug);
-              const GroupIcon = getGroupIcon(template.slug, template.name);
               const isImported = importedGroupSlugs.has(template.slug);
               const isImporting = importingTemplates.has(template.slug);
 
@@ -1175,7 +1206,7 @@ export function McpLibraryPage() {
                     className={cn('flex flex-row items-center gap-3 py-3 border-b', theme.headerBorder)}
                   >
                     <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
-                      <GroupIcon className={cn('h-5 w-5', theme.iconText)} />
+                      <GroupLogo slug={template.slug} name={template.name} className={theme.iconText} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
@@ -1254,7 +1285,6 @@ export function McpLibraryPage() {
           <Accordion type="multiple" className="space-y-3">
             {filteredGroups.map((group) => {
               const theme = getGroupTheme(group.slug);
-              const GroupIcon = getGroupIcon(group.slug, group.name);
               const groupServerList = getGroupServers(group.id);
               const serverCount = groupServerList.length;
 
@@ -1267,7 +1297,7 @@ export function McpLibraryPage() {
                   <AccordionTrigger className={cn('hover:no-underline px-4 py-3', theme.headerBorder)}>
                     <div className="flex items-center gap-3 flex-1">
                       <div className={cn('p-2 rounded-lg border', theme.iconWrapper)}>
-                        <GroupIcon className={cn('h-4 w-4', theme.iconText)} />
+                        <GroupLogo slug={group.slug} name={group.name} className={theme.iconText} />
                       </div>
                       <div className="flex-1 text-left">
                         <div className="flex items-center gap-3">
