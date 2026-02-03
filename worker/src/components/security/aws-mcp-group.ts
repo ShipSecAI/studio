@@ -18,12 +18,20 @@ import { executeMcpGroupNode, McpGroupTemplateSchema } from '../core/mcp-group-r
  *
  * Servers:
  * - aws-cloudtrail: AWS CloudTrail MCP server for querying API audit logs
+ * - aws-iam: AWS IAM MCP server for identity and access management
+ * - aws-s3-tables: AWS S3 Tables MCP server for S3 table operations
  * - aws-cloudwatch: Amazon CloudWatch MCP server for metrics and logs
+ * - aws-network: AWS Network MCP server for VPC and networking
+ * - aws-lambda: AWS Lambda MCP server for serverless functions
+ * - aws-dynamodb: Amazon DynamoDB MCP server for NoSQL database operations
+ * - aws-documentation: AWS Documentation MCP server for querying AWS docs
+ * - aws-well-architected: AWS Well-Architected Security MCP server for security reviews
+ * - aws-api: AWS API MCP server for general AWS API access
  */
 const AwsGroupTemplate = McpGroupTemplateSchema.parse({
   slug: 'aws',
   name: 'AWS MCPs',
-  description: 'Curated AWS MCP servers (CloudTrail, CloudWatch, ...)',
+  description: 'Curated AWS MCP servers (CloudTrail, CloudWatch, IAM, S3, Lambda, DynamoDB, ...)',
   credentialContractName: 'core.credential.aws',
   defaultDockerImage: 'shipsec/mcp-aws-suite:latest',
   credentialMapping: {
@@ -41,8 +49,40 @@ const AwsGroupTemplate = McpGroupTemplateSchema.parse({
       command: 'awslabs.cloudtrail-mcp-server',
     },
     {
+      id: 'aws-iam',
+      command: 'awslabs.iam-mcp-server',
+    },
+    {
+      id: 'aws-s3-tables',
+      command: 'awslabs.s3-tables-mcp-server',
+    },
+    {
       id: 'aws-cloudwatch',
       command: 'awslabs.cloudwatch-mcp-server',
+    },
+    {
+      id: 'aws-network',
+      command: 'awslabs.aws-network-mcp-server',
+    },
+    {
+      id: 'aws-lambda',
+      command: 'awslabs.lambda-tool-mcp-server',
+    },
+    {
+      id: 'aws-dynamodb',
+      command: 'awslabs.dynamodb-mcp-server',
+    },
+    {
+      id: 'aws-documentation',
+      command: 'awslabs.aws-documentation-mcp-server',
+    },
+    {
+      id: 'aws-well-architected',
+      command: 'awslabs.well-architected-security-mcp-server',
+    },
+    {
+      id: 'aws-api',
+      command: 'awslabs.aws-api-mcp-server',
     },
   ],
 });
@@ -73,7 +113,18 @@ const parameterSchema = parameters({
   enabledServers: param(
     z
       .array(z.string())
-      .default(['aws-cloudtrail', 'aws-cloudwatch'])
+      .default([
+        'aws-cloudtrail',
+        'aws-iam',
+        'aws-s3-tables',
+        'aws-cloudwatch',
+        'aws-network',
+        'aws-lambda',
+        'aws-dynamodb',
+        'aws-documentation',
+        'aws-well-architected',
+        'aws-api',
+      ])
       .describe('Array of AWS MCP server IDs to enable'),
     {
       label: 'Enabled Servers',
@@ -81,7 +132,15 @@ const parameterSchema = parameters({
       description: 'Select AWS MCP servers to enable tools from',
       options: [
         { value: 'aws-cloudtrail', label: 'AWS CloudTrail' },
+        { value: 'aws-iam', label: 'AWS IAM' },
+        { value: 'aws-s3-tables', label: 'AWS S3 Tables' },
         { value: 'aws-cloudwatch', label: 'AWS CloudWatch' },
+        { value: 'aws-network', label: 'AWS Network' },
+        { value: 'aws-lambda', label: 'AWS Lambda' },
+        { value: 'aws-dynamodb', label: 'AWS DynamoDB' },
+        { value: 'aws-documentation', label: 'AWS Documentation' },
+        { value: 'aws-well-architected', label: 'AWS Well-Architected Security' },
+        { value: 'aws-api', label: 'AWS API' },
       ],
     },
   ),
@@ -97,14 +156,14 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'AWS MCP Group node. Exposes tools from curated AWS MCP servers (CloudTrail, CloudWatch) using AWS credentials. Each selected server runs in its own container with the group image.',
+  docs: 'AWS MCP Group node. Exposes tools from curated AWS MCP servers (CloudTrail, IAM, S3 Tables, CloudWatch, Network, Lambda, DynamoDB, Documentation, Well-Architected Security, API) using AWS credentials. Each selected server runs in its own container with the group image.',
   ui: {
     slug: 'aws-mcp-group',
     version: '1.0.0',
     type: 'process',
     category: 'mcp',
     description:
-      'Expose AWS MCP tools from curated AWS services (CloudTrail, CloudWatch) using AWS credentials.',
+      'Expose AWS MCP tools from curated AWS services (CloudTrail, IAM, S3 Tables, CloudWatch, Network, Lambda, DynamoDB, Documentation, Well-Architected Security, API) using AWS credentials.',
     icon: 'Cloud',
     author: {
       name: 'ShipSecAI',

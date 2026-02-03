@@ -11,6 +11,7 @@ import { ScriptCodeEditor } from './ScriptCodeEditor';
 import { FormFieldsEditor } from './FormFieldsEditor';
 import { SelectionOptionsEditor } from './SelectionOptionsEditor';
 import { McpLibraryConfig } from './McpLibraryConfig';
+import { McpGroupConfig } from './McpGroupConfig';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
@@ -447,6 +448,20 @@ export function ParameterField({
     const selectedServers = Array.isArray(currentValue) ? currentValue : [];
     return (
       <McpLibraryConfig
+        value={selectedServers}
+        onChange={onChange}
+        disabled={isReceivingInput}
+      />
+    );
+  }
+
+  // MCP Groups - enabledServers parameter uses dynamic group servers
+  if (componentId?.startsWith('security.') && componentId?.endsWith('-mcp-group') && parameter.id === 'enabledServers') {
+    const groupSlug = componentId.replace('security.', '').replace('-mcp-group', '');
+    const selectedServers = Array.isArray(currentValue) ? currentValue : [];
+    return (
+      <McpGroupConfig
+        groupSlug={groupSlug}
         value={selectedServers}
         onChange={onChange}
         disabled={isReceivingInput}

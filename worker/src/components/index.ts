@@ -56,8 +56,6 @@ import './security/trufflehog';
 import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
-import './security/aws-cloudtrail-mcp';
-import './security/aws-cloudwatch-mcp';
 import './security/aws-mcp-group';
 
 // GitHub components

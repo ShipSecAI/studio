@@ -56,6 +56,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { TerminalButton } from './TerminalButton';
 import { ParametersDisplay } from './ParametersDisplay';
 import { McpServersDisplay } from './McpServersDisplay';
+import { McpGroupServersDisplay } from './McpGroupServersDisplay';
 import { NodeProgressBar } from './NodeProgressBar';
 import { STATUS_ICONS, TEXT_BLOCK_SIZES } from './constants';
 
@@ -936,6 +937,15 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
             enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}
             position="bottom"
             compact={true}
+          />
+        )}
+
+        {/* MCP Servers Display - Show selected servers for MCP Group components */}
+        {component?.id?.startsWith('security.') && component?.id?.endsWith('-mcp-group') && (
+          <McpGroupServersDisplay
+            groupSlug={component?.id?.replace('security.', '').replace('-mcp-group', '') || ''}
+            enabledServers={(nodeData.config?.params?.enabledServers as string[]) || []}
+            position="top"
           />
         )}
 
