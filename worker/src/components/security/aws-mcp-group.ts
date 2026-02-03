@@ -95,17 +95,13 @@ const inputSchema = inputs({
   }),
 });
 
-const endpointSchema = z.object({
-  endpoint: z.string().describe('The URL of the MCP server'),
-  containerId: z.string().optional().describe('The Docker container ID'),
-  serverId: z.string().describe('The server identifier'),
-});
-
 const outputSchema = outputs({
-  endpoints: port(z.array(endpointSchema).describe('Array of MCP server endpoints'), {
-    label: 'Endpoints',
-    description: 'MCP server endpoints from selected AWS services',
-    schemaName: 'security.aws-mcp-group.endpoints',
+  tools: port(z.unknown().optional().describe('MCP tools from selected AWS services'), {
+    label: 'Tools',
+    description: 'MCP tools from selected AWS services (CloudTrail, IAM, S3, CloudWatch, Lambda, DynamoDB, Documentation, Well-Architected, API)',
+    connectionType: { kind: 'contract', name: 'mcp.tool' },
+    allowAny: true,
+    reason: 'MCP tools are dynamically discovered from AWS servers at runtime and cannot have a fixed schema',
   }),
 });
 
@@ -156,7 +152,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'AWS MCP Group node. Exposes tools from curated AWS MCP servers (CloudTrail, IAM, S3 Tables, CloudWatch, Network, Lambda, DynamoDB, Documentation, Well-Architected Security, API) using AWS credentials. Each selected server runs in its own container with the group image.',
+  docs: 'AWS MCP Group node. Exposes tools from curated AWS MCP servers (CloudTrail, IAM, S3 Tables, CloudWatch, Network, Lambda, DynamoDB, Documentation, Well-Architected Security, API) using AWS credentials. Each selected server runs in its own container with the group image. Tools are registered with the Tool Registry and can be connected to any AI agent.',
   ui: {
     slug: 'aws-mcp-group',
     version: '1.0.0',
@@ -184,18 +180,19 @@ const definition = defineComponent({
 
     const enabledServers = params.enabledServers as string[];
     if (enabledServers.length === 0) {
-      return { endpoints: [] };
+      return {};
     }
 
-    // Use the group runtime helper
-    const result = await executeMcpGroupNode(
+    // Use the group runtime helper to register tools
+    await executeMcpGroupNode(
       context,
       { credentials },
       { enabledServers },
       AwsGroupTemplate,
     );
 
-    return result;
+    // Tools are registered, return empty (like MCP Library)
+    return {};
   },
 });
 
@@ -204,4 +201,3 @@ componentRegistry.register(definition);
 export type AwsMcpGroupInput = typeof inputSchema;
 export type AwsMcpGroupParams = typeof parameterSchema;
 export type AwsMcpGroupOutput = typeof outputSchema;
-export type AwsMcpGroupEndpoint = z.infer<typeof endpointSchema>;
