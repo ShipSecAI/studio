@@ -16,7 +16,6 @@ import './core/test-error-generator';
 import './notification/slack';
 import './core/text-splitter';
 import './core/text-joiner';
-import './core/console-log';
 import './core/secret-fetch';
 import './core/array-pick';
 import './core/array-pack';
