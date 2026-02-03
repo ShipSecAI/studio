@@ -34,6 +34,9 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
     refreshHealth,
   } = useMcpServerStore();
 
+  // Filter out servers that belong to MCP groups - only show custom/individual servers
+  const customServers = servers.filter((s) => !s.groupId);
+
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set(value));
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -113,9 +116,9 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
     return tools.filter((t) => t.serverId === serverId && t.enabled);
   };
 
-  const enabledServers = servers.filter((s) => s.enabled);
+  const enabledServers = customServers.filter((s) => s.enabled);
 
-  if (isLoading && servers.length === 0) {
+  if (isLoading && customServers.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
