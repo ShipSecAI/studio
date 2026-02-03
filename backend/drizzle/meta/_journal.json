@@ -85,6 +85,13 @@
       "when": 1738200000000,
       "tag": "0015_create-workflow-schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1738454400000,
+      "tag": "0019_migrate-error-to-jsonb",
+      "breakpoints": true
     }
   ]
 }
