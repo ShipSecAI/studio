@@ -1273,43 +1273,67 @@ export function McpLibraryPage() {
           <Badge variant="secondary" className="text-xs">
             {filteredGroups.length} {filteredGroups.length === 1 ? 'group' : 'groups'}
           </Badge>
-          {groups.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Import group
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-[240px]">
-                {importableTemplates.length === 0 ? (
-                  <DropdownMenuItem disabled>No groups available</DropdownMenuItem>
-                ) : (
-                  importableTemplates.map((template) => {
-                    const isImporting = importingTemplates.has(template.slug);
-                    return (
-                      <DropdownMenuItem
-                        key={template.slug}
-                        disabled={isImporting}
-                        onClick={() => handleImportTemplate(template)}
-                        className="flex items-center gap-2"
-                      >
+          <div className="ml-auto flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Import curated MCP groups to auto-register servers and discover tools.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {groups.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Import group
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[240px]">
+                  {importableTemplates.length === 0 ? (
+                    groupTemplates.map((template) => (
+                      <DropdownMenuItem key={template.slug} disabled className="flex items-center gap-2">
                         <GroupLogo
                           slug={template.slug}
                           name={template.name}
                           className="h-4 w-4 text-muted-foreground"
                         />
                         <span className="flex-1">{template.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {template.servers.length}
-                        </span>
+                        <span className="text-xs text-muted-foreground">Imported</span>
                       </DropdownMenuItem>
-                    );
-                  })
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                    ))
+                  ) : (
+                    importableTemplates.map((template) => {
+                      const isImporting = importingTemplates.has(template.slug);
+                      return (
+                        <DropdownMenuItem
+                          key={template.slug}
+                          disabled={isImporting}
+                          onClick={() => handleImportTemplate(template)}
+                          className="flex items-center gap-2"
+                        >
+                          <GroupLogo
+                            slug={template.slug}
+                            name={template.name}
+                            className="h-4 w-4 text-muted-foreground"
+                          />
+                          <span className="flex-1">{template.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {template.servers.length}
+                          </span>
+                        </DropdownMenuItem>
+                      );
+                    })
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
         {isLoading && groups.length === 0 ? (
