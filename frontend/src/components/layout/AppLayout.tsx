@@ -459,7 +459,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               })}
             </div>
 
-            {/* Settings Collapsible Section */}
+            {/* Manage Collapsible Section */}
             <div className="px-2 mt-2">
               <button
                 onClick={() => setSettingsOpen(!settingsOpen)}
@@ -481,7 +481,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                       transitionProperty: 'opacity, max-width',
                     }}
                   >
-                    Settings
+                    Manage
                   </span>
                 </div>
                 {sidebarOpen && (
@@ -494,7 +494,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 )}
               </button>
 
-              {/* Collapsible Settings Items */}
+              {/* Collapsible Manage Items */}
               <div
                 className={cn(
                   'overflow-hidden transition-all duration-300',
