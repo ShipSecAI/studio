@@ -8,11 +8,24 @@ import { SecretsModule } from '../secrets/secrets.module';
 import { InternalMcpController } from './internal-mcp.controller';
 import { WorkflowsModule } from '../workflows/workflows.module';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
+import { McpDiscoveryService } from './mcp-discovery.service';
+import { McpDiscoveryController } from './mcp-discovery.controller';
+import { TemporalModule } from '../temporal/temporal.module';
+import { McpGroupsModule } from '../mcp-groups/mcp-groups.module';
+import { McpServersRepository } from '../mcp-servers/mcp-servers.repository';
+import { DatabaseModule } from '../database/database.module';
 
 @Global()
 @Module({
-  imports: [SecretsModule, WorkflowsModule, ApiKeysModule],
-  controllers: [McpGatewayController, InternalMcpController],
+  imports: [
+    SecretsModule,
+    WorkflowsModule,
+    ApiKeysModule,
+    TemporalModule,
+    DatabaseModule,
+    McpGroupsModule,
+  ],
+  controllers: [McpGatewayController, InternalMcpController, McpDiscoveryController],
   providers: [
     {
       provide: TOOL_REGISTRY_REDIS,
@@ -33,7 +46,9 @@ import { ApiKeysModule } from '../api-keys/api-keys.module';
     ToolRegistryService,
     McpAuthService,
     McpGatewayService,
+    McpDiscoveryService,
+    McpServersRepository,
   ],
-  exports: [ToolRegistryService, McpGatewayService, McpAuthService],
+  exports: [ToolRegistryService, McpGatewayService, McpAuthService, McpDiscoveryService],
 })
 export class McpModule {}

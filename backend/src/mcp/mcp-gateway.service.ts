@@ -22,6 +22,7 @@ import { TemporalService } from '../temporal/temporal.service';
 import { WorkflowRunRepository } from '../workflows/repository/workflow-run.repository';
 import { TraceRepository } from '../trace/trace.repository';
 import type { TraceEventType } from '../trace/types';
+import { McpServersRepository } from '../mcp-servers/mcp-servers.repository';
 
 @Injectable()
 export class McpGatewayService {
@@ -41,6 +42,7 @@ export class McpGatewayService {
     private readonly temporalService: TemporalService,
     private readonly workflowRunRepository: WorkflowRunRepository,
     private readonly traceRepository: TraceRepository,
+    private readonly mcpServersRepository: McpServersRepository,
   ) {}
 
   /**
@@ -264,7 +266,16 @@ export class McpGatewayService {
     const externalSources = allRegistered.filter((t) => t.type !== 'component');
     for (const source of externalSources) {
       try {
-        const tools = await this.fetchExternalTools(source);
+        // All external tools must have a serverId (pre-registered in database)
+        if (!source.serverId) {
+          this.logger.warn(
+            `External tool ${source.toolName} has no serverId - skipping. Tools must be pre-discovered.`,
+          );
+          continue;
+        }
+
+        const tools = await this.getPreDiscoveredTools(source.serverId);
+
         const prefix = source.toolName;
 
         for (const t of tools) {
@@ -315,55 +326,22 @@ export class McpGatewayService {
   }
 
   /**
-   * Fetches tools from an external MCP source
+   * Get pre-discovered tools from the database for a registered MCP server
    */
-  private async fetchExternalTools(source: RegisteredTool): Promise<any[]> {
-    if (!source.endpoint) {
-      this.logger.warn(`[TOOL REGISTRY] Missing endpoint for external source ${source.toolName}`);
+  private async getPreDiscoveredTools(serverId: string): Promise<any[]> {
+    try {
+      const toolRecords = await this.mcpServersRepository.listTools(serverId);
+      return toolRecords
+        .filter((t) => t.enabled)
+        .map((t) => ({
+          name: t.toolName,
+          description: t.description ?? undefined,
+          inputSchema: (t.inputSchema as Record<string, unknown>) ?? undefined,
+        }));
+    } catch (error) {
+      this.logger.error(`Failed to load pre-discovered tools for server ${serverId}:`, error);
       return [];
     }
-
-    const MAX_RETRIES = 5;
-    const RETRY_DELAY_MS = 1000;
-    let lastError: unknown;
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
-      const sessionId = `stdio-proxy-${Date.now()}-${randomBytes(8).toString('hex')}`;
-
-      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
-        requestInit: {
-          headers: {
-            'Mcp-Session-Id': sessionId,
-            Accept: 'application/json, text/event-stream',
-          },
-        },
-      });
-      const client = new Client(
-        { name: 'shipsec-gateway-client', version: '1.0.0' },
-        { capabilities: {} },
-      );
-
-      try {
-        await client.connect(transport);
-        const response = await client.listTools();
-        return response.tools;
-      } catch (error) {
-        lastError = error;
-        this.logger.warn(
-          `listTools failed for ${source.toolName} (attempt ${attempt}/${MAX_RETRIES}): ${error instanceof Error ? error.message : String(error)}`,
-        );
-        if (attempt < MAX_RETRIES) {
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-        }
-      } finally {
-        await client.close();
-      }
-    }
-
-    if (lastError) {
-      throw lastError;
-    }
-    return [];
   }
 
   /**

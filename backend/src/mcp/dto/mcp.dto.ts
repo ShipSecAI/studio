@@ -25,6 +25,8 @@ export class RegisterRemoteMcpInput {
   inputSchema!: ToolInputSchema;
   endpoint!: string;
   authToken?: string;
+  /** MCP Server ID if this is a pre-registered server with cached tools */
+  serverId?: string;
 }
 
 /**
@@ -38,4 +40,6 @@ export class RegisterLocalMcpInput {
   inputSchema!: ToolInputSchema;
   endpoint!: string;
   containerId!: string;
+  /** MCP Server ID if this is a pre-registered server with cached tools */
+  serverId?: string;
 }
