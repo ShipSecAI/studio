@@ -4,7 +4,7 @@ export const McpServerSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
-  type: z.enum(['stdio', 'http', 'sse', 'websocket']),
+  type: z.enum(['stdio', 'http']),
   transport: z.object({
     // For stdio servers
     command: z.string().optional(),

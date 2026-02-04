@@ -3,13 +3,13 @@ import { z } from 'zod';
 
 import { mcpServers } from '../../database/schema/mcp-servers';
 
-export type TransportType = 'http' | 'stdio' | 'sse' | 'websocket';
+export type TransportType = 'http' | 'stdio';
 export type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
 
 export const CreateMcpServerSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  transportType: z.enum(['http', 'stdio', 'sse', 'websocket']),
+  transportType: z.enum(['http', 'stdio']),
   endpoint: z.string().url().optional(),
   command: z.string().min(1).optional(),
   args: z.array(z.string()).optional(),
@@ -17,6 +17,7 @@ export const CreateMcpServerSchema = z.object({
   healthCheckUrl: z.string().url().optional(),
   enabled: z.boolean().optional(),
   groupId: z.string().optional(),
+  cacheToken: z.string().optional(),
 });
 
 export class CreateMcpServerDto extends createZodDto(CreateMcpServerSchema) {}
@@ -24,7 +25,7 @@ export class CreateMcpServerDto extends createZodDto(CreateMcpServerSchema) {}
 export const UpdateMcpServerSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
-  transportType: z.enum(['http', 'stdio', 'sse', 'websocket']).optional(),
+  transportType: z.enum(['http', 'stdio']).optional(),
   endpoint: z.string().url().nullable().optional(),
   command: z.string().min(1).nullable().optional(),
   args: z.array(z.string()).nullable().optional(),
@@ -39,7 +40,7 @@ export const McpServerResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  transportType: z.enum(['http', 'stdio', 'sse', 'websocket']),
+  transportType: z.enum(['http', 'stdio']),
   endpoint: z.string().nullable(),
   command: z.string().nullable(),
   args: z.array(z.string()).nullable(),

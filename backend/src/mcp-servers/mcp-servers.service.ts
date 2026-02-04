@@ -1,7 +1,9 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, Inject, Optional } from '@nestjs/common';
+import Redis from 'ioredis';
 
 import { McpServersEncryptionService } from './mcp-servers.encryption';
 import { McpServersRepository, type McpServerUpdateData } from './mcp-servers.repository';
+import { TemporalService } from '../temporal/temporal.service';
 import type { AuthContext } from '../auth/types';
 import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
 import type {
@@ -15,6 +17,9 @@ import type {
 import type { McpServerRecord, McpServerToolRecord } from '../database/schema';
 import { SecretResolver } from '../secrets/secret-resolver';
 
+// Redis injection token - defined as const to avoid circular dependency
+const MCP_SERVERS_REDIS = 'MCP_SERVERS_REDIS';
+
 @Injectable()
 export class McpServersService {
   private readonly logger = new Logger(McpServersService.name);
@@ -23,6 +28,8 @@ export class McpServersService {
     private readonly repository: McpServersRepository,
     private readonly encryption: McpServersEncryptionService,
     private readonly secretResolver: SecretResolver,
+    @Optional() @Inject(MCP_SERVERS_REDIS) private readonly redis: Redis | null,
+    @Optional() private readonly temporalService: TemporalService | null,
   ) {}
 
   private resolveOrganizationId(auth: AuthContext | null): string {
@@ -143,6 +150,15 @@ export class McpServersService {
       };
     }
 
+    // Check for existing server with same name in this organization
+    const existingServers = await this.repository.list({ organizationId });
+    const duplicateName = existingServers.find((s) => s.name === input.name.trim());
+    if (duplicateName) {
+      throw new BadRequestException(
+        `An MCP server with the name "${input.name.trim()}" already exists. Please use a different name or delete the existing server first.`,
+      );
+    }
+
     const server = await this.repository.create({
       name: input.name.trim(),
       description: input.description?.trim() || null,
@@ -157,9 +173,57 @@ export class McpServersService {
       createdBy: auth?.userId || null,
     });
 
+    // If cacheToken provided, check Redis for cached discovery results
+    if (input.cacheToken && this.redis) {
+      try {
+        const cached = await this.getCachedDiscovery(input.cacheToken);
+        if (cached && cached.tools.length > 0) {
+          this.logger.log(`Creating server ${server.id} with ${cached.tools.length} cached tools`);
+          await this.repository.upsertTools(
+            server.id,
+            cached.tools.map((tool) => ({
+              toolName: tool.name,
+              description: tool.description ?? null,
+              inputSchema: tool.inputSchema ?? null,
+            })),
+          );
+          // Delete cache after use
+          await this.redis.del(`mcp-discovery:${input.cacheToken}`);
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to load cached discovery for ${input.cacheToken}:`, error);
+        // Don't fail server creation if cache is invalid
+      }
+    }
+
     // Return header keys from input (we know the keys since we just created with them)
     const headerKeys = input.headers ? Object.keys(input.headers) : null;
     return this.mapServerToResponse(server, headerKeys);
+  }
+
+  /**
+   * Get cached discovery results from Redis
+   */
+  private async getCachedDiscovery(cacheToken: string): Promise<{
+    tools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[];
+    toolCount: number;
+  } | null> {
+    if (!this.redis) {
+      return null;
+    }
+    const key = `mcp-discovery:${cacheToken}`;
+    const value = await this.redis.get(key);
+    if (!value) {
+      return null;
+    }
+    const cached = JSON.parse(value);
+    if (cached.status !== 'completed') {
+      return null;
+    }
+    return {
+      tools: cached.tools,
+      toolCount: cached.toolCount,
+    };
   }
 
   async updateServer(
@@ -361,9 +425,12 @@ export class McpServersService {
   }
 
   /**
-   * Test connection to an MCP server using actual HTTP health check.
-   * For HTTP/SSE transports, sends an MCP initialize request to verify the server responds.
-   * Also discovers and stores tools on successful connection.
+   * Test connection to an MCP server.
+   * - HTTP: Direct MCP protocol test (fast, validates endpoint is reachable)
+   * - STDIO: Uses Temporal workflow to properly test via worker (spawns container, tests, cleans up)
+   *
+   * Health status is persisted to the database and returned with server data.
+   * Tools are discovered and saved to database during test.
    */
   async testServerConnection(
     auth: AuthContext | null,
@@ -371,300 +438,196 @@ export class McpServersService {
   ): Promise<{
     success: boolean;
     message: string;
-    protocolVersion?: string;
-    responseTimeMs?: number;
     toolCount?: number;
   }> {
     const organizationId = this.assertOrganizationId(auth);
-    const { server, headers } = await this.getServerWithDecryptedHeaders(auth, id);
+    const server = await this.repository.findById(id, { organizationId });
 
-    // stdio and websocket transports require worker integration for full testing
-    if (server.transportType === 'stdio') {
-      return {
-        success: true,
-        message: 'stdio transport requires worker integration for connection testing',
-      };
-    }
-
-    if (server.transportType === 'websocket') {
-      return {
-        success: true,
-        message: 'WebSocket transport requires worker integration for connection testing',
-      };
-    }
-
-    // HTTP and SSE transports can be tested directly
-    if (!server.endpoint) {
-      await this.repository.updateHealthStatus(id, 'unhealthy', { organizationId });
-      return {
-        success: false,
-        message: 'Server has no endpoint configured',
-      };
-    }
-
-    // Use healthCheckUrl if provided, otherwise default to endpoint
-    const healthCheckUrl = server.healthCheckUrl || server.endpoint;
-
+    // Validate that the server has a valid configuration for its transport type
     try {
-      const startTime = Date.now();
-      const result = await this.performMcpHealthCheck(healthCheckUrl, headers);
-      const responseTimeMs = Date.now() - startTime;
-
-      // Update health status in database
-      await this.repository.updateHealthStatus(id, result.success ? 'healthy' : 'unhealthy', {
-        organizationId,
+      this.validateTransportConfig({
+        transportType: server.transportType as TransportType,
+        endpoint: server.endpoint,
+        command: server.command,
       });
 
-      // If connection successful, discover tools
-      let toolCount: number | undefined;
-      if (result.success) {
-        try {
-          const tools = await this.discoverMcpTools(server.endpoint, headers);
-          if (tools.length > 0) {
-            await this.repository.upsertTools(id, tools);
-            toolCount = tools.length;
-            this.logger.log(`Discovered ${tools.length} tools from MCP server ${server.name}`);
-          }
-        } catch (toolError) {
-          this.logger.warn(`Tool discovery failed for server ${id}:`, toolError);
-          // Don't fail the health check if tool discovery fails
-        }
+      // For HTTP: do actual connection test
+      if (server.transportType === 'http') {
+        return await this.testHttpConnectionDirect(server);
       }
 
+      // For STDIO: use Temporal workflow to properly test via worker
+      if (!this.temporalService) {
+        throw new Error('TemporalService not available - cannot test stdio servers');
+      }
+
+      this.logger.log(`Testing stdio server ${server.id} via Temporal workflow`);
+
+      // Start discovery workflow
+      const workflowResult = await this.temporalService.startWorkflow({
+        workflowType: 'mcpDiscoveryWorkflow',
+        taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? 'shipsec-dev',
+        args: [
+          {
+            transport: 'stdio',
+            name: server.name,
+            command: server.command,
+            args: server.args,
+          } as const,
+        ],
+      });
+
+      // Wait for workflow to complete (with timeout)
+      const maxWaitTime = 60_000; // 60 seconds
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWaitTime) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        const status = await this.temporalService.describeWorkflow({
+          workflowId: workflowResult.workflowId,
+        });
+        const statusValue = status.status.toLowerCase();
+        if (statusValue === 'completed') {
+          // Discovery succeeded - tools are already saved by the workflow
+          await this.repository.updateHealthStatus(id, 'healthy', {});
+          const tools = await this.repository.listTools(id);
+          return {
+            success: true,
+            message: `Connection successful (${tools.length} tools discovered)`,
+            toolCount: tools.length,
+          };
+        }
+        if (statusValue === 'failed') {
+          await this.repository.updateHealthStatus(id, 'unhealthy', {});
+          return {
+            success: false,
+            message: 'Connection test failed - check server configuration',
+          };
+        }
+        if (
+          statusValue === 'terminated' ||
+          statusValue === 'canceled' ||
+          statusValue === 'timed out'
+        ) {
+          await this.repository.updateHealthStatus(id, 'unhealthy', {});
+          return {
+            success: false,
+            message: 'Connection test was canceled or timed out',
+          };
+        }
+        // Continue polling for 'running' status
+      }
+
+      // Timeout
+      await this.repository.updateHealthStatus(id, 'unhealthy', {});
       return {
-        ...result,
-        responseTimeMs,
+        success: false,
+        message: 'Connection test timed out after 60 seconds',
+      };
+    } catch (error) {
+      // Update health status to unhealthy (configuration is invalid or test failed)
+      await this.repository.updateHealthStatus(id, 'unhealthy', { organizationId });
+
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Connection test failed',
+      };
+    }
+  }
+
+  /**
+   * Direct HTTP connection test
+   */
+  private async testHttpConnectionDirect(server: McpServerRecord): Promise<{
+    success: boolean;
+    message: string;
+    toolCount?: number;
+  }> {
+    try {
+      // Decrypt headers
+      let headers: Record<string, string> | null = null;
+      if (server.headers) {
+        const decryptedJson = await this.encryption.decrypt(server.headers);
+        headers = JSON.parse(decryptedJson) as Record<string, string>;
+      }
+
+      if (!server.endpoint) {
+        throw new Error('Endpoint is required for HTTP transport');
+      }
+
+      // Test MCP initialize
+      const initResponse = await fetch(server.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          ...(headers || {}),
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'shipsec-studio', version: '1.0.0' },
+          },
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!initResponse.ok) {
+        throw new Error(`HTTP ${initResponse.status}: ${initResponse.statusText}`);
+      }
+
+      const initData = (await initResponse.json()) as { error?: { message: string } };
+      if (initData.error) {
+        throw new Error(initData.error.message);
+      }
+
+      // Try to get tool count
+      const toolsResponse = await fetch(server.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          ...(headers || {}),
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/list',
+          params: {},
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      let toolCount = 0;
+      if (toolsResponse.ok) {
+        const toolsData = (await toolsResponse.json()) as {
+          result?: { tools?: unknown[] };
+        };
+        toolCount = toolsData.result?.tools?.length ?? 0;
+      }
+
+      // Update health status to healthy
+      await this.repository.updateHealthStatus(server.id, 'healthy', {});
+
+      return {
+        success: true,
+        message: `Connection successful (${toolCount} tools available)`,
         toolCount,
       };
     } catch (error) {
-      this.logger.error(`Health check failed for server ${id}:`, error);
-      await this.repository.updateHealthStatus(id, 'unhealthy', { organizationId });
+      // Update health status to unhealthy
+      await this.repository.updateHealthStatus(server.id, 'unhealthy', {});
+
+      const errorMessage = error instanceof Error ? error.message : 'Connection failed';
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Health check failed',
+        message: `Connection failed: ${errorMessage}`,
       };
-    }
-  }
-
-  /**
-   * Perform MCP protocol health check by sending an initialize request.
-   * Uses the Streamable HTTP transport pattern from the MCP spec.
-   */
-  private async performMcpHealthCheck(
-    endpoint: string,
-    headers: Record<string, string> | null,
-  ): Promise<{ success: boolean; message: string; protocolVersion?: string }> {
-    const TIMEOUT_MS = 10_000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-    try {
-      // MCP Streamable HTTP protocol: POST with JSON-RPC initialize request
-      const initializeRequest = {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: {
-            name: 'shipsec-studio',
-            version: '1.0.0',
-          },
-        },
-      };
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-          ...(headers ?? {}),
-        },
-        body: JSON.stringify(initializeRequest),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const statusText = response.statusText || 'Unknown error';
-        if (response.status === 401 || response.status === 403) {
-          return {
-            success: false,
-            message: `Authentication failed (HTTP ${response.status}): Check your API key or headers`,
-          };
-        }
-        return {
-          success: false,
-          message: `HTTP ${response.status}: ${statusText}`,
-        };
-      }
-
-      // Parse response
-      const contentType = response.headers.get('content-type') ?? '';
-
-      if (contentType.includes('application/json')) {
-        const data = (await response.json()) as {
-          error?: { message?: string };
-          result?: { protocolVersion?: string };
-        };
-
-        // Check for JSON-RPC error
-        if (data.error) {
-          return {
-            success: false,
-            message: data.error.message || 'MCP server returned an error',
-          };
-        }
-
-        // Success - server responded to initialize
-        if (data.result?.protocolVersion) {
-          return {
-            success: true,
-            message: `Connected to MCP server (protocol ${data.result.protocolVersion})`,
-            protocolVersion: data.result.protocolVersion,
-          };
-        }
-
-        // Response but no protocol version - might be a non-MCP endpoint
-        return {
-          success: true,
-          message: 'Server responded successfully',
-        };
-      }
-
-      // SSE response - server is responding in streaming mode
-      if (contentType.includes('text/event-stream')) {
-        return {
-          success: true,
-          message: 'MCP server responding (SSE streaming mode)',
-        };
-      }
-
-      // Other content types - server responded but may not be MCP
-      return {
-        success: true,
-        message: `Server responded (${contentType || 'unknown content type'})`,
-      };
-    } catch (error) {
-      clearTimeout(timeoutId);
-
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          return {
-            success: false,
-            message: `Connection timeout (${TIMEOUT_MS / 1000}s) - server did not respond`,
-          };
-        }
-
-        // Network errors
-        if (error.message.includes('ECONNREFUSED')) {
-          return {
-            success: false,
-            message: 'Connection refused - server may be down or unreachable',
-          };
-        }
-
-        if (error.message.includes('ENOTFOUND')) {
-          return {
-            success: false,
-            message: 'DNS lookup failed - check the server URL',
-          };
-        }
-
-        if (error.message.includes('certificate')) {
-          return {
-            success: false,
-            message: 'SSL/TLS certificate error - check server certificate',
-          };
-        }
-
-        return {
-          success: false,
-          message: error.message,
-        };
-      }
-
-      return {
-        success: false,
-        message: 'Unknown error during health check',
-      };
-    }
-  }
-
-  /**
-   * Discover tools from an MCP server by sending a tools/list request.
-   */
-  private async discoverMcpTools(
-    endpoint: string,
-    headers: Record<string, string> | null,
-  ): Promise<
-    {
-      toolName: string;
-      description?: string | null;
-      inputSchema?: Record<string, unknown> | null;
-    }[]
-  > {
-    const TIMEOUT_MS = 10_000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-    try {
-      // MCP tools/list request
-      const toolsListRequest = {
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/list',
-        params: {},
-      };
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-          ...(headers ?? {}),
-        },
-        body: JSON.stringify(toolsListRequest),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const contentType = response.headers.get('content-type') ?? '';
-      if (!contentType.includes('application/json')) {
-        throw new Error(`Unexpected content type: ${contentType}`);
-      }
-
-      const data = (await response.json()) as {
-        error?: { message?: string };
-        result?: {
-          tools?: {
-            name: string;
-            description?: string;
-            inputSchema?: Record<string, unknown>;
-          }[];
-        };
-      };
-
-      if (data.error) {
-        throw new Error(data.error.message || 'tools/list failed');
-      }
-
-      const tools = data.result?.tools ?? [];
-      return tools.map((tool) => ({
-        toolName: tool.name,
-        description: tool.description ?? null,
-        inputSchema: tool.inputSchema ?? null,
-      }));
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
     }
   }
 
@@ -673,7 +636,7 @@ export class McpServersService {
     endpoint?: string | null;
     command?: string | null;
   }): void {
-    const requiresEndpoint = ['http', 'sse', 'websocket'].includes(config.transportType);
+    const requiresEndpoint = config.transportType === 'http';
     const requiresCommand = config.transportType === 'stdio';
 
     if (requiresEndpoint && !config.endpoint) {

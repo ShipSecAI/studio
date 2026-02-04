@@ -126,18 +126,6 @@ export class McpServersController {
     return this.mcpServersService.testServerConnection(auth, id);
   }
 
-  @Post(':id/discover')
-  @ApiOperation({ summary: 'Force re-discover tools from an MCP server' })
-  @ApiOkResponse({ type: [McpToolResponse] })
-  async discoverTools(
-    @CurrentAuth() auth: AuthContext | null,
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<McpToolResponse[]> {
-    // For now, return existing tools - actual discovery will be in Phase 3
-    // when we integrate the MCP client service
-    return this.mcpServersService.getServerTools(auth, id);
-  }
-
   @Post(':serverId/tools/:toolId/toggle')
   @ApiOperation({ summary: 'Toggle a tool enabled/disabled state' })
   @ApiOkResponse({ type: McpToolResponse })

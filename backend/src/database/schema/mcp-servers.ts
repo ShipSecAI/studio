@@ -61,7 +61,7 @@ export const mcpServers = pgTable(
     description: text('description'),
 
     // Transport configuration
-    transportType: varchar('transport_type', { length: 32 }).notNull(), // 'http' | 'stdio' | 'sse' | 'websocket'
+    transportType: varchar('transport_type', { length: 32 }).notNull(), // 'http' | 'stdio'
     endpoint: text('endpoint'), // URL for http/sse/websocket transports
     command: text('command'), // Command for stdio transport
     args: jsonb('args').$type<string[] | null>().default(null), // Args for stdio command
