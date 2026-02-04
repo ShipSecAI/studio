@@ -33,6 +33,10 @@ import {
   prepareAndRegisterToolActivity,
   areAllToolsReadyActivity,
 } from '../activities/mcp.activity';
+import {
+  discoverMcpToolsActivity,
+  cacheDiscoveryResultActivity,
+} from '../activities/mcp-discovery.activity';
 
 // ... (existing imports)
 
@@ -224,6 +228,8 @@ async function main() {
       registerLocalMcpActivity,
       registerRemoteMcpActivity,
       cleanupLocalMcpActivity,
+      discoverMcpToolsActivity,
+      cacheDiscoveryResultActivity,
     }).join(', ')}`,
   );
 
@@ -262,6 +268,8 @@ async function main() {
       cleanupLocalMcpActivity,
       prepareAndRegisterToolActivity,
       areAllToolsReadyActivity,
+      discoverMcpToolsActivity,
+      cacheDiscoveryResultActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],

@@ -240,3 +240,23 @@ export interface AreAllToolsReadyActivityInput {
 export interface AreAllToolsReadyActivityOutput {
   ready: boolean;
 }
+
+// MCP Discovery Activity types
+
+export interface McpTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export interface DiscoveryActivityInput {
+  transport: 'http' | 'stdio';
+  endpoint?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+}
+
+export interface DiscoveryActivityOutput {
+  tools: McpTool[];
+}

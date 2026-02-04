@@ -1116,3 +1116,6 @@ export async function scheduleTriggerWorkflow(
 
   return child.result();
 }
+
+// Export MCP discovery workflow
+export { mcpDiscoveryWorkflow } from './mcp-discovery.workflow';
