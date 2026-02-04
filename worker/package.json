@@ -27,7 +27,6 @@
   "@grpc/grpc-js": "^1.14.3",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@okta/okta-sdk-nodejs": "^7.3.0",
-    "@shipsec/backend-client": "*",
     "@shipsec/component-sdk": "*",
     "@shipsec/contracts": "*",
     "@shipsec/shared": "*",

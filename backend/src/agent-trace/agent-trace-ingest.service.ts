@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
-import { getTopicResolver } from '@shipsec/backend-client';
+import { getTopicResolver } from '../common/kafka-topic-resolver';
 
 import { AgentTraceRepository, type AgentTraceEventInput } from './agent-trace.repository';
 

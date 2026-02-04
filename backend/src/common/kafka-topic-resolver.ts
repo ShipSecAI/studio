@@ -10,11 +10,6 @@
  * - EVENT_KAFKA_TOPIC: Base topic for events (default: telemetry.events)
  * - AGENT_TRACE_KAFKA_TOPIC: Base topic for agent traces (default: telemetry.agent-trace)
  * - NODE_IO_KAFKA_TOPIC: Base topic for node I/O (default: telemetry.node-io)
- *
- * Examples:
- * - Instance 0: telemetry.logs → telemetry.logs.instance-0
- * - Instance 1: telemetry.logs → telemetry.logs.instance-1
- * - No instance (production): telemetry.logs → telemetry.logs (unchanged)
  */
 
 export interface TopicResolverConfig {

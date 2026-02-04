@@ -53,7 +53,7 @@ import {
   KafkaNodeIOAdapter,
 } from '../../adapters';
 import { ConfigurationError } from '@shipsec/component-sdk';
-import { getTopicResolver } from '@shipsec/backend-client';
+import { getTopicResolver } from '../../common/kafka-topic-resolver';
 import * as schema from '../../adapters/schema';
 import { logHeartbeat } from '../../utils/debug-logger';
 
