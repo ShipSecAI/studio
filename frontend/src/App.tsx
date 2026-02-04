@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ChatInterface } from '@/pages/ChatInterface';
 import { WorkflowList } from '@/pages/WorkflowList';
 import { WorkflowBuilder } from '@/features/workflow-builder/WorkflowBuilder';
 import { SecretsManager } from '@/pages/SecretsManager';
@@ -49,7 +50,8 @@ function App() {
               <AppLayout>
                 <ProtectedRoute>
                   <Routes>
-                    <Route path="/" element={<WorkflowList />} />
+                    <Route path="/" element={<ChatInterface />} />
+                    <Route path="/workflows" element={<WorkflowList />} />
                     <Route
                       path="/workflows/:id"
                       element={
