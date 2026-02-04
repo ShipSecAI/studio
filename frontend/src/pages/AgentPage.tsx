@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useChatStore, type ChatMessage } from '@/store/chatStore';
 import { useAuthProvider } from '@/auth/auth-context';
 import { MarkdownView } from '@/components/ui/markdown';
+import { StatusBar } from '@/components/agent/StatusBar';
 
 // GitHub icon component
 function GitHubIcon({ className }: { className?: string }) {
@@ -1834,6 +1835,9 @@ export function AgentPage() {
 
   return (
     <div className="flex flex-col h-full bg-background">
+      {/* Status indicators bar */}
+      <StatusBar />
+
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
         {richMessages.length === 0 ? (
