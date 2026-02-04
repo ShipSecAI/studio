@@ -1742,7 +1742,19 @@ export function AgentPage() {
       lowerMessage.includes('aws')
     ) {
       setInputValue('');
-      handleReviewFindings();
+      simulateStreamingResponse([
+        {
+          type: 'text',
+          content:
+            "I've retrieved your latest security findings from across all integrated sources. Here's a summary of the last 5 security reports:",
+        },
+        { type: 'finding-cards', findings: mockFindings },
+        {
+          type: 'text',
+          content:
+            'You have 3 critical findings from AWS Security Hub that require immediate attention. Would you like me to provide detailed remediation steps for those?',
+        },
+      ]);
       return;
     }
 
