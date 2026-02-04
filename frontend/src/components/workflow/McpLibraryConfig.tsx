@@ -23,16 +23,7 @@ interface McpLibraryConfigProps {
  * Fetches available servers from /api/v1/mcp-servers.
  */
 export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibraryConfigProps) {
-  const {
-    servers,
-    tools,
-    healthStatus,
-    isLoading,
-    error,
-    fetchServers,
-    fetchAllTools,
-    refreshHealth,
-  } = useMcpServerStore();
+  const { servers, tools, isLoading, error, fetchServers, fetchAllTools } = useMcpServerStore();
 
   // Filter out servers that belong to MCP groups - only show custom/individual servers
   const customServers = servers.filter((s) => !s.groupId);
@@ -79,14 +70,15 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
 
     setIsRefreshing(true);
     try {
-      await Promise.all([fetchServers({ force: true }), fetchAllTools(), refreshHealth()]);
+      await Promise.all([fetchServers({ force: true }), fetchAllTools()]);
     } finally {
       setIsRefreshing(false);
     }
   };
 
   const getHealthIndicator = (serverId: string) => {
-    const status = healthStatus[serverId] ?? 'unknown';
+    const server = servers.find((s) => s.id === serverId);
+    const status = server?.lastHealthStatus ?? 'unknown';
     switch (status) {
       case 'healthy':
         return (
@@ -210,7 +202,7 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
         {enabledServers.map((server) => {
           const serverTools = getServerTools(server.id);
           const isSelected = selectedServers.has(server.id);
-          const status = healthStatus[server.id] ?? 'unknown';
+          const status = server.lastHealthStatus ?? 'unknown';
           const isUnhealthy = status === 'unhealthy';
 
           return (

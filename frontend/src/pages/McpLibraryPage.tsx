@@ -41,6 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { KeyRound } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { McpDiscoveryPreview } from '@/components/mcp/McpDiscoveryPreview';
 import {
   Accordion,
   AccordionContent,
@@ -72,12 +73,15 @@ import {
   Package,
   GitBranch,
   Globe,
+  Loader,
+  Loader2,
+  CheckCircle,
 } from 'lucide-react';
 import { useMcpServerStore } from '@/store/mcpServerStore';
 import { useMcpGroupStore } from '@/store/mcpGroupStore';
-import { useMcpHealthPolling } from '@/hooks/useMcpHealthPolling';
 import { useToast } from '@/components/ui/use-toast';
 import { mcpGroupsApi, type McpGroupTemplateResponse } from '@/services/mcpGroupsApi';
+import { mcpDiscoveryApi } from '@/services/mcpDiscoveryApi';
 import type { McpHealthStatus, CreateMcpServer } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
 import { MarkdownView } from '@/components/ui/markdown';
@@ -85,8 +89,6 @@ import { env } from '@/config/env';
 
 const TRANSPORT_TYPES = [
   { value: 'http', label: 'HTTP' },
-  { value: 'sse', label: 'SSE' },
-  { value: 'websocket', label: 'WebSocket' },
   { value: 'stdio', label: 'stdio (Local)' },
 ] as const;
 
@@ -213,8 +215,6 @@ function HealthIndicator({
 function TransportBadge({ type }: { type?: TransportType | null }) {
   const variants: Record<TransportType, 'default' | 'secondary' | 'outline'> = {
     http: 'default',
-    sse: 'secondary',
-    websocket: 'secondary',
     stdio: 'outline',
   };
 
@@ -275,18 +275,47 @@ export function McpLibraryPage() {
   const [jsonValue, setJsonValue] = useState('');
   const [jsonParseError, setJsonParseError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isTestingDiscovery, setIsTestingDiscovery] = useState(false);
+  const [discoveryPreview, setDiscoveryPreview] = useState<
+    | {
+        name: string;
+        transportType: 'http' | 'stdio';
+        toolCount: number;
+        tools?: { name: string; description?: string }[];
+        error?: string;
+        status: 'pending' | 'discovering' | 'completed' | 'failed';
+        cacheToken?: string;
+      }[]
+    | null
+  >(null);
+  const [discoveryCacheTokens, setDiscoveryCacheTokens] = useState<
+    Map<
+      string,
+      {
+        cacheToken: string;
+        tools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[];
+      }
+    >
+  >(new Map());
   const [activeTab, setActiveTab] = useState<'manual' | 'json'>('manual');
   const [headerEntries, setHeaderEntries] = useState<HeaderEntry[]>([]);
   const [secretPickerEntryIndex, setSecretPickerEntryIndex] = useState<number | null>(null);
   const [discoveringGroupIds, setDiscoveringGroupIds] = useState<Set<string>>(new Set());
+  const [discoveringServerIds, setDiscoveringServerIds] = useState<Set<string>>(new Set());
   const [groupTemplates, setGroupTemplates] = useState<McpGroupTemplateResponse[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [importingTemplates, setImportingTemplates] = useState<Set<string>>(new Set());
+  const [discoveryStatus, setDiscoveryStatus] = useState<{
+    workflowId?: string;
+    status?: 'running' | 'completed' | 'failed';
+    tools?: { name: string; description?: string; inputSchema?: Record<string, unknown> }[];
+    toolCount?: number;
+    error?: string;
+  } | null>(null);
 
   const {
     servers,
     tools,
-    healthStatus,
     isLoading,
     error,
     fetchServers,
@@ -297,14 +326,11 @@ export function McpLibraryPage() {
     testConnection,
     fetchServerTools,
     fetchAllTools,
+    discoverTools,
     toggleTool,
-    refreshHealth,
   } = useMcpServerStore();
 
   const { groups, fetchGroups, fetchGroupServers, getGroupServers } = useMcpGroupStore();
-
-  // Enable health polling on this page
-  useMcpHealthPolling(15_000, true);
 
   useEffect(() => {
     fetchServers();
@@ -352,29 +378,6 @@ export function McpLibraryPage() {
       });
     }
   }, [groups, fetchGroupServers]);
-
-  // Run health checks for ALL servers on page load
-  useEffect(() => {
-    if (servers.length > 0) {
-      // Health check all servers in parallel (don't await, let them run in background)
-      const serverIds = servers.map((s) => s.id);
-      setCheckingServers(new Set(serverIds));
-      Promise.allSettled(
-        serverIds.map((serverId) =>
-          testConnection(serverId).catch(() => {
-            // Silently ignore individual health check errors
-          }),
-        ),
-      )
-        .then(async () => {
-          // Refresh health status in store after all checks complete
-          await refreshHealth();
-        })
-        .finally(() => {
-          setCheckingServers(new Set());
-        });
-    }
-  }, [servers.length]); // Only re-run when server count changes
 
   // Sync JSON config to Manual form when valid single-server JSON is entered
   useEffect(() => {
@@ -568,8 +571,16 @@ export function McpLibraryPage() {
     setFormData(INITIAL_FORM_DATA);
     setJsonValue('');
     setJsonParseError(null);
+    setDiscoveryStatus(null);
     setActiveTab('manual');
     setEditorOpen(true);
+  };
+
+  const handleEditorClose = (open: boolean) => {
+    if (!open) {
+      setDiscoveryStatus(null);
+    }
+    setEditorOpen(open);
   };
 
   const handleEdit = (serverId: string) => {
@@ -577,6 +588,7 @@ export function McpLibraryPage() {
     if (!server) return;
 
     setEditingServer(serverId);
+    setDiscoveryStatus(null);
     const editFormData: ServerFormData = {
       name: server.name,
       description: server.description ?? '',
@@ -593,6 +605,76 @@ export function McpLibraryPage() {
     setJsonParseError(null);
     setActiveTab('manual');
     setEditorOpen(true);
+  };
+
+  const handleTestAndDiscover = async () => {
+    // Build headers from headerEntries
+    const headersPayload = headerEntries
+      .filter((e) => e.key.trim() && (e.value.trim() || e.secretId))
+      .reduce(
+        (acc, entry) => {
+          const key = entry.key.trim();
+          const value = entry.secretId ? `{{secret:${entry.secretId}}}` : entry.value.trim();
+          acc[key] = value;
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+
+    const input = {
+      transport: formData.transportType,
+      name: formData.name.trim(),
+      endpoint: formData.transportType === 'http' ? formData.endpoint.trim() : undefined,
+      headers: Object.keys(headersPayload).length > 0 ? headersPayload : undefined,
+      command: formData.transportType === 'stdio' ? formData.command.trim() : undefined,
+      args:
+        formData.transportType === 'stdio' && formData.args.trim()
+          ? formData.args
+              .split('\n')
+              .map((a) => a.trim())
+              .filter(Boolean)
+          : undefined,
+    };
+
+    try {
+      const { workflowId } = await mcpDiscoveryApi.discover(input);
+      setDiscoveryStatus({ workflowId, status: 'running' });
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const result = await mcpDiscoveryApi.getStatus(workflowId);
+
+          if (result.status === 'completed') {
+            clearInterval(pollInterval);
+            setDiscoveryStatus({
+              status: 'completed',
+              tools: result.tools,
+              toolCount: result.toolCount,
+            });
+          } else if (result.status === 'failed') {
+            clearInterval(pollInterval);
+            setDiscoveryStatus({
+              status: 'failed',
+              error: result.error,
+            });
+          }
+        } catch (error) {
+          clearInterval(pollInterval);
+          setDiscoveryStatus({
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Discovery failed',
+          });
+        }
+      }, 2000);
+
+      // Cleanup interval on unmount
+      return () => clearInterval(pollInterval);
+    } catch (error) {
+      setDiscoveryStatus({
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Failed to start discovery',
+      });
+    }
   };
 
   const handleSave = async () => {
@@ -616,9 +698,7 @@ export function McpLibraryPage() {
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
         transportType: formData.transportType,
-        endpoint: ['http', 'sse', 'websocket'].includes(formData.transportType)
-          ? formData.endpoint.trim()
-          : undefined,
+        endpoint: formData.transportType === 'http' ? formData.endpoint.trim() : undefined,
         command: formData.transportType === 'stdio' ? formData.command.trim() : undefined,
         args:
           formData.transportType === 'stdio' && formData.args.trim()
@@ -641,7 +721,7 @@ export function McpLibraryPage() {
             // Fetch all tools after health check to update tool counts
             await fetchAllTools();
             // Refresh health status in store before clearing checking state
-            await refreshHealth();
+            await fetchServers();
           })
           .catch(() => {
             // Silently ignore health check errors on update
@@ -664,7 +744,7 @@ export function McpLibraryPage() {
             // Fetch all tools after health check to update tool counts
             await fetchAllTools();
             // Refresh health status in store before clearing checking state
-            await refreshHealth();
+            await fetchServers();
             if (result.toolCount !== undefined && result.toolCount > 0) {
               toast({
                 title: 'Server ready',
@@ -688,6 +768,7 @@ export function McpLibraryPage() {
       setEditorOpen(false);
       setEditingServer(null);
       setFormData(INITIAL_FORM_DATA);
+      setDiscoveryStatus(null);
     } catch (err) {
       toast({
         title: 'Error',
@@ -788,6 +869,31 @@ export function McpLibraryPage() {
       setDiscoveringGroupIds((prev) => {
         const next = new Set(prev);
         next.delete(groupId);
+        return next;
+      });
+    }
+  };
+
+  const handleDiscoverServerTools = async (serverId: string) => {
+    if (discoveringServerIds.has(serverId)) return;
+
+    setDiscoveringServerIds((prev) => new Set(prev).add(serverId));
+    try {
+      const tools = await discoverTools(serverId);
+      toast({
+        title: 'Tool discovery complete',
+        description: `Discovered ${tools.length} tool(s) from this server.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Discovery failed',
+        description: err instanceof Error ? err.message : 'Failed to discover tools',
+        variant: 'destructive',
+      });
+    } finally {
+      setDiscoveringServerIds((prev) => {
+        const next = new Set(prev);
+        next.delete(serverId);
         return next;
       });
     }
@@ -914,14 +1020,6 @@ export function McpLibraryPage() {
         let transportType: TransportType = 'http';
         if (serverConfig.command) {
           transportType = 'stdio';
-        } else if (serverConfig.url) {
-          // Check URL for transport hints
-          const url = serverConfig.url.toLowerCase();
-          if (url.includes('/sse') || url.endsWith('/events')) {
-            transportType = 'sse';
-          } else if (url.startsWith('ws://') || url.startsWith('wss://')) {
-            transportType = 'websocket';
-          }
         }
 
         servers.push({
@@ -949,6 +1047,135 @@ export function McpLibraryPage() {
     }
   };
 
+  // Handle "Test & Discover" for JSON config - validates and discovers tools before importing
+  const handleJsonTestAndDiscover = async () => {
+    const { servers, error } = parseClaudeCodeConfig(jsonValue);
+
+    if (error) {
+      setJsonParseError(error);
+      return;
+    }
+
+    if (servers.length === 0) {
+      setJsonParseError('No servers found in config');
+      return;
+    }
+
+    setIsTestingDiscovery(true);
+    setJsonParseError(null);
+
+    // Initialize preview with pending status
+    const initialResults: {
+      name: string;
+      transportType: 'http' | 'stdio';
+      toolCount: number;
+      status: 'pending' | 'discovering' | 'completed' | 'failed';
+      tools?: { name: string; description?: string }[];
+      error?: string;
+      cacheToken?: string;
+    }[] = servers.map(({ config }) => ({
+      name: config.name.trim(),
+      transportType: config.transportType as 'http' | 'stdio',
+      toolCount: 0,
+      status: 'pending' as const,
+      tools: undefined,
+      error: undefined,
+      cacheToken: undefined,
+    }));
+    setDiscoveryPreview(initialResults);
+
+    try {
+      // Discover tools sequentially with live updates
+      const results = [...initialResults];
+
+      for (let i = 0; i < servers.length; i++) {
+        const { config } = servers[i];
+
+        // Update status to discovering
+        results[i] = { ...results[i], status: 'discovering', error: undefined };
+        setDiscoveryPreview([...results]);
+
+        try {
+          const { workflowId, cacheToken } = await mcpDiscoveryApi.discover({
+            transport: config.transportType,
+            name: config.name.trim(),
+            endpoint:
+              config.transportType === 'http' ? config.endpoint.trim() || undefined : undefined,
+            command:
+              config.transportType === 'stdio' ? config.command.trim() || undefined : undefined,
+            args:
+              config.transportType === 'stdio' && config.args.trim()
+                ? config.args
+                    .split('\n')
+                    .map((a) => a.trim())
+                    .filter(Boolean)
+                : undefined,
+          });
+
+          // Poll for completion (60 second timeout)
+          const maxAttempts = 60;
+          const pollInterval = 1000;
+
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const status = await mcpDiscoveryApi.getStatus(workflowId);
+
+            if (status.status === 'completed') {
+              results[i] = {
+                ...results[i],
+                toolCount: status.toolCount ?? 0,
+                tools: status.tools?.map((t) => ({ name: t.name, description: t.description })),
+                status: 'completed',
+                error: undefined,
+                cacheToken,
+              };
+              // Store cache token and full tool data for this server
+              if (cacheToken) {
+                const tools = status.tools ?? [];
+                if (tools.length > 0) {
+                  setDiscoveryCacheTokens((prev) =>
+                    new Map(prev).set(config.name.trim(), {
+                      cacheToken,
+                      tools: tools.map((t) => ({
+                        name: t.name,
+                        description: t.description,
+                        inputSchema: t.inputSchema,
+                      })),
+                    }),
+                  );
+                }
+              }
+              setDiscoveryPreview([...results]);
+              break;
+            }
+
+            if (status.status === 'failed') {
+              results[i] = {
+                ...results[i],
+                toolCount: 0,
+                error: status.error ?? 'Discovery failed',
+                status: 'failed',
+              };
+              setDiscoveryPreview([...results]);
+              break;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, pollInterval));
+          }
+        } catch (err) {
+          results[i] = {
+            ...results[i],
+            toolCount: 0,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            status: 'failed',
+          };
+          setDiscoveryPreview([...results]);
+        }
+      }
+    } finally {
+      setIsTestingDiscovery(false);
+    }
+  };
+
   // Handle saving from JSON tab (parses JSON and saves)
   const handleJsonSave = async () => {
     const { servers, error } = parseClaudeCodeConfig(jsonValue);
@@ -972,9 +1199,10 @@ export function McpLibraryPage() {
           name: formData.name.trim(), // Keep original name
           description: firstServer.description.trim() || undefined,
           transportType: firstServer.transportType,
-          endpoint: ['http', 'sse', 'websocket'].includes(firstServer.transportType)
-            ? firstServer.endpoint.trim() || undefined
-            : undefined,
+          endpoint:
+            firstServer.transportType === 'http'
+              ? firstServer.endpoint.trim() || undefined
+              : undefined,
           command:
             firstServer.transportType === 'stdio'
               ? firstServer.command.trim() || undefined
@@ -994,6 +1222,7 @@ export function McpLibraryPage() {
         setEditorOpen(false);
         setEditingServer(null);
         setFormData(INITIAL_FORM_DATA);
+        setDiscoveryStatus(null);
       } catch (err) {
         toast({
           title: 'Error',
@@ -1013,13 +1242,13 @@ export function McpLibraryPage() {
     try {
       const results = await Promise.allSettled(
         servers.map(({ config }) => {
+          const cached = discoveryCacheTokens.get(config.name.trim());
           const payload: CreateMcpServer = {
             name: config.name.trim(),
             description: config.description.trim() || undefined,
             transportType: config.transportType,
-            endpoint: ['http', 'sse', 'websocket'].includes(config.transportType)
-              ? config.endpoint.trim() || undefined
-              : undefined,
+            endpoint:
+              config.transportType === 'http' ? config.endpoint.trim() || undefined : undefined,
             command:
               config.transportType === 'stdio' ? config.command.trim() || undefined : undefined,
             args:
@@ -1031,48 +1260,103 @@ export function McpLibraryPage() {
                 : undefined,
             headers: config.headers.trim() ? JSON.parse(config.headers) : undefined,
             enabled: true,
+            // Pass cacheToken to backend so it can automatically create tools from cached discovery
+            cacheToken: cached?.cacheToken,
           };
           return createServer(payload);
         }),
       );
 
-      // Extract successfully created servers
+      // Extract successfully created servers and collect errors
       type ServerResponse = Awaited<ReturnType<typeof createServer>>;
       const createdServers = results
         .filter((r): r is PromiseFulfilledResult<ServerResponse> => r.status === 'fulfilled')
         .map((r) => r.value);
 
+      // Extract error details from failed promises
+      const failedResults = results.filter((r) => r.status === 'rejected');
+      const errors = failedResults.map((r, idx) => {
+        const error = r.status === 'rejected' ? r.reason : null;
+        const serverName = servers[idx]?.config?.name || `Server ${idx + 1}`;
+        return {
+          server: serverName,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      });
+
       const succeeded = createdServers.length;
-      const failed = results.filter((r) => r.status === 'rejected').length;
+      const failed = failedResults.length;
 
       // Mark all created servers as checking to prevent "Unknown" flash
       if (createdServers.length > 0) {
         setCheckingServers(new Set(createdServers.map((s) => s.id)));
 
-        // Run health checks in parallel to discover tools (non-blocking)
-        Promise.allSettled(
-          createdServers.map((server) => testConnection(server.id).catch(() => {})),
-        )
-          .then(async () => {
-            // Fetch all tools after health checks complete
-            await fetchAllTools();
-            // Refresh health status in store before clearing checking state
-            await refreshHealth();
-          })
-          .finally(() => {
-            // Clear checking state for all created servers
-            setCheckingServers((prev) => {
-              const next = new Set(prev);
-              createdServers.forEach((s) => next.delete(s.id));
-              return next;
+        // For servers with cached discovery results, skip post-save discovery
+        const serversToDiscover: typeof createdServers = [];
+        for (const server of createdServers) {
+          const cached = discoveryCacheTokens.get(server.name);
+          if (cached) {
+            // Server has cached discovery results - skip discovery, tools will be added via backend
+            console.log(
+              `[MCP Import] Using cached discovery results for ${server.name}: ${cached.tools.length} tools`,
+            );
+          } else {
+            serversToDiscover.push(server);
+          }
+        }
+
+        // Only discover tools for servers without cached results
+        if (serversToDiscover.length > 0) {
+          setDiscoveringServerIds(new Set(serversToDiscover.map((s) => s.id)));
+
+          Promise.allSettled(
+            serversToDiscover.map((server) => discoverTools(server.id).catch(() => {})),
+          )
+            .then(async () => {
+              // Fetch all tools after discovery completes
+              await fetchAllTools();
+              // Refresh health status in store before clearing checking state
+              await fetchServers();
+            })
+            .finally(() => {
+              // Clear discovering state
+              setDiscoveringServerIds((prev) => {
+                const next = new Set(prev);
+                serversToDiscover.forEach((s) => next.delete(s.id));
+                return next;
+              });
             });
-          });
+        }
+
+        // For cached servers, just fetch their tools and refresh
+        if (serversToDiscover.length < createdServers.length) {
+          Promise.resolve()
+            .then(async () => {
+              // Fetch tools for all created servers (cached ones will have tools from backend)
+              await fetchAllTools();
+              await fetchServers();
+            })
+            .finally(() => {
+              // Clear checking state
+              setCheckingServers((prev) => {
+                const next = new Set(prev);
+                createdServers.forEach((s) => next.delete(s.id));
+                return next;
+              });
+            });
+        }
       }
 
       if (failed > 0) {
+        // Build detailed error message
+        const errorDetails = errors.map((e) => `${e.server}: ${e.error}`).join('\n');
+        const title =
+          succeeded > 0
+            ? `Partial import: ${succeeded} succeeded, ${failed} failed`
+            : `Import failed: ${failed} server${failed === 1 ? '' : 's'} could not be created`;
         toast({
-          title: 'Partial import',
-          description: `Created ${succeeded} server(s), ${failed} failed`,
+          title,
+          description: errorDetails || 'Some servers could not be created',
           variant: succeeded > 0 ? 'default' : 'destructive',
         });
       } else {
@@ -1084,6 +1368,7 @@ export function McpLibraryPage() {
 
       setEditorOpen(false);
       setJsonValue('');
+      setDiscoveryStatus(null);
     } catch (err) {
       toast({
         title: 'Import failed',
@@ -1459,21 +1744,49 @@ export function McpLibraryPage() {
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8"
-                                          onClick={() => handleViewTools(server.serverId)}
-                                        >
-                                          <Wrench className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>View tools</TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
+                                  {displayToolCount === 0 && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleDiscoverServerTools(server.serverId)
+                                            }
+                                            disabled={discoveringServerIds.has(server.serverId)}
+                                          >
+                                            {discoveringServerIds.has(server.serverId) ? (
+                                              <Loader className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <Wrench className="h-4 w-4" />
+                                            )}
+                                            Discover Tools
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Discover available tools from this server
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  {displayToolCount > 0 && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            onClick={() => handleViewTools(server.serverId)}
+                                          >
+                                            <Wrench className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>View tools</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1503,7 +1816,7 @@ export function McpLibraryPage() {
             <TableRow>
               <TableHead className="w-[200px]">Name</TableHead>
               <TableHead className="w-[100px]">Type</TableHead>
-              <TableHead>Endpoint</TableHead>
+              <TableHead>Connection</TableHead>
               <TableHead className="w-[120px]">Status</TableHead>
               <TableHead className="w-[80px] text-center">Tools</TableHead>
               <TableHead className="w-[100px] text-center">Enabled</TableHead>
@@ -1521,7 +1834,7 @@ export function McpLibraryPage() {
                     <Skeleton className="h-5 w-16" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="h-5 w-48" />
+                    <Skeleton className="h-5 w-32" />
                   </TableCell>
                   <TableCell>
                     <Skeleton className="h-5 w-20" />
@@ -1568,12 +1881,52 @@ export function McpLibraryPage() {
                   <TableCell>
                     <TransportBadge type={server.transportType} />
                   </TableCell>
-                  <TableCell className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
-                    {server.endpoint ?? server.command ?? '—'}
+                  <TableCell>
+                    {server.endpoint ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger className="text-left">
+                            <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
+                              {server.endpoint}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[400px]">
+                            <p className="font-mono text-xs break-all">{server.endpoint}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : server.command ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger className="text-left">
+                            <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
+                              {server.command}
+                              {server.args &&
+                                server.args.length > 0 &&
+                                (() => {
+                                  const argsStr = server.args.join(' ');
+                                  const MAX_INLINE_ARGS = 40;
+                                  if (argsStr.length <= MAX_INLINE_ARGS) {
+                                    return ` ${argsStr}`;
+                                  }
+                                  return ` +${server.args.length} arg${server.args.length === 1 ? '' : 's'}`;
+                                })()}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[400px]">
+                            <p className="font-mono text-xs break-all">
+                              {server.command} {server.args?.join(' ') || ''}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <HealthIndicator
-                      status={healthStatus[server.id] ?? null}
+                      status={server.lastHealthStatus ?? null}
                       checking={checkingServers.has(server.id)}
                     />
                   </TableCell>
@@ -1685,7 +2038,7 @@ export function McpLibraryPage() {
       </div>
 
       {/* Server Editor Sheet */}
-      <Sheet open={editorOpen} onOpenChange={setEditorOpen}>
+      <Sheet open={editorOpen} onOpenChange={handleEditorClose}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{editingServer ? 'Edit MCP Server' : 'Add MCP Server'}</SheetTitle>
@@ -1750,7 +2103,7 @@ export function McpLibraryPage() {
                 </Select>
               </div>
 
-              {['http', 'sse', 'websocket'].includes(formData.transportType) && (
+              {formData.transportType === 'http' && (
                 <div className="space-y-2">
                   <Label htmlFor="endpoint">Endpoint URL *</Label>
                   <Input
@@ -1923,13 +2276,75 @@ export function McpLibraryPage() {
                 </p>
               </div>
 
+              {/* Discovery Status Alerts */}
+              {discoveryStatus?.status === 'completed' && (
+                <div className="flex items-center justify-between p-3 rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="text-sm text-green-700 dark:text-green-300">
+                      Found {discoveryStatus.toolCount} tool
+                      {discoveryStatus.toolCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={isSaving || !formData.name.trim()}
+                  >
+                    {isSaving ? 'Saving...' : 'Save MCP Server'}
+                  </Button>
+                </div>
+              )}
+
+              {discoveryStatus?.status === 'failed' && (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-sm text-destructive">
+                    Discovery failed: {discoveryStatus.error || 'Unknown error'}
+                  </span>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setEditorOpen(false)}
+                  disabled={discoveryStatus?.status === 'running'}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving || !formData.name.trim()}>
-                  {isSaving ? 'Saving...' : editingServer ? 'Update' : 'Create'}
-                </Button>
+                {discoveryStatus?.status !== 'completed' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={handleTestAndDiscover}
+                      disabled={
+                        discoveryStatus?.status === 'running' ||
+                        !formData.name.trim() ||
+                        (!formData.endpoint.trim() && !formData.command.trim())
+                      }
+                    >
+                      {discoveryStatus?.status === 'running' ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Discovering...
+                        </>
+                      ) : (
+                        'Test & Discover'
+                      )}
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={
+                        isSaving ||
+                        !formData.name.trim() ||
+                        (!formData.endpoint.trim() && !formData.command.trim())
+                      }
+                    >
+                      {isSaving ? 'Saving...' : editingServer ? 'Update' : 'Create'}
+                    </Button>
+                  </>
+                )}
               </div>
             </TabsContent>
 
@@ -1968,22 +2383,98 @@ export function McpLibraryPage() {
                 </p>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setEditorOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleJsonSave}
-                  disabled={(editingServer ? isSaving : isImporting) || !jsonValue.trim()}
-                >
-                  {editingServer
-                    ? isSaving
-                      ? 'Saving...'
-                      : 'Update'
-                    : isImporting
-                      ? 'Creating...'
-                      : 'Create'}
-                </Button>
+              {/* Discovery Preview */}
+              {discoveryPreview && (
+                <McpDiscoveryPreview
+                  results={discoveryPreview}
+                  onClear={() => setDiscoveryPreview(null)}
+                />
+              )}
+
+              <div className="flex flex-col gap-3 pt-4">
+                {/* Discovery info message */}
+                {!editingServer && !discoveryPreview && jsonValue.trim() && (
+                  <div className="flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                    <HelpCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      Run &quot;Test &amp; Discover&quot; first to validate servers and discover
+                      available tools before importing.
+                    </span>
+                  </div>
+                )}
+
+                {/* Discovery summary when available */}
+                {!editingServer && discoveryPreview && (
+                  <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
+                    <span className="text-green-700 dark:text-green-300">
+                      {discoveryPreview.filter((r) => r.status === 'completed').length} of{' '}
+                      {discoveryPreview.length} servers ready
+                      {discoveryPreview.some((r) => r.status === 'completed') && (
+                        <span className="text-green-600 dark:text-green-400 ml-2">
+                          (
+                          {discoveryPreview
+                            .filter((r) => r.status === 'completed')
+                            .reduce((sum, r) => sum + (r.toolCount ?? 0), 0)}{' '}
+                          tools discovered)
+                        </span>
+                      )}
+                    </span>
+                    {discoveryPreview.some((r) => r.status === 'failed') && (
+                      <span className="text-destructive">
+                        {discoveryPreview.filter((r) => r.status === 'failed').length} failed
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                    Cancel
+                  </Button>
+                  {!editingServer && (
+                    <Button
+                      variant="outline"
+                      onClick={handleJsonTestAndDiscover}
+                      disabled={isTestingDiscovery || !jsonValue.trim()}
+                    >
+                      {isTestingDiscovery ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Testing...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4 mr-2" />
+                          Test & Discover
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleJsonSave}
+                    disabled={
+                      (editingServer ? isSaving : isImporting) ||
+                      !jsonValue.trim() ||
+                      // Require discovery for new servers (unless editing)
+                      (!editingServer && !discoveryPreview) ||
+                      // Disable while any discovery is still running
+                      (!editingServer &&
+                        discoveryPreview?.some(
+                          (r) => r.status === 'discovering' || r.status === 'pending',
+                        ))
+                    }
+                  >
+                    {editingServer
+                      ? isSaving
+                        ? 'Saving...'
+                        : 'Update'
+                      : isImporting
+                        ? 'Importing...'
+                        : discoveryPreview && discoveryPreview.some((r) => r.status === 'completed')
+                          ? `Import ${discoveryPreview.filter((r) => r.status === 'completed').length} Server${discoveryPreview.filter((r) => r.status === 'completed').length === 1 ? '' : 's'}`
+                          : 'Import'}
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -2027,14 +2518,34 @@ export function McpLibraryPage() {
           </DialogHeader>
           <div className="max-h-[400px] overflow-y-auto">
             {serverTools.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Wrench className="h-8 w-8 mx-auto mb-2" />
-                <p>No tools discovered yet.</p>
-                <p className="text-sm">
-                  {selectedServer?.transportType === 'stdio'
-                    ? 'Use Discovery mode on the group to register tools.'
-                    : 'Run a test connection to discover available tools.'}
+              <div className="text-center py-8">
+                <Wrench className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-sm font-medium mb-1">No tools discovered yet</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Discover tools from this server to enable them in your workflows
                 </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    selectedServerForTools && handleDiscoverServerTools(selectedServerForTools)
+                  }
+                  disabled={
+                    !selectedServerForTools || discoveringServerIds.has(selectedServerForTools)
+                  }
+                >
+                  {selectedServerForTools && discoveringServerIds.has(selectedServerForTools) ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Discovering...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Discover Tools
+                    </>
+                  )}
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">

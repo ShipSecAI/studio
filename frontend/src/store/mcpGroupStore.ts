@@ -120,9 +120,9 @@ export const useMcpGroupStore = create<McpGroupStore>((set, get) => ({
   },
 
   getHealthStatus: (serverId) => {
-    // Delegate to mcpServerStore for health status
-    const healthStatus = useMcpServerStore.getState().healthStatus;
-    return healthStatus[serverId] ?? 'unknown';
+    // Get health status from the server's lastHealthStatus property
+    const server = useMcpServerStore.getState().servers.find((s) => s.id === serverId);
+    return server?.lastHealthStatus ?? 'unknown';
   },
 
   setError: (message) => {

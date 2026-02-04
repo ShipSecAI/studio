@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import type { McpHealthStatus, CreateMcpServer, UpdateMcpServer } from '@shipsec/shared';
 import { getApiAuthHeaders, API_BASE_URL } from '@/services/api';
+import { mcpDiscoveryApi } from '@/services/mcpDiscoveryApi';
 
 // API response types (matching backend DTOs)
 export interface McpServerResponse {
   id: string;
   name: string;
   description?: string | null;
-  transportType: 'http' | 'stdio' | 'sse' | 'websocket';
+  transportType: 'http' | 'stdio';
   endpoint?: string | null;
   command?: string | null;
   args?: string[] | null;
@@ -33,12 +34,6 @@ export interface McpToolResponse {
   discoveredAt: string;
 }
 
-interface HealthStatusResponse {
-  serverId: string;
-  status: McpHealthStatus;
-  checkedAt?: string | null;
-}
-
 interface TestConnectionResponse {
   success: boolean;
   message?: string;
@@ -54,7 +49,6 @@ interface McpServerFilters {
 interface McpServerStoreState {
   servers: McpServerResponse[];
   tools: McpToolResponse[];
-  healthStatus: Record<string, McpHealthStatus>;
   isLoading: boolean;
   error: string | null;
   lastFetched: number | null;
@@ -77,9 +71,6 @@ interface McpServerStoreActions {
   discoverTools: (serverId: string) => Promise<McpToolResponse[]>;
   toggleTool: (serverId: string, toolId: string) => Promise<McpToolResponse>;
 
-  // Health
-  refreshHealth: () => Promise<void>;
-
   // Filters
   setFilters: (filters: Partial<McpServerFilters>) => void;
 
@@ -101,7 +92,6 @@ const INITIAL_FILTERS: McpServerFilters = {
 const createInitialState = (): McpServerStoreState => ({
   servers: [],
   tools: [],
-  healthStatus: {},
   isLoading: false,
   error: null,
   lastFetched: null,
@@ -111,8 +101,10 @@ const createInitialState = (): McpServerStoreState => ({
 // API helpers
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = await getApiAuthHeaders();
+  const { signal, ...restOptions } = options;
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+    ...restOptions,
+    signal,
     headers: {
       ...headers,
       'Content-Type': 'application/json',
@@ -152,15 +144,8 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
     try {
       const servers = await apiRequest<McpServerResponse[]>('/api/v1/mcp-servers');
 
-      // Build health status map from servers
-      const healthStatus: Record<string, McpHealthStatus> = {};
-      for (const server of servers) {
-        healthStatus[server.id] = server.lastHealthStatus ?? 'unknown';
-      }
-
       set({
         servers,
-        healthStatus,
         isLoading: false,
         error: null,
         lastFetched: Date.now(),
@@ -183,10 +168,6 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
 
     set((state) => ({
       servers: [...state.servers, server],
-      healthStatus: {
-        ...state.healthStatus,
-        [server.id]: server.lastHealthStatus ?? 'unknown',
-      },
     }));
 
     return server;
@@ -200,10 +181,6 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
 
     set((state) => ({
       servers: state.servers.map((s) => (s.id === id ? server : s)),
-      healthStatus: {
-        ...state.healthStatus,
-        [server.id]: server.lastHealthStatus ?? 'unknown',
-      },
     }));
 
     return server;
@@ -215,9 +192,6 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
     set((state) => ({
       servers: state.servers.filter((s) => s.id !== id),
       tools: state.tools.filter((t) => t.serverId !== id),
-      healthStatus: Object.fromEntries(
-        Object.entries(state.healthStatus).filter(([key]) => key !== id),
-      ),
     }));
   },
 
@@ -256,15 +230,57 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
   },
 
   discoverTools: async (serverId) => {
-    const tools = await apiRequest<McpToolResponse[]>(`/api/v1/mcp-servers/${serverId}/discover`, {
-      method: 'POST',
+    // Get server config from store
+    const server = get().servers.find((s) => s.id === serverId);
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+
+    // Start discovery workflow
+    const { workflowId } = await mcpDiscoveryApi.discover({
+      transport: server.transportType,
+      name: server.name,
+      endpoint: server.endpoint ?? undefined,
+      command: server.command ?? undefined,
+      args: server.args ?? undefined,
     });
 
-    set((state) => ({
-      tools: [...state.tools.filter((t) => t.serverId !== serverId), ...tools],
-    }));
+    // Poll for completion with 60-second timeout
+    const maxAttempts = 60; // 60 seconds with 1-second intervals
+    const pollInterval = 1000;
 
-    return tools;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const status = await mcpDiscoveryApi.getStatus(workflowId);
+
+      if (status.status === 'completed' && status.tools) {
+        // Transform tools to match store format
+        const tools: McpToolResponse[] = status.tools.map((tool) => ({
+          id: `${serverId}-${tool.name}`,
+          toolName: tool.name,
+          description: tool.description ?? null,
+          inputSchema: tool.inputSchema ?? null,
+          serverId,
+          serverName: server.name,
+          enabled: true,
+          discoveredAt: new Date().toISOString(),
+        }));
+
+        set((state) => ({
+          tools: [...state.tools.filter((t) => t.serverId !== serverId), ...tools],
+        }));
+
+        return tools;
+      }
+
+      if (status.status === 'failed') {
+        throw new Error(status.error ?? 'Discovery failed');
+      }
+
+      // Wait before next poll
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    }
+
+    throw new Error('Discovery timed out after 60 seconds');
   },
 
   toggleTool: async (serverId, toolId) => {
@@ -278,22 +294,6 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
     }));
 
     return tool;
-  },
-
-  refreshHealth: async () => {
-    try {
-      const statuses = await apiRequest<HealthStatusResponse[]>('/api/v1/mcp-servers/health');
-
-      const healthStatus: Record<string, McpHealthStatus> = {};
-      for (const status of statuses) {
-        healthStatus[status.serverId] = status.status;
-      }
-
-      set({ healthStatus });
-    } catch (error) {
-      // Silently fail health refresh - don't break the UI
-      console.error('Failed to refresh MCP server health:', error);
-    }
   },
 
   setFilters: (partial) => {
@@ -311,18 +311,10 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
       if (!exists) {
         return {
           servers: [...state.servers, server],
-          healthStatus: {
-            ...state.healthStatus,
-            [server.id]: server.lastHealthStatus ?? 'unknown',
-          },
         };
       }
       return {
         servers: state.servers.map((s) => (s.id === server.id ? server : s)),
-        healthStatus: {
-          ...state.healthStatus,
-          [server.id]: server.lastHealthStatus ?? 'unknown',
-        },
       };
     });
   },
@@ -331,9 +323,6 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
     set((state) => ({
       servers: state.servers.filter((s) => s.id !== id),
       tools: state.tools.filter((t) => t.serverId !== id),
-      healthStatus: Object.fromEntries(
-        Object.entries(state.healthStatus).filter(([key]) => key !== id),
-      ),
     }));
   },
 
@@ -348,7 +337,7 @@ export const useEnabledMcpServers = () =>
 
 export const useHealthyMcpServers = () =>
   useMcpServerStore((state) =>
-    state.servers.filter((s) => s.enabled && state.healthStatus[s.id] === 'healthy'),
+    state.servers.filter((s) => s.enabled && s.lastHealthStatus === 'healthy'),
   );
 
 export const useMcpToolsByServer = (serverId: string) =>

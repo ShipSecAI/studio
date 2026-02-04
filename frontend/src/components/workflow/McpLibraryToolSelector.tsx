@@ -34,16 +34,7 @@ export function McpLibraryToolSelector({
   onServerExclusionChange,
   onToolExclusionChange,
 }: McpLibraryToolSelectorProps) {
-  const {
-    servers,
-    tools,
-    healthStatus,
-    isLoading,
-    error,
-    fetchServers,
-    fetchAllTools,
-    refreshHealth,
-  } = useMcpServerStore();
+  const { servers, tools, isLoading, error, fetchServers, fetchAllTools } = useMcpServerStore();
 
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -62,7 +53,7 @@ export function McpLibraryToolSelector({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([fetchServers({ force: true }), fetchAllTools(), refreshHealth()]);
+      await Promise.all([fetchServers({ force: true }), fetchAllTools()]);
     } finally {
       setIsRefreshing(false);
     }
@@ -95,7 +86,8 @@ export function McpLibraryToolSelector({
   };
 
   const getHealthIndicator = (serverId: string) => {
-    const status = healthStatus[serverId] ?? 'unknown';
+    const server = servers.find((s) => s.id === serverId);
+    const status = server?.lastHealthStatus ?? 'unknown';
     switch (status) {
       case 'healthy':
         return <span className="w-2 h-2 rounded-full bg-green-500" title="Healthy" />;
@@ -162,7 +154,7 @@ export function McpLibraryToolSelector({
           const serverTools = getServerTools(server.id);
           const isExpanded = expanded[server.id] ?? false;
           const excluded = isServerExcluded(server.id);
-          const status = healthStatus[server.id] ?? 'unknown';
+          const status = server.lastHealthStatus ?? 'unknown';
           const isUnhealthy = status === 'unhealthy';
 
           return (

@@ -20,7 +20,7 @@ export function McpServersDisplay({
   position = 'bottom',
   compact = true,
 }: McpServersDisplayProps) {
-  const { servers, healthStatus } = useMcpServerStore();
+  const { servers } = useMcpServerStore();
 
   if (enabledServers.length === 0) {
     return null;
@@ -64,7 +64,7 @@ export function McpServersDisplay({
         // Full mode: Show all servers with health indicators
         <div className="flex flex-wrap gap-1.5">
           {selectedServers.slice(0, 3).map((server) => {
-            const status = healthStatus[server.id] ?? 'unknown';
+            const status = server.lastHealthStatus ?? 'unknown';
             const StatusIcon =
               status === 'healthy'
                 ? CheckCircle2
