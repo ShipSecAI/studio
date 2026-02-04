@@ -23,12 +23,16 @@ import {
   Command,
   Zap,
   Webhook,
+  Bot,
+  MessageSquare,
+  Trash2,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
-import { UserButton } from '@/components/auth/UserButton';
-import { useAuth, useAuthProvider } from '@/auth/auth-context';
+import { useChatStore } from '@/store/chatStore';
 import { env } from '@/config/env';
 import { useThemeStore } from '@/store/themeStore';
 import { cn } from '@/lib/utils';
@@ -68,11 +72,72 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
-  const { isAuthenticated } = useAuth();
-  const authProvider = useAuthProvider();
-  const showUserButton = isAuthenticated || authProvider.name === 'clerk';
   const { theme, startTransition } = useThemeStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
+
+  // Chat conversation management
+  const {
+    conversations,
+    activeConversationId,
+    setActiveConversation,
+    deleteConversation,
+    renameConversation,
+  } = useChatStore();
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  const handleNewChat = useCallback(() => {
+    setActiveConversation(null);
+    navigate('/');
+    if (isMobile) setSidebarOpen(false);
+  }, [setActiveConversation, navigate, isMobile]);
+
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      navigate(`/c/${id}`);
+      if (isMobile) setSidebarOpen(false);
+    },
+    [navigate, isMobile],
+  );
+
+  const handleDeleteConversation = useCallback(
+    (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      const wasActive = activeConversationId === id;
+      deleteConversation(id);
+      if (wasActive) {
+        navigate('/');
+      }
+    },
+    [deleteConversation, activeConversationId, navigate],
+  );
+
+  const handleStartRename = useCallback((e: React.MouseEvent, id: string, currentTitle: string) => {
+    e.stopPropagation();
+    setEditingConversationId(id);
+    setEditTitle(currentTitle);
+  }, []);
+
+  const handleSaveRename = useCallback(
+    (e: React.MouseEvent | React.KeyboardEvent, id: string) => {
+      e.stopPropagation();
+      if (editTitle.trim()) {
+        renameConversation(id, editTitle.trim());
+      }
+      setEditingConversationId(null);
+      setEditTitle('');
+    },
+    [editTitle, renameConversation],
+  );
+
+  const handleCancelRename = useCallback(() => {
+    setEditingConversationId(null);
+    setEditTitle('');
+  }, []);
+
+  // Demo user image (temporary hack)
+  const demoUserImageUrl =
+    'https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zMkZBb1JVSDBvenQ0bmp1ZG80aHliV0FHclcifQ?width=160';
 
   // Get git SHA for version display (monorepo - same for frontend and backend)
   const gitSha = env.VITE_GIT_SHA;
@@ -256,8 +321,13 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const navigationItems = [
     {
-      name: 'Workflow Builder',
+      name: 'AI Agent',
       href: '/',
+      icon: Bot,
+    },
+    {
+      name: 'Workflow Builder',
+      href: '/workflows',
       icon: Workflow,
     },
     {
@@ -303,14 +373,17 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const isActive = (path: string) => {
     if (path === '/') {
-      return location.pathname === '/' || location.pathname.startsWith('/workflows');
+      return location.pathname === '/' || location.pathname.startsWith('/c/');
+    }
+    if (path === '/workflows') {
+      return location.pathname === '/workflows' || location.pathname.startsWith('/workflows/');
     }
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
   // Get page-specific actions
   const getPageActions = () => {
-    if (location.pathname === '/') {
+    if (location.pathname === '/workflows') {
       return (
         <Button
           onClick={() => {
@@ -479,41 +552,132 @@ export function AppLayout({ children }: AppLayoutProps) {
                 )}
               </button>
             </div>
+
+            {/* Chat History Section */}
+            {sidebarOpen && (
+              <div className="px-2 mt-4 pt-4 border-t border-border/40 flex-1 overflow-y-auto">
+                <div className="flex items-center justify-between px-2 mb-2">
+                  <p className="text-xs font-medium text-muted-foreground">Your Chats</p>
+                  <button
+                    onClick={handleNewChat}
+                    className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="New Chat"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {conversations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <MessageSquare className="h-6 w-6 text-muted-foreground/40 mb-1.5" />
+                    <p className="text-xs text-muted-foreground">No conversations yet</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      Start a new chat to begin
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {conversations.map((conv) => (
+                      <div
+                        key={conv.id}
+                        onClick={() =>
+                          editingConversationId !== conv.id && handleSelectConversation(conv.id)
+                        }
+                        className={cn(
+                          'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left',
+                          'transition-colors group cursor-pointer',
+                          activeConversationId === conv.id
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <Bot className="h-3.5 w-3.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          {editingConversationId === conv.id ? (
+                            <input
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveRename(e, conv.id);
+                                if (e.key === 'Escape') handleCancelRename();
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              className={cn(
+                                'w-full text-xs font-medium bg-background border border-input rounded px-1.5 py-0.5',
+                                'focus:outline-none focus:ring-1 focus:ring-ring',
+                              )}
+                            />
+                          ) : (
+                            <>
+                              <p className="text-xs font-medium truncate">{conv.title}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {conv.messages.length} messages
+                              </p>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {editingConversationId === conv.id ? (
+                            <button
+                              onClick={(e) => handleSaveRename(e, conv.id)}
+                              className="p-0.5 rounded hover:bg-primary/10 text-primary"
+                            >
+                              <Check className="h-3 w-3" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => handleStartRename(e, conv.id, conv.title)}
+                              className="p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted-foreground/10 text-muted-foreground"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => handleDeleteConversation(e, conv.id)}
+                            className="p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 text-destructive"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </SidebarContent>
 
           <SidebarFooter className="border-t p-0">
-            <div className="flex flex-col gap-1.5 p-1">
-              {/* Auth components - UserButton includes organization switching */}
-              {showUserButton && (
-                <div
-                  className={`flex items-center gap-2 ${sidebarOpen ? 'justify-between' : 'justify-center'}`}
-                >
-                  <UserButton
-                    className={sidebarOpen ? 'flex-1' : 'w-auto'}
-                    sidebarCollapsed={!sidebarOpen}
+            <div className="flex flex-col gap-1.5 p-2">
+              <div
+                className={`flex items-center gap-2 ${sidebarOpen ? 'justify-between' : 'justify-center'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src={demoUserImageUrl}
+                    alt="User avatar"
+                    className="w-9 h-9 rounded-full ring-2 ring-border flex-shrink-0"
                   />
-                  {/* Dark mode toggle */}
                   {sidebarOpen && (
-                    <button
-                      onClick={startTransition}
-                      className="p-2 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground text-muted-foreground flex-shrink-0"
-                      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                    >
-                      {theme === 'dark' ? (
-                        <Sun className="h-5 w-5 text-amber-500" />
-                      ) : (
-                        <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    <span
+                      className={cn(
+                        'text-sm font-medium transition-all duration-300 whitespace-nowrap overflow-hidden',
+                        sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
                       )}
-                    </button>
+                      style={{
+                        transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                        transitionProperty: 'opacity, max-width',
+                      }}
+                    >
+                      Aseem Shrey
+                    </span>
                   )}
                 </div>
-              )}
-              {/* Dark mode toggle when no user button */}
-              {!showUserButton && (
-                <div className={`flex ${sidebarOpen ? 'justify-end' : 'justify-center'}`}>
+                {sidebarOpen && (
                   <button
                     onClick={startTransition}
-                    className="p-2 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                    className="p-2 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground text-muted-foreground flex-shrink-0"
                     aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                   >
                     {theme === 'dark' ? (
@@ -522,8 +686,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                       <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
                     )}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </SidebarFooter>
 
@@ -554,8 +718,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             isMobile ? 'w-full' : '',
           )}
         >
-          {/* Only show AppTopBar for non-workflow-builder and non-webhook-editor pages */}
-          {!location.pathname.startsWith('/workflows') &&
+          {/* Only show AppTopBar for non-agent, non-workflow-builder, and non-webhook-editor pages */}
+          {location.pathname !== '/' &&
+            !location.pathname.startsWith('/c/') &&
+            !location.pathname.startsWith('/workflows') &&
             !location.pathname.startsWith('/webhooks/') && (
               <AppTopBar
                 sidebarOpen={sidebarOpen}

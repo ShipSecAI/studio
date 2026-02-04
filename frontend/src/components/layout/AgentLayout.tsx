@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sidebar, SidebarHeader, SidebarContent, SidebarFooter } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,6 @@ import {
   Trash2,
   Sun,
   Moon,
-  Settings,
   Menu,
   X,
   Sparkles,
@@ -53,17 +52,18 @@ function useIsMobile(breakpoint = 768) {
 }
 
 const studioNavItems = [
-  { name: 'Workflow Builder', href: '/studio', icon: Workflow },
-  { name: 'Schedules', href: '/studio/schedules', icon: CalendarClock },
-  { name: 'Webhooks', href: '/studio/webhooks', icon: Webhook },
-  { name: 'Action Center', href: '/studio/action-center', icon: Zap },
-  { name: 'Secrets', href: '/studio/secrets', icon: KeyRound },
-  { name: 'API Keys', href: '/studio/api-keys', icon: Shield },
-  { name: 'Artifact Library', href: '/studio/artifacts', icon: Archive },
+  { name: 'Workflow Builder', href: '/workflows', icon: Workflow },
+  { name: 'Schedules', href: '/schedules', icon: CalendarClock },
+  { name: 'Webhooks', href: '/webhooks', icon: Webhook },
+  { name: 'Action Center', href: '/action-center', icon: Zap },
+  { name: 'Secrets', href: '/secrets', icon: KeyRound },
+  { name: 'API Keys', href: '/api-keys', icon: Shield },
+  { name: 'Artifact Library', href: '/artifacts', icon: Archive },
 ];
 
 export function AgentLayout({ children }: AgentLayoutProps) {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [searchQuery, setSearchQuery] = useState('');
   const [studioExpanded, setStudioExpanded] = useState(false);
@@ -73,7 +73,6 @@ export function AgentLayout({ children }: AgentLayoutProps) {
     conversations,
     activeConversationId,
     setActiveConversation,
-    createConversation,
     deleteConversation,
     renameConversation,
   } = useChatStore();
@@ -88,28 +87,33 @@ export function AgentLayout({ children }: AgentLayoutProps) {
   }, [isMobile]);
 
   const handleNewChat = useCallback(() => {
-    createConversation();
+    setActiveConversation(null);
+    navigate('/');
     if (isMobile) {
       setSidebarOpen(false);
     }
-  }, [createConversation, isMobile]);
+  }, [setActiveConversation, navigate, isMobile]);
 
   const handleSelectConversation = useCallback(
     (id: string) => {
-      setActiveConversation(id);
+      navigate(`/c/${id}`);
       if (isMobile) {
         setSidebarOpen(false);
       }
     },
-    [setActiveConversation, isMobile],
+    [navigate, isMobile],
   );
 
   const handleDeleteConversation = useCallback(
     (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
+      const wasActive = activeConversationId === id;
       deleteConversation(id);
+      if (wasActive) {
+        navigate('/');
+      }
     },
-    [deleteConversation],
+    [deleteConversation, activeConversationId, navigate],
   );
 
   const handleStartRename = useCallback((e: React.MouseEvent, id: string, currentTitle: string) => {
@@ -342,20 +346,23 @@ export function AgentLayout({ children }: AgentLayoutProps) {
 
           <SidebarFooter className="border-t p-3">
             <div className="flex items-center justify-between gap-2">
-              <Button variant="ghost" size="sm" className="gap-2 flex-1 justify-start">
-                <Settings className="h-4 w-4" />
-                <span className="text-sm">Settings</span>
-              </Button>
-              <Button variant="ghost" size="icon" onClick={startTransition} className="h-8 w-8">
+              <div className="flex items-center gap-3">
+                <img
+                  src="https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zMkZBb1JVSDBvenQ0bmp1ZG80aHliV0FHclcifQ?width=160"
+                  alt="User avatar"
+                  className="w-10 h-10 rounded-full ring-2 ring-border"
+                />
+              </div>
+              <Button variant="ghost" size="icon" onClick={startTransition} className="h-9 w-9">
                 {theme === 'dark' ? (
-                  <Sun className="h-4 w-4 text-amber-500" />
+                  <Sun className="h-5 w-5 text-amber-500" />
                 ) : (
-                  <Moon className="h-4 w-4" />
+                  <Moon className="h-5 w-5" />
                 )}
               </Button>
             </div>
-            <div className="text-[10px] text-muted-foreground/60 text-center mt-2">
-              ShipSec AI v1.0.0 | Claude Opus 4.5
+            <div className="text-xs text-muted-foreground text-center mt-3">
+              version: v0.2 (e73fd1)
             </div>
           </SidebarFooter>
         </Sidebar>

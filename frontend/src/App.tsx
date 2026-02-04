@@ -15,7 +15,6 @@ import { RunRedirect } from '@/pages/RunRedirect';
 import { AgentPage } from '@/pages/AgentPage';
 import { ToastProvider } from '@/components/ui/toast-provider';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { AgentLayout } from '@/components/layout/AgentLayout';
 import { AuthProvider } from '@/auth/auth-context';
 import { useAuthStoreIntegration } from '@/auth/store-integration';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -49,24 +48,15 @@ function App() {
               <AnalyticsRouterListener />
               <PostHogClerkBridge />
               <Routes>
-                {/* Agent Page - New home page with its own layout */}
                 <Route
-                  path="/"
-                  element={
-                    <AgentLayout>
-                      <AgentPage />
-                    </AgentLayout>
-                  }
-                />
-
-                {/* Studio routes with AppLayout */}
-                <Route
-                  path="/studio/*"
+                  path="/*"
                   element={
                     <AppLayout>
                       <ProtectedRoute>
                         <Routes>
-                          <Route path="/" element={<WorkflowList />} />
+                          <Route path="/" element={<AgentPage />} />
+                          <Route path="/c/:conversationId" element={<AgentPage />} />
+                          <Route path="/workflows" element={<WorkflowList />} />
                           <Route path="/workflows/:id" element={<WorkflowBuilder />} />
                           <Route path="/workflows/:id/runs" element={<WorkflowBuilder />} />
                           <Route path="/workflows/:id/runs/:runId" element={<WorkflowBuilder />} />
@@ -86,12 +76,12 @@ function App() {
                             path="/integrations/callback/:provider"
                             element={<IntegrationCallback />}
                           />
+                          <Route path="*" element={<NotFound />} />
                         </Routes>
                       </ProtectedRoute>
                     </AppLayout>
                   }
                 />
-                <Route path="*" element={<NotFound />} />
               </Routes>
             </CommandPaletteProvider>
           </BrowserRouter>
