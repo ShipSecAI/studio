@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
+import { getTopicResolver } from '@shipsec/backend-client';
 
 import { TraceRepository, type PersistedTraceEvent } from '../trace/trace.repository';
 import type { TraceEventType } from '../trace/types';
@@ -38,7 +39,10 @@ export class EventIngestService implements OnModuleInit, OnModuleDestroy {
       throw new Error('LOG_KAFKA_BROKERS must be configured for event ingestion');
     }
 
-    this.kafkaTopic = process.env.EVENT_KAFKA_TOPIC ?? 'telemetry.events';
+    // Use instance-aware topic name
+    const topicResolver = getTopicResolver();
+    this.kafkaTopic = topicResolver.getEventsTopic();
+
     this.kafkaGroupId = process.env.EVENT_KAFKA_GROUP_ID ?? 'shipsec-event-ingestor';
     this.kafkaClientId = process.env.EVENT_KAFKA_CLIENT_ID ?? 'shipsec-backend-events';
   }

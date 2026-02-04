@@ -101,6 +101,14 @@ copy_env_files() {
         -e "s|:8082|:$(get_port REDPANDA_UI $instance)|g" \
         "$dest"
       
+      # For backend: update database URL to instance-specific database
+      if [ "$app_dir" = "backend" ]; then
+        sed -i.bak \
+          -e "s|/shipsec\"|/shipsec_instance_$instance\"|g" \
+          "$dest"
+        rm -f "$dest.bak"
+      fi
+      
       rm -f "$dest.bak"
       log_success "Created $dest"
     fi

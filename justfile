@@ -550,17 +550,21 @@ status:
     echo "=== Production Containers ==="
     docker compose -f docker/docker-compose.full.yml ps 2>/dev/null || echo "  (Production not running)"
 
-# Reset database (drops all data)
-db-reset:
+# Reset database for specific instance or all instances
+# Usage: just db-reset [instance]
+db-reset instance="0":
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! docker ps --filter "name=shipsec-postgres" --format "{{{{.Names}}}}" | grep -q "shipsec-postgres"; then
-        echo "❌ PostgreSQL not running. Run: just dev" && exit 1
+    
+    if [ "{{instance}}" = "all" ]; then
+        echo "🗑️  Resetting all instance databases..."
+        for i in {0..9}; do
+            ./scripts/db-reset-instance.sh "$i" 2>/dev/null || true
+        done
+        echo "✅ All instance databases reset"
+    else
+        ./scripts/db-reset-instance.sh "{{instance}}"
     fi
-    docker exec shipsec-postgres psql -U shipsec -d postgres -c "DROP DATABASE IF EXISTS shipsec;"
-    docker exec shipsec-postgres psql -U shipsec -d postgres -c "CREATE DATABASE shipsec;"
-    bun --cwd=backend run migration:push
-    echo "✅ Database reset"
 
 # Build production images without starting
 build:
@@ -607,6 +611,8 @@ help:
     @echo "  just infra clean   Remove infrastructure data"
     @echo ""
     @echo "Utilities:"
-    @echo "  just status        Show status of all services"
-    @echo "  just db-reset      Reset database"
-    @echo "  just build         Build images only"
+    @echo "  just status           Show status of all services"
+    @echo "  just db-reset         Reset instance 0 database"
+    @echo "  just db-reset 1       Reset instance 1 database"
+    @echo "  just db-reset all     Reset all instance databases"
+    @echo "  just build            Build images only"

@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
+import { getTopicResolver } from '@shipsec/backend-client';
 
 import { NodeIORepository } from './node-io.repository';
 
@@ -42,7 +43,10 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
       throw new Error('LOG_KAFKA_BROKERS must be configured for node I/O ingestion');
     }
 
-    this.kafkaTopic = process.env.NODE_IO_KAFKA_TOPIC ?? 'telemetry.node-io';
+    // Use instance-aware topic name
+    const topicResolver = getTopicResolver();
+    this.kafkaTopic = topicResolver.getNodeIOTopic();
+
     this.kafkaGroupId = process.env.NODE_IO_KAFKA_GROUP_ID ?? 'shipsec-node-io-ingestor';
     this.kafkaClientId = process.env.NODE_IO_KAFKA_CLIENT_ID ?? 'shipsec-backend-node-io';
   }

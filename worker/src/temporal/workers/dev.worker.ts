@@ -53,6 +53,7 @@ import {
   KafkaNodeIOAdapter,
 } from '../../adapters';
 import { ConfigurationError } from '@shipsec/component-sdk';
+import { getTopicResolver } from '@shipsec/backend-client';
 import * as schema from '../../adapters/schema';
 import { logHeartbeat } from '../../utils/debug-logger';
 
@@ -140,22 +141,28 @@ async function main() {
     });
   }
 
+  // Get instance-aware topic names
+  const topicResolver = getTopicResolver();
+  const instanceMsg = topicResolver.isInstanceIsolated()
+    ? ` (instance ${topicResolver.getInstanceId()})`
+    : '';
+
   const traceAdapter = new KafkaTraceAdapter({
     brokers: kafkaBrokers,
-    topic: process.env.EVENT_KAFKA_TOPIC ?? 'telemetry.events',
+    topic: topicResolver.getEventsTopic(),
     clientId: process.env.EVENT_KAFKA_CLIENT_ID ?? 'shipsec-worker-events',
   });
 
   const agentTracePublisher = new KafkaAgentTracePublisher({
     brokers: kafkaBrokers,
-    topic: process.env.AGENT_TRACE_KAFKA_TOPIC ?? 'telemetry.agent-trace',
+    topic: topicResolver.getAgentTraceTopic(),
     clientId: process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? 'shipsec-worker-agent-trace',
   });
 
   const nodeIOAdapter = new KafkaNodeIOAdapter(
     {
       brokers: kafkaBrokers,
-      topic: process.env.NODE_IO_KAFKA_TOPIC ?? 'telemetry.node-io',
+      topic: topicResolver.getNodeIOTopic(),
       clientId: process.env.NODE_IO_KAFKA_CLIENT_ID ?? 'shipsec-worker-node-io',
     },
     storageAdapter,
@@ -165,10 +172,10 @@ async function main() {
   try {
     logAdapter = new KafkaLogAdapter({
       brokers: kafkaBrokers,
-      topic: process.env.LOG_KAFKA_TOPIC ?? 'telemetry.logs',
+      topic: topicResolver.getLogsTopic(),
       clientId: process.env.LOG_KAFKA_CLIENT_ID ?? 'shipsec-worker',
     });
-    console.log(`✅ Kafka logging enabled (${kafkaBrokers.join(', ')})`);
+    console.log(`✅ Kafka logging enabled (${kafkaBrokers.join(', ')})${instanceMsg}`);
   } catch (error) {
     console.error('❌ Failed to initialize Kafka logging', error);
     throw error;
