@@ -133,9 +133,9 @@ prod-init:
         echo "✅ INTERNAL_SERVICE_TOKEN already set"
     fi
 
-    # Generate SECRET_STORE_MASTER_KEY if not set (64 hex chars = 32 bytes)
+    # Generate SECRET_STORE_MASTER_KEY if not set (exactly 32 characters, raw string)
     if [ -z "${SECRET_STORE_MASTER_KEY:-}" ]; then
-        KEY=$(openssl rand -hex 32)
+        KEY=$(openssl rand -base64 24 | head -c 32)
         echo "SECRET_STORE_MASTER_KEY=$KEY" >> "$ENV_FILE"
         echo "🔑 Generated SECRET_STORE_MASTER_KEY"
         UPDATED=true
