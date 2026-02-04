@@ -300,7 +300,6 @@ export function McpLibraryPage() {
   const [activeTab, setActiveTab] = useState<'manual' | 'json'>('manual');
   const [headerEntries, setHeaderEntries] = useState<HeaderEntry[]>([]);
   const [secretPickerEntryIndex, setSecretPickerEntryIndex] = useState<number | null>(null);
-  const [discoveringGroupIds, setDiscoveringGroupIds] = useState<Set<string>>(new Set());
   const [discoveringServerIds, setDiscoveringServerIds] = useState<Set<string>>(new Set());
   const [groupTemplates, setGroupTemplates] = useState<McpGroupTemplateResponse[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
@@ -842,38 +841,6 @@ export function McpLibraryPage() {
     await fetchServerTools(serverId);
   };
 
-  const handleDiscoverGroupTools = async (groupId: string) => {
-    if (discoveringGroupIds.has(groupId)) return;
-
-    setDiscoveringGroupIds((prev) => new Set(prev).add(groupId));
-    try {
-      const result = await mcpGroupsApi.discoverGroupTools(groupId);
-      const failed = result.results.filter((r) => !r.success);
-      toast({
-        title: 'Tool discovery complete',
-        description:
-          failed.length === 0
-            ? `Discovered tools for ${result.successCount} server(s).`
-            : `Discovered tools for ${result.successCount} server(s). ${failed.length} failed.`,
-      });
-
-      await fetchGroupServers(groupId, { force: true });
-      await fetchAllTools();
-    } catch (err) {
-      toast({
-        title: 'Discovery failed',
-        description: err instanceof Error ? err.message : 'Failed to discover tools',
-        variant: 'destructive',
-      });
-    } finally {
-      setDiscoveringGroupIds((prev) => {
-        const next = new Set(prev);
-        next.delete(groupId);
-        return next;
-      });
-    }
-  };
-
   const handleDiscoverServerTools = async (serverId: string) => {
     if (discoveringServerIds.has(serverId)) return;
 
@@ -920,16 +887,65 @@ export function McpLibraryPage() {
 
     setImportingTemplates((prev) => new Set(prev).add(template.slug));
     try {
-      const result = await mcpGroupsApi.importTemplate(template.slug);
+      // Pre-discover all servers in the template
+      toast({
+        title: 'Discovering servers...',
+        description: `Running discovery for ${template.servers.length} server(s)...`,
+      });
+
+      const serverCacheTokens: Record<string, string> = {};
+
+      // Start discovery for all servers
+      const discoveryPromises = template.servers.map(async (server) => {
+        try {
+          const result = await mcpDiscoveryApi.discover({
+            transport: server.transportType,
+            name: server.name,
+            endpoint: server.endpoint ?? undefined,
+            command: server.command ?? undefined,
+            args: server.args ?? undefined,
+          });
+
+          // Poll for completion
+          let status = await mcpDiscoveryApi.getStatus(result.workflowId);
+          while (status.status === 'running') {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            status = await mcpDiscoveryApi.getStatus(result.workflowId);
+          }
+
+          if (status.status === 'completed' && result.cacheToken) {
+            return { serverName: server.name, cacheToken: result.cacheToken };
+          }
+        } catch (error) {
+          console.warn(`Discovery failed for server ${server.name}:`, error);
+        }
+        return null;
+      });
+
+      const results = await Promise.all(discoveryPromises);
+
+      // Collect successful cache tokens
+      for (const result of results) {
+        if (result) {
+          serverCacheTokens[result.serverName] = result.cacheToken;
+        }
+      }
+
+      const successCount = Object.keys(serverCacheTokens).length;
+      toast({
+        title: 'Discovery complete',
+        description: `Discovered ${successCount}/${template.servers.length} servers.`,
+      });
+
+      // Import template with cache tokens
+      const result = await mcpGroupsApi.importTemplate(template.slug, serverCacheTokens);
       await fetchGroups({ force: true });
       await fetchGroupServers(result.group.id, { force: true });
 
       toast({
         title: 'Group imported',
-        description: `Imported ${result.group.name}. Running discovery...`,
+        description: `Imported ${result.group.name} with ${successCount} discovered server(s).`,
       });
-
-      await handleDiscoverGroupTools(result.group.id);
     } catch (err) {
       toast({
         title: 'Import failed',

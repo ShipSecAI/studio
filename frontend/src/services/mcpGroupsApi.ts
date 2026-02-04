@@ -18,7 +18,7 @@ export interface McpGroupServerResponse {
   serverId: string;
   serverName: string;
   description?: string | null;
-  transportType: 'http' | 'stdio' | 'sse' | 'websocket';
+  transportType: 'http' | 'stdio';
   enabled: boolean;
   healthStatus: 'healthy' | 'unhealthy' | 'unknown';
   toolCount: number;
@@ -39,7 +39,7 @@ export interface McpGroupTemplateResponse {
   servers: {
     name: string;
     description?: string | null;
-    transportType: 'http' | 'stdio' | 'sse' | 'websocket';
+    transportType: 'http' | 'stdio';
     endpoint?: string | null;
     command?: string | null;
     args?: string[] | null;
@@ -181,14 +181,21 @@ export const mcpGroupsApi = {
 
   /**
    * Import a specific group template
+   * @param slug - The template slug to import
+   * @param serverCacheTokens - Optional map of server name -> cacheToken from pre-discovery
    */
   async importTemplate(
     slug: string,
+    serverCacheTokens?: Record<string, string>,
   ): Promise<{ action: 'created' | 'updated' | 'skipped'; group: McpGroupResponse }> {
     const headers = await getApiAuthHeaders();
     const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/templates/${slug}/import`, {
       method: 'POST',
-      headers,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ serverCacheTokens }),
     });
 
     if (!response.ok) {
@@ -196,38 +203,6 @@ export const mcpGroupsApi = {
         .json()
         .catch(() => ({ message: 'Failed to import group template' }));
       throw new Error(error.message || 'Failed to import group template');
-    }
-
-    return response.json();
-  },
-
-  /**
-   * Discover tools for all enabled servers in a group
-   */
-  async discoverGroupTools(groupId: string): Promise<{
-    groupId: string;
-    totalServers: number;
-    successCount: number;
-    failureCount: number;
-    results: {
-      serverId: string;
-      serverName: string;
-      toolCount: number;
-      success: boolean;
-      error?: string;
-    }[];
-  }> {
-    const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}/discover-tools`, {
-      method: 'POST',
-      headers,
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: 'Failed to discover group tools' }));
-      throw new Error(error.message || 'Failed to discover group tools');
     }
 
     return response.json();
