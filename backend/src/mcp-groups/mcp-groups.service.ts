@@ -1,6 +1,13 @@
-import { Injectable, Logger, BadRequestException, OnModuleInit } from '@nestjs/common';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  OnModuleInit,
+  Inject,
+  Optional,
+} from '@nestjs/common';
+import Redis from 'ioredis';
+
 import { McpGroupsRepository, type McpGroupUpdateData } from './mcp-groups.repository';
 import { McpGroupsSeedingService } from './mcp-groups-seeding.service';
 import { McpServersRepository } from '../mcp-servers/mcp-servers.repository';
@@ -12,12 +19,15 @@ import type {
   AddServerToGroupDto,
   UpdateServerInGroupDto,
   SyncTemplatesResponse,
-  DiscoverGroupToolsResponse,
   GroupTemplateDto,
+  ImportTemplateRequestDto,
   ImportGroupTemplateResponse,
 } from './dto/mcp-groups.dto';
 import type { McpGroupRecord } from '../database/schema';
 import type { TemplateSyncResult } from './mcp-groups-seeding.service';
+
+// Redis injection token - must match the one in mcp-servers.service.ts
+const MCP_SERVERS_REDIS = 'MCP_SERVERS_REDIS';
 
 @Injectable()
 export class McpGroupsService implements OnModuleInit {
@@ -27,6 +37,7 @@ export class McpGroupsService implements OnModuleInit {
     private readonly repository: McpGroupsRepository,
     private readonly seedingService: McpGroupsSeedingService,
     private readonly mcpServersRepository: McpServersRepository,
+    @Optional() @Inject(MCP_SERVERS_REDIS) private readonly redis: Redis | null,
   ) {}
 
   async onModuleInit() {
@@ -111,9 +122,48 @@ export class McpGroupsService implements OnModuleInit {
     return this.mapGroupToResponse(group);
   }
 
-  async importTemplate(slug: string): Promise<ImportGroupTemplateResponse> {
+  async importTemplate(
+    slug: string,
+    input?: ImportTemplateRequestDto,
+  ): Promise<ImportGroupTemplateResponse> {
     const result: TemplateSyncResult = await this.seedingService.syncTemplate(slug);
     const group = await this.getGroupBySlug(slug);
+
+    // If cache tokens were provided, create tools for each server
+    if (input?.serverCacheTokens && Object.keys(input.serverCacheTokens).length > 0) {
+      this.logger.log(
+        `Processing ${Object.keys(input.serverCacheTokens).length} cache tokens for group '${slug}'`,
+      );
+
+      // Get all servers in the group
+      const servers = await this.repository.findServersByGroup(group.id);
+
+      // Create tools for each server that has a cache token
+      for (const server of servers) {
+        const cacheToken = input.serverCacheTokens[server.name];
+        if (cacheToken) {
+          try {
+            // Load tools from discovery cache (same logic as createServer in McpServersService)
+            const cached = await this.getCachedDiscovery(cacheToken);
+            if (cached && cached.tools.length > 0) {
+              this.logger.log(
+                `Loading ${cached.tools.length} tools for server '${server.name}' from cache`,
+              );
+              await this.mcpServersRepository.upsertTools(
+                server.id,
+                cached.tools.map((tool: any) => ({
+                  toolName: tool.name,
+                  description: tool.description ?? null,
+                  inputSchema: tool.inputSchema ?? null,
+                })),
+              );
+            }
+          } catch (error) {
+            this.logger.warn(`Failed to load cached tools for server '${server.name}':`, error);
+          }
+        }
+      }
+    }
 
     return {
       action: result.action,
@@ -257,166 +307,6 @@ export class McpGroupsService implements OnModuleInit {
     return servers.map((s) => this.mapGroupServerToResponse(s));
   }
 
-  async discoverGroupTools(groupId: string): Promise<DiscoverGroupToolsResponse> {
-    const group = await this.repository.findById(groupId);
-
-    if (!group.defaultDockerImage) {
-      throw new BadRequestException('Group has no default Docker image configured');
-    }
-
-    const servers = await this.repository.findServersByGroup(groupId);
-    const enabledServers = servers.filter((server) => server.enabled);
-
-    const exec = promisify(execFile);
-    const results: DiscoverGroupToolsResponse['results'] = [];
-
-    for (const server of enabledServers) {
-      if (!server.command) {
-        results.push({
-          serverId: server.id,
-          serverName: server.name,
-          toolCount: 0,
-          success: false,
-          error: 'Server has no command configured',
-        });
-        continue;
-      }
-
-      const containerName = `mcp-discovery-${group.slug}-${server.name}-${Date.now()}`;
-      const argsValue = server.args ? JSON.stringify(server.args) : '';
-      const envArgs = ['MCP_COMMAND=' + server.command];
-      if (argsValue) {
-        envArgs.push('MCP_ARGS=' + argsValue);
-      }
-
-      if (group.slug === 'aws') {
-        envArgs.push('AWS_ACCESS_KEY_ID=test');
-        envArgs.push('AWS_SECRET_ACCESS_KEY=test');
-        envArgs.push('AWS_REGION=us-east-1');
-      }
-
-      const runContainer = async (image: string): Promise<string> => {
-        await exec('docker', [
-          'run',
-          '-d',
-          '--rm',
-          '--name',
-          containerName,
-          ...envArgs.flatMap((entry) => ['-e', entry]),
-          '-p',
-          '0:8080',
-          image,
-        ]);
-
-        const { stdout: portOutput } = await exec('docker', ['port', containerName, '8080']);
-        const match = portOutput.match(/:(\d+)\s*$/m);
-        if (!match) {
-          throw new Error(`Failed to read mapped port for ${server.name}`);
-        }
-        return match[1];
-      };
-
-      try {
-        const imagesToTry = [group.defaultDockerImage];
-        if (group.slug === 'aws' && group.defaultDockerImage !== 'docker-aws-suite') {
-          imagesToTry.push('docker-aws-suite');
-        }
-
-        let port: string | null = null;
-        let lastError: Error | null = null;
-
-        for (const image of imagesToTry) {
-          try {
-            port = await runContainer(image);
-            break;
-          } catch (error) {
-            lastError = error instanceof Error ? error : new Error('Docker run failed');
-            try {
-              await exec('docker', ['rm', '-f', containerName]);
-            } catch {
-              // ignore cleanup errors
-            }
-          }
-        }
-
-        if (!port) {
-          throw lastError ?? new Error('Failed to start discovery container');
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-
-        const response = await fetch(`http://localhost:${port}/mcp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json, text/event-stream',
-          },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'tools/list',
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status} when listing tools`);
-        }
-
-        const data = (await response.json()) as {
-          result?: {
-            tools?: {
-              name: string;
-              description?: string;
-              inputSchema?: Record<string, unknown>;
-            }[];
-          };
-        };
-
-        const tools = data.result?.tools ?? [];
-        const toolRecords = tools.map((tool) => ({
-          toolName: tool.name,
-          description: tool.description ?? null,
-          inputSchema: tool.inputSchema ?? null,
-        }));
-
-        await this.mcpServersRepository.upsertTools(server.id, toolRecords);
-        await this.mcpServersRepository.updateHealthStatus(server.id, 'healthy');
-
-        results.push({
-          serverId: server.id,
-          serverName: server.name,
-          toolCount: toolRecords.length,
-          success: true,
-        });
-      } catch (error) {
-        results.push({
-          serverId: server.id,
-          serverName: server.name,
-          toolCount: 0,
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-      } finally {
-        try {
-          await exec('docker', ['rm', '-f', containerName]);
-        } catch {
-          // ignore cleanup errors
-        }
-      }
-    }
-
-    const successCount = results.filter((r) => r.success).length;
-    const failureCount = results.length - successCount;
-
-    return {
-      groupId,
-      totalServers: results.length,
-      successCount,
-      failureCount,
-      results,
-    };
-  }
-
   /**
    * Sync templates from code to database.
    * This is an admin-only operation that creates/updates group templates.
@@ -432,5 +322,31 @@ export class McpGroupsService implements OnModuleInit {
     );
 
     return result;
+  }
+
+  /**
+   * Get cached discovery results from Redis
+   * Shared with McpServersService to load tools from cache
+   */
+  private async getCachedDiscovery(cacheToken: string): Promise<{
+    tools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[];
+    toolCount: number;
+  } | null> {
+    if (!this.redis) {
+      return null;
+    }
+    const key = `mcp-discovery:${cacheToken}`;
+    const value = await this.redis.get(key);
+    if (!value) {
+      return null;
+    }
+    const cached = JSON.parse(value);
+    if (cached.status !== 'completed') {
+      return null;
+    }
+    return {
+      tools: cached.tools,
+      toolCount: cached.toolCount,
+    };
   }
 }

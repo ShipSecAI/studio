@@ -29,8 +29,8 @@ import {
   AddServerToGroupDto,
   UpdateServerInGroupDto,
   SyncTemplatesResponse,
-  DiscoverGroupToolsResponse,
   GroupTemplateDto,
+  ImportTemplateRequestDto,
   ImportGroupTemplateResponse,
 } from './dto/mcp-groups.dto';
 import { Roles } from '../auth/roles.decorator';
@@ -172,18 +172,8 @@ export class McpGroupsController {
   async importTemplate(
     @CurrentAuth() _auth: AuthContext | null,
     @Param('slug') slug: string,
+    @Body() body: ImportTemplateRequestDto,
   ): Promise<ImportGroupTemplateResponse> {
-    return this.mcpGroupsService.importTemplate(slug);
-  }
-
-  @Post(':id/discover-tools')
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Discover tools for all enabled servers in a group (admin only)' })
-  @ApiOkResponse({ type: DiscoverGroupToolsResponse })
-  async discoverGroupTools(
-    @CurrentAuth() _auth: AuthContext | null,
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<DiscoverGroupToolsResponse> {
-    return this.mcpGroupsService.discoverGroupTools(id);
+    return this.mcpGroupsService.importTemplate(slug, body);
   }
 }

@@ -152,6 +152,15 @@ export class ImportGroupTemplateResponseDto extends createZodDto(
   ImportGroupTemplateResponseSchema,
 ) {}
 
+// DTO for importing a template with optional cache tokens for each server
+export const ImportTemplateRequestSchema = z.object({
+  // Map of server name -> cacheToken from pre-discovery
+  // When provided, tools will be automatically loaded from cache
+  serverCacheTokens: z.record(z.string(), z.string()).optional(),
+});
+
+export class ImportTemplateRequestDto extends createZodDto(ImportTemplateRequestSchema) {}
+
 export const DiscoverGroupToolsResponseSchema = z.object({
   groupId: z.string(),
   totalServers: z.number(),
