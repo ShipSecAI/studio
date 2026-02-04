@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Transport types for MCP server connections
-export const McpTransportTypeSchema = z.enum(['http', 'stdio', 'sse', 'websocket']);
+export const McpTransportTypeSchema = z.enum(['http', 'stdio']);
 export type McpTransportType = z.infer<typeof McpTransportTypeSchema>;
 
 // Health status for MCP servers
@@ -71,11 +71,12 @@ export const CreateMcpServerSchema = z
     headers: z.record(z.string(), z.string()).optional(), // Plain headers (will be encrypted)
     healthCheckUrl: z.string().url().optional(),
     enabled: z.boolean().default(true),
+    cacheToken: z.string().optional(), // Used to auto-create tools from cached discovery results
   })
   .refine(
     (data) => {
-      // HTTP/SSE/WebSocket require endpoint
-      if (['http', 'sse', 'websocket'].includes(data.transportType)) {
+      // HTTP requires endpoint
+      if (data.transportType === 'http') {
         return !!data.endpoint;
       }
       // stdio requires command
@@ -85,7 +86,7 @@ export const CreateMcpServerSchema = z
       return true;
     },
     {
-      message: 'HTTP/SSE/WebSocket transports require endpoint, stdio requires command',
+      message: 'HTTP transport requires endpoint, stdio requires command',
     },
   );
 export type CreateMcpServer = z.infer<typeof CreateMcpServerSchema>;

@@ -1409,23 +1409,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/mcp-servers/{id}/discover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Force re-discover tools from an MCP server */
-        post: operations["McpServersController_discoverTools"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/mcp-servers/{serverId}/tools/{toolId}/toggle": {
         parameters: {
             query?: never;
@@ -1601,23 +1584,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/mcp-groups/{id}/discover-tools": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Discover tools for all enabled servers in a group (admin only) */
-        post: operations["McpGroupsController_discoverGroupTools"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/mcp/gateway": {
         parameters: {
             query?: never;
@@ -1731,6 +1697,46 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["InternalMcpController_areToolsReady"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start MCP tool discovery
+         * @description Initiates an asynchronous discovery workflow for an MCP server. Returns 202 ACCEPTED with a workflow ID for tracking progress.
+         */
+        post: operations["McpDiscoveryController_discover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/discover/{workflowId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get MCP discovery status
+         * @description Queries the status of an MCP discovery workflow by workflow ID. Returns current status and discovered tools if available.
+         */
+        get: operations["McpDiscoveryController_getStatus"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2795,7 +2801,7 @@ export interface components {
             name: string;
             description: string | null;
             /** @enum {string} */
-            transportType: "http" | "stdio" | "sse" | "websocket";
+            transportType: "http" | "stdio";
             endpoint: string | null;
             command: string | null;
             args: string[] | null;
@@ -2837,7 +2843,7 @@ export interface components {
             name: string;
             description?: string;
             /** @enum {string} */
-            transportType: "http" | "stdio" | "sse" | "websocket";
+            transportType: "http" | "stdio";
             /** Format: uri */
             endpoint?: string;
             command?: string;
@@ -2849,12 +2855,13 @@ export interface components {
             healthCheckUrl?: string;
             enabled?: boolean;
             groupId?: string;
+            cacheToken?: string;
         };
         UpdateMcpServerDto: {
             name?: string;
             description?: string | null;
             /** @enum {string} */
-            transportType?: "http" | "stdio" | "sse" | "websocket";
+            transportType?: "http" | "stdio";
             /** Format: uri */
             endpoint?: string | null;
             command?: string | null;
@@ -2991,22 +2998,82 @@ export interface components {
                 updatedAt: string;
             };
         };
-        DiscoverGroupToolsResponseDto: {
-            groupId: string;
-            totalServers: number;
-            successCount: number;
-            failureCount: number;
-            results: {
-                serverId: string;
-                serverName: string;
-                toolCount: number;
-                success: boolean;
-                error?: string;
-            }[];
-        };
         RegisterComponentToolInput: Record<string, never>;
         RegisterRemoteMcpInput: Record<string, never>;
         RegisterLocalMcpInput: Record<string, never>;
+        DiscoveryInputDto: {
+            /**
+             * @description Transport type for MCP server
+             * @enum {string}
+             */
+            transport: "http" | "stdio";
+            /** @description Human-readable name for the MCP server */
+            name: string;
+            /**
+             * Format: uri
+             * @description HTTP endpoint for HTTP transport
+             */
+            endpoint?: string;
+            /** @description HTTP headers for authentication */
+            headers?: {
+                [key: string]: string;
+            };
+            /** @description Command to run for stdio transport */
+            command?: string;
+            /** @description Arguments for stdio command */
+            args?: string[];
+            /**
+             * Format: uuid
+             * @description Cache token for storing/retrieving discovery results
+             */
+            cacheToken?: string;
+        };
+        DiscoveryStartResponseDto: {
+            /**
+             * Format: uuid
+             * @description Unique ID for tracking the discovery workflow
+             */
+            workflowId: string;
+            /**
+             * Format: uuid
+             * @description Cache token for retrieving cached discovery results
+             */
+            cacheToken?: string;
+            /**
+             * @description Status indicating workflow has started
+             * @enum {string}
+             */
+            status: "started";
+        };
+        DiscoveryStatusDto: {
+            /**
+             * Format: uuid
+             * @description Workflow ID
+             */
+            workflowId: string;
+            /**
+             * @description Current status of discovery
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+            /** @description Discovered tools (available when completed) */
+            tools?: {
+                /** @description Tool name */
+                name: string;
+                /** @description Tool description */
+                description?: string;
+                /** @description JSON Schema for tool input */
+                inputSchema?: {
+                    [key: string]: unknown;
+                };
+            }[];
+            /** @description Number of tools discovered */
+            toolCount?: number;
+            /** @description Error message if discovery failed */
+            error?: string;
+            /** @description Error code for categorizing failures */
+            errorCode?: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -5889,27 +5956,6 @@ export interface operations {
             };
         };
     };
-    McpServersController_discoverTools: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["McpToolResponseDto"][];
-                };
-            };
-        };
-    };
     McpServersController_toggleToolEnabled: {
         parameters: {
             query?: never;
@@ -6234,27 +6280,6 @@ export interface operations {
             };
         };
     };
-    McpGroupsController_discoverGroupTools: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DiscoverGroupToolsResponseDto"];
-                };
-            };
-        };
-    };
     McpGatewayController_handleGateway_get: {
         parameters: {
             query?: never;
@@ -6481,6 +6506,66 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpDiscoveryController_discover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoveryInputDto"];
+            };
+        };
+        responses: {
+            /** @description Discovery workflow started successfully */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryStartResponseDto"];
+                };
+            };
+            /** @description Invalid input parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpDiscoveryController_getStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workflowId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Discovery status retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryStatusDto"];
+                };
+            };
+            /** @description Workflow not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
