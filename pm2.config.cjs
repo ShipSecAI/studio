@@ -200,6 +200,9 @@ const frontendEnv = loadFrontendEnv();
 const environment = process.env.SHIPSEC_ENV || process.env.NODE_ENV || 'development';
 const isProduction = environment === 'production';
 
+// Get instance number (0-9) for multi-instance support
+const instanceNum = process.env.SHIPSEC_INSTANCE || '0';
+
 // Environment-specific configuration
 const envConfig = {
   development: {
@@ -216,64 +219,93 @@ const envConfig = {
 
 const currentEnvConfig = envConfig[isProduction ? 'production' : 'development'];
 
+// Helper to get instance-specific env file path
+function getInstanceEnvFile(appName, instance) {
+  return __dirname + `/.instances/instance-${instance}/${appName}.env`;
+}
+
+// Helper to get instance-specific ports
+function getInstancePort(basePort, instance) {
+  return basePort + parseInt(instance) * 100;
+}
+
+// Get env file (use instance-specific if it exists, otherwise fall back to root)
+function resolveEnvFile(appName, instance) {
+  const instancePath = getInstanceEnvFile(appName, instance);
+  const rootPath = __dirname + `/${appName}/.env`;
+  
+  if (fs.existsSync(instancePath)) {
+    return instancePath;
+  }
+  return rootPath;
+}
+
 module.exports = {
   apps: [
     {
-      name: 'shipsec-backend',
+      name: `shipsec-backend-${instanceNum}`,
       cwd: __dirname + '/backend',
       script: 'bun',
       args: isProduction ? 'src/main.ts' : 'run dev',
       interpreter: 'none',
-      env_file: __dirname + '/backend/.env',
+      env_file: resolveEnvFile('backend', instanceNum),
       env: {
         ...currentEnvConfig,
-        TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-        LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
+        PORT: getInstancePort(3211, instanceNum),
+        TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || `redis://localhost:${getInstancePort(6379, instanceNum)}`,
+        LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || `localhost:${getInstancePort(9092, instanceNum)}`,
         LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
-        LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || 'shipsec-backend',
-        LOG_KAFKA_GROUP_ID: process.env.LOG_KAFKA_GROUP_ID || 'shipsec-backend-log-consumer',
+        LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-backend-${instanceNum}`,
+        LOG_KAFKA_GROUP_ID: process.env.LOG_KAFKA_GROUP_ID || `shipsec-backend-log-consumer-${instanceNum}`,
         EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
-        EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || 'shipsec-backend-events',
-        EVENT_KAFKA_GROUP_ID: process.env.EVENT_KAFKA_GROUP_ID || 'shipsec-event-ingestor',
+        EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-backend-events-${instanceNum}`,
+        EVENT_KAFKA_GROUP_ID: process.env.EVENT_KAFKA_GROUP_ID || `shipsec-event-ingestor-${instanceNum}`,
         ENABLE_INGEST_SERVICES: process.env.ENABLE_INGEST_SERVICES || 'true',
         INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
+        TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || `localhost:${getInstancePort(7233, instanceNum)}`,
+        TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
+        TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
       max_memory_restart: '500M',
     },
     {
-      name: 'shipsec-frontend',
+      name: `shipsec-frontend-${instanceNum}`,
       cwd: __dirname + '/frontend',
       script: 'bun',
       args: 'run dev',
-      env_file: __dirname + '/frontend/.env',
+      env_file: resolveEnvFile('frontend', instanceNum),
       env: {
         ...frontendEnv,
         ...currentEnvConfig,
+        VITE_API_URL: `http://localhost:${getInstancePort(3211, instanceNum)}`,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
     },
     {
-      name: 'shipsec-worker',
+      name: `shipsec-worker-${instanceNum}`,
       cwd: __dirname + '/worker',
       // Run the worker with Node + tsx to avoid Bun's SWC binding issues
       script: __dirname + '/node_modules/.bin/tsx',
       args: 'src/temporal/workers/dev.worker.ts',
-      env_file: __dirname + '/worker/.env',
+      env_file: resolveEnvFile('worker', instanceNum),
       env: Object.assign(
         {
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
           INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
-          STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || 'http://localhost:3211/api/v1',
-          TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-          LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
+          STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || `http://localhost:${getInstancePort(3211, instanceNum)}/api/v1`,
+          TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || `redis://localhost:${getInstancePort(6379, instanceNum)}`,
+          LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || `localhost:${getInstancePort(9092, instanceNum)}`,
           LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
-          LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || 'shipsec-worker',
+          LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-worker-${instanceNum}`,
           EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
-          EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || 'shipsec-worker-events',
+          EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-worker-events-${instanceNum}`,
+          TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || `localhost:${getInstancePort(7233, instanceNum)}`,
+          TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
+          TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
