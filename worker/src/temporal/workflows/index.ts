@@ -10,15 +10,15 @@ import {
   uuid4,
 } from '@temporalio/workflow';
 import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
-import { runWorkflowWithScheduler } from '../workflow-scheduler';
-import { buildActionPayload } from '../input-resolver';
+import { runWorkflowWithScheduler } from '../workflow-scheduler.js';
+import { buildActionPayload } from '../input-resolver.js';
 import {
   resolveHumanInputSignal,
   executeToolCallSignal,
   type HumanInputResolution,
   type ToolCallRequest,
   type ToolCallResult,
-} from '../signals';
+} from '../signals.js';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
@@ -1118,4 +1118,4 @@ export async function scheduleTriggerWorkflow(
 }
 
 // Export MCP discovery workflow
-export { mcpDiscoveryWorkflow } from './mcp-discovery.workflow.js';
+export { mcpDiscoveryWorkflow } from './mcp-discovery-workflow.js';
