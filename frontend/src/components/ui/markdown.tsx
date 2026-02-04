@@ -3,6 +3,8 @@ import MarkdownIt from 'markdown-it';
 import markdownItLinkAttributes from 'markdown-it-link-attributes';
 import markdownItTaskLists from 'markdown-it-task-lists';
 import markdownItHTML5Embed from 'markdown-it-html5-embed';
+import DOMPurify from 'dompurify';
+import type { Config } from 'dompurify';
 import markdownItImsize from '@/lib/markdown-it-imsize';
 import { cn } from '@/lib/utils';
 
@@ -15,9 +17,223 @@ interface MarkdownViewProps {
   onEdit?: (next: string) => void;
 }
 
+const TRUSTED_IFRAME_DOMAINS = [
+  'youtube.com',
+  'www.youtube.com',
+  'youtube-nocookie.com',
+  'www.youtube-nocookie.com',
+  'vimeo.com',
+  'player.vimeo.com',
+];
+
+// Type definitions for DOMPurify hooks
+interface SanitizeElementHookEvent {
+  tagName: string;
+  allowedTags: Record<string, boolean>;
+}
+
+interface SanitizeAttributeHookEvent {
+  attrName: string;
+  attrValue: string;
+  keepAttr: boolean;
+}
+
+// Configure DOMPurify with security-focused settings
+function configureDOMPurify(): void {
+  // Hook to validate iframes before allowing them
+  DOMPurify.addHook('uponSanitizeElement' as any, (node: Element, data: any) => {
+    const hookData = data as SanitizeElementHookEvent;
+    if (hookData.tagName === 'iframe') {
+      const src = node.getAttribute('src') || '';
+      try {
+        const url = new URL(src);
+        const hostname = url.hostname.toLowerCase();
+
+        // Check if the iframe source is from a trusted domain
+        const isTrusted = TRUSTED_IFRAME_DOMAINS.some(
+          (domain) => hostname === domain || hostname.endsWith('.' + domain),
+        );
+
+        if (!isTrusted) {
+          // Remove untrusted iframes entirely
+          node.remove();
+        }
+      } catch {
+        // Invalid URL - remove the iframe
+        node.remove();
+      }
+    }
+  });
+
+  // Hook to validate attributes and block dangerous patterns
+  DOMPurify.addHook('uponSanitizeAttribute' as any, (_node: Element, data: any) => {
+    const hookData = data as SanitizeAttributeHookEvent;
+    // Block javascript: and data: URLs in href/src attributes
+    if (hookData.attrName === 'href' || hookData.attrName === 'src') {
+      const value = hookData.attrValue.toLowerCase().trim();
+      if (
+        value.startsWith('javascript:') ||
+        value.startsWith('data:') ||
+        value.startsWith('vbscript:')
+      ) {
+        hookData.keepAttr = false;
+      }
+    }
+
+    // Block event handlers (onclick, onerror, etc.)
+    if (hookData.attrName.startsWith('on')) {
+      hookData.keepAttr = false;
+    }
+  });
+}
+
+// Initialize DOMPurify configuration once
+configureDOMPurify();
+
+// DOMPurify configuration object
+const DOMPURIFY_CONFIG: Config = {
+  // Only allow safe HTML tags
+  ALLOWED_TAGS: [
+    // Text formatting
+    'p',
+    'br',
+    'b',
+    'i',
+    'em',
+    'strong',
+    'u',
+    's',
+    'strike',
+    'del',
+    'ins',
+    'mark',
+    'small',
+    'sub',
+    'sup',
+    'code',
+    'pre',
+    'kbd',
+    'samp',
+    'var',
+    // Headings
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    // Lists
+    'ul',
+    'ol',
+    'li',
+    // Links and media (sanitized by hooks)
+    'a',
+    'img',
+    'iframe',
+    'video',
+    'audio',
+    'source',
+    // Tables
+    'table',
+    'thead',
+    'tbody',
+    'tfoot',
+    'tr',
+    'th',
+    'td',
+    'caption',
+    'colgroup',
+    'col',
+    // Block elements
+    'div',
+    'span',
+    'blockquote',
+    'hr',
+    'figure',
+    'figcaption',
+    // Task lists (from markdown-it-task-lists)
+    'input',
+    'label',
+    // Definition lists
+    'dl',
+    'dt',
+    'dd',
+    // Other safe elements
+    'abbr',
+    'address',
+    'cite',
+    'q',
+    'details',
+    'summary',
+    'time',
+  ],
+  // Only allow safe attributes
+  ALLOWED_ATTR: [
+    // Common attributes
+    'class',
+    'id',
+    'title',
+    'alt',
+    // Links
+    'href',
+    'target',
+    'rel',
+    // Media
+    'src',
+    'width',
+    'height',
+    'controls',
+    'autoplay',
+    'loop',
+    'muted',
+    'poster',
+    'preload',
+    // Iframes (src validated by hook)
+    'allow',
+    'allowfullscreen',
+    'frameborder',
+    'loading',
+    // Tables
+    'colspan',
+    'rowspan',
+    'scope',
+    // Task list checkboxes
+    'type',
+    'checked',
+    'disabled',
+    // Accessibility
+    'aria-label',
+    'aria-hidden',
+    'aria-describedby',
+    'role',
+    // Data attributes (commonly used by plugins)
+    'data-testid',
+    'data-task',
+    'data-video',
+  ],
+  // Force all links to open in new tab with security attributes
+  ADD_ATTR: ['target', 'rel'],
+  // Allow data: URLs only for images (base64 encoded images in markdown)
+  ALLOW_DATA_ATTR: true,
+  // Return a string, not a DOM element
+  RETURN_DOM: false,
+  RETURN_DOM_FRAGMENT: false,
+};
+
+/**
+ * Sanitizes HTML content to prevent XSS attacks.
+ *
+ * @param html - Raw HTML string from markdown rendering
+ * @returns Sanitized HTML safe for dangerouslySetInnerHTML
+ */
+function sanitizeHTML(html: string): string {
+  // Use .toString() to ensure we return a string even if Trusted Types are enabled
+  return DOMPurify.sanitize(html, DOMPURIFY_CONFIG).toString();
+}
+
 // Initialize markdown-it with plugins (similar to n8n sticky notes)
 const md = new MarkdownIt({
-  html: true, // Enable HTML for embeds (iframes are sanitized by the plugin)
+  html: true, // Enable HTML for embeds (now safely sanitized by DOMPurify)
   breaks: true, // Convert line breaks to <br>
   linkify: true, // Auto-convert URLs to links
 })
@@ -115,11 +331,16 @@ export const MarkdownView = memo(function MarkdownView({
     [content],
   );
 
-  // Parse markdown to HTML
+  // Parse markdown to HTML and sanitize for XSS protection
   const html = useMemo(() => {
     const rendered = md.render(normalized);
     // Make checkboxes interactive by removing disabled attribute
-    return rendered.replace(/(<input[^>]*type="checkbox"[^>]*)disabled([^>]*>)/g, '$1$2');
+    const withInteractiveCheckboxes = rendered.replace(
+      /(<input[^>]*type="checkbox"[^>]*)disabled([^>]*>)/g,
+      '$1$2',
+    );
+    // SECURITY: Sanitize HTML to prevent XSS attacks
+    return sanitizeHTML(withInteractiveCheckboxes);
   }, [normalized]);
 
   // Handle clicks on interactive elements - use useCallback for stable reference
