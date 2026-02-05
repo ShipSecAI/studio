@@ -280,19 +280,54 @@ export class McpDiscoveryService {
         stderr += data.toString();
       });
 
-      // Wait a bit for container to start
-      setTimeout(() => {
-        // Check if container is running
-        spawn('docker', ['ps', '--filter', `name=${containerName}`]).on('close', (code) => {
-          if (code === 0) {
-            const endpoint = `http://localhost:${port}/mcp`;
-            this.logger.log(`Discovery container ${containerName} started at ${endpoint}`);
-            resolve({ endpoint, containerId: containerName });
-          } else {
-            reject(new Error(`Failed to start discovery container: ${stderr || stdout}`));
+      // Wait for container to be fully ready (HTTP server + STDIO client)
+      const waitForReady = async () => {
+        const healthUrl = `http://localhost:${port}/health`;
+        const maxAttempts = 60;
+        const pollInterval = 1000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            const response = await fetch(healthUrl, { method: 'GET' });
+            if (response.ok) {
+              const data = (await response.json()) as {
+                status?: string;
+                servers?: Array<{ ready: boolean }>;
+              };
+              if (data.status === 'ok') {
+                const servers = data.servers ?? [];
+                const allReady = servers.every((s) => s.ready);
+                if (servers.length > 0 && allReady) {
+                  this.logger.log(
+                    `Discovery container ${containerName} ready after ${attempt + 1}s`,
+                  );
+                  return;
+                }
+                if (attempt % 10 === 0) {
+                  this.logger.debug(
+                    `Container HTTP ready, waiting for MCP server... (${servers.filter((s) => s.ready).length}/${servers.length} ready)`,
+                  );
+                }
+              }
+            }
+          } catch {
+            // Not ready yet, continue polling
           }
+          await new Promise((res) => setTimeout(res, pollInterval));
+        }
+        throw new Error('Container failed to become ready after 60 seconds');
+      };
+
+      // Start waiting for readiness
+      waitForReady()
+        .then(() => {
+          const endpoint = `http://localhost:${port}/mcp`;
+          this.logger.log(`Discovery container ${containerName} ready at ${endpoint}`);
+          resolve({ endpoint, containerId: containerName });
+        })
+        .catch((error) => {
+          reject(new Error(`Failed to start discovery container: ${error.message}`));
         });
-      }, 2000);
 
       dockerProcess.on('error', (error) => {
         reject(new Error(`Failed to spawn Docker: ${error.message}`));

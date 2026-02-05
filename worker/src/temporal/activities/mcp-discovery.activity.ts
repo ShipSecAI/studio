@@ -239,20 +239,37 @@ async function listMcpTools(
 
 /**
  * Wait for container to be ready using health check
+ * Waits for both HTTP server and STDIO MCP client to be ready
  */
 async function waitForContainerReady(endpoint: string): Promise<void> {
   const healthUrl = endpoint.replace('/mcp', '/health');
-  const maxAttempts = 30; // 30 seconds total
+  const maxAttempts = 60; // 60 seconds total (STDIO connection can take time)
   const pollInterval = 1000;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const response = await fetch(healthUrl, { method: 'GET' });
       if (response.ok) {
-        const data = (await response.json()) as { status?: string };
+        const data = (await response.json()) as {
+          status?: string;
+          servers?: Array<{ ready: boolean }>;
+        };
         if (data.status === 'ok') {
-          console.log(`[MCP Discovery] Container ready after ${attempt + 1}s`);
-          return;
+          // Check if the MCP server is actually ready (STDIO client connected)
+          const servers = data.servers ?? [];
+          const allReady = servers.every((s) => s.ready);
+          if (servers.length > 0 && allReady) {
+            console.log(
+              `[MCP Discovery] Container ready after ${attempt + 1}s (${servers.length} server(s) ready)`,
+            );
+            return;
+          }
+          // HTTP is up but waiting for STDIO client connection
+          if (attempt % 10 === 0) {
+            console.log(
+              `[MCP Discovery] HTTP ready, waiting for STDIO client... (${servers.filter((s) => s.ready).length}/${servers.length} ready)`,
+            );
+          }
         }
       }
     } catch {
@@ -261,7 +278,7 @@ async function waitForContainerReady(endpoint: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
 
-  throw new Error('Container failed to become ready after 30 seconds');
+  throw new Error('Container failed to become ready after 60 seconds');
 }
 
 /**
