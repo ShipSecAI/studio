@@ -1,13 +1,6 @@
-/**
- * MCP Group Templates
- *
- * Defines predefined templates for MCP server groups.
- * Templates provide:
- * - Logical groupings of related MCP servers
- * - Shared credential contracts
- * - Default Docker images for containerized execution
- * - Server configurations with transport details
- */
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Server configuration within a group template
@@ -78,115 +71,28 @@ export function computeTemplateHash(template: McpGroupTemplate): string {
   return Math.abs(hash).toString(16);
 }
 
-/**
- * AWS Group Template
- *
- * Provides AWS-related MCP servers for cloud operations.
- * Requires AWS credentials with appropriate IAM permissions.
- */
-export const awsGroupTemplate: McpGroupTemplate = {
-  slug: 'aws',
-  name: 'AWS',
-  description: 'Essential AWS security tools for auditing, monitoring, and incident response',
-  credentialContractName: 'core.credential.aws',
-  credentialMapping: {
-    accessKeyId: 'AWS_ACCESS_KEY_ID',
-    secretAccessKey: 'AWS_SECRET_ACCESS_KEY',
-    sessionToken: 'AWS_SESSION_TOKEN',
-    region: 'AWS_REGION',
-  },
-  defaultDockerImage: 'shipsec/mcp-aws-suite:latest',
-  version: { major: 2, minor: 0, patch: 0 },
-  servers: [
-    {
-      name: 'cloudtrail',
-      description:
-        'CloudTrail auditing - event lookup, user activity analysis, compliance investigations',
-      transportType: 'stdio',
-      command: 'awslabs.cloudtrail-mcp-server',
-      recommended: true,
-      defaultSelected: true,
-    },
-    {
-      name: 'iam',
-      description: 'IAM security - user/role management, permission analysis, access key audit',
-      transportType: 'stdio',
-      command: 'awslabs.iam-mcp-server',
-      recommended: true,
-      defaultSelected: true,
-    },
-    {
-      name: 's3-tables',
-      description: 'S3 Tables security - S3 Tables bucket policies, access controls',
-      transportType: 'stdio',
-      command: 'awslabs.s3-tables-mcp-server',
-      recommended: true,
-      defaultSelected: true,
-    },
-    {
-      name: 'cloudwatch',
-      description: 'CloudWatch monitoring - logs, metrics, alarms for security events',
-      transportType: 'stdio',
-      command: 'awslabs.cloudwatch-mcp-server',
-      recommended: true,
-      defaultSelected: true,
-    },
-    {
-      name: 'aws-network',
-      description: 'AWS Network - VPC, networking configuration, security groups',
-      transportType: 'stdio',
-      command: 'awslabs.aws-network-mcp-server',
-      recommended: true,
-      defaultSelected: false,
-    },
-    {
-      name: 'lambda',
-      description: 'Lambda security - function permissions, runtime analysis, IAM roles',
-      transportType: 'stdio',
-      command: 'awslabs.lambda-tool-mcp-server',
-      recommended: false,
-      defaultSelected: false,
-    },
-    {
-      name: 'dynamodb',
-      description: 'DynamoDB security - table access policies, encryption, point-in-time recovery',
-      transportType: 'stdio',
-      command: 'awslabs.dynamodb-mcp-server',
-      recommended: false,
-      defaultSelected: false,
-    },
-    {
-      name: 'aws-documentation',
-      description: 'AWS docs - real-time access to official AWS security documentation',
-      transportType: 'stdio',
-      command: 'awslabs.aws-documentation-mcp-server',
-      recommended: true,
-      defaultSelected: false,
-    },
-    {
-      name: 'well-architected-security',
-      description: 'Security review - AWS Well-Architected security best practices framework',
-      transportType: 'stdio',
-      command: 'awslabs.well-architected-security-mcp-server',
-      recommended: false,
-      defaultSelected: false,
-    },
-    {
-      name: 'aws-api',
-      description: 'AWS API explorer - interact with any AWS service API directly',
-      transportType: 'stdio',
-      command: 'awslabs.aws-api-mcp-server',
-      recommended: false,
-      defaultSelected: false,
-    },
-  ],
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const TEMPLATE_DIR = join(__dirname, 'templates');
+
+function loadTemplates(): Record<string, McpGroupTemplate> {
+  const templates: Record<string, McpGroupTemplate> = {};
+  const files = readdirSync(TEMPLATE_DIR).filter((file) => file.endsWith('.json'));
+
+  for (const file of files) {
+    const raw = JSON.parse(readFileSync(join(TEMPLATE_DIR, file), 'utf-8')) as McpGroupTemplate;
+    const slug = raw.slug || file.replace(/\.json$/, '');
+    templates[slug] = { ...raw, slug };
+  }
+
+  return templates;
+}
 
 /**
  * Registry of all available MCP group templates
  */
 export const MCP_GROUP_TEMPLATES: Record<string, McpGroupTemplate> = {
-  aws: awsGroupTemplate,
+  ...loadTemplates(),
 };
 
 /**

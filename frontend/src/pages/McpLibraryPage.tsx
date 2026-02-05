@@ -1786,17 +1786,6 @@ export function McpLibraryPage() {
                         />
                       )}
 
-                      {/* Discovery info message */}
-                      {!groupDiscoveryPreview[template.slug] && (
-                        <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-                          <HelpCircle className="h-3 w-3 flex-shrink-0" />
-                          <span>
-                            Run &quot;Test &amp; Discover&quot; to validate servers and discover
-                            available tools before importing.
-                          </span>
-                        </div>
-                      )}
-
                       {/* Discovery summary when available */}
                       {groupDiscoveryPreview[template.slug] && (
                         <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
@@ -1810,12 +1799,6 @@ export function McpLibraryPage() {
                           </span>
                         </div>
                       )}
-
-                      {/* Default image info */}
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Default image:</span>
-                        <span className="font-mono truncate">{template.defaultDockerImage}</span>
-                      </div>
 
                       {/* Action buttons */}
                       <div className="flex justify-end gap-2 pt-2">
