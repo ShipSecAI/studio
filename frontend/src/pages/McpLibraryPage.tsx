@@ -1152,6 +1152,7 @@ export function McpLibraryPage() {
       const result = await mcpGroupsApi.importTemplate(template.slug, serverCacheTokens);
       await fetchGroups({ force: true });
       await fetchGroupServers(result.group.id, { force: true });
+      await fetchAllTools();
 
       toast({
         title: 'Group imported',
