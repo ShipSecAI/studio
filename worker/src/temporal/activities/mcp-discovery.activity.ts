@@ -418,7 +418,7 @@ async function listMcpTools(
  * Waits for both HTTP server and STDIO MCP client to be ready
  */
 async function waitForContainerReady(endpoint: string): Promise<void> {
-  const healthUrl = endpoint.replace('/mcp', '/health');
+  const healthUrl = endpoint.includes('/health') ? endpoint : endpoint.replace('/mcp', '/health');
   const maxAttempts = 60; // 60 seconds total (STDIO connection can take time)
   const pollInterval = 1000;
 
