@@ -729,3 +729,399 @@ table tbody tr:hover {
 .chat-message code {
   font-family: 'IBM Plex Mono', monospace;
 }
+
+/* ===== Enhanced Markdown Styles ===== */
+
+/* Markdown content container */
+.markdown-content {
+  line-height: 1.7;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-content > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-content > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  color: hsl(var(--foreground));
+}
+
+.markdown-content h1 { font-size: 1.75em; }
+.markdown-content h2 { font-size: 1.5em; }
+.markdown-content h3 { font-size: 1.25em; }
+.markdown-content h4 { font-size: 1.125em; }
+.markdown-content h5 { font-size: 1em; }
+.markdown-content h6 { font-size: 0.875em; }
+
+/* Paragraphs */
+.markdown-content p {
+  margin: 0.75em 0;
+}
+
+/* Links */
+.markdown-content a {
+  color: hsl(var(--primary));
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.markdown-content a:hover {
+  color: hsl(var(--primary) / 0.8);
+  text-decoration: underline;
+}
+
+/* Lists */
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+
+.markdown-content li {
+  margin: 0.25em 0;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+/* Blockquotes */
+.markdown-content blockquote {
+  border-left: 4px solid hsl(var(--primary) / 0.5);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+  background: hsl(var(--muted) / 0.3);
+  padding: 0.75em 1em;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+/* Inline code */
+.markdown-content code:not(pre code) {
+  background: hsl(var(--muted));
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-family: 'IBM Plex Mono', monospace;
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--border));
+}
+
+/* Code blocks with syntax highlighting */
+.markdown-content pre.hljs.code-block {
+  position: relative;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  margin: 1em 0;
+  overflow: hidden;
+}
+
+.markdown-content pre.hljs.code-block .code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: hsl(var(--muted) / 0.5);
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+.markdown-content pre.hljs.code-block .code-language {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.markdown-content pre.hljs.code-block .copy-button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--background) / 0.5);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.markdown-content pre.hljs.code-block .copy-button:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent));
+  border-color: hsl(var(--border));
+}
+
+.markdown-content pre.hljs.code-block .copy-button.copied {
+  color: hsl(var(--color-success));
+  border-color: hsl(var(--color-success) / 0.5);
+}
+
+.markdown-content pre.hljs.code-block .copy-button .copy-icon {
+  flex-shrink: 0;
+}
+
+.markdown-content pre.hljs.code-block code {
+  display: block;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: hsl(var(--foreground));
+}
+
+/* Scrollbar for code blocks */
+.markdown-content pre.hljs.code-block code::-webkit-scrollbar {
+  height: 6px;
+}
+
+.markdown-content pre.hljs.code-block code::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.markdown-content pre.hljs.code-block code::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+/* ===== Syntax Highlighting Theme ===== */
+
+/* Light theme colors */
+.markdown-content .hljs-comment,
+.markdown-content .hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.markdown-content .hljs-keyword,
+.markdown-content .hljs-selector-tag {
+  color: #d73a49;
+}
+
+.markdown-content .hljs-string,
+.markdown-content .hljs-template-literal,
+.markdown-content .hljs-addition {
+  color: #22863a;
+}
+
+.markdown-content .hljs-number,
+.markdown-content .hljs-literal,
+.markdown-content .hljs-variable,
+.markdown-content .hljs-template-variable,
+.markdown-content .hljs-tag .hljs-attr {
+  color: #005cc5;
+}
+
+.markdown-content .hljs-function,
+.markdown-content .hljs-title {
+  color: #6f42c1;
+}
+
+.markdown-content .hljs-built_in,
+.markdown-content .hljs-type {
+  color: #e36209;
+}
+
+.markdown-content .hljs-class .hljs-title,
+.markdown-content .hljs-title.class_ {
+  color: #6f42c1;
+}
+
+.markdown-content .hljs-attribute,
+.markdown-content .hljs-symbol {
+  color: #005cc5;
+}
+
+.markdown-content .hljs-meta,
+.markdown-content .hljs-selector-id,
+.markdown-content .hljs-selector-class {
+  color: #e36209;
+}
+
+.markdown-content .hljs-deletion {
+  color: #b31d28;
+  background: #ffeef0;
+}
+
+/* Dark theme colors */
+.dark .markdown-content .hljs-comment,
+.dark .markdown-content .hljs-quote {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.dark .markdown-content .hljs-keyword,
+.dark .markdown-content .hljs-selector-tag {
+  color: #ff7b72;
+}
+
+.dark .markdown-content .hljs-string,
+.dark .markdown-content .hljs-template-literal,
+.dark .markdown-content .hljs-addition {
+  color: #7ee787;
+}
+
+.dark .markdown-content .hljs-number,
+.dark .markdown-content .hljs-literal,
+.dark .markdown-content .hljs-variable,
+.dark .markdown-content .hljs-template-variable,
+.dark .markdown-content .hljs-tag .hljs-attr {
+  color: #79c0ff;
+}
+
+.dark .markdown-content .hljs-function,
+.dark .markdown-content .hljs-title {
+  color: #d2a8ff;
+}
+
+.dark .markdown-content .hljs-built_in,
+.dark .markdown-content .hljs-type {
+  color: #ffa657;
+}
+
+.dark .markdown-content .hljs-class .hljs-title,
+.dark .markdown-content .hljs-title.class_ {
+  color: #d2a8ff;
+}
+
+.dark .markdown-content .hljs-attribute,
+.dark .markdown-content .hljs-symbol {
+  color: #79c0ff;
+}
+
+.dark .markdown-content .hljs-meta,
+.dark .markdown-content .hljs-selector-id,
+.dark .markdown-content .hljs-selector-class {
+  color: #ffa657;
+}
+
+.dark .markdown-content .hljs-deletion {
+  color: #ffa198;
+  background: rgba(248, 81, 73, 0.2);
+}
+
+/* ===== Mermaid Diagram Styles ===== */
+
+.markdown-content .mermaid-diagram {
+  background: hsl(var(--muted) / 0.3);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin: 1em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.markdown-content .mermaid-diagram.mermaid-rendered {
+  background: hsl(var(--card) / 0.5);
+}
+
+.markdown-content .mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-content .mermaid-error {
+  color: hsl(var(--destructive));
+  font-size: 0.875rem;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: hsl(var(--destructive) / 0.1);
+  border-radius: 0.375rem;
+}
+
+.markdown-content .mermaid-error + pre {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: hsl(var(--muted));
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Table styles */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.875rem;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  text-align: left;
+}
+
+.markdown-content th {
+  background: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.2);
+}
+
+/* Horizontal rule */
+.markdown-content hr {
+  border: none;
+  height: 1px;
+  background: hsl(var(--border));
+  margin: 2em 0;
+}
+
+/* Images */
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1em 0;
+}
+
+/* Task lists */
+.markdown-content .task-list-item {
+  list-style: none;
+  margin-left: -1.5em;
+}
+
+.markdown-content .task-list-item input[type="checkbox"] {
+  margin-right: 0.5em;
+  width: 1em;
+  height: 1em;
+  cursor: pointer;
+  accent-color: hsl(var(--primary));
+}
+
+/* Strong and emphasis */
+.markdown-content strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.markdown-content em {
+  font-style: italic;
+}

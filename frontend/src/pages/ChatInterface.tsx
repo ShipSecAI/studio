@@ -292,7 +292,7 @@ export function ChatInterface() {
             <PanelLeftOpen className="h-5 w-5" />
           )}
         </Button>
-        <h1 className="text-lg font-semibold flex-1">AI Chat</h1>
+        <h1 className="text-lg font-semibold flex-1">ShipSec AI</h1>
       </div>
 
       {/* Content Area */}
@@ -418,7 +418,98 @@ Here's what I can do for you:
 2. **Explain workflow concepts** - Help you understand how nodes, edges, and data flow work
 3. **Debug existing workflows** - Help identify and fix issues in your current workflows
 
+Here's a simple workflow visualization:
+
+\`\`\`mermaid
+graph LR
+    A[Start] --> B{Check Input}
+    B -->|Valid| C[Process Data]
+    B -->|Invalid| D[Show Error]
+    C --> E[Save Result]
+    E --> F[End]
+    D --> F
+\`\`\`
+
 What would you like to explore first?`;
+  }
+
+  if (lowerInput.includes('code') || lowerInput.includes('example')) {
+    return `Here's an example of how to make an API call in JavaScript:
+
+\`\`\`javascript
+async function fetchWorkflows() {
+  try {
+    const response = await fetch('/api/workflows', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': \`Bearer \${token}\`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(\`HTTP error! status: \${response.status}\`);
+    }
+    
+    const data = await response.json();
+    return data.workflows;
+  } catch (error) {
+    console.error('Failed to fetch workflows:', error);
+    throw error;
+  }
+}
+\`\`\`
+
+You can also use Python:
+
+\`\`\`python
+import requests
+
+def fetch_workflows(api_key: str) -> list:
+    """Fetch all workflows from the API."""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(
+        "https://api.shipsec.io/v1/workflows",
+        headers=headers
+    )
+    response.raise_for_status()
+    return response.json()["workflows"]
+\`\`\`
+
+Let me know if you want more examples!`;
+  }
+
+  if (lowerInput.includes('diagram') || lowerInput.includes('mermaid')) {
+    return `Here are some Mermaid diagram examples:
+
+### Sequence Diagram
+\`\`\`mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant Database
+    
+    User->>API: Create Workflow
+    API->>Database: Save Workflow
+    Database-->>API: Confirmation
+    API-->>User: Success Response
+\`\`\`
+
+### Flowchart
+\`\`\`mermaid
+flowchart TD
+    A[Start] --> B{Is it working?}
+    B -- Yes --> C[Great!]
+    B -- No --> D[Debug]
+    D --> B
+    C --> E[Deploy]
+\`\`\`
+
+You can use these in your documentation or workflow descriptions!`;
   }
 
   if (lowerInput.includes('help') || lowerInput.includes('what can you do')) {
@@ -442,6 +533,11 @@ In the full version, I'll be connected to the ShipSec backend to:
 - Generate code
 - Analyze your automation needs
 - Provide real-time assistance
+
+Try asking me about:
+- \`code examples\` - See syntax-highlighted code blocks
+- \`workflow\` - View workflow diagrams
+- \`diagram\` or \`mermaid\` - See Mermaid visualizations
 
 For now, feel free to explore the interface and try different commands using \`/\` or \`⌘K\`.`;
 }

@@ -276,7 +276,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const navigationItems = [
     {
-      name: 'AI Chat',
+      name: 'ShipSec AI',
       href: '/',
       icon: MessageSquare,
     },
@@ -349,7 +349,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         >
           <Plus className={cn('w-4 h-4', isMobile && 'w-3.5 h-3.5')} />
           <span>
-            New <span className="hidden md:inline">Chat</span>
+            New <span className="hidden md:inline">Conversation</span>
           </span>
         </Button>
       );
@@ -458,7 +458,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   )}
                 >
                   <Plus className="h-4 w-4" />
-                  <span>New Chat</span>
+                  <span>New Conversation</span>
                 </button>
 
                 {/* Search Button */}

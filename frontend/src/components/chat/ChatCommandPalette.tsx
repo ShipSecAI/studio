@@ -52,7 +52,7 @@ export function ChatCommandPalette({ onSelectPrompt }: ChatCommandPaletteProps) 
       // Chat commands
       {
         id: 'new-chat',
-        label: 'New Chat',
+        label: 'New Conversation',
         description: 'Start a new conversation',
         icon: Plus,
         category: 'chat',

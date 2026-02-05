@@ -31,7 +31,14 @@ describe('MarkdownView', () => {
 
   it('renders code blocks', () => {
     const markdown = '```js\nconst x = 1\n```';
-    render(<MarkdownView content={markdown} />);
-    expect(screen.getByText(/const x = 1/)).toBeInTheDocument();
+    const { container } = render(<MarkdownView content={markdown} />);
+    // With syntax highlighting, text is split across multiple span elements
+    const codeBlock = container.querySelector('pre.code-block');
+    expect(codeBlock).not.toBeNull();
+    expect(codeBlock).toHaveAttribute('data-language', 'js');
+    // Check that the code content exists (may be split across spans for highlighting)
+    const codeElement = codeBlock?.querySelector('code');
+    expect(codeElement?.textContent).toContain('const');
+    expect(codeElement?.textContent).toContain('x = 1');
   });
 });

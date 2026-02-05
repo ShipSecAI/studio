@@ -78,7 +78,7 @@ const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2
 
 const createNewSession = (): ChatSession => ({
   id: generateId(),
-  title: 'New Chat',
+  title: 'New Conversation',
   messages: [],
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -143,7 +143,7 @@ export const useChatStore = create<ChatState>()(
 
             // Auto-generate title from first user message
             let title = session.title;
-            if (session.title === 'New Chat' && message.role === 'user') {
+            if (session.title === 'New Conversation' && message.role === 'user') {
               title = message.content.slice(0, 50) + (message.content.length > 50 ? '...' : '');
             }
 
@@ -184,7 +184,7 @@ export const useChatStore = create<ChatState>()(
         set((state) => ({
           sessions: state.sessions.map((session) =>
             session.id === sessionId
-              ? { ...session, messages: [], title: 'New Chat', updatedAt: new Date() }
+              ? { ...session, messages: [], title: 'New Conversation', updatedAt: new Date() }
               : session,
           ),
         }));

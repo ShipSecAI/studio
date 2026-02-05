@@ -202,7 +202,7 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
             <div className="p-1.5 rounded-lg bg-primary/20 group-hover:bg-primary/30 transition-colors">
               <Plus className="h-4 w-4 text-primary" />
             </div>
-            <span className="font-medium">New chat</span>
+            <span className="font-medium">New Conversation</span>
           </div>
           <span className="text-xs text-[#666] group-hover:text-[#888] font-mono">⌘N</span>
         </button>
