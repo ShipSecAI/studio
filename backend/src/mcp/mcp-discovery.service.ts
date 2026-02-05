@@ -292,7 +292,7 @@ export class McpDiscoveryService {
             if (response.ok) {
               const data = (await response.json()) as {
                 status?: string;
-                servers?: Array<{ ready: boolean }>;
+                servers?: { ready: boolean }[];
               };
               if (data.status === 'ok') {
                 const servers = data.servers ?? [];

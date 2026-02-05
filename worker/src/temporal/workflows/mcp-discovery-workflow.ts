@@ -106,25 +106,22 @@ interface DiscoverMcpGroupToolsActivityOutput {
 }
 
 // Proxy activities with 30 second timeout
-const {
-  discoverMcpToolsActivity,
-  discoverMcpGroupToolsActivity,
-  cacheDiscoveryResultActivity,
-} = proxyActivities<{
-  discoverMcpToolsActivity(
-    input: DiscoverMcpToolsActivityInput,
-  ): Promise<DiscoverMcpToolsActivityOutput>;
-  discoverMcpGroupToolsActivity(
-    input: DiscoverMcpGroupToolsActivityInput,
-  ): Promise<DiscoverMcpGroupToolsActivityOutput>;
-  cacheDiscoveryResultActivity(input: {
-    cacheToken: string;
-    tools: McpTool[];
-    workflowId: string;
-  }): Promise<void>;
-}>({
-  startToCloseTimeout: '30 seconds',
-});
+const { discoverMcpToolsActivity, discoverMcpGroupToolsActivity, cacheDiscoveryResultActivity } =
+  proxyActivities<{
+    discoverMcpToolsActivity(
+      input: DiscoverMcpToolsActivityInput,
+    ): Promise<DiscoverMcpToolsActivityOutput>;
+    discoverMcpGroupToolsActivity(
+      input: DiscoverMcpGroupToolsActivityInput,
+    ): Promise<DiscoverMcpGroupToolsActivityOutput>;
+    cacheDiscoveryResultActivity(input: {
+      cacheToken: string;
+      tools: McpTool[];
+      workflowId: string;
+    }): Promise<void>;
+  }>({
+    startToCloseTimeout: '30 seconds',
+  });
 
 /**
  * MCP Discovery Workflow
@@ -239,7 +236,10 @@ export async function mcpGroupDiscoveryWorkflow(
     status: 'running',
   };
 
-  setHandler(defineQuery<GroupDiscoveryQueryResult>('getGroupDiscoveryResult'), () => discoveryResult);
+  setHandler(
+    defineQuery<GroupDiscoveryQueryResult>('getGroupDiscoveryResult'),
+    () => discoveryResult,
+  );
 
   const invalid = input.servers.find((server) =>
     server.transport === 'http' ? !server.endpoint : !server.command,
@@ -283,7 +283,10 @@ export async function mcpGroupDiscoveryWorkflow(
             workflowId,
           });
         } catch (cacheError) {
-          console.error('[mcpGroupDiscoveryWorkflow] Failed to cache discovery results:', cacheError);
+          console.error(
+            '[mcpGroupDiscoveryWorkflow] Failed to cache discovery results:',
+            cacheError,
+          );
         }
       }
     }

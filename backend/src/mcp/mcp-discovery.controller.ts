@@ -233,9 +233,7 @@ export class McpDiscoveryController {
     description: 'Group discovery status retrieved successfully',
     type: GroupDiscoveryStatusDto,
   })
-  async getGroupStatus(
-    @Param('workflowId') workflowId: string,
-  ): Promise<GroupDiscoveryStatusDto> {
+  async getGroupStatus(@Param('workflowId') workflowId: string): Promise<GroupDiscoveryStatusDto> {
     this.logger.debug(`Querying MCP group discovery status for workflow ${workflowId}`);
 
     try {

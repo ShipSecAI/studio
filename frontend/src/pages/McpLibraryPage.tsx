@@ -517,18 +517,6 @@ export function McpLibraryPage() {
     return counts;
   }, [servers, tools]);
 
-  const toolCountsByServerName = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const tool of tools) {
-      const name = tool.serverName;
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-    return counts;
-  }, [tools]);
-
-  const getGroupServerToolCount = (server: { toolCount: number; serverName: string }) =>
-    server.toolCount > 0 ? server.toolCount : (toolCountsByServerName.get(server.serverName) ?? 0);
-
   const getGroupServerHealthStatus = (server: {
     serverId: string;
     healthStatus: McpHealthStatus;
@@ -995,7 +983,7 @@ export function McpLibraryPage() {
     setDiscoveringGroups((prev) => new Set(prev).add(template.slug));
 
     // Initialize preview with pending status
-    const initialResults: {
+    interface GroupDiscoveryRow {
       name: string;
       transportType: 'http' | 'stdio';
       toolCount: number;
@@ -1003,11 +991,13 @@ export function McpLibraryPage() {
       tools?: { name: string; description?: string }[];
       error?: string;
       cacheToken?: string;
-    }[] = template.servers.map((server) => ({
+    }
+
+    const initialResults: GroupDiscoveryRow[] = template.servers.map((server) => ({
       name: server.name,
       transportType: server.transportType,
       toolCount: 0,
-      status: 'pending' as const,
+      status: 'pending',
       tools: undefined,
       error: undefined,
       cacheToken: undefined,
@@ -1018,9 +1008,9 @@ export function McpLibraryPage() {
     }));
 
     try {
-      const results = [...initialResults].map((entry) => ({
+      const results: GroupDiscoveryRow[] = [...initialResults].map((entry) => ({
         ...entry,
-        status: 'discovering' as const,
+        status: 'discovering',
       }));
       setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
 
@@ -1047,14 +1037,14 @@ export function McpLibraryPage() {
             (status.results ?? []).map((result) => [result.name, result]),
           );
 
-          const updated = template.servers.map((server) => {
+          const updated: GroupDiscoveryRow[] = template.servers.map((server) => {
             const result = resultsByName.get(server.name);
             if (!result) {
               return {
                 name: server.name,
                 transportType: server.transportType,
                 toolCount: 0,
-                status: 'failed' as const,
+                status: 'failed',
                 error: 'Discovery result missing',
               };
             }
@@ -1065,7 +1055,7 @@ export function McpLibraryPage() {
               transportType: server.transportType,
               toolCount: result.toolCount ?? tools.length,
               tools: tools.map((t) => ({ name: t.name, description: t.description })),
-              status: result.status,
+              status: result.status === 'completed' ? 'completed' : 'failed',
               error: result.error,
               cacheToken: result.cacheToken ?? cacheTokens[server.name],
             };
@@ -1082,11 +1072,11 @@ export function McpLibraryPage() {
         }
 
         if (status.status === 'failed') {
-          const updated = template.servers.map((server) => ({
+          const updated: GroupDiscoveryRow[] = template.servers.map((server) => ({
             name: server.name,
             transportType: server.transportType,
             toolCount: 0,
-            status: 'failed' as const,
+            status: 'failed',
             error: status.error ?? 'Discovery failed',
           }));
           setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: updated }));
@@ -1098,11 +1088,11 @@ export function McpLibraryPage() {
       }
 
       if (!finished) {
-        const updated = template.servers.map((server) => ({
+        const updated: GroupDiscoveryRow[] = template.servers.map((server) => ({
           name: server.name,
           transportType: server.transportType,
           toolCount: 0,
-          status: 'failed' as const,
+          status: 'failed',
           error: 'Discovery timed out',
         }));
         setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: updated }));
@@ -2060,7 +2050,6 @@ export function McpLibraryPage() {
                           {renderServerTableHeader()}
                           <TableBody>
                             {groupServerList.map((server) => {
-                              const displayToolCount = getGroupServerToolCount(server);
                               const toolCounts = getGroupServerToolCounts(server);
                               const healthStatus = getGroupServerHealthStatus(server);
 
@@ -2836,7 +2825,7 @@ export function McpLibraryPage() {
 
       {/* Tools Dialog */}
       <Dialog open={toolsDialogOpen} onOpenChange={setToolsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Tools from {selectedServer?.name ?? 'Server'}</DialogTitle>
             <DialogDescription>
@@ -2849,7 +2838,7 @@ export function McpLibraryPage() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[65vh] overflow-y-auto">
             {serverTools.length === 0 ? (
               <div className="text-center py-8">
                 <Wrench className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
@@ -2894,25 +2883,35 @@ export function McpLibraryPage() {
                       !tool.enabled && 'opacity-60',
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium">{tool.toolName}</div>
                         {tool.description && (
-                          <MarkdownView
-                            content={tool.description}
-                            className="text-sm text-muted-foreground mt-1 prose prose-sm max-w-none"
-                          />
+                          <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            <MarkdownView
+                              content={tool.description}
+                              className="prose prose-sm max-w-none"
+                            />
+                          </div>
                         )}
                       </div>
-                      <Switch
-                        checked={tool.enabled}
-                        onCheckedChange={() => handleToggleTool(tool.serverId, tool.id)}
-                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Enabled</span>
+                        <Switch
+                          checked={tool.enabled}
+                          onCheckedChange={() => handleToggleTool(tool.serverId, tool.id)}
+                        />
+                      </div>
                     </div>
                     {tool.inputSchema && (
-                      <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-x-auto">
-                        {JSON.stringify(tool.inputSchema, null, 2)}
-                      </pre>
+                      <details className="mt-2">
+                        <summary className="text-xs text-muted-foreground cursor-pointer">
+                          View schema
+                        </summary>
+                        <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-x-auto">
+                          {JSON.stringify(tool.inputSchema, null, 2)}
+                        </pre>
+                      </details>
                     )}
                   </div>
                 ))}
