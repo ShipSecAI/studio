@@ -1011,89 +1011,95 @@ export function McpLibraryPage() {
     }));
 
     try {
-      // Discover tools in parallel with live updates
-      const results = [...initialResults];
+      const results = [...initialResults].map((entry) => ({
+        ...entry,
+        status: 'discovering' as const,
+      }));
+      setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
 
-      const discoveryPromises = template.servers.map(async (server, index) => {
-        // Update to discovering
-        results[index] = { ...results[index], status: 'discovering', error: undefined };
-        setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
+      const { workflowId, cacheTokens } = await mcpDiscoveryApi.discoverGroup({
+        image: template.defaultDockerImage,
+        servers: template.servers.map((server) => ({
+          transport: server.transportType,
+          name: server.name,
+          endpoint: server.transportType === 'http' ? (server.endpoint ?? undefined) : undefined,
+          command: server.transportType === 'stdio' ? (server.command ?? undefined) : undefined,
+          args: server.transportType === 'stdio' ? (server.args ?? undefined) : undefined,
+        })),
+      });
 
-        try {
-          const { workflowId, cacheToken } = await mcpDiscoveryApi.discover({
-            transport: server.transportType,
-            name: server.name,
-            endpoint: server.transportType === 'http' ? (server.endpoint ?? undefined) : undefined,
-            command: server.transportType === 'stdio' ? (server.command ?? undefined) : undefined,
-            args: server.transportType === 'stdio' ? (server.args ?? undefined) : undefined,
-            image: server.transportType === 'stdio' ? template.defaultDockerImage : undefined,
+      const maxAttempts = 60;
+      const pollInterval = 1000;
+      let finished = false;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const status = await mcpDiscoveryApi.getGroupStatus(workflowId);
+
+        if (status.status === 'completed') {
+          const resultsByName = new Map(
+            (status.results ?? []).map((result) => [result.name, result]),
+          );
+
+          const updated = template.servers.map((server) => {
+            const result = resultsByName.get(server.name);
+            if (!result) {
+              return {
+                name: server.name,
+                transportType: server.transportType,
+                toolCount: 0,
+                status: 'failed' as const,
+                error: 'Discovery result missing',
+              };
+            }
+
+            const tools = result.tools ?? [];
+            return {
+              name: server.name,
+              transportType: server.transportType,
+              toolCount: result.toolCount ?? tools.length,
+              tools: tools.map((t) => ({ name: t.name, description: t.description })),
+              status: result.status,
+              error: result.error,
+              cacheToken: result.cacheToken ?? cacheTokens[server.name],
+            };
           });
 
-          // Poll for completion (60 second timeout)
-          const maxAttempts = 60;
-          const pollInterval = 1000;
-          let finished = false;
-
-          for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const status = await mcpDiscoveryApi.getStatus(workflowId);
-
-            if (status.status === 'completed') {
-              const tools = status.tools ?? [];
-              results[index] = {
-                ...results[index],
-                toolCount: status.toolCount ?? tools.length,
-                tools: tools.map((t) => ({ name: t.name, description: t.description })),
-                status: 'completed',
-                error: undefined,
-                cacheToken,
-              };
-              setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
-              finished = true;
-              break;
-            }
-
-            if (status.status === 'failed') {
-              results[index] = {
-                ...results[index],
-                toolCount: 0,
-                error: status.error ?? 'Discovery failed',
-                status: 'failed',
-              };
-              setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
-              finished = true;
-              break;
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, pollInterval));
-          }
-
-          if (!finished) {
-            results[index] = {
-              ...results[index],
-              toolCount: 0,
-              error: 'Discovery timed out',
-              status: 'failed',
-            };
-            setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
-          }
-        } catch (err) {
-          results[index] = {
-            ...results[index],
-            toolCount: 0,
-            error: err instanceof Error ? err.message : 'Unknown error',
-            status: 'failed',
-          };
-          setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
+          setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: updated }));
+          const completedCount = updated.filter((r) => r.status === 'completed').length;
+          toast({
+            title: 'Discovery complete',
+            description: `${completedCount}/${template.servers.length} servers discovered`,
+          });
+          finished = true;
+          break;
         }
-      });
 
-      await Promise.allSettled(discoveryPromises);
+        if (status.status === 'failed') {
+          const updated = template.servers.map((server) => ({
+            name: server.name,
+            transportType: server.transportType,
+            toolCount: 0,
+            status: 'failed' as const,
+            error: status.error ?? 'Discovery failed',
+          }));
+          setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: updated }));
+          finished = true;
+          break;
+        }
 
-      const completedCount = results.filter((r) => r.status === 'completed').length;
-      toast({
-        title: 'Discovery complete',
-        description: `${completedCount}/${template.servers.length} servers discovered`,
-      });
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      }
+
+      if (!finished) {
+        const updated = template.servers.map((server) => ({
+          name: server.name,
+          transportType: server.transportType,
+          toolCount: 0,
+          status: 'failed' as const,
+          error: 'Discovery timed out',
+        }));
+        setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: updated }));
+      }
     } catch (err) {
       toast({
         title: 'Discovery failed',

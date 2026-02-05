@@ -35,6 +35,7 @@ import {
 } from '../activities/mcp.activity';
 import {
   discoverMcpToolsActivity,
+  discoverMcpGroupToolsActivity,
   cacheDiscoveryResultActivity,
 } from '../activities/mcp-discovery.activity';
 
@@ -229,6 +230,7 @@ async function main() {
       registerRemoteMcpActivity,
       cleanupLocalMcpActivity,
       discoverMcpToolsActivity,
+      discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
     }).join(', ')}`,
   );
@@ -269,6 +271,7 @@ async function main() {
       prepareAndRegisterToolActivity,
       areAllToolsReadyActivity,
       discoverMcpToolsActivity,
+      discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
     },
     bundlerOptions: {

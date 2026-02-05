@@ -1,4 +1,14 @@
-import { Controller, Post, Get, Body, Param, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse as SwaggerApiResponse } from '@nestjs/swagger';
 import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
@@ -8,6 +18,9 @@ import {
   DiscoveryInputDto,
   DiscoveryStatusDto,
   DiscoveryStartResponseDto,
+  GroupDiscoveryInputDto,
+  GroupDiscoveryStartResponseDto,
+  GroupDiscoveryStatusDto,
 } from './dto/mcp-discovery.dto';
 
 @ApiTags('mcp')
@@ -139,6 +152,132 @@ export class McpDiscoveryController {
 
       this.logger.error(
         `Failed to query discovery workflow ${workflowId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  @Post('discover-group')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Start MCP group tool discovery',
+    description:
+      'Initiates an asynchronous discovery workflow for multiple MCP servers. Returns 202 ACCEPTED with a workflow ID for tracking progress.',
+  })
+  @SwaggerApiResponse({
+    status: HttpStatus.ACCEPTED,
+    description: 'Group discovery workflow started successfully',
+    type: GroupDiscoveryStartResponseDto,
+  })
+  async discoverGroup(
+    @Body() input: GroupDiscoveryInputDto,
+  ): Promise<GroupDiscoveryStartResponseDto> {
+    const workflowId = randomUUID();
+    const cacheTokens: Record<string, string> = {};
+
+    const serverNames = input.servers.map((server) => server.name);
+    const uniqueNames = new Set(serverNames);
+    if (uniqueNames.size !== serverNames.length) {
+      throw new BadRequestException('Server names must be unique for group discovery');
+    }
+
+    for (const server of input.servers) {
+      cacheTokens[server.name] = randomUUID();
+    }
+
+    this.logger.log(
+      `Starting MCP group discovery workflow ${workflowId} for ${input.servers.length} server(s)`,
+    );
+
+    try {
+      await Promise.all(
+        Object.values(cacheTokens).map((cacheToken) =>
+          this.redis.setex(
+            `mcp-discovery:${cacheToken}`,
+            300,
+            JSON.stringify({ status: 'pending', workflowId }),
+          ),
+        ),
+      );
+
+      await this.temporalService.startWorkflow({
+        workflowType: 'mcpGroupDiscoveryWorkflow',
+        workflowId,
+        taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? 'shipsec-dev',
+        args: [{ ...input, cacheTokens }],
+      });
+
+      this.logger.log(`MCP group discovery workflow ${workflowId} started successfully`);
+
+      return {
+        workflowId,
+        cacheTokens,
+        status: 'started',
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to start MCP group discovery workflow ${workflowId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  @Get('discover-group/:workflowId')
+  @ApiOperation({
+    summary: 'Get MCP group discovery status',
+    description:
+      'Queries the status of an MCP group discovery workflow by workflow ID. Returns current status and discovered tools if available.',
+  })
+  @SwaggerApiResponse({
+    status: HttpStatus.OK,
+    description: 'Group discovery status retrieved successfully',
+    type: GroupDiscoveryStatusDto,
+  })
+  async getGroupStatus(
+    @Param('workflowId') workflowId: string,
+  ): Promise<GroupDiscoveryStatusDto> {
+    this.logger.debug(`Querying MCP group discovery status for workflow ${workflowId}`);
+
+    try {
+      const result = await this.temporalService.queryWorkflow<{
+        status: 'running' | 'completed' | 'failed';
+        results?: {
+          name: string;
+          status: 'running' | 'completed' | 'failed';
+          tools?: { name: string; description?: string; inputSchema?: Record<string, unknown> }[];
+          toolCount?: number;
+          error?: string;
+          cacheToken?: string;
+        }[];
+        error?: string;
+        errorCode?: string;
+      }>({
+        workflowId,
+        queryType: 'getGroupDiscoveryResult',
+      });
+
+      if (result) {
+        return {
+          workflowId,
+          status: result.status,
+          results: result.results,
+          error: result.error,
+          errorCode: result.errorCode,
+        };
+      }
+
+      return {
+        workflowId,
+        status: 'running',
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('workflow not found')) {
+        this.logger.warn(`Group discovery workflow ${workflowId} not found`);
+        throw error;
+      }
+
+      this.logger.error(
+        `Failed to query group discovery workflow ${workflowId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw error;
     }

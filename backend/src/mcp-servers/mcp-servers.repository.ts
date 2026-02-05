@@ -15,6 +15,7 @@ import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
 
 export interface McpServerQueryOptions {
   organizationId?: string | null;
+  groupId?: string | null;
 }
 
 export interface McpServerUpdateData {
@@ -53,6 +54,9 @@ export class McpServersRepository {
         ),
       );
     }
+    if (options.groupId) {
+      conditions.push(eq(mcpServers.groupId, options.groupId));
+    }
 
     const whereClause =
       conditions.length === 0
@@ -79,6 +83,9 @@ export class McpServersRepository {
           isNull(mcpServers.organizationId),
         ),
       );
+    }
+    if (options.groupId) {
+      conditions.push(eq(mcpServers.groupId, options.groupId));
     }
 
     const rows = await this.db

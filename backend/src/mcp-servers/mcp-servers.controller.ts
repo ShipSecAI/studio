@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -38,15 +39,21 @@ export class McpServersController {
   @Get()
   @ApiOperation({ summary: 'List all MCP servers' })
   @ApiOkResponse({ type: [McpServerResponse] })
-  async listServers(@CurrentAuth() auth: AuthContext | null): Promise<McpServerResponse[]> {
-    return this.mcpServersService.listServers(auth);
+  async listServers(
+    @CurrentAuth() auth: AuthContext | null,
+    @Query('groupId') groupId?: string,
+  ): Promise<McpServerResponse[]> {
+    return this.mcpServersService.listServers(auth, { groupId });
   }
 
   @Get('enabled')
   @ApiOperation({ summary: 'List enabled MCP servers only' })
   @ApiOkResponse({ type: [McpServerResponse] })
-  async listEnabledServers(@CurrentAuth() auth: AuthContext | null): Promise<McpServerResponse[]> {
-    return this.mcpServersService.listEnabledServers(auth);
+  async listEnabledServers(
+    @CurrentAuth() auth: AuthContext | null,
+    @Query('groupId') groupId?: string,
+  ): Promise<McpServerResponse[]> {
+    return this.mcpServersService.listEnabledServers(auth, { groupId });
   }
 
   @Get('tools')

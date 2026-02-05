@@ -1743,6 +1743,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp/discover-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start MCP group tool discovery
+         * @description Initiates an asynchronous discovery workflow for multiple MCP servers. Returns 202 ACCEPTED with a workflow ID for tracking progress.
+         */
+        post: operations["McpDiscoveryController_discoverGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/discover-group/{workflowId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get MCP group discovery status
+         * @description Queries the status of an MCP group discovery workflow by workflow ID. Returns current status and discovered tools if available.
+         */
+        get: operations["McpDiscoveryController_getGroupStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -2954,6 +2994,7 @@ export interface components {
             transportType: "http" | "stdio" | "sse" | "websocket";
             endpoint: string | null;
             command: string | null;
+            args: string[] | null;
             enabled: boolean;
             /** @enum {string} */
             healthStatus: "healthy" | "unhealthy" | "unknown";
@@ -3079,6 +3120,82 @@ export interface components {
             /** @description Error message if discovery failed */
             error?: string;
             /** @description Error code for categorizing failures */
+            errorCode?: string;
+        };
+        GroupDiscoveryInputDto: {
+            /** @description Docker image for stdio transport */
+            image?: string;
+            /** @description Servers to discover */
+            servers: {
+                /** @description Server name */
+                name: string;
+                /**
+                 * @description Transport type for MCP server
+                 * @enum {string}
+                 */
+                transport: "http" | "stdio";
+                /**
+                 * Format: uri
+                 * @description HTTP endpoint for HTTP transport
+                 */
+                endpoint?: string;
+                /** @description HTTP headers for authentication */
+                headers?: {
+                    [key: string]: string;
+                };
+                /** @description Command to run for stdio transport */
+                command?: string;
+                /** @description Arguments for stdio command */
+                args?: string[];
+            }[];
+        };
+        GroupDiscoveryStartResponseDto: {
+            /**
+             * Format: uuid
+             * @description Unique ID for tracking the discovery workflow
+             */
+            workflowId: string;
+            /** @description Map of server name to cache token */
+            cacheTokens: {
+                [key: string]: string;
+            };
+            /**
+             * @description Status indicating workflow has started
+             * @enum {string}
+             */
+            status: "started";
+        };
+        GroupDiscoveryStatusDto: {
+            /**
+             * Format: uuid
+             * @description Workflow ID
+             */
+            workflowId: string;
+            /**
+             * @description Current status of discovery
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+            results?: {
+                name: string;
+                /** @enum {string} */
+                status: "running" | "completed" | "failed";
+                tools?: {
+                    /** @description Tool name */
+                    name: string;
+                    /** @description Tool description */
+                    description?: string;
+                    /** @description JSON Schema for tool input */
+                    inputSchema?: {
+                        [key: string]: unknown;
+                    };
+                }[];
+                toolCount?: number;
+                error?: string;
+                /** Format: uuid */
+                cacheToken?: string;
+            }[];
+            error?: string;
             errorCode?: string;
         };
     };
@@ -5738,7 +5855,9 @@ export interface operations {
     };
     McpServersController_listServers: {
         parameters: {
-            query?: never;
+            query: {
+                groupId: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5780,7 +5899,9 @@ export interface operations {
     };
     McpServersController_listEnabledServers: {
         parameters: {
-            query?: never;
+            query: {
+                groupId: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6581,6 +6702,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    McpDiscoveryController_discoverGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupDiscoveryInputDto"];
+            };
+        };
+        responses: {
+            /** @description Group discovery workflow started successfully */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDiscoveryStartResponseDto"];
+                };
+            };
+        };
+    };
+    McpDiscoveryController_getGroupStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workflowId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Group discovery status retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDiscoveryStatusDto"];
+                };
             };
         };
     };

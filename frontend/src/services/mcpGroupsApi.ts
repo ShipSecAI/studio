@@ -117,7 +117,7 @@ export const mcpGroupsApi = {
    */
   async getGroupServers(groupId: string): Promise<McpGroupServerResponse[]> {
     const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}/servers`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-servers?groupId=${groupId}`, {
       headers,
     });
 
@@ -133,6 +133,15 @@ export const mcpGroupsApi = {
       ...server,
       serverId: server.serverId ?? server.id ?? '',
       serverName: server.serverName ?? server.name ?? 'Server',
+      endpoint: server.endpoint ?? null,
+      command: server.command ?? null,
+      args: server.args ?? null,
+      toolCount: server.toolCount ?? 0,
+      healthStatus:
+        (server as any).healthStatus ??
+        (server as any).lastHealthStatus ??
+        server.healthStatus ??
+        'unknown',
     }));
   },
 

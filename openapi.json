@@ -4763,7 +4763,16 @@
     "/api/v1/mcp-servers": {
       "get": {
         "operationId": "McpServersController_listServers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -4818,7 +4827,16 @@
     "/api/v1/mcp-servers/enabled": {
       "get": {
         "operationId": "McpServersController_listEnabledServers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -5867,6 +5885,71 @@
           }
         },
         "summary": "Get MCP discovery status",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/mcp/discover-group": {
+      "post": {
+        "description": "Initiates an asynchronous discovery workflow for multiple MCP servers. Returns 202 ACCEPTED with a workflow ID for tracking progress.",
+        "operationId": "McpDiscoveryController_discoverGroup",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupDiscoveryInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Group discovery workflow started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDiscoveryStartResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Start MCP group tool discovery",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/mcp/discover-group/{workflowId}": {
+      "get": {
+        "description": "Queries the status of an MCP group discovery workflow by workflow ID. Returns current status and discovered tools if available.",
+        "operationId": "McpDiscoveryController_getGroupStatus",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group discovery status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDiscoveryStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get MCP group discovery status",
         "tags": [
           "mcp"
         ]
@@ -9864,6 +9947,13 @@
             "type": "string",
             "nullable": true
           },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -9893,6 +9983,7 @@
           "transportType",
           "endpoint",
           "command",
+          "args",
           "enabled",
           "healthStatus",
           "toolCount",
@@ -10215,6 +10306,201 @@
           "status"
         ],
         "additionalProperties": false
+      },
+      "GroupDiscoveryInputDto": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "description": "Docker image for stdio transport",
+            "type": "string",
+            "minLength": 1
+          },
+          "servers": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 191,
+                  "description": "Server name"
+                },
+                "transport": {
+                  "type": "string",
+                  "enum": [
+                    "http",
+                    "stdio"
+                  ],
+                  "description": "Transport type for MCP server"
+                },
+                "endpoint": {
+                  "description": "HTTP endpoint for HTTP transport",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "headers": {
+                  "description": "HTTP headers for authentication",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "command": {
+                  "description": "Command to run for stdio transport",
+                  "type": "string"
+                },
+                "args": {
+                  "description": "Arguments for stdio command",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "transport"
+              ]
+            },
+            "description": "Servers to discover"
+          }
+        },
+        "required": [
+          "servers"
+        ]
+      },
+      "GroupDiscoveryStartResponseDto": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Unique ID for tracking the discovery workflow"
+          },
+          "cacheTokens": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "description": "Map of server name to cache token"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status indicating workflow has started",
+            "enum": [
+              "started"
+            ]
+          }
+        },
+        "required": [
+          "workflowId",
+          "cacheTokens",
+          "status"
+        ]
+      },
+      "GroupDiscoveryStatusDto": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Workflow ID"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "completed",
+              "failed"
+            ],
+            "description": "Current status of discovery"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "running",
+                    "completed",
+                    "failed"
+                  ]
+                },
+                "tools": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Tool name"
+                      },
+                      "description": {
+                        "description": "Tool description",
+                        "type": "string"
+                      },
+                      "inputSchema": {
+                        "description": "JSON Schema for tool input",
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  }
+                },
+                "toolCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "error": {
+                  "type": "string"
+                },
+                "cacheToken": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                }
+              },
+              "required": [
+                "name",
+                "status"
+              ]
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflowId",
+          "status"
+        ]
       }
     }
   }

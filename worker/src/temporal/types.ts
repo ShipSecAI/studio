@@ -261,3 +261,27 @@ export interface DiscoveryActivityInput {
 export interface DiscoveryActivityOutput {
   tools: McpTool[];
 }
+
+export interface GroupDiscoveryServerInput {
+  name: string;
+  transport: 'http' | 'stdio';
+  endpoint?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+}
+
+export interface GroupDiscoveryActivityInput {
+  servers: GroupDiscoveryServerInput[];
+  image?: string;
+}
+
+export interface GroupDiscoveryActivityResult {
+  name: string;
+  tools: McpTool[];
+  error?: string;
+}
+
+export interface GroupDiscoveryActivityOutput {
+  results: GroupDiscoveryActivityResult[];
+}

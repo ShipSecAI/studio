@@ -38,6 +38,43 @@ export interface DiscoveryQueryResult {
   errorCode?: string;
 }
 
+export interface GroupDiscoveryInput {
+  servers: {
+    name: string;
+    transport: 'http' | 'stdio';
+    endpoint?: string;
+    headers?: Record<string, string>;
+    command?: string;
+    args?: string[];
+  }[];
+  image?: string;
+  cacheTokens?: Record<string, string>;
+}
+
+export interface GroupDiscoveryResultEntry {
+  name: string;
+  status: 'running' | 'completed' | 'failed';
+  tools?: McpTool[];
+  toolCount?: number;
+  error?: string;
+  cacheToken?: string;
+}
+
+export interface GroupDiscoveryResult {
+  workflowId: string;
+  status: 'running' | 'completed' | 'failed';
+  results?: GroupDiscoveryResultEntry[];
+  error?: string;
+  errorCode?: string;
+}
+
+export interface GroupDiscoveryQueryResult {
+  status: 'running' | 'completed' | 'failed';
+  results?: GroupDiscoveryResultEntry[];
+  error?: string;
+  errorCode?: string;
+}
+
 // Activity interface
 interface DiscoverMcpToolsActivityInput {
   transport: 'http' | 'stdio';
@@ -52,11 +89,34 @@ interface DiscoverMcpToolsActivityOutput {
   tools: McpTool[];
 }
 
+interface DiscoverMcpGroupToolsActivityInput {
+  servers: {
+    name: string;
+    transport: 'http' | 'stdio';
+    endpoint?: string;
+    headers?: Record<string, string>;
+    command?: string;
+    args?: string[];
+  }[];
+  image?: string;
+}
+
+interface DiscoverMcpGroupToolsActivityOutput {
+  results: { name: string; tools: McpTool[]; error?: string }[];
+}
+
 // Proxy activities with 30 second timeout
-const { discoverMcpToolsActivity, cacheDiscoveryResultActivity } = proxyActivities<{
+const {
+  discoverMcpToolsActivity,
+  discoverMcpGroupToolsActivity,
+  cacheDiscoveryResultActivity,
+} = proxyActivities<{
   discoverMcpToolsActivity(
     input: DiscoverMcpToolsActivityInput,
   ): Promise<DiscoverMcpToolsActivityOutput>;
+  discoverMcpGroupToolsActivity(
+    input: DiscoverMcpGroupToolsActivityInput,
+  ): Promise<DiscoverMcpGroupToolsActivityOutput>;
   cacheDiscoveryResultActivity(input: {
     cacheToken: string;
     tools: McpTool[];
@@ -148,6 +208,96 @@ export async function mcpDiscoveryWorkflow(input: DiscoveryInput): Promise<Disco
     };
   } catch (error) {
     // Handle activity failures
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isNonRetryable = error instanceof ApplicationFailure && error.nonRetryable;
+
+    discoveryResult = {
+      status: 'failed',
+      error: errorMessage,
+      errorCode: isNonRetryable ? 'NON_RETRYABLE_FAILURE' : 'ACTIVITY_FAILURE',
+    };
+
+    return {
+      workflowId,
+      ...discoveryResult,
+    };
+  }
+}
+
+/**
+ * MCP Group Discovery Workflow
+ *
+ * Discovers tools from multiple MCP servers with a single stdio proxy container.
+ * Supports query handler 'getGroupDiscoveryResult' for polling workflow status.
+ */
+export async function mcpGroupDiscoveryWorkflow(
+  input: GroupDiscoveryInput,
+): Promise<GroupDiscoveryResult> {
+  const workflowId = workflowInfo().workflowId;
+
+  let discoveryResult: GroupDiscoveryQueryResult = {
+    status: 'running',
+  };
+
+  setHandler(defineQuery<GroupDiscoveryQueryResult>('getGroupDiscoveryResult'), () => discoveryResult);
+
+  const invalid = input.servers.find((server) =>
+    server.transport === 'http' ? !server.endpoint : !server.command,
+  );
+  if (invalid) {
+    discoveryResult = {
+      status: 'failed',
+      error: `Invalid server config for ${invalid.name}`,
+      errorCode: 'INVALID_INPUT',
+    };
+    return {
+      workflowId,
+      ...discoveryResult,
+    };
+  }
+
+  try {
+    const discovery = await discoverMcpGroupToolsActivity({
+      servers: input.servers,
+      image: input.image,
+    });
+
+    const results: GroupDiscoveryResultEntry[] = discovery.results.map((result) => {
+      const cacheToken = input.cacheTokens?.[result.name];
+      return {
+        name: result.name,
+        status: result.error ? 'failed' : 'completed',
+        tools: result.tools,
+        toolCount: result.tools.length,
+        error: result.error,
+        cacheToken,
+      };
+    });
+
+    for (const result of results) {
+      if (result.status === 'completed' && result.cacheToken) {
+        try {
+          await cacheDiscoveryResultActivity({
+            cacheToken: result.cacheToken,
+            tools: result.tools ?? [],
+            workflowId,
+          });
+        } catch (cacheError) {
+          console.error('[mcpGroupDiscoveryWorkflow] Failed to cache discovery results:', cacheError);
+        }
+      }
+    }
+
+    discoveryResult = {
+      status: 'completed',
+      results,
+    };
+
+    return {
+      workflowId,
+      ...discoveryResult,
+    };
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const isNonRetryable = error instanceof ApplicationFailure && error.nonRetryable;
 

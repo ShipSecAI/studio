@@ -3,7 +3,14 @@ import { createExecutionContext } from '@shipsec/component-sdk';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { DiscoveryActivityInput, DiscoveryActivityOutput, McpTool } from '../types';
+import type {
+  DiscoveryActivityInput,
+  DiscoveryActivityOutput,
+  GroupDiscoveryActivityInput,
+  GroupDiscoveryActivityOutput,
+  GroupDiscoveryActivityResult,
+  McpTool,
+} from '../types';
 import Redis from 'ioredis';
 
 // Initialize Redis for caching
@@ -118,6 +125,75 @@ export async function discoverMcpToolsActivity(
 }
 
 /**
+ * Group discovery activity for MCP servers.
+ * Uses a single stdio proxy container with named servers for all stdio configs.
+ */
+export async function discoverMcpGroupToolsActivity(
+  input: GroupDiscoveryActivityInput,
+): Promise<GroupDiscoveryActivityOutput> {
+  let containerId: string | undefined;
+  let baseEndpoint: string | undefined;
+
+  try {
+    const stdioServers = input.servers.filter((server) => server.transport === 'stdio');
+    const httpServers = input.servers.filter((server) => server.transport === 'http');
+
+    if (stdioServers.length > 0) {
+      const spawn = await spawnNamedServersContainer({
+        servers: stdioServers,
+        image: input.image,
+      });
+      containerId = spawn.containerId;
+      baseEndpoint = spawn.baseEndpoint;
+      await waitForContainerReady(`${baseEndpoint}/health`);
+    }
+
+    const results: GroupDiscoveryActivityResult[] = [];
+
+    for (const server of httpServers) {
+      try {
+        if (!server.endpoint) {
+          throw new Error('endpoint is required for http transport');
+        }
+        await testMcpConnection(server.endpoint, server.headers);
+        const tools = await listMcpTools(server.endpoint, server.headers);
+        results.push({ name: server.name, tools });
+      } catch (error) {
+        results.push({
+          name: server.name,
+          tools: [],
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    for (const server of stdioServers) {
+      try {
+        if (!baseEndpoint) {
+          throw new Error('stdio proxy endpoint not available');
+        }
+        const endpoint = `${baseEndpoint}/servers/${encodeURIComponent(server.name)}/sse`;
+        await waitForContainerReady(`${baseEndpoint}/health`);
+        const tools = await listMcpTools(endpoint, server.headers);
+        results.push({ name: server.name, tools });
+      } catch (error) {
+        results.push({
+          name: server.name,
+          tools: [],
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return { results };
+  } finally {
+    if (containerId) {
+      await cleanupContainer(containerId);
+    }
+  }
+}
+
+/**
  * Spawn stdio container using existing mcp-runtime.ts
  */
 async function spawnStdioContainer(input: {
@@ -143,32 +219,7 @@ async function spawnStdioContainer(input: {
     },
   });
 
-  const awsEnv: Record<string, string> = {};
-  const passThroughEnv = [
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY',
-    'AWS_SESSION_TOKEN',
-    'AWS_REGION',
-    'AWS_DEFAULT_REGION',
-    'AWS_PROFILE',
-  ];
-  for (const key of passThroughEnv) {
-    const value = process.env[key];
-    if (value) {
-      awsEnv[key] = value;
-    }
-  }
-
-  const home = homedir();
-  const awsCredentials = join(home, '.aws', 'credentials');
-  const awsConfig = join(home, '.aws', 'config');
-  const volumes = [];
-  if (existsSync(awsCredentials)) {
-    volumes.push({ source: awsCredentials, target: '/root/.aws/credentials', readOnly: true });
-  }
-  if (existsSync(awsConfig)) {
-    volumes.push({ source: awsConfig, target: '/root/.aws/config', readOnly: true });
-  }
+  const { awsEnv, volumes } = getAwsConfig();
 
   const result = await startMcpDockerServer({
     image: input.image || 'shipsec/mcp-stdio-proxy:latest',
@@ -197,6 +248,96 @@ async function spawnStdioContainer(input: {
     containerId,
     endpoint: result.endpoint,
   };
+}
+
+async function spawnNamedServersContainer(input: {
+  servers: { name: string; command?: string; args?: string[] }[];
+  image?: string;
+}): Promise<{ containerId: string; baseEndpoint: string }> {
+  const context = createExecutionContext({
+    runId: `mcp-group-discovery-${Date.now()}`,
+    componentRef: 'mcp-group-discovery',
+    logCollector: (entry) => {
+      const logMethod =
+        entry.level === 'error'
+          ? console.error
+          : entry.level === 'warn'
+            ? console.warn
+            : entry.level === 'debug'
+              ? console.debug
+              : console.log;
+      logMethod(`[MCP Group Discovery] ${entry.message}`);
+    },
+  });
+
+  const { awsEnv, volumes } = getAwsConfig();
+
+  const namedServers: Record<string, { command: string; args?: string[] }> = {};
+  for (const server of input.servers) {
+    if (!server.command) {
+      throw new Error(`command is required for stdio server '${server.name}'`);
+    }
+    namedServers[server.name] = {
+      command: server.command,
+      args: server.args ?? [],
+    };
+  }
+
+  const result = await startMcpDockerServer({
+    image: input.image || 'shipsec/mcp-stdio-proxy:latest',
+    command: [],
+    env: {
+      MCP_NAMED_SERVERS: JSON.stringify({ mcpServers: namedServers }),
+      ...awsEnv,
+    },
+    volumes: volumes.length > 0 ? volumes : undefined,
+    port: 0,
+    autoRemove: true,
+    params: {},
+    context,
+  });
+
+  const containerId = result.containerId;
+  if (!containerId) {
+    throw new Error('Docker container ID not returned from startMcpDockerServer');
+  }
+
+  const baseEndpoint = result.endpoint.replace(/\/mcp$/, '');
+  return { containerId, baseEndpoint };
+}
+
+function getAwsConfig(): {
+  awsEnv: Record<string, string>;
+  volumes: { source: string; target: string; readOnly?: boolean }[];
+} {
+  const awsEnv: Record<string, string> = {};
+  const passThroughEnv = [
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_SESSION_TOKEN',
+    'AWS_REGION',
+    'AWS_DEFAULT_REGION',
+    'AWS_PROFILE',
+  ];
+  for (const key of passThroughEnv) {
+    const value = process.env[key];
+    if (value) {
+      awsEnv[key] = value;
+    }
+  }
+
+  const home = homedir();
+  const awsCredentials = join(home, '.aws', 'credentials');
+  const awsConfig = join(home, '.aws', 'config');
+  const volumes = [];
+  if (existsSync(awsCredentials)) {
+    volumes.push({ source: awsCredentials, target: '/root/.aws/credentials', readOnly: true });
+  }
+  if (existsSync(awsConfig)) {
+    volumes.push({ source: awsConfig, target: '/root/.aws/config', readOnly: true });
+  }
+
+  return { awsEnv, volumes };
 }
 
 /**

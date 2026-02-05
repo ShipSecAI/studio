@@ -103,15 +103,27 @@ export class McpServersService {
     };
   }
 
-  async listServers(auth: AuthContext | null): Promise<McpServerResponse[]> {
+  async listServers(
+    auth: AuthContext | null,
+    options?: { groupId?: string | null },
+  ): Promise<McpServerResponse[]> {
     const organizationId = this.assertOrganizationId(auth);
-    const servers = await this.repository.list({ organizationId });
+    const servers = await this.repository.list({
+      organizationId,
+      groupId: options?.groupId ?? undefined,
+    });
     return servers.map((s) => this.mapServerToResponse(s));
   }
 
-  async listEnabledServers(auth: AuthContext | null): Promise<McpServerResponse[]> {
+  async listEnabledServers(
+    auth: AuthContext | null,
+    options?: { groupId?: string | null },
+  ): Promise<McpServerResponse[]> {
     const organizationId = this.assertOrganizationId(auth);
-    const servers = await this.repository.listEnabled({ organizationId });
+    const servers = await this.repository.listEnabled({
+      organizationId,
+      groupId: options?.groupId ?? undefined,
+    });
     return servers.map((s) => this.mapServerToResponse(s));
   }
 

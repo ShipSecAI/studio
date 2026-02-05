@@ -11,6 +11,11 @@ export interface DiscoveryInput {
   image?: string;
 }
 
+export interface GroupDiscoveryInput {
+  image?: string;
+  servers: DiscoveryInput[];
+}
+
 export interface McpToolResponse {
   name: string;
   description?: string;
@@ -25,6 +30,22 @@ export interface DiscoveryStatus {
   error?: string;
   startedAt?: string;
   completedAt?: string;
+}
+
+export interface GroupDiscoveryResult {
+  name: string;
+  status: 'running' | 'completed' | 'failed';
+  tools?: McpToolResponse[];
+  toolCount?: number;
+  error?: string;
+  cacheToken?: string;
+}
+
+export interface GroupDiscoveryStatus {
+  workflowId: string;
+  status: 'running' | 'completed' | 'failed';
+  results?: GroupDiscoveryResult[];
+  error?: string;
 }
 
 /**
@@ -72,6 +93,45 @@ export const mcpDiscoveryApi = {
         .json()
         .catch(() => ({ message: 'Failed to get discovery status' }));
       throw new Error(error.message || 'Failed to fetch discovery status');
+    }
+
+    return response.json();
+  },
+
+  async discoverGroup(
+    input: GroupDiscoveryInput,
+  ): Promise<{ workflowId: string; cacheTokens: Record<string, string>; status: string }> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp/discover-group`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to start group discovery' }));
+      throw new Error(error.message || 'Failed to start MCP group discovery');
+    }
+
+    return response.json();
+  },
+
+  async getGroupStatus(workflowId: string): Promise<GroupDiscoveryStatus> {
+    const headers = await getApiAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp/discover-group/${workflowId}`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ message: 'Failed to get group discovery status' }));
+      throw new Error(error.message || 'Failed to fetch group discovery status');
     }
 
     return response.json();
