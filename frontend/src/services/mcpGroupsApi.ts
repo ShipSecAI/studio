@@ -8,6 +8,7 @@ export interface McpGroupResponse {
   description?: string | null;
   serverIds: string[];
   enabled: boolean;
+  defaultDockerImage?: string | null;
   createdAt: string;
   updatedAt: string;
 }

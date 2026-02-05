@@ -68,7 +68,7 @@ interface McpServerStoreActions {
   // Tools
   fetchServerTools: (serverId: string) => Promise<McpToolResponse[]>;
   fetchAllTools: () => Promise<McpToolResponse[]>;
-  discoverTools: (serverId: string) => Promise<McpToolResponse[]>;
+  discoverTools: (serverId: string, options?: { image?: string }) => Promise<McpToolResponse[]>;
   toggleTool: (serverId: string, toolId: string) => Promise<McpToolResponse>;
 
   // Filters
@@ -229,7 +229,7 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
     return tools;
   },
 
-  discoverTools: async (serverId) => {
+  discoverTools: async (serverId, options) => {
     // Get server config from store
     const server = get().servers.find((s) => s.id === serverId);
     if (!server) {
@@ -243,6 +243,7 @@ export const useMcpServerStore = create<McpServerStore>((set, get) => ({
       endpoint: server.endpoint ?? undefined,
       command: server.command ?? undefined,
       args: server.args ?? undefined,
+      image: options?.image,
     });
 
     // Poll for completion with 60-second timeout

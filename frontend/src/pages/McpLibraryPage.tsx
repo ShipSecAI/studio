@@ -543,6 +543,13 @@ export function McpLibraryPage() {
     return fallbackTotal > 0 ? { enabled: fallbackTotal, total: fallbackTotal } : null;
   };
 
+  const getServerDiscoveryImage = (serverId: string) => {
+    const server = servers.find((s) => s.id === serverId);
+    if (!server?.groupId) return undefined;
+    const group = groups.find((g) => g.id === server.groupId);
+    return group?.defaultDockerImage ?? undefined;
+  };
+
   const renderServerTableHeader = () => (
     <TableHeader>
       <TableRow>
@@ -941,12 +948,12 @@ export function McpLibraryPage() {
     await fetchServerTools(serverId);
   };
 
-  const handleDiscoverServerTools = async (serverId: string) => {
+  const handleDiscoverServerTools = async (serverId: string, image?: string) => {
     if (discoveringServerIds.has(serverId)) return;
 
     setDiscoveringServerIds((prev) => new Set(prev).add(serverId));
     try {
-      const tools = await discoverTools(serverId);
+      const tools = await discoverTools(serverId, image ? { image } : undefined);
       toast({
         title: 'Tool discovery complete',
         description: `Discovered ${tools.length} tool(s) from this server.`,
@@ -2089,10 +2096,15 @@ export function McpLibraryPage() {
                                     {toolCounts && toolCounts.total > 0 ? (
                                       <TooltipProvider>
                                         <Tooltip>
-                                          <TooltipTrigger>
-                                            <Badge variant="outline" className="font-mono text-xs">
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-7 px-2 font-mono text-xs"
+                                              onClick={() => handleViewTools(server.serverId)}
+                                            >
                                               {toolCounts.enabled}/{toolCounts.total}
-                                            </Badge>
+                                            </Button>
                                           </TooltipTrigger>
                                           <TooltipContent>
                                             <p>
@@ -2114,45 +2126,44 @@ export function McpLibraryPage() {
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-1">
-                                      {displayToolCount === 0 && (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                  handleDiscoverServerTools(server.serverId)
-                                                }
-                                                disabled={discoveringServerIds.has(server.serverId)}
-                                              >
-                                                {discoveringServerIds.has(server.serverId) ? (
-                                                  <Loader className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                  <Wrench className="h-4 w-4" />
-                                                )}
-                                              </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Discover tools</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )}
-                                      {displayToolCount > 0 && (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleViewTools(server.serverId)}
-                                              >
-                                                <Wrench className="h-4 w-4" />
-                                              </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>View tools</TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )}
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleViewTools(server.serverId)}
+                                            >
+                                              <Wrench className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>View tools</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() =>
+                                                handleDiscoverServerTools(
+                                                  server.serverId,
+                                                  group.defaultDockerImage ?? undefined,
+                                                )
+                                              }
+                                              disabled={discoveringServerIds.has(server.serverId)}
+                                            >
+                                              {discoveringServerIds.has(server.serverId) ? (
+                                                <Loader className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <RefreshCw className="h-4 w-4" />
+                                              )}
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Rediscover tools</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -2850,7 +2861,11 @@ export function McpLibraryPage() {
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    selectedServerForTools && handleDiscoverServerTools(selectedServerForTools)
+                    selectedServerForTools &&
+                    handleDiscoverServerTools(
+                      selectedServerForTools,
+                      getServerDiscoveryImage(selectedServerForTools),
+                    )
                   }
                   disabled={
                     !selectedServerForTools || discoveringServerIds.has(selectedServerForTools)
