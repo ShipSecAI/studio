@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -33,12 +34,32 @@ export function DynamicArtifactNameInput({
   disabled = false,
   placeholder = '{{run_id}}-{{timestamp}}',
 }: DynamicArtifactNameInputProps) {
-  const currentValue = value || '';
+  // Use local state to prevent cursor jumping during typing
+  const [localValue, setLocalValue] = useState(value || '');
+
+  // Sync local state with prop value only when it changes externally
+  // (e.g., when switching to a different node or resetting)
+  useEffect(() => {
+    // Only update if the prop value is genuinely different from our local state
+    // This prevents cursor jumping when our own onChange echoes back
+    const propValue = value || '';
+    if (propValue !== localValue) {
+      setLocalValue(propValue);
+    }
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+    // Immediately update parent to keep state in sync
+    onChange(newValue);
+  };
 
   const handleInsertPlaceholder = (selectedPlaceholder: string) => {
     if (disabled) return;
     // Insert at the end of current value
-    const newValue = currentValue ? `${currentValue}${selectedPlaceholder}` : selectedPlaceholder;
+    const newValue = localValue ? `${localValue}${selectedPlaceholder}` : selectedPlaceholder;
+    setLocalValue(newValue);
     onChange(newValue);
   };
 
@@ -46,8 +67,8 @@ export function DynamicArtifactNameInput({
     <div className="space-y-2">
       <Input
         type="text"
-        value={currentValue}
-        onChange={(e) => onChange(e.target.value)}
+        value={localValue}
+        onChange={handleInputChange}
         placeholder={placeholder}
         className="text-sm font-mono"
         disabled={disabled}
