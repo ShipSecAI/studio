@@ -95,45 +95,90 @@ export class ClerkAuthProvider implements AuthProviderStrategy {
   }
 
   private extractBearerToken(request: Request): string | null {
+    // Priority 1: Authorization header (API calls from frontend)
     const header =
       request.headers.authorization ?? (request.headers.Authorization as string | undefined);
-    if (!header) {
-      return null;
+    if (header) {
+      const [scheme, token] = header.split(' ');
+      if (scheme && token && scheme.toLowerCase() === 'bearer') {
+        return token.trim();
+      }
     }
-    const [scheme, token] = header.split(' ');
-    if (!scheme || !token) {
-      return null;
+
+    // Priority 2: Clerk's __session cookie (browser navigations like /analytics/)
+    // Clerk's JS SDK sets this cookie on the app's domain; it contains a verifiable JWT
+    const sessionCookie = request.cookies?.['__session'];
+    if (sessionCookie) {
+      this.logger.log(`[AUTH] No Authorization header, falling back to Clerk __session cookie`);
+      return sessionCookie;
     }
-    return scheme.toLowerCase() === 'bearer' ? token.trim() : null;
+
+    return null;
   }
 
   /**
-   * Resolves organization ID with priority:
-   * 1. X-Organization-Id header (user's selected org)
-   * 2. JWT payload org_id/organization_id
-   * 3. Default to "user's workspace" format: workspace-{userId}
+   * Resolves organization ID with validation:
+   * 1. If X-Organization-Id header matches JWT's org_id → trust it
+   * 2. If header is workspace-{userId} → trust it (personal workspace)
+   * 3. If header specifies different org than JWT → IGNORE it, log security warning
+   * 4. Fall through to JWT org or workspace default
+   *
+   * Security: This prevents spoofed X-Organization-Id headers from accessing
+   * other organizations' data. The JWT's org_id is the source of truth.
    */
   private resolveOrganizationId(request: Request, payload: ClerkJwt, userId: string): string {
-    // Priority 1: Header (user's selected org from frontend)
     const headerOrg = request.headers['x-organization-id'] as string | undefined;
-    this.logger.log(`[AUTH] X-Organization-Id header: ${headerOrg || 'not present'}`);
+    const jwtOrg = payload.o?.id || payload.org_id || payload.organization_id;
+    const userWorkspace = `workspace-${userId}`;
 
+    this.logger.log(
+      `[AUTH] Resolving org - Header: ${headerOrg || 'not present'}, JWT org: ${jwtOrg || 'none'}, User: ${userId}`,
+    );
+
+    // If header is provided, validate it
     if (headerOrg && headerOrg.trim().length > 0) {
-      this.logger.log(`[AUTH] Using org from header: ${headerOrg.trim()}`);
-      return headerOrg.trim();
+      const trimmedHeader = headerOrg.trim();
+
+      // Case 1: Header matches JWT org → trust it
+      if (jwtOrg && trimmedHeader === jwtOrg) {
+        this.logger.log(`[AUTH] Header matches JWT org, using: ${trimmedHeader}`);
+        return trimmedHeader;
+      }
+
+      // Case 2: Header is user's personal workspace → trust it
+      if (trimmedHeader === userWorkspace) {
+        this.logger.log(`[AUTH] Header is user's workspace, using: ${trimmedHeader}`);
+        return trimmedHeader;
+      }
+
+      // Case 3: Header specifies a DIFFERENT org than JWT → IGNORE and log security warning
+      if (jwtOrg && trimmedHeader !== jwtOrg) {
+        this.logger.warn(
+          `[AUTH] SECURITY: X-Organization-Id header "${trimmedHeader}" does not match JWT org "${jwtOrg}". ` +
+            `User ${userId} may be attempting cross-tenant access. Ignoring header.`,
+        );
+        // Fall through to use JWT org
+      }
+
+      // Case 4: No JWT org but header is not user's workspace → potential spoofing
+      if (!jwtOrg && trimmedHeader !== userWorkspace) {
+        this.logger.warn(
+          `[AUTH] SECURITY: X-Organization-Id header "${trimmedHeader}" provided without JWT org context. ` +
+            `User ${userId} does not have active org session. Ignoring header.`,
+        );
+        // Fall through to workspace default
+      }
     }
 
-    // Priority 2: JWT payload org
-    const jwtOrg = payload.o?.id || payload.org_id || payload.organization_id;
+    // Use JWT org if available
     if (jwtOrg) {
       this.logger.log(`[AUTH] Using org from JWT payload: ${jwtOrg}`);
       return jwtOrg;
     }
 
-    // Priority 3: Default to user's workspace
-    const workspace = `workspace-${userId}`;
-    this.logger.log(`[AUTH] No org found, using workspace: ${workspace}`);
-    return workspace;
+    // Default to user's workspace
+    this.logger.log(`[AUTH] No org found, using workspace: ${userWorkspace}`);
+    return userWorkspace;
   }
 
   /**

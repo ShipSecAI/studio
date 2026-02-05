@@ -45,11 +45,20 @@ async function retryWithBackoff<T>(operation: () => Promise<T>, operationName: s
   throw new Error(`${operationName} failed after ${maxAttempts} attempts`);
 }
 
+// TTL for tenant provisioning cache (1 hour in milliseconds)
+const TENANT_CACHE_TTL_MS = 60 * 60 * 1000;
+
 export class OpenSearchIndexer {
   private client: Client | null = null;
   private enabled = false;
   private dashboardsUrl: string | null = null;
   private dashboardsAuth: { username: string; password: string } | null = null;
+  private securityEnabled = false;
+  private backendUrl: string | null = null;
+  private internalServiceToken: string | null = null;
+
+  // Cache of provisioned org IDs with timestamp
+  private provisionedOrgs: Map<string, number> = new Map();
 
   constructor() {
     const url = process.env.OPENSEARCH_URL;
@@ -61,6 +70,11 @@ export class OpenSearchIndexer {
     if (username && password) {
       this.dashboardsAuth = { username, password };
     }
+
+    // Security mode configuration
+    this.securityEnabled = process.env.OPENSEARCH_SECURITY_ENABLED === 'true';
+    this.backendUrl = process.env.BACKEND_URL || 'http://localhost:3211';
+    this.internalServiceToken = process.env.INTERNAL_SERVICE_TOKEN || null;
 
     if (url) {
       try {
@@ -78,7 +92,9 @@ export class OpenSearchIndexer {
           },
         });
         this.enabled = true;
-        console.log('[OpenSearchIndexer] Client initialized');
+        console.log(
+          `[OpenSearchIndexer] Client initialized (security enabled: ${this.securityEnabled})`,
+        );
       } catch (error) {
         console.warn('[OpenSearchIndexer] Failed to initialize client:', error);
       }
@@ -89,6 +105,67 @@ export class OpenSearchIndexer {
 
   isEnabled(): boolean {
     return this.enabled && this.client !== null;
+  }
+
+  /**
+   * Ensure tenant is provisioned in OpenSearch Security.
+   * Caches provisioned orgs with 1-hour TTL to avoid redundant calls.
+   * On failure: logs error but returns true to allow indexing to continue.
+   */
+  private async ensureTenantProvisioned(orgId: string): Promise<boolean> {
+    // Skip if security is disabled
+    if (!this.securityEnabled) {
+      return true;
+    }
+
+    // Check cache
+    const cachedTimestamp = this.provisionedOrgs.get(orgId);
+    if (cachedTimestamp && Date.now() - cachedTimestamp < TENANT_CACHE_TTL_MS) {
+      console.debug(`[OpenSearchIndexer] Tenant already provisioned (cached): ${orgId}`);
+      return true;
+    }
+
+    // Call backend to provision tenant
+    try {
+      const url = `${this.backendUrl}/api/v1/analytics/ensure-tenant`;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (this.internalServiceToken) {
+        headers['X-Internal-Token'] = this.internalServiceToken;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ organizationId: orgId }),
+      });
+
+      if (!response.ok) {
+        console.error(
+          `[OpenSearchIndexer] Failed to provision tenant ${orgId}: ${response.status} ${response.statusText}`,
+        );
+        // Continue with indexing anyway - tenant might already exist
+        return true;
+      }
+
+      const result = (await response.json()) as { success: boolean; message: string };
+      if (result.success) {
+        // Cache the successful provisioning
+        this.provisionedOrgs.set(orgId, Date.now());
+        console.log(`[OpenSearchIndexer] Tenant provisioned: ${orgId}`);
+      } else {
+        console.warn(`[OpenSearchIndexer] Tenant provisioning returned failure: ${result.message}`);
+      }
+
+      return true;
+    } catch (error) {
+      // Log error but don't block indexing
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[OpenSearchIndexer] Error provisioning tenant ${orgId}: ${message}`);
+      return true; // Continue with indexing
+    }
   }
 
   /**
@@ -219,6 +296,9 @@ export class OpenSearchIndexer {
       return { indexName: '', documentCount: 0 };
     }
 
+    // Ensure tenant is provisioned before indexing (for multi-tenant security)
+    await this.ensureTenantProvisioned(orgId);
+
     const indexName = this.buildIndexName(orgId, options.indexSuffix);
 
     // Use same timestamp for all documents in this batch
@@ -298,7 +378,10 @@ export class OpenSearchIndexer {
       }
 
       // Refresh index pattern in OpenSearch Dashboards to make new fields visible
-      await this.refreshIndexPattern();
+      // Skip when security is enabled - patterns are created per-tenant by the provisioning service
+      if (!this.securityEnabled) {
+        await this.refreshIndexPattern();
+      }
 
       return { indexName, documentCount: documents.length };
     } catch (error) {
@@ -417,7 +500,7 @@ export class OpenSearchIndexer {
     const day = String(date.getDate()).padStart(2, '0');
 
     const suffix = indexSuffix || `${year}.${month}.${day}`;
-    return `security-findings-${orgId}-${suffix}`;
+    return `security-findings-${orgId}-${suffix}`.toLowerCase();
   }
 
   private detectAssetKey(document: Record<string, any>, explicitField?: string): string | null {

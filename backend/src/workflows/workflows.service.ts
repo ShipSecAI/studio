@@ -66,6 +66,7 @@ export interface WorkflowRunHandle {
 export interface WorkflowRunSummary {
   id: string;
   workflowId: string;
+  organizationId: string;
   workflowVersionId: string | null;
   workflowVersion: number | null;
   status: ExecutionStatus;
@@ -614,6 +615,7 @@ export class WorkflowsService {
     return {
       id: run.runId,
       workflowId: run.workflowId,
+      organizationId,
       workflowVersionId: run.workflowVersionId ?? null,
       workflowVersion: run.workflowVersion ?? null,
       status: currentStatus,

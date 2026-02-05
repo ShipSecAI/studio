@@ -45,9 +45,26 @@ platform_admin:
         - "*"
   tenant_permissions:
     - tenant_patterns:
-        - "__platform_admin"
+        - "*"
       allowed_actions:
         - "kibana_all_write"
+
+# Worker write role - for indexing security findings from worker processes
+# Write-only access to security-findings-* indices (no read of other orgs' data)
+worker_write:
+  reserved: false
+  description: "Worker service role for indexing security findings"
+  cluster_permissions:
+    - "cluster_composite_ops_ro"
+    - "indices:data/write/*"
+  index_permissions:
+    - index_patterns:
+        - "security-findings-*"
+      allowed_actions:
+        - "write"
+        - "create_index"
+        - "indices:data/write/*"
+        - "indices:admin/mapping/put"
 
 # =============================================================================
 # CUSTOMER ROLE TEMPLATE
@@ -63,6 +80,9 @@ customer_template_rw:
   cluster_permissions:
     - "cluster_composite_ops_ro"
     - "indices:data/read/scroll*"
+    - "cluster:admin/opendistro/ism/policy/get"
+    - "cluster:admin/opendistro/ism/policy/search"
+    - "cluster:admin/opendistro/ism/managedindex/explain"
   index_permissions:
     - index_patterns:
         - "CUSTOMER_ID_PLACEHOLDER-*"
@@ -87,6 +107,9 @@ customer_template_ro:
   description: "Template for customer read-only roles - DO NOT USE DIRECTLY"
   cluster_permissions:
     - "cluster_composite_ops_ro"
+    - "cluster:admin/opendistro/ism/policy/get"
+    - "cluster:admin/opendistro/ism/policy/search"
+    - "cluster:admin/opendistro/ism/managedindex/explain"
   index_permissions:
     - index_patterns:
         - "CUSTOMER_ID_PLACEHOLDER-*"
@@ -97,44 +120,10 @@ customer_template_ro:
     - tenant_patterns:
         - "CUSTOMER_ID_PLACEHOLDER"
       allowed_actions:
-        - "kibana_all_read"
+        - "kibana_all_write"
 
 # =============================================================================
 # DASHBOARDS INTERNAL ROLES
+# Note: kibana_server and kibana_read_only are built-in static roles
+# Do NOT redefine them here - they are managed by OpenSearch Security plugin
 # =============================================================================
-
-# Dashboards server role - for backend communication
-kibana_server:
-  reserved: true
-  cluster_permissions:
-    - "cluster_monitor"
-    - "cluster_composite_ops"
-    - "indices:admin/template/*"
-    - "indices:data/read/scroll*"
-  index_permissions:
-    - index_patterns:
-        - ".kibana"
-        - ".kibana_*"
-        - ".opensearch_dashboards"
-        - ".opensearch_dashboards_*"
-      allowed_actions:
-        - "indices_all"
-    - index_patterns:
-        - "*"
-      allowed_actions:
-        - "indices:admin/aliases/get"
-        - "indices:admin/mappings/get"
-
-# Read-only dashboard user (for embedding/sharing)
-kibana_read_only:
-  reserved: true
-  cluster_permissions:
-    - "cluster_composite_ops_ro"
-  index_permissions:
-    - index_patterns:
-        - ".kibana"
-        - ".kibana_*"
-        - ".opensearch_dashboards"
-        - ".opensearch_dashboards_*"
-      allowed_actions:
-        - "read"

@@ -16,19 +16,25 @@
 
 services:
   opensearch:
+    # Custom entrypoint for proxy auth config templating
+    entrypoint: ["/usr/share/opensearch/config/opensearch-security/docker-entrypoint-security.sh"]
     environment:
       # Remove security disable flags (override dev settings)
       - DISABLE_SECURITY_PLUGIN=false
-      - DISABLE_INSTALL_DEMO_CONFIG=false
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      # Admin password for healthcheck
+      - OPENSEARCH_ADMIN_PASSWORD=${OPENSEARCH_ADMIN_PASSWORD:-admin}
+      # Proxy auth - trusted proxy IP regex (Docker bridge network)
+      - OPENSEARCH_INTERNAL_PROXIES=172\.\d+\.\d+\.\d+
       # Security configuration
-      - plugins.security.ssl.transport.pemcert_filepath=config/certs/node.pem
-      - plugins.security.ssl.transport.pemkey_filepath=config/certs/node-key.pem
-      - plugins.security.ssl.transport.pemtrustedcas_filepath=config/certs/root-ca.pem
+      - plugins.security.ssl.transport.pemcert_filepath=certs/node.pem
+      - plugins.security.ssl.transport.pemkey_filepath=certs/node-key.pem
+      - plugins.security.ssl.transport.pemtrustedcas_filepath=certs/root-ca.pem
       - plugins.security.ssl.transport.enforce_hostname_verification=false
       - plugins.security.ssl.http.enabled=true
-      - plugins.security.ssl.http.pemcert_filepath=config/certs/node.pem
-      - plugins.security.ssl.http.pemkey_filepath=config/certs/node-key.pem
-      - plugins.security.ssl.http.pemtrustedcas_filepath=config/certs/root-ca.pem
+      - plugins.security.ssl.http.pemcert_filepath=certs/node.pem
+      - plugins.security.ssl.http.pemkey_filepath=certs/node-key.pem
+      - plugins.security.ssl.http.pemtrustedcas_filepath=certs/root-ca.pem
       - plugins.security.allow_unsafe_democertificates=false
       - plugins.security.allow_default_init_securityindex=true
       - plugins.security.authcz.admin_dn=CN=admin,OU=ShipSec,O=ShipSecAI,L=SF,ST=CA,C=US
@@ -43,10 +49,11 @@ services:
       - ./certs:/usr/share/opensearch/config/certs:ro
       - ./opensearch-security:/usr/share/opensearch/config/opensearch-security:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf -u admin:$${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 60s
 
   opensearch-dashboards:
     environment:
@@ -57,7 +64,8 @@ services:
       - ./opensearch-dashboards.prod.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
       - ./certs:/usr/share/opensearch-dashboards/config/certs:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:5601/analytics/api/status || exit 1"]
+      # Check if server responds (401 is fine - means server is up, security just requires auth)
+      test: ["CMD-SHELL", "curl -sf -o /dev/null -w '%{http_code}' http://localhost:5601/analytics/api/status | grep -qE '(200|401)' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10

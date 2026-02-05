@@ -1,0 +1,12 @@
+# OpenSearch Security - Whitelist (deprecated, use allowlist.yml)
+#
+# This file exists for backwards compatibility.
+
+---
+_meta:
+  type: "whitelist"
+  config_version: 2
+
+config:
+  enabled: false
+  requests: {}

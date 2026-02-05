@@ -1,0 +1,20 @@
+# Development Ports Overlay
+#
+# WARNING: These ports bypass ALL nginx authentication!
+# Use ONLY for local development where direct OpenSearch/Dashboards access is needed.
+#
+# Usage:
+#   docker compose -f docker-compose.infra.yml -f docker-compose.dev-ports.yml up -d
+#
+# This overlay exposes OpenSearch and Dashboards ports on loopback (127.0.0.1) only,
+# preventing external network access while allowing local development tools to connect.
+
+services:
+  opensearch:
+    ports:
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9600:9600"
+
+  opensearch-dashboards:
+    ports:
+      - "127.0.0.1:5601:5601"

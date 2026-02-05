@@ -279,12 +279,19 @@ services:
       - AUTH_PROVIDER=${AUTH_PROVIDER:-local}
       - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY:-}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
+      - SESSION_SECRET=${SESSION_SECRET:-}
       # Set to 'true' to disable analytics
       - DISABLE_ANALYTICS=${DISABLE_ANALYTICS:-false}
       # Secret encryption key (must be exactly 32 characters, NOT hex-encoded)
       - SECRET_STORE_MASTER_KEY=${SECRET_STORE_MASTER_KEY:-CHANGE_ME_32_CHAR_SECRET_KEY!!!!}
       # Internal service-to-service auth token (must match worker)
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-internal-service-token}
+      # OpenSearch tenant provisioning
+      - OPENSEARCH_SECURITY_ENABLED=${OPENSEARCH_SECURITY_ENABLED:-false}
+      - OPENSEARCH_URL=http://opensearch:9200
+      - OPENSEARCH_DASHBOARDS_URL=http://opensearch-dashboards:5601/analytics
+      - OPENSEARCH_ADMIN_USERNAME=${OPENSEARCH_ADMIN_USERNAME:-admin}
+      - OPENSEARCH_ADMIN_PASSWORD=${OPENSEARCH_ADMIN_PASSWORD:-}
     # Internal only - accessed via nginx at /api/
     expose:
       - "3211"
@@ -321,9 +328,9 @@ services:
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost}
       - VITE_BACKEND_URL=${VITE_BACKEND_URL:-http://localhost}
-      - VITE_AUTH_PROVIDER=clerk
-      - VITE_DEFAULT_ORG_ID=local-dev
-      - VITE_CLERK_PUBLISHABLE_KEY=
+      - VITE_AUTH_PROVIDER=${VITE_AUTH_PROVIDER:-local}
+      - VITE_DEFAULT_ORG_ID=${VITE_DEFAULT_ORG_ID:-local-dev}
+      - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY:-}
       - VITE_OPENSEARCH_DASHBOARDS_URL=${VITE_OPENSEARCH_DASHBOARDS_URL:-/analytics}
     # Internal only - accessed via nginx at /
     expose:
@@ -373,6 +380,10 @@ services:
       # OpenSearch for Analytics Sink
       - OPENSEARCH_URL=http://opensearch:9200
       - OPENSEARCH_DASHBOARDS_URL=http://opensearch-dashboards:5601/analytics
+      # Tenant provisioning (for multi-tenant security mode)
+      - BACKEND_URL=http://backend:3211
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      - OPENSEARCH_SECURITY_ENABLED=${OPENSEARCH_SECURITY_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy

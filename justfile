@@ -26,6 +26,10 @@ instance action="show" value="":
 
 # === Development (recommended for contributors) ===
 
+# Default dev passwords for convenience (override with env vars for real security)
+export OPENSEARCH_ADMIN_PASSWORD := env_var_or_default("OPENSEARCH_ADMIN_PASSWORD", "admin")
+export OPENSEARCH_DASHBOARDS_PASSWORD := env_var_or_default("OPENSEARCH_DASHBOARDS_PASSWORD", "admin")
+
 # Initialize environment files from examples
 init:
     #!/usr/bin/env bash
@@ -51,18 +55,18 @@ init:
     echo "   Edit the .env files to configure your environment"
     echo "   Then run: just dev"
 
-# Start development environment with hot-reload
+# Start development environment with hot-reload and OpenSearch Security
 # Usage: just dev [instance] [action]
 # Examples: just dev, just dev 1, just dev 2 start, just dev 1 logs, just dev stop all
 dev *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    
+
     # Parse arguments: instance can be 0-9, action is start/stop/logs/status/clean
     INSTANCE="$(./scripts/active-instance.sh get)"
     ACTION="start"
     INFRA_PROJECT_NAME="shipsec-infra"
-    
+
     # Process arguments
     for arg in {{args}}; do
         case "$arg" in
@@ -85,12 +89,12 @@ dev *args:
                 ;;
         esac
     done
-    
+
     # Handle special case: dev stop all
     if [ "$ACTION" = "all" ]; then
         ACTION="stop"
     fi
-    
+
     # Handle "just dev stop" as "just dev 0 stop"
     if [ "$ACTION" = "stop" ] && [ "$INSTANCE" = "0" ] && [ -z "{{args}}" ]; then
         true  # Keep defaults
@@ -135,19 +139,33 @@ dev *args:
                 echo "   This will create .env files from the example templates."
                 exit 1
             fi
-            
-            # Start shared infrastructure (one stack for all instances)
-            echo "⏳ Starting shared infrastructure..."
+
+            # Auto-generate certificates if they don't exist
+            if [ ! -f "docker/certs/root-ca.pem" ]; then
+                echo "🔐 Generating TLS certificates..."
+                chmod +x docker/scripts/generate-certs.sh
+                docker/scripts/generate-certs.sh
+                echo "✅ Certificates generated"
+            fi
+
+            # Start shared infrastructure with OpenSearch Security (one stack for all instances)
+            echo "⏳ Starting shared infrastructure (with OpenSearch Security)..."
             docker compose -f docker/docker-compose.infra.yml \
+                -f docker/docker-compose.dev-secure.yml \
+                -f docker/docker-compose.dev-ports.yml \
                 --project-name="$INFRA_PROJECT_NAME" \
                 up -d
-            
+
             # Wait for Postgres
             echo "⏳ Waiting for infrastructure..."
             POSTGRES_CONTAINER="$(docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" ps -q postgres)"
             if [ -n "$POSTGRES_CONTAINER" ]; then
                 timeout 30s bash -c "until docker exec $POSTGRES_CONTAINER pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done" || true
             fi
+
+            # Wait for OpenSearch to be healthy (security init takes longer)
+            echo "⏳ Waiting for OpenSearch security initialization..."
+            timeout 120s bash -c 'until docker exec shipsec-opensearch curl -sf -u admin:${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 2; done' || true
 
             # Ensure instance-specific DB/namespace exists and migrations are applied.
             ./scripts/instance-bootstrap.sh "$INSTANCE"
@@ -162,14 +180,21 @@ dev *args:
             
             # Update git SHA and start PM2 with instance-specific config
             ./scripts/set-git-sha.sh || true
-            
+
+            # Enable OpenSearch Security for PM2 services
+            export OPENSEARCH_SECURITY_ENABLED=true
+            export NODE_TLS_REJECT_UNAUTHORIZED=0
+
             pm2 startOrReload pm2.config.cjs \
                 --only "shipsec-frontend-$INSTANCE,shipsec-backend-$INSTANCE,shipsec-worker-$INSTANCE" \
                 --update-env
-            
+
             echo ""
             echo "✅ Development environment ready (instance $INSTANCE)"
             ./scripts/dev-instance-manager.sh info "$INSTANCE"
+            echo ""
+            echo "🔐 OpenSearch Security: ENABLED (multi-tenant isolation active)"
+            echo "   OpenSearch admin: admin / ${OPENSEARCH_ADMIN_PASSWORD:-admin}"
             echo ""
             echo "💡 just dev $INSTANCE logs   - View application logs"
             echo "💡 just dev $INSTANCE stop   - Stop this instance"
@@ -263,6 +288,78 @@ dev *args:
             echo "  instance: 0-9 (default: 0)"
             echo "  action:   start|stop|logs|status|clean"
             exit 1
+            ;;
+    esac
+
+# Start development environment WITHOUT security (faster, simpler)
+dev-insecure action="start":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{action}}" in
+        start)
+            echo "🚀 Starting development environment (insecure mode)..."
+            echo "⚠️  OpenSearch Security DISABLED - no multi-tenant isolation"
+            echo ""
+
+            # Check for required env files
+            if [ ! -f "backend/.env" ] || [ ! -f "worker/.env" ] || [ ! -f "frontend/.env" ]; then
+                echo "❌ Environment files not found!"
+                echo ""
+                echo "   Run this first: just init"
+                echo ""
+                echo "   This will create .env files from the example templates."
+                exit 1
+            fi
+
+            # Start infrastructure (no security)
+            docker compose -f docker/docker-compose.infra.yml up -d
+
+            # Wait for Postgres
+            echo "⏳ Waiting for infrastructure..."
+            timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
+
+            # Start PM2 without security
+            ./scripts/set-git-sha.sh || true
+            SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=false \
+                pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --update-env
+
+            echo ""
+            echo "✅ Development environment ready (INSECURE MODE)"
+            echo "   Frontend:    http://localhost:5173"
+            echo "   Backend:     http://localhost:3211"
+            echo "   Temporal UI: http://localhost:8081"
+            echo ""
+            echo "⚠️  OpenSearch Security: DISABLED"
+            echo "   Use 'just dev' for full multi-tenant security"
+            echo ""
+            echo "💡 just dev-insecure logs   - View application logs"
+            echo "💡 just dev-insecure stop   - Stop everything"
+            echo ""
+
+            # Version check
+            bun backend/scripts/version-check-summary.ts 2>/dev/null || true
+            ;;
+        stop)
+            echo "🛑 Stopping development environment..."
+            pm2 delete shipsec-frontend shipsec-backend shipsec-worker shipsec-test-worker 2>/dev/null || true
+            docker compose -f docker/docker-compose.infra.yml down
+            echo "✅ Stopped"
+            ;;
+        logs)
+            pm2 logs
+            ;;
+        status)
+            pm2 status
+            docker compose -f docker/docker-compose.infra.yml ps
+            ;;
+        clean)
+            echo "🧹 Cleaning development environment..."
+            pm2 delete shipsec-frontend shipsec-backend shipsec-worker shipsec-test-worker 2>/dev/null || true
+            docker compose -f docker/docker-compose.infra.yml down -v
+            echo "✅ Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
+            ;;
+        *)
+            echo "Usage: just dev-insecure [start|stop|logs|status|clean]"
             ;;
     esac
 
@@ -606,6 +703,25 @@ generate-certs:
     echo "  2. export OPENSEARCH_DASHBOARDS_PASSWORD='your-secure-password'"
     echo "  3. just prod-secure"
 
+# Initialize or reinitialize OpenSearch security index
+security-init *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🔐 Initializing OpenSearch Security..."
+    chmod +x docker/scripts/security-init.sh
+    docker/scripts/security-init.sh {{args}}
+
+# Generate BCrypt password hash for OpenSearch internal users
+hash-password password="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    chmod +x docker/scripts/hash-password.sh
+    if [ -n "{{password}}" ]; then
+        docker/scripts/hash-password.sh "{{password}}"
+    else
+        docker/scripts/hash-password.sh
+    fi
+
 # === Infrastructure Only ===
 
 # Manage infrastructure containers separately
@@ -680,8 +796,8 @@ help:
     @echo "Getting Started:"
     @echo "  just init       Set up dependencies and environment files"
     @echo ""
-    @echo "Development (hot-reload, multi-instance support):"
-    @echo "  just dev                Start the active instance (default: 0)"
+    @echo "Development (hot-reload, multi-instance with OpenSearch Security):"
+    @echo "  just dev                Start the active instance (default: 0) with security"
     @echo "  just instance show      Show active instance"
     @echo "  just instance use 5     Set active instance to 5 for this workspace"
     @echo "  just dev 1              Start instance 1"
@@ -696,6 +812,11 @@ help:
     @echo "  Note: Instances share one Docker infra stack (Postgres/Temporal/Redpanda/Redis/etc)"
     @echo "        Isolation comes from per-instance DB + Temporal namespace/task-queue + Kafka topic suffix"
     @echo "        Instance N uses base_port + N*100 (e.g., instance 0 uses 5173, instance 1 uses 5273)"
+    @echo "        OpenSearch Security provides multi-tenant data isolation per organization"
+    @echo ""
+    @echo "Development (insecure, faster startup):"
+    @echo "  just dev-insecure       Start WITHOUT security (no tenant isolation)"
+    @echo "  just dev-insecure stop  Stop everything"
     @echo ""
     @echo "Production (Docker):"
     @echo "  just prod-init     Generate secrets in docker/.env (run once)"
@@ -714,6 +835,11 @@ help:
     @echo "  just prod-secure stop   Stop secure production"
     @echo "  just prod-secure logs   View logs"
     @echo "  just prod-secure clean  Remove all data"
+    @echo ""
+    @echo "Security Management:"
+    @echo "  just security-init      Initialize OpenSearch security index"
+    @echo "  just security-init --force  Reinitialize (update config)"
+    @echo "  just hash-password      Generate BCrypt hash for passwords"
     @echo ""
     @echo "Infrastructure:"
     @echo "  just infra up      Start infrastructure only"

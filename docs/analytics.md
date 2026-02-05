@@ -52,6 +52,15 @@ opensearch.hosts: ["http://opensearch:9200"]
 
 The `core.analytics.sink` component writes workflow results to OpenSearch.
 
+**Input Ports:**
+- Ships with a default `input1` port so at least one connector is always available.
+- Users can configure additional input ports via the **Data Inputs** parameter
+  (e.g., to aggregate results from multiple scanners into one index).
+- Extra ports are resolved dynamically through the `resolvePorts` mechanism. When
+  loading a saved workflow the backend calls `resolveGraphPorts()` server-side;
+  when importing from a JSON file the frontend calls `resolvePorts` per-node to
+  ensure all dynamic handles are present before rendering.
+
 **Environment Variable:**
 ```yaml
 OPENSEARCH_URL=http://opensearch:9200

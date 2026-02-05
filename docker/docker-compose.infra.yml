@@ -150,9 +150,11 @@ services:
       nofile:
         soft: 65536
         hard: 65536
-    ports:
-      - "9200:9200"
-      - "9600:9600"
+    # Ports exposed only within Docker network (not to host)
+    # Use docker-compose.dev-ports.yml overlay for local dev access
+    expose:
+      - "9200"
+      - "9600"
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     restart: unless-stopped
@@ -171,10 +173,11 @@ services:
     environment:
       - OPENSEARCH_HOSTS=["http://opensearch:9200"]
       - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    # Port exposed for development access
+    # Ports exposed only within Docker network (not to host)
+    # Use docker-compose.dev-ports.yml overlay for local dev access
     # Production uses nginx reverse proxy at /analytics
-    ports:
-      - "5601:5601"
+    expose:
+      - "5601"
     volumes:
       - ./opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
     restart: unless-stopped

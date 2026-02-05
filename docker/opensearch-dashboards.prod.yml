@@ -20,23 +20,33 @@ opensearch.hosts: ["https://opensearch:9200"]
 opensearch.ssl.verificationMode: certificate
 opensearch.ssl.certificateAuthorities: ["/usr/share/opensearch-dashboards/config/certs/root-ca.pem"]
 
-# Authentication - use OpenSearch Security plugin
+# Authentication - proxy auth from nginx (primary) + basic auth for kibanaserver
+# Note: OpenSearch Dashboards doesn't support env var interpolation in YAML
+# In production, use a secrets manager or pre-process this file
 opensearch.username: "kibanaserver"
-opensearch.password: "${OPENSEARCH_DASHBOARDS_PASSWORD}"
-opensearch.requestHeadersWhitelist: ["securitytenant", "Authorization"]
+opensearch.password: "admin"
+opensearch.requestHeadersAllowlist: ["securitytenant", "Authorization", "x-forwarded-for", "x-proxy-user", "x-proxy-roles"]
+
+# Proxy Authentication Configuration
+# Nginx sets x-proxy-user/x-proxy-roles headers after validating user session via auth_request.
+# Dashboards trusts these headers (no login form). Users must log in via the main app first.
+# The kibanaserver user (above) is still used for Dashboards' own backend connection to OpenSearch.
+opensearch_security.auth.type: "proxy"
+opensearch_security.proxycache.user_header: "x-proxy-user"
+opensearch_security.proxycache.roles_header: "x-proxy-roles"
 
 # Security Plugin Configuration - SaaS Multitenancy
 # Each customer gets their own isolated tenant - no shared data by default
+# Tenant is forced via nginx securitytenant header (per-org), no tenant picker shown
 opensearch_security.multitenancy.enabled: true
 opensearch_security.multitenancy.tenants.enable_global: false
-opensearch_security.multitenancy.tenants.enable_private: true
-opensearch_security.multitenancy.tenants.preferred: ["Private"]
+opensearch_security.multitenancy.tenants.enable_private: false
+opensearch_security.multitenancy.tenants.preferred: ["Custom"]
+opensearch_security.multitenancy.show_roles: false
+opensearch_security.multitenancy.enable_filter: false
 opensearch_security.readonly_mode.roles: ["kibana_read_only"]
 opensearch_security.cookie.secure: true
 opensearch_security.cookie.isSameSite: "Strict"
-
-# Tenant isolation - users only see their tenant's dashboards
-# Backend creates tenant dynamically per customer (tenant name = customer ID)
 
 # Session configuration
 opensearch_security.session.ttl: 3600000
@@ -47,10 +57,6 @@ logging.dest: stdout
 logging.silent: false
 logging.quiet: false
 logging.verbose: false
-
-# Telemetry (disable for production privacy)
-telemetry.enabled: false
-telemetry.allowChangingOptInStatus: false
 
 # CSP headers for security
 csp.strict: true

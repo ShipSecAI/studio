@@ -34,8 +34,14 @@ function toWorkflowSlug(value?: string | null): string | undefined {
   return slug.length > 0 ? slug : undefined;
 }
 
-// Base input schema - will be extended by resolvePorts
-const baseInputSchema = inputs({});
+// Base input schema with a default input port.
+// resolvePorts adds extra ports when users configure multiple data inputs.
+const baseInputSchema = inputs({
+  input1: port(z.array(analyticsResultSchema()).optional(), {
+    label: 'Input 1',
+    description: 'Analytics results to index.',
+  }),
+});
 
 const outputSchema = outputs({
   indexed: port(z.boolean(), {
@@ -72,14 +78,14 @@ const parameterSchema = parameters({
       .string()
       .optional()
       .describe(
-        'Optional suffix to append to the index name. Defaults to slugified workflow name if not provided.',
+        'Optional suffix to append to the index name. Defaults to date (YYYY.MM.DD) if not provided.',
       ),
     {
       label: 'Index Suffix',
       editor: 'text',
-      placeholder: 'workflow-slug (default)',
+      placeholder: 'YYYY.MM.DD (default)',
       description:
-        'Custom suffix for the index name (e.g., "subdomain-enum"). Defaults to slugified workflow name if not provided.',
+        'Custom suffix for the index name (e.g., "subdomain-enum"). Defaults to date-based sharding (YYYY.MM.DD) if not provided.',
     },
   ),
   assetKeyField: param(
@@ -330,8 +336,7 @@ const definition = defineComponent({
         assetKeyField = params.assetKeyField;
       }
 
-      const fallbackIndexSuffix =
-        params.indexSuffix ?? toWorkflowSlug(context.workflowName ?? undefined);
+      const fallbackIndexSuffix = params.indexSuffix || undefined;
 
       const indexOptions = {
         workflowId: context.workflowId,

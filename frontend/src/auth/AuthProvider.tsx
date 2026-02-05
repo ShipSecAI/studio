@@ -7,14 +7,14 @@ import { GlobalAuthContext } from './auth-context-def';
 // Auth provider registry - easy to add new providers
 // Determine which provider to use based on environment
 function getAuthProviderName(): string {
-  // Priority: explicit 'local' > dev mode (always local) > environment variable
+  // Priority: explicit env var > dev mode default (local) > auto-detect
   const envProvider = import.meta.env.VITE_AUTH_PROVIDER;
   const hasClerkKey =
     typeof import.meta.env.VITE_CLERK_PUBLISHABLE_KEY === 'string' &&
     import.meta.env.VITE_CLERK_PUBLISHABLE_KEY.trim().length > 0;
 
-  // In dev mode, always use local auth for testing (ignore Clerk settings)
-  if (import.meta.env.DEV) {
+  // In dev mode, default to local auth unless VITE_AUTH_PROVIDER is explicitly set
+  if (import.meta.env.DEV && !envProvider) {
     return 'local';
   }
 

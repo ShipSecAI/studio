@@ -4,15 +4,18 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Headers,
   Post,
   Put,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiTags, ApiHeader } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 
 import { SecurityAnalyticsService } from './security-analytics.service';
 import { OrganizationSettingsService } from './organization-settings.service';
+import { OpenSearchTenantService } from './opensearch-tenant.service';
 import { AnalyticsQueryRequestDto, AnalyticsQueryResponseDto } from './dto/analytics-query.dto';
 import {
   AnalyticsSettingsResponseDto,
@@ -20,6 +23,7 @@ import {
   TIER_LIMITS,
 } from './dto/analytics-settings.dto';
 import { CurrentAuth } from '../auth/auth-context.decorator';
+import { Public } from '../auth/public.decorator';
 import type { AuthContext } from '../auth/types';
 
 const MAX_QUERY_SIZE = 1000;
@@ -32,10 +36,16 @@ function isValidNonNegativeInt(value: unknown): value is number {
 @ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
+  private readonly internalServiceToken: string;
+
   constructor(
     private readonly securityAnalyticsService: SecurityAnalyticsService,
     private readonly organizationSettingsService: OrganizationSettingsService,
-  ) {}
+    private readonly openSearchTenantService: OpenSearchTenantService,
+    private readonly configService: ConfigService,
+  ) {
+    this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN') || '';
+  }
 
   @Post('query')
   @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute per user
@@ -218,6 +228,70 @@ export class AnalyticsController {
       maxRetentionDays,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
+    };
+  }
+
+  /**
+   * Ensure tenant resources exist for an organization.
+   * Called by worker before indexing to ensure tenant isolation is set up.
+   *
+   * Requires X-Internal-Token header for authentication (internal service-to-service).
+   * This endpoint is idempotent - safe to call multiple times.
+   */
+  @Public()
+  @SkipThrottle()
+  @Post('ensure-tenant')
+  @ApiOkResponse({
+    description: 'Ensure tenant resources exist for organization',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        securityEnabled: { type: 'boolean' },
+        message: { type: 'string' },
+      },
+    },
+  })
+  async ensureTenant(
+    @Headers('x-internal-token') internalToken: string | undefined,
+    @Body() body: { organizationId: string },
+  ): Promise<{ success: boolean; securityEnabled: boolean; message: string }> {
+    // Validate internal service token
+    if (!this.internalServiceToken) {
+      // Token not configured - allow in dev mode but log warning
+      console.warn('[ensureTenant] INTERNAL_SERVICE_TOKEN not configured');
+    } else if (internalToken !== this.internalServiceToken) {
+      throw new UnauthorizedException('Invalid internal service token');
+    }
+
+    // Validate request body
+    if (!body.organizationId || typeof body.organizationId !== 'string') {
+      throw new BadRequestException('organizationId is required');
+    }
+
+    const orgId = body.organizationId.trim();
+    if (!orgId) {
+      throw new BadRequestException('organizationId cannot be empty');
+    }
+
+    // Check if security mode is enabled
+    if (!this.openSearchTenantService.isSecurityEnabled()) {
+      return {
+        success: true,
+        securityEnabled: false,
+        message: 'Security mode disabled, tenant provisioning skipped',
+      };
+    }
+
+    // Provision tenant resources
+    const success = await this.openSearchTenantService.ensureTenantExists(orgId);
+
+    return {
+      success,
+      securityEnabled: true,
+      message: success
+        ? `Tenant provisioned for ${orgId}`
+        : `Failed to provision tenant for ${orgId}`,
     };
   }
 }
