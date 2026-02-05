@@ -20,6 +20,8 @@ import {
   shipsecWorkflowRun,
   testMinimalWorkflow,
   scheduleTriggerWorkflow,
+  mcpDiscoveryWorkflow,
+  mcpGroupDiscoveryWorkflow,
 } from '@shipsec/studio-worker/workflows';
 import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
 
@@ -149,6 +151,10 @@ export class TemporalService implements OnModuleDestroy {
         return testMinimalWorkflow;
       case 'scheduleTriggerWorkflow':
         return scheduleTriggerWorkflow;
+      case 'mcpDiscoveryWorkflow':
+        return mcpDiscoveryWorkflow;
+      case 'mcpGroupDiscoveryWorkflow':
+        return mcpGroupDiscoveryWorkflow;
       default:
         throw new Error(`Unknown workflow type: ${workflowType}`);
     }

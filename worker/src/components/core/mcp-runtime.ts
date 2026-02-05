@@ -7,6 +7,7 @@ interface StartMcpServerInput {
   args?: string[];
   env?: Record<string, string>;
   port?: number;
+  autoRemove?: boolean;
   volumes?: {
     source: string;
     target: string;
@@ -43,7 +44,9 @@ async function getAvailablePort(): Promise<number> {
 export async function startMcpDockerServer(
   input: StartMcpServerInput,
 ): Promise<StartMcpServerOutput> {
-  const port = input.port ?? (await getAvailablePort());
+  // Get a valid port - input.port can be 0 which means auto-assign, but we need
+  // to resolve it to an actual port number before passing to Docker
+  const port = input.port && input.port > 0 ? input.port : await getAvailablePort();
 
   if (!input.image || input.image.trim().length === 0) {
     throw new ValidationError('Docker image is required for MCP server', {
@@ -66,6 +69,7 @@ export async function startMcpDockerServer(
     env: { ...input.env, PORT: String(port), ENDPOINT: endpoint },
     network: 'bridge' as const,
     detached: true,
+    autoRemove: input.autoRemove,
     containerName,
     // Bind to 0.0.0.0 so all interfaces can reach it (both localhost and Docker network)
     ports: { [`0.0.0.0:${port}`]: port },

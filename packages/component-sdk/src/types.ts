@@ -38,6 +38,7 @@ export interface DockerRunnerConfig {
   timeoutSeconds?: number;
   stdinJson?: boolean; // Whether to write params as JSON to container's stdin (default: true)
   detached?: boolean; // If true, start container and return immediately without waiting for exit
+  autoRemove?: boolean; // If true, keep --rm even when detached (auto-remove on exit)
   ports?: Record<string, number>; // Port mapping host (e.g., "0.0.0.0:8080" or "127.0.0.1:8080") -> container port
 }
 

@@ -27,7 +27,7 @@ import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
 import './core/workflow-call';
-import './core/mcp-server';
+import './core/mcp-library';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';
@@ -38,8 +38,6 @@ import './ai/openrouter-provider';
 import './ai/ai-agent';
 import './ai/llm-generate-text';
 import './ai/opencode';
-import './ai/mcp-http-provider';
-import './ai/mcp-tool-merge';
 
 // Security components
 import './security/subfinder';
@@ -57,8 +55,7 @@ import './security/trufflehog';
 import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
-import './security/aws-cloudtrail-mcp';
-import './security/aws-cloudwatch-mcp';
+import './security/aws-mcp-group';
 
 // GitHub components
 import './github/connection-provider';

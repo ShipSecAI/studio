@@ -69,3 +69,5 @@ vite.config.ts.timestamp-*
 .playground/
 .playground/
 .playground/
+.omc/
+MCP_FLOW_TRACE.md

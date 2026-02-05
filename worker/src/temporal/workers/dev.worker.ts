@@ -33,6 +33,11 @@ import {
   prepareAndRegisterToolActivity,
   areAllToolsReadyActivity,
 } from '../activities/mcp.activity';
+import {
+  discoverMcpToolsActivity,
+  discoverMcpGroupToolsActivity,
+  cacheDiscoveryResultActivity,
+} from '../activities/mcp-discovery.activity';
 
 // ... (existing imports)
 
@@ -224,6 +229,9 @@ async function main() {
       registerLocalMcpActivity,
       registerRemoteMcpActivity,
       cleanupLocalMcpActivity,
+      discoverMcpToolsActivity,
+      discoverMcpGroupToolsActivity,
+      cacheDiscoveryResultActivity,
     }).join(', ')}`,
   );
 
@@ -262,10 +270,32 @@ async function main() {
       cleanupLocalMcpActivity,
       prepareAndRegisterToolActivity,
       areAllToolsReadyActivity,
+      discoverMcpToolsActivity,
+      discoverMcpGroupToolsActivity,
+      cacheDiscoveryResultActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],
       webpackConfigHook: (config: any) => {
+        // Configure extension resolution for ES modules
+        // Add .workflow, .ts to handle all file types
+        if (config?.resolve) {
+          if (config.resolve?.extensions && Array.isArray(config.resolve.extensions)) {
+            // Add custom extensions for Temporal workflows
+            const customExts = ['.workflow', '.ts', '.workflow.js'];
+            customExts.forEach((ext) => {
+              if (!config.resolve.extensions.includes(ext)) {
+                config.resolve.extensions.unshift(ext);
+              }
+            });
+          }
+          // Also configure module resolution to handle these extensions
+          if (!config.resolve.extensionAlias) {
+            config.resolve.extensionAlias = {};
+          }
+          config.resolve.extensionAlias['.workflow'] = ['.workflow.js', '.workflow'];
+        }
+
         // Ensure node-pty native bindings are not bundled (they only load at runtime on the host)
         if (Array.isArray(config?.externals)) {
           config.externals.push({ 'node-pty': 'commonjs node-pty' });

@@ -23,6 +23,9 @@ import {
   Command,
   Zap,
   Webhook,
+  ServerCog,
+  Settings,
+  ChevronDown,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -64,6 +67,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [, setIsHovered] = useState(false);
   const [wasExplicitlyOpened, setWasExplicitlyOpened] = useState(!isMobile);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const roles = useAuthStore((state) => state.roles);
@@ -275,16 +279,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/action-center',
       icon: Zap,
     },
-    {
-      name: 'Secrets',
-      href: '/secrets',
-      icon: KeyRound,
-    },
-    {
-      name: 'API Keys',
-      href: '/api-keys',
-      icon: Shield,
-    },
     ...(env.VITE_ENABLE_CONNECTIONS
       ? [
           {
@@ -298,6 +292,24 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Artifact Library',
       href: '/artifacts',
       icon: Archive,
+    },
+  ];
+
+  const settingsItems = [
+    {
+      name: 'Secrets',
+      href: '/secrets',
+      icon: KeyRound,
+    },
+    {
+      name: 'API Keys',
+      href: '/api-keys',
+      icon: Shield,
+    },
+    {
+      name: 'MCP Servers',
+      href: '/mcp-library',
+      icon: ServerCog,
     },
   ];
 
@@ -445,6 +457,96 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </Link>
                 );
               })}
+            </div>
+
+            {/* Manage Collapsible Section */}
+            <div className="px-2 mt-2">
+              <button
+                onClick={() => setSettingsOpen(!settingsOpen)}
+                className={cn(
+                  'w-full flex items-center gap-3 py-2 rounded-lg transition-colors',
+                  'hover:bg-muted/50 text-muted-foreground hover:text-foreground',
+                  sidebarOpen ? 'justify-between px-4' : 'justify-center',
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Settings className="h-5 w-5 flex-shrink-0" />
+                  <span
+                    className={cn(
+                      'transition-all duration-300 whitespace-nowrap overflow-hidden text-sm font-medium',
+                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                    )}
+                    style={{
+                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                      transitionProperty: 'opacity, max-width',
+                    }}
+                  >
+                    Manage
+                  </span>
+                </div>
+                {sidebarOpen && (
+                  <ChevronDown
+                    className={cn(
+                      'h-4 w-4 transition-transform duration-200 flex-shrink-0',
+                      settingsOpen ? 'rotate-180' : '',
+                    )}
+                  />
+                )}
+              </button>
+
+              {/* Collapsible Manage Items */}
+              <div
+                className={cn(
+                  'overflow-hidden transition-all duration-300',
+                  settingsOpen ? 'max-h-96 mt-1 space-y-1' : 'max-h-0',
+                )}
+              >
+                {settingsItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      onClick={(e) => {
+                        if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                          return;
+                        }
+                        if (isMobile) {
+                          setSidebarOpen(false);
+                          return;
+                        }
+                        if (!item.href.startsWith('/workflows')) {
+                          setSidebarOpen(true);
+                          setWasExplicitlyOpened(true);
+                        }
+                      }}
+                    >
+                      <SidebarItem
+                        isActive={active}
+                        className={cn(
+                          'flex items-center gap-3',
+                          sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                        )}
+                      >
+                        <Icon className="h-4 w-4 flex-shrink-0" />
+                        <span
+                          className={cn(
+                            'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1 text-sm',
+                            sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                          )}
+                          style={{
+                            transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                            transitionProperty: 'opacity, max-width',
+                          }}
+                        >
+                          {item.name}
+                        </span>
+                      </SidebarItem>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Command Palette Button */}

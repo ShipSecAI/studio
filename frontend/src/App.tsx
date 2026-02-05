@@ -5,6 +5,7 @@ import { SecretsManager } from '@/pages/SecretsManager';
 import { ApiKeysManager } from '@/pages/ApiKeysManager';
 import { IntegrationsManager } from '@/pages/IntegrationsManager';
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary';
+import { McpLibraryPage } from '@/pages/McpLibraryPage';
 import { IntegrationCallback } from '@/pages/IntegrationCallback';
 import { NotFound } from '@/pages/NotFound';
 import { WebhooksPage } from '@/pages/WebhooksPage';
@@ -85,6 +86,7 @@ function App() {
                     <Route path="/schedules" element={<SchedulesPage />} />
                     <Route path="/action-center" element={<ActionCenterPage />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
+                    <Route path="/mcp-library" element={<McpLibraryPage />} />
                     <Route path="/runs/:runId" element={<RunRedirect />} />
                     <Route
                       path="/integrations/callback/:provider"
