@@ -529,6 +529,90 @@ export function McpLibraryPage() {
   const getGroupServerToolCount = (server: { toolCount: number; serverName: string }) =>
     server.toolCount > 0 ? server.toolCount : (toolCountsByServerName.get(server.serverName) ?? 0);
 
+  const getGroupServerHealthStatus = (server: {
+    serverId: string;
+    healthStatus: McpHealthStatus;
+  }) => servers.find((s) => s.id === server.serverId)?.lastHealthStatus ?? server.healthStatus;
+
+  const getGroupServerToolCounts = (server: { serverId: string; toolCount: number }) => {
+    const counts = toolCountsByServer[server.serverId];
+    if (counts) {
+      return counts;
+    }
+    const fallbackTotal = server.toolCount;
+    return fallbackTotal > 0 ? { enabled: fallbackTotal, total: fallbackTotal } : null;
+  };
+
+  const renderServerTableHeader = () => (
+    <TableHeader>
+      <TableRow>
+        <TableHead className="w-[200px]">Name</TableHead>
+        <TableHead className="w-[100px]">Type</TableHead>
+        <TableHead>Connection</TableHead>
+        <TableHead className="w-[120px]">Status</TableHead>
+        <TableHead className="w-[80px] text-center">Tools</TableHead>
+        <TableHead className="w-[100px] text-center">Enabled</TableHead>
+        <TableHead className="w-[180px] text-right">Actions</TableHead>
+      </TableRow>
+    </TableHeader>
+  );
+
+  const renderConnectionCell = (connection: {
+    endpoint?: string | null;
+    command?: string | null;
+    args?: string[] | null;
+  }) => {
+    if (connection.endpoint) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger className="text-left">
+              <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
+                {connection.endpoint}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[400px]">
+              <p className="font-mono text-xs break-all">{connection.endpoint}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    if (connection.command) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger className="text-left">
+              <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
+                {connection.command}
+                {connection.args &&
+                  connection.args.length > 0 &&
+                  (() => {
+                    const argsStr = connection.args.join(' ');
+                    const MAX_INLINE_ARGS = 40;
+                    if (argsStr.length <= MAX_INLINE_ARGS) {
+                      return ` ${argsStr}`;
+                    }
+                    return ` +${connection.args.length} arg${
+                      connection.args.length === 1 ? '' : 's'
+                    }`;
+                  })()}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[400px]">
+              <p className="font-mono text-xs break-all">
+                {connection.command} {connection.args?.join(' ') || ''}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return <span className="text-muted-foreground">—</span>;
+  };
+
   // Generate Claude Code style JSON from form data (for JSON tab display)
   const formDataToJson = (data: ServerFormData, serverHeaderKeys?: string[] | null): string => {
     const serverConfig: Record<string, unknown> = {};
@@ -927,79 +1011,85 @@ export function McpLibraryPage() {
     }));
 
     try {
-      // Start discovery for all servers in parallel
-      await Promise.all(
-        template.servers.map(async (server, index) => {
-          try {
-            // Update to discovering
-            setGroupDiscoveryPreview((prev) => {
-              const updated = [...prev[template.slug]];
-              updated[index] = { ...updated[index], status: 'discovering' as const };
-              return { ...prev, [template.slug]: updated };
-            });
+      // Discover tools in parallel with live updates
+      const results = [...initialResults];
 
-            const discoverResult = await mcpDiscoveryApi.discover({
-              transport: server.transportType,
-              name: server.name,
-              endpoint: server.endpoint ?? undefined,
-              command: server.command ?? undefined,
-            });
+      const discoveryPromises = template.servers.map(async (server, index) => {
+        // Update to discovering
+        results[index] = { ...results[index], status: 'discovering', error: undefined };
+        setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
 
-            // Poll for completion
-            const pollInterval = 1000;
-            const maxAttempts = 60;
-            for (let i = 0; i < maxAttempts; i++) {
-              await new Promise((resolve) => setTimeout(resolve, pollInterval));
-              const status = await mcpDiscoveryApi.getStatus(discoverResult.workflowId);
+        try {
+          const { workflowId, cacheToken } = await mcpDiscoveryApi.discover({
+            transport: server.transportType,
+            name: server.name,
+            endpoint: server.transportType === 'http' ? (server.endpoint ?? undefined) : undefined,
+            command: server.transportType === 'stdio' ? (server.command ?? undefined) : undefined,
+            args: server.transportType === 'stdio' ? (server.args ?? undefined) : undefined,
+            image: server.transportType === 'stdio' ? template.defaultDockerImage : undefined,
+          });
 
-              if (status.status === 'completed') {
-                const tools = status.tools ?? [];
-                setGroupDiscoveryPreview((prev) => {
-                  const updated = [...prev[template.slug]];
-                  updated[index] = {
-                    name: server.name,
-                    transportType: server.transportType,
-                    toolCount: tools.length,
-                    status: 'completed' as const,
-                    tools: tools.map((t) => ({ name: t.name, description: t.description })),
-                    cacheToken: discoverResult.cacheToken ?? discoverResult.workflowId,
-                  };
-                  return { ...prev, [template.slug]: updated };
-                });
-                break;
-              } else if (status.status === 'failed') {
-                setGroupDiscoveryPreview((prev) => {
-                  const updated = [...prev[template.slug]];
-                  updated[index] = {
-                    name: server.name,
-                    transportType: server.transportType,
-                    toolCount: 0,
-                    status: 'failed' as const,
-                    error: status.error ?? 'Discovery failed',
-                  };
-                  return { ...prev, [template.slug]: updated };
-                });
-                break;
-              }
-            }
-          } catch (err) {
-            setGroupDiscoveryPreview((prev) => {
-              const updated = [...prev[template.slug]];
-              updated[index] = {
-                name: server.name,
-                transportType: server.transportType,
-                toolCount: 0,
-                status: 'failed' as const,
-                error: err instanceof Error ? err.message : 'Unknown error',
+          // Poll for completion (60 second timeout)
+          const maxAttempts = 60;
+          const pollInterval = 1000;
+          let finished = false;
+
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const status = await mcpDiscoveryApi.getStatus(workflowId);
+
+            if (status.status === 'completed') {
+              const tools = status.tools ?? [];
+              results[index] = {
+                ...results[index],
+                toolCount: status.toolCount ?? tools.length,
+                tools: tools.map((t) => ({ name: t.name, description: t.description })),
+                status: 'completed',
+                error: undefined,
+                cacheToken,
               };
-              return { ...prev, [template.slug]: updated };
-            });
-          }
-        }),
-      );
+              setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
+              finished = true;
+              break;
+            }
 
-      const finalResults = groupDiscoveryPreview[template.slug];
-      const completedCount = finalResults?.filter((r) => r.status === 'completed').length ?? 0;
+            if (status.status === 'failed') {
+              results[index] = {
+                ...results[index],
+                toolCount: 0,
+                error: status.error ?? 'Discovery failed',
+                status: 'failed',
+              };
+              setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
+              finished = true;
+              break;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, pollInterval));
+          }
+
+          if (!finished) {
+            results[index] = {
+              ...results[index],
+              toolCount: 0,
+              error: 'Discovery timed out',
+              status: 'failed',
+            };
+            setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
+          }
+        } catch (err) {
+          results[index] = {
+            ...results[index],
+            toolCount: 0,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            status: 'failed',
+          };
+          setGroupDiscoveryPreview((prev) => ({ ...prev, [template.slug]: [...results] }));
+        }
+      });
+
+      await Promise.allSettled(discoveryPromises);
+
+      const completedCount = results.filter((r) => r.status === 'completed').length;
       toast({
         title: 'Discovery complete',
         description: `${completedCount}/${template.servers.length} servers discovered`,
@@ -1936,98 +2026,133 @@ export function McpLibraryPage() {
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
                     {serverCount === 0 ? (
-                      <div className="text-center py-6 text-muted-foreground text-sm">
-                        No servers in this group
+                      <div className="border rounded-lg">
+                        <Table>
+                          {renderServerTableHeader()}
+                          <TableBody>
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center py-8 text-sm">
+                                <span className="text-muted-foreground">
+                                  No servers in this group
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        {groupServerList.map((server) => {
-                          const displayToolCount = getGroupServerToolCount(server);
+                      <div className="border rounded-lg">
+                        <Table>
+                          {renderServerTableHeader()}
+                          <TableBody>
+                            {groupServerList.map((server) => {
+                              const displayToolCount = getGroupServerToolCount(server);
+                              const toolCounts = getGroupServerToolCounts(server);
+                              const healthStatus = getGroupServerHealthStatus(server);
 
-                          return (
-                            <div
-                              key={server.serverId}
-                              className={cn(
-                                'p-4 rounded-lg border bg-background hover:bg-accent/5 transition-colors',
-                                theme.pillBorder,
-                              )}
-                            >
-                              <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h4 className="font-semibold text-base">{server.serverName}</h4>
+                              return (
+                                <TableRow key={server.serverId}>
+                                  <TableCell>
+                                    <div>
+                                      <div className="font-medium">{server.serverName}</div>
+                                      {server.description && (
+                                        <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                          {server.description}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
                                     <TransportBadge type={server.transportType} />
-                                  </div>
-                                  {server.description && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2">
-                                      {server.description}
-                                    </p>
-                                  )}
-                                </div>
-                                <Switch
-                                  checked={server.enabled}
-                                  onCheckedChange={() => handleToggle(server.serverId)}
-                                />
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <HealthIndicator
-                                    status={server.healthStatus}
-                                    checking={checkingServers.has(server.serverId)}
-                                  />
-                                  <Badge variant="outline" className="font-mono text-xs">
-                                    {displayToolCount} {displayToolCount === 1 ? 'tool' : 'tools'}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  {displayToolCount === 0 && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              handleDiscoverServerTools(server.serverId)
-                                            }
-                                            disabled={discoveringServerIds.has(server.serverId)}
-                                          >
-                                            {discoveringServerIds.has(server.serverId) ? (
-                                              <Loader className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <Wrench className="h-4 w-4" />
-                                            )}
-                                            Discover Tools
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          Discover available tools from this server
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                  {displayToolCount > 0 && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8"
-                                            onClick={() => handleViewTools(server.serverId)}
-                                          >
-                                            <Wrench className="h-4 w-4" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>View tools</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                                  </TableCell>
+                                  <TableCell>
+                                    {renderConnectionCell({
+                                      endpoint: server.endpoint,
+                                      command: server.command,
+                                      args: server.args,
+                                    })}
+                                  </TableCell>
+                                  <TableCell>
+                                    <HealthIndicator
+                                      status={healthStatus}
+                                      checking={checkingServers.has(server.serverId)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {toolCounts && toolCounts.total > 0 ? (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger>
+                                            <Badge variant="outline" className="font-mono text-xs">
+                                              {toolCounts.enabled}/{toolCounts.total}
+                                            </Badge>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>
+                                              {toolCounts.enabled} enabled out of {toolCounts.total}{' '}
+                                              tools
+                                            </p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <Switch
+                                      checked={server.enabled}
+                                      onCheckedChange={() => handleToggle(server.serverId)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {displayToolCount === 0 && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                  handleDiscoverServerTools(server.serverId)
+                                                }
+                                                disabled={discoveringServerIds.has(server.serverId)}
+                                              >
+                                                {discoveringServerIds.has(server.serverId) ? (
+                                                  <Loader className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Wrench className="h-4 w-4" />
+                                                )}
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Discover tools</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {displayToolCount > 0 && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleViewTools(server.serverId)}
+                                              >
+                                                <Wrench className="h-4 w-4" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>View tools</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
                       </div>
                     )}
                   </AccordionContent>
@@ -2048,17 +2173,7 @@ export function McpLibraryPage() {
       </div>
       <div className="border rounded-lg">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[200px]">Name</TableHead>
-              <TableHead className="w-[100px]">Type</TableHead>
-              <TableHead>Connection</TableHead>
-              <TableHead className="w-[120px]">Status</TableHead>
-              <TableHead className="w-[80px] text-center">Tools</TableHead>
-              <TableHead className="w-[100px] text-center">Enabled</TableHead>
-              <TableHead className="w-[180px] text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          {renderServerTableHeader()}
           <TableBody>
             {isLoading && servers.length === 0 ? (
               Array.from({ length: 3 }).map((_, i) => (
@@ -2118,47 +2233,11 @@ export function McpLibraryPage() {
                     <TransportBadge type={server.transportType} />
                   </TableCell>
                   <TableCell>
-                    {server.endpoint ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger className="text-left">
-                            <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
-                              {server.endpoint}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[400px]">
-                            <p className="font-mono text-xs break-all">{server.endpoint}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : server.command ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger className="text-left">
-                            <div className="font-mono text-sm text-muted-foreground truncate max-w-[300px]">
-                              {server.command}
-                              {server.args &&
-                                server.args.length > 0 &&
-                                (() => {
-                                  const argsStr = server.args.join(' ');
-                                  const MAX_INLINE_ARGS = 40;
-                                  if (argsStr.length <= MAX_INLINE_ARGS) {
-                                    return ` ${argsStr}`;
-                                  }
-                                  return ` +${server.args.length} arg${server.args.length === 1 ? '' : 's'}`;
-                                })()}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[400px]">
-                            <p className="font-mono text-xs break-all">
-                              {server.command} {server.args?.join(' ') || ''}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                    {renderConnectionCell({
+                      endpoint: server.endpoint,
+                      command: server.command,
+                      args: server.args,
+                    })}
                   </TableCell>
                   <TableCell>
                     <HealthIndicator

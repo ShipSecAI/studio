@@ -15,6 +15,7 @@ export const DiscoveryInputSchema = z
       .describe('HTTP headers for authentication'),
     command: z.string().optional().describe('Command to run for stdio transport'),
     args: z.array(z.string()).optional().describe('Arguments for stdio command'),
+    image: z.string().min(1).optional().describe('Docker image for stdio transport'),
     cacheToken: z
       .string()
       .uuid()

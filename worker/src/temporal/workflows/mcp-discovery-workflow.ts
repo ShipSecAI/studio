@@ -15,6 +15,7 @@ export interface DiscoveryInput {
   headers?: Record<string, string>;
   command?: string;
   args?: string[];
+  image?: string;
   cacheToken?: string;
 }
 
@@ -44,6 +45,7 @@ interface DiscoverMcpToolsActivityInput {
   headers?: Record<string, string>;
   command?: string;
   args?: string[];
+  image?: string;
 }
 
 interface DiscoverMcpToolsActivityOutput {
@@ -116,6 +118,7 @@ export async function mcpDiscoveryWorkflow(input: DiscoveryInput): Promise<Disco
       command: input.command,
       args: input.args,
       headers: input.headers,
+      image: input.image,
     });
 
     // Step 3: Cache results if cacheToken provided

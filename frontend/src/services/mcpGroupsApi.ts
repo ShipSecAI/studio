@@ -19,6 +19,9 @@ export interface McpGroupServerResponse {
   serverName: string;
   description?: string | null;
   transportType: 'http' | 'stdio';
+  endpoint?: string | null;
+  command?: string | null;
+  args?: string[] | null;
   enabled: boolean;
   healthStatus: 'healthy' | 'unhealthy' | 'unknown';
   toolCount: number;

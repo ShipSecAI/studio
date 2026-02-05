@@ -228,16 +228,16 @@ app.use(express.json({ limit: '2mb' }));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
-  const servers = hasNamedServers
+  const serverNames = hasNamedServers
     ? Object.keys(namedServersConfig.mcpServers)
-    : ['default'];
+    : ['__default__'];
 
   res.json({
     status: 'ok',
     mode: hasNamedServers ? 'named-servers' : 'single-server',
-    servers: servers.map(name => ({
+    servers: serverNames.map(name => ({
       name: name === '__default__' ? 'default' : name,
-      ready: namedClients.has(name === '__default__' ? '__default__' : name),
+      ready: namedClients.has(name),
     })),
   });
 });

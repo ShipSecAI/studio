@@ -177,16 +177,22 @@ export class McpServersService {
     if (input.cacheToken && this.redis) {
       try {
         const cached = await this.getCachedDiscovery(input.cacheToken);
-        if (cached && cached.tools.length > 0) {
-          this.logger.log(`Creating server ${server.id} with ${cached.tools.length} cached tools`);
-          await this.repository.upsertTools(
-            server.id,
-            cached.tools.map((tool) => ({
-              toolName: tool.name,
-              description: tool.description ?? null,
-              inputSchema: tool.inputSchema ?? null,
-            })),
-          );
+        if (cached) {
+          if (cached.tools.length > 0) {
+            this.logger.log(
+              `Creating server ${server.id} with ${cached.tools.length} cached tools`,
+            );
+            await this.repository.upsertTools(
+              server.id,
+              cached.tools.map((tool) => ({
+                toolName: tool.name,
+                description: tool.description ?? null,
+                inputSchema: tool.inputSchema ?? null,
+              })),
+            );
+          }
+          // Mark healthy when discovery completed (even if tool count is 0)
+          await this.repository.updateHealthStatus(server.id, 'healthy', { organizationId });
           // Delete cache after use
           await this.redis.del(`mcp-discovery:${input.cacheToken}`);
         }

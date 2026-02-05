@@ -92,6 +92,7 @@ export class McpGroupsService implements OnModuleInit {
       transportType: transportType as 'http' | 'stdio' | 'sse' | 'websocket',
       endpoint: record.endpoint,
       command: record.command,
+      args: (record as any).args ?? null,
       enabled: record.enabled,
       healthStatus: healthStatus as 'healthy' | 'unhealthy' | 'unknown',
       toolCount,
@@ -157,6 +158,10 @@ export class McpGroupsService implements OnModuleInit {
                   inputSchema: tool.inputSchema ?? null,
                 })),
               );
+            }
+            if (cached) {
+              // Mark server healthy when discovery completed (even if tool count is 0)
+              await this.mcpServersRepository.updateHealthStatus(server.id, 'healthy', {});
             }
           } catch (error) {
             this.logger.warn(`Failed to load cached tools for server '${server.name}':`, error);

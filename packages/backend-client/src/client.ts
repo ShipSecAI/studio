@@ -2977,6 +2977,11 @@ export interface components {
             updatedCount: number;
             templates: string[];
         };
+        ImportTemplateRequestDto: {
+            serverCacheTokens?: {
+                [key: string]: string;
+            };
+        };
         ImportGroupTemplateResponseDto: {
             /** @enum {string} */
             action: "created" | "updated" | "skipped";
@@ -3022,6 +3027,8 @@ export interface components {
             command?: string;
             /** @description Arguments for stdio command */
             args?: string[];
+            /** @description Docker image for stdio transport */
+            image?: string;
             /**
              * Format: uuid
              * @description Cache token for storing/retrieving discovery results
@@ -6268,7 +6275,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportTemplateRequestDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {

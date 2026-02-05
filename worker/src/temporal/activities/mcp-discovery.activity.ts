@@ -1,5 +1,8 @@
 import { startMcpDockerServer } from '../../components/core/mcp-runtime';
 import { createExecutionContext } from '@shipsec/component-sdk';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { DiscoveryActivityInput, DiscoveryActivityOutput, McpTool } from '../types';
 import Redis from 'ioredis';
 
@@ -90,6 +93,7 @@ export async function discoverMcpToolsActivity(
       const result = await spawnStdioContainer({
         command: input.command,
         args: input.args || [],
+        image: input.image,
       });
       containerId = result.containerId;
       if (!containerId) {
@@ -119,6 +123,7 @@ export async function discoverMcpToolsActivity(
 async function spawnStdioContainer(input: {
   command: string;
   args: string[];
+  image?: string;
 }): Promise<{ containerId: string; endpoint: string }> {
   // Create minimal execution context for Docker runner
   const context = createExecutionContext({
@@ -138,16 +143,46 @@ async function spawnStdioContainer(input: {
     },
   });
 
+  const awsEnv: Record<string, string> = {};
+  const passThroughEnv = [
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_SESSION_TOKEN',
+    'AWS_REGION',
+    'AWS_DEFAULT_REGION',
+    'AWS_PROFILE',
+  ];
+  for (const key of passThroughEnv) {
+    const value = process.env[key];
+    if (value) {
+      awsEnv[key] = value;
+    }
+  }
+
+  const home = homedir();
+  const awsCredentials = join(home, '.aws', 'credentials');
+  const awsConfig = join(home, '.aws', 'config');
+  const volumes = [];
+  if (existsSync(awsCredentials)) {
+    volumes.push({ source: awsCredentials, target: '/root/.aws/credentials', readOnly: true });
+  }
+  if (existsSync(awsConfig)) {
+    volumes.push({ source: awsConfig, target: '/root/.aws/config', readOnly: true });
+  }
+
   const result = await startMcpDockerServer({
-    image: 'shipsec/mcp-stdio-proxy:latest',
+    image: input.image || 'shipsec/mcp-stdio-proxy:latest',
     command: [],
     env: {
       MCP_COMMAND: input.command,
       MCP_ARGS: JSON.stringify(input.args),
       // Override baked-in named-servers.json to force single-server mode
       MCP_NAMED_SERVERS: '{}',
+      ...awsEnv,
     },
+    volumes: volumes.length > 0 ? volumes : undefined,
     port: 0, // Auto-assign
+    autoRemove: true,
     params: {},
     context,
   });
@@ -252,7 +287,7 @@ async function waitForContainerReady(endpoint: string): Promise<void> {
       if (response.ok) {
         const data = (await response.json()) as {
           status?: string;
-          servers?: Array<{ ready: boolean }>;
+          servers?: { ready: boolean }[];
         };
         if (data.status === 'ok') {
           // Check if the MCP server is actually ready (STDIO client connected)

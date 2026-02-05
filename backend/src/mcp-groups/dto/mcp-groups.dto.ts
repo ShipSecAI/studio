@@ -125,6 +125,7 @@ export const McpGroupServerResponseSchema = z.object({
   transportType: z.enum(['http', 'stdio', 'sse', 'websocket']),
   endpoint: z.string().nullable(),
   command: z.string().nullable(),
+  args: z.array(z.string()).nullable(),
   enabled: z.boolean(),
   healthStatus: z.enum(['healthy', 'unhealthy', 'unknown']),
   toolCount: z.number(),

@@ -5553,6 +5553,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportTemplateRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "",
@@ -9946,6 +9956,20 @@
           "templates"
         ]
       },
+      "ImportTemplateRequestDto": {
+        "type": "object",
+        "properties": {
+          "serverCacheTokens": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ImportGroupTemplateResponseDto": {
         "type": "object",
         "properties": {
@@ -10079,6 +10103,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "image": {
+            "description": "Docker image for stdio transport",
+            "type": "string",
+            "minLength": 1
           },
           "cacheToken": {
             "description": "Cache token for storing/retrieving discovery results",

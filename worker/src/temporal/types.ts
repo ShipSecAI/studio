@@ -255,6 +255,7 @@ export interface DiscoveryActivityInput {
   headers?: Record<string, string>;
   command?: string;
   args?: string[];
+  image?: string;
 }
 
 export interface DiscoveryActivityOutput {

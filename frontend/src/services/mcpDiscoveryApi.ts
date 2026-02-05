@@ -8,6 +8,7 @@ export interface DiscoveryInput {
   headers?: Record<string, string>;
   command?: string;
   args?: string[];
+  image?: string;
 }
 
 export interface McpToolResponse {
