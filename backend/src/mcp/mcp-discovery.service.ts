@@ -246,9 +246,13 @@ export class McpDiscoveryService {
       '--name',
       containerName,
       '-p',
-      `${port}:3000`,
+      `${port}:8080`,
       '-e',
       `MCP_COMMAND=${server.command}`,
+      '-e',
+      'PORT=8080',
+      '-e',
+      'MCP_NAMED_SERVERS={}',
     ];
 
     // Add args as environment variable

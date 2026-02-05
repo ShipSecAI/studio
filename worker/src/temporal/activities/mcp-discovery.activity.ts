@@ -144,6 +144,8 @@ async function spawnStdioContainer(input: {
     env: {
       MCP_COMMAND: input.command,
       MCP_ARGS: JSON.stringify(input.args),
+      // Override baked-in named-servers.json to force single-server mode
+      MCP_NAMED_SERVERS: '{}',
     },
     port: 0, // Auto-assign
     params: {},
