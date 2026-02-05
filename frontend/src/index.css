@@ -91,7 +91,12 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family:
+      'DM Sans',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      sans-serif;
   }
 
   /* Disable all transitions during theme switching for instant color change */
@@ -109,7 +114,9 @@
   }
 
   .theme-transition-overlay svg {
-    transition: all 500ms ease-out, transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    transition:
+      all 500ms ease-out,
+      transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
   }
 
   .theme-transition-overlay span {
@@ -118,11 +125,12 @@
 
   /* Ensure all children of overlay also have transitions */
   .theme-transition-overlay * {
-    transition: all 500ms ease-out, transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 500ms ease-out !important;
+    transition:
+      all 500ms ease-out,
+      transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 500ms ease-out !important;
   }
 }
-
-
 
 /* Fix for React Flow pointer events - ensure interactive elements in config panel are clickable */
 .react-flow__panel {
@@ -140,13 +148,13 @@ label {
 
 button,
 label,
-input[type="checkbox"],
+input[type='checkbox'],
 select {
   cursor: pointer;
 }
 
-input[type="text"],
-input[type="number"],
+input[type='text'],
+input[type='number'],
 textarea {
   cursor: text;
 }
@@ -176,7 +184,7 @@ textarea {
 }
 
 /* Smooth scrolling for config panel content */
-.config-panel>div {
+.config-panel > div {
   scroll-behavior: smooth;
 }
 
@@ -200,7 +208,7 @@ textarea {
 }
 
 .dark .status-success {
-  color: #4ADE80;
+  color: #4ade80;
   /* Accent Success */
 }
 
@@ -210,7 +218,7 @@ textarea {
 }
 
 .dark .status-error {
-  color: #EF4444;
+  color: #ef4444;
   /* Accent Error */
 }
 
@@ -220,7 +228,7 @@ textarea {
 }
 
 .dark .status-info {
-  color: #3C82F6;
+  color: #3c82f6;
   /* Accent Blue */
 }
 
@@ -230,7 +238,7 @@ textarea {
 }
 
 .dark .status-warning {
-  color: #FACC15;
+  color: #facc15;
   /* Accent Warning */
 }
 
@@ -267,7 +275,9 @@ textarea {
 
 /* Enhanced table row hover effects */
 table tbody tr {
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 table tbody tr:hover {
@@ -284,7 +294,9 @@ table tbody tr:hover {
   background-color: hsl(var(--card)) !important;
   border: 1px solid hsl(var(--border)) !important;
   border-radius: 0.375rem !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2) !important;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.3),
+    0 2px 4px -2px rgb(0 0 0 / 0.2) !important;
 }
 
 .dark .react-flow__controls-button {
@@ -315,7 +327,9 @@ table tbody tr:hover {
   background-color: hsl(var(--card)) !important;
   border: 1px solid hsl(var(--border)) !important;
   border-radius: 0.375rem !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2) !important;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.3),
+    0 2px 4px -2px rgb(0 0 0 / 0.2) !important;
 }
 
 .dark .react-flow__minimap svg {
@@ -467,7 +481,9 @@ table tbody tr:hover {
   border-radius: 2px;
   background: hsl(var(--border));
   opacity: 0.6;
-  transition: opacity 0.15s, background-color 0.15s;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s;
 }
 
 .timeline-resize-handle:hover::after {
@@ -480,7 +496,11 @@ table tbody tr:hover {
   --text-node-handle-size: 28px;
   --text-node-handle-radius: var(--radius, 0.5rem);
   --text-node-handle-offset: calc((var(--text-node-handle-size) / 2) - 1px);
-  --text-node-handle-color-default: color-mix(in srgb, hsl(var(--border)) 70%, hsl(var(--foreground)) 30%);
+  --text-node-handle-color-default: color-mix(
+    in srgb,
+    hsl(var(--border)) 70%,
+    hsl(var(--foreground)) 30%
+  );
   --text-node-handle-color-active: hsl(var(--primary));
   --text-node-handle-color: var(--text-node-handle-color-default);
   --text-node-handle-opacity: 0.85;
@@ -508,7 +528,10 @@ table tbody tr:hover {
   border: 2px solid transparent;
   opacity: var(--text-node-handle-opacity);
   pointer-events: none;
-  transition: border-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease;
   transform: scale(var(--text-node-handle-scale));
 }
 
@@ -547,11 +570,162 @@ table tbody tr:hover {
 .text-node-resize-line.react-flow__resize-control.line {
   border-color: transparent;
   opacity: 0;
-  transition: border-color 0.15s ease, opacity 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .text-node-resize-line.react-flow__resize-control.line:hover,
 .text-node-resize-line.react-flow__resize-control.line:active {
   border-color: hsl(var(--primary));
   opacity: 1;
+}
+
+/* ===== Chat Interface Styles ===== */
+
+/* Chat scrollbar styling */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Chat message animations */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-message-enter {
+  animation: messageSlideIn 0.3s ease-out forwards;
+}
+
+/* Typing indicator animation */
+@keyframes typingPulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+.typing-dot {
+  animation: typingPulse 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Smooth sidebar transitions */
+.chat-sidebar {
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease;
+}
+
+/* Chat input focus glow */
+.chat-input-container:focus-within {
+  box-shadow:
+    0 0 0 2px rgba(251, 146, 60, 0.1),
+    0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Suggested prompt hover effects */
+.suggestion-pill {
+  transition: all 0.2s ease;
+}
+
+.suggestion-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Command palette backdrop blur */
+.command-palette-overlay {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Workflow preview panel slide animation */
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.workflow-preview-enter {
+  animation: slideInFromRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Chat history item hover state */
+.chat-history-item {
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.chat-history-item:hover {
+  transform: translateX(2px);
+}
+
+/* Gradient text for headings */
+.gradient-text {
+  background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Smooth focus transitions for inputs */
+.chat-input {
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* Avatar glow effect */
+.avatar-glow {
+  box-shadow: 0 0 20px rgba(251, 146, 60, 0.2);
+}
+
+/* Message code block styling */
+.chat-message pre {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+}
+
+.chat-message code {
+  font-family: 'IBM Plex Mono', monospace;
 }
