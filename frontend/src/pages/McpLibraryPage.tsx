@@ -304,6 +304,22 @@ export function McpLibraryPage() {
   const [groupTemplates, setGroupTemplates] = useState<McpGroupTemplateResponse[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [importingTemplates, setImportingTemplates] = useState<Set<string>>(new Set());
+  // Group template discovery preview state - keyed by template slug
+  const [groupDiscoveryPreview, setGroupDiscoveryPreview] = useState<
+    Record<
+      string,
+      {
+        name: string;
+        transportType: 'http' | 'stdio';
+        toolCount: number;
+        tools?: { name: string; description?: string }[];
+        error?: string;
+        status: 'pending' | 'discovering' | 'completed' | 'failed';
+        cacheToken?: string;
+      }[]
+    >
+  >({});
+  const [discoveringGroups, setDiscoveringGroups] = useState<Set<string>>(new Set());
   const [discoveryStatus, setDiscoveryStatus] = useState<{
     workflowId?: string;
     status?: 'running' | 'completed' | 'failed';
@@ -882,60 +898,159 @@ export function McpLibraryPage() {
     }
   };
 
-  const handleImportTemplate = async (template: McpGroupTemplateResponse) => {
+  const handleGroupTestAndDiscover = async (template: McpGroupTemplateResponse) => {
+    if (discoveringGroups.has(template.slug)) return;
+
+    setDiscoveringGroups((prev) => new Set(prev).add(template.slug));
+
+    // Initialize preview with pending status
+    const initialResults: {
+      name: string;
+      transportType: 'http' | 'stdio';
+      toolCount: number;
+      status: 'pending' | 'discovering' | 'completed' | 'failed';
+      tools?: { name: string; description?: string }[];
+      error?: string;
+      cacheToken?: string;
+    }[] = template.servers.map((server) => ({
+      name: server.name,
+      transportType: server.transportType,
+      toolCount: 0,
+      status: 'pending' as const,
+      tools: undefined,
+      error: undefined,
+      cacheToken: undefined,
+    }));
+    setGroupDiscoveryPreview((prev) => ({
+      ...prev,
+      [template.slug]: initialResults,
+    }));
+
+    try {
+      // Start discovery for all servers in parallel
+      await Promise.all(
+        template.servers.map(async (server, index) => {
+          try {
+            // Update to discovering
+            setGroupDiscoveryPreview((prev) => {
+              const updated = [...prev[template.slug]];
+              updated[index] = { ...updated[index], status: 'discovering' as const };
+              return { ...prev, [template.slug]: updated };
+            });
+
+            const discoverResult = await mcpDiscoveryApi.discover({
+              transport: server.transportType,
+              name: server.name,
+              endpoint: server.endpoint ?? undefined,
+              command: server.command ?? undefined,
+            });
+
+            // Poll for completion
+            const pollInterval = 1000;
+            const maxAttempts = 60;
+            for (let i = 0; i < maxAttempts; i++) {
+              await new Promise((resolve) => setTimeout(resolve, pollInterval));
+              const status = await mcpDiscoveryApi.getStatus(discoverResult.workflowId);
+
+              if (status.status === 'completed') {
+                const tools = status.tools ?? [];
+                setGroupDiscoveryPreview((prev) => {
+                  const updated = [...prev[template.slug]];
+                  updated[index] = {
+                    name: server.name,
+                    transportType: server.transportType,
+                    toolCount: tools.length,
+                    status: 'completed' as const,
+                    tools: tools.map((t) => ({ name: t.name, description: t.description })),
+                    cacheToken: discoverResult.cacheToken ?? discoverResult.workflowId,
+                  };
+                  return { ...prev, [template.slug]: updated };
+                });
+                break;
+              } else if (status.status === 'failed') {
+                setGroupDiscoveryPreview((prev) => {
+                  const updated = [...prev[template.slug]];
+                  updated[index] = {
+                    name: server.name,
+                    transportType: server.transportType,
+                    toolCount: 0,
+                    status: 'failed' as const,
+                    error: status.error ?? 'Discovery failed',
+                  };
+                  return { ...prev, [template.slug]: updated };
+                });
+                break;
+              }
+            }
+          } catch (err) {
+            setGroupDiscoveryPreview((prev) => {
+              const updated = [...prev[template.slug]];
+              updated[index] = {
+                name: server.name,
+                transportType: server.transportType,
+                toolCount: 0,
+                status: 'failed' as const,
+                error: err instanceof Error ? err.message : 'Unknown error',
+              };
+              return { ...prev, [template.slug]: updated };
+            });
+          }
+        }),
+      );
+
+      const finalResults = groupDiscoveryPreview[template.slug];
+      const completedCount = finalResults?.filter((r) => r.status === 'completed').length ?? 0;
+      toast({
+        title: 'Discovery complete',
+        description: `${completedCount}/${template.servers.length} servers discovered`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Discovery failed',
+        description: err instanceof Error ? err.message : 'Failed to discover servers',
+        variant: 'destructive',
+      });
+    } finally {
+      setDiscoveringGroups((prev) => {
+        const next = new Set(prev);
+        next.delete(template.slug);
+        return next;
+      });
+    }
+  };
+
+  const handleImportDiscoveredTemplate = async (template: McpGroupTemplateResponse) => {
+    const preview = groupDiscoveryPreview[template.slug];
+    if (!preview) {
+      toast({
+        title: 'No discovery data',
+        description: 'Please run "Test & Discover" first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (importingTemplates.has(template.slug)) return;
 
     setImportingTemplates((prev) => new Set(prev).add(template.slug));
     try {
-      // Pre-discover all servers in the template
-      toast({
-        title: 'Discovering servers...',
-        description: `Running discovery for ${template.servers.length} server(s)...`,
-      });
-
+      // Collect cache tokens from completed discoveries
       const serverCacheTokens: Record<string, string> = {};
-
-      // Start discovery for all servers
-      const discoveryPromises = template.servers.map(async (server) => {
-        try {
-          const result = await mcpDiscoveryApi.discover({
-            transport: server.transportType,
-            name: server.name,
-            endpoint: server.endpoint ?? undefined,
-            command: server.command ?? undefined,
-            args: server.args ?? undefined,
-          });
-
-          // Poll for completion
-          let status = await mcpDiscoveryApi.getStatus(result.workflowId);
-          while (status.status === 'running') {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            status = await mcpDiscoveryApi.getStatus(result.workflowId);
-          }
-
-          if (status.status === 'completed' && result.cacheToken) {
-            return { serverName: server.name, cacheToken: result.cacheToken };
-          }
-        } catch (error) {
-          console.warn(`Discovery failed for server ${server.name}:`, error);
-        }
-        return null;
-      });
-
-      const results = await Promise.all(discoveryPromises);
-
-      // Collect successful cache tokens
-      for (const result of results) {
-        if (result) {
-          serverCacheTokens[result.serverName] = result.cacheToken;
+      for (const result of preview) {
+        if (result.status === 'completed' && result.cacheToken) {
+          serverCacheTokens[result.name] = result.cacheToken;
         }
       }
 
       const successCount = Object.keys(serverCacheTokens).length;
-      toast({
-        title: 'Discovery complete',
-        description: `Discovered ${successCount}/${template.servers.length} servers.`,
-      });
+      if (successCount === 0) {
+        toast({
+          title: 'No servers discovered',
+          description: 'At least one server must be successfully discovered',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Import template with cache tokens
       const result = await mcpGroupsApi.importTemplate(template.slug, serverCacheTokens);
@@ -944,7 +1059,13 @@ export function McpLibraryPage() {
 
       toast({
         title: 'Group imported',
-        description: `Imported ${result.group.name} with ${successCount} discovered server(s).`,
+        description: `Imported ${result.group.name} with ${successCount} server(s)`,
+      });
+
+      // Clear discovery preview after successful import
+      setGroupDiscoveryPreview((prev) => {
+        const { [template.slug]: _, ...rest } = prev;
+        return rest;
       });
     } catch (err) {
       toast({
@@ -1546,8 +1667,8 @@ export function McpLibraryPage() {
                       <Button
                         size="sm"
                         variant={isImported ? 'secondary' : 'default'}
-                        disabled={isImported || isImporting}
-                        onClick={() => handleImportTemplate(template)}
+                        disabled={isImported}
+                        onClick={() => handleImportDiscoveredTemplate(template)}
                       >
                         {isImporting ? (
                           <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -1557,10 +1678,109 @@ export function McpLibraryPage() {
                         {isImported ? 'Imported' : 'Import'}
                       </Button>
                     </CardHeader>
-                    <CardContent className="py-2">
+                    <CardContent className="space-y-3">
+                      {/* Discovery Preview */}
+                      {groupDiscoveryPreview[template.slug] && (
+                        <McpDiscoveryPreview
+                          results={groupDiscoveryPreview[template.slug]}
+                          onClear={() => {
+                            setGroupDiscoveryPreview((prev) => {
+                              const { [template.slug]: _, ...rest } = prev;
+                              return rest;
+                            });
+                          }}
+                        />
+                      )}
+
+                      {/* Discovery info message */}
+                      {!groupDiscoveryPreview[template.slug] && (
+                        <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                          <HelpCircle className="h-3 w-3 flex-shrink-0" />
+                          <span>
+                            Run &quot;Test &amp; Discover&quot; to validate servers and discover
+                            available tools before importing.
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Discovery summary when available */}
+                      {groupDiscoveryPreview[template.slug] && (
+                        <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
+                          <span className="text-green-700 dark:text-green-300">
+                            {
+                              groupDiscoveryPreview[template.slug].filter(
+                                (r) => r.status === 'completed',
+                              ).length
+                            }{' '}
+                            of {template.servers.length} servers ready
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Default image info */}
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>Default image:</span>
                         <span className="font-mono truncate">{template.defaultDockerImage}</span>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex justify-end gap-2 pt-2">
+                        {groupDiscoveryPreview[template.slug] && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setGroupDiscoveryPreview((prev) => {
+                                const { [template.slug]: _, ...rest } = prev;
+                                return rest;
+                              });
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGroupTestAndDiscover(template)}
+                          disabled={discoveringGroups.has(template.slug)}
+                        >
+                          {discoveringGroups.has(template.slug) ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                              Discovering...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="h-3 w-3 mr-2" />
+                              Test & Discover
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={
+                            isImported ||
+                            importingTemplates.has(template.slug) ||
+                            !groupDiscoveryPreview[template.slug] ||
+                            groupDiscoveryPreview[template.slug].some(
+                              (r) => r.status !== 'completed',
+                            )
+                          }
+                          onClick={() => handleImportDiscoveredTemplate(template)}
+                        >
+                          {importingTemplates.has(template.slug) ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                              Importing...
+                            </>
+                          ) : (
+                            <>
+                              <ArrowDownToLine className="h-3 w-3 mr-2" />
+                              Import
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1623,7 +1843,7 @@ export function McpLibraryPage() {
                           <DropdownMenuItem
                             key={template.slug}
                             disabled={isImporting}
-                            onClick={() => handleImportTemplate(template)}
+                            onClick={() => handleImportDiscoveredTemplate(template)}
                             className="flex items-center gap-2"
                           >
                             <GroupLogo
