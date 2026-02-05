@@ -95,7 +95,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const { lastCreatedKey } = useApiKeyStore();
   // @ts-expect-error - FIXME: Check actual store structure
   const workflowIdFromStore = useWorkflowStore((state) => state.workflow?.id);
-  const { onOpenScheduleSidebar, onOpenWebhooksSidebar } = useEntryPointActions();
+  const {
+    onOpenScheduleSidebar,
+    onOpenWebhooksSidebar,
+    setPlacement: _setPlacement,
+    selectEntryPoint,
+  } = useEntryPointActions();
 
   // Local state
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
@@ -846,6 +851,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     setShowWebhookDialog(true);
                   }
                 }}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-border bg-muted/60 hover:bg-muted transition-colors text-[10px] font-medium text-muted-foreground hover:text-foreground w-fit"
               >
                 <LucideIcons.Webhook className="h-3 w-3 flex-shrink-0" />
@@ -861,6 +867,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     navigate(`/schedules?workflowId=${workflowId}`);
                   }
                 }}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-border bg-muted/60 hover:bg-muted transition-colors text-[10px] font-medium text-muted-foreground hover:text-foreground w-fit"
               >
                 <LucideIcons.CalendarClock className="h-3 w-3 flex-shrink-0" />
@@ -870,15 +877,11 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (mode === 'design' && nodeRef.current) {
-                    const clickEvent = new MouseEvent('click', {
-                      bubbles: true,
-                      cancelable: true,
-                      view: window,
-                    });
-                    setTimeout(() => nodeRef.current?.dispatchEvent(clickEvent), 10);
+                  if (mode === 'design') {
+                    selectEntryPoint?.();
                   }
                 }}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-border bg-muted/60 hover:bg-muted transition-colors text-[10px] font-medium text-muted-foreground hover:text-foreground w-fit"
               >
                 <LucideIcons.Settings className="h-3 w-3 flex-shrink-0" />
