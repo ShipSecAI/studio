@@ -95,7 +95,7 @@ dev action="start":
                 # Update git SHA and start PM2 with security enabled
                 ./scripts/set-git-sha.sh || true
                 SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=true NODE_TLS_REJECT_UNAUTHORIZED=0 \
-                    pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --update-env
+                    pm2 startOrReload pm2.config.cjs --only shipsec-frontend-0,shipsec-backend-0,shipsec-worker-0 --update-env
 
                 echo ""
                 echo "✅ Development environment ready (secure mode)"
@@ -122,7 +122,7 @@ dev action="start":
                 ./scripts/set-git-sha.sh || true
                 SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=false \
                     OPENSEARCH_URL=http://localhost:9200 \
-                    pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --update-env
+                    pm2 startOrReload pm2.config.cjs --only shipsec-frontend-0,shipsec-backend-0,shipsec-worker-0 --update-env
 
                 echo ""
                 echo "✅ Development environment ready (local auth)"
@@ -147,7 +147,7 @@ dev action="start":
             ;;
         stop)
             echo "🛑 Stopping development environment..."
-            pm2 delete shipsec-frontend shipsec-backend shipsec-worker shipsec-test-worker 2>/dev/null || true
+            pm2 delete shipsec-frontend-0 shipsec-backend-0 shipsec-worker-0 shipsec-test-worker 2>/dev/null || true
             if [ "$SECURE_MODE" = "true" ]; then
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down
             else
@@ -168,7 +168,7 @@ dev action="start":
             ;;
         clean)
             echo "🧹 Cleaning development environment..."
-            pm2 delete shipsec-frontend shipsec-backend shipsec-worker shipsec-test-worker 2>/dev/null || true
+            pm2 delete shipsec-frontend-0 shipsec-backend-0 shipsec-worker-0 shipsec-test-worker 2>/dev/null || true
             if [ "$SECURE_MODE" = "true" ]; then
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down -v
             else

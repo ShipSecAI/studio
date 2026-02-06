@@ -299,7 +299,7 @@ module.exports = {
         // Ensure instance DB isolation even if dotenv auto-loads a workspace/default `.env`.
         ...devInstanceEnv,
         TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-        LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:19092',
+        LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
         LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
         LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-backend-${instanceNum}`,
         LOG_KAFKA_GROUP_ID: process.env.LOG_KAFKA_GROUP_ID || `shipsec-backend-log-consumer-${instanceNum}`,
@@ -347,7 +347,7 @@ module.exports = {
           STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || `http://localhost:${getInstancePort(3211, instanceNum)}/api/v1`,
           ...devInstanceEnv,
           TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-          LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:19092',
+          LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
           LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
           LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-worker-${instanceNum}`,
           EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
