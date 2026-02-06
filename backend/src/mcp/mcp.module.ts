@@ -32,7 +32,8 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
       provide: MCP_DISCOVERY_REDIS,
       useFactory: () => {
         // Keep consistent with the worker-side caching (worker uses REDIS_URL || TERMINAL_REDIS_URL || localhost).
-        const redisUrl = process.env.REDIS_URL || process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379';
+        const redisUrl =
+          process.env.REDIS_URL || process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379';
         return new Redis(redisUrl);
       },
     },

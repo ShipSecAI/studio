@@ -1,4 +1,8 @@
-import { createExecutionContext, runComponentWithRunner, type DockerRunnerConfig } from '@shipsec/component-sdk';
+import {
+  createExecutionContext,
+  runComponentWithRunner,
+  type DockerRunnerConfig,
+} from '@shipsec/component-sdk';
 
 export interface ExecuteWebhookParsingScriptActivityInput {
   parsingScript: string;
@@ -21,7 +25,10 @@ export async function executeWebhookParsingScriptActivity(
   let processedScript = input.parsingScript;
   const exportRegex = /^(?!\s*export\s+)(.*?\s*(?:async\s+)?function\s+script\b)/m;
   if (exportRegex.test(processedScript)) {
-    processedScript = processedScript.replace(exportRegex, (match) => `export ${match.trimStart()}`);
+    processedScript = processedScript.replace(
+      exportRegex,
+      (match) => `export ${match.trimStart()}`,
+    );
   }
 
   // Bun plugin for HTTP imports (allows importing TS/JS modules from URLs).
@@ -162,4 +169,3 @@ run();
     context,
   );
 }
-

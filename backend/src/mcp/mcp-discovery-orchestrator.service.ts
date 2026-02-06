@@ -84,7 +84,9 @@ export class McpDiscoveryOrchestratorService implements OnModuleDestroy {
     };
   }
 
-  async startGroupDiscovery(input: GroupDiscoveryInputDto): Promise<GroupDiscoveryStartResponseDto> {
+  async startGroupDiscovery(
+    input: GroupDiscoveryInputDto,
+  ): Promise<GroupDiscoveryStartResponseDto> {
     const workflowId = randomUUID();
     const cacheTokens: Record<string, string> = {};
 
@@ -155,4 +157,3 @@ export class McpDiscoveryOrchestratorService implements OnModuleDestroy {
     };
   }
 }
-

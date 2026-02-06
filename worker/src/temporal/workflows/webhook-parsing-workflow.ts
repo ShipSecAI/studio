@@ -1,7 +1,5 @@
 import { proxyActivities } from '@temporalio/workflow';
-import type {
-  ExecuteWebhookParsingScriptActivityInput,
-} from '../activities/webhook-parsing.activity';
+import type { ExecuteWebhookParsingScriptActivityInput } from '../activities/webhook-parsing.activity';
 
 const { executeWebhookParsingScriptActivity } = proxyActivities<{
   executeWebhookParsingScriptActivity: (
@@ -23,4 +21,3 @@ export async function webhookParsingWorkflow(
 ): Promise<Record<string, unknown>> {
   return executeWebhookParsingScriptActivity(input);
 }
-
