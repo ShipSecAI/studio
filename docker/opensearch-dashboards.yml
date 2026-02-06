@@ -26,5 +26,8 @@ logging.silent: false
 logging.quiet: false
 logging.verbose: false
 
+# Default landing page - Discover instead of Home (which shows all plugin links)
+uiSettings.overrides.defaultRoute: "/app/discover"
+
 # CSP - relaxed for development (inline scripts needed by dashboards)
 csp.strict: false

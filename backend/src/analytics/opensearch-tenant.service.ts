@@ -180,9 +180,18 @@ export class OpenSearchTenantService {
     const roleDefinition = {
       cluster_permissions: [
         'cluster_composite_ops_ro',
-        'cluster:admin/opendistro/ism/policy/get',
-        'cluster:admin/opendistro/ism/policy/search',
-        'cluster:admin/opendistro/ism/managedindex/explain',
+        // Required for Dashboards saved objects (bulk writes to .kibana_* tenant indices)
+        'indices:data/write/bulk',
+        // Alerting: monitor CRUD, execution, alerts, and destinations
+        'cluster:admin/opendistro/alerting/monitor/get',
+        'cluster:admin/opendistro/alerting/monitor/search',
+        'cluster:admin/opendistro/alerting/monitor/write',
+        'cluster:admin/opendistro/alerting/monitor/execute',
+        'cluster:admin/opendistro/alerting/alerts/get',
+        'cluster:admin/opendistro/alerting/alerts/ack',
+        'cluster:admin/opendistro/alerting/destination/get',
+        'cluster:admin/opendistro/alerting/destination/write',
+        'cluster:admin/opendistro/alerting/destination/delete',
       ],
       index_permissions: [
         {

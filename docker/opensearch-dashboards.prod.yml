@@ -52,6 +52,9 @@ opensearch_security.cookie.isSameSite: "Strict"
 opensearch_security.session.ttl: 3600000
 opensearch_security.session.keepalive: true
 
+# Default landing page - Discover instead of Home (which shows all plugin links)
+uiSettings.overrides.defaultRoute: "/app/discover"
+
 # Logging
 logging.dest: stdout
 logging.silent: false
