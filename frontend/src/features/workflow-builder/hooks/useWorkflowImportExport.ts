@@ -12,6 +12,8 @@ import {
 } from '@/features/workflow-builder/hooks/useWorkflowGraphControllers';
 import type { FrontendNodeData } from '@/schemas/node';
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow';
+import { useSecretStore } from '@/store/secretStore';
+import { useComponentStore } from '@/store/componentStore';
 interface WorkflowMetadataShape {
   id: string | null;
   name: string;
@@ -97,6 +99,52 @@ export function useWorkflowImportExport({
 
       const normalizedNodes = deserializeNodes(workflowGraph);
       const normalizedEdges = deserializeEdges(workflowGraph);
+
+      // Validate secret references
+      try {
+        await useSecretStore.getState().fetchSecrets();
+        const secrets = useSecretStore.getState().secrets;
+        const secretIds = new Set(secrets.map((s) => s.id));
+
+        const componentStore = useComponentStore.getState();
+        if (Object.keys(componentStore.components).length === 0) {
+          await componentStore.fetchComponents();
+        }
+        const components = useComponentStore.getState().components;
+
+        normalizedNodes.forEach((node) => {
+          const data = node.data as FrontendNodeData;
+          const componentRef = data.componentId || data.componentSlug;
+          if (!componentRef) return;
+
+          const component =
+            componentStore.getComponent(componentRef) ||
+            Object.values(components).find((c) => c.slug === componentRef);
+
+          if (!component || !component.parameters) return;
+
+          // Find parameters that are secrets
+          const secretParams = component.parameters.filter((p) => p.type === 'secret');
+          const configParams = node.data.config.params || {};
+
+          secretParams.forEach((param) => {
+            const val = configParams[param.id];
+            // If value is a string (ID) and not in available secrets, remove it
+            if (typeof val === 'string' && val.trim().length > 0) {
+              if (!secretIds.has(val)) {
+                console.warn(
+                  `[Import] Removing invalid secret reference for param "${param.id}" in node "${node.id}" (secret ID: ${val})`,
+                );
+                // Set to undefined to clear it
+                configParams[param.id] = undefined;
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Failed to validate secrets during import:', error);
+        // Continue with import even if validation fails
+      }
 
       resetWorkflow();
       setDesignNodes(normalizedNodes);
