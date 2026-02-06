@@ -38,6 +38,7 @@ import {
   discoverMcpGroupToolsActivity,
   cacheDiscoveryResultActivity,
 } from '../activities/mcp-discovery.activity';
+import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
 
 // ... (existing imports)
 
@@ -216,24 +217,25 @@ async function main() {
   console.log(`✅ Service adapters initialized`);
 
   console.log(`🏗️ Creating Temporal worker...`);
-  console.log(
-    `   - Activities: ${Object.keys({
-      runComponentActivity,
-      setRunMetadataActivity,
-      finalizeRunActivity,
-      prepareRunPayloadActivity,
-      createHumanInputRequestActivity,
-      cancelHumanInputRequestActivity,
-      recordTraceEventActivity,
-      registerComponentToolActivity,
-      registerLocalMcpActivity,
-      registerRemoteMcpActivity,
-      cleanupLocalMcpActivity,
-      discoverMcpToolsActivity,
-      discoverMcpGroupToolsActivity,
-      cacheDiscoveryResultActivity,
-    }).join(', ')}`,
-  );
+	  console.log(
+	    `   - Activities: ${Object.keys({
+	      runComponentActivity,
+	      setRunMetadataActivity,
+	      finalizeRunActivity,
+	      prepareRunPayloadActivity,
+	      createHumanInputRequestActivity,
+	      cancelHumanInputRequestActivity,
+	      recordTraceEventActivity,
+	      registerComponentToolActivity,
+	      registerLocalMcpActivity,
+	      registerRemoteMcpActivity,
+	      cleanupLocalMcpActivity,
+	      discoverMcpToolsActivity,
+	      discoverMcpGroupToolsActivity,
+	      cacheDiscoveryResultActivity,
+	      executeWebhookParsingScriptActivity,
+	    }).join(', ')}`,
+	  );
 
   console.log(`🔍 Worker Configuration Details:`);
   console.log(`   - Workflows Path: ${workflowsPath}`);
@@ -255,28 +257,29 @@ async function main() {
     namespace,
     taskQueue,
     workflowsPath,
-    activities: {
-      runComponentActivity,
-      setRunMetadataActivity,
-      finalizeRunActivity,
-      prepareRunPayloadActivity,
-      createHumanInputRequestActivity,
-      cancelHumanInputRequestActivity,
-      expireHumanInputRequestActivity,
-      recordTraceEventActivity,
-      registerComponentToolActivity,
-      registerLocalMcpActivity,
-      registerRemoteMcpActivity,
-      cleanupLocalMcpActivity,
-      prepareAndRegisterToolActivity,
-      areAllToolsReadyActivity,
-      discoverMcpToolsActivity,
-      discoverMcpGroupToolsActivity,
-      cacheDiscoveryResultActivity,
-    },
-    bundlerOptions: {
-      ignoreModules: ['child_process'],
-      webpackConfigHook: (config: any) => {
+	    activities: {
+	      runComponentActivity,
+	      setRunMetadataActivity,
+	      finalizeRunActivity,
+	      prepareRunPayloadActivity,
+	      createHumanInputRequestActivity,
+	      cancelHumanInputRequestActivity,
+	      expireHumanInputRequestActivity,
+	      recordTraceEventActivity,
+	      registerComponentToolActivity,
+	      registerLocalMcpActivity,
+	      registerRemoteMcpActivity,
+	      cleanupLocalMcpActivity,
+	      prepareAndRegisterToolActivity,
+	      areAllToolsReadyActivity,
+	      discoverMcpToolsActivity,
+	      discoverMcpGroupToolsActivity,
+	      cacheDiscoveryResultActivity,
+	      executeWebhookParsingScriptActivity,
+	    },
+	    bundlerOptions: {
+	      ignoreModules: ['child_process'],
+	      webpackConfigHook: (config: any) => {
         // Configure extension resolution for ES modules
         // Add .workflow, .ts to handle all file types
         if (config?.resolve) {
