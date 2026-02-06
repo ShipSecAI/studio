@@ -29,6 +29,7 @@ This document describes the analytics infrastructure for ShipSec Studio, includi
 Time-series database for storing security findings and workflow analytics.
 
 **Configuration:**
+
 - Single-node deployment (dev/simple prod)
 - Security plugin disabled for development
 - Index pattern: `security-findings-{org-id}-{date}`
@@ -38,13 +39,15 @@ Time-series database for storing security findings and workflow analytics.
 Web UI for exploring and visualizing analytics data.
 
 **Configuration (`opensearch-dashboards.yml`):**
+
 ```yaml
-server.basePath: "/analytics"
+server.basePath: '/analytics'
 server.rewriteBasePath: true
-opensearch.hosts: ["http://opensearch:9200"]
+opensearch.hosts: ['http://opensearch:9200']
 ```
 
 **Key Settings:**
+
 - `basePath: "/analytics"` - All URLs are prefixed with `/analytics`
 - `rewriteBasePath: true` - Strips `/analytics` from incoming requests, adds it back to responses
 
@@ -53,6 +56,7 @@ opensearch.hosts: ["http://opensearch:9200"]
 The `core.analytics.sink` component writes workflow results to OpenSearch.
 
 **Input Ports:**
+
 - Ships with a default `input1` port so at least one connector is always available.
 - Users can configure additional input ports via the **Data Inputs** parameter
   (e.g., to aggregate results from multiple scanners into one index).
@@ -62,11 +66,13 @@ The `core.analytics.sink` component writes workflow results to OpenSearch.
   ensure all dynamic handles are present before rendering.
 
 **Environment Variable:**
+
 ```yaml
 OPENSEARCH_URL=http://opensearch:9200
 ```
 
 **Document Structure:**
+
 ```json
 {
   "@timestamp": "2026-01-25T01:22:43.783Z",
@@ -88,11 +94,11 @@ OPENSEARCH_URL=http://opensearch:9200
 
 All traffic flows through Nginx on port 80:
 
-| Path | Target | Description |
-|------|--------|-------------|
-| `/analytics/*` | `opensearch-dashboards:5601` | Analytics dashboard UI |
-| `/api/*` | `backend:3211` | Backend REST API |
-| `/*` | `frontend:8080` | Frontend SPA (catch-all) |
+| Path           | Target                       | Description              |
+| -------------- | ---------------------------- | ------------------------ |
+| `/analytics/*` | `opensearch-dashboards:5601` | Analytics dashboard UI   |
+| `/api/*`       | `backend:3211`               | Backend REST API         |
+| `/*`           | `frontend:8080`              | Frontend SPA (catch-all) |
 
 ### OpenSearch Dashboards Routing Details
 
@@ -124,7 +130,7 @@ const filterQuery = `shipsec.run_id.keyword:"${runId}"`;
 // Build Discover URL with proper state format
 const gParam = encodeURIComponent('(time:(from:now-7d,to:now))');
 const aParam = encodeURIComponent(
-  `(columns:!(_source),index:'security-findings-*',interval:auto,query:(language:kuery,query:'${filterQuery}'),sort:!('@timestamp',desc))`
+  `(columns:!(_source),index:'security-findings-*',interval:auto,query:(language:kuery,query:'${filterQuery}'),sort:!('@timestamp',desc))`,
 );
 const url = `${baseUrl}/app/discover#/?_g=${gParam}&_a=${aParam}`;
 
@@ -133,11 +139,13 @@ window.open(url, '_blank', 'noopener,noreferrer');
 ```
 
 **Key points:**
+
 - Use `.keyword` fields (e.g., `shipsec.run_id.keyword`) for exact match filtering
 - Use Discover app (`/app/discover`) for viewing raw data without saved views
 - Include `index`, `columns`, `interval`, and `sort` in the `_a` param
 
 **Environment Variable:**
+
 ```
 VITE_OPENSEARCH_DASHBOARDS_URL=/analytics
 ```
@@ -186,16 +194,17 @@ The tenant identity for OpenSearch Dashboards is determined through a proxy auth
 
 The Clerk JWT `__session` cookie only contains `org_id` when the user has an **active organization session**. This is different from organization membership:
 
-| Concept | Source | Contains org info? |
-|---------|--------|-------------------|
-| `organizationMemberships` | Clerk User object (frontend SDK) | Lists ALL orgs the user belongs to |
-| JWT `org_id` | `__session` cookie (cryptographically signed) | Only the ACTIVE org, if any |
+| Concept                   | Source                                        | Contains org info?                 |
+| ------------------------- | --------------------------------------------- | ---------------------------------- |
+| `organizationMemberships` | Clerk User object (frontend SDK)              | Lists ALL orgs the user belongs to |
+| JWT `org_id`              | `__session` cookie (cryptographically signed) | Only the ACTIVE org, if any        |
 
 If a user is a member of an organization but hasn't activated it (via Clerk's `OrganizationSwitcher` or `setActive()`), their JWT won't contain `org_id`, and they'll land in a personal workspace tenant instead of their organization's tenant.
 
 ### Tenant Provisioning
 
 When a new `org_id` is seen during auth validation, the backend automatically provisions:
+
 - An OpenSearch **tenant** named after the org ID
 - A **role** (`customer_{orgId}_ro`) with read access to `security-findings-{orgId}-*` indices and `kibana_all_write` tenant permissions
 - A **role mapping** linking the role to the proxy auth backend role
@@ -226,6 +235,7 @@ When a new `org_id` is seen during auth validation, the backend automatically pr
 **Root Cause:** The user's Clerk session does not have an active organization. The Clerk JWT (`__session` cookie) only includes `org_id` when the organization is explicitly activated via `OrganizationSwitcher` or `clerk.setActive({ organization: orgId })`. Without an active org, the backend falls back to `workspace-{userId}`.
 
 This can happen when:
+
 - The user signed up and was added to an org but never selected it in the UI
 - The user's Clerk session expired and was recreated without org context
 - The frontend didn't call `setActive()` after login
@@ -239,6 +249,7 @@ This can happen when:
 ![Clerk user in test org](media/clerk-user-test-org.png)
 
 **Diagnosis:**
+
 ```bash
 # Check backend logs for the auth resolution path
 docker logs shipsec-backend 2>&1 | grep -E "\[AUTH\].*Resolving org|No org found|Using org"
@@ -253,6 +264,7 @@ docker logs shipsec-backend 2>&1 | grep -E "\[AUTH\].*Resolving org|No org found
 ```
 
 **Solution:**
+
 1. Have the user switch to their organization using the Organization Switcher in the app UI
 2. Ensure the frontend calls `clerk.setActive({ organization: orgId })` after login when the user belongs to an organization
 3. After switching, refresh the `/analytics/` page — the tenant should now show the org ID
@@ -271,20 +283,25 @@ The nginx `/analytics/` route always injects org-scoped proxy headers (`x-proxy-
 Access Dashboards directly on port 5601, bypassing nginx entirely. Without proxy headers, the basic auth fallback activates.
 
 **Development (port already exposed):**
+
 ```
 http://localhost:5601
 ```
+
 Log in with the admin credentials defined in `docker/opensearch-security/internal_users.yml` (default: `admin` / `admin`).
 
 **Production (port not publicly exposed):**
 
 Use SSH port forwarding to tunnel to the server's Dashboards port:
+
 ```bash
 ssh -L 5601:localhost:5601 user@your-production-server
 ```
+
 Then open `http://localhost:5601` locally.
 
 If the Dashboards container doesn't bind to the host network, find its Docker IP first:
+
 ```bash
 # On the production server
 docker inspect opensearch-dashboards | grep IPAddress
@@ -294,6 +311,7 @@ ssh -L 5601:<container-ip>:5601 user@your-production-server
 ```
 
 **Admin capabilities:**
+
 - View and manage all tenants
 - Inspect index mappings and document counts
 - Debug role mappings and security configuration
@@ -305,6 +323,7 @@ ssh -L 5601:<container-ip>:5601 user@your-production-server
 **Symptom:** New workflow runs don't appear in OpenSearch
 
 **Check:**
+
 ```bash
 # Verify worker has OPENSEARCH_URL set
 docker exec shipsec-worker env | grep OPENSEARCH
@@ -320,17 +339,20 @@ docker logs shipsec-worker 2>&1 | grep -i "analytics\|indexing"
 **Symptom:** Page loads but content area is empty
 
 **Check:**
+
 1. Browser console for JavaScript errors
 2. Time range filter (data might be outside selected range)
 3. Index pattern selection
 
 **Solution:**
+
 - Set time range to "Last 30 days" or wider
 - Ensure `security-findings-*` index pattern is selected
 
 ### Query Returns No Results
 
 **Check if data exists:**
+
 ```bash
 # Count documents
 curl -s "http://localhost:9200/security-findings-*/_count" | jq '.count'
@@ -344,15 +366,15 @@ curl -s "http://localhost:9200/security-findings-*/_search" \
 
 ## Environment Variables
 
-| Variable | Service | Description |
-|----------|---------|-------------|
-| `OPENSEARCH_URL` | Worker | OpenSearch connection URL |
-| `OPENSEARCH_USERNAME` | Worker | Optional: OpenSearch username |
-| `OPENSEARCH_PASSWORD` | Worker | Optional: OpenSearch password |
-| `VITE_OPENSEARCH_DASHBOARDS_URL` | Frontend | Dashboard URL for links |
+| Variable                         | Service  | Description                   |
+| -------------------------------- | -------- | ----------------------------- |
+| `OPENSEARCH_URL`                 | Worker   | OpenSearch connection URL     |
+| `OPENSEARCH_USERNAME`            | Worker   | Optional: OpenSearch username |
+| `OPENSEARCH_PASSWORD`            | Worker   | Optional: OpenSearch password |
+| `VITE_OPENSEARCH_DASHBOARDS_URL` | Frontend | Dashboard URL for links       |
 
 ## See Also
 
 - [Docker README](../docker/README.md) - Docker deployment configurations
-- [nginx.full.conf](../docker/nginx/nginx.full.conf) - Full stack nginx routing
+- [nginx.prod.conf](../docker/nginx/nginx.prod.conf) - Container-mode nginx routing (full stack + production)
 - [opensearch-dashboards.yml](../docker/opensearch-dashboards.yml) - Dashboard configuration

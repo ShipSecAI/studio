@@ -4,11 +4,11 @@ This directory contains Docker Compose configurations for running ShipSec Studio
 
 ## Docker Compose Files
 
-| File | Purpose | When to Use |
-|------|---------|-------------|
-| `docker-compose.infra.yml` | Infrastructure services only | Development with PM2 (frontend/backend on host) |
-| `docker-compose.full.yml` | Full stack in containers | Self-hosted deployment, all services containerized |
-| `docker-compose.prod.yml` | Security overlay | Production SaaS with multitenancy (overlays infra.yml) |
+| File                       | Purpose                      | When to Use                                            |
+| -------------------------- | ---------------------------- | ------------------------------------------------------ |
+| `docker-compose.infra.yml` | Infrastructure services only | Development with PM2 (frontend/backend on host)        |
+| `docker-compose.full.yml`  | Full stack in containers     | Self-hosted deployment, all services containerized     |
+| `docker-compose.prod.yml`  | Security overlay             | Production SaaS with multitenancy (overlays infra.yml) |
 
 ## Environment Modes
 
@@ -25,6 +25,7 @@ just dev
 - **Security**: Disabled for fast iteration
 
 **Access:**
+
 - Frontend: http://localhost:5173
 - Backend: http://localhost:3211
 - Analytics: http://localhost:5601/analytics/
@@ -41,17 +42,18 @@ just prod
 - **Security**: Disabled (simple deployment)
 
 **Access (all via port 80):**
+
 - Frontend: http://localhost/
 - Backend API: http://localhost/api/
 - Analytics: http://localhost/analytics/
 
-**Nginx Routing (nginx.full.conf):**
+**Nginx Routing (nginx.prod.conf):**
 
-| Path | Target Container | Port |
-|------|------------------|------|
+| Path           | Target Container      | Port |
+| -------------- | --------------------- | ---- |
 | `/analytics/*` | opensearch-dashboards | 5601 |
-| `/api/*` | backend | 3211 |
-| `/*` | frontend | 8080 |
+| `/api/*`       | backend               | 3211 |
+| `/*`           | frontend              | 8080 |
 
 > **Note:** Frontend and backend containers only expose ports internally. All external traffic flows through nginx on port 80.
 
@@ -70,16 +72,16 @@ just prod-secure
 - **Nginx**: Uses `nginx.prod.conf` with container networking
 
 **Access:**
+
 - Analytics: https://localhost/analytics (auth required)
 - OpenSearch: https://localhost:9200 (TLS)
 
 ## Nginx Configuration
 
-| File | Target Services | Use Case |
-|------|-----------------|----------|
-| `nginx/nginx.dev.conf` | `host.docker.internal:5173/3211` | Dev (PM2 on host) |
-| `nginx/nginx.full.conf` | `frontend:8080`, `backend:3211`, `opensearch-dashboards:5601` | Full stack (all containerized) |
-| `nginx/nginx.prod.conf` | Same as full + TLS | Prod with security |
+| File                    | Target Services                                               | Use Case                                 |
+| ----------------------- | ------------------------------------------------------------- | ---------------------------------------- |
+| `nginx/nginx.dev.conf`  | `host.docker.internal:5173/3211`                              | Dev (PM2 on host)                        |
+| `nginx/nginx.prod.conf` | `frontend:8080`, `backend:3211`, `opensearch-dashboards:5601` | Container mode (full stack + production) |
 
 ### Routing Architecture
 
@@ -98,6 +100,7 @@ All modes use nginx as a reverse proxy with unified routing:
 ### OpenSearch Dashboards BasePath
 
 OpenSearch Dashboards is configured with `server.basePath: "/analytics"` to work behind nginx:
+
 - Incoming requests: `/analytics/app/discover` → internally processed as `/app/discover`
 - Outgoing URLs: Automatically prefixed with `/analytics`
 
@@ -106,6 +109,7 @@ OpenSearch Dashboards is configured with `server.basePath: "/analytics"` to work
 The worker service writes analytics data to OpenSearch via the Analytics Sink component.
 
 **Required Environment Variable:**
+
 ```yaml
 OPENSEARCH_URL=http://opensearch:9200
 ```
@@ -138,16 +142,16 @@ docker/
 
 ## Quick Reference
 
-| Command | Description |
-|---------|-------------|
-| `just dev` | Start dev environment (PM2 + Docker infra) |
-| `just dev stop` | Stop dev environment |
-| `just prod` | Start full stack in Docker |
-| `just prod stop` | Stop production |
-| `just prod-secure` | Start with security & multitenancy |
-| `just generate-certs` | Generate TLS certificates |
-| `just infra up` | Start infrastructure only |
-| `just help` | Show all available commands |
+| Command               | Description                                |
+| --------------------- | ------------------------------------------ |
+| `just dev`            | Start dev environment (PM2 + Docker infra) |
+| `just dev stop`       | Stop dev environment                       |
+| `just prod`           | Start full stack in Docker                 |
+| `just prod stop`      | Stop production                            |
+| `just prod-secure`    | Start with security & multitenancy         |
+| `just generate-certs` | Generate TLS certificates                  |
+| `just infra up`       | Start infrastructure only                  |
+| `just help`           | Show all available commands                |
 
 ## See Also
 
