@@ -1722,12 +1722,11 @@ export function McpLibraryPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-              {filteredTemplates.map((template) => {
-                const theme = getGroupTheme(template.slug);
-                const isImported = importedGroupSlugs.has(template.slug);
-                const isImporting = importingTemplates.has(template.slug);
+	              {filteredTemplates.map((template) => {
+	                const theme = getGroupTheme(template.slug);
+	                const isImported = importedGroupSlugs.has(template.slug);
 
-                return (
+	                return (
                   <Card
                     key={template.slug}
                     className={cn('overflow-hidden border', theme.container)}
@@ -1745,33 +1744,25 @@ export function McpLibraryPage() {
                           className={theme.iconText}
                         />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-base">{template.name}</h3>
-                          <Badge variant="secondary" className="text-xs">
-                            {template.servers.length} servers
-                          </Badge>
-                        </div>
-                        {template.description && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {template.description}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={isImported ? 'secondary' : 'default'}
-                        disabled={isImported}
-                        onClick={() => handleImportDiscoveredTemplate(template)}
-                      >
-                        {isImporting ? (
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <ArrowDownToLine className="h-4 w-4 mr-2" />
-                        )}
-                        {isImported ? 'Imported' : 'Import'}
-                      </Button>
-                    </CardHeader>
+	                      <div className="flex-1">
+	                        <div className="flex items-center gap-2">
+	                          <h3 className="font-semibold text-base">{template.name}</h3>
+	                          <Badge variant="secondary" className="text-xs">
+	                            {template.servers.length} servers
+	                          </Badge>
+	                        </div>
+	                        {template.description && (
+	                          <p className="text-sm text-muted-foreground mt-1">
+	                            {template.description}
+	                          </p>
+	                        )}
+	                      </div>
+	                      {isImported && (
+	                        <Badge variant="secondary" className="text-xs">
+	                          Imported
+	                        </Badge>
+	                      )}
+	                    </CardHeader>
                     <CardContent className="space-y-3">
                       {/* Discovery Preview */}
                       {groupDiscoveryPreview[template.slug] && (
