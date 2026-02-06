@@ -167,7 +167,138 @@ The analytics settings update API supports **partial updates**:
 
 Omit fields you don’t want to change. The backend validates the retention days only when provided.
 
+## Multi-Tenant Architecture
+
+When the OpenSearch Security plugin is enabled, each organization gets an isolated tenant with its own dashboards, index patterns, and saved objects.
+
+### How Tenant Identity Is Resolved
+
+The tenant identity for OpenSearch Dashboards is determined through a proxy auth flow:
+
+1. **Browser navigation** to `/analytics/` sends the Clerk `__session` cookie
+2. **nginx** sends an `auth_request` to the backend (`/api/v1/auth/validate`)
+3. **Backend** decodes the JWT from the cookie and resolves the organization:
+   - If the JWT contains `org_id` (active Clerk organization session) → uses `org_id` as tenant
+   - If the JWT has no `org_id` → falls back to `workspace-{userId}` (personal workspace)
+4. **nginx** forwards the resolved identity via `x-proxy-user`, `x-proxy-roles`, and `securitytenant` headers
+
+### Important: Clerk Active Organization Session
+
+The Clerk JWT `__session` cookie only contains `org_id` when the user has an **active organization session**. This is different from organization membership:
+
+| Concept | Source | Contains org info? |
+|---------|--------|-------------------|
+| `organizationMemberships` | Clerk User object (frontend SDK) | Lists ALL orgs the user belongs to |
+| JWT `org_id` | `__session` cookie (cryptographically signed) | Only the ACTIVE org, if any |
+
+If a user is a member of an organization but hasn't activated it (via Clerk's `OrganizationSwitcher` or `setActive()`), their JWT won't contain `org_id`, and they'll land in a personal workspace tenant instead of their organization's tenant.
+
+### Tenant Provisioning
+
+When a new `org_id` is seen during auth validation, the backend automatically provisions:
+- An OpenSearch **tenant** named after the org ID
+- A **role** (`customer_{orgId}_ro`) with read access to `security-findings-{orgId}-*` indices and `kibana_all_write` tenant permissions
+- A **role mapping** linking the role to the proxy auth backend role
+- An **index template** and **seed index** with field mappings so index patterns resolve correctly
+- A default **index pattern** (`security-findings-{orgId}-*`) in the tenant's saved objects
+
+### Security Guarantees
+
+- The JWT is cryptographically signed by Clerk — `org_id` cannot be forged
+- The backend validates `X-Organization-Id` headers against the JWT's `org_id` — cross-tenant header spoofing is rejected
+- Each tenant has isolated roles, index patterns, and saved objects
+- The `workspace-{userId}` fallback creates an isolated personal sandbox — no data leaks between tenants
+
 ## Troubleshooting
+
+### OpenSearch Dashboards Shows `workspace-user_...` Instead of Organization Name
+
+**Symptom:** The user profile dropdown in OpenSearch Dashboards shows `workspace-user_{clerkUserId}` instead of the organization ID (e.g., `org_...`). The dashboard appears empty because all indexed data is under the organization's tenant, not the personal workspace.
+
+**Expected (org tenant active):**
+
+![OpenSearch showing org ID as tenant](media/opensearch-tenant-org-id.png)
+
+**Broken (workspace fallback):**
+
+![OpenSearch showing workspace-user fallback](media/opensearch-tenant-workspace-fallback.png)
+
+**Root Cause:** The user's Clerk session does not have an active organization. The Clerk JWT (`__session` cookie) only includes `org_id` when the organization is explicitly activated via `OrganizationSwitcher` or `clerk.setActive({ organization: orgId })`. Without an active org, the backend falls back to `workspace-{userId}`.
+
+This can happen when:
+- The user signed up and was added to an org but never selected it in the UI
+- The user's Clerk session expired and was recreated without org context
+- The frontend didn't call `setActive()` after login
+
+**Clerk Dashboard — user in "local" org (but no active session, causing fallback):**
+
+![Clerk user in local org](media/clerk-user-local-org.png)
+
+**Clerk Dashboard — user in "Test Organization" (active session, working correctly):**
+
+![Clerk user in test org](media/clerk-user-test-org.png)
+
+**Diagnosis:**
+```bash
+# Check backend logs for the auth resolution path
+docker logs shipsec-backend 2>&1 | grep -E "\[AUTH\].*Resolving org|No org found|Using org"
+
+# Example log when org is missing from JWT:
+# [AUTH] Resolving org - Header: not present, JWT org: none, User: user_39ey3oxc0...
+# [AUTH] No org found, using workspace: workspace-user_39ey3oxc0...
+
+# Example log when org is correctly resolved:
+# [AUTH] Resolving org - Header: not present, JWT org: org_30cuor7xe..., User: user_abc...
+# [AUTH] Using org from JWT payload: org_30cuor7xe...
+```
+
+**Solution:**
+1. Have the user switch to their organization using the Organization Switcher in the app UI
+2. Ensure the frontend calls `clerk.setActive({ organization: orgId })` after login when the user belongs to an organization
+3. After switching, refresh the `/analytics/` page — the tenant should now show the org ID
+
+**Security Note:** This is a UX issue, not a security vulnerability. The `workspace-user_...` fallback creates an isolated empty sandbox. No data leaks between tenants. See the [Security Guarantees](#security-guarantees) section above.
+
+### Accessing OpenSearch Dashboards as Admin (Maintenance)
+
+For maintenance tasks (managing indices, debugging tenant provisioning, viewing all tenants, etc.), you need admin-level access to OpenSearch Dashboards.
+
+**Why normal `/analytics/` access won't work as admin:**
+The nginx `/analytics/` route always injects org-scoped proxy headers (`x-proxy-user: org_<orgId>_user`). Since proxy auth (order 0) takes priority over basic auth (order 1), OpenSearch ignores any admin credentials and authenticates you as the org-scoped user instead.
+
+**How to access as admin:**
+
+Access Dashboards directly on port 5601, bypassing nginx entirely. Without proxy headers, the basic auth fallback activates.
+
+**Development (port already exposed):**
+```
+http://localhost:5601
+```
+Log in with the admin credentials defined in `docker/opensearch-security/internal_users.yml` (default: `admin` / `admin`).
+
+**Production (port not publicly exposed):**
+
+Use SSH port forwarding to tunnel to the server's Dashboards port:
+```bash
+ssh -L 5601:localhost:5601 user@your-production-server
+```
+Then open `http://localhost:5601` locally.
+
+If the Dashboards container doesn't bind to the host network, find its Docker IP first:
+```bash
+# On the production server
+docker inspect opensearch-dashboards | grep IPAddress
+
+# Then tunnel to that IP
+ssh -L 5601:<container-ip>:5601 user@your-production-server
+```
+
+**Admin capabilities:**
+- View and manage all tenants
+- Inspect index mappings and document counts
+- Debug role mappings and security configuration
+- Manage ISM policies and index lifecycle
+- Access the Security plugin UI at `/app/security-dashboards-plugin`
 
 ### Analytics Sink Not Writing Data
 
