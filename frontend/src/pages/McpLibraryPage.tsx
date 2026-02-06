@@ -521,7 +521,9 @@ export function McpLibraryPage() {
 
   const getGroupServerToolCounts = (server: { serverId: string; toolCount: number }) => {
     const counts = toolCountsByServer[server.serverId];
-    if (counts) {
+    // If we haven't loaded tools for this server (common for disabled servers),
+    // don't let a 0/0 cache override the server's known discovered toolCount.
+    if (counts && !(counts.total === 0 && server.toolCount > 0)) {
       return counts;
     }
     const fallbackTotal = server.toolCount;
