@@ -17,11 +17,13 @@ TEMPORAL_ADDRESS="127.0.0.1:7233"
 
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
 log_info() { echo -e "${BLUE}ℹ${NC} $*"; }
 log_success() { echo -e "${GREEN}✅${NC} $*"; }
+log_warn() { echo -e "${YELLOW}⚠️${NC} $*"; }
 log_error() { echo -e "${RED}❌${NC} $*"; }
 
 POSTGRES_CONTAINER="$(
@@ -60,11 +62,25 @@ if ! command -v temporal >/dev/null 2>&1; then
   log_info "temporal CLI not found; skipping Temporal namespace bootstrap"
 else
   log_info "Ensuring Temporal namespace exists: $NAMESPACE"
+  # Temporal can take a few seconds to accept CLI requests after the container is "Started".
+  for _ in {1..30}; do
+    if temporal operator namespace list --address "$TEMPORAL_ADDRESS" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+
   if temporal operator namespace describe --address "$TEMPORAL_ADDRESS" --namespace "$NAMESPACE" >/dev/null 2>&1; then
     log_success "Temporal namespace exists"
   else
-    temporal operator namespace create --address "$TEMPORAL_ADDRESS" --namespace "$NAMESPACE" --retention 72h >/dev/null
-    log_success "Temporal namespace created"
+    # Create is not idempotent; it errors if the namespace already exists. Treat that as success.
+    if temporal operator namespace create --address "$TEMPORAL_ADDRESS" --namespace "$NAMESPACE" --retention 72h >/dev/null 2>&1; then
+      log_success "Temporal namespace created"
+    elif temporal operator namespace describe --address "$TEMPORAL_ADDRESS" --namespace "$NAMESPACE" >/dev/null 2>&1; then
+      log_success "Temporal namespace exists"
+    else
+      log_warn "Unable to ensure Temporal namespace (will likely break worker); continuing anyway"
+    fi
   fi
 fi
 
@@ -80,4 +96,3 @@ if [ -n "$REDPANDA_CONTAINER" ]; then
   done
   log_success "Kafka topics ensured"
 fi
-

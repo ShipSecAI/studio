@@ -523,20 +523,21 @@ prod-images action="start":
 infra action="up":
     #!/usr/bin/env bash
     set -euo pipefail
+    INFRA_PROJECT_NAME="shipsec-infra"
     case "{{action}}" in
         up)
-            docker compose -f docker/docker-compose.infra.yml up -d
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" up -d
             echo "✅ Infrastructure started (Postgres, Temporal, MinIO, Redis)"
             ;;
         down)
-            docker compose -f docker/docker-compose.infra.yml down
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" down
             echo "✅ Infrastructure stopped"
             ;;
         logs)
-            docker compose -f docker/docker-compose.infra.yml logs -f
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" logs -f
             ;;
         clean)
-            docker compose -f docker/docker-compose.infra.yml down -v
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" down -v
             echo "✅ Infrastructure cleaned"
             ;;
         *)
@@ -601,7 +602,8 @@ help:
     @echo "  just dev stop all       Stop all instances at once"
     @echo "  just dev status all     Check status of all instances"
     @echo ""
-    @echo "  Note: Each instance uses isolated Docker containers + PM2 processes"
+    @echo "  Note: Instances share one Docker infra stack (Postgres/Temporal/Redpanda/Redis/etc)"
+    @echo "        Isolation comes from per-instance DB + Temporal namespace/task-queue + Kafka topic suffix"
     @echo "        Instance N uses base_port + N*100 (e.g., instance 0 uses 5173, instance 1 uses 5273)"
     @echo ""
     @echo "Production (Docker):"
