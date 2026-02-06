@@ -32,23 +32,11 @@ if [ -z "$POSTGRES_CONTAINER" ]; then
   exit 1
 fi
 
-log_info "Resetting database: $DB_NAME"
-docker exec "$POSTGRES_CONTAINER" \
-  psql -v ON_ERROR_STOP=1 -U shipsec -d postgres \
-  -c "DROP DATABASE IF EXISTS \"${DB_NAME}\";" >/dev/null || true
-
-docker exec "$POSTGRES_CONTAINER" \
-  psql -v ON_ERROR_STOP=1 -U shipsec -d postgres \
-  -c "CREATE DATABASE \"${DB_NAME}\" OWNER shipsec;" >/dev/null
-
-docker exec "$POSTGRES_CONTAINER" \
-  psql -v ON_ERROR_STOP=1 -U shipsec -d postgres \
-  -c "GRANT ALL PRIVILEGES ON DATABASE \"${DB_NAME}\" TO shipsec;" >/dev/null
-
-log_info "Running migrations for instance $INSTANCE..."
-export SHIPSEC_INSTANCE="$INSTANCE"
-export DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/${DB_NAME}"
-bun --cwd backend run migration:push >/dev/null
+log_info "Resetting database for instance $INSTANCE..."
+if ! ./scripts/db-reset-instance.sh "$INSTANCE" >/dev/null; then
+  log_error "Failed to reset database for instance $INSTANCE"
+  exit 1
+fi
 log_success "Database reset complete"
 
 if command -v temporal >/dev/null 2>&1; then

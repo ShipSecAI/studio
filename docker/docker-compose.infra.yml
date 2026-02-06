@@ -106,10 +106,12 @@ services:
       - --overprovisioned
       - --node-id=0
       - --check=false
-      # Advertise both internal (docker network) and external (host) addresses.
-      - --advertise-kafka-addr=redpanda:9092,localhost:9092
+      # Internal listener for Docker network containers (redpanda-console, etc.)
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
     ports:
-      - '9092:9092'
+      - '19092:19092' # External Kafka port for host apps
+      - '9092:9092' # Internal port (for Docker-to-Docker only, maps for debugging)
       - '9644:9644'
     volumes:
       - redpanda_data:/var/lib/redpanda/data

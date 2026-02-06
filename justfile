@@ -97,8 +97,8 @@ dev *args:
     fi
 
     # Validate "all" usage
-    if [ "$INSTANCE" = "all" ] && [ "$ACTION" != "stop" ] && [ "$ACTION" != "status" ] && [ "$ACTION" != "logs" ]; then
-        echo "❌ Instance 'all' is only supported for: stop|status|logs"
+    if [ "$INSTANCE" = "all" ] && [ "$ACTION" != "stop" ] && [ "$ACTION" != "status" ] && [ "$ACTION" != "logs" ] && [ "$ACTION" != "clean" ]; then
+        echo "❌ Instance 'all' is only supported for: stop|status|logs|clean"
         exit 1
     fi
     
@@ -157,24 +157,15 @@ dev *args:
             export SHIPSEC_ENV=development
             export NODE_ENV=development
             export TERMINAL_REDIS_URL="redis://localhost:6379"
-            export LOG_KAFKA_BROKERS="localhost:9092"
-            export EVENT_KAFKA_BROKERS="localhost:9092"
+            export LOG_KAFKA_BROKERS="localhost:19092"
+            export EVENT_KAFKA_BROKERS="localhost:19092"
             
             # Update git SHA and start PM2 with instance-specific config
             ./scripts/set-git-sha.sh || true
             
-            # Use instance-specific PM2 app names
-            # `--merge` was added in newer PM2 versions. Keep local dev working for older installs.
-            PM2_VERSION="$(pm2 -v 2>/dev/null || true)"
-            PM2_MAJOR="${PM2_VERSION%%.*}"
-            PM2_MERGE_ARGS=()
-            if [[ "$PM2_MAJOR" =~ ^[0-9]+$ ]] && [ "$PM2_MAJOR" -ge 6 ]; then
-                PM2_MERGE_ARGS+=(--merge)
-            fi
-
             pm2 startOrReload pm2.config.cjs \
                 --only "shipsec-frontend-$INSTANCE,shipsec-backend-$INSTANCE,shipsec-worker-$INSTANCE" \
-                --update-env "${PM2_MERGE_ARGS[@]}"
+                --update-env
             
             echo ""
             echo "✅ Development environment ready (instance $INSTANCE)"
@@ -192,24 +183,18 @@ dev *args:
                 echo "🛑 Stopping all development environments..."
                 
                 # Stop all PM2 apps
-                pm2 delete shipsec-frontend-{0,1,2,3,4,5,6,7,8,9} 2>/dev/null || true
-                pm2 delete shipsec-backend-{0,1,2,3,4,5,6,7,8,9} 2>/dev/null || true
-                pm2 delete shipsec-worker-{0,1,2,3,4,5,6,7,8,9} 2>/dev/null || true
+                pm2 delete shipsec-{frontend,backend,worker}-{0..9} 2>/dev/null || true
                 pm2 delete shipsec-test-worker 2>/dev/null || true
                 
                 # Stop shared infrastructure
-                docker compose -f docker/docker-compose.infra.yml \
-                    --project-name="$INFRA_PROJECT_NAME" \
-                    down 2>/dev/null || true
+                just infra down
                 
                 echo "✅ All development environments stopped"
             else
                 echo "🛑 Stopping development environment (instance $INSTANCE)..."
                 
                 # Stop PM2 apps for this instance
-                pm2 delete "shipsec-frontend-$INSTANCE" 2>/dev/null || true
-                pm2 delete "shipsec-backend-$INSTANCE" 2>/dev/null || true
-                pm2 delete "shipsec-worker-$INSTANCE" 2>/dev/null || true
+                pm2 delete shipsec-{frontend,backend,worker}-"$INSTANCE" 2>/dev/null || true
                 
                 echo "✅ Instance $INSTANCE stopped"
             fi
@@ -225,40 +210,53 @@ dev *args:
             ;;
         status)
             if [ "$INSTANCE" = "all" ]; then
-                echo "📊 Status of all instances:"
-                echo ""
-                echo "=== PM2 Services ==="
-                pm2 status 2>/dev/null || echo "(PM2 not running)"
-                echo ""
-                echo "=== Docker Containers ==="
-                docker compose -f docker/docker-compose.infra.yml \
-                    --project-name="$INFRA_PROJECT_NAME" \
-                    ps 2>/dev/null || true
+                just status
             else
                 echo "📊 Status of instance $INSTANCE:"
                 echo ""
                 pm2 status 2>/dev/null | grep -E "shipsec-(frontend|backend|worker)-$INSTANCE|error" || echo "(Instance $INSTANCE not running in PM2)"
                 echo ""
-                docker compose -f docker/docker-compose.infra.yml \
-                    --project-name="$INFRA_PROJECT_NAME" \
-                    ps
+                just status
             fi
             ;;
         clean)
-            echo "🧹 Cleaning instance $INSTANCE..."
-            
-            # Stop PM2 apps
-            pm2 delete "shipsec-frontend-$INSTANCE" 2>/dev/null || true
-            pm2 delete "shipsec-backend-$INSTANCE" 2>/dev/null || true
-            pm2 delete "shipsec-worker-$INSTANCE" 2>/dev/null || true
-            
-            # Remove instance-specific infra state (DB + Temporal namespace + topics, etc.)
-            ./scripts/instance-clean.sh "$INSTANCE" || true
-            
-            # Remove instance directory
-            rm -rf "$INSTANCE_DIR"
-            
-            echo "✅ Instance $INSTANCE cleaned"
+            if [ "$INSTANCE" = "all" ]; then
+                echo "🧹 Cleaning all instances (0-9)..."
+                
+                # Stop all instance-specific PM2 apps
+                pm2 delete shipsec-{frontend,backend,worker}-{0..9} 2>/dev/null || true
+                
+                # Clean infra state for each instance
+                for i in {0..9}; do
+                    if [ -d ".instances/instance-$i" ] || [ "$i" = "0" ]; then
+                        echo "  - Instance $i..."
+                        ./scripts/instance-clean.sh "$i" >/dev/null 2>&1 || true
+                        rm -rf ".instances/instance-$i"
+                    fi
+                done
+                
+                # Cleanup root level instance marker if it exists
+                rm -f .shipsec-instance
+                
+                # Also clean global infra if requested? 
+                # User usually runs `just infra clean` for that, but let's remind them.
+                echo ""
+                echo "💡 To also wipe all Docker volumes (PSQL, Kafka, etc.), run: just infra clean"
+                echo "✅ All instance-specific state cleaned"
+            else
+                echo "🧹 Cleaning instance $INSTANCE..."
+                
+                # Stop PM2 apps
+                pm2 delete shipsec-{frontend,backend,worker}-"$INSTANCE" 2>/dev/null || true
+                
+                # Remove instance-specific infra state (DB + Temporal namespace + topics, etc.)
+                ./scripts/instance-clean.sh "$INSTANCE" || true
+                
+                # Remove instance directory
+                rm -rf "$INSTANCE_DIR"
+                
+                echo "✅ Instance $INSTANCE cleaned"
+            fi
             ;;
         *)
             echo "Usage: just dev [instance] [action]"
