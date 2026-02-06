@@ -6,6 +6,8 @@ services:
       POSTGRES_PASSWORD: shipsec
       POSTGRES_DB: shipsec
       POSTGRES_MULTIPLE_DATABASES: temporal
+    ports:
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
@@ -29,6 +31,8 @@ services:
       - POSTGRES_PWD=shipsec
       - POSTGRES_SEEDS=postgres
       - AUTO_SETUP=true
+    ports:
+      - '7233:7233'
     volumes:
       - temporal_data:/var/lib/temporal
     restart: unless-stopped
@@ -39,7 +43,10 @@ services:
       - temporal
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:${FRONTEND:-5173}
+      # Include several common dev frontend ports.
+      - TEMPORAL_CORS_ORIGINS=http://localhost:5173,http://localhost:5273,http://localhost:5373
+    ports:
+      - '8081:8080'
     restart: unless-stopped
 
   minio:
@@ -48,6 +55,9 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
     restart: unless-stopped
@@ -59,6 +69,8 @@ services:
 
   redis:
     image: redis:latest
+    ports:
+      - '6379:6379'
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -71,6 +83,8 @@ services:
   loki:
     image: grafana/loki:3.2.1
     command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - '3100:3100'
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
       - loki_data:/loki
@@ -93,7 +107,10 @@ services:
       - --node-id=0
       - --check=false
       # Advertise both internal (docker network) and external (host) addresses.
-      - --advertise-kafka-addr=redpanda:9092,localhost:${REDPANDA:-9092}
+      - --advertise-kafka-addr=redpanda:9092,localhost:9092
+    ports:
+      - '9092:9092'
+      - '9644:9644'
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     restart: unless-stopped
@@ -109,6 +126,8 @@ services:
       - redpanda
     environment:
       CONFIG_FILEPATH: /etc/redpanda/console-config.yaml
+    ports:
+      - '8082:8080'
     volumes:
       - ./redpanda-console-config.yaml:/etc/redpanda/console-config.yaml:ro
     restart: unless-stopped

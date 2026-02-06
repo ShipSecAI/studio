@@ -5,7 +5,7 @@
 set -euo pipefail
 
 INSTANCE=${1:-0}
-COMPOSE_PROJECT_NAME="shipsec-dev-$INSTANCE"
+COMPOSE_PROJECT_NAME="shipsec-infra"
 DB_NAME="shipsec_instance_$INSTANCE"
 
 # Colors
@@ -52,12 +52,16 @@ docker exec "$POSTGRES_CONTAINER" \
 log_info "Creating database $DB_NAME..."
 docker exec "$POSTGRES_CONTAINER" \
   psql -v ON_ERROR_STOP=1 -U shipsec -d postgres \
-  -c "CREATE DATABASE \"$DB_NAME\" OWNER shipsec; GRANT ALL PRIVILEGES ON DATABASE \"$DB_NAME\" TO shipsec;"
+  -c "CREATE DATABASE \"$DB_NAME\" OWNER shipsec;"
+
+docker exec "$POSTGRES_CONTAINER" \
+  psql -v ON_ERROR_STOP=1 -U shipsec -d postgres \
+  -c "GRANT ALL PRIVILEGES ON DATABASE \"$DB_NAME\" TO shipsec;"
 
 # Run migrations
 log_info "Running migrations for instance $INSTANCE..."
 export SHIPSEC_INSTANCE="$INSTANCE"
-export DATABASE_URL="postgresql://shipsec:shipsec@localhost:$(( 5433 + INSTANCE * 100 ))/$DB_NAME"
+export DATABASE_URL="postgresql://shipsec:shipsec@localhost:5433/$DB_NAME"
 
 if bun --cwd backend run migration:push > /dev/null 2>&1; then
   log_success "Migrations completed"
@@ -70,4 +74,4 @@ fi
 echo ""
 log_success "Database reset for instance $INSTANCE"
 log_info "Database: $DB_NAME"
-log_info "Connection: postgresql://shipsec:shipsec@localhost:$(( 5433 + INSTANCE * 100 ))/$DB_NAME"
+log_info "Connection: postgresql://shipsec:shipsec@localhost:5433/$DB_NAME"

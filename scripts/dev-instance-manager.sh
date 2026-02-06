@@ -11,15 +11,6 @@ INSTANCES_DIR=".instances"
 declare -A BASE_PORTS=(
   [FRONTEND]=5173
   [BACKEND]=3211
-  [TEMPORAL_CLIENT]=7233
-  [TEMPORAL_UI]=8081
-  [POSTGRES]=5433
-  [MINIO_API]=9000
-  [MINIO_CONSOLE]=9001
-  [REDIS]=6379
-  [LOKI]=3100
-  [REDPANDA]=9092
-  [REDPANDA_UI]=8082
 )
 
 # Colors for output
@@ -86,22 +77,6 @@ copy_env_files() {
       local dest="$inst_dir/${app_dir}.env"
       cp "$src_file" "$dest"
       
-      # Modify port references in env files
-      sed -i.bak \
-        -e "s|:5173|:$(get_port FRONTEND $instance)|g" \
-        -e "s|:3211|:$(get_port BACKEND $instance)|g" \
-        -e "s|:7233|:$(get_port TEMPORAL_CLIENT $instance)|g" \
-        -e "s|:8081|:$(get_port TEMPORAL_UI $instance)|g" \
-        -e "s|:5433|:$(get_port POSTGRES $instance)|g" \
-        -e "s|:9000|:$(get_port MINIO_API $instance)|g" \
-        -e "s|:9001|:$(get_port MINIO_CONSOLE $instance)|g" \
-        -e "s|:6379|:$(get_port REDIS $instance)|g" \
-        -e "s|:3100|:$(get_port LOKI $instance)|g" \
-        -e "s|:9092|:$(get_port REDPANDA $instance)|g" \
-        -e "s|:8082|:$(get_port REDPANDA_UI $instance)|g" \
-        "$dest"
-      
-      # For backend: update database URL to instance-specific database
       if [ "$app_dir" = "backend" ]; then
         sed -i.bak \
           -e "s|/shipsec\"|/shipsec_instance_$instance\"|g" \
@@ -118,53 +93,6 @@ copy_env_files() {
 get_docker_compose_project_name() {
   local instance=$1
   echo "shipsec-dev-$instance"
-}
-
-create_docker_compose_override() {
-  local instance=$1
-  local inst_dir=$(get_instance_dir "$instance")
-  local override_file="$inst_dir/docker-compose.override.yml"
-  
-  # Create docker-compose override for port mappings
-  cat > "$override_file" << EOF
-# Instance $instance Docker Compose Override
-# Auto-generated - do not edit manually
-services:
-  postgres:
-    ports:
-      - "$(get_port POSTGRES $instance):5432"
-  
-  temporal:
-    ports:
-      - "$(get_port TEMPORAL_CLIENT $instance):7233"
-  
-  temporal-ui:
-    ports:
-      - "$(get_port TEMPORAL_UI $instance):8080"
-  
-  minio:
-    ports:
-      - "$(get_port MINIO_API $instance):9000"
-      - "$(get_port MINIO_CONSOLE $instance):9001"
-  
-  redis:
-    ports:
-      - "$(get_port REDIS $instance):6379"
-  
-  loki:
-    ports:
-      - "$(get_port LOKI $instance):3100"
-  
-  redpanda:
-    ports:
-      - "$(get_port REDPANDA $instance):9092"
-  
-  redpanda-console:
-    ports:
-      - "$(get_port REDPANDA_UI $instance):8080"
-EOF
-  
-  log_success "Created docker-compose override: $override_file"
 }
 
 validate_instance_setup() {
@@ -185,22 +113,20 @@ validate_instance_setup() {
 
 show_instance_info() {
   local instance=$1
-  local project=$(get_docker_compose_project_name "$instance")
   
   echo ""
   echo -e "${BLUE}=== Instance $instance ===${NC}"
-  echo "Project:    $project"
   echo "Directory:  $(get_instance_dir "$instance")"
   echo ""
   echo "Ports:"
   echo "  Frontend:    http://localhost:$(get_port FRONTEND $instance)"
   echo "  Backend:     http://localhost:$(get_port BACKEND $instance)"
-  echo "  Temporal UI: http://localhost:$(get_port TEMPORAL_UI $instance)"
+  echo "  Temporal UI: http://localhost:8081"
   echo ""
-  echo "Database:    postgres://shipsec:shipsec@localhost:$(get_port POSTGRES $instance)/shipsec"
-  echo "MinIO API:   http://localhost:$(get_port MINIO_API $instance)"
-  echo "MinIO UI:    http://localhost:$(get_port MINIO_CONSOLE $instance)"
-  echo "Redis:       redis://localhost:$(get_port REDIS $instance)"
+  echo "Database:    postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_$instance"
+  echo "MinIO API:   http://localhost:9000"
+  echo "MinIO UI:    http://localhost:9001"
+  echo "Redis:       redis://localhost:6379"
   echo ""
 }
 
@@ -210,7 +136,6 @@ initialize_instance() {
   log_info "Initializing instance $instance..."
   ensure_instance_dir "$instance"
   copy_env_files "$instance"
-  create_docker_compose_override "$instance"
   
   if validate_instance_setup "$instance"; then
     show_instance_info "$instance"
@@ -237,15 +162,6 @@ main() {
     ports)
       echo "FRONTEND=$(get_port FRONTEND $instance)"
       echo "BACKEND=$(get_port BACKEND $instance)"
-      echo "TEMPORAL_CLIENT=$(get_port TEMPORAL_CLIENT $instance)"
-      echo "TEMPORAL_UI=$(get_port TEMPORAL_UI $instance)"
-      echo "POSTGRES=$(get_port POSTGRES $instance)"
-      echo "MINIO_API=$(get_port MINIO_API $instance)"
-      echo "MINIO_CONSOLE=$(get_port MINIO_CONSOLE $instance)"
-      echo "REDIS=$(get_port REDIS $instance)"
-      echo "LOKI=$(get_port LOKI $instance)"
-      echo "REDPANDA=$(get_port REDPANDA $instance)"
-      echo "REDPANDA_UI=$(get_port REDPANDA_UI $instance)"
       ;;
     project-name)
       get_docker_compose_project_name "$instance"

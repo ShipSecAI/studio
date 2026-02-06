@@ -43,6 +43,7 @@ dev *args:
     # Parse arguments: instance can be 0-9, action is start/stop/logs/status/clean
     INSTANCE="0"
     ACTION="start"
+    INFRA_PROJECT_NAME="shipsec-infra"
     
     # Process arguments
     for arg in {{args}}; do
@@ -86,11 +87,8 @@ dev *args:
     # Get ports for this instance (skip for "all")
     if [ "$INSTANCE" != "all" ]; then
         eval "$(./scripts/dev-instance-manager.sh ports "$INSTANCE")"
-        COMPOSE_PROJECT_NAME=$(./scripts/dev-instance-manager.sh project-name "$INSTANCE")
         INSTANCE_DIR=".instances/instance-$INSTANCE"
-        # Export ports so docker compose can use them for variable substitution in compose files.
-        export FRONTEND BACKEND TEMPORAL_CLIENT TEMPORAL_UI POSTGRES MINIO_API MINIO_CONSOLE
-        export REDIS LOKI REDPANDA REDPANDA_UI
+        export FRONTEND BACKEND
     fi
     
     case "$ACTION" in
@@ -120,25 +118,29 @@ dev *args:
                 exit 1
             fi
             
-            # Start infrastructure with Docker Compose project isolation
-            echo "⏳ Starting infrastructure (instance $INSTANCE)..."
+            # Start shared infrastructure (one stack for all instances)
+            echo "⏳ Starting shared infrastructure..."
             docker compose -f docker/docker-compose.infra.yml \
-                --project-name="$COMPOSE_PROJECT_NAME" \
-                -f "$INSTANCE_DIR/docker-compose.override.yml" \
+                --project-name="$INFRA_PROJECT_NAME" \
                 up -d
             
             # Wait for Postgres
             echo "⏳ Waiting for infrastructure..."
-            POSTGRES_CONTAINER="${COMPOSE_PROJECT_NAME}-postgres-1"
-            timeout 30s bash -c "until docker exec $POSTGRES_CONTAINER pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done" || true
+            POSTGRES_CONTAINER="$(docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" ps -q postgres)"
+            if [ -n "$POSTGRES_CONTAINER" ]; then
+                timeout 30s bash -c "until docker exec $POSTGRES_CONTAINER pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done" || true
+            fi
+
+            # Ensure instance-specific DB/namespace exists and migrations are applied.
+            ./scripts/instance-bootstrap.sh "$INSTANCE"
             
             # Prepare PM2 environment variables
             export SHIPSEC_INSTANCE="$INSTANCE"
             export SHIPSEC_ENV=development
             export NODE_ENV=development
-            export TERMINAL_REDIS_URL="redis://localhost:$REDIS"
-            export LOG_KAFKA_BROKERS="localhost:$REDPANDA"
-            export EVENT_KAFKA_BROKERS="localhost:$REDPANDA"
+            export TERMINAL_REDIS_URL="redis://localhost:6379"
+            export LOG_KAFKA_BROKERS="localhost:9092"
+            export EVENT_KAFKA_BROKERS="localhost:9092"
             
             # Update git SHA and start PM2 with instance-specific config
             ./scripts/set-git-sha.sh || true
@@ -177,13 +179,10 @@ dev *args:
                 pm2 delete shipsec-worker-{0,1,2,3,4,5,6,7,8,9} 2>/dev/null || true
                 pm2 delete shipsec-test-worker 2>/dev/null || true
                 
-                # Stop all Docker Compose projects
-                for i in {0..9}; do
-                    project="shipsec-dev-$i"
-                    docker compose -f docker/docker-compose.infra.yml \
-                        --project-name="$project" \
-                        down 2>/dev/null || true
-                done
+                # Stop shared infrastructure
+                docker compose -f docker/docker-compose.infra.yml \
+                    --project-name="$INFRA_PROJECT_NAME" \
+                    down 2>/dev/null || true
                 
                 echo "✅ All development environments stopped"
             else
@@ -193,11 +192,6 @@ dev *args:
                 pm2 delete "shipsec-frontend-$INSTANCE" 2>/dev/null || true
                 pm2 delete "shipsec-backend-$INSTANCE" 2>/dev/null || true
                 pm2 delete "shipsec-worker-$INSTANCE" 2>/dev/null || true
-                
-                # Stop Docker containers for this instance
-                docker compose -f docker/docker-compose.infra.yml \
-                    --project-name="$COMPOSE_PROJECT_NAME" \
-                    down
                 
                 echo "✅ Instance $INSTANCE stopped"
             fi
@@ -219,19 +213,16 @@ dev *args:
                 pm2 status 2>/dev/null || echo "(PM2 not running)"
                 echo ""
                 echo "=== Docker Containers ==="
-                for i in {0..9}; do
-                    project="shipsec-dev-$i"
-                    docker compose -f docker/docker-compose.infra.yml \
-                        --project-name="$project" \
-                        ps 2>/dev/null || true
-                done
+                docker compose -f docker/docker-compose.infra.yml \
+                    --project-name="$INFRA_PROJECT_NAME" \
+                    ps 2>/dev/null || true
             else
                 echo "📊 Status of instance $INSTANCE:"
                 echo ""
                 pm2 status 2>/dev/null | grep -E "shipsec-(frontend|backend|worker)-$INSTANCE|error" || echo "(Instance $INSTANCE not running in PM2)"
                 echo ""
                 docker compose -f docker/docker-compose.infra.yml \
-                    --project-name="$COMPOSE_PROJECT_NAME" \
+                    --project-name="$INFRA_PROJECT_NAME" \
                     ps
             fi
             ;;
@@ -243,15 +234,13 @@ dev *args:
             pm2 delete "shipsec-backend-$INSTANCE" 2>/dev/null || true
             pm2 delete "shipsec-worker-$INSTANCE" 2>/dev/null || true
             
-            # Remove Docker volumes
-            docker compose -f docker/docker-compose.infra.yml \
-                --project-name="$COMPOSE_PROJECT_NAME" \
-                down -v
+            # Remove instance-specific infra state (DB + Temporal namespace + topics, etc.)
+            ./scripts/instance-clean.sh "$INSTANCE" || true
             
             # Remove instance directory
             rm -rf "$INSTANCE_DIR"
             
-            echo "✅ Instance $INSTANCE cleaned (PM2 stopped, infrastructure volumes removed)"
+            echo "✅ Instance $INSTANCE cleaned"
             ;;
         *)
             echo "Usage: just dev [instance] [action]"
