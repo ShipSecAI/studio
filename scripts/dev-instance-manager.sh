@@ -7,11 +7,9 @@ set -euo pipefail
 # Configuration
 INSTANCES_DIR=".instances"
 
-# Base port mappings
-declare -A BASE_PORTS=(
-  [FRONTEND]=5173
-  [BACKEND]=3211
-)
+# Base port mappings (plain variables for bash 3.2 compatibility on macOS)
+BASE_PORT_FRONTEND=5173
+BASE_PORT_BACKEND=3211
 
 # Colors for output
 RED='\033[0;31m'
@@ -45,13 +43,17 @@ get_instance_dir() {
 get_port() {
   local port_name=$1
   local instance=$2
-  local base_port="${BASE_PORTS[$port_name]}"
-  
-  if [[ -z "$base_port" ]]; then
-    log_error "Unknown port: $port_name"
-    return 1
-  fi
-  
+  local base_port=""
+
+  case "$port_name" in
+    FRONTEND) base_port=$BASE_PORT_FRONTEND ;;
+    BACKEND)  base_port=$BASE_PORT_BACKEND ;;
+    *)
+      log_error "Unknown port: $port_name"
+      return 1
+      ;;
+  esac
+
   # Port offset: instance N uses base_port + N*100
   echo $((base_port + instance * 100))
 }
