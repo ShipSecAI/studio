@@ -49,12 +49,6 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Search,
   Plus,
   ArrowDownToLine,
@@ -304,6 +298,8 @@ export function McpLibraryPage() {
   const [groupTemplates, setGroupTemplates] = useState<McpGroupTemplateResponse[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [importingTemplates, setImportingTemplates] = useState<Set<string>>(new Set());
+  const [templatesOpen, setTemplatesOpen] = useState(true);
+  const [templatesManuallyToggled, setTemplatesManuallyToggled] = useState(false);
   // Group template discovery preview state - keyed by template slug
   const [groupDiscoveryPreview, setGroupDiscoveryPreview] = useState<
     Record<
@@ -393,6 +389,12 @@ export function McpLibraryPage() {
       });
     }
   }, [groups, fetchGroupServers]);
+
+  // Default: show templates when no groups are installed; collapse when groups exist.
+  useEffect(() => {
+    if (templatesManuallyToggled) return;
+    setTemplatesOpen(groups.length === 0);
+  }, [groups.length, templatesManuallyToggled]);
 
   // Sync JSON config to Manual form when valid single-server JSON is entered
   useEffect(() => {
@@ -486,11 +488,6 @@ export function McpLibraryPage() {
         template.description?.toLowerCase().includes(query),
     );
   }, [groupTemplates, searchQuery]);
-
-  const importableTemplates = useMemo(
-    () => filteredTemplates.filter((template) => !importedGroupSlugs.has(template.slug)),
-    [filteredTemplates, importedGroupSlugs],
-  );
 
   const filteredGroups = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -1687,177 +1684,202 @@ export function McpLibraryPage() {
       </div>
 
       {/* Group Templates */}
-      {groups.length === 0 && (
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Layers className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Available Groups</h2>
-            <Badge variant="secondary" className="text-xs">
-              {filteredTemplates.length} {filteredTemplates.length === 1 ? 'group' : 'groups'}
-            </Badge>
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Layers className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Group templates</h2>
+          <Badge variant="secondary" className="text-xs">
+            {filteredTemplates.length} {filteredTemplates.length === 1 ? 'group' : 'groups'}
+          </Badge>
+          <div className="ml-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTemplatesManuallyToggled(true);
+                setTemplatesOpen((v) => !v);
+              }}
+            >
+              {templatesOpen ? (
+                <>
+                  Hide
+                  <ChevronDown className="h-4 w-4 ml-2 rotate-180" />
+                </>
+              ) : (
+                <>
+                  Show
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </Button>
           </div>
+        </div>
 
-          {isLoadingTemplates ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <Card key={i} className="overflow-hidden">
-                  <CardHeader className="pb-4">
-                    <Skeleton className="h-5 w-40 mb-2" />
-                    <Skeleton className="h-4 w-64" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-12 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : filteredTemplates.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-8">
-                <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
-                <p className="text-muted-foreground text-sm">
-                  {searchQuery ? 'No groups match your search.' : 'No group templates available.'}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-	              {filteredTemplates.map((template) => {
-	                const theme = getGroupTheme(template.slug);
-	                const isImported = importedGroupSlugs.has(template.slug);
+        {templatesOpen && (
+          <>
+            {isLoadingTemplates ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Card key={i} className="overflow-hidden">
+                    <CardHeader className="pb-4">
+                      <Skeleton className="h-5 w-40 mb-2" />
+                      <Skeleton className="h-4 w-64" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-12 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <Cloud className="h-10 w-10 text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground text-sm">
+                    {searchQuery ? 'No groups match your search.' : 'No group templates available.'}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                {filteredTemplates.map((template) => {
+                  const theme = getGroupTheme(template.slug);
+                  const isImported = importedGroupSlugs.has(template.slug);
 
-	                return (
-                  <Card
-                    key={template.slug}
-                    className={cn('overflow-hidden border', theme.container)}
-                  >
-                    <CardHeader
-                      className={cn(
-                        'flex flex-row items-center gap-3 py-3 border-b',
-                        theme.headerBorder,
-                      )}
+                  return (
+                    <Card
+                      key={template.slug}
+                      className={cn('overflow-hidden border', theme.container)}
                     >
-                      <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
-                        <GroupLogo
-                          slug={template.slug}
-                          name={template.name}
-                          className={theme.iconText}
-                        />
-                      </div>
-	                      <div className="flex-1">
-	                        <div className="flex items-center gap-2">
-	                          <h3 className="font-semibold text-base">{template.name}</h3>
-	                          <Badge variant="secondary" className="text-xs">
-	                            {template.servers.length} servers
-	                          </Badge>
-	                        </div>
-	                        {template.description && (
-	                          <p className="text-sm text-muted-foreground mt-1">
-	                            {template.description}
-	                          </p>
-	                        )}
-	                      </div>
-	                      {isImported && (
-	                        <Badge variant="secondary" className="text-xs">
-	                          Imported
-	                        </Badge>
-	                      )}
-	                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {/* Discovery Preview */}
-                      {groupDiscoveryPreview[template.slug] && (
-                        <McpDiscoveryPreview
-                          results={groupDiscoveryPreview[template.slug]}
-                          onClear={() => {
-                            setGroupDiscoveryPreview((prev) => {
-                              const { [template.slug]: _, ...rest } = prev;
-                              return rest;
-                            });
-                          }}
-                        />
-                      )}
-
-                      {/* Discovery summary when available */}
-                      {groupDiscoveryPreview[template.slug] && (
-                        <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
-                          <span className="text-green-700 dark:text-green-300">
-                            {
-                              groupDiscoveryPreview[template.slug].filter(
-                                (r) => r.status === 'completed',
-                              ).length
-                            }{' '}
-                            of {template.servers.length} servers ready
-                          </span>
+                      <CardHeader
+                        className={cn(
+                          'flex flex-row items-center gap-3 py-3 border-b',
+                          theme.headerBorder,
+                        )}
+                      >
+                        <div className={cn('p-2.5 rounded-lg border', theme.iconWrapper)}>
+                          <GroupLogo
+                            slug={template.slug}
+                            name={template.name}
+                            className={theme.iconText}
+                          />
                         </div>
-                      )}
-
-                      {/* Action buttons */}
-                      <div className="flex justify-end gap-2 pt-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-base">{template.name}</h3>
+                            <Badge variant="secondary" className="text-xs">
+                              {template.servers.length} servers
+                            </Badge>
+                          </div>
+                          {template.description && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {template.description}
+                            </p>
+                          )}
+                        </div>
+                        {isImported && (
+                          <Badge variant="secondary" className="text-xs">
+                            Imported
+                          </Badge>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {/* Discovery Preview */}
                         {groupDiscoveryPreview[template.slug] && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
+                          <McpDiscoveryPreview
+                            results={groupDiscoveryPreview[template.slug]}
+                            onClear={() => {
                               setGroupDiscoveryPreview((prev) => {
                                 const { [template.slug]: _, ...rest } = prev;
                                 return rest;
                               });
                             }}
-                          >
-                            Clear
-                          </Button>
+                          />
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleGroupTestAndDiscover(template)}
-                          disabled={discoveringGroups.has(template.slug)}
-                        >
-                          {discoveringGroups.has(template.slug) ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                              Discovering...
-                            </>
-                          ) : (
-                            <>
-                              <Search className="h-3 w-3 mr-2" />
-                              Test & Discover
-                            </>
+
+                        {/* Discovery summary when available */}
+                        {groupDiscoveryPreview[template.slug] && (
+                          <div className="flex items-center justify-between text-sm bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2">
+                            <span className="text-green-700 dark:text-green-300">
+                              {
+                                groupDiscoveryPreview[template.slug].filter(
+                                  (r) => r.status === 'completed',
+                                ).length
+                              }{' '}
+                              of {template.servers.length} servers ready
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Action buttons */}
+                        <div className="flex justify-end gap-2 pt-2">
+                          {groupDiscoveryPreview[template.slug] && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setGroupDiscoveryPreview((prev) => {
+                                  const { [template.slug]: _, ...rest } = prev;
+                                  return rest;
+                                });
+                              }}
+                            >
+                              Clear
+                            </Button>
                           )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          disabled={
-                            isImported ||
-                            importingTemplates.has(template.slug) ||
-                            !groupDiscoveryPreview[template.slug] ||
-                            groupDiscoveryPreview[template.slug].some(
-                              (r) => r.status !== 'completed',
-                            )
-                          }
-                          onClick={() => handleImportDiscoveredTemplate(template)}
-                        >
-                          {importingTemplates.has(template.slug) ? (
-                            <>
-                              <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
-                              Importing...
-                            </>
-                          ) : (
-                            <>
-                              <ArrowDownToLine className="h-3 w-3 mr-2" />
-                              Import
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGroupTestAndDiscover(template)}
+                            disabled={discoveringGroups.has(template.slug)}
+                          >
+                            {discoveringGroups.has(template.slug) ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                Discovering...
+                              </>
+                            ) : (
+                              <>
+                                <Search className="h-3 w-3 mr-2" />
+                                Test & Discover
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={
+                              isImported ||
+                              importingTemplates.has(template.slug) ||
+                              !groupDiscoveryPreview[template.slug] ||
+                              groupDiscoveryPreview[template.slug].some(
+                                (r) => r.status !== 'completed',
+                              )
+                            }
+                            onClick={() => handleImportDiscoveredTemplate(template)}
+                          >
+                            {importingTemplates.has(template.slug) ? (
+                              <>
+                                <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                                Importing...
+                              </>
+                            ) : (
+                              <>
+                                <ArrowDownToLine className="h-3 w-3 mr-2" />
+                                Import
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Imported Groups Section */}
       <div className="mb-8">
@@ -1880,55 +1902,6 @@ export function McpLibraryPage() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {groups.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Import group
-                    <ChevronDown className="h-4 w-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[240px]">
-                  {importableTemplates.length === 0
-                    ? groupTemplates.map((template) => (
-                        <DropdownMenuItem
-                          key={template.slug}
-                          disabled
-                          className="flex items-center gap-2"
-                        >
-                          <GroupLogo
-                            slug={template.slug}
-                            name={template.name}
-                            className="h-4 w-4 text-muted-foreground"
-                          />
-                          <span className="flex-1">{template.name}</span>
-                          <span className="text-xs text-muted-foreground">Imported</span>
-                        </DropdownMenuItem>
-                      ))
-                    : importableTemplates.map((template) => {
-                        const isImporting = importingTemplates.has(template.slug);
-                        return (
-                          <DropdownMenuItem
-                            key={template.slug}
-                            disabled={isImporting}
-                            onClick={() => handleImportDiscoveredTemplate(template)}
-                            className="flex items-center gap-2"
-                          >
-                            <GroupLogo
-                              slug={template.slug}
-                              name={template.name}
-                              className="h-4 w-4 text-muted-foreground"
-                            />
-                            <span className="flex-1">{template.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {template.servers.length}
-                            </span>
-                          </DropdownMenuItem>
-                        );
-                      })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         </div>
 
