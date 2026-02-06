@@ -195,15 +195,16 @@ describe('compileWorkflowGraph', () => {
       nodes: [
         {
           id: 'log-node',
-          type: 'core.console.log',
+          type: 'core.text.splitter',
           position: { x: 0, y: 0 },
           data: {
-            label: 'Console',
+            label: 'Text Splitter',
             config: {
-              params: {},
+              params: {
+                separator: '\\n',
+              },
               inputOverrides: {
-                label: 'Log',
-                data: 'hello',
+                text: 'hello',
               },
             },
           },

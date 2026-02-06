@@ -5,7 +5,10 @@
     {
       "id": "trigger-1",
       "type": "core.workflow.entrypoint",
-      "position": { "x": 100, "y": 100 },
+      "position": {
+        "x": 100,
+        "y": 100
+      },
       "data": {
         "label": "Entry Point",
         "config": {
@@ -24,10 +27,22 @@
               "type": "select",
               "required": true,
               "options": [
-                { "label": "Quick Scan (Specific CVEs)", "value": "quick" },
-                { "label": "Template IDs Scan", "value": "templateIds" },
-                { "label": "Custom Template Scan", "value": "custom" },
-                { "label": "Comprehensive Scan", "value": "comprehensive" }
+                {
+                  "label": "Quick Scan (Specific CVEs)",
+                  "value": "quick"
+                },
+                {
+                  "label": "Template IDs Scan",
+                  "value": "templateIds"
+                },
+                {
+                  "label": "Custom Template Scan",
+                  "value": "custom"
+                },
+                {
+                  "label": "Comprehensive Scan",
+                  "value": "comprehensive"
+                }
               ],
               "default": "quick"
             }
@@ -38,11 +53,16 @@
     {
       "id": "nuclei-1",
       "type": "security.nuclei",
-      "position": { "x": 100, "y": 300 },
+      "position": {
+        "x": 100,
+        "y": 300
+      },
       "data": {
         "label": "Nuclei Scanner",
         "config": {
-          "targets": ["{{trigger.targetUrl}}"],
+          "targets": [
+            "{{trigger.targetUrl}}"
+          ],
           "templateIds": [
             "CVE-2024-1234",
             "http-missing-security-headers",
@@ -59,13 +79,18 @@
       }
     },
     {
-      "id": "console-1",
-      "type": "core.console-log",
-      "position": { "x": 100, "y": 500 },
+      "id": "text-block-1",
+      "type": "core.text.block",
+      "position": {
+        "x": 100,
+        "y": 500
+      },
       "data": {
         "label": "Log Results",
         "config": {
-          "message": "Found {{nuclei.findings | length}} vulnerabilities"
+          "params": {
+            "text": "Found {{nuclei.findings | length}} vulnerabilities"
+          }
         }
       }
     }
@@ -81,10 +106,14 @@
     {
       "id": "e2",
       "source": "nuclei-1",
-      "target": "console-1",
+      "target": "text-block-1",
       "sourceHandle": "output",
       "targetHandle": "input"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  }
 }
