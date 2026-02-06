@@ -26,6 +26,8 @@ export interface McpGroupServerResponse {
   enabled: boolean;
   healthStatus: 'healthy' | 'unhealthy' | 'unknown';
   toolCount: number;
+  recommended?: boolean;
+  defaultSelected?: boolean;
 }
 
 export interface McpGroupTemplateResponse {
@@ -118,7 +120,7 @@ export const mcpGroupsApi = {
    */
   async getGroupServers(groupId: string): Promise<McpGroupServerResponse[]> {
     const headers = await getApiAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-servers?groupId=${groupId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mcp-groups/${groupId}/servers`, {
       headers,
     });
 

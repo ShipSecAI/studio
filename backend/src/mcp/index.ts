@@ -5,4 +5,5 @@ export * from './mcp-gateway.controller';
 export * from './dto/mcp-gateway.dto';
 export * from './dto/mcp-discovery.dto';
 export * from './mcp-discovery.controller';
-export * from './mcp-discovery.service';
+export * from './mcp-discovery-orchestrator.service';
+export * from './mcp.tokens';

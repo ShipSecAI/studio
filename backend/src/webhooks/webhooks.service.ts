@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'child_process';
 
 import {
   Injectable,
@@ -16,6 +15,7 @@ import {
 } from '@shipsec/shared';
 import type { AuthContext } from '../auth/types';
 import { WorkflowsService } from '../workflows/workflows.service';
+import { TemporalService } from '../temporal/temporal.service';
 import { WebhookRepository } from './repository/webhook.repository';
 import { WebhookDeliveryRepository } from './repository/webhook-delivery.repository';
 import type { WebhookConfigurationRecord, WebhookDeliveryRecord } from '../database/schema';
@@ -31,6 +31,7 @@ export class WebhooksService {
     private readonly repository: WebhookRepository,
     private readonly deliveryRepository: WebhookDeliveryRepository,
     private readonly workflowsService: WorkflowsService,
+    private readonly temporalService: TemporalService,
   ) {}
 
   // Management methods (auth required)
@@ -390,157 +391,31 @@ export class WebhooksService {
     payload: Record<string, unknown>,
     headers: Record<string, string>,
   ): Promise<Record<string, unknown>> {
-    // Execute the parsing script in a Docker container with Bun
-    const pluginCode = Buffer.from(
-      `
-import { plugin } from "bun";
-const rx_any = /./;
-const rx_http = /^https?:\\/\\//;
-const rx_path = /^\\.*\\//;
-
-async function load_http_module(href) {
-    console.log("[http-loader] Fetching:", href);
-    const response = await fetch(href);
-    const text = await response.text();
-    if (response.ok) {
-        return {
-            contents: text,
-            loader: href.match(/\\.(ts|tsx)$/) ? "ts" : "js",
-        };
-    } else {
-        throw new Error("Failed to load module '" + href + "': " + text);
-    }
-}
-
-plugin({
-    name: "http_imports",
-    setup(build) {
-        build.onResolve({ filter: rx_http }, (args) => {
-            const url = new URL(args.path);
-            return {
-                path: url.href.replace(/^(https?):/, ''),
-                namespace: url.protocol.replace(':', ''),
-            };
-        });
-        build.onResolve({ filter: rx_path }, (args) => {
-            if (rx_http.test(args.importer)) {
-                const url = new URL(args.path, args.importer);
-                return {
-                    path: url.href.replace(/^(https?):/, ''),
-                    namespace: url.protocol.replace(':', ''),
-                };
-            }
-        });
-        build.onLoad({ filter: rx_any, namespace: "http" }, (args) => load_http_module("http:" + args.path));
-        build.onLoad({ filter: rx_any, namespace: "https" }, (args) => load_http_module("https:" + args.path));
-    }
-});
-`,
-    ).toString('base64');
-
-    const harnessCode = Buffer.from(
-      `
-import { script } from "./user_script.ts";
-const INPUT = JSON.parse(process.env.WEBHOOK_INPUT || '{}');
-
-async function run() {
-  try {
-    const result = await script(INPUT);
-    console.log('---RESULT_START---');
-    console.log(JSON.stringify(result));
-    console.log('---RESULT_END---');
-  } catch (err) {
-    console.error('Runtime Error:', err.message);
-    process.exit(1);
-  }
-}
-
-run();
-`,
-    ).toString('base64');
-
-    // Ensure script has export keyword
-    let processedScript = script;
-    const exportRegex = /^(?!\s*export\s+)(.*?\s*(?:async\s+)?function\s+script\b)/m;
-    if (exportRegex.test(processedScript)) {
-      processedScript = processedScript.replace(
-        exportRegex,
-        (match) => `export ${match.trimStart()}`,
-      );
-    }
-    const userScriptB64 = Buffer.from(processedScript).toString('base64');
-
-    const shellCommand = [
-      `echo "${pluginCode}" | base64 -d > plugin.ts`,
-      `echo "${userScriptB64}" | base64 -d > user_script.ts`,
-      `echo "${harnessCode}" | base64 -d > harness.ts`,
-      `bun run --preload ./plugin.ts harness.ts`,
-    ].join(' && ');
-
-    const dockerArgs = [
-      'run',
-      '--rm',
-      '-i',
-      '--network',
-      'bridge',
-      '-e',
-      `WEBHOOK_INPUT=${JSON.stringify({ payload, headers })}`,
-      'oven/bun:alpine',
-      'sh',
-      '-c',
-      shellCommand,
-    ];
-
-    return new Promise((resolve, reject) => {
-      const timeoutSeconds = 30;
-      const proc = spawn('docker', dockerArgs, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      const timeout = setTimeout(() => {
-        proc.kill();
-        reject(new Error(`Script execution timed out after ${timeoutSeconds}s`));
-      }, timeoutSeconds * 1000);
-
-      proc.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      proc.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      proc.on('error', (error) => {
-        clearTimeout(timeout);
-        reject(new Error(`Failed to start Docker container: ${error.message}`));
-      });
-
-      proc.on('close', (code) => {
-        clearTimeout(timeout);
-
-        if (code !== 0) {
-          reject(new Error(`Script execution failed with exit code ${code}: ${stderr}`));
-          return;
-        }
-
-        // Parse output between RESULT_START and RESULT_END markers
-        const resultMatch = stdout.match(/---RESULT_START---\n(.*?)\n---RESULT_END---/s);
-        if (!resultMatch) {
-          reject(new Error('Script did not produce valid output'));
-          return;
-        }
-
-        try {
-          const result = JSON.parse(resultMatch[1]);
-          resolve(result);
-        } catch (e) {
-          reject(new Error(`Failed to parse script output: ${e}`));
-        }
-      });
+    // Backend must never execute Docker. Delegate parsing to Temporal worker.
+    const ref = await this.temporalService.startWorkflow({
+      workflowType: 'webhookParsingWorkflow',
+      workflowId: `webhook-parse-${randomUUID()}`,
+      taskQueue: this.temporalService.getDefaultTaskQueue(),
+      args: [
+        {
+          parsingScript: script,
+          payload,
+          headers,
+          timeoutSeconds: 30,
+        },
+      ],
     });
+
+    const result = await this.temporalService.getWorkflowResult({
+      workflowId: ref.workflowId,
+      runId: ref.runId,
+    });
+
+    if (!result || typeof result !== 'object') {
+      throw new Error('Parsing script returned invalid result (expected object)');
+    }
+
+    return result as Record<string, unknown>;
   }
 
   private validateParsedData(

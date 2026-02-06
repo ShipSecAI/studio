@@ -38,6 +38,7 @@ import {
   discoverMcpGroupToolsActivity,
   cacheDiscoveryResultActivity,
 } from '../activities/mcp-discovery.activity';
+import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
 
 // ... (existing imports)
 
@@ -232,6 +233,7 @@ async function main() {
       discoverMcpToolsActivity,
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
+      executeWebhookParsingScriptActivity,
     }).join(', ')}`,
   );
 
@@ -273,6 +275,7 @@ async function main() {
       discoverMcpToolsActivity,
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
+      executeWebhookParsingScriptActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],
