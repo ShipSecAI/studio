@@ -202,6 +202,15 @@ const isProduction = environment === 'production';
 
 // Get instance number (0-9) for multi-instance support
 const instanceNum = process.env.SHIPSEC_INSTANCE || '0';
+const instanceDatabaseUrl = `postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${instanceNum}`;
+// Only set these defaults for local development. In production, credentials must
+// come from the environment / deployment config.
+const devInstanceEnv = isProduction
+  ? {}
+  : {
+      DATABASE_URL: instanceDatabaseUrl,
+      SECRET_STORE_MASTER_KEY: process.env.SECRET_STORE_MASTER_KEY || 'ShipSecLocalDevKey32Bytes!!!!!!!',
+    };
 
 // Environment-specific configuration
 const envConfig = {
@@ -252,6 +261,8 @@ module.exports = {
       env: {
         ...currentEnvConfig,
         PORT: getInstancePort(3211, instanceNum),
+        // Ensure instance DB isolation even if dotenv auto-loads a workspace/default `.env`.
+        ...devInstanceEnv,
         TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
         LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
         LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
@@ -298,6 +309,7 @@ module.exports = {
           NAPI_RS_FORCE_WASI: '1',
           INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
           STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || `http://localhost:${getInstancePort(3211, instanceNum)}/api/v1`,
+          ...devInstanceEnv,
           TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
           LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
           LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',

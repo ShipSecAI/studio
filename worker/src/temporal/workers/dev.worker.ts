@@ -57,8 +57,15 @@ import { getTopicResolver } from '../../common/kafka-topic-resolver';
 import * as schema from '../../adapters/schema';
 import { logHeartbeat } from '../../utils/debug-logger';
 
-// Load environment variables from .env file
-config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../..', '.env') });
+// Load environment variables from instance-specific env if set, otherwise fall back
+// to the worker's default `.env`.
+const workerRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
+const instanceNum = process.env.SHIPSEC_INSTANCE;
+const instanceEnvPath = instanceNum
+  ? join(workerRoot, '..', '.instances', `instance-${instanceNum}`, 'worker.env')
+  : undefined;
+
+config({ path: instanceEnvPath ?? join(workerRoot, '.env') });
 
 if (typeof globalThis.crypto === 'undefined') {
   Object.defineProperty(globalThis, 'crypto', {

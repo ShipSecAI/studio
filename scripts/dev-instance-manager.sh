@@ -69,6 +69,32 @@ ensure_instance_dir() {
 copy_env_files() {
   local instance=$1
   local inst_dir=$(get_instance_dir "$instance")
+  local root_env=".env"
+
+  # Read KEY from repo root .env (first match). Prints empty string if missing.
+  get_root_env_value() {
+    local key=$1
+    if [ ! -f "$root_env" ]; then
+      echo ""
+      return 0
+    fi
+    # Keep everything after the first '=' (values can contain '=')
+    rg -m1 "^${key}=" "$root_env" 2>/dev/null | sed -E "s/^${key}=//" || true
+  }
+
+  # Append KEY=VALUE to dest if KEY is not already present.
+  ensure_env_key() {
+    local dest=$1
+    local key=$2
+    local value=$3
+    if [ -z "$value" ]; then
+      return 0
+    fi
+    if rg -q "^${key}=" "$dest" 2>/dev/null; then
+      return 0
+    fi
+    echo "${key}=${value}" >> "$dest"
+  }
   
   # Copy and modify .env files for this instance
   for app_dir in backend worker frontend; do
@@ -77,11 +103,20 @@ copy_env_files() {
       local dest="$inst_dir/${app_dir}.env"
       cp "$src_file" "$dest"
       
-      if [ "$app_dir" = "backend" ]; then
-        sed -i.bak \
-          -e "s|/shipsec\"|/shipsec_instance_$instance\"|g" \
+      # Ensure each instance points at its own Postgres database.
+      # Backend uses quoted DATABASE_URL, worker typically does not.
+      if [ "$app_dir" = "backend" ] || [ "$app_dir" = "worker" ]; then
+        sed -i.bak -E \
+          -e "s|(DATABASE_URL=.*\\/)(shipsec)(\"?)$|\\1shipsec_instance_${instance}\\3|" \
           "$dest"
-        rm -f "$dest.bak"
+      fi
+
+      # Ensure secrets/internal auth keys exist for dev processes. These live in repo root `.env`.
+      # Keep instance env self-contained so backend/worker don't need to load root `.env` (which
+      # contains a default DATABASE_URL and would break isolation).
+      if [ "$app_dir" = "backend" ] || [ "$app_dir" = "worker" ]; then
+        ensure_env_key "$dest" "INTERNAL_SERVICE_TOKEN" "$(get_root_env_value INTERNAL_SERVICE_TOKEN)"
+        ensure_env_key "$dest" "SECRET_STORE_MASTER_KEY" "$(get_root_env_value SECRET_STORE_MASTER_KEY)"
       fi
       
       rm -f "$dest.bak"
