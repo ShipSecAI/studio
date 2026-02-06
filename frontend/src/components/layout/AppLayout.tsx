@@ -294,11 +294,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/artifacts',
       icon: Archive,
     },
-    {
-      name: 'Analytics Settings',
-      href: '/analytics-settings',
-      icon: Settings,
-    },
     ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
       ? [
           {
@@ -327,6 +322,15 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/mcp-library',
       icon: ServerCog,
     },
+    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
+      ? [
+          {
+            name: 'Analytics Settings',
+            href: '/analytics-settings',
+            icon: Settings,
+          },
+        ]
+      : []),
   ];
 
   const isActive = (path: string) => {
