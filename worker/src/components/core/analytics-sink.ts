@@ -24,16 +24,6 @@ const dataInputDefinitionSchema = z.object({
 
 type DataInputDefinition = z.infer<typeof dataInputDefinitionSchema>;
 
-function toWorkflowSlug(value?: string | null): string | undefined {
-  if (!value) return undefined;
-  const slug = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug.length > 0 ? slug : undefined;
-}
-
 // Base input schema with a default input port.
 // resolvePorts adds extra ports when users configure multiple data inputs.
 const baseInputSchema = inputs({

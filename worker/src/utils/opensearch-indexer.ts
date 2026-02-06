@@ -58,7 +58,7 @@ export class OpenSearchIndexer {
   private internalServiceToken: string | null = null;
 
   // Cache of provisioned org IDs with timestamp
-  private provisionedOrgs: Map<string, number> = new Map();
+  private provisionedOrgs = new Map<string, number>();
 
   constructor() {
     const url = process.env.OPENSEARCH_URL;

@@ -24,11 +24,12 @@ export class OpenSearchTenantService {
   private readonly adminPassword: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.securityEnabled =
-      this.configService.get<string>('OPENSEARCH_SECURITY_ENABLED') === 'true';
-    this.opensearchUrl = this.configService.get<string>('OPENSEARCH_URL') || 'http://opensearch:9200';
+    this.securityEnabled = this.configService.get<string>('OPENSEARCH_SECURITY_ENABLED') === 'true';
+    this.opensearchUrl =
+      this.configService.get<string>('OPENSEARCH_URL') || 'http://opensearch:9200';
     this.dashboardsUrl =
-      this.configService.get<string>('OPENSEARCH_DASHBOARDS_URL') || 'http://opensearch-dashboards:5601';
+      this.configService.get<string>('OPENSEARCH_DASHBOARDS_URL') ||
+      'http://opensearch-dashboards:5601';
     this.adminUsername = this.configService.get<string>('OPENSEARCH_ADMIN_USERNAME') || 'admin';
     this.adminPassword = this.configService.get<string>('OPENSEARCH_ADMIN_PASSWORD') || '';
 

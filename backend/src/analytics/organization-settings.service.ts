@@ -48,9 +48,7 @@ export class OrganizationSettingsService {
 
     // Provision OpenSearch tenant for the new organization (fire-and-forget)
     this.tenantService.ensureTenantExists(organizationId).catch((err) => {
-      this.logger.error(
-        `Failed to provision OpenSearch tenant for ${organizationId}: ${err}`,
-      );
+      this.logger.error(`Failed to provision OpenSearch tenant for ${organizationId}: ${err}`);
     });
 
     return created;

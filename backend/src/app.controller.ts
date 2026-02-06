@@ -51,10 +51,7 @@ export class AppController {
    */
   @SkipThrottle()
   @Get('/auth/validate')
-  validateAuth(
-    @CurrentAuth() auth: AuthContext | null,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  validateAuth(@CurrentAuth() auth: AuthContext | null, @Res({ passthrough: true }) res: Response) {
     if (!auth || !auth.isAuthenticated) {
       throw new UnauthorizedException();
     }
@@ -80,9 +77,7 @@ export class AppController {
         (err) => {
           // Remove from cache so it retries next request
           this.provisioningOrgs.delete(normalizedOrgId);
-          this.logger.error(
-            `Failed to provision OpenSearch tenant for ${normalizedOrgId}: ${err}`,
-          );
+          this.logger.error(`Failed to provision OpenSearch tenant for ${normalizedOrgId}: ${err}`);
           return false;
         },
       );
