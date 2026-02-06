@@ -6,24 +6,6 @@
 default:
     @just help
 
-# Set/show the workspace "active" instance used when you run `just dev` without an explicit instance.
-# This is stored in `.shipsec-instance` (gitignored).
-instance action="show" value="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "{{action}}" in
-        show)
-            ./scripts/active-instance.sh get
-            ;;
-        use|set)
-            ./scripts/active-instance.sh set "{{value}}"
-            ;;
-        *)
-            echo "Usage: just instance [show|use] [0-9]"
-            exit 1
-            ;;
-    esac
-
 # === Development (recommended for contributors) ===
 
 # Default dev passwords for convenience (override with env vars for real security)
@@ -65,7 +47,7 @@ dev action="start":
     # Auto-detect auth mode from backend/.env
     CLERK_KEY=""
     if [ -f "backend/.env" ]; then
-        CLERK_KEY=$(grep -E '^CLERK_SECRET_KEY=' backend/.env | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+        CLERK_KEY=$(grep -E '^CLERK_SECRET_KEY=' backend/.env | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
     fi
 
     if [ -n "$CLERK_KEY" ]; then
@@ -129,8 +111,8 @@ dev action="start":
             else
                 echo "🚀 Starting development environment (local auth)..."
 
-                # Start infrastructure (no security)
-                docker compose -f docker/docker-compose.infra.yml up -d
+                # Start infrastructure (no security, with dev ports for analytics)
+                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
 
                 # Wait for Postgres
                 echo "⏳ Waiting for infrastructure..."
@@ -139,18 +121,20 @@ dev action="start":
                 # Update git SHA and start PM2
                 ./scripts/set-git-sha.sh || true
                 SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=false \
+                    OPENSEARCH_URL=http://localhost:9200 \
                     pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --update-env
 
                 echo ""
                 echo "✅ Development environment ready (local auth)"
-                echo "   Frontend:    http://localhost:5173"
-                echo "   Backend:     http://localhost:3211"
+                echo "   App:         http://localhost (via nginx)"
+                echo "   Analytics:   http://localhost/analytics"
                 echo "   Temporal UI: http://localhost:8081"
+                echo ""
+                echo "💡 Direct ports (debugging): Frontend :5173, Backend :3211, OpenSearch :9200, Dashboards :5601"
                 echo ""
                 echo "💡 To enable Clerk auth + OpenSearch Security:"
                 echo "   Set CLERK_SECRET_KEY in backend/.env, then restart"
             fi
-
 
             echo ""
             echo "💡 just dev logs   - View application logs"
@@ -167,7 +151,7 @@ dev action="start":
             if [ "$SECURE_MODE" = "true" ]; then
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down
             else
-                docker compose -f docker/docker-compose.infra.yml down
+                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down
             fi
             echo "✅ Stopped"
             ;;
@@ -179,7 +163,7 @@ dev action="start":
             if [ "$SECURE_MODE" = "true" ]; then
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml ps
             else
-                docker compose -f docker/docker-compose.infra.yml ps
+                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml ps
             fi
             ;;
         clean)
@@ -188,7 +172,7 @@ dev action="start":
             if [ "$SECURE_MODE" = "true" ]; then
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down -v
             else
-                docker compose -f docker/docker-compose.infra.yml down -v
+                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down -v
             fi
             echo "✅ Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
             ;;
@@ -198,62 +182,6 @@ dev action="start":
     esac
 
 # === Production (Docker-based) ===
-
-# Initialize production environment with secure secrets
-# Creates docker/.env with auto-generated secrets if not present
-prod-init:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    ENV_FILE="docker/.env"
-
-    echo "🔧 Initializing production environment..."
-
-    # Create docker/.env if it doesn't exist
-    if [ ! -f "$ENV_FILE" ]; then
-        echo "📝 Creating $ENV_FILE..."
-        touch "$ENV_FILE"
-    fi
-
-    # Source existing env file to check for existing values
-    set -a
-    [ -f "$ENV_FILE" ] && source "$ENV_FILE"
-    set +a
-
-    UPDATED=false
-
-    # Generate INTERNAL_SERVICE_TOKEN if not set
-    if [ -z "${INTERNAL_SERVICE_TOKEN:-}" ]; then
-        TOKEN=$(openssl rand -hex 32)
-        echo "INTERNAL_SERVICE_TOKEN=$TOKEN" >> "$ENV_FILE"
-        echo "🔑 Generated INTERNAL_SERVICE_TOKEN"
-        UPDATED=true
-    else
-        echo "✅ INTERNAL_SERVICE_TOKEN already set"
-    fi
-
-    # Generate SECRET_STORE_MASTER_KEY if not set (exactly 32 characters, raw string)
-    if [ -z "${SECRET_STORE_MASTER_KEY:-}" ]; then
-        KEY=$(openssl rand -base64 24 | head -c 32)
-        echo "SECRET_STORE_MASTER_KEY=$KEY" >> "$ENV_FILE"
-        echo "🔑 Generated SECRET_STORE_MASTER_KEY"
-        UPDATED=true
-    else
-        echo "✅ SECRET_STORE_MASTER_KEY already set"
-    fi
-
-    if [ "$UPDATED" = true ]; then
-        echo ""
-        echo "✅ Secrets generated and saved to $ENV_FILE"
-        echo "⚠️  Keep this file secure and never commit it to git!"
-    fi
-
-    echo ""
-    echo "📋 Current configuration in $ENV_FILE:"
-    echo "   Run 'cat $ENV_FILE' to view"
-    echo ""
-    echo "💡 Next steps:"
-    echo "   1. Edit $ENV_FILE to add other required variables (CLERK keys, etc.)"
-    echo "   2. Run 'just prod start-latest' to start with latest release"
 
 # Run production environment in Docker
 # Auto-detects security mode: if TLS certs exist (docker/certs/root-ca.pem) → secure mode with multitenancy
@@ -305,7 +233,8 @@ prod action="start":
                 echo "   App:         http://localhost"
                 echo "   API:         http://localhost/api"
                 echo "   Analytics:   http://localhost/analytics"
-                echo "   Temporal UI: http://localhost:8081"
+                echo ""
+                echo "🔒 All internal service ports are disabled (no direct access)"
                 echo ""
                 echo "💡 To enable security + multitenancy:"
                 echo "   Run: just generate-certs"
@@ -350,12 +279,6 @@ prod action="start":
             echo "✅ Production cleaned"
             ;;
         start-latest)
-            # Auto-initialize secrets if docker/.env doesn't exist
-            if [ ! -f "docker/.env" ]; then
-                echo "⚠️  docker/.env not found, running prod-init..."
-                just prod-init
-            fi
-
             echo "🔍 Fetching latest release information from GitHub API..."
             if ! command -v curl &> /dev/null || ! command -v jq &> /dev/null; then
                 echo "❌ curl or jq is not installed. Please install them first."
@@ -388,8 +311,8 @@ prod action="start":
             echo "   App:         http://localhost"
             echo "   API:         http://localhost/api"
             echo "   Analytics:   http://localhost/analytics"
-            echo "   Temporal UI: http://localhost:8081"
             echo ""
+            echo "🔒 All internal service ports are disabled (no direct access)"
             echo "💡 Note: Using images tagged as $LATEST_TAG"
             ;;
         *)
@@ -405,12 +328,6 @@ prod-images action="start":
     set -euo pipefail
     case "{{action}}" in
         start)
-            # Auto-initialize secrets if docker/.env doesn't exist
-            if [ ! -f "docker/.env" ]; then
-                echo "⚠️  docker/.env not found, running prod-init..."
-                just prod-init
-            fi
-
             echo "🚀 Starting production environment with GHCR images..."
 
             # Check if images exist locally, pull if needed
@@ -433,16 +350,14 @@ prod-images action="start":
             fi
 
             # Start with GHCR images, fallback to local build
-            # Use --env-file if docker/.env exists
-            ENV_FLAG=""
-            [ -f "docker/.env" ] && ENV_FLAG="--env-file docker/.env"
-            DOCKER_BUILDKIT=1 docker compose $ENV_FLAG -f docker/docker-compose.full.yml up -d
+            DOCKER_BUILDKIT=1 docker compose -f docker/docker-compose.full.yml up -d
             echo ""
             echo "✅ Production environment ready"
             echo "   App:         http://localhost"
             echo "   API:         http://localhost/api"
             echo "   Analytics:   http://localhost/analytics"
-            echo "   Temporal UI: http://localhost:8081"
+            echo ""
+            echo "🔒 All internal service ports are disabled (no direct access)"
             ;;
         stop)
             docker compose -f docker/docker-compose.full.yml down
@@ -536,21 +451,21 @@ hash-password password="":
 infra action="up":
     #!/usr/bin/env bash
     set -euo pipefail
-    INFRA_PROJECT_NAME="shipsec-infra"
     case "{{action}}" in
         up)
-            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" up -d
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
             echo "✅ Infrastructure started (Postgres, Temporal, MinIO, Redis)"
+            echo "   All ports bound to 127.0.0.1 (localhost only)"
             ;;
         down)
-            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" down
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down
             echo "✅ Infrastructure stopped"
             ;;
         logs)
-            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" logs -f
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml logs -f
             ;;
         clean)
-            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" down -v
+            docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down -v
             echo "✅ Infrastructure cleaned"
             ;;
         *)
@@ -575,21 +490,17 @@ status:
     echo "=== Production Containers ==="
     docker compose -f docker/docker-compose.full.yml ps 2>/dev/null || echo "  (Production not running)"
 
-# Reset database for specific instance or all instances
-# Usage: just db-reset [instance]
-db-reset instance="0":
+# Reset database (drops all data)
+db-reset:
     #!/usr/bin/env bash
     set -euo pipefail
-    
-    if [ "{{instance}}" = "all" ]; then
-        echo "🗑️  Resetting all instance databases..."
-        for i in {0..9}; do
-            ./scripts/db-reset-instance.sh "$i" 2>/dev/null || true
-        done
-        echo "✅ All instance databases reset"
-    else
-        ./scripts/db-reset-instance.sh "{{instance}}"
+    if ! docker ps --filter "name=shipsec-postgres" --format "{{{{.Names}}}}" | grep -q "shipsec-postgres"; then
+        echo "❌ PostgreSQL not running. Run: just dev" && exit 1
     fi
+    docker exec shipsec-postgres psql -U shipsec -d postgres -c "DROP DATABASE IF EXISTS shipsec;"
+    docker exec shipsec-postgres psql -U shipsec -d postgres -c "CREATE DATABASE shipsec;"
+    bun --cwd=backend run migration:push
+    echo "✅ Database reset"
 
 # Build production images without starting
 build:
@@ -612,7 +523,6 @@ help:
     @echo "  just dev clean    Stop and remove all data"
     @echo ""
     @echo "Production (Docker, auto-detects security mode):"
-    @echo "  just prod-init     Generate secrets in docker/.env (run once)"
     @echo "  just prod          Start prod (TLS certs present → secure mode, otherwise standard)"
     @echo "  just prod build    Rebuild and start"
     @echo "  just prod start-latest  Download latest release and start"
@@ -620,7 +530,6 @@ help:
     @echo "  just prod logs     View production logs"
     @echo "  just prod status   Check production status"
     @echo "  just prod clean    Remove all data"
-    @echo "  just prod-images   Start with GHCR images (uses cache)"
     @echo ""
     @echo "Security Management:"
     @echo "  just security-init      Initialize OpenSearch security index"
@@ -634,8 +543,6 @@ help:
     @echo "  just infra clean   Remove infrastructure data"
     @echo ""
     @echo "Utilities:"
-    @echo "  just status           Show status of all services"
-    @echo "  just db-reset         Reset instance 0 database"
-    @echo "  just db-reset 1       Reset instance 1 database"
-    @echo "  just db-reset all     Reset all instance databases"
-    @echo "  just build            Build images only"
+    @echo "  just status        Show status of all services"
+    @echo "  just db-reset      Reset database"
+    @echo "  just build         Build images only"

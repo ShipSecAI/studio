@@ -1,15 +1,49 @@
 # Development Ports Overlay
 #
 # WARNING: These ports bypass ALL nginx authentication!
-# Use ONLY for local development where direct OpenSearch/Dashboards access is needed.
+# Use ONLY for local development where direct service access is needed.
 #
 # Usage:
 #   docker compose -f docker-compose.infra.yml -f docker-compose.dev-ports.yml up -d
 #
-# This overlay exposes OpenSearch and Dashboards ports on loopback (127.0.0.1) only,
+# This overlay exposes all service ports on loopback (127.0.0.1) only,
 # preventing external network access while allowing local development tools to connect.
 
 services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  temporal:
+    ports:
+      - "127.0.0.1:7233:7233"
+
+  temporal-ui:
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  loki:
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  redpanda:
+    ports:
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9644:9644"
+
+  redpanda-console:
+    ports:
+      - "127.0.0.1:8082:8080"
+
   opensearch:
     ports:
       - "127.0.0.1:9200:9200"
