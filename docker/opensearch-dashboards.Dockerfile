@@ -1,9 +1,11 @@
-FROM opensearchproject/opensearch-dashboards:2.11.1
+# Custom OpenSearch Dashboards image for SaaS tenant lockdown
+# Source: https://github.com/ShipSecAI/tools/tree/main/misc/opensearch-dashboards-saas
+#
+# Removes unwanted plugins from sidebar. Config-level disabling is NOT possible
+# because OSD 2.x plugins don't register an "enabled" config key (fatal error).
+# See the tools repo README for full documentation.
 
-# SaaS Tenant Lockdown - Remove plugins that tenants should not access
-# Allowed: Discover, Dashboards, Visualize, Alerting, Dev Tools, Home
-# Keeping: alertingDashboards, notificationsDashboards (alerting dependency),
-#          securityDashboards (proxy auth/multitenancy), ganttChartDashboards (viz type)
+FROM opensearchproject/opensearch-dashboards:2.11.1
 
 RUN /usr/share/opensearch-dashboards/bin/opensearch-dashboards-plugin remove queryWorkbenchDashboards && \
     /usr/share/opensearch-dashboards/bin/opensearch-dashboards-plugin remove reportsDashboards && \

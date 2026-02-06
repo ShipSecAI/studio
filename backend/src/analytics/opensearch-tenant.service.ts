@@ -172,18 +172,20 @@ export class OpenSearchTenantService {
 
   /**
    * Creates a read-only customer role for the organization.
-   * Grants read access to security-findings-{orgId}-* indices.
+   * Grants read-only access to security findings indices, plus the minimum
+   * Dashboards/Notifications permissions required for tenant-scoped UI usage.
    */
   private async createCustomerRole(orgId: string): Promise<void> {
     const roleName = `customer_${orgId}_ro`;
     const url = `${this.opensearchUrl}/_plugins/_security/api/roles/${roleName}`;
+    const tenantSavedObjectsPattern = `.kibana_*_${orgId.replace(/[^a-z0-9]/g, '')}*`;
 
     const roleDefinition = {
       cluster_permissions: [
         'cluster_composite_ops_ro',
         // Required for Dashboards saved objects (bulk writes to .kibana_* tenant indices)
         'indices:data/write/bulk',
-        // Alerting: monitor CRUD, execution, alerts, and destinations
+        // Alerting: monitor CRUD, execution, alerts, and destinations (legacy endpoints)
         'cluster:admin/opendistro/alerting/monitor/get',
         'cluster:admin/opendistro/alerting/monitor/search',
         'cluster:admin/opendistro/alerting/monitor/write',
@@ -193,11 +195,29 @@ export class OpenSearchTenantService {
         'cluster:admin/opendistro/alerting/destination/get',
         'cluster:admin/opendistro/alerting/destination/write',
         'cluster:admin/opendistro/alerting/destination/delete',
+        // Notifications plugin (OpenSearch 2.x): channel features + config CRUD
+        'cluster:admin/opensearch/notifications/features',
+        'cluster:admin/opensearch/notifications/configs/get',
+        'cluster:admin/opensearch/notifications/configs/create',
+        'cluster:admin/opensearch/notifications/configs/update',
+        'cluster:admin/opensearch/notifications/configs/delete',
       ],
       index_permissions: [
         {
           index_patterns: [`security-findings-${orgId}-*`],
           allowed_actions: ['read', 'indices:data/read/*'],
+        },
+        {
+          // Tenant-scoped Dashboards saved objects index alias/index
+          index_patterns: [tenantSavedObjectsPattern],
+          allowed_actions: [
+            'read',
+            'write',
+            'create_index',
+            'indices:data/read/*',
+            'indices:data/write/*',
+            'indices:admin/mapping/put',
+          ],
         },
       ],
       tenant_permissions: [

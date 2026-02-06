@@ -82,7 +82,7 @@ customer_template_rw:
     - "indices:data/read/scroll*"
     # Required for Dashboards saved objects (bulk writes to .kibana_* tenant indices)
     - "indices:data/write/bulk"
-    # Alerting: monitor CRUD, execution, alerts, and destinations
+    # Alerting: monitor CRUD, execution, alerts, and destinations (legacy endpoints)
     - "cluster:admin/opendistro/alerting/monitor/get"
     - "cluster:admin/opendistro/alerting/monitor/search"
     - "cluster:admin/opendistro/alerting/monitor/write"
@@ -92,9 +92,24 @@ customer_template_rw:
     - "cluster:admin/opendistro/alerting/destination/get"
     - "cluster:admin/opendistro/alerting/destination/write"
     - "cluster:admin/opendistro/alerting/destination/delete"
+    # Notifications plugin (OpenSearch 2.x): channel features + config CRUD
+    - "cluster:admin/opensearch/notifications/features"
+    - "cluster:admin/opensearch/notifications/configs/get"
+    - "cluster:admin/opensearch/notifications/configs/create"
+    - "cluster:admin/opensearch/notifications/configs/update"
+    - "cluster:admin/opensearch/notifications/configs/delete"
   index_permissions:
     - index_patterns:
         - "CUSTOMER_ID_PLACEHOLDER-*"
+      allowed_actions:
+        - "read"
+        - "write"
+        - "create_index"
+        - "indices:data/read/*"
+        - "indices:data/write/*"
+        - "indices:admin/mapping/put"
+    - index_patterns:
+        - ".kibana*"
       allowed_actions:
         - "read"
         - "write"
@@ -118,7 +133,7 @@ customer_template_ro:
     - "cluster_composite_ops_ro"
     # Required for Dashboards saved objects (bulk writes to .kibana_* tenant indices)
     - "indices:data/write/bulk"
-    # Alerting: monitor CRUD, execution, alerts, and destinations
+    # Alerting: monitor CRUD, execution, alerts, and destinations (legacy endpoints)
     - "cluster:admin/opendistro/alerting/monitor/get"
     - "cluster:admin/opendistro/alerting/monitor/search"
     - "cluster:admin/opendistro/alerting/monitor/write"
@@ -128,12 +143,27 @@ customer_template_ro:
     - "cluster:admin/opendistro/alerting/destination/get"
     - "cluster:admin/opendistro/alerting/destination/write"
     - "cluster:admin/opendistro/alerting/destination/delete"
+    # Notifications plugin (OpenSearch 2.x): channel features + config CRUD
+    - "cluster:admin/opensearch/notifications/features"
+    - "cluster:admin/opensearch/notifications/configs/get"
+    - "cluster:admin/opensearch/notifications/configs/create"
+    - "cluster:admin/opensearch/notifications/configs/update"
+    - "cluster:admin/opensearch/notifications/configs/delete"
   index_permissions:
     - index_patterns:
         - "CUSTOMER_ID_PLACEHOLDER-*"
       allowed_actions:
         - "read"
         - "indices:data/read/*"
+    - index_patterns:
+        - ".kibana*"
+      allowed_actions:
+        - "read"
+        - "write"
+        - "create_index"
+        - "indices:data/read/*"
+        - "indices:data/write/*"
+        - "indices:admin/mapping/put"
   tenant_permissions:
     - tenant_patterns:
         - "CUSTOMER_ID_PLACEHOLDER"
