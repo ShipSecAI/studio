@@ -6,6 +6,24 @@
 default:
     @just help
 
+# Set/show the workspace "active" instance used when you run `just dev` without an explicit instance.
+# This is stored in `.shipsec-instance` (gitignored).
+instance action="show" value="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{action}}" in
+        show)
+            ./scripts/active-instance.sh get
+            ;;
+        use|set)
+            ./scripts/active-instance.sh set "{{value}}"
+            ;;
+        *)
+            echo "Usage: just instance [show|use] [0-9]"
+            exit 1
+            ;;
+    esac
+
 # === Development (recommended for contributors) ===
 
 # Initialize environment files from examples
@@ -34,15 +52,82 @@ init:
     echo "   Then run: just dev"
 
 # Start development environment with hot-reload
-dev action="start":
+# Usage: just dev [instance] [action]
+# Examples: just dev, just dev 1, just dev 2 start, just dev 1 logs, just dev stop all
+dev *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    case "{{action}}" in
-        start)
-            echo "🚀 Starting development environment..."
+    
+    # Parse arguments: instance can be 0-9, action is start/stop/logs/status/clean
+    INSTANCE="$(./scripts/active-instance.sh get)"
+    ACTION="start"
+    INFRA_PROJECT_NAME="shipsec-infra"
+    
+    # Process arguments
+    for arg in {{args}}; do
+        case "$arg" in
+            [0-9])
+                INSTANCE="$arg"
+                ;;
+            all)
+                # Special instance selector for bulk operations (e.g. `just dev stop all`)
+                INSTANCE="all"
+                ;;
+            start|stop|logs|status|clean|all)
+                ACTION="$arg"
+                ;;
+            *)
+                echo "❌ Unknown argument: $arg"
+                echo "Usage: just dev [instance] [action]"
+                echo "  instance: 0-9 (default: 0)"
+                echo "  action:   start|stop|logs|status|clean"
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Handle special case: dev stop all
+    if [ "$ACTION" = "all" ]; then
+        ACTION="stop"
+    fi
+    
+    # Handle "just dev stop" as "just dev 0 stop"
+    if [ "$ACTION" = "stop" ] && [ "$INSTANCE" = "0" ] && [ -z "{{args}}" ]; then
+        true  # Keep defaults
+    fi
 
+    # Validate "all" usage
+    if [ "$INSTANCE" = "all" ] && [ "$ACTION" != "stop" ] && [ "$ACTION" != "status" ] && [ "$ACTION" != "logs" ] && [ "$ACTION" != "clean" ]; then
+        echo "❌ Instance 'all' is only supported for: stop|status|logs|clean"
+        exit 1
+    fi
+    
+    # Get ports for this instance (skip for "all")
+    if [ "$INSTANCE" != "all" ]; then
+        eval "$(./scripts/dev-instance-manager.sh ports "$INSTANCE")"
+        INSTANCE_DIR=".instances/instance-$INSTANCE"
+        export FRONTEND BACKEND
+    fi
+    
+    case "$ACTION" in
+        start)
+            echo "🚀 Starting development environment (instance $INSTANCE)..."
+            
+            # Initialize instance if needed
+            if [ ! -d "$INSTANCE_DIR" ]; then
+                ./scripts/dev-instance-manager.sh init "$INSTANCE"
+            fi
+            
             # Check for required env files
-            if [ ! -f "backend/.env" ] || [ ! -f "worker/.env" ] || [ ! -f "frontend/.env" ]; then
+            if [ ! -f "$INSTANCE_DIR/backend.env" ] || [ ! -f "$INSTANCE_DIR/worker.env" ] || [ ! -f "$INSTANCE_DIR/frontend.env" ]; then
+                echo "❌ Environment files not found in $INSTANCE_DIR!"
+                echo ""
+                echo "   Attempting to initialize instance $INSTANCE..."
+                ./scripts/dev-instance-manager.sh init "$INSTANCE"
+            fi
+            
+            # Check for original env files if instance is 0
+            if [ "$INSTANCE" = "0" ] && { [ ! -f "backend/.env" ] || [ ! -f "worker/.env" ] || [ ! -f "frontend/.env" ]; }; then
                 echo "❌ Environment files not found!"
                 echo ""
                 echo "   Run this first: just init"
@@ -50,52 +135,134 @@ dev action="start":
                 echo "   This will create .env files from the example templates."
                 exit 1
             fi
-
-            # Start infrastructure
-            docker compose -f docker/docker-compose.infra.yml up -d
-
+            
+            # Start shared infrastructure (one stack for all instances)
+            echo "⏳ Starting shared infrastructure..."
+            docker compose -f docker/docker-compose.infra.yml \
+                --project-name="$INFRA_PROJECT_NAME" \
+                up -d
+            
             # Wait for Postgres
             echo "⏳ Waiting for infrastructure..."
-            timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
+            POSTGRES_CONTAINER="$(docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" ps -q postgres)"
+            if [ -n "$POSTGRES_CONTAINER" ]; then
+                timeout 30s bash -c "until docker exec $POSTGRES_CONTAINER pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done" || true
+            fi
 
-            # Update git SHA and start PM2
+            # Ensure instance-specific DB/namespace exists and migrations are applied.
+            ./scripts/instance-bootstrap.sh "$INSTANCE"
+            
+            # Prepare PM2 environment variables
+            export SHIPSEC_INSTANCE="$INSTANCE"
+            export SHIPSEC_ENV=development
+            export NODE_ENV=development
+            export TERMINAL_REDIS_URL="redis://localhost:6379"
+            export LOG_KAFKA_BROKERS="localhost:19092"
+            export EVENT_KAFKA_BROKERS="localhost:19092"
+            
+            # Update git SHA and start PM2 with instance-specific config
             ./scripts/set-git-sha.sh || true
-            SHIPSEC_ENV=development NODE_ENV=development pm2 startOrReload pm2.config.cjs --only shipsec-frontend,shipsec-backend,shipsec-worker --update-env
-
+            
+            pm2 startOrReload pm2.config.cjs \
+                --only "shipsec-frontend-$INSTANCE,shipsec-backend-$INSTANCE,shipsec-worker-$INSTANCE" \
+                --update-env
+            
             echo ""
-            echo "✅ Development environment ready"
-            echo "   Frontend:    http://localhost:5173"
-            echo "   Backend:     http://localhost:3211"
-            echo "   Temporal UI: http://localhost:8081"
+            echo "✅ Development environment ready (instance $INSTANCE)"
+            ./scripts/dev-instance-manager.sh info "$INSTANCE"
             echo ""
-            echo "💡 just dev logs   - View application logs"
-            echo "💡 just dev stop   - Stop everything"
+            echo "💡 just dev $INSTANCE logs   - View application logs"
+            echo "💡 just dev $INSTANCE stop   - Stop this instance"
             echo ""
-
+            
             # Version check
             bun backend/scripts/version-check-summary.ts 2>/dev/null || true
             ;;
         stop)
-            echo "🛑 Stopping development environment..."
-            pm2 delete shipsec-frontend shipsec-backend shipsec-worker shipsec-test-worker 2>/dev/null || true
-            docker compose -f docker/docker-compose.infra.yml down
-            echo "✅ Stopped"
+            if [ "$INSTANCE" = "all" ]; then
+                echo "🛑 Stopping all development environments..."
+                
+                # Stop all PM2 apps
+                pm2 delete shipsec-{frontend,backend,worker}-{0..9} 2>/dev/null || true
+                pm2 delete shipsec-test-worker 2>/dev/null || true
+                
+                # Stop shared infrastructure
+                just infra down
+                
+                echo "✅ All development environments stopped"
+            else
+                echo "🛑 Stopping development environment (instance $INSTANCE)..."
+                
+                # Stop PM2 apps for this instance
+                pm2 delete shipsec-{frontend,backend,worker}-"$INSTANCE" 2>/dev/null || true
+                
+                echo "✅ Instance $INSTANCE stopped"
+            fi
             ;;
         logs)
-            pm2 logs
+            if [ "$INSTANCE" = "all" ]; then
+                echo "📋 Viewing logs for all instances..."
+                pm2 logs
+            else
+                echo "📋 Viewing logs for instance $INSTANCE..."
+                pm2 logs "shipsec-frontend-$INSTANCE|shipsec-backend-$INSTANCE|shipsec-worker-$INSTANCE"
+            fi
             ;;
         status)
-            pm2 status
-            docker compose -f docker/docker-compose.infra.yml ps
+            if [ "$INSTANCE" = "all" ]; then
+                just status
+            else
+                echo "📊 Status of instance $INSTANCE:"
+                echo ""
+                pm2 status 2>/dev/null | grep -E "shipsec-(frontend|backend|worker)-$INSTANCE|error" || echo "(Instance $INSTANCE not running in PM2)"
+                echo ""
+                just status
+            fi
             ;;
         clean)
-            echo "🧹 Cleaning development environment..."
-            pm2 delete shipsec-frontend shipsec-backend shipsec-worker shipsec-test-worker 2>/dev/null || true
-            docker compose -f docker/docker-compose.infra.yml down -v
-            echo "✅ Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
+            if [ "$INSTANCE" = "all" ]; then
+                echo "🧹 Cleaning all instances (0-9)..."
+                
+                # Stop all instance-specific PM2 apps
+                pm2 delete shipsec-{frontend,backend,worker}-{0..9} 2>/dev/null || true
+                
+                # Clean infra state for each instance
+                for i in {0..9}; do
+                    if [ -d ".instances/instance-$i" ] || [ "$i" = "0" ]; then
+                        echo "  - Instance $i..."
+                        ./scripts/instance-clean.sh "$i" >/dev/null 2>&1 || true
+                        rm -rf ".instances/instance-$i"
+                    fi
+                done
+                
+                # Cleanup root level instance marker if it exists
+                rm -f .shipsec-instance
+                
+                # Also clean global infra if requested? 
+                # User usually runs `just infra clean` for that, but let's remind them.
+                echo ""
+                echo "💡 To also wipe all Docker volumes (PSQL, Kafka, etc.), run: just infra clean"
+                echo "✅ All instance-specific state cleaned"
+            else
+                echo "🧹 Cleaning instance $INSTANCE..."
+                
+                # Stop PM2 apps
+                pm2 delete shipsec-{frontend,backend,worker}-"$INSTANCE" 2>/dev/null || true
+                
+                # Remove instance-specific infra state (DB + Temporal namespace + topics, etc.)
+                ./scripts/instance-clean.sh "$INSTANCE" || true
+                
+                # Remove instance directory
+                rm -rf "$INSTANCE_DIR"
+                
+                echo "✅ Instance $INSTANCE cleaned"
+            fi
             ;;
         *)
-            echo "Usage: just dev [start|stop|logs|status|clean]"
+            echo "Usage: just dev [instance] [action]"
+            echo "  instance: 0-9 (default: 0)"
+            echo "  action:   start|stop|logs|status|clean"
+            exit 1
             ;;
     esac
 
@@ -372,20 +539,21 @@ prod-images action="start":
 infra action="up":
     #!/usr/bin/env bash
     set -euo pipefail
+    INFRA_PROJECT_NAME="shipsec-infra"
     case "{{action}}" in
         up)
-            docker compose -f docker/docker-compose.infra.yml up -d
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" up -d
             echo "✅ Infrastructure started (Postgres, Temporal, MinIO, Redis)"
             ;;
         down)
-            docker compose -f docker/docker-compose.infra.yml down
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" down
             echo "✅ Infrastructure stopped"
             ;;
         logs)
-            docker compose -f docker/docker-compose.infra.yml logs -f
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" logs -f
             ;;
         clean)
-            docker compose -f docker/docker-compose.infra.yml down -v
+            docker compose -f docker/docker-compose.infra.yml --project-name="$INFRA_PROJECT_NAME" down -v
             echo "✅ Infrastructure cleaned"
             ;;
         *)
@@ -410,17 +578,21 @@ status:
     echo "=== Production Containers ==="
     docker compose -f docker/docker-compose.full.yml ps 2>/dev/null || echo "  (Production not running)"
 
-# Reset database (drops all data)
-db-reset:
+# Reset database for specific instance or all instances
+# Usage: just db-reset [instance]
+db-reset instance="0":
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! docker ps --filter "name=shipsec-postgres" --format "{{{{.Names}}}}" | grep -q "shipsec-postgres"; then
-        echo "❌ PostgreSQL not running. Run: just dev" && exit 1
+    
+    if [ "{{instance}}" = "all" ]; then
+        echo "🗑️  Resetting all instance databases..."
+        for i in {0..9}; do
+            ./scripts/db-reset-instance.sh "$i" 2>/dev/null || true
+        done
+        echo "✅ All instance databases reset"
+    else
+        ./scripts/db-reset-instance.sh "{{instance}}"
     fi
-    docker exec shipsec-postgres psql -U shipsec -d postgres -c "DROP DATABASE IF EXISTS shipsec;"
-    docker exec shipsec-postgres psql -U shipsec -d postgres -c "CREATE DATABASE shipsec;"
-    bun --cwd=backend run migration:push
-    echo "✅ Database reset"
 
 # Build production images without starting
 build:
@@ -435,12 +607,22 @@ help:
     @echo "Getting Started:"
     @echo "  just init       Set up dependencies and environment files"
     @echo ""
-    @echo "Development (hot-reload):"
-    @echo "  just dev          Start development environment"
-    @echo "  just dev stop     Stop everything"
-    @echo "  just dev logs     View application logs"
-    @echo "  just dev status   Check service status"
-    @echo "  just dev clean    Stop and remove all data"
+    @echo "Development (hot-reload, multi-instance support):"
+    @echo "  just dev                Start the active instance (default: 0)"
+    @echo "  just instance show      Show active instance"
+    @echo "  just instance use 5     Set active instance to 5 for this workspace"
+    @echo "  just dev 1              Start instance 1"
+    @echo "  just dev 2 start        Explicitly start instance 2"
+    @echo "  just dev 1 stop         Stop instance 1"
+    @echo "  just dev 2 logs         View instance 2 logs"
+    @echo "  just dev 0 status       Check instance 0 status"
+    @echo "  just dev 1 clean        Stop and remove instance 1 data"
+    @echo "  just dev stop all       Stop all instances at once"
+    @echo "  just dev status all     Check status of all instances"
+    @echo ""
+    @echo "  Note: Instances share one Docker infra stack (Postgres/Temporal/Redpanda/Redis/etc)"
+    @echo "        Isolation comes from per-instance DB + Temporal namespace/task-queue + Kafka topic suffix"
+    @echo "        Instance N uses base_port + N*100 (e.g., instance 0 uses 5173, instance 1 uses 5273)"
     @echo ""
     @echo "Production (Docker):"
     @echo "  just prod-init     Generate secrets in docker/.env (run once)"
@@ -460,6 +642,8 @@ help:
     @echo "  just infra clean   Remove infrastructure data"
     @echo ""
     @echo "Utilities:"
-    @echo "  just status        Show status of all services"
-    @echo "  just db-reset      Reset database"
-    @echo "  just build         Build images only"
+    @echo "  just status           Show status of all services"
+    @echo "  just db-reset         Reset instance 0 database"
+    @echo "  just db-reset 1       Reset instance 1 database"
+    @echo "  just db-reset all     Reset all instance databases"
+    @echo "  just build            Build images only"

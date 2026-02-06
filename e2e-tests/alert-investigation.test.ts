@@ -3,7 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const API_BASE = 'http://127.0.0.1:3211/api/v1';
+import { getApiBaseUrl } from './helpers/api-base';
+
+const API_BASE = getApiBaseUrl();
 const HEADERS = {
   'Content-Type': 'application/json',
   'x-internal-token': 'local-internal-token',

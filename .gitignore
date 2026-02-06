@@ -14,11 +14,13 @@ build/
 .env
 .env.local
 docker/.env
+.instances/
 .env.development.local
 .env.test.local
 .env.production.local
 .env.eng-104
 .env.eng-104
+.shipsec-instance
 
 # Logs
 logs/

@@ -26,6 +26,7 @@
     "@nestjs/microservices": "^11.1.13",
     "@nestjs/platform-express": "^10.4.22",
     "@nestjs/swagger": "^11.2.5",
+    "@shipsec/backend-client": "workspace:*",
     "@shipsec/component-sdk": "workspace:*",
     "@shipsec/shared": "workspace:*",
     "@shipsec/studio-worker": "workspace:*",

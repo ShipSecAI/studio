@@ -32,6 +32,9 @@
       "path": "../packages/component-sdk"
     },
     {
+      "path": "../packages/backend-client"
+    },
+    {
       "path": "../packages/contracts"
     }
   ]
