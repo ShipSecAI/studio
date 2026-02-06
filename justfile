@@ -50,6 +50,10 @@ dev *args:
             [0-9])
                 INSTANCE="$arg"
                 ;;
+            all)
+                # Special instance selector for bulk operations (e.g. `just dev stop all`)
+                INSTANCE="all"
+                ;;
             start|stop|logs|status|clean|all)
                 ACTION="$arg"
                 ;;
@@ -57,27 +61,34 @@ dev *args:
                 echo "❌ Unknown argument: $arg"
                 echo "Usage: just dev [instance] [action]"
                 echo "  instance: 0-9 (default: 0)"
-                echo "  action:   start|stop|logs|status|clean|all"
+                echo "  action:   start|stop|logs|status|clean"
                 exit 1
                 ;;
         esac
     done
     
     # Handle special case: dev stop all
-    if [ "$ACTION" = "all" ] && [ "$INSTANCE" = "stop" ]; then
+    if [ "$ACTION" = "all" ]; then
         ACTION="stop"
-        INSTANCE="all"
     fi
     
     # Handle "just dev stop" as "just dev 0 stop"
     if [ "$ACTION" = "stop" ] && [ "$INSTANCE" = "0" ] && [ -z "{{args}}" ]; then
         true  # Keep defaults
     fi
+
+    # Validate "all" usage
+    if [ "$INSTANCE" = "all" ] && [ "$ACTION" != "stop" ] && [ "$ACTION" != "status" ] && [ "$ACTION" != "logs" ]; then
+        echo "❌ Instance 'all' is only supported for: stop|status|logs"
+        exit 1
+    fi
     
-    # Get ports for this instance
-    eval "$(./scripts/dev-instance-manager.sh ports "$INSTANCE")"
-    COMPOSE_PROJECT_NAME=$(./scripts/dev-instance-manager.sh project-name "$INSTANCE")
-    INSTANCE_DIR=".instances/instance-$INSTANCE"
+    # Get ports for this instance (skip for "all")
+    if [ "$INSTANCE" != "all" ]; then
+        eval "$(./scripts/dev-instance-manager.sh ports "$INSTANCE")"
+        COMPOSE_PROJECT_NAME=$(./scripts/dev-instance-manager.sh project-name "$INSTANCE")
+        INSTANCE_DIR=".instances/instance-$INSTANCE"
+    fi
     
     case "$ACTION" in
         start)
