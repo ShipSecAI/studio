@@ -88,6 +88,9 @@ dev *args:
         eval "$(./scripts/dev-instance-manager.sh ports "$INSTANCE")"
         COMPOSE_PROJECT_NAME=$(./scripts/dev-instance-manager.sh project-name "$INSTANCE")
         INSTANCE_DIR=".instances/instance-$INSTANCE"
+        # Export ports so docker compose can use them for variable substitution in compose files.
+        export FRONTEND BACKEND TEMPORAL_CLIENT TEMPORAL_UI POSTGRES MINIO_API MINIO_CONSOLE
+        export REDIS LOKI REDPANDA REDPANDA_UI
     fi
     
     case "$ACTION" in
@@ -141,9 +144,17 @@ dev *args:
             ./scripts/set-git-sha.sh || true
             
             # Use instance-specific PM2 app names
+            # `--merge` was added in newer PM2 versions. Keep local dev working for older installs.
+            PM2_VERSION="$(pm2 -v 2>/dev/null || true)"
+            PM2_MAJOR="${PM2_VERSION%%.*}"
+            PM2_MERGE_ARGS=()
+            if [[ "$PM2_MAJOR" =~ ^[0-9]+$ ]] && [ "$PM2_MAJOR" -ge 6 ]; then
+                PM2_MERGE_ARGS+=(--merge)
+            fi
+
             pm2 startOrReload pm2.config.cjs \
                 --only "shipsec-frontend-$INSTANCE,shipsec-backend-$INSTANCE,shipsec-worker-$INSTANCE" \
-                --update-env --merge
+                --update-env "${PM2_MERGE_ARGS[@]}"
             
             echo ""
             echo "✅ Development environment ready (instance $INSTANCE)"

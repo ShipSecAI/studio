@@ -274,7 +274,8 @@ module.exports = {
       name: `shipsec-frontend-${instanceNum}`,
       cwd: __dirname + '/frontend',
       script: 'bun',
-      args: 'run dev',
+      // Ensure each instance binds to its own Vite port (default is 5173).
+      args: ['run', 'dev', '--', '--port', String(getInstancePort(5173, instanceNum)), '--strictPort'],
       env_file: resolveEnvFile('frontend', instanceNum),
       env: {
         ...frontendEnv,

@@ -129,8 +129,6 @@ create_docker_compose_override() {
   cat > "$override_file" << EOF
 # Instance $instance Docker Compose Override
 # Auto-generated - do not edit manually
-version: '3.8'
-
 services:
   postgres:
     ports:
