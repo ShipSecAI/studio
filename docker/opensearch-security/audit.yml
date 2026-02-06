@@ -1,0 +1,30 @@
+# OpenSearch Security - Audit Configuration
+#
+# Audit logging configuration for security events.
+
+---
+_meta:
+  type: "audit"
+  config_version: 2
+
+config:
+  # Enable audit logging
+  enabled: true
+  audit:
+    # Log successful authentication
+    enable_rest: true
+    # Log transport layer (disabled for dev to reduce noise)
+    enable_transport: false
+    # What to log
+    resolve_bulk_requests: false
+    log_request_body: false
+    resolve_indices: true
+    exclude_sensitive_headers: true
+    # Ignore system indices
+    ignore_users:
+      - "kibanaserver"
+    ignore_requests:
+      - "SearchRequest"
+      - "indices:data/read/*"
+  compliance:
+    enabled: false

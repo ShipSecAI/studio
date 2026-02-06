@@ -1,0 +1,13 @@
+# OpenSearch Security - API Allowlist
+#
+# Controls which REST APIs can be accessed.
+# Disabled by default (all APIs allowed based on role permissions).
+
+---
+_meta:
+  type: "allowlist"
+  config_version: 2
+
+config:
+  enabled: false
+  requests: {}

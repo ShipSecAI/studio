@@ -154,6 +154,9 @@ export async function runComponentActivity(
   const context = createExecutionContext({
     runId: input.runId,
     componentRef: action.ref,
+    workflowId: input.workflowId,
+    workflowName: input.workflowName,
+    organizationId: input.organizationId ?? null,
     metadata: {
       activityId: activityInfo.activityId,
       attempt: activityInfo.attempt,
@@ -383,21 +386,53 @@ export async function runComponentActivity(
 
   await resolveSecretParams(resolvedParams, input.rawParams ?? {});
 
+  // Get input port metadata to check which inputs are truly required
+  let inputsSchemaForValidation = component.inputs;
+  if (typeof component.resolvePorts === 'function') {
+    try {
+      const resolved = component.resolvePorts(resolvedParams);
+      if (resolved?.inputs) {
+        inputsSchemaForValidation = resolved.inputs;
+      }
+    } catch {
+      // If port resolution fails, use the base schema
+    }
+  }
+  const inputPorts = inputsSchemaForValidation ? extractPorts(inputsSchemaForValidation) : [];
+
+  // Filter warnings to only those for truly required inputs
+  // An input is NOT required if:
+  // - Its schema allows undefined/null (required: false)
+  // - It accepts any type (connectionType.kind === 'any') which includes undefined
+  const requiredMissingInputs = warningsToReport.filter((warning) => {
+    const portMeta = inputPorts.find((p: ComponentPortMetadata) => p.id === warning.target);
+    // If we can't find the port metadata, assume it's required to be safe
+    if (!portMeta) return true;
+    // If marked as not required, it's optional
+    if (portMeta.required === false) return false;
+    // If connectionType is 'any', it accepts undefined
+    if (portMeta.connectionType?.kind === 'any') return false;
+    return true;
+  });
+
+  // Log warnings for all undefined inputs (even optional ones)
   for (const warning of warningsToReport) {
+    const isRequired = requiredMissingInputs.some((r) => r.target === warning.target);
     context.trace?.record({
       type: 'NODE_PROGRESS',
       timestamp: new Date().toISOString(),
       message: `Input '${warning.target}' mapped from ${warning.sourceRef}.${warning.sourceHandle} was undefined`,
-      level: 'warn',
+      level: isRequired ? 'error' : 'warn',
       data: warning,
     });
   }
 
-  if (warningsToReport.length > 0) {
-    const missing = warningsToReport.map((warning) => `'${warning.target}'`).join(', ');
+  // Only throw if there are truly missing required inputs
+  if (requiredMissingInputs.length > 0) {
+    const missing = requiredMissingInputs.map((warning) => `'${warning.target}'`).join(', ');
     throw new ValidationError(`Missing required inputs for ${action.ref}: ${missing}`, {
       fieldErrors: Object.fromEntries(
-        warningsToReport.map((w) => [
+        requiredMissingInputs.map((w) => [
           w.target,
           [`mapped from ${w.sourceRef}.${w.sourceHandle} was undefined`],
         ]),

@@ -7,14 +7,14 @@ import { GlobalAuthContext } from './auth-context-def';
 // Auth provider registry - easy to add new providers
 // Determine which provider to use based on environment
 function getAuthProviderName(): string {
-  // Priority: explicit 'local' > dev mode (always local) > environment variable
+  // Priority: explicit env var > dev mode default (local) > auto-detect
   const envProvider = import.meta.env.VITE_AUTH_PROVIDER;
   const hasClerkKey =
     typeof import.meta.env.VITE_CLERK_PUBLISHABLE_KEY === 'string' &&
     import.meta.env.VITE_CLERK_PUBLISHABLE_KEY.trim().length > 0;
 
-  // In dev mode, always use local auth for testing (ignore Clerk settings)
-  if (import.meta.env.DEV) {
+  // In dev mode, default to local auth unless VITE_AUTH_PROVIDER is explicitly set
+  if (import.meta.env.DEV && !envProvider) {
     return 'local';
   }
 
@@ -93,7 +93,17 @@ const LocalAuthProvider: FrontendAuthProviderComponent = ({
       signUp: () => {
         console.warn('Local auth: signUp not implemented');
       },
-      signOut: () => {
+      signOut: async () => {
+        // Clear session cookie via backend logout endpoint
+        // Use relative path to ensure we hit the same origin as login
+        try {
+          await fetch('/api/v1/auth/logout', {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch (error) {
+          console.warn('Failed to clear session cookie:', error);
+        }
         // Clear admin credentials from store
         useAuthStore.getState().clear();
       },

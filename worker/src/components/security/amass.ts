@@ -11,6 +11,11 @@ import {
   port,
   param,
   type DockerRunnerConfig,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
+  type ExecutionContext,
+  type ExecutionPayload,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -278,6 +283,11 @@ const outputSchema = outputs({
       connectionType: { kind: 'primitive', name: 'json' },
     },
   ),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 // Split custom CLI flags into an array of arguments
@@ -452,7 +462,7 @@ const amassRetryPolicy: ComponentRetryPolicy = {
   nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
 };
 
-const definition = defineComponent({
+const definition = (defineComponent as any)({
   id: 'shipsec.amass.enum',
   label: 'Amass Enumeration',
   category: 'security',
@@ -506,7 +516,13 @@ const definition = defineComponent({
       'Perform quick passive reconnaissance using custom CLI flags like --passive.',
     ],
   },
-  async execute({ inputs, params }, context) {
+  async execute(
+    {
+      inputs,
+      params,
+    }: ExecutionPayload<z.infer<typeof inputSchema>, z.infer<typeof parameterSchema>>,
+    context: ExecutionContext,
+  ) {
     const parsedParams = parameterSchema.parse(params);
     const {
       passive,
@@ -718,12 +734,23 @@ const definition = defineComponent({
       });
     }
 
+    // Build analytics-ready results with scanner metadata
+    const analyticsResults: AnalyticsResult[] = subdomains.map((subdomain) => ({
+      scanner: 'amass',
+      finding_hash: generateFindingHash('subdomain-discovery', subdomain, inputs.domains.join(',')),
+      severity: 'info' as const,
+      asset_key: subdomain,
+      subdomain,
+      parent_domains: inputs.domains,
+    }));
+
     return {
       subdomains,
       rawOutput,
       domainCount,
       subdomainCount,
       options: optionsSummary,
+      results: analyticsResults,
     };
   },
 });

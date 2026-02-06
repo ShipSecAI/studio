@@ -170,6 +170,10 @@ function isPlaceholderIssue(issue: ZodIssue, placeholderFields: Set<string>): bo
       return true;
     case 'too_big':
       return true;
+    case 'invalid_value':
+      // Enum/literal validation fails on placeholder objects with missing fields
+      // The actual value from upstream will have the correct enum value at runtime
+      return true;
     case 'custom':
       // Custom validations (from .refine()) fail on placeholders but will pass at runtime
       // when the actual value comes from the connected edge

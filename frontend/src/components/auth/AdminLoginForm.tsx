@@ -3,9 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
-import { API_V1_URL } from '@/services/api';
 
 export function AdminLoginForm() {
   const [username, setUsername] = useState('');
@@ -14,6 +13,8 @@ export function AdminLoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const setAdminCredentials = useAuthStore((state) => state.setAdminCredentials);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,28 +32,42 @@ export function AdminLoginForm() {
     setIsLoading(true);
 
     try {
-      // Test the credentials by making a simple API call
-      // If it fails, the credentials are invalid
+      // Validate credentials and set session cookie via /auth/login endpoint
+      // This sets an httpOnly cookie for browser navigation to protected routes (e.g., /analytics/)
+      // Use relative path to ensure cookie is set via nginx (same origin as /analytics/* routes)
       const credentials = btoa(`${trimmedUsername}:${trimmedPassword}`);
-      const response = await fetch(`${API_V1_URL}/workflows`, {
+      const loginResponse = await fetch('/api/v1/auth/login', {
+        method: 'POST',
         headers: {
           Authorization: `Basic ${credentials}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Important: include cookies in the response
       });
 
-      if (!response.ok) {
-        if (response.status === 401) {
+      if (!loginResponse.ok) {
+        if (loginResponse.status === 401) {
           throw new Error('Invalid username or password');
         }
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Authentication failed: ${loginResponse.status} ${loginResponse.statusText}`,
+        );
       }
 
-      // Store credentials only after verification succeeds
+      // Store credentials for API requests (Basic auth header)
       setAdminCredentials(trimmedUsername, trimmedPassword);
 
-      // Success - navigate to home
-      navigate('/');
+      // Success - redirect to returnTo URL or home
+      if (returnTo) {
+        // For paths like /analytics/*, use full page navigation since they're served by nginx
+        if (returnTo.startsWith('/analytics')) {
+          window.location.href = returnTo;
+        } else {
+          navigate(returnTo);
+        }
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       // Clear credentials on error
       useAuthStore.getState().clear();

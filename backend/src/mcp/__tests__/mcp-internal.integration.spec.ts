@@ -8,6 +8,10 @@ import { AuthService } from '../../auth/auth.service';
 import { AuthGuard } from '../../auth/auth.guard';
 import { ApiKeysService } from '../../api-keys/api-keys.service';
 import { AnalyticsService } from '../../analytics/analytics.service';
+import { OpenSearchTenantService } from '../../analytics/opensearch-tenant.service';
+import { SecurityAnalyticsService } from '../../analytics/security-analytics.service';
+import { OrganizationSettingsService } from '../../analytics/organization-settings.service';
+import { AnalyticsModule } from '../../analytics/analytics.module';
 import { AgentTraceIngestService } from '../../agent-trace/agent-trace-ingest.service';
 import { EventIngestService } from '../../events/event-ingest.service';
 import { LogIngestService } from '../../logging/log-ingest.service';
@@ -68,6 +72,39 @@ describe('MCP Internal API (Integration)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), McpModule],
     })
+      .overrideModule(AnalyticsModule)
+      .useModule(
+        class MockAnalyticsModule {
+          static providers = [
+            {
+              provide: AnalyticsService,
+              useValue: {
+                isEnabled: () => false,
+                track: () => {},
+                trackWorkflowStarted: () => {},
+                trackWorkflowCompleted: () => {},
+                trackApiCall: () => {},
+                trackComponentExecuted: () => {},
+              },
+            },
+            {
+              provide: OpenSearchTenantService,
+              useValue: { provisionTenant: async () => true },
+            },
+            {
+              provide: SecurityAnalyticsService,
+              useValue: { indexDocument: async () => {}, bulkIndexDocuments: async () => {} },
+            },
+            {
+              provide: OrganizationSettingsService,
+              useValue: {
+                getOrganizationSettings: async () => ({}),
+                updateOrganizationSettings: async () => ({}),
+              },
+            },
+          ];
+        },
+      )
       .overrideProvider(NodeIOIngestService)
       .useValue({
         onModuleInit: async () => {},
@@ -96,15 +133,6 @@ describe('MCP Internal API (Integration)', () => {
       })
       .overrideProvider(McpGatewayService)
       .useValue(mockGatewayService)
-      .overrideProvider(AnalyticsService)
-      .useValue({
-        isEnabled: () => false,
-        track: () => {},
-        trackWorkflowStarted: () => {},
-        trackWorkflowCompleted: () => {},
-        trackApiCall: () => {},
-        trackComponentExecuted: () => {},
-      })
       .overrideProvider(AuthService)
       .useValue({
         authenticate: async () => {

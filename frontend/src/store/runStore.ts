@@ -7,6 +7,7 @@ import type { ExecutionTriggerType, ExecutionInputPreview } from '@shipsec/share
 export interface ExecutionRun {
   id: string;
   workflowId: string;
+  organizationId?: string;
   workflowName: string;
   status: ExecutionStatus;
   startTime: string;
@@ -107,6 +108,7 @@ const normalizeRun = (run: any): ExecutionRun => {
   return {
     id: String(run.id ?? ''),
     workflowId: String(run.workflowId ?? ''),
+    organizationId: typeof run.organizationId === 'string' ? run.organizationId : undefined,
     workflowName: String(run.workflowName ?? 'Untitled workflow'),
     status,
     startTime,

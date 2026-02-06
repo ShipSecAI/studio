@@ -1,0 +1,97 @@
+# Production Docker Compose - OpenSearch with Security & Multitenancy
+#
+# Usage:
+#   docker compose -f docker-compose.infra.yml -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   1. Generate TLS certificates: ./scripts/generate-certs.sh
+#   2. Set environment variables in .env.prod or export them:
+#      - OPENSEARCH_ADMIN_PASSWORD (required)
+#      - OPENSEARCH_DASHBOARDS_PASSWORD (required)
+#
+# This file overrides the development infrastructure with:
+#   - Security plugin enabled
+#   - TLS encryption for transport and HTTP
+#   - Multitenancy support in OpenSearch Dashboards
+
+services:
+  opensearch:
+    # Custom entrypoint for proxy auth config templating
+    entrypoint: ["/usr/share/opensearch/config/opensearch-security/docker-entrypoint-security.sh"]
+    environment:
+      # Remove security disable flags (override dev settings)
+      - DISABLE_SECURITY_PLUGIN=false
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      # Admin password for healthcheck
+      - OPENSEARCH_ADMIN_PASSWORD=${OPENSEARCH_ADMIN_PASSWORD:-admin}
+      # Proxy auth - trusted proxy IP regex (Docker bridge network)
+      - OPENSEARCH_INTERNAL_PROXIES=172\.\d+\.\d+\.\d+
+      # Security configuration
+      - plugins.security.ssl.transport.pemcert_filepath=certs/node.pem
+      - plugins.security.ssl.transport.pemkey_filepath=certs/node-key.pem
+      - plugins.security.ssl.transport.pemtrustedcas_filepath=certs/root-ca.pem
+      - plugins.security.ssl.transport.enforce_hostname_verification=false
+      - plugins.security.ssl.http.enabled=true
+      - plugins.security.ssl.http.pemcert_filepath=certs/node.pem
+      - plugins.security.ssl.http.pemkey_filepath=certs/node-key.pem
+      - plugins.security.ssl.http.pemtrustedcas_filepath=certs/root-ca.pem
+      - plugins.security.allow_unsafe_democertificates=false
+      - plugins.security.allow_default_init_securityindex=true
+      - plugins.security.authcz.admin_dn=CN=admin,OU=ShipSec,O=ShipSecAI,L=SF,ST=CA,C=US
+      - plugins.security.audit.type=internal_opensearch
+      - plugins.security.enable_snapshot_restore_privilege=true
+      - plugins.security.check_snapshot_restore_write_privileges=true
+      - plugins.security.restapi.roles_enabled=["all_access", "security_rest_api_access"]
+      - cluster.name=shipsec-prod
+      - node.name=opensearch-node1
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+      - ./certs:/usr/share/opensearch/config/certs:ro
+      - ./opensearch-security:/usr/share/opensearch/config/opensearch-security:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -u admin:$${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  opensearch-dashboards:
+    environment:
+      # Remove security disable flag (override dev settings)
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=false
+      - OPENSEARCH_HOSTS=["https://opensearch:9200"]
+    volumes:
+      - ./opensearch-dashboards.prod.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+      - ./certs:/usr/share/opensearch-dashboards/config/certs:ro
+    healthcheck:
+      # Check if server responds (401 is fine - means server is up, security just requires auth)
+      test: ["CMD-SHELL", "curl -sf -o /dev/null -w '%{http_code}' http://localhost:5601/analytics/api/status | grep -qE '(200|401)' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # Override init script to work with secured cluster
+  opensearch-init:
+    environment:
+      - OPENSEARCH_SECURITY_ENABLED=true
+      - OPENSEARCH_CA_CERT=/certs/root-ca.pem
+    volumes:
+      - ./opensearch-init.sh:/init.sh:ro
+      - ./certs:/certs:ro
+
+  # Nginx with production config (container service names)
+  nginx:
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+
+volumes:
+  opensearch_data:
+
+networks:
+  default:
+    name: shipsec-network

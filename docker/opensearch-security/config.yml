@@ -1,0 +1,47 @@
+# OpenSearch Security Configuration
+#
+# This file configures authentication domains for the security plugin.
+# Proxy auth is used for nginx-authenticated requests (Dashboards access).
+# Basic auth is used for direct API access (admin, worker).
+
+---
+_meta:
+  type: "config"
+  config_version: 2
+
+config:
+  dynamic:
+    http:
+      xff:
+        enabled: true
+        # Trusted proxy IPs - templated at container start by docker-entrypoint-security.sh
+        # Default matches Docker bridge network (172.x.x.x)
+        internalProxies: '__INTERNAL_PROXIES__'
+        remoteIpHeader: 'X-Forwarded-For'
+
+    authc:
+      # Proxy authentication for nginx-authenticated requests
+      # Nginx sets x-proxy-user and x-proxy-roles headers after auth validation
+      proxy_auth_domain:
+        http_enabled: true
+        transport_enabled: true
+        order: 0
+        http_authenticator:
+          type: proxy
+          challenge: false
+          config:
+            user_header: "x-proxy-user"
+            roles_header: "x-proxy-roles"
+        authentication_backend:
+          type: noop
+
+      # Basic auth fallback for direct API access (admin, worker)
+      basic_internal_auth_domain:
+        http_enabled: true
+        transport_enabled: true
+        order: 1
+        http_authenticator:
+          type: basic
+          challenge: true
+        authentication_backend:
+          type: intern

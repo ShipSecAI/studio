@@ -8,6 +8,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 const inputSchema = inputs({
@@ -160,6 +163,11 @@ const outputSchema = outputs({
       connectionType: { kind: 'primitive', name: 'json' },
     },
   ),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 type Finding = z.infer<typeof findingSchema>;
@@ -338,8 +346,22 @@ eval "$CMD"
 
     if (typeof result === 'string') {
       const findings = parseNaabuOutput(result);
+
+      // Build analytics-ready results with scanner metadata
+      const analyticsResults: AnalyticsResult[] = findings.map((finding) => ({
+        scanner: 'naabu',
+        finding_hash: generateFindingHash('open-port', finding.host, String(finding.port)),
+        severity: 'info' as const,
+        asset_key: `${finding.host}:${finding.port}`,
+        host: finding.host,
+        port: finding.port,
+        protocol: finding.protocol,
+        ip: finding.ip,
+      }));
+
       const output: Output = {
         findings,
+        results: analyticsResults,
         rawOutput: result,
         targetCount: runnerParams.targets.length,
         openPortCount: findings.length,
@@ -365,6 +387,7 @@ eval "$CMD"
 
     return {
       findings: [],
+      results: [],
       rawOutput: typeof result === 'string' ? result : '',
       targetCount: runnerParams.targets.length,
       openPortCount: 0,

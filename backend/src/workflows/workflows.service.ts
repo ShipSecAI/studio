@@ -8,6 +8,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { status as grpcStatus, type ServiceError } from '@grpc/grpc-js';
+import { WorkflowNotFoundError } from '@temporalio/client';
 import { z } from 'zod';
 
 import { compileWorkflowGraph } from '../dsl/compiler';
@@ -65,6 +66,7 @@ export interface WorkflowRunHandle {
 export interface WorkflowRunSummary {
   id: string;
   workflowId: string;
+  organizationId: string;
   workflowVersionId: string | null;
   workflowVersion: number | null;
   status: ExecutionStatus;
@@ -562,11 +564,12 @@ export class WorkflowsService {
     const graph = (version?.graph ?? workflow?.graph) as { nodes?: unknown[] } | undefined;
     const nodeCount = graph?.nodes && Array.isArray(graph.nodes) ? graph.nodes.length : 0;
 
-    const eventCount = await this.traceRepository.countByType(
-      run.runId,
-      'NODE_STARTED',
-      organizationId,
-    );
+    // Get trace event counts for status inference
+    const [startedActions, completedActions, failedActions] = await Promise.all([
+      this.traceRepository.countByType(run.runId, 'NODE_STARTED', organizationId),
+      this.traceRepository.countByType(run.runId, 'NODE_COMPLETED', organizationId),
+      this.traceRepository.countByType(run.runId, 'NODE_FAILED', organizationId),
+    ]);
 
     // Calculate duration from events (more accurate than createdAt/updatedAt)
     const eventTimeRange = await this.traceRepository.getEventTimeRange(run.runId, organizationId);
@@ -583,22 +586,19 @@ export class WorkflowsService {
       });
       currentStatus = this.normalizeStatus(status.status);
     } catch (error) {
-      // If Temporal can't find the workflow (NOT_FOUND), check if events have stopped
-      // If events stopped more than 5 minutes ago, assume the workflow completed
-      const isNotFound = this.isNotFoundError(error);
-      if (isNotFound && eventTimeRange.lastTimestamp) {
-        const lastEventTime = new Date(eventTimeRange.lastTimestamp);
-        const minutesSinceLastEvent = (Date.now() - lastEventTime.getTime()) / (1000 * 60);
-        if (minutesSinceLastEvent > 5) {
-          // Events stopped more than 5 minutes ago and Temporal can't find it
-          // Assume the workflow completed successfully
-          currentStatus = 'COMPLETED';
-          this.logger.log(
-            `Run ${run.runId} not found in Temporal but last event was ${minutesSinceLastEvent.toFixed(1)} minutes ago, assuming COMPLETED`,
-          );
-        } else {
-          this.logger.warn(`Failed to get status for run ${run.runId}: ${error}`);
-        }
+      // If Temporal can't find the workflow, infer status from trace events
+      if (this.isNotFoundError(error)) {
+        currentStatus = this.inferStatusFromTraceEvents({
+          runId: run.runId,
+          totalActions: run.totalActions ?? nodeCount,
+          completedActions,
+          failedActions,
+          startedActions,
+        });
+        this.logger.log(
+          `Run ${run.runId} not found in Temporal, inferred status: ${currentStatus} ` +
+            `(started=${startedActions}, completed=${completedActions}, failed=${failedActions})`,
+        );
       } else {
         this.logger.warn(`Failed to get status for run ${run.runId}: ${error}`);
       }
@@ -615,6 +615,7 @@ export class WorkflowsService {
     return {
       id: run.runId,
       workflowId: run.workflowId,
+      organizationId,
       workflowVersionId: run.workflowVersionId ?? null,
       workflowVersion: run.workflowVersion ?? null,
       status: currentStatus,
@@ -622,7 +623,7 @@ export class WorkflowsService {
       endTime: run.updatedAt ?? null,
       temporalRunId: run.temporalRunId ?? undefined,
       workflowName,
-      eventCount,
+      eventCount: startedActions,
       nodeCount,
       duration,
       triggerType,
@@ -1068,19 +1069,59 @@ export class WorkflowsService {
     this.logger.log(
       `Fetching status for workflow run ${runId} (temporalRunId=${temporalRunId ?? 'latest'})`,
     );
-    const temporalStatus = await this.temporalService.describeWorkflow({
-      workflowId: runId,
-      runId: temporalRunId,
-    });
     const { organizationId, run } = await this.requireRunAccess(runId, auth);
 
+    let temporalStatus: Awaited<ReturnType<typeof this.temporalService.describeWorkflow>>;
     let completedActions = 0;
+    let failedActions = 0;
+    let startedActions = 0;
+
+    // Pre-fetch trace event counts for status inference
     if (run.totalActions && run.totalActions > 0) {
-      completedActions = await this.traceRepository.countByType(
-        runId,
-        'NODE_COMPLETED',
-        organizationId,
-      );
+      [completedActions, failedActions, startedActions] = await Promise.all([
+        this.traceRepository.countByType(runId, 'NODE_COMPLETED', organizationId),
+        this.traceRepository.countByType(runId, 'NODE_FAILED', organizationId),
+        this.traceRepository.countByType(runId, 'NODE_STARTED', organizationId),
+      ]);
+    }
+
+    try {
+      temporalStatus = await this.temporalService.describeWorkflow({
+        workflowId: runId,
+        runId: temporalRunId,
+      });
+    } catch (error) {
+      // If Temporal can't find the workflow, infer status from trace events
+      if (this.isNotFoundError(error)) {
+        const inferredStatus = this.inferStatusFromTraceEvents({
+          runId,
+          totalActions: run.totalActions ?? 0,
+          completedActions,
+          failedActions,
+          startedActions,
+        });
+
+        this.logger.log(
+          `Workflow ${runId} not found in Temporal, inferred status: ${inferredStatus} ` +
+            `(started=${startedActions}, completed=${completedActions}, failed=${failedActions}, total=${run.totalActions})`,
+        );
+
+        temporalStatus = {
+          workflowId: runId,
+          runId: temporalRunId ?? runId,
+          // Cast to WorkflowExecutionStatusName - normalizeStatus handles mapping
+          status: inferredStatus as unknown as typeof temporalStatus.status,
+          startTime: run.createdAt.toISOString(),
+          // Only set closeTime for terminal states that actually ran
+          closeTime: ['COMPLETED', 'FAILED'].includes(inferredStatus)
+            ? new Date().toISOString()
+            : undefined,
+          historyLength: 0,
+          taskQueue: '',
+        };
+      } else {
+        throw error;
+      }
     }
 
     const statusPayload = this.mapTemporalStatus(runId, temporalStatus, run, completedActions);
@@ -1535,13 +1576,64 @@ export class WorkflowsService {
     }
   }
 
-  private isNotFoundError(error: unknown): error is ServiceError {
+  private isNotFoundError(error: unknown): boolean {
     if (!error || typeof error !== 'object') {
       return false;
     }
 
+    // Check for Temporal WorkflowNotFoundError
+    if (error instanceof WorkflowNotFoundError) {
+      return true;
+    }
+
+    // Check for gRPC NOT_FOUND error
     const serviceError = error as ServiceError;
     return serviceError.code === grpcStatus.NOT_FOUND;
+  }
+
+  /**
+   * Infer workflow status from trace events when Temporal workflow is not found.
+   *
+   * Cases:
+   * - No started events → STALE (orphaned record - run exists but never executed)
+   * - All nodes completed → COMPLETED
+   * - Any node failed → FAILED
+   * - Partial completion (some started, not all finished) → FAILED (crashed/lost)
+   */
+  private inferStatusFromTraceEvents(params: {
+    runId: string;
+    totalActions: number;
+    completedActions: number;
+    failedActions: number;
+    startedActions: number;
+  }): ExecutionStatus {
+    const { totalActions, completedActions, failedActions, startedActions } = params;
+
+    // Case 1: No events at all - orphaned record (DB/Temporal mismatch)
+    // This indicates data inconsistency - run record exists but workflow never executed
+    if (startedActions === 0) {
+      return 'STALE';
+    }
+
+    // Case 2: Any node failed explicitly
+    if (failedActions > 0) {
+      return 'FAILED';
+    }
+
+    // Case 3: All nodes completed successfully
+    if (totalActions > 0 && completedActions >= totalActions) {
+      return 'COMPLETED';
+    }
+
+    // Case 4: Some nodes started but not all completed and no failures
+    // This means the workflow crashed or was lost - treat as FAILED
+    if (startedActions > 0 && completedActions < totalActions) {
+      return 'FAILED';
+    }
+
+    // Fallback: we have events but can't determine status
+    // This shouldn't happen normally, but default to FAILED for safety
+    return 'FAILED';
   }
 
   private buildFailure(status: ExecutionStatus, failure?: unknown): FailureSummary | undefined {

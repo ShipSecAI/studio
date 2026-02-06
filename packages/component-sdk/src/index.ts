@@ -36,3 +36,6 @@ export * from './zod-parameters';
 export * from './json-schema';
 export * from './schema-validation';
 export * from './zod-coerce';
+
+// Analytics helpers for component authors
+export * from './analytics';

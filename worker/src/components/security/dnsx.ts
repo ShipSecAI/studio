@@ -11,6 +11,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -235,8 +238,8 @@ const dnsxLineSchema = z
   .passthrough();
 
 const outputSchema = outputs({
-  results: port(z.array(z.any()), {
-    label: 'Results',
+  dnsRecords: port(z.array(z.any()), {
+    label: 'DNS Records',
     description: 'DNS resolution results returned by dnsx.',
     allowAny: true,
     reason: 'dnsx returns heterogeneous record payloads.',
@@ -269,6 +272,11 @@ const outputSchema = outputs({
   errors: port(z.array(z.string()).optional(), {
     label: 'Errors',
     description: 'Errors encountered during dnsx execution.',
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
 });
 
@@ -566,6 +574,7 @@ const definition = defineComponent({
     if (domainCount === 0) {
       context.logger.info('[DNSX] Skipping dnsx execution because no domains were provided.');
       return outputSchema.parse({
+        dnsRecords: [],
         results: [],
         rawOutput: '',
         domainCount: 0,
@@ -770,8 +779,24 @@ const definition = defineComponent({
           .filter((host): host is string => typeof host === 'string' && host.length > 0),
       );
 
+      // Build analytics-ready results with scanner metadata
+      const analyticsResults: AnalyticsResult[] = normalisedRecords.map((record) => ({
+        scanner: 'dnsx',
+        finding_hash: generateFindingHash(
+          'dns-resolution',
+          record.host,
+          JSON.stringify(record.answers),
+        ),
+        severity: 'info' as const,
+        asset_key: record.host,
+        host: record.host,
+        record_types: Object.keys(record.answers),
+        answers: record.answers,
+      }));
+
       return {
-        results: normalisedRecords,
+        dnsRecords: normalisedRecords,
+        results: analyticsResults,
         rawOutput: params.rawOutput,
         domainCount: params.domainCount,
         recordCount: params.recordCount,
@@ -810,6 +835,7 @@ const definition = defineComponent({
 
       if (trimmed.length === 0) {
         return {
+          dnsRecords: [],
           results: [],
           rawOutput,
           domainCount: domainCount,
@@ -834,6 +860,7 @@ const definition = defineComponent({
                 ? (record.domainCount as number)
                 : domainCount;
             return {
+              dnsRecords: [],
               results: [],
               rawOutput: trimmed,
               domainCount: errorDomainCount,
@@ -848,10 +875,10 @@ const definition = defineComponent({
           const validated = outputSchema.safeParse(record);
           if (validated.success) {
             return buildOutput({
-              records: validated.data.results as z.infer<typeof dnsxLineSchema>[],
+              records: validated.data.dnsRecords as z.infer<typeof dnsxLineSchema>[],
               rawOutput: validated.data.rawOutput ?? rawOutput,
               domainCount: validated.data.domainCount ?? domainCount,
-              recordCount: validated.data.recordCount ?? validated.data.results.length,
+              recordCount: validated.data.recordCount ?? validated.data.dnsRecords.length,
               recordTypes: validated.data.recordTypes ?? recordTypes,
               resolvers: validated.data.resolvers ?? resolverList,
               errors: validated.data.errors,
@@ -869,6 +896,7 @@ const definition = defineComponent({
 
       if (lines.length === 0) {
         return {
+          dnsRecords: [],
           results: [],
           rawOutput,
           domainCount: domainCount,
@@ -895,8 +923,24 @@ const definition = defineComponent({
         };
       });
 
+      // Build analytics-ready results
+      const analyticsResults: AnalyticsResult[] = silentRecords.map((record) => ({
+        scanner: 'dnsx',
+        finding_hash: generateFindingHash(
+          'dns-resolution',
+          record.host,
+          JSON.stringify(record.answers),
+        ),
+        severity: 'info' as const,
+        asset_key: record.host,
+        host: record.host,
+        record_types: Object.keys(record.answers),
+        answers: record.answers,
+      }));
+
       return {
-        results: silentRecords,
+        dnsRecords: silentRecords,
+        results: analyticsResults,
         rawOutput,
         domainCount: domainCount,
         recordCount: silentRecords.length,
@@ -919,6 +963,7 @@ const definition = defineComponent({
 
       if (trimmed.length === 0) {
         return {
+          dnsRecords: [],
           results: [],
           rawOutput,
           domainCount: domainCount,
@@ -975,8 +1020,24 @@ const definition = defineComponent({
           };
         });
 
+        // Build analytics-ready results
+        const analyticsResults: AnalyticsResult[] = fallbackResults.map((record) => ({
+          scanner: 'dnsx',
+          finding_hash: generateFindingHash(
+            'dns-resolution',
+            record.host,
+            JSON.stringify(record.answers),
+          ),
+          severity: 'info' as const,
+          asset_key: record.host,
+          host: record.host,
+          record_types: Object.keys(record.answers),
+          answers: record.answers,
+        }));
+
         return {
-          results: fallbackResults,
+          dnsRecords: fallbackResults,
+          results: analyticsResults,
           rawOutput,
           domainCount: domainCount,
           recordCount: fallbackResults.length,
@@ -1016,6 +1077,7 @@ const definition = defineComponent({
           : JSON.stringify(rawPayload, null, 2).slice(0, 5000);
 
       return {
+        dnsRecords: [],
         results: [],
         rawOutput,
         domainCount: domainCount,
@@ -1028,10 +1090,10 @@ const definition = defineComponent({
     }
 
     return buildOutput({
-      records: safeResult.data.results as z.infer<typeof dnsxLineSchema>[],
+      records: safeResult.data.dnsRecords as z.infer<typeof dnsxLineSchema>[],
       rawOutput: safeResult.data.rawOutput,
       domainCount: safeResult.data.domainCount ?? domainCount,
-      recordCount: safeResult.data.recordCount ?? safeResult.data.results.length,
+      recordCount: safeResult.data.recordCount ?? safeResult.data.dnsRecords.length,
       recordTypes: safeResult.data.recordTypes,
       resolvers: safeResult.data.resolvers,
       errors: safeResult.data.errors,
