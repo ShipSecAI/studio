@@ -35,6 +35,38 @@ just instance use 5    # Set active instance for this workspace
 
 Full details: `docs/MULTI-INSTANCE-DEV.md`
 
+### Multi-Instance Local Dev (Important)
+
+Local development runs as **multiple app instances** (PM2) on top of **one shared Docker infra stack**.
+
+- Shared infra (Docker Compose project `shipsec-infra`): Postgres/Temporal/Redpanda/Redis/MinIO/Loki on fixed ports.
+- Per-instance apps: `shipsec-{frontend,backend,worker}-N`.
+- Isolation is via per-instance DB + Temporal namespace/task queue + Kafka topic suffixing (not per-instance infra containers).
+- The workspace can have an **active instance** (stored in `.shipsec-instance`, gitignored).
+
+**Agent rule:** before running any dev commands, ensure you’re targeting the intended instance.
+
+- Always check: `just instance show`
+- If the task is ambiguous (logs, curl, E2E, “run locally”, etc.), ask the user which instance to use.
+- If the user says “use instance N”, prefer either:
+  - `just instance use N` then run `just dev` / `bun run test:e2e`, or
+  - explicit instance invocation (`just dev N ...`) for one-off commands.
+
+**Ports / URLs**
+
+- Frontend: `5173 + N*100`
+- Backend: `3211 + N*100`
+- Temporal UI (shared): http://localhost:8081
+
+**E2E tests**
+
+- E2E targets the backend for `SHIPSEC_INSTANCE` (or the active instance).
+- When asked to run E2E, confirm the instance and ensure that instance is running: `just dev N start`.
+
+**Keep docs in sync**
+
+If you change instance/infra behavior (justfile/scripts/pm2 config), update `docs/MULTI-INSTANCE-DEV.md` and this section accordingly in the same PR.
+
 ### After Backend Route Changes
 
 ```bash
