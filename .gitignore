@@ -20,6 +20,7 @@ docker/.env
 .env.production.local
 .env.eng-104
 .env.eng-104
+.shipsec-instance
 
 # Logs
 logs/

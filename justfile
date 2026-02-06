@@ -6,6 +6,24 @@
 default:
     @just help
 
+# Set/show the workspace "active" instance used when you run `just dev` without an explicit instance.
+# This is stored in `.shipsec-instance` (gitignored).
+instance action="show" value="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{action}}" in
+        show)
+            ./scripts/active-instance.sh get
+            ;;
+        use|set)
+            ./scripts/active-instance.sh set "{{value}}"
+            ;;
+        *)
+            echo "Usage: just instance [show|use] [0-9]"
+            exit 1
+            ;;
+    esac
+
 # === Development (recommended for contributors) ===
 
 # Initialize environment files from examples
@@ -41,7 +59,7 @@ dev *args:
     set -euo pipefail
     
     # Parse arguments: instance can be 0-9, action is start/stop/logs/status/clean
-    INSTANCE="0"
+    INSTANCE="$(./scripts/active-instance.sh get)"
     ACTION="start"
     INFRA_PROJECT_NAME="shipsec-infra"
     
@@ -592,7 +610,9 @@ help:
     @echo "  just init       Set up dependencies and environment files"
     @echo ""
     @echo "Development (hot-reload, multi-instance support):"
-    @echo "  just dev                Start instance 0 (default)"
+    @echo "  just dev                Start the active instance (default: 0)"
+    @echo "  just instance show      Show active instance"
+    @echo "  just instance use 5     Set active instance to 5 for this workspace"
     @echo "  just dev 1              Start instance 1"
     @echo "  just dev 2 start        Explicitly start instance 2"
     @echo "  just dev 1 stop         Stop instance 1"
