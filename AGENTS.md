@@ -3,8 +3,9 @@
 Security workflow orchestration platform. Visual builder + Temporal for reliability.
 
 ## Stack
+
 - `frontend/` — React + Vite
-- `backend/` — NestJS API  
+- `backend/` — NestJS API
 - `worker/` — Temporal activities + components
 - `packages/` — Shared code (component-sdk, backend-client)
 
@@ -12,21 +13,37 @@ Security workflow orchestration platform. Visual builder + Temporal for reliabil
 
 ```bash
 just init              # First time setup
-just dev               # Start everything
-just dev stop          # Stop
-just dev logs          # View logs
+just dev               # Start the active instance (default: 0)
+just dev stop          # Stop the active instance (does NOT stop shared infra)
+just dev stop all      # Stop all instances + shared infra
+just dev logs          # View logs for the active instance
 just help              # All commands
 ```
 
-**URLs**: Frontend http://localhost:5173 | Backend http://localhost:3211 | Temporal http://localhost:8081
+**Active instance**:
+
+```bash
+just instance show     # Print active instance number
+just instance use 5    # Set active instance for this workspace
+```
+
+**URLs**:
+
+- Frontend: `http://localhost:${5173 + instance*100}`
+- Backend: `http://localhost:${3211 + instance*100}`
+- Temporal UI (shared): http://localhost:8081
+
+Full details: `docs/MULTI-INSTANCE-DEV.md`
 
 ### After Backend Route Changes
+
 ```bash
 bun --cwd backend run generate:openapi
 bun --cwd packages/backend-client run generate
 ```
 
 ### Testing
+
 ```bash
 bun run test           # All tests
 bun run typecheck      # Type check
@@ -34,6 +51,7 @@ bun run lint           # Lint
 ```
 
 ### Database
+
 ```bash
 just db-reset                              # Reset database
 bun --cwd backend run migration:push       # Push schema
@@ -41,6 +59,7 @@ bun --cwd backend run db:studio            # View data
 ```
 
 ## Rules
+
 1. TypeScript, 2-space indent
 2. Conventional commits with DCO: `git commit -s -m "feat: ..."`
 3. Tests alongside code in `__tests__/` folders
@@ -64,11 +83,13 @@ Frontend ←→ Backend ←→ Temporal ←→ Worker
 ```
 
 ### Component Runners
+
 - **inline** — TypeScript code (HTTP calls, transforms, file ops)
-- **docker** — Containers (security tools: Subfinder, DNSX, Nuclei)  
+- **docker** — Containers (security tools: Subfinder, DNSX, Nuclei)
 - **remote** — External executors (future: K8s, ECS)
 
 ### Real-time Streaming
+
 - Terminal: Redis Streams → SSE → xterm.js
 - Events: Kafka → WebSocket
 - Logs: Loki + PostgreSQL
@@ -83,9 +104,9 @@ When tasks match a skill, load it: `cat .claude/skills/<name>/SKILL.md`
 
 <available_skills>
 <skill>
-  <name>component-development</name>
-  <description>Creating components (inline/docker). Dynamic ports, retry policies, PTY patterns, IsolatedContainerVolume.</description>
-  <location>project</location>
+<name>component-development</name>
+<description>Creating components (inline/docker). Dynamic ports, retry policies, PTY patterns, IsolatedContainerVolume.</description>
+<location>project</location>
 </skill>
 </available_skills>
 

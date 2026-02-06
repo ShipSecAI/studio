@@ -1,321 +1,189 @@
-# Multi-Instance Development Stack
+# Multi-Instance Development (Shared Infra)
 
-ShipSec Studio now supports running multiple independent development instances simultaneously. This is useful for:
+ShipSec Studio supports running multiple isolated dev instances (0-9) on one machine.
 
-- Testing feature branches in parallel without interference
-- Running multiple workflows concurrently
-- Isolating different development environments
-- Testing upgrade scenarios
+The key design is:
+
+- **One shared Docker infra stack** (`shipsec-infra`): Postgres, Temporal, Redpanda, Redis, MinIO, Loki, etc.
+- **Many app instances** (PM2): `shipsec-{backend,worker,frontend}-N`
+- **Isolation comes from namespacing**, not per-instance infra containers:
+  - Postgres database: `shipsec_instance_N`
+  - Temporal namespace + task queue: `shipsec-dev-N`
+  - Kafka topics: `telemetry.*.instance-N` (via `SHIPSEC_INSTANCE`)
 
 ## Quick Start
 
 ```bash
-# Start instance 0 (default)
+# First-time setup
+just init
+
+# Pick an "active" instance for this workspace (stored in .shipsec-instance)
+just instance use 5
+
+# Start the active instance (defaults to 0 if not set)
 just dev
 
-# Start instance 1
-just dev 1 start
+# Start a specific instance explicitly
+just dev 2 start
 
-# Start instance 2
-just dev 2
+# Stop just the active instance
+just dev stop
 
-# View logs for instance 1
-just dev 1 logs
-
-# Stop instance 1
-just dev 1 stop
-
-# Stop all instances at once
+# Stop all instances + shared infra
 just dev stop all
 ```
 
-## Architecture
+## Active Instance (Workspace Default)
 
-Each instance is completely isolated:
+By default, `just dev` and related commands operate on an **active instance**.
 
-- **Docker Containers**: Each instance gets its own named project (`shipsec-dev-N`)
-- **Ports**: Instance N uses `base_port + N*100`
-- **PM2 Apps**: Instance-specific naming (`shipsec-backend-N`, `shipsec-worker-N`, etc.)
-- **Temporal**: Isolated namespaces and task queues per instance
-- **Databases**: Separate PostgreSQL databases (but same container for simplicity)
+- Set it: `just instance use 5`
+- Show it: `just instance show`
+- Storage: `.shipsec-instance` (gitignored)
+- Override per-shell: set `SHIPSEC_INSTANCE=N` in your environment
+- Override per-command: pass an explicit instance number (`just dev 3 ...`)
 
-### Port Allocation
+## Port Map
 
-Instance numbers map to port offsets as follows:
+Instance-scoped (offset by `N * 100`):
 
-| Service          | Base | Instance 0 | Instance 1 | Instance 2 | Instance 5 |
-| ---------------- | ---- | ---------- | ---------- | ---------- | ---------- |
-| Frontend         | 5173 | 5173       | 5273       | 5373       | 5673       |
-| Backend          | 3211 | 3211       | 3311       | 3411       | 3711       |
-| Temporal Client  | 7233 | 7233       | 7333       | 7433       | 7733       |
-| Temporal UI      | 8081 | 8081       | 8181       | 8281       | 8581       |
-| PostgreSQL       | 5433 | 5433       | 5533       | 5633       | 5933       |
-| MinIO API        | 9000 | 9000       | 9100       | 9200       | 9500       |
-| MinIO Console    | 9001 | 9001       | 9101       | 9201       | 9501       |
-| Redis            | 6379 | 6379       | 6479       | 6579       | 6879       |
-| Loki             | 3100 | 3100       | 3200       | 3300       | 3600       |
-| Redpanda         | 9092 | 9092       | 9192       | 9292       | 9592       |
-| Redpanda Console | 8082 | 8082       | 8182       | 8282       | 8582       |
+| Service  | Base | Instance 0 | Instance 1 | Instance 2 | Instance 5 |
+| -------- | ---- | ---------- | ---------- | ---------- | ---------- |
+| Frontend | 5173 | 5173       | 5273       | 5373       | 5673       |
+| Backend  | 3211 | 3211       | 3311       | 3411       | 3711       |
+
+Shared infra (fixed ports for all instances):
+
+| Service          | Port        |
+| ---------------- | ----------- |
+| Postgres         | 5433        |
+| Temporal         | 7233        |
+| Temporal UI      | 8081        |
+| Redis            | 6379        |
+| Redpanda (Kafka) | 9092        |
+| Redpanda Console | 8082        |
+| MinIO API/UI     | 9000 / 9001 |
+| Loki             | 3100        |
+
+## Commands
+
+### Start / Stop
+
+```bash
+# Start active instance
+just dev
+
+# Start specific instance
+just dev 1 start
+
+# Stop active instance (does NOT stop shared infra)
+just dev stop
+
+# Stop a specific instance
+just dev 1 stop
+
+# Stop all instances AND shared infra
+just dev stop all
+```
+
+### Logs / Status
+
+```bash
+# Logs/status for active instance
+just dev logs
+just dev status
+
+# Logs/status for a specific instance
+just dev 2 logs
+just dev 2 status
+
+# Infra + PM2 overview
+just dev status all
+```
+
+### Clean (Reset Instance State)
+
+`clean` removes instance-local state and resets its “namespace”:
+
+- Drops/recreates `shipsec_instance_N` and reruns migrations
+- Best-effort deletes Temporal namespace `shipsec-dev-N`
+- Best-effort deletes Kafka topics `telemetry.*.instance-N`
+- Deletes `.instances/instance-N/`
+
+```bash
+just dev 0 clean
+just dev 5 clean
+```
+
+## What Happens When You Run `just dev N start`
+
+1. Ensures `.instances/instance-N/{backend,worker,frontend}.env` exist (copied from root envs).
+2. Brings up shared infra once (Docker Compose project `shipsec-infra`).
+3. Bootstraps per-instance state:
+   - Ensures DB `shipsec_instance_N` exists
+   - Runs migrations against that DB
+   - Ensures Temporal namespace `shipsec-dev-N` exists
+   - Ensures per-instance Kafka topics exist (best-effort)
+4. Starts 3 PM2 apps for that instance:
+   - `shipsec-backend-N` (port `3211 + N*100`)
+   - `shipsec-worker-N` (Temporal namespace/task queue `shipsec-dev-N`)
+   - `shipsec-frontend-N` (Vite port `5173 + N*100`, `VITE_API_URL` points at the instance backend)
 
 ## Directory Structure
 
-Instance configurations are stored in `.instances/`:
+Instance env overrides live in `.instances/` (auto-generated, safe to delete):
 
 ```
 .instances/
-├── instance-0/
-│   ├── backend.env                     # Instance-specific backend config
-│   ├── worker.env                      # Instance-specific worker config
-│   ├── frontend.env                    # Instance-specific frontend config
-│   └── docker-compose.override.yml     # Port mappings for this instance
-├── instance-1/
-│   └── ...
-└── instance-N/
-    └── ...
+  instance-0/
+    backend.env
+    worker.env
+    frontend.env
+  instance-1/
+    ...
 ```
 
-Each instance directory contains:
+## E2E Tests (Instance-Aware)
 
-1. **Environment Files**: Copies of root `.env` files with port numbers adjusted
-2. **Docker Compose Override**: Port mappings for Docker containers
+E2E tests choose which backend to hit via instance selection:
 
-These are auto-generated and can be safely deleted (they'll be recreated on next run).
+- `SHIPSEC_INSTANCE` (preferred)
+- or `E2E_INSTANCE`
+- or the workspace active instance (`.shipsec-instance`)
 
-## Command Reference
-
-### Starting Instances
+Run E2E against the active instance:
 
 ```bash
-# Start instance 0 (default, same as 'just dev')
-just dev 0 start
-
-# Start instance 1 with explicit action
-just dev 1 start
-
-# Start instance 2 (start is default if only instance number given)
-just dev 2
+bun run test:e2e
 ```
 
-### Stopping Instances
+Run E2E against a specific instance:
 
 ```bash
-# Stop instance 0
-just dev 0 stop
-
-# Stop instance 1
-just dev 1 stop
-
-# Stop all instances at once
-just dev stop all
+SHIPSEC_INSTANCE=5 bun run test:e2e
 ```
-
-### Viewing Status and Logs
-
-```bash
-# Check status of instance 0
-just dev 0 status
-
-# Check status of instance 1
-just dev 1 status
-
-# Check status of all instances
-just dev status all
-
-# View logs for instance 0
-just dev 0 logs
-
-# View logs for instance 1
-just dev 1 logs
-
-# View logs for all instances
-just dev logs all
-```
-
-### Cleaning Up
-
-```bash
-# Clean instance 0 (remove volumes and app configs)
-just dev 0 clean
-
-# Clean instance 1
-just dev 1 clean
-
-# Clean all instances
-just dev stop all   # First stop all
-```
-
-## Implementation Details
-
-### Initialization
-
-When you run `just dev 1`, the system:
-
-1. Checks if `.instances/instance-1/` exists
-2. If not, creates the directory and initializes:
-   - Copies root `.env` files to instance-specific paths
-   - Replaces port numbers in env files to match instance offsets
-   - Generates `docker-compose.override.yml` with port mappings
-3. Validates configuration
-4. Displays instance-specific information
-
-### Docker Compose Integration
-
-Docker Compose uses project names for isolation:
-
-```bash
-# Instance 0
-docker compose -f docker/docker-compose.infra.yml \
-  --project-name=shipsec-dev-0 \
-  -f .instances/instance-0/docker-compose.override.yml \
-  up -d
-
-# Instance 1
-docker compose -f docker/docker-compose.infra.yml \
-  --project-name=shipsec-dev-1 \
-  -f .instances/instance-1/docker-compose.override.yml \
-  up -d
-```
-
-This ensures containers, volumes, and networks are isolated by project name.
-
-### PM2 Integration
-
-PM2 apps are named with instance numbers:
-
-- `shipsec-frontend-0`, `shipsec-frontend-1`, etc.
-- `shipsec-backend-0`, `shipsec-backend-1`, etc.
-- `shipsec-worker-0`, `shipsec-worker-1`, etc.
-
-PM2 configuration is generated dynamically based on `SHIPSEC_INSTANCE` environment variable.
-
-### Temporal Isolation
-
-Each instance uses isolated Temporal namespaces and task queues:
-
-- Instance 0: Namespace `shipsec-dev-0`, Queue `shipsec-dev-0`
-- Instance 1: Namespace `shipsec-dev-1`, Queue `shipsec-dev-1`
-- Instance N: Namespace `shipsec-dev-N`, Queue `shipsec-dev-N`
-
-This ensures workflows and activities don't interfere between instances.
-
-## Best Practices
-
-1. **Use instance 0 for primary development**: This matches the original single-instance behavior.
-
-2. **Use higher instances for testing**: Instance 1-9 for parallel testing, feature branches, etc.
-
-3. **Monitor port usage**: Use `netstat -tuln | grep 3211` to check which instances are running.
-
-4. **Clean up unused instances**: Run `just dev N clean` to remove volumes and configurations.
-
-5. **Check logs before stopping**: If you need to debug why something stopped, check logs before cleaning.
 
 ## Troubleshooting
 
-### Port conflicts
-
-If you get "port already in use" errors, check what's running:
+### Port already in use (frontend/backend)
 
 ```bash
-# Check all instances
-just dev status all
-
-# Check specific service (e.g., backend on 3211)
 lsof -i :3211
+lsof -i :5173
 ```
 
-### Instance won't start
+### Instance is unhealthy but infra is fine
 
 ```bash
-# Check status
-just dev 1 status
-
-# Check logs
-just dev 1 logs
-
-# Re-initialize
-just dev 1 clean
-just dev 1 start
+just dev 5 logs
+just dev 5 status
+just dev 5 clean
+just dev 5 start
 ```
 
-### Docker containers won't stop
+### Infra conflicts / stuck containers
 
 ```bash
-# Force stop via Docker
-docker compose -f docker/docker-compose.infra.yml \
-  --project-name=shipsec-dev-1 \
-  kill
-
-# Clean volumes
-docker compose -f docker/docker-compose.infra.yml \
-  --project-name=shipsec-dev-1 \
-  down -v
+just dev stop all
+just infra clean
 ```
-
-## Technical Architecture
-
-### Instance Manager Script
-
-`scripts/dev-instance-manager.sh` handles:
-
-- Port calculation based on instance number
-- Environment file copying and modification
-- Docker Compose override generation
-- Instance information display
-
-Commands:
-
-- `init N` - Initialize instance
-- `info N` - Display instance information
-- `ports N` - Output port variables
-- `project-name N` - Output Docker Compose project name
-
-### PM2 Configuration
-
-`pm2.config.cjs` reads `SHIPSEC_INSTANCE` environment variable and:
-
-- Generates instance-specific app names
-- Calculates dynamic ports
-- Resolves instance-specific env files
-- Configures Temporal namespaces/queues
-- Sets up Kafka client IDs
-
-### Justfile Implementation
-
-The `dev` command in `justfile`:
-
-- Parses arguments (instance number and action)
-- Calls instance manager for setup
-- Manages Docker Compose with project isolation
-- Manages PM2 with instance-specific filtering
-- Provides unified interface for all operations
-
-## Environment Variables
-
-When running `just dev N`, these are set:
-
-- `SHIPSEC_INSTANCE=N` - Instance identifier
-- `SHIPSEC_ENV=development` - Environment mode
-- `NODE_ENV=development` - Node environment
-- `PORT=<instance-port>` - Backend port for this instance
-- `VITE_API_URL=http://localhost:<instance-port>` - Frontend API URL
-- `TEMPORAL_NAMESPACE=shipsec-dev-N` - Temporal namespace
-- `TEMPORAL_TASK_QUEUE=shipsec-dev-N` - Temporal task queue
-- `TERMINAL_REDIS_URL=redis://localhost:<instance-port>` - Redis URL
-- `LOG_KAFKA_BROKERS=localhost:<instance-port>` - Kafka brokers
-
-## Limitations and Future Improvements
-
-Current limitations:
-
-- PostgreSQL database is shared across instances (isolation at namespace level, not database level)
-- MinIO storage is shared (you can use Loki tenant IDs for separation if needed)
-- Redis is shared (keys should be instance-aware to avoid collisions)
-
-Future improvements:
-
-- Separate PostgreSQL databases per instance (using `CREATE DATABASE` with instance prefix)
-- Instance-aware key prefixing for Redis
-- MinIO buckets per instance
-- Better cleanup utilities
-- Instance cloning/templates for quick setup
