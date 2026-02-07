@@ -48,6 +48,31 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+const WORKFLOW_ORDER_KEY = 'workflow-list-order';
+
+function getSavedOrder(): string[] {
+  try {
+    const saved = localStorage.getItem(WORKFLOW_ORDER_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveOrder(ids: string[]) {
+  localStorage.setItem(WORKFLOW_ORDER_KEY, JSON.stringify(ids));
+}
+
+function applyOrder<T extends { id: string }>(items: T[], savedOrder: string[]): T[] {
+  if (savedOrder.length === 0) return items;
+  const orderMap = new Map(savedOrder.map((id, idx) => [id, idx]));
+  return [...items].sort((a, b) => {
+    const aIdx = orderMap.get(a.id) ?? Infinity;
+    const bIdx = orderMap.get(b.id) ?? Infinity;
+    return aIdx - bIdx;
+  });
+}
+
 export function WorkflowList() {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState<WorkflowMetadataNormalized[]>([]);
@@ -79,7 +104,9 @@ export function WorkflowList() {
       const oldIndex = prev.findIndex((w) => w.id === active.id);
       const newIndex = prev.findIndex((w) => w.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
-        return arrayMove(prev, oldIndex, newIndex);
+        const reordered = arrayMove(prev, oldIndex, newIndex);
+        saveOrder(reordered.map((w) => w.id));
+        return reordered;
       }
       return prev;
     });
@@ -120,7 +147,7 @@ export function WorkflowList() {
     try {
       const data = await api.workflows.list();
       const normalized = data.map((workflow) => WorkflowMetadataSchema.parse(workflow));
-      setWorkflows(normalized);
+      setWorkflows(applyOrder(normalized, getSavedOrder()));
       setRetryCount(0);
       retryCountRef.current = 0; // Reset on success
       setIsLoading(false);
