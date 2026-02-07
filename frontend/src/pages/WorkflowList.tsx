@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Workflow, AlertCircle, Trash2, Loader2, Info } from 'lucide-react';
+import { Workflow, AlertCircle, Trash2, Loader2, Info, GripVertical } from 'lucide-react';
 import { api } from '@/services/api';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import { WorkflowMetadataSchema, type WorkflowMetadataNormalized } from '@/schemas/workflow';
@@ -30,6 +30,23 @@ import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
 import { useAuth } from '@/auth/auth-context';
 import { useRunStore } from '@/store/runStore';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export function WorkflowList() {
   const navigate = useNavigate();
@@ -49,6 +66,24 @@ export function WorkflowList() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const token = useAuthStore((state) => state.token);
   const adminUsername = useAuthStore((state) => state.adminUsername);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setWorkflows((prev) => {
+      const oldIndex = prev.findIndex((w) => w.id === active.id);
+      const newIndex = prev.findIndex((w) => w.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        return arrayMove(prev, oldIndex, newIndex);
+      }
+      return prev;
+    });
+  }, []);
 
   const MAX_RETRY_ATTEMPTS = 30; // Try for ~60 seconds (30 attempts × 2s)
   const RETRY_INTERVAL_MS = 2000; // 2 seconds between retries
@@ -230,6 +265,7 @@ export function WorkflowList() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10" />
                     <TableHead>Name</TableHead>
                     <TableHead>Nodes</TableHead>
                     <TableHead>Status</TableHead>
@@ -269,6 +305,9 @@ export function WorkflowList() {
                 <TableBody>
                   {Array.from({ length: 5 }).map((_, idx) => (
                     <TableRow key={idx}>
+                      <TableCell className="w-10 px-2">
+                        <Skeleton className="h-4 w-4 bg-muted" />
+                      </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-[220px] bg-muted" />
                       </TableCell>
@@ -318,62 +357,74 @@ export function WorkflowList() {
         ) : (
           <div className="border rounded-lg bg-card overflow-hidden">
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[150px]">Name</TableHead>
-                    <TableHead className="min-w-[80px]">Nodes</TableHead>
-                    <TableHead className="min-w-[100px]">Status</TableHead>
-                    <TableHead className="min-w-[140px] hidden sm:table-cell">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-1 cursor-help">
-                              Last Run
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Times shown in your local timezone</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    <TableHead className="min-w-[140px] hidden md:table-cell">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-1 cursor-help">
-                              Last Updated
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Times shown in your local timezone</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    {canManageWorkflows && (
-                      <TableHead className="text-right min-w-[60px]">Actions</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workflows.map((workflow) => (
-                    <WorkflowRowItem
-                      key={workflow.id}
-                      workflow={workflow}
-                      canManageWorkflows={canManageWorkflows}
-                      isDeleting={isDeleting}
-                      isLoading={isLoading}
-                      formatDate={formatDate}
-                      onRowClick={() => navigate(`/workflows/${workflow.id}`)}
-                      onDeleteClick={handleDeleteClick}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10" />
+                      <TableHead className="min-w-[150px]">Name</TableHead>
+                      <TableHead className="min-w-[80px]">Nodes</TableHead>
+                      <TableHead className="min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[140px] hidden sm:table-cell">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1 cursor-help">
+                                Last Run
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Times shown in your local timezone</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+                      <TableHead className="min-w-[140px] hidden md:table-cell">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1 cursor-help">
+                                Last Updated
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Times shown in your local timezone</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+                      {canManageWorkflows && (
+                        <TableHead className="text-right min-w-[60px]">Actions</TableHead>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <SortableContext
+                      items={workflows.map((w) => w.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {workflows.map((workflow) => (
+                        <WorkflowRowItem
+                          key={workflow.id}
+                          workflow={workflow}
+                          canManageWorkflows={canManageWorkflows}
+                          isDeleting={isDeleting}
+                          isLoading={isLoading}
+                          formatDate={formatDate}
+                          onRowClick={() => navigate(`/workflows/${workflow.id}`)}
+                          onDeleteClick={handleDeleteClick}
+                        />
+                      ))}
+                    </SortableContext>
+                  </TableBody>
+                </Table>
+              </DndContext>
             </div>
           </div>
         )}
@@ -439,6 +490,17 @@ function WorkflowRowItem({
 }: WorkflowRowItemProps) {
   const fetchRuns = useRunStore((state) => state.fetchRuns);
   const latestRun = useRunStore((state) => state.getLatestRun(workflow.id));
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: workflow.id,
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    position: 'relative',
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   useEffect(() => {
     fetchRuns({ workflowId: workflow.id }).catch(() => undefined);
@@ -458,10 +520,21 @@ function WorkflowRowItem({
 
   return (
     <TableRow
-      key={workflow.id}
+      ref={setNodeRef}
+      style={style}
       onClick={onRowClick}
-      className="cursor-pointer transition-colors duration-150 hover:bg-accent/50 dark:hover:bg-accent/30"
+      className={`cursor-pointer transition-colors duration-150 hover:bg-accent/50 dark:hover:bg-accent/30 ${isDragging ? 'bg-accent/50 shadow-lg' : ''}`}
     >
+      <TableCell className="w-10 px-2">
+        <div
+          className="touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+      </TableCell>
       <TableCell className="font-medium">
         <div className="max-w-[200px] truncate" title={workflow.name}>
           {workflow.name}
