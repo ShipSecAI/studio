@@ -143,6 +143,14 @@ export function AppTopBar({
       };
     }
 
+    if (location.pathname.startsWith('/github')) {
+      return {
+        title: 'GitHub Integration',
+        shortTitle: 'GitHub',
+        subtitle: 'Manage repositories, trigger rules, and scan results',
+      };
+    }
+
     return {
       title: 'Security Workflow Builder',
       shortTitle: 'Workflows',

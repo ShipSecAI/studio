@@ -308,6 +308,16 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/artifacts',
       icon: Archive,
     },
+    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
+      ? [
+          {
+            name: 'Dashboards',
+            href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
+            icon: BarChart3,
+            external: true,
+          },
+        ]
+      : []),
     {
       name: 'GitHub',
       href: '/github',
