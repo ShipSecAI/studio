@@ -93,7 +93,7 @@ describe('shipsec.opencode.agent', () => {
 
     expect(runSpy).toHaveBeenCalled();
     const runnerCall = runSpy.mock.calls[0][0];
-    expect(runnerCall.image).toBe('ghcr.io/anomalyco/opencode');
+    expect(runnerCall.image).toBe('ghcr.io/shipsecai/opencode:1.1.53');
     expect(runnerCall.network).toBe('host');
     expect(runnerCall.env.OPENAI_API_KEY).toBe('sk-test');
   });

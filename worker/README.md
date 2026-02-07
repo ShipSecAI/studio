@@ -3,11 +3,13 @@
 Node.js component execution engine with Temporal.io integration for running security workflows in isolated environments.
 
 ## Prerequisites
+
 - Bun latest (see root `README.md` for install instructions)
 - Infrastructure services running (`just dev` from repo root)
 - Docker for containerized component execution
 
 ## Development Commands
+
 ```bash
 # Install workspace dependencies (run once from repo root)
 bun install
@@ -26,6 +28,7 @@ bun run test
 ## Architecture Overview
 
 ### Core Technologies
+
 - **Node.js** with TypeScript for component execution
 - **Temporal.io** for workflow orchestration and activities
 - **Docker** for isolated component execution
@@ -56,26 +59,31 @@ const runComponentActivity = async (componentId, input, context) => {
 The worker provides concrete implementations of SDK interfaces:
 
 #### File Storage Adapter
+
 - **MinIO Integration**: S3-compatible object storage
 - **PostgreSQL Metadata**: File metadata and organization
 - **Artifact Management**: Component outputs and execution results
 
 #### Secrets Adapter
+
 - **HashiCorp Vault**: Enterprise-grade secret management
 - **AES-256 Encryption**: Secure secret storage
 - **Version Control**: Multiple secret versions with rollback
 
 #### Trace Adapter
+
 - **Event Streaming**: Kafka-based event publishing
 - **Redis Transport**: Real-time event delivery
 - **Timeline Generation**: Sequential event numbering
 
 #### Logging Adapters
+
 - **Kafka Log Transport**: Structured log streaming
 - **Loki Integration**: Log aggregation and querying
 - **PostgreSQL Persistence**: Log metadata and indexing
 
 #### Terminal Adapter
+
 - **Redis Streams**: Real-time terminal output streaming
 - **Base64 Encoding**: Efficient binary data transport
 - **Monotonic Timestamps**: Precise chronological ordering
@@ -85,12 +93,14 @@ The worker provides concrete implementations of SDK interfaces:
 ### Component Categories
 
 #### Core Components
+
 - **file-loader**: File upload and content extraction
 - **trigger-manual**: Manual workflow execution trigger
 - **text-block**: Markdown documentation and notes
 - **text-joiner**: Text concatenation and formatting
 
 #### Security Components
+
 - **subfinder**: Subdomain discovery
 - **dnsx**: DNS resolution and enumeration
 - **nmap**: Network scanning and discovery
@@ -106,7 +116,7 @@ const definition: ComponentDefinition = {
   id: 'security.subfinder',
   label: 'Subfinder',
   category: 'discovery',
-  runner: { kind: 'docker', image: 'projectdiscovery/subfinder' },
+  runner: { kind: 'docker', image: 'ghcr.io/shipsecai/subfinder' },
   inputSchema: z.object({
     domain: z.string(),
     timeout: z.number().default(30),
@@ -122,17 +132,20 @@ componentRegistry.register(definition);
 ## Temporal Integration
 
 ### Activities
+
 - **runComponentActivity**: Execute individual components
 - **setRunMetadataActivity**: Store workflow execution metadata
 - **finalizeRunActivity**: Complete workflow and cleanup resources
 
 ### Workflows
+
 - **Workflow Orchestration**: Topological sorting and dependency resolution
 - **Join Strategies**: Handle multiple parent dependencies (all, any, first)
 - **Error Handling**: Retry policies and graceful degradation
 - **Heartbeating**: Long-running activity support
 
 ### Worker Configuration
+
 ```typescript
 const worker = await Worker.create({
   connection,
@@ -148,6 +161,7 @@ const worker = await Worker.create({
 ```
 
 ## Project Structure
+
 ```
 src/
 ├── components/         # Component implementations
@@ -169,12 +183,14 @@ src/
 ## Container Execution
 
 ### Docker Integration
+
 - **Isolated Execution**: Components run in isolated Docker containers
 - **Resource Limits**: CPU and memory constraints enforced
 - **Network Isolation**: Bridge network configuration
 - **Volume Management**: Isolated storage volumes for file operations
 
 ### Terminal Capture
+
 - **PTY Allocation**: Pseudo-terminal for interactive tools
 - **Stream Multiplexing**: stdout, stderr, and PTY stream capture
 - **Chunk Encoding**: Base64 encoding for efficient transport
@@ -189,6 +205,7 @@ src/
 5. **Validation**: Check types with `bun run typecheck`
 
 ## Where To Read More
+
 - **[Architecture Overview](../docs/architecture.md)** - Complete system design and component execution
 - **[Component Development](../docs/component-development.md)** - Building security components
 - **[Component SDK](../packages/component-sdk)** - Framework-agnostic component interfaces
