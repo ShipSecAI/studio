@@ -51,19 +51,6 @@ export class IsolatedContainerVolume {
   }
 
   /**
-   * Derives the deterministic volume name for a given tenant and run.
-   * Downstream components can use this to reference an existing volume
-   * created by an upstream component in the same workflow execution.
-   *
-   * @param tenantId - Tenant identifier
-   * @param runId - Unique run/execution identifier
-   * @returns The volume name (e.g., `tenant-foo-run-bar`)
-   */
-  static deriveVolumeName(tenantId: string, runId: string): string {
-    return `tenant-${tenantId}-run-${runId}`;
-  }
-
-  /**
    * Creates the isolated volume and populates it with files.
    *
    * @param files - Map of filename to content (string or Buffer)
@@ -85,9 +72,10 @@ export class IsolatedContainerVolume {
       });
     }
 
-    // Create deterministic volume name from tenantId + runId
-    // runId is unique per workflow execution, so no timestamp needed
-    this.volumeName = IsolatedContainerVolume.deriveVolumeName(this.tenantId, this.runId);
+    // Create unique volume name with timestamp to prevent collisions
+    // when parallel nodes in the same run each create their own volume.
+    const timestamp = Date.now();
+    this.volumeName = `tenant-${this.tenantId}-run-${this.runId}-${timestamp}`;
 
     try {
       // Create the volume with labels for tracking
