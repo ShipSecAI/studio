@@ -2,6 +2,16 @@
 
 ShipSec Studio supports running multiple isolated dev instances (0-9) on one machine.
 
+The key design is:
+
+- **One shared Docker infra stack** (`shipsec-infra`): Postgres, Temporal, Redpanda, Redis, MinIO, Loki, etc.
+- **Many app instances** (PM2): `shipsec-{backend,worker,frontend}-N`
+- **Isolation comes from namespacing**, not per-instance infra containers:
+  - Postgres database: `shipsec_instance_N`
+  - Temporal namespace + task queue: `shipsec-dev-N`
+  - Kafka topics: `telemetry.*.instance-N` (via `SHIPSEC_INSTANCE`)
+  - Backend Kafka consumer groups/client IDs: `...-N` suffixes (for log/event/node-io/agent-trace ingestors)
+
 ## Quick Start
 
 ```bash

@@ -54,6 +54,7 @@ const coreModules = [
   McpModule,
   GitHubAppModule,
   StudioMcpModule,
+  GitHubAppModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
