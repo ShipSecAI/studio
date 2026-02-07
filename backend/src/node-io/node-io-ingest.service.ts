@@ -46,9 +46,12 @@ export class NodeIOIngestService implements OnModuleInit, OnModuleDestroy {
     // Use instance-aware topic name
     const topicResolver = getTopicResolver();
     this.kafkaTopic = topicResolver.getNodeIOTopic();
+    const instanceId = process.env.SHIPSEC_INSTANCE ?? '0';
 
-    this.kafkaGroupId = process.env.NODE_IO_KAFKA_GROUP_ID ?? 'shipsec-node-io-ingestor';
-    this.kafkaClientId = process.env.NODE_IO_KAFKA_CLIENT_ID ?? 'shipsec-backend-node-io';
+    this.kafkaGroupId =
+      process.env.NODE_IO_KAFKA_GROUP_ID ?? `shipsec-node-io-ingestor-${instanceId}`;
+    this.kafkaClientId =
+      process.env.NODE_IO_KAFKA_CLIENT_ID ?? `shipsec-backend-node-io-${instanceId}`;
   }
 
   async onModuleInit(): Promise<void> {
