@@ -14,7 +14,7 @@ import {
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const SUBFINDER_IMAGE = 'projectdiscovery/subfinder:v2.12.0';
+const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:v2.12.0';
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
@@ -280,7 +280,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Runs projectdiscovery/subfinder to discover subdomains for a given domain. Optionally accepts a provider config secret to enable authenticated sources.',
+  docs: 'Runs subfinder to discover subdomains for a given domain. Optionally accepts a provider config secret to enable authenticated sources.',
   ui: {
     slug: 'subfinder',
     version: '1.0.0',

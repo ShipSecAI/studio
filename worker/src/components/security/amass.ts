@@ -14,7 +14,7 @@ import {
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const AMASS_IMAGE = 'owaspamass/amass:v5.0.1';
+const AMASS_IMAGE = 'ghcr.io/shipsecai/amass:v5.0.1';
 const AMASS_TIMEOUT_SECONDS = (() => {
   const raw = process.env.AMASS_TIMEOUT_SECONDS;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
