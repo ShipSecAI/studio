@@ -1,6 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ToolRegistryService } from './tool-registry.service';
 import { McpGatewayService } from './mcp-gateway.service';
+import { McpGroupsService } from '../mcp-groups/mcp-groups.service';
 import { McpAuthService } from './mcp-auth.service';
 import {
   RegisterComponentToolInput,
@@ -13,6 +14,7 @@ export class InternalMcpController {
   constructor(
     private readonly toolRegistry: ToolRegistryService,
     private readonly mcpAuthService: McpAuthService,
+    private readonly mcpGroupsService: McpGroupsService,
     private readonly mcpGatewayService: McpGatewayService,
   ) {}
 
@@ -66,5 +68,13 @@ export class InternalMcpController {
   async areToolsReady(@Body() body: { runId: string; requiredNodeIds: string[] }) {
     const ready = await this.toolRegistry.areAllToolsReady(body.runId, body.requiredNodeIds);
     return { ready };
+  }
+
+  @Post('register-group-server')
+  async registerGroupServer(
+    @Body() body: { runId: string; nodeId: string; groupSlug: string; serverId: string },
+  ) {
+    const serverConfig = await this.mcpGroupsService.getServerConfig(body.groupSlug, body.serverId);
+    return serverConfig;
   }
 }
