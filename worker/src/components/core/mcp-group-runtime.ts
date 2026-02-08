@@ -58,14 +58,18 @@ async function fetchGroupServers(
   serverIds: string[],
   context: ExecutionContext,
 ): Promise<McpServerEndpoint[]> {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  const internalApiUrl = `${backendUrl}/internal/mcp`;
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3211';
+  const internalApiUrl = `${backendUrl}/api/v1/internal/mcp`;
 
   // Generate internal API token
+  // Get internal service token for authentication
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token';
+
   const tokenResponse = await fetch(`${internalApiUrl}/generate-token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-internal-token': internalToken,
     },
     body: JSON.stringify({
       runId: context.runId,
@@ -87,6 +91,7 @@ async function fetchGroupServers(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-internal-token': internalToken,
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -309,8 +314,9 @@ async function registerServerWithBackend(
   containerId: string,
   context: ExecutionContext,
 ): Promise<void> {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  const internalApiUrl = `${backendUrl}/internal/mcp`;
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3211';
+  const internalApiUrl = `${backendUrl}/api/v1/internal/mcp`;
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token';
 
   // Generate internal API token
   const tokenResponse = await fetch(`${internalApiUrl}/generate-token`, {
@@ -335,6 +341,7 @@ async function registerServerWithBackend(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-internal-token': internalToken,
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
