@@ -82,14 +82,14 @@ export default {
   	extend: {
   		fontFamily: {
   			sans: [
-  				'DM Sans"',
+  				'DM Sans',
   				'-apple-system',
   				'BlinkMacSystemFont',
-  				'Segoe UI"',
+  				'Segoe UI',
   				'sans-serif'
   			],
   			mono: [
-  				'IBM Plex Mono"',
+  				'IBM Plex Mono',
   				'SFMono-Regular',
   				'Consolas',
   				'monospace'
