@@ -21,6 +21,8 @@ const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
 const AWS_SESSION_TOKEN = process.env.AWS_SESSION_TOKEN;
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
+// NOTE: AWS MCPs now use the group mechanism (mcp.group.aws)
+// The old individual components (security.aws-cloudtrail-mcp, security.aws-cloudwatch-mcp) are deprecated
 const AWS_CLOUDTRAIL_MCP_IMAGE =
   process.env.AWS_CLOUDTRAIL_MCP_IMAGE || 'shipsec/mcp-aws-cloudtrail:latest';
 const AWS_CLOUDWATCH_MCP_IMAGE =
@@ -248,32 +250,19 @@ e2eDescribe('Alert Investigation: End-to-End Workflow', () => {
           },
         },
         {
-          id: 'cloudtrail',
-          type: 'security.aws-cloudtrail-mcp',
-          position: { x: 520, y: 220 },
+          id: 'aws-mcp-group',
+          type: 'mcp.group.aws',
+          position: { x: 520, y: 200 },
           data: {
-            label: 'CloudTrail MCP',
+            label: 'AWS MCP Group',
             config: {
               mode: 'tool',
               params: {
-                image: AWS_CLOUDTRAIL_MCP_IMAGE,
-                region: AWS_REGION,
-              },
-              inputOverrides: {},
-            },
-          },
-        },
-        {
-          id: 'cloudwatch',
-          type: 'security.aws-cloudwatch-mcp',
-          position: { x: 520, y: 400 },
-          data: {
-            label: 'CloudWatch MCP',
-            config: {
-              mode: 'tool',
-              params: {
-                image: AWS_CLOUDWATCH_MCP_IMAGE,
-                region: AWS_REGION,
+                enabledServers: [
+                  'aws-cloudtrail',
+                  'aws-cloudwatch',
+                  'aws-iam'
+                ]
               },
               inputOverrides: {},
             },
@@ -311,11 +300,11 @@ e2eDescribe('Alert Investigation: End-to-End Workflow', () => {
 
         { id: 't1', source: 'abuseipdb', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
         { id: 't2', source: 'virustotal', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
-        { id: 't3', source: 'cloudtrail', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
-        { id: 't4', source: 'cloudwatch', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
+        { id: 't3', source: 'aws-mcp-group', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
 
-        { id: 'a1', source: 'aws-creds', target: 'cloudtrail', sourceHandle: 'credentials', targetHandle: 'credentials' },
-        { id: 'a2', source: 'aws-creds', target: 'cloudwatch', sourceHandle: 'credentials', targetHandle: 'credentials' },
+
+        { id: 'a1', source: 'aws-creds', target: 'aws-mcp-group', sourceHandle: 'credentials', targetHandle: 'credentials' },
+
       ],
     };
 
