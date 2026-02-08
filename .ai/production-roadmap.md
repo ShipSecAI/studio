@@ -1,6 +1,7 @@
 # ShipSec Studio: K8s Manifests Roadmap (OrbStack Local → Generic Cloud → GCP Private Repo)
 
 **What this doc is:** an end-to-end, agent-executable checklist to create and evolve Kubernetes manifests/Helm charts for ShipSec Studio.  
+**Companion doc (architecture + runner/streaming details):** `.ai/gcp-production-architecture.md`  
 **Order of operations:** ship a working **local OrbStack Kubernetes** deployment first, then make the charts **cloud-generic**, then add **GCP-specific infra automation** in the private `shipsec-studio-cloud` repo.  
 **Initial execution mode:** **DinD** (temporary) so we can ship early; the manifest surface is values-driven so we can later switch to a **K8s Job runner** without rewriting workflow logic.
 
@@ -325,4 +326,3 @@ Automate the “real production” GCP setup while keeping open-source charts cl
 - [ ] Add cloud-generic values + cloud-generic doc
 - [ ] (Later) add Workload Runner chart bits + RBAC tightening
 - [ ] (Private repo) implement GCP Terraform + env overlays + GitOps/pipeline
-
