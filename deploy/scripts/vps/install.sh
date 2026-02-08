@@ -9,17 +9,17 @@ WORKLOADS_NS="${WORKLOADS_NS:-shipsec-workloads}"
 KUBE_CONTEXT="${KUBE_CONTEXT:-kind-shipsec}"
 KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-shipsec}"
 
-echo "[shipsec] Creating namespaces (idempotent)..."
-kubectl get namespace "${SYSTEM_NS}" >/dev/null 2>&1 || kubectl create namespace "${SYSTEM_NS}"
-kubectl get namespace "${WORKERS_NS}" >/dev/null 2>&1 || kubectl create namespace "${WORKERS_NS}"
-kubectl get namespace "${WORKLOADS_NS}" >/dev/null 2>&1 || kubectl create namespace "${WORKLOADS_NS}"
-
 if command -v kind >/dev/null 2>&1; then
   if ! kind get clusters 2>/dev/null | grep -q "^${KIND_CLUSTER_NAME}$"; then
     echo "[shipsec] Creating kind cluster: ${KIND_CLUSTER_NAME}"
     kind create cluster --name "${KIND_CLUSTER_NAME}" --wait 180s
   fi
 fi
+
+echo "[shipsec] Creating namespaces (idempotent)..."
+kubectl --context "${KUBE_CONTEXT}" get namespace "${SYSTEM_NS}" >/dev/null 2>&1 || kubectl --context "${KUBE_CONTEXT}" create namespace "${SYSTEM_NS}"
+kubectl --context "${KUBE_CONTEXT}" get namespace "${WORKERS_NS}" >/dev/null 2>&1 || kubectl --context "${KUBE_CONTEXT}" create namespace "${WORKERS_NS}"
+kubectl --context "${KUBE_CONTEXT}" get namespace "${WORKLOADS_NS}" >/dev/null 2>&1 || kubectl --context "${KUBE_CONTEXT}" create namespace "${WORKLOADS_NS}"
 
 IMAGE_OVERRIDES=()
 if [[ "${SHIPSEC_BUILD_IMAGES:-0}" == "1" ]]; then
