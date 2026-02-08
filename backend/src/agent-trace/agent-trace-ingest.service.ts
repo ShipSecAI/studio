@@ -26,12 +26,16 @@ export class AgentTraceIngestService implements OnModuleInit, OnModuleDestroy {
     // Use instance-aware topic name
     const topicResolver = getTopicResolver();
     this.kafkaTopic = topicResolver.getAgentTraceTopic();
-    const instanceId = process.env.SHIPSEC_INSTANCE ?? '0';
+    const instanceId = process.env.SHIPSEC_INSTANCE;
+    const defaultGroupId = instanceId
+      ? `shipsec-agent-trace-ingestor-${instanceId}`
+      : 'shipsec-agent-trace-ingestor';
+    const defaultClientId = instanceId
+      ? `shipsec-backend-agent-trace-${instanceId}`
+      : 'shipsec-backend-agent-trace';
 
-    this.kafkaGroupId =
-      process.env.AGENT_TRACE_KAFKA_GROUP_ID ?? `shipsec-agent-trace-ingestor-${instanceId}`;
-    this.kafkaClientId =
-      process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? `shipsec-backend-agent-trace-${instanceId}`;
+    this.kafkaGroupId = process.env.AGENT_TRACE_KAFKA_GROUP_ID ?? defaultGroupId;
+    this.kafkaClientId = process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? defaultClientId;
   }
 
   async onModuleInit(): Promise<void> {
