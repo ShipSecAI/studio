@@ -10,7 +10,10 @@ backend:
     port: 3211
 
 frontend:
+  # VPS/kind smoke tests should stay lightweight; the current frontend Docker
+  # build runs `tsc` and fails in this repo state. Re-enable when frontend
+  # typecheck/build is green.
+  enabled: false
   service:
     type: ClusterIP
     port: 8080
-

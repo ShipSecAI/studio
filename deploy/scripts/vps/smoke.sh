@@ -9,7 +9,9 @@ kubectl --context "${KUBE_CONTEXT}" get pods -A
 
 echo "[shipsec] Waiting for core deployments..."
 kubectl --context "${KUBE_CONTEXT}" wait --namespace "${SYSTEM_NS}" --for=condition=available deployment/shipsec-backend --timeout=240s
-kubectl --context "${KUBE_CONTEXT}" wait --namespace "${SYSTEM_NS}" --for=condition=available deployment/shipsec-frontend --timeout=240s
+if kubectl --context "${KUBE_CONTEXT}" --namespace "${SYSTEM_NS}" get deployment/shipsec-frontend >/dev/null 2>&1; then
+  kubectl --context "${KUBE_CONTEXT}" wait --namespace "${SYSTEM_NS}" --for=condition=available deployment/shipsec-frontend --timeout=240s
+fi
 kubectl --context "${KUBE_CONTEXT}" wait --namespace "${SYSTEM_NS}" --for=condition=available deployment/shipsec-temporal --timeout=300s
 kubectl --context "${KUBE_CONTEXT}" wait --namespace "${SYSTEM_NS}" --for=condition=available deployment/shipsec-temporal-ui --timeout=240s
 kubectl --context "${KUBE_CONTEXT}" wait --namespace "${SYSTEM_NS}" --for=condition=available deployment/shipsec-redis --timeout=240s

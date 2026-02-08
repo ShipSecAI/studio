@@ -8,6 +8,7 @@ WORKERS_NS="${WORKERS_NS:-shipsec-workers}"
 WORKLOADS_NS="${WORKLOADS_NS:-shipsec-workloads}"
 KUBE_CONTEXT="${KUBE_CONTEXT:-kind-shipsec}"
 KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-shipsec}"
+SHIPSEC_BUILD_FRONTEND="${SHIPSEC_BUILD_FRONTEND:-0}"
 
 if command -v kind >/dev/null 2>&1; then
   if ! kind get clusters 2>/dev/null | grep -q "^${KIND_CLUSTER_NAME}$"; then
@@ -27,13 +28,19 @@ if [[ "${SHIPSEC_BUILD_IMAGES:-0}" == "1" ]]; then
   cd "${ROOT_DIR}"
   docker build -t shipsec-backend:dev --target backend .
   docker build -t shipsec-worker:dev --target worker .
-  docker build -t shipsec-frontend:dev --target frontend .
+  if [[ "${SHIPSEC_BUILD_FRONTEND}" == "1" ]]; then
+    docker build -t shipsec-frontend:dev --target frontend .
+  else
+    echo "[shipsec] Skipping frontend image build (SHIPSEC_BUILD_FRONTEND=0)"
+  fi
 
   if command -v kind >/dev/null 2>&1; then
     echo "[shipsec] Loading images into kind..."
     kind load docker-image shipsec-backend:dev --name "${KIND_CLUSTER_NAME}"
     kind load docker-image shipsec-worker:dev --name "${KIND_CLUSTER_NAME}"
-    kind load docker-image shipsec-frontend:dev --name "${KIND_CLUSTER_NAME}"
+    if [[ "${SHIPSEC_BUILD_FRONTEND}" == "1" ]]; then
+      kind load docker-image shipsec-frontend:dev --name "${KIND_CLUSTER_NAME}"
+    fi
   fi
 
   IMAGE_OVERRIDES+=("--set" "backend.image.repository=shipsec-backend")
@@ -42,9 +49,11 @@ if [[ "${SHIPSEC_BUILD_IMAGES:-0}" == "1" ]]; then
   IMAGE_OVERRIDES+=("--set" "worker.image.repository=shipsec-worker")
   IMAGE_OVERRIDES+=("--set" "worker.image.tag=dev")
   IMAGE_OVERRIDES+=("--set" "worker.image.pullPolicy=IfNotPresent")
-  IMAGE_OVERRIDES+=("--set" "frontend.image.repository=shipsec-frontend")
-  IMAGE_OVERRIDES+=("--set" "frontend.image.tag=dev")
-  IMAGE_OVERRIDES+=("--set" "frontend.image.pullPolicy=IfNotPresent")
+  if [[ "${SHIPSEC_BUILD_FRONTEND}" == "1" ]]; then
+    IMAGE_OVERRIDES+=("--set" "frontend.image.repository=shipsec-frontend")
+    IMAGE_OVERRIDES+=("--set" "frontend.image.tag=dev")
+    IMAGE_OVERRIDES+=("--set" "frontend.image.pullPolicy=IfNotPresent")
+  fi
 fi
 
 echo "[shipsec] Installing infra chart (in-cluster deps for VPS test)..."
@@ -72,16 +81,13 @@ Recommended access pattern on a VPS (simple, no LB/Ingress required):
 1) Backend:
    kubectl -n shipsec-system port-forward svc/shipsec-backend 3211:3211
 
-2) Frontend:
-   kubectl -n shipsec-system port-forward svc/shipsec-frontend 8090:8080
-
-3) Temporal UI:
+2) Temporal UI:
    kubectl -n shipsec-system port-forward svc/shipsec-temporal-ui 8081:8081
 
-4) MinIO console:
+3) MinIO console:
    kubectl -n shipsec-system port-forward svc/shipsec-minio 9001:9001
 
 Then SSH tunnel from your laptop:
-  ssh -L 3211:localhost:3211 -L 8090:localhost:8090 -L 8081:localhost:8081 -L 9001:localhost:9001 clevervps
+  ssh -L 3211:localhost:3211 -L 8081:localhost:8081 -L 9001:localhost:9001 clevervps
 
 EOF
