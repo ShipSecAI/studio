@@ -41,7 +41,7 @@ Local development runs as **multiple app instances** (PM2) on top of **one share
 
 - Shared infra (Docker Compose project `shipsec-infra`): Postgres/Temporal/Redpanda/Redis/MinIO/Loki on fixed ports.
 - Per-instance apps: `shipsec-{frontend,backend,worker}-N`.
-- Isolation is via per-instance DB + Temporal namespace/task queue + Kafka topic suffixing (not per-instance infra containers).
+- Isolation is via per-instance DB + Temporal namespace/task queue + Kafka topic suffixing + instance-scoped Kafka consumer groups/client IDs (not per-instance infra containers).
 - The workspace can have an **active instance** (stored in `.shipsec-instance`, gitignored).
 
 **Agent rule:** before running any dev commands, ensure you’re targeting the intended instance.
