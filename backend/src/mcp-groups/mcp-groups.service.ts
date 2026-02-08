@@ -354,4 +354,44 @@ export class McpGroupsService implements OnModuleInit {
       toolCount: cached.toolCount,
     };
   }
+
+  /**
+   * Get server configuration for a group template server
+   * Used by MCP group runtime to fetch server details
+   */
+  async getServerConfig(
+    groupSlug: string,
+    serverId: string,
+  ): Promise<{ command: string; args?: string[]; endpoint?: string }> {
+    const template = this.seedingService.getTemplateBySlug(groupSlug);
+    if (!template) {
+      throw new BadRequestException(`MCP group template '${groupSlug}' not found`);
+    }
+
+    // Handle AWS server ID mapping: aws-cloudtrail -> cloudtrail
+    let searchId = serverId;
+    if (groupSlug === 'aws' && serverId.startsWith('aws-')) {
+      searchId = serverId.replace('aws-', '');
+    }
+
+    const server = template.servers.find((s: any) => s.id === searchId || s.name === searchId);
+    if (!server) {
+      throw new BadRequestException(`Server '${serverId}' not found in group '${groupSlug}'`);
+    }
+
+    // Return server configuration
+    const config: { command: string; args?: string[]; endpoint?: string } = {
+      command: server.command || '',
+    };
+
+    if (server.args && server.args.length > 0) {
+      config.args = server.args;
+    }
+
+    if (server.endpoint) {
+      config.endpoint = server.endpoint;
+    }
+
+    return config;
+  }
 }
