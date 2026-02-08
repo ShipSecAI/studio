@@ -48,17 +48,16 @@ spec:
         {{- end }}
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/v1/health
             port: http
           initialDelaySeconds: 5
           periodSeconds: 5
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/v1/health
             port: http
           initialDelaySeconds: 15
           periodSeconds: 10
         resources:
           {{- toYaml .Values.backend.resources | nindent 10 }}
 {{- end }}
-

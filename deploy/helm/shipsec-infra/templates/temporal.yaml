@@ -39,15 +39,15 @@ spec:
         - name: AUTO_SETUP
           value: "true"
         readinessProbe:
-          exec:
-            command: ["tctl", "--address", "localhost:7233", "cluster", "health"]
+          tcpSocket:
+            port: grpc
           initialDelaySeconds: 20
-          periodSeconds: 30
+          periodSeconds: 10
         livenessProbe:
-          exec:
-            command: ["tctl", "--address", "localhost:7233", "cluster", "health"]
+          tcpSocket:
+            port: grpc
           initialDelaySeconds: 60
-          periodSeconds: 60
+          periodSeconds: 20
 ---
 apiVersion: v1
 kind: Service
