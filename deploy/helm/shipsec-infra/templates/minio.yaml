@@ -1,0 +1,95 @@
+{{- if .Values.minio.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: shipsec-minio-secret
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  MINIO_ROOT_USER: {{ .Values.minio.rootUser | quote }}
+  MINIO_ROOT_PASSWORD: {{ .Values.minio.rootPassword | quote }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shipsec-minio
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  serviceName: shipsec-minio
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: minio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: minio
+    spec:
+      containers:
+      - name: minio
+        image: {{ .Values.minio.image | quote }}
+        args: ["server", "/data", "--console-address", ":9001"]
+        envFrom:
+        - secretRef:
+            name: shipsec-minio-secret
+        ports:
+        - name: api
+          containerPort: 9000
+        - name: console
+          containerPort: 9001
+        readinessProbe:
+          httpGet:
+            path: /minio/health/ready
+            port: api
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: api
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: {{ .Values.minio.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-minio
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+spec:
+  {{- $svcType := "ClusterIP" -}}
+  {{- $apiPort := 9000 -}}
+  {{- $consolePort := 9001 -}}
+  {{- with .Values.minio.service -}}
+  {{- if .type }}{{- $svcType = .type }}{{- end -}}
+  {{- if .apiPort }}{{- $apiPort = .apiPort }}{{- end -}}
+  {{- if .consolePort }}{{- $consolePort = .consolePort }}{{- end -}}
+  {{- end }}
+  type: {{ $svcType }}
+  ports:
+  - name: api
+    port: {{ $apiPort }}
+    targetPort: api
+  - name: console
+    port: {{ $consolePort }}
+    targetPort: console
+  selector:
+    app.kubernetes.io/component: minio
+{{- end }}

@@ -1,0 +1,20 @@
+{{- if .Values.execution.dind.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-dind
+  namespace: {{ .Values.global.namespaces.workloads }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dind
+spec:
+  type: ClusterIP
+  ports:
+  - name: docker
+    port: {{ .Values.execution.dind.port }}
+    targetPort: docker
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dind
+{{- end }}
+

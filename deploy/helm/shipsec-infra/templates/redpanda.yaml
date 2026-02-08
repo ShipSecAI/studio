@@ -1,0 +1,82 @@
+{{- if .Values.redpanda.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shipsec-redpanda
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redpanda
+spec:
+  serviceName: shipsec-redpanda
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: redpanda
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: redpanda
+    spec:
+      containers:
+      - name: redpanda
+        image: {{ .Values.redpanda.image | quote }}
+        args:
+        - redpanda
+        - start
+        - --mode=dev-container
+        - --smp=1
+        - --reserve-memory=0M
+        - --overprovisioned
+        - --node-id=0
+        - --check=false
+        - --advertise-kafka-addr=shipsec-redpanda:9092
+        ports:
+        - name: kafka
+          containerPort: 9092
+        - name: admin
+          containerPort: 9644
+        readinessProbe:
+          httpGet:
+            path: /v1/status/ready
+            port: admin
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /v1/status/ready
+            port: admin
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/redpanda/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: {{ .Values.redpanda.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-redpanda
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: kafka
+    port: 9092
+    targetPort: kafka
+  - name: admin
+    port: 9644
+    targetPort: admin
+  selector:
+    app.kubernetes.io/component: redpanda
+{{- end }}
+

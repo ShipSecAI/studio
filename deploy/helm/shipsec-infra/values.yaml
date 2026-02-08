@@ -1,0 +1,47 @@
+global:
+  namespace: shipsec-system
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  user: shipsec
+  password: shipsec
+  database: shipsec
+  persistence:
+    enabled: true
+    size: 5Gi
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  persistence:
+    enabled: false
+    size: 1Gi
+
+minio:
+  enabled: true
+  image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+  rootUser: minioadmin
+  rootPassword: minioadmin
+  persistence:
+    enabled: true
+    size: 10Gi
+
+temporal:
+  enabled: true
+  image: temporalio/auto-setup:latest
+  uiImage: temporalio/ui:latest
+
+redpanda:
+  enabled: true
+  image: redpandadata/redpanda:v24.2.5
+  persistence:
+    enabled: true
+    size: 5Gi
+
+loki:
+  enabled: false
+  image: grafana/loki:3.2.1
+  persistence:
+    enabled: false
+    size: 5Gi

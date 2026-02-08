@@ -1,0 +1,53 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipsec-worker
+  namespace: {{ .Values.global.namespaces.workers }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "shipsec.labels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      containers:
+      - name: worker
+        image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+        imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: DATABASE_URL
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: MINIO_ACCESS_KEY
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: MINIO_SECRET_KEY
+        {{- if .Values.execution.workerDockerHost }}
+        - name: DOCKER_HOST
+          value: {{ .Values.execution.workerDockerHost | quote }}
+        {{- end }}
+        {{- range $k, $v := .Values.worker.env }}
+        - name: {{ $k }}
+          value: {{ $v | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.worker.resources | nindent 10 }}
+{{- end }}
+

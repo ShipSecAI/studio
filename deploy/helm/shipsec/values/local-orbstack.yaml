@@ -1,0 +1,16 @@
+global:
+  namespaces:
+    system: shipsec-system
+    workers: shipsec-workers
+    workloads: shipsec-workloads
+
+backend:
+  service:
+    type: LoadBalancer
+    port: 3211
+
+frontend:
+  service:
+    type: LoadBalancer
+    port: 8090
+
