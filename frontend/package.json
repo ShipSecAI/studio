@@ -6,7 +6,7 @@
   "packageManager": "bun@1.1.20",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc -b && vite build",
     "test": "bun test --preload ./src/test/setup.ts",
     "lint": "eslint .",
     "preview": "vite preview",
