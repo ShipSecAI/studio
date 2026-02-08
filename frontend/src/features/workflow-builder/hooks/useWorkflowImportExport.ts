@@ -101,6 +101,7 @@ export function useWorkflowImportExport({
       const normalizedEdges = deserializeEdges(workflowGraph);
 
       // Validate secret references
+      const removedSecrets: { param: string; node: string; secretId: string }[] = [];
       try {
         await useSecretStore.getState().fetchSecrets();
         const secrets = useSecretStore.getState().secrets;
@@ -135,6 +136,7 @@ export function useWorkflowImportExport({
                 console.warn(
                   `[Import] Removing invalid secret reference for param "${param.id}" in node "${node.id}" (secret ID: ${val})`,
                 );
+                removedSecrets.push({ param: param.id, node: node.id, secretId: val });
                 // Set to undefined to clear it
                 configParams[param.id] = undefined;
               }
@@ -166,6 +168,15 @@ export function useWorkflowImportExport({
         title: 'Workflow imported',
         description: `Loaded ${parsed.name}`,
       });
+
+      // Show warning if any invalid secret references were removed
+      if (removedSecrets.length > 0) {
+        toast({
+          variant: 'warning',
+          title: 'Invalid secret references removed',
+          description: `${removedSecrets.length} secret reference(s) could not be resolved and were cleared. Please select valid secrets from the Secrets Manager.`,
+        });
+      }
     },
     [
       canManageWorkflows,
