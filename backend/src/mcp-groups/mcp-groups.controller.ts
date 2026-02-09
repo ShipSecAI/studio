@@ -53,8 +53,8 @@ export class McpGroupsController {
 
   @Get('templates')
   @ApiOperation({ summary: 'List available MCP group templates' })
-  @ApiOkResponse({ type: [GroupTemplateDto] })
-  async listTemplates(): Promise<GroupTemplateDto[]> {
+  @ApiOkResponse()
+  async listTemplates() {
     return this.mcpGroupsService.listTemplates();
   }
 

@@ -20,6 +20,7 @@ export const McpGroupTemplateSchema = z.object({
   servers: z.array(
     z.object({
       id: z.string(),
+      name: z.string(),
       command: z.string(),
       args: z.array(z.string()).optional(),
     }),
@@ -323,6 +324,7 @@ async function registerServerWithBackend(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-internal-token': internalToken,
     },
     body: JSON.stringify({
       runId: context.runId,
