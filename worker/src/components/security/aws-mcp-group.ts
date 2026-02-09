@@ -178,7 +178,7 @@ const definition = defineComponent({
       type: 'shipsecai',
     },
     agentTool: {
-      enabled: true,
+      enabled: false,  // MCP group is not a tool itself; it exposes individual tools
       toolName: 'aws_mcp_group',
       toolDescription: 'Expose AWS MCP tools from selected AWS services.',
     },
