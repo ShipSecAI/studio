@@ -53,6 +53,12 @@ spec:
         ports:
         - name: postgres
           containerPort: 5432
+        env:
+        # GKE (and some other environments) mount ext4 volumes with a `lost+found`
+        # directory at the volume root. Postgres initdb fails if the data dir is
+        # not empty, so we point PGDATA at a subdirectory.
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
         envFrom:
         - secretRef:
             name: shipsec-postgres-secret
@@ -101,4 +107,3 @@ spec:
   selector:
     app.kubernetes.io/component: postgres
 {{- end }}
-
