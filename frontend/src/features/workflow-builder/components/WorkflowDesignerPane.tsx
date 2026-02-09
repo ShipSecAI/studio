@@ -192,10 +192,7 @@ export function WorkflowDesignerPane({
             onClearNodeSelection={handleClearNodeSelection}
             onNodeSelectionChange={handleNodeSelectionChange}
             onSnapshot={onCaptureSnapshot}
-            schedulePanelExpanded={schedulePanelExpanded}
-            webhooksPanelExpanded={webhooksPanelExpanded}
             onCloseScheduleSidebar={() => setSchedulePanelExpanded(false)}
-            onCloseWebhooksSidebar={() => setWebhooksPanelExpanded(false)}
           />
         </div>
 
