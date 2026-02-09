@@ -293,113 +293,23 @@ Decouple “workflow orchestration” from “container execution”.
 
 Automate the “real production” GCP setup while keeping open-source charts cloud-generic.
 
-### 7.1 What stays OSS vs what moves to private repo
+### 7.1 What moves to private repo
 
-- [ ] OSS (`shipsec-studio`) keeps:
-  - [ ] Helm charts (`deploy/helm/shipsec`, `deploy/helm/shipsec-infra`)
-  - [ ] `values/cloud-generic.yaml` patterns (no cloud resources)
-  - [ ] local/self-host docs + DinD warnings
-- [ ] Private (`shipsec-studio-cloud`) adds:
-  - [ ] Terraform/OpenTofu (or Pulumi) for GCP provisioning + security defaults
-  - [ ] managed service wiring (Cloud SQL, Memorystore, GCS, Secret Manager)
-  - [ ] ingress + TLS + WAF + budgets/alerts
-  - [ ] opinionated node pools for execution isolation (DinD now; K8s Jobs later)
-  - [ ] deployment pipeline (GitHub Actions + `helm upgrade` or GitOps)
+- [ ] Terraform/Pulumi for:
+  - [ ] VPC/subnets/firewalls
+  - [ ] private GKE + node pools (workloads vs control; DinD isolated if still used)
+  - [ ] Cloud NAT + static egress IPs
+  - [ ] Cloud SQL + Memorystore
+  - [ ] GCS buckets + lifecycle/retention
+  - [ ] Artifact Registry + image policy/signing
+  - [ ] Gateway/Cloud Armor policies
+  - [ ] Workload Identity bindings
+- [ ] External Secrets wiring (Secret Manager → K8s Secrets)
+- [ ] Env overlays (`values-staging.yaml`, `values-prod.yaml`)
+- [ ] Runbooks + dashboards + alerts
 
-### 7.2 Private repo structure (recommended)
+### 7.2 GCP rollout stages
 
-- [ ] `infra/gcp/modules/`:
-  - [ ] `project/` (APIs, IAM, budgets, tags)
-  - [ ] `network/` (VPC, subnets, secondary ranges, Cloud NAT, firewall)
-  - [ ] `gke/` (cluster + node pools)
-  - [ ] `artifact-registry/`
-  - [ ] `cloudsql/`
-  - [ ] `memorystore/`
-  - [ ] `gcs/`
-  - [ ] `secrets/` (Secret Manager + IAM)
-  - [ ] `external-secrets/` (ESO install + Workload Identity bindings)
-  - [ ] `ingress/` (Gateway/Ingress, certs, Cloud Armor, DNS)
-- [ ] `infra/gcp/envs/`:
-  - [ ] `dev/` (fast, cheap, may be zonal)
-  - [ ] `staging/` (private nodes, realistic)
-  - [ ] `prod/` (private nodes, hardened defaults)
-- [ ] Remote state:
-  - [ ] GCS bucket for state + object versioning
-  - [ ] documented state locking strategy (and CI serialism)
-
-### 7.3 GCP prerequisites (agent checklist)
-
-- [ ] Choose region/zone defaults:
-  - [ ] `us-central1` (recommended default for GCP footprint)
-  - [ ] dev zone: `us-central1-a`
-- [ ] Billing enabled
-- [ ] Enable APIs:
-  - [ ] `container.googleapis.com`
-  - [ ] `artifactregistry.googleapis.com`
-  - [ ] `secretmanager.googleapis.com`
-  - [ ] `iam.googleapis.com`
-  - [ ] baseline: `cloudresourcemanager.googleapis.com`, `serviceusage.googleapis.com`
-- [ ] Budget + alerts (email at minimum)
-- [ ] (Optional) project environment tag (some org policies expect it)
-
-### 7.4 Network (private-by-default target)
-
-- [ ] VPC per environment (early recommendation)
-- [ ] Subnet(s) in region + secondary ranges for Pods/Services (VPC-native / IP alias)
-- [ ] Cloud NAT + reserved static egress IP(s) (for customer allowlists)
-- [ ] Private Google Access enabled on subnets
-- [ ] Firewall: no public SSH; only required LB/health-check traffic
-
-### 7.5 GKE cluster + node pools (tie this to the DinD plan)
-
-- [ ] Cluster:
-  - [ ] Standard (not Autopilot) for privileged DinD flexibility
-  - [ ] release channel `regular`
-  - [ ] Workload Identity enabled (`<project>.svc.id.goog`)
-  - [ ] staging/prod: private nodes
-- [ ] Minimum viable node pool split:
-  - [ ] `system` pool: backend/worker/control workloads
-  - [ ] `exec` pool: DinD only (taints + tolerations)
-  - [ ] (Later) `workloads` pool: K8s Job runner pods
-- [ ] DinD scheduling rules:
-  - [ ] `shipsec-dind` tolerates `exec` taint
-  - [ ] everything else does not tolerate `exec`
-
-### 7.6 Artifact Registry + image build rules
-
-- [ ] Artifact Registry repo per environment (or shared per region)
-- [ ] Enforce AMD64 builds for GKE nodes:
-  - [ ] CI uses `docker buildx build --platform linux/amd64 --push`
-  - [ ] tags are unique (timestamp/content hash) to avoid arch/tag collisions
-- [ ] (Optional later) vulnerability scanning + signing
-
-### 7.7 Managed services wiring (replace `shipsec-infra` in cloud)
-
-- [ ] Cloud SQL (Postgres) with private IP
-- [ ] Memorystore (Redis) with private endpoint
-- [ ] GCS bucket(s) for artifacts with lifecycle/retention
-- [ ] Helm overlays:
-  - [ ] disable `shipsec-infra` in cloud
-  - [ ] set external endpoints via values
-
-### 7.8 Secrets (Secret Manager + External Secrets Operator)
-
-- [ ] Install External Secrets Operator
-- [ ] Workload Identity mappings (KSA -> GSA) with least privilege
-- [ ] secret naming convention (env + service prefix)
-- [ ] app chart uses `existingSecretName` in cloud
-
-### 7.9 Ingress + TLS + WAF
-
-- [ ] dev: Services `LoadBalancer` is fine for speed
-- [ ] staging/prod:
-  - [ ] Gateway API or Ingress with Google LB controller
-  - [ ] managed certificates
-  - [ ] Cloud Armor policy (rate limit + baseline)
-
-### 7.10 GCP rollout stages
-
-- [ ] Stage 0: Fast dev cluster (zonal, minimal hardening, ship now)
 - [ ] Stage 1: Managed data plane live (Cloud SQL/Memorystore/GCS), apps deployed
 - [ ] Stage 2: Execution hardening (Runner + K8s Jobs / gVisor), DinD minimized
 - [ ] Stage 3: Cost controls (egress budgets/alerts, caching, per-tenant concurrency/resource classes)
