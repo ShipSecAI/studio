@@ -97,12 +97,9 @@ interface CanvasProps {
   onViewSchedules?: () => void;
   onOpenScheduleSidebar?: () => void;
   onCloseScheduleSidebar?: () => void;
-  onCloseWebhooksSidebar?: () => void;
   onClearNodeSelection?: () => void;
   onNodeSelectionChange?: (node: Node<NodeData> | null) => void;
   onSnapshot?: (nodes?: Node<NodeData>[], edges?: Edge[]) => void;
-  schedulePanelExpanded?: boolean;
-  webhooksPanelExpanded?: boolean;
 }
 
 export function Canvas({
@@ -124,12 +121,9 @@ export function Canvas({
   onViewSchedules,
   onOpenScheduleSidebar,
   onCloseScheduleSidebar,
-  onCloseWebhooksSidebar,
   onClearNodeSelection,
   onNodeSelectionChange,
   onSnapshot,
-  schedulePanelExpanded,
-  webhooksPanelExpanded,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null);
@@ -165,7 +159,6 @@ export function Canvas({
     onOpenScheduleSidebar ?? scheduleContext?.onOpenScheduleSidebar;
   const resolvedOnCloseScheduleSidebar =
     onCloseScheduleSidebar ?? scheduleContext?.onCloseScheduleSidebar;
-  const resolvedOnOpenWebhooksSidebar = scheduleContext?.onOpenWebhooksSidebar;
   const applyEdgesChange = onEdgesChange;
 
   const hasUserInteractedRef = useRef(false);
@@ -173,9 +166,16 @@ export function Canvas({
   const prevModeRef = useRef<typeof mode>(mode);
   const prevNodesLengthRef = useRef(nodes.length);
   const prevEdgesLengthRef = useRef(edges.length);
-  const lastSelectedNodeIdRef = useRef<string | null>(null);
-  const [configPanelWidth, setConfigPanelWidth] = useState(432); // Default panel width
+  const DEFAULT_CONFIG_PANEL_WIDTH = 432;
+  const [configPanelWidth, setConfigPanelWidth] = useState(DEFAULT_CONFIG_PANEL_WIDTH);
   const [canvasOpacity, setCanvasOpacity] = useState(1); // For fade transition
+
+  // Reset config panel width to default when panel is closed
+  useEffect(() => {
+    if (!selectedNode) {
+      setConfigPanelWidth(DEFAULT_CONFIG_PANEL_WIDTH);
+    }
+  }, [selectedNode]);
 
   const nodeTypes = useMemo(
     () => ({
@@ -708,19 +708,10 @@ export function Canvas({
         return;
       }
 
-      // Default behavior: deselect node and close all panels
+      // Default behavior: deselect node
       setSelectedNode(null);
-      onCloseScheduleSidebar?.();
-      onCloseWebhooksSidebar?.();
     },
-    [
-      mode,
-      isPlacementActive,
-      placementState,
-      createNodeFromComponent,
-      onCloseScheduleSidebar,
-      onCloseWebhooksSidebar,
-    ],
+    [mode, isPlacementActive, placementState, createNodeFromComponent],
   );
 
   // Handle validation dock node click - select and scroll to node
@@ -863,71 +854,6 @@ export function Canvas({
     onNodeSelectionChange?.(selectedNode);
   }, [selectedNode, onNodeSelectionChange]);
 
-  // Refs to track panel states for fitView animations
-  const lastSchedulePanelRef = useRef(false);
-  const lastWebhooksPanelRef = useRef(false);
-
-  useEffect(() => {
-    if (mode !== 'design') return;
-    if ((schedulePanelExpanded || webhooksPanelExpanded) && selectedNode) {
-      setSelectedNode(null);
-    }
-  }, [schedulePanelExpanded, webhooksPanelExpanded, mode, selectedNode]);
-
-  // Auto-center on selected node, or zoom to fit all when sidebar closes
-  useEffect(() => {
-    if (mode !== 'design' || !reactFlowInstance) return;
-
-    // Check if any side panel is now open
-    const isAnyPanelOpen = selectedNode?.id || schedulePanelExpanded || webhooksPanelExpanded;
-    const wasAnyPanelOpen =
-      lastSelectedNodeIdRef.current || lastSchedulePanelRef.current || lastWebhooksPanelRef.current;
-
-    // Case 1: Any Panel Opened -> Zoom to Entry Point Node
-    if (isAnyPanelOpen && !wasAnyPanelOpen) {
-      const entryPointNode = nodes.find((n) => isEntryPointNode(n));
-      if (entryPointNode) {
-        setTimeout(() => {
-          if (!reactFlowInstance) return;
-          reactFlowInstance.fitView({
-            nodes: [{ id: entryPointNode.id }],
-            padding: 0.8,
-            minZoom: 0.5,
-            maxZoom: 1.0,
-            duration: 160,
-          });
-        }, 0);
-      }
-    }
-    // Case 2: All Panels Closed -> Zoom Out to Fit All
-    else if (!isAnyPanelOpen && wasAnyPanelOpen) {
-      setTimeout(() => {
-        if (!reactFlowInstance) return;
-        const currentNodes = reactFlowInstance.getNodes();
-        const workflowNodes = currentNodes.filter((n: any) => n.type !== 'terminal');
-        if (workflowNodes.length > 0) {
-          reactFlowInstance.fitView({
-            padding: 0.2,
-            maxZoom: 0.85,
-            duration: 160,
-            nodes: workflowNodes,
-          });
-        }
-      }, 0);
-    }
-
-    lastSelectedNodeIdRef.current = selectedNode?.id || null;
-    lastSchedulePanelRef.current = schedulePanelExpanded || false;
-    lastWebhooksPanelRef.current = webhooksPanelExpanded || false;
-  }, [
-    selectedNode?.id,
-    schedulePanelExpanded,
-    webhooksPanelExpanded,
-    mode,
-    reactFlowInstance,
-    nodes,
-  ]);
-
   // Update edges with data flow highlighting and packet data
   useEffect(() => {
     setEdges((eds) =>
@@ -1056,37 +982,30 @@ export function Canvas({
   const entryPointActionsValue = useMemo(
     () => ({
       onOpenScheduleSidebar: () => {
+        if (onClearNodeSelection) {
+          onClearNodeSelection();
+        }
+        setSelectedNode(null);
         if (resolvedOnOpenScheduleSidebar) {
           resolvedOnOpenScheduleSidebar();
         }
       },
       onOpenWebhooksSidebar: () => {
-        if (resolvedOnOpenWebhooksSidebar) {
-          resolvedOnOpenWebhooksSidebar();
+        if (onClearNodeSelection) {
+          onClearNodeSelection();
+        }
+        setSelectedNode(null);
+        if (scheduleContext?.onOpenWebhooksSidebar) {
+          scheduleContext.onOpenWebhooksSidebar();
         }
       },
       onScheduleCreate: resolvedOnScheduleCreate,
-      setPlacement: (componentId: string, componentName: string) => {
-        placementState.setPlacement(componentId, componentName, workflowId ?? null);
-      },
-      selectEntryPoint: () => {
-        const entryPointNode = nodes.find((n) => isEntryPointNode(n));
-        if (entryPointNode) {
-          setSelectedNode(entryPointNode);
-          onNodeSelectionChange?.(entryPointNode);
-        }
-      },
     }),
     [
       resolvedOnOpenScheduleSidebar,
-      resolvedOnOpenWebhooksSidebar,
       resolvedOnScheduleCreate,
       onClearNodeSelection,
       scheduleContext,
-      placementState,
-      workflowId,
-      nodes,
-      onNodeSelectionChange,
     ],
   );
 
