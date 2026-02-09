@@ -73,6 +73,7 @@ export class IsolatedContainerVolume {
     }
 
     // Create unique volume name with timestamp to prevent collisions
+    // when parallel nodes in the same run each create their own volume.
     const timestamp = Date.now();
     this.volumeName = `tenant-${this.tenantId}-run-${this.runId}-${timestamp}`;
 

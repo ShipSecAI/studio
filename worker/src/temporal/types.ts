@@ -240,3 +240,48 @@ export interface AreAllToolsReadyActivityInput {
 export interface AreAllToolsReadyActivityOutput {
   ready: boolean;
 }
+
+// MCP Discovery Activity types
+
+export interface McpTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export interface DiscoveryActivityInput {
+  transport: 'http' | 'stdio';
+  endpoint?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+  image?: string;
+}
+
+export interface DiscoveryActivityOutput {
+  tools: McpTool[];
+}
+
+export interface GroupDiscoveryServerInput {
+  name: string;
+  transport: 'http' | 'stdio';
+  endpoint?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+}
+
+export interface GroupDiscoveryActivityInput {
+  servers: GroupDiscoveryServerInput[];
+  image?: string;
+}
+
+export interface GroupDiscoveryActivityResult {
+  name: string;
+  tools: McpTool[];
+  error?: string;
+}
+
+export interface GroupDiscoveryActivityOutput {
+  results: GroupDiscoveryActivityResult[];
+}

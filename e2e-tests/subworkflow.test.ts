@@ -11,7 +11,9 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 
-const API_BASE = 'http://localhost:3211/api/v1';
+import { getApiBaseUrl } from './helpers/api-base';
+
+const API_BASE = getApiBaseUrl();
 const HEADERS = {
   'Content-Type': 'application/json',
   'x-internal-token': 'local-internal-token',

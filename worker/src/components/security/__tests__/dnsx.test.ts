@@ -195,7 +195,7 @@ describe.skip('dnsx component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('projectdiscovery/dnsx:v1.2.2');
+      expect(component.runner.image).toBe('ghcr.io/shipsecai/dnsx:v1.2.2');
       expect(component.runner.entrypoint).toBe('sh');
     }
   });

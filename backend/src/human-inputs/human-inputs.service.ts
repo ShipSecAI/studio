@@ -21,8 +21,16 @@ export class HumanInputsService {
     private readonly temporalService: TemporalService,
   ) {}
 
-  async list(query?: ListHumanInputsQueryDto): Promise<HumanInputResponseDto[]> {
+  async list(
+    query?: ListHumanInputsQueryDto,
+    organizationId?: string,
+  ): Promise<HumanInputResponseDto[]> {
     const conditions = [];
+
+    // SECURITY: Always filter by organization
+    if (organizationId) {
+      conditions.push(eq(humanInputRequestsTable.organizationId, organizationId));
+    }
 
     if (query?.status) {
       conditions.push(eq(humanInputRequestsTable.status, query.status));
@@ -42,9 +50,16 @@ export class HumanInputsService {
     return results as unknown as HumanInputResponseDto[];
   }
 
-  async getById(id: string): Promise<HumanInputResponseDto> {
+  async getById(id: string, organizationId?: string): Promise<HumanInputResponseDto> {
+    const conditions = [eq(humanInputRequestsTable.id, id)];
+
+    // SECURITY: Always filter by organization
+    if (organizationId) {
+      conditions.push(eq(humanInputRequestsTable.organizationId, organizationId));
+    }
+
     const request = await this.db.query.humanInputRequests.findFirst({
-      where: eq(humanInputRequestsTable.id, id),
+      where: and(...conditions),
     });
 
     if (!request) {
@@ -54,8 +69,12 @@ export class HumanInputsService {
     return request as unknown as HumanInputResponseDto;
   }
 
-  async resolve(id: string, dto: ResolveHumanInputDto): Promise<HumanInputResponseDto> {
-    const request = await this.getById(id);
+  async resolve(
+    id: string,
+    dto: ResolveHumanInputDto,
+    organizationId?: string,
+  ): Promise<HumanInputResponseDto> {
+    const request = await this.getById(id, organizationId);
 
     if (request.status !== 'pending') {
       throw new Error(`Human input request is ${request.status}, cannot resolve`);

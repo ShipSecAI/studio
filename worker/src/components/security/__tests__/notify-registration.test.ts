@@ -14,7 +14,7 @@ describeNotify('Notify component registration', () => {
     expect(component!.ui?.slug).toBe('notify');
 
     if (component!.runner.kind === 'docker') {
-      expect(component!.runner.image).toContain('projectdiscovery/notify');
+      expect(component!.runner.image).toContain('ghcr.io/shipsecai/notify');
       expect(component!.runner.entrypoint).toBe('sh');
     } else {
       throw new Error('Expected docker runner for notify component');

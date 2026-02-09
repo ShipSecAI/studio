@@ -733,7 +733,7 @@ export default defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'projectdiscovery/dnsx:latest',
+    image: 'ghcr.io/shipsecai/dnsx:latest',
     entrypoint: 'sh',
     command: ['-c', 'dnsx "$@"', '--'],
     network: 'bridge',

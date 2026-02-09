@@ -68,6 +68,9 @@ export interface RegisteredTool {
   /** Docker container ID (for local MCPs) */
   containerId?: string;
 
+  /** MCP Server ID (for pre-registered MCP servers with cached tools) */
+  serverId?: string;
+
   /** Error message if status is 'error' */
   errorMessage?: string;
 
@@ -148,7 +151,8 @@ export class ToolRegistryService implements OnModuleDestroy {
       return;
     }
 
-    const { runId, nodeId, toolName, description, inputSchema, endpoint, authToken } = input;
+    const { runId, nodeId, toolName, description, inputSchema, endpoint, authToken, serverId } =
+      input;
 
     // Encrypt auth token if provided - store as JSON object for consistency
     let encryptedCredentials: string | undefined;
@@ -167,6 +171,7 @@ export class ToolRegistryService implements OnModuleDestroy {
       inputSchema,
       endpoint,
       encryptedCredentials,
+      serverId,
       registeredAt: new Date().toISOString(),
     };
 
@@ -174,7 +179,9 @@ export class ToolRegistryService implements OnModuleDestroy {
     await this.redis.hset(key, nodeId, JSON.stringify(tool));
     await this.redis.expire(key, REGISTRY_TTL_SECONDS);
 
-    this.logger.log(`Registered remote MCP: ${toolName} (node: ${nodeId}, run: ${runId})`);
+    this.logger.log(
+      `Registered remote MCP: ${toolName} (node: ${nodeId}, run: ${runId}, serverId: ${serverId || 'dynamic'})`,
+    );
   }
 
   /**
@@ -186,7 +193,8 @@ export class ToolRegistryService implements OnModuleDestroy {
       return;
     }
 
-    const { runId, nodeId, toolName, description, inputSchema, endpoint, containerId } = input;
+    const { runId, nodeId, toolName, description, inputSchema, endpoint, containerId, serverId } =
+      input;
 
     const tool: RegisteredTool = {
       nodeId,
@@ -197,6 +205,7 @@ export class ToolRegistryService implements OnModuleDestroy {
       inputSchema,
       endpoint,
       containerId,
+      serverId,
       registeredAt: new Date().toISOString(),
     };
 
@@ -205,7 +214,7 @@ export class ToolRegistryService implements OnModuleDestroy {
     await this.redis.expire(key, REGISTRY_TTL_SECONDS);
 
     this.logger.log(
-      `Registered local MCP: ${toolName} (node: ${nodeId}, container: ${containerId}, run: ${runId})`,
+      `Registered local MCP: ${toolName} (node: ${nodeId}, container: ${containerId}, run: ${runId}, serverId: ${serverId || 'dynamic'})`,
     );
   }
 

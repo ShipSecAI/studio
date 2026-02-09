@@ -11,7 +11,9 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 
-const API_BASE = 'http://localhost:3211/api/v1';
+import { getApiBaseUrl } from './helpers/api-base';
+
+const API_BASE = getApiBaseUrl();
 const HEADERS = {
   'Content-Type': 'application/json',
   'x-internal-token': 'local-internal-token',
@@ -122,7 +124,7 @@ beforeAll(async () => {
     console.log('  💡 To run E2E tests:');
     console.log('     1. Set RUN_E2E=true');
     console.log('     2. Start services: pm2 start pm2.config.cjs');
-    console.log('     3. Verify: curl http://localhost:3211/api/v1/health');
+    console.log(`     3. Verify: curl ${API_BASE}/health`);
     return;
   }
 

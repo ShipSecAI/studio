@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MarkdownView } from '@/components/ui/markdown';
+import { DynamicArtifactNameInput } from '@/components/workflow/DynamicArtifactNameInput';
 import {
   Select,
   SelectContent,
@@ -31,11 +32,12 @@ import { useComponentStore } from '@/store/componentStore';
 import { ParameterFieldWrapper } from './ParameterField';
 import { WebhookDetails } from './WebhookDetails';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
-import { DynamicArtifactNameInput } from './DynamicArtifactNameInput';
-import { useReactFlow } from 'reactflow';
+// TODO: McpLibraryToolSelector will be integrated in a future PR
+// import { McpLibraryToolSelector } from './McpLibraryToolSelector'
 import type { Node } from 'reactflow';
 import type { FrontendNodeData } from '@/schemas/node';
 import type { ComponentType, KeyboardEvent } from 'react';
+import { useReactFlow } from 'reactflow';
 import {
   describePortType,
   inputSupportsManualValue,
@@ -925,7 +927,8 @@ export function ConfigPanel({
           )}
 
           {/* Parameters Section (Moved to Top) */}
-          {!isToolMode && componentParameters.length > 0 && (
+          {/* Show parameters if not tool mode, OR if we're in tool mode but have parameters to configure (e.g., MCP components) */}
+          {(!isToolMode || componentParameters.length > 0) && (
             <CollapsibleSection
               title="Parameters"
               count={componentParameters.length}
