@@ -245,6 +245,10 @@ Please investigate the issue and generate a detailed report.
 
     try {
       // 5. Execute Docker Container
+      // HACK: Fail fast after listing tools for faster iteration on MCP tool registration
+      // TODO: Remove this hack once MCP tool registration is working correctly
+      const HACK_FAIL_FAST_AFTER_TOOL_LIST = 'false';
+
       // Write a wrapper script to properly execute opencode with file reading
       // The script runs inside the container, so $(cat /workspace/prompt.txt) works correctly
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
@@ -253,7 +257,14 @@ Please investigate the issue and generate a detailed report.
         'set -e',
         'cd /workspace',
         'echo "[OpenCode] Listing MCP tools before run..."',
-        'opencode mcp list --log-level ERROR || true',
+        'opencode mcp list --log-level ERROR > /tmp/mcp_tools.txt 2>&1',
+        'cat /tmp/mcp_tools.txt',
+        'echo "[OpenCode] === Full tool list output above ==="',
+        // HACK: Exit after listing tools for fast iteration
+        `if [ "${HACK_FAIL_FAST_AFTER_TOOL_LIST}" = "true" ]; then`,
+        '  echo "[OpenCode] HACK: Exiting after tool list for fast iteration"',
+        '  exit 1',
+        'fi',
         'echo "[OpenCode] Starting agent run..."',
         'opencode run --log-level ERROR "$(cat /workspace/prompt.txt)"',
         '',
