@@ -20,6 +20,14 @@ Verify:
 gcloud auth application-default print-access-token >/dev/null && echo adc:present
 ```
 
+### Non-interactive fallback (recommended in CI)
+
+If you can't use ADC (for example in headless sessions), you can use a short-lived token:
+
+```bash
+export TF_VAR_access_token="$(gcloud auth print-access-token)"
+```
+
 ## 1) Bootstrap Terraform state bucket (run once)
 
 Pick a globally unique bucket name, then:
@@ -85,4 +93,3 @@ kubectl get nodes
 
 - If your org policies require it, add a project `environment` tag. It's not required for GKE itself.
 - This file intentionally does not include any credentials, service account keys, or secrets.
-
