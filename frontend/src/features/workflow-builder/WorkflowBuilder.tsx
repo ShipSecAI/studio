@@ -291,16 +291,19 @@ function WorkflowBuilderContent() {
 
   const onEdgesChange = useCallback(
     (changes: any[]) => {
-      // Capture snapshot for edge changes
+      // Capture snapshot for edge changes (add/remove)
+      // Note: Edge removals due to node deletion are handled by onNodesChange,
+      // so we only need to capture explicit edge changes here
       if (mode === 'design' && changes.length > 0) {
         const hasStructuralChange = changes.some(
           (c: any) => c.type === 'add' || c.type === 'remove',
         );
         if (hasStructuralChange) {
+          const currentNodes = designNodesRef.current;
           const currentEdges = designEdgesRef.current;
           const nextEdges = applyEdgeChanges(changes, currentEdges);
-          // Pass undefined for nodes to allow merging with pending node changes (e.g. from node deletion)
-          captureSnapshot(undefined, nextEdges);
+          // Pass both nodes and edges to ensure consistent snapshot
+          captureSnapshot(currentNodes, nextEdges);
         }
       }
 
@@ -594,9 +597,10 @@ function WorkflowBuilderContent() {
 
         // Initialize execution state only when there's no run context; otherwise the execution
         // lifecycle hook will load the appropriate version for the routed run.
+        // IMPORTANT: Always initialize when execution nodes are empty to prevent blank canvas.
+        const executionNodesEmpty = executionNodesRef.current.length === 0;
         const shouldInitializeExecution =
-          !hasRunContext &&
-          (executionNodesRef.current.length === 0 || executionEdgesRef.current.length === 0);
+          executionNodesEmpty || (!hasRunContext && executionEdgesRef.current.length === 0);
 
         if (shouldInitializeExecution) {
           setExecutionNodes(cloneNodes(workflowNodes));

@@ -1,0 +1,34 @@
+import { z } from 'zod';
+
+export const McpServerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  type: z.enum(['stdio', 'http']),
+  transport: z.object({
+    // For stdio servers
+    command: z.string().optional(),
+    args: z.array(z.string()).optional(),
+    // For HTTP servers
+    endpoint: z.string().optional(),
+  }),
+  enabled: z.boolean(),
+  healthStatus: z.enum(['healthy', 'unhealthy', 'unknown']),
+  toolCount: z.number().optional(),
+});
+
+export type McpServer = z.infer<typeof McpServerSchema>;
+
+export const ListMcpServersResponseSchema = z.object({
+  servers: z.array(McpServerSchema),
+});
+
+export type ListMcpServersResponse = z.infer<typeof ListMcpServersResponseSchema>;
+
+// Schema for resolved MCP server configuration (with secrets resolved)
+export const ResolvedMcpConfigSchema = z.object({
+  headers: z.record(z.string(), z.string()).optional(),
+  args: z.array(z.string()).optional(),
+});
+
+export type ResolvedMcpConfig = z.infer<typeof ResolvedMcpConfigSchema>;

@@ -179,7 +179,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'projectdiscovery/naabu:v2.3.7',
+    image: 'ghcr.io/shipsecai/naabu:v2.3.7',
     entrypoint: 'sh',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,
@@ -301,6 +301,10 @@ eval "$CMD"
       'Scan Amass or Subfinder discoveries to identify exposed services.',
       'Target a custom list of IPs with tuned rate and retries for stealth scans.',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Fast TCP port scanner (Naabu).',
+    },
   },
   async execute({ inputs, params }, context) {
     const trimmedPorts = params.ports?.trim();

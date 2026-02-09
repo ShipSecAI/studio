@@ -41,7 +41,7 @@ import { useToast } from '@/components/ui/use-toast';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
 import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
-import { mobilePlacementState, clearMobilePlacement } from '@/components/layout/sidebar-state';
+import { usePlacementStore } from '@/components/layout/sidebar-state';
 import { EntryPointActionsContext } from './entry-point-context';
 
 // Custom hook to detect mobile viewport
@@ -97,9 +97,12 @@ interface CanvasProps {
   onViewSchedules?: () => void;
   onOpenScheduleSidebar?: () => void;
   onCloseScheduleSidebar?: () => void;
+  onCloseWebhooksSidebar?: () => void;
   onClearNodeSelection?: () => void;
   onNodeSelectionChange?: (node: Node<NodeData> | null) => void;
   onSnapshot?: (nodes?: Node<NodeData>[], edges?: Edge[]) => void;
+  schedulePanelExpanded?: boolean;
+  webhooksPanelExpanded?: boolean;
 }
 
 export function Canvas({
@@ -121,9 +124,12 @@ export function Canvas({
   onViewSchedules,
   onOpenScheduleSidebar,
   onCloseScheduleSidebar,
+  onCloseWebhooksSidebar,
   onClearNodeSelection,
   onNodeSelectionChange,
   onSnapshot,
+  schedulePanelExpanded,
+  webhooksPanelExpanded,
 }: CanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null);
@@ -136,6 +142,10 @@ export function Canvas({
   const { toast } = useToast();
   const { setConfigPanelOpen } = useWorkflowUiStore();
   const isMobile = useIsMobile();
+
+  // Component placement state (for spotlight/sidebar component placement)
+  const placementState = usePlacementStore();
+  const isPlacementActive = placementState.isPlacementActiveForWorkflow(workflowId ?? null);
 
   // Sync selection state with UI store for mobile bottom sheet visibility
   useEffect(() => {
@@ -155,6 +165,7 @@ export function Canvas({
     onOpenScheduleSidebar ?? scheduleContext?.onOpenScheduleSidebar;
   const resolvedOnCloseScheduleSidebar =
     onCloseScheduleSidebar ?? scheduleContext?.onCloseScheduleSidebar;
+  const resolvedOnOpenWebhooksSidebar = scheduleContext?.onOpenWebhooksSidebar;
   const applyEdgesChange = onEdgesChange;
 
   const hasUserInteractedRef = useRef(false);
@@ -162,6 +173,7 @@ export function Canvas({
   const prevModeRef = useRef<typeof mode>(mode);
   const prevNodesLengthRef = useRef(nodes.length);
   const prevEdgesLengthRef = useRef(edges.length);
+  const lastSelectedNodeIdRef = useRef<string | null>(null);
   const [configPanelWidth, setConfigPanelWidth] = useState(432); // Default panel width
   const [canvasOpacity, setCanvasOpacity] = useState(1); // For fade transition
 
@@ -228,6 +240,7 @@ export function Canvas({
             if (
               edgeToRemove &&
               edgeToRemove.targetHandle &&
+              edgeToRemove.targetHandle !== 'tools' &&
               (node.data.inputs as Record<string, unknown>)?.[edgeToRemove.targetHandle]
             ) {
               const targetHandle = edgeToRemove.targetHandle;
@@ -332,8 +345,14 @@ export function Canvas({
       // Calculate new nodes (if input mapping update is needed)
       let nextNodes = nodes;
 
-      // Update target node's input mapping
-      if (params.target && params.targetHandle && params.source && params.sourceHandle) {
+      // Update target node's input mapping (SKIP for 'tools' port)
+      if (
+        params.target &&
+        params.targetHandle &&
+        params.source &&
+        params.sourceHandle &&
+        params.targetHandle !== 'tools'
+      ) {
         const targetHandle = params.targetHandle;
         nextNodes = nodes.map((node) =>
           node.id === params.target
@@ -595,7 +614,8 @@ export function Canvas({
       if (mode !== 'design') return;
 
       // Check if there's a component selected for placement (mobile flow)
-      if (mobilePlacementState.isActive && mobilePlacementState.componentId) {
+      // Only place if the placement is scoped to this workflow
+      if (isPlacementActive && placementState.componentId) {
         let clientX: number;
         let clientY: number;
 
@@ -612,16 +632,16 @@ export function Canvas({
         }
 
         // Create node at tap position
-        createNodeFromComponent(mobilePlacementState.componentId, clientX, clientY);
+        createNodeFromComponent(placementState.componentId, clientX, clientY);
 
         // Clear placement state
-        clearMobilePlacement();
+        placementState.clearPlacement();
 
         event.preventDefault();
         event.stopPropagation();
       }
     },
-    [createNodeFromComponent, mode],
+    [createNodeFromComponent, mode, isPlacementActive, placementState],
   );
 
   // Handle node click for config panel
@@ -671,11 +691,37 @@ export function Canvas({
     [mode],
   );
 
-  // Handle pane click to deselect
-  const onPaneClick = useCallback(() => {
-    hasUserInteractedRef.current = true;
-    setSelectedNode(null);
-  }, []);
+  // Handle pane click to deselect or place component
+  const onPaneClick = useCallback(
+    (event: React.MouseEvent) => {
+      hasUserInteractedRef.current = true;
+
+      // Check if there's a component selected for placement (from spotlight/sidebar)
+      // Only place if the placement is scoped to this workflow
+      if (mode === 'design' && isPlacementActive && placementState.componentId) {
+        // Create node at click position
+        createNodeFromComponent(placementState.componentId, event.clientX, event.clientY);
+
+        // Clear placement state
+        placementState.clearPlacement();
+
+        return;
+      }
+
+      // Default behavior: deselect node and close all panels
+      setSelectedNode(null);
+      onCloseScheduleSidebar?.();
+      onCloseWebhooksSidebar?.();
+    },
+    [
+      mode,
+      isPlacementActive,
+      placementState,
+      createNodeFromComponent,
+      onCloseScheduleSidebar,
+      onCloseWebhooksSidebar,
+    ],
+  );
 
   // Handle validation dock node click - select and scroll to node
   const handleValidationNodeClick = useCallback(
@@ -817,6 +863,71 @@ export function Canvas({
     onNodeSelectionChange?.(selectedNode);
   }, [selectedNode, onNodeSelectionChange]);
 
+  // Refs to track panel states for fitView animations
+  const lastSchedulePanelRef = useRef(false);
+  const lastWebhooksPanelRef = useRef(false);
+
+  useEffect(() => {
+    if (mode !== 'design') return;
+    if ((schedulePanelExpanded || webhooksPanelExpanded) && selectedNode) {
+      setSelectedNode(null);
+    }
+  }, [schedulePanelExpanded, webhooksPanelExpanded, mode, selectedNode]);
+
+  // Auto-center on selected node, or zoom to fit all when sidebar closes
+  useEffect(() => {
+    if (mode !== 'design' || !reactFlowInstance) return;
+
+    // Check if any side panel is now open
+    const isAnyPanelOpen = selectedNode?.id || schedulePanelExpanded || webhooksPanelExpanded;
+    const wasAnyPanelOpen =
+      lastSelectedNodeIdRef.current || lastSchedulePanelRef.current || lastWebhooksPanelRef.current;
+
+    // Case 1: Any Panel Opened -> Zoom to Entry Point Node
+    if (isAnyPanelOpen && !wasAnyPanelOpen) {
+      const entryPointNode = nodes.find((n) => isEntryPointNode(n));
+      if (entryPointNode) {
+        setTimeout(() => {
+          if (!reactFlowInstance) return;
+          reactFlowInstance.fitView({
+            nodes: [{ id: entryPointNode.id }],
+            padding: 0.8,
+            minZoom: 0.5,
+            maxZoom: 1.0,
+            duration: 160,
+          });
+        }, 0);
+      }
+    }
+    // Case 2: All Panels Closed -> Zoom Out to Fit All
+    else if (!isAnyPanelOpen && wasAnyPanelOpen) {
+      setTimeout(() => {
+        if (!reactFlowInstance) return;
+        const currentNodes = reactFlowInstance.getNodes();
+        const workflowNodes = currentNodes.filter((n: any) => n.type !== 'terminal');
+        if (workflowNodes.length > 0) {
+          reactFlowInstance.fitView({
+            padding: 0.2,
+            maxZoom: 0.85,
+            duration: 160,
+            nodes: workflowNodes,
+          });
+        }
+      }, 0);
+    }
+
+    lastSelectedNodeIdRef.current = selectedNode?.id || null;
+    lastSchedulePanelRef.current = schedulePanelExpanded || false;
+    lastWebhooksPanelRef.current = webhooksPanelExpanded || false;
+  }, [
+    selectedNode?.id,
+    schedulePanelExpanded,
+    webhooksPanelExpanded,
+    mode,
+    reactFlowInstance,
+    nodes,
+  ]);
+
   // Update edges with data flow highlighting and packet data
   useEffect(() => {
     setEdges((eds) =>
@@ -904,19 +1015,33 @@ export function Canvas({
           dedupedEdges.set(edge.id, { ...edge, selected: false });
         });
 
+        // Calculate next state for snapshot before applying changes
+        let nextNodes = nodes;
+        let nextEdges = edges;
+
         if (selectedNodes.length > 0) {
-          setNodes((nds) => nds.filter((node) => !nodeIds.has(node.id)));
-          setEdges((eds) =>
-            eds.filter((edge) => !nodeIds.has(edge.source) && !nodeIds.has(edge.target)),
+          nextNodes = nodes.filter((node) => !nodeIds.has(node.id));
+          nextEdges = edges.filter(
+            (edge) => !nodeIds.has(edge.source) && !nodeIds.has(edge.target),
           );
-          setSelectedNode(null);
         }
 
         if (selectedEdges.length > 0) {
-          setEdges((eds) => eds.filter((edge) => !selectedEdgeIds.has(edge.id)));
+          nextEdges = nextEdges.filter((edge) => !selectedEdgeIds.has(edge.id));
         }
 
+        // Apply the changes
+        if (selectedNodes.length > 0) {
+          setNodes(nextNodes);
+          setEdges(nextEdges);
+          setSelectedNode(null);
+        } else if (selectedEdges.length > 0) {
+          setEdges(nextEdges);
+        }
+
+        // Capture snapshot for undo/redo
         if (selectedNodes.length > 0 || selectedEdges.length > 0) {
+          onSnapshot?.(nextNodes, nextEdges);
           markDirty();
         }
       }
@@ -924,37 +1049,44 @@ export function Canvas({
 
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [nodes, edges, setNodes, setEdges, markDirty, mode]);
+  }, [nodes, edges, setNodes, setEdges, markDirty, mode, onSnapshot, toast]);
 
   // Panel width changes are handled by CSS transitions, no manual viewport translation needed
 
   const entryPointActionsValue = useMemo(
     () => ({
       onOpenScheduleSidebar: () => {
-        if (onClearNodeSelection) {
-          onClearNodeSelection();
-        }
-        setSelectedNode(null);
         if (resolvedOnOpenScheduleSidebar) {
           resolvedOnOpenScheduleSidebar();
         }
       },
       onOpenWebhooksSidebar: () => {
-        if (onClearNodeSelection) {
-          onClearNodeSelection();
-        }
-        setSelectedNode(null);
-        if (scheduleContext?.onOpenWebhooksSidebar) {
-          scheduleContext.onOpenWebhooksSidebar();
+        if (resolvedOnOpenWebhooksSidebar) {
+          resolvedOnOpenWebhooksSidebar();
         }
       },
       onScheduleCreate: resolvedOnScheduleCreate,
+      setPlacement: (componentId: string, componentName: string) => {
+        placementState.setPlacement(componentId, componentName, workflowId ?? null);
+      },
+      selectEntryPoint: () => {
+        const entryPointNode = nodes.find((n) => isEntryPointNode(n));
+        if (entryPointNode) {
+          setSelectedNode(entryPointNode);
+          onNodeSelectionChange?.(entryPointNode);
+        }
+      },
     }),
     [
       resolvedOnOpenScheduleSidebar,
+      resolvedOnOpenWebhooksSidebar,
       resolvedOnScheduleCreate,
       onClearNodeSelection,
       scheduleContext,
+      placementState,
+      workflowId,
+      nodes,
+      onNodeSelectionChange,
     ],
   );
 
@@ -972,8 +1104,8 @@ export function Canvas({
             onClick={handleCanvasTap}
             onTouchEnd={handleCanvasTap}
           >
-            {/* Mobile placement indicator - shows when a component is selected */}
-            {mobilePlacementState.isActive && mobilePlacementState.componentName && (
+            {/* Placement indicator - shows when a component is selected from spotlight/sidebar */}
+            {isPlacementActive && placementState.componentName && (
               <div className="absolute top-[52px] left-[10px] z-50">
                 {/* Rotating border wrapper */}
                 <div
@@ -987,17 +1119,18 @@ export function Canvas({
                   {/* Inner pill */}
                   <div className="bg-background px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
                     <span className="text-xs font-medium text-foreground whitespace-nowrap">
-                      Tap to place:{' '}
+                      Click to place:{' '}
                       <span className="text-primary font-semibold">
-                        {mobilePlacementState.componentName}
+                        {placementState.componentName}
                       </span>
                     </span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        clearMobilePlacement();
+                        placementState.clearPlacement();
                       }}
                       className="hover:bg-muted rounded-full p-0.5 transition-colors"
+                      aria-label="Cancel placement"
                     >
                       <svg
                         className="h-3.5 w-3.5 text-muted-foreground"
@@ -1067,6 +1200,7 @@ export function Canvas({
               edgesUpdatable={mode === 'design'}
               deleteKeyCode={mode === 'design' ? ['Backspace', 'Delete'] : []}
               elementsSelectable
+              className={isPlacementActive ? '[&_.react-flow__pane]:!cursor-crosshair' : ''}
             >
               <Background
                 gap={16}

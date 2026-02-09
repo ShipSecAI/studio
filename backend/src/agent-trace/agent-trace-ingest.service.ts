@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
+import { getTopicResolver } from '../common/kafka-topic-resolver';
 
 import { AgentTraceRepository, type AgentTraceEventInput } from './agent-trace.repository';
 
@@ -22,9 +23,19 @@ export class AgentTraceIngestService implements OnModuleInit, OnModuleDestroy {
       throw new Error('LOG_KAFKA_BROKERS must be configured for agent trace ingestion');
     }
 
-    this.kafkaTopic = process.env.AGENT_TRACE_KAFKA_TOPIC ?? 'telemetry.agent-trace';
-    this.kafkaGroupId = process.env.AGENT_TRACE_KAFKA_GROUP_ID ?? 'shipsec-agent-trace-ingestor';
-    this.kafkaClientId = process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? 'shipsec-backend-agent-trace';
+    // Use instance-aware topic name
+    const topicResolver = getTopicResolver();
+    this.kafkaTopic = topicResolver.getAgentTraceTopic();
+    const instanceId = process.env.SHIPSEC_INSTANCE;
+    const defaultGroupId = instanceId
+      ? `shipsec-agent-trace-ingestor-${instanceId}`
+      : 'shipsec-agent-trace-ingestor';
+    const defaultClientId = instanceId
+      ? `shipsec-backend-agent-trace-${instanceId}`
+      : 'shipsec-backend-agent-trace';
+
+    this.kafkaGroupId = process.env.AGENT_TRACE_KAFKA_GROUP_ID ?? defaultGroupId;
+    this.kafkaClientId = process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? defaultClientId;
   }
 
   async onModuleInit(): Promise<void> {

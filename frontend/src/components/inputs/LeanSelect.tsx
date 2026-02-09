@@ -1,4 +1,5 @@
-import { useState, ReactNode } from 'react';
+import { useEffect, useRef, useState, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +46,8 @@ export function LeanSelect({
 }: LeanSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
 
   const filteredOptions = options.filter(
     (option) =>
@@ -59,10 +62,35 @@ export function LeanSelect({
     setIsOpen(false);
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      setMenuStyle({
+        position: 'fixed',
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen]);
+
   return (
     <div className="relative group/lean-select">
       <div className="flex items-center gap-1.5">
         <div
+          ref={triggerRef}
           role="combobox"
           aria-expanded={isOpen}
           aria-haspopup="listbox"
@@ -131,109 +159,121 @@ export function LeanSelect({
       {/* Dropdown Menu */}
       {isOpen && (
         <>
-          <div className="absolute z-50 w-full mt-1.5 bg-background/95 backdrop-blur-md border rounded-lg shadow-xl max-h-[400px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
-            {/* Search Bar */}
-            <div className="p-2 border-b bg-muted/10 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                autoFocus
-                type="text"
-                placeholder="Search..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-transparent border-none focus:outline-none focus:ring-0"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
+          {createPortal(
+            <div
+              className="z-[1000] bg-background/95 backdrop-blur-md border rounded-lg shadow-xl max-h-[400px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100"
+              style={menuStyle}
+            >
+              {/* Search Bar */}
+              <div className="p-2 border-b bg-muted/10 relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-transparent border-none focus:outline-none focus:ring-0"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
 
-            <div className="overflow-auto flex-1 py-1 custom-scrollbar">
-              {loading && options.length === 0 ? (
-                <div className="px-3 py-10 text-sm text-muted-foreground text-center animate-pulse">
-                  Loading...
-                </div>
-              ) : filteredOptions.length === 0 ? (
-                <div className="px-3 py-10 text-center">
-                  <p className="text-sm text-muted-foreground italic">{emptyMessage}</p>
-                </div>
-              ) : (
-                <>
-                  {clearable && value && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        handleSelect(undefined);
-                      }}
-                      className="w-full px-3 py-2 text-xs text-left text-muted-foreground hover:bg-destructive/5 hover:text-destructive transition-colors border-b border-muted/20"
-                    >
-                      Clear Selection
-                    </button>
-                  )}
-                  {filteredOptions.map((option) => (
-                    <button
-                      key={String(option.value)}
-                      type="button"
-                      onClick={() => handleSelect(option.value)}
-                      className={cn(
-                        'w-full px-3 py-2.5 text-sm text-left hover:bg-primary/5 transition-all flex flex-col gap-0.5 group/item',
-                        value === option.value && 'bg-primary/10 border-l-2 border-primary',
-                      )}
-                    >
-                      <div className="flex items-center justify-between pointer-events-none">
-                        <div className="flex items-center gap-2">
-                          {option.icon && (
-                            <div
+              <div className="overflow-auto flex-1 py-1 custom-scrollbar">
+                {loading && options.length === 0 ? (
+                  <div className="px-3 py-10 text-sm text-muted-foreground text-center animate-pulse">
+                    Loading...
+                  </div>
+                ) : filteredOptions.length === 0 ? (
+                  <div className="px-3 py-10 text-center">
+                    <p className="text-sm text-muted-foreground italic">{emptyMessage}</p>
+                  </div>
+                ) : (
+                  <>
+                    {clearable && value && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleSelect(undefined);
+                        }}
+                        className="w-full px-3 py-2 text-xs text-left text-muted-foreground hover:bg-destructive/5 hover:text-destructive transition-colors border-b border-muted/20"
+                      >
+                        Clear Selection
+                      </button>
+                    )}
+                    {filteredOptions.map((option) => (
+                      <button
+                        key={String(option.value)}
+                        type="button"
+                        onClick={() => handleSelect(option.value)}
+                        className={cn(
+                          'w-full px-3 py-2.5 text-sm text-left hover:bg-primary/5 transition-all flex flex-col gap-0.5 group/item',
+                          value === option.value && 'bg-primary/10 border-l-2 border-primary',
+                        )}
+                      >
+                        <div className="flex items-center justify-between pointer-events-none">
+                          <div className="flex items-center gap-2">
+                            {option.icon && (
+                              <div
+                                className={cn(
+                                  'flex-shrink-0 opacity-50',
+                                  value === option.value
+                                    ? 'text-primary opacity-100'
+                                    : 'group-hover/item:text-primary group-hover/item:opacity-100',
+                                )}
+                              >
+                                {option.icon}
+                              </div>
+                            )}
+                            <span
                               className={cn(
-                                'flex-shrink-0 opacity-50',
-                                value === option.value
-                                  ? 'text-primary opacity-100'
-                                  : 'group-hover/item:text-primary group-hover/item:opacity-100',
+                                'font-medium',
+                                value === option.value && 'text-primary',
                               )}
                             >
-                              {option.icon}
-                            </div>
+                              {option.label}
+                            </span>
+                          </div>
+                          {value === option.value && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                           )}
-                          <span
-                            className={cn('font-medium', value === option.value && 'text-primary')}
-                          >
-                            {option.label}
-                          </span>
                         </div>
-                        {value === option.value && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        {option.description && (
+                          <div className="text-[11px] text-muted-foreground ml-5.5 line-clamp-1 opacity-70 pointer-events-none">
+                            {option.description}
+                          </div>
                         )}
-                      </div>
-                      {option.description && (
-                        <div className="text-[11px] text-muted-foreground ml-5.5 line-clamp-1 opacity-70 pointer-events-none">
-                          {option.description}
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-
-            {/* Bottom Section if Refresh is provided */}
-            {onRefresh && (
-              <div className="p-2 border-t bg-muted/10">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRefresh();
-                  }}
-                  className="flex items-center justify-center gap-2 w-full py-1.5 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-all"
-                >
-                  Refresh List
-                </button>
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* Bottom Section if Refresh is provided */}
+              {onRefresh && (
+                <div className="p-2 border-t bg-muted/10">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRefresh();
+                    }}
+                    className="flex items-center justify-center gap-2 w-full py-1.5 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-all"
+                  >
+                    Refresh List
+                  </button>
+                </div>
+              )}
+            </div>,
+            document.body,
+          )}
 
           {/* Backdrop for closing */}
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          {createPortal(
+            <div className="fixed inset-0 z-[900]" onClick={() => setIsOpen(false)} />,
+            document.body,
+          )}
         </>
       )}
     </div>

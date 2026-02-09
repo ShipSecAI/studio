@@ -40,6 +40,12 @@ export interface WorkflowNodeMetadata {
   maxConcurrency?: number;
   groupId?: string;
   streamId?: string;
+  mode?: 'normal' | 'tool';
+  toolConfig?: {
+    boundInputIds: string[];
+    exposedInputIds: string[];
+  };
+  connectedToolNodeIds?: string[];
 }
 
 export interface WorkflowFailureMetadata {
@@ -87,6 +93,7 @@ export interface RunComponentActivityInput {
     groupId?: string;
     triggeredBy?: string;
     failure?: WorkflowFailureMetadata;
+    connectedToolNodeIds?: string[];
   };
   inputOverrides?: Record<string, unknown>;
   rawParams?: Record<string, unknown>;
@@ -174,4 +181,107 @@ export interface PrepareRunPayloadActivityInput {
   organizationId?: string | null;
   parentRunId?: string;
   parentNodeRef?: string;
+}
+
+// MCP Activity types
+
+export interface RegisterComponentToolActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  componentId: string;
+  description: string;
+  inputSchema: any;
+  credentials: Record<string, unknown>;
+}
+
+export interface RegisterRemoteMcpActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  description: string;
+  inputSchema: any;
+  endpoint: string;
+  authToken?: string;
+}
+
+export interface RegisterLocalMcpActivityInput {
+  runId: string;
+  nodeId: string;
+  toolName: string;
+  description: string;
+  inputSchema: any;
+  image: string;
+  command?: string;
+  args?: string;
+  env?: Record<string, string>;
+  port: number;
+  endpoint: string;
+  containerId: string;
+}
+
+export interface PrepareAndRegisterToolActivityInput {
+  runId: string;
+  nodeId: string;
+  componentId: string;
+  inputs: Record<string, unknown>;
+  params: Record<string, unknown>;
+}
+
+export interface CleanupLocalMcpActivityInput {
+  runId: string;
+}
+
+export interface AreAllToolsReadyActivityInput {
+  runId: string;
+  requiredNodeIds: string[];
+}
+
+export interface AreAllToolsReadyActivityOutput {
+  ready: boolean;
+}
+
+// MCP Discovery Activity types
+
+export interface McpTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export interface DiscoveryActivityInput {
+  transport: 'http' | 'stdio';
+  endpoint?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+  image?: string;
+}
+
+export interface DiscoveryActivityOutput {
+  tools: McpTool[];
+}
+
+export interface GroupDiscoveryServerInput {
+  name: string;
+  transport: 'http' | 'stdio';
+  endpoint?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+}
+
+export interface GroupDiscoveryActivityInput {
+  servers: GroupDiscoveryServerInput[];
+  image?: string;
+}
+
+export interface GroupDiscoveryActivityResult {
+  name: string;
+  tools: McpTool[];
+  error?: string;
+}
+
+export interface GroupDiscoveryActivityOutput {
+  results: GroupDiscoveryActivityResult[];
 }

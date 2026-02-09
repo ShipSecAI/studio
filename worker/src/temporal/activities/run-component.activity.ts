@@ -41,6 +41,41 @@ let globalLogs: WorkflowLogSink | undefined;
 let globalTerminal: RedisTerminalStreamAdapter | undefined;
 let globalAgentTracePublisher: AgentTracePublisher | undefined;
 
+const ERROR_LOG_LIMIT = 600;
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  const remaining = value.length - maxLength;
+  return `${value.slice(0, maxLength)}...(+${remaining} chars)`;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return String(error);
+}
+
+function truncateDetails(
+  details: Record<string, unknown> | undefined,
+  maxLength: number,
+): Record<string, unknown> | undefined {
+  if (!details) {
+    return undefined;
+  }
+  try {
+    const raw = JSON.stringify(details);
+    if (raw.length <= maxLength) {
+      return details;
+    }
+    return { truncated: true, preview: truncateText(raw, maxLength) };
+  } catch {
+    return { truncated: true, preview: truncateText(String(details), maxLength) };
+  }
+}
+
 export function initializeComponentActivityServices(options: {
   storage: IFileStorageService;
   secrets?: ISecretsService;
@@ -85,26 +120,6 @@ export async function runComponentActivity(
 ): Promise<RunComponentActivityOutput> {
   const { action, inputs, params, warnings = [] } = input;
   const activityInfo = Context.current().info;
-  console.log(`🎯 ACTIVITY CALLED - runComponentActivity:`, {
-    activityId: activityInfo.activityId,
-    attempt: activityInfo.attempt,
-    workflowId: activityInfo.workflowExecution?.workflowId ?? 'unknown',
-    runId: activityInfo.workflowExecution?.runId ?? 'unknown',
-    componentId: action.componentId,
-    ref: action.ref,
-    timestamp: new Date().toISOString(),
-  });
-
-  console.log(`📋 Activity input details:`, {
-    componentId: action.componentId,
-    ref: action.ref,
-    hasParams: !!params,
-    paramKeys: params ? Object.keys(params) : [],
-    hasInputs: !!inputs,
-    inputKeys: inputs ? Object.keys(inputs) : [],
-    warningsCount: warnings.length,
-  });
-
   const component = componentRegistry.get(action.componentId);
   if (!component) {
     console.error(`[Activity] Component not found: ${action.componentId}`);
@@ -120,6 +135,7 @@ export async function runComponentActivity(
   const joinStrategy = nodeMetadata.joinStrategy;
   const triggeredBy = nodeMetadata.triggeredBy;
   const failure = nodeMetadata.failure;
+  const connectedToolNodeIds = nodeMetadata.connectedToolNodeIds;
   const correlationId = `${input.runId}:${action.ref}:${activityInfo.activityId}`;
 
   const scopedArtifacts = globalArtifacts
@@ -146,7 +162,9 @@ export async function runComponentActivity(
       joinStrategy,
       triggeredBy,
       failure,
-    },
+      connectedToolNodeIds,
+      organizationId: input.organizationId ?? undefined,
+    } as any,
     storage: globalStorage,
     secrets: allowSecrets ? globalSecrets : undefined,
     artifacts: scopedArtifacts,
@@ -478,7 +496,8 @@ export async function runComponentActivity(
 
     return { output, activeOutputPorts };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
+    const rawErrorMsg = getErrorMessage(error);
+    const errorMsg = truncateText(rawErrorMsg, ERROR_LOG_LIMIT);
     console.error(`[Activity] Failed ${action.ref}: ${errorMsg}`);
 
     // Extract error properties without using 'any'
@@ -509,7 +528,10 @@ export async function runComponentActivity(
         typeof (error as { details: unknown }).details === 'object' &&
         (error as { details: unknown }).details !== null
       ) {
-        errorDetails = (error as { details: Record<string, unknown> }).details;
+        errorDetails = truncateDetails(
+          (error as { details: Record<string, unknown> }).details,
+          ERROR_LOG_LIMIT,
+        );
       }
 
       // Extract fieldErrors if it's a ValidationError
@@ -527,7 +549,10 @@ export async function runComponentActivity(
     } = {
       message: errorMsg,
       type: errorType || 'UnknownError',
-      stack: error instanceof Error ? error.stack : undefined,
+      stack:
+        error instanceof Error && error.stack
+          ? truncateText(error.stack, ERROR_LOG_LIMIT)
+          : undefined,
       details: errorDetails,
       fieldErrors,
     };

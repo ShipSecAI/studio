@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "cloudtrail": {
+      "command": "awslabs.cloudtrail-mcp-server",
+      "args": []
+    },
+    "iam": {
+      "command": "awslabs.iam-mcp-server",
+      "args": []
+    },
+    "lambda": {
+      "command": "awslabs.lambda-tool-mcp-server",
+      "args": []
+    }
+  }
+}

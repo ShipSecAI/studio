@@ -12,6 +12,7 @@ const SUPPORTED_CATEGORIES: readonly ComponentCategory[] = [
   'input',
   'transform',
   'ai',
+  'mcp',
   'security',
   'it_ops',
   'notification',
@@ -40,6 +41,13 @@ const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConf
     description: 'AI-powered analysis and generation tools',
     emoji: '🤖',
     icon: 'Brain',
+  },
+  mcp: {
+    label: 'MCP Servers',
+    color: 'text-teal-600',
+    description: 'Model Context Protocol servers and tool gateways',
+    emoji: '🔌',
+    icon: 'Plug',
   },
   security: {
     label: 'Security Tools',

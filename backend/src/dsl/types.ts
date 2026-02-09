@@ -55,6 +55,14 @@ export const WorkflowNodeMetadataSchema = z.object({
   maxConcurrency: z.number().int().positive().optional(),
   groupId: z.string().optional(),
   streamId: z.string().optional(),
+  mode: z.enum(['normal', 'tool']).default('normal'),
+  toolConfig: z
+    .object({
+      boundInputIds: z.array(z.string()).default([]),
+      exposedInputIds: z.array(z.string()).default([]),
+    })
+    .optional(),
+  connectedToolNodeIds: z.array(z.string()).optional(),
 });
 
 export type WorkflowNodeMetadata = z.infer<typeof WorkflowNodeMetadataSchema>;

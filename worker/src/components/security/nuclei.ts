@@ -158,6 +158,24 @@ const parameterSchema = parameters({
       description: 'Skip automatic HTTP probing with httpx (faster for known valid URLs).',
     },
   ),
+  severityFilter: param(
+    z
+      .array(z.enum(['info', 'low', 'medium', 'high', 'critical']))
+      .optional()
+      .describe('Filter templates by severity level'),
+    {
+      label: 'Severity Filter',
+      editor: 'multi-select',
+      options: [
+        { label: 'Info', value: 'info' },
+        { label: 'Low', value: 'low' },
+        { label: 'Medium', value: 'medium' },
+        { label: 'High', value: 'high' },
+        { label: 'Critical', value: 'critical' },
+      ],
+      description: 'Only run templates matching these severity levels (e.g., high, critical).',
+    },
+  ),
 });
 
 // Output schema (unchanged)
@@ -290,6 +308,11 @@ const definition = defineComponent({
       'Bulk custom scan: Upload zip archive via Entry Point → File Loader → Nuclei',
       'Comprehensive scan: Combine custom archive + built-in templates for complete coverage',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription:
+        'Fast vulnerability scanner for CVEs, misconfigurations, and exposures using YAML templates.',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
@@ -307,10 +330,13 @@ const definition = defineComponent({
         (parsedInputs.templateIds && parsedInputs.templateIds.length > 0) ||
         (parsedInputs.templatePaths && parsedInputs.templatePaths.length > 0)
       );
+      const hasSeverityFilter = !!(
+        parsedParams.severityFilter && parsedParams.severityFilter.length > 0
+      );
 
-      if (!hasCustomArchive && !hasCustomYaml && !hasBuiltInFilters) {
+      if (!hasCustomArchive && !hasCustomYaml && !hasBuiltInFilters && !hasSeverityFilter) {
         throw new ValidationError(
-          'At least one template source is required: customTemplateArchive, customTemplateYaml, templateIds, or templatePaths',
+          'At least one template source is required: customTemplateArchive, customTemplateYaml, templateIds, templatePaths, or severityFilter',
         );
       }
 
@@ -341,6 +367,14 @@ const definition = defineComponent({
 
       if (parsedParams.followRedirects) {
         args.push('-follow-redirects');
+      }
+
+      // Severity filter
+      if (parsedParams.severityFilter && parsedParams.severityFilter.length > 0) {
+        args.push('-s', parsedParams.severityFilter.join(','));
+        context.logger.info(
+          `[Nuclei] Filtering by severity: ${parsedParams.severityFilter.join(', ')}`,
+        );
       }
 
       // In nuclei v3.6.0+, raw HTTP is included by default

@@ -85,6 +85,17 @@ export function useDesignWorkflowPersistence({
   const [lastSavedMetadata, setLastSavedMetadata] = useState<SavedMetadata | null>(null);
   const [hasGraphChanges, setHasGraphChanges] = useState(false);
   const [hasMetadataChanges, setHasMetadataChanges] = useState(false);
+  const secretsInitialized = useSecretStore((state) => state.initialized);
+  const secretsLoading = useSecretStore((state) => state.loading);
+  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
+
+  useEffect(() => {
+    if (!secretsInitialized && !secretsLoading) {
+      fetchSecrets().catch((error) => {
+        console.error('Failed to preload secrets:', error);
+      });
+    }
+  }, [fetchSecrets, secretsInitialized, secretsLoading]);
 
   useEffect(() => {
     const currentSignature = computeGraphSignature(designNodes, designEdges);
@@ -150,6 +161,7 @@ export function useDesignWorkflowPersistence({
 
       // --- NEW: VALIDATION CHECK ---
       const getComponent = useComponentStore.getState().getComponent;
+      await useSecretStore.getState().fetchSecrets();
       const secrets = useSecretStore.getState().secrets;
       const allIssues: string[] = [];
 

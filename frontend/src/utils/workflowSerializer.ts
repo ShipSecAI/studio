@@ -74,7 +74,7 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
       position: node.position,
       data: {
         label: node.data.label || '',
-        config,
+        config: config as any, // Cast to satisfy BackendNode config type
       },
     };
   });
@@ -231,12 +231,14 @@ export function deserializeNodes(workflow: {
 export function deserializeEdges(workflow: { graph: { edges: BackendEdge[] } }): ReactFlowEdge[] {
   const edges = workflow.graph.edges;
   return edges.map((edge) => {
+    const normalizedSourceHandle =
+      edge.sourceHandle === 'tool-export' ? 'tools' : edge.sourceHandle;
     // Use saved type if available, otherwise default to 'default' for bezier curves (curved arrows)
     return {
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      sourceHandle: edge.sourceHandle,
+      sourceHandle: normalizedSourceHandle,
       targetHandle: edge.targetHandle,
       type: (edge.type || 'default') as 'default' | 'smoothstep' | 'step' | 'straight' | 'bezier',
       animated: false, // Default for ReactFlow, backend doesn't store this

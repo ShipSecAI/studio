@@ -269,7 +269,7 @@ export class ShipSecApiClient {
     const response = (await this.client.GET(
       '/api/v1/workflows/runs/{runId}/artifacts/{artifactId}/download',
       {
-        params: { path: { runId, id: artifactId } },
+        params: { path: { runId, artifactId } },
         parseAs: 'blob',
       },
     )) as any;

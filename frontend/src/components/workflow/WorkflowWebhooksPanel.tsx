@@ -21,7 +21,7 @@ export interface WebhookNavigationState {
 }
 
 export interface WorkflowWebhooksSidebarProps {
-  workflowId: string;
+  workflowId: string | null;
   nodes: ReactFlowNode<FrontendNodeData>[];
   defaultWebhookUrl: string;
   onClose: () => void;
@@ -43,6 +43,13 @@ export function WorkflowWebhooksSidebar({
 
   useEffect(() => {
     const fetchWebhooks = async () => {
+      // Skip fetching if no workflowId (unsaved workflow)
+      if (!workflowId) {
+        setIsLoading(false);
+        setWebhooks([]);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
       try {
@@ -105,14 +112,17 @@ export function WorkflowWebhooksSidebar({
   });
 
   const handleCreateWebhook = () => {
+    if (!workflowId) return;
     navigate(`/webhooks/new?workflowId=${workflowId}`, { state: buildNavigationState() });
   };
 
   const handleViewWebhook = (webhookId: string) => {
+    if (!workflowId) return;
     navigate(`/webhooks/${webhookId}`, { state: buildNavigationState() });
   };
 
   const handleViewAllWebhooks = () => {
+    if (!workflowId) return;
     navigate(`/webhooks?workflowId=${workflowId}`);
   };
 
@@ -122,7 +132,7 @@ export function WorkflowWebhooksSidebar({
         <div className="flex items-center gap-2">
           <h3 className="font-medium text-sm">Webhooks</h3>
           <Badge variant="outline" className="text-[11px] font-medium">
-            {webhooks.length + 1}
+            {workflowId ? webhooks.length + 1 : 1}
           </Badge>
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={onClose}>
@@ -131,15 +141,24 @@ export function WorkflowWebhooksSidebar({
       </div>
 
       <div className="px-4 py-3 border-b bg-muted/20">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={handleCreateWebhook}>
-            <Plus className="mr-1 h-4 w-4" />
-            New Custom Webhook
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleViewAllWebhooks}>
-            View All
-          </Button>
-        </div>
+        {!workflowId ? (
+          <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              <span className="font-semibold">Save your workflow first</span> to create and manage
+              custom webhooks.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={handleCreateWebhook}>
+              <Plus className="mr-1 h-4 w-4" />
+              New Custom Webhook
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleViewAllWebhooks}>
+              View All
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">

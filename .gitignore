@@ -13,9 +13,14 @@ build/
 # Environment variables
 .env
 .env.local
+docker/.env
+.instances/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.eng-104
+.env.eng-104
+.shipsec-instance
 
 # Logs
 logs/
@@ -66,3 +71,5 @@ vite.config.ts.timestamp-*
 .playground/
 .playground/
 .playground/
+.omc/
+MCP_FLOW_TRACE.md

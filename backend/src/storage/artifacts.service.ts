@@ -85,6 +85,25 @@ export class ArtifactsService {
     };
   }
 
+  async deleteArtifact(auth: AuthContext | null, artifactId: string): Promise<void> {
+    const artifact = await this.getArtifactRecord(auth, artifactId);
+    const organizationId = this.requireOrganizationId(auth);
+
+    // Delete the associated file first
+    try {
+      await this.filesService.deleteFile(auth, artifact.fileId);
+    } catch (error) {
+      // Log but don't fail if file is already deleted
+      console.warn(`Failed to delete file ${artifact.fileId} for artifact ${artifactId}:`, error);
+    }
+
+    // Delete the artifact record
+    const deleted = await this.repository.delete(artifactId, { organizationId });
+    if (!deleted) {
+      throw new NotFoundException(`Artifact ${artifactId} not found`);
+    }
+  }
+
   private toMetadata(record: ArtifactRecord): ArtifactMetadataDto {
     return {
       id: record.id,

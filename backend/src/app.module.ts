@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { join } from 'node:path';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -18,10 +19,13 @@ import { TestingSupportModule } from './testing/testing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { McpModule } from './mcp/mcp.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
+import { McpServersModule } from './mcp-servers/mcp-servers.module';
+import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 
 const coreModules = [
   AgentsModule,
@@ -37,15 +41,33 @@ const coreModules = [
   ApiKeysModule,
   WebhooksModule,
   HumanInputsModule,
+  McpServersModule,
+  McpGroupsModule,
+  McpModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
+
+function getEnvFilePaths(): string[] {
+  // In multi-instance dev, each instance has its own env file under:
+  //   .instances/instance-N/backend.env
+  // Backends run with cwd=backend/, so repo root is `..`.
+  const instance = process.env.SHIPSEC_INSTANCE;
+  if (instance) {
+    // Use only the instance env file. In multi-instance dev the workspace `.env` contains
+    // a default DATABASE_URL, and dotenv does not override already-set env vars; mixing
+    // would collapse isolation.
+    return [join(process.cwd(), '..', '.instances', `instance-${instance}`, 'backend.env')];
+  }
+
+  return ['.env', '../.env'];
+}
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', '../.env'],
+      envFilePath: getEnvFilePaths(),
       load: [authConfig],
     }),
     ...coreModules,

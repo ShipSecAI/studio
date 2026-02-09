@@ -1,0 +1,13 @@
+# Auto-generated OpenAPI specification
+openapi.json
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.generated.ts

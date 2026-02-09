@@ -213,7 +213,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'projectdiscovery/notify:v1.0.7',
+    image: 'ghcr.io/shipsecai/notify:v1.0.7',
     entrypoint: 'sh',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,

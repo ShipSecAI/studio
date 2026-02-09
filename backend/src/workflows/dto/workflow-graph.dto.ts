@@ -18,6 +18,14 @@ export const WorkflowNodeDataSchema = z.object({
       streamId: z.string().optional(),
       groupId: z.string().optional(),
       maxConcurrency: z.number().int().positive().optional(),
+      mode: z.enum(['normal', 'tool']).optional(),
+      toolConfig: z
+        .object({
+          boundInputIds: z.array(z.string()).default([]),
+          exposedInputIds: z.array(z.string()).default([]),
+        })
+        .optional(),
+      connectedToolNodeIds: z.array(z.string()).optional(),
     })
     .default({ params: {}, inputOverrides: {} }),
   // Dynamic ports resolved from component's resolvePorts function
@@ -63,6 +71,11 @@ export const WorkflowGraphSchema = z
         const targetHandle = edge.targetHandle ?? edge.sourceHandle;
         if (!targetHandle) continue;
 
+        // Allow multiple edges to the 'tools' port (for connecting multiple tools to an agent)
+        if (targetHandle === 'tools') {
+          continue;
+        }
+
         const key = `${edge.target}:${targetHandle}`;
         if (portInputs.has(key)) {
           return false;
@@ -73,7 +86,7 @@ export const WorkflowGraphSchema = z
     },
     {
       message:
-        'Multiple edges connecting to the same input port are not allowed. Each port must have only one source.',
+        'Multiple edges connecting to the same input port are not allowed. Each port must have only one source. (Note: The "tools" port allows multiple connections.)',
       path: ['edges'],
     },
   );

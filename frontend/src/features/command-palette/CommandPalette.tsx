@@ -6,7 +6,8 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useComponentStore } from '@/store/componentStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
-import { mobilePlacementState } from '@/components/layout/sidebar-state';
+import { useWorkflowStore } from '@/store/workflowStore';
+import { usePlacementStore } from '@/components/layout/sidebar-state';
 import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
 import {
@@ -185,6 +186,9 @@ export function CommandPalette() {
   }, [storeComponents]);
 
   // Handle component placement
+  const setPlacement = usePlacementStore((state) => state.setPlacement);
+  const currentWorkflowId = useWorkflowStore((state) => state.metadata.id);
+
   const handleComponentSelect = useCallback(
     (component: ComponentMetadata) => {
       // If not on workflow page, navigate to new workflow first
@@ -195,19 +199,14 @@ export function CommandPalette() {
         return;
       }
 
-      // Set up mobile placement state (works for both mobile and desktop now)
-      // The canvas will detect this and place the component
-      mobilePlacementState.componentId = component.id;
-      mobilePlacementState.componentName = component.name;
-      mobilePlacementState.isActive = true;
+      // Set up placement state scoped to the current workflow
+      // The canvas will detect this and place the component when clicked
+      setPlacement(component.id, component.name, currentWorkflowId);
 
       // Close the command palette
       close();
-
-      // For desktop, we could also trigger a center placement, but the "click to place"
-      // gives users more control over where the component goes
     },
-    [isOnWorkflowPage, isOnNewWorkflowPage, navigate, close],
+    [isOnWorkflowPage, isOnNewWorkflowPage, navigate, close, setPlacement, currentWorkflowId],
   );
 
   // Build static commands
@@ -577,8 +576,10 @@ export function CommandPalette() {
                       onClick={() => executeCommand(command)}
                       onMouseEnter={() => setSelectedIndex(flatIndex)}
                       className={cn(
-                        'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75',
-                        isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
+                        'w-full flex items-center gap-3 px-3 py-2.5 pl-3 border-l-2 text-left transition-colors duration-75',
+                        isSelected
+                          ? 'bg-primary/10 border-primary text-foreground'
+                          : 'hover:bg-accent/50 border-transparent text-muted-foreground',
                         isComponent && !canPlaceComponents && 'opacity-50',
                       )}
                       disabled={isComponent && !canPlaceComponents}
@@ -598,7 +599,7 @@ export function CommandPalette() {
                           <Icon
                             className={cn(
                               'w-4 h-4',
-                              isSelected ? 'text-accent-foreground' : 'text-muted-foreground',
+                              isSelected ? 'text-primary' : 'text-muted-foreground',
                             )}
                           />
                         ) : null}
@@ -609,16 +610,14 @@ export function CommandPalette() {
                           <div
                             className={cn(
                               'text-xs truncate',
-                              isSelected ? 'text-accent-foreground/70' : 'text-muted-foreground',
+                              isSelected ? 'text-muted-foreground' : 'text-muted-foreground',
                             )}
                           >
                             {command.description}
                           </div>
                         )}
                       </div>
-                      {isSelected && (
-                        <ArrowRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-                      )}
+                      {isSelected && <ArrowRight className="w-4 h-4 flex-shrink-0 text-primary" />}
                     </button>
                   );
                 })}

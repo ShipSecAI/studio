@@ -10,6 +10,8 @@ import { SimpleVariableListEditor } from './SimpleVariableListEditor';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
 import { FormFieldsEditor } from './FormFieldsEditor';
 import { SelectionOptionsEditor } from './SelectionOptionsEditor';
+import { McpLibraryConfig } from './McpLibraryConfig';
+import { McpGroupConfig } from './McpGroupConfig';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
@@ -115,7 +117,7 @@ export function ParameterField({
         const graph = workflow.graph;
         const entrypoint = graph.nodes.find((node) => node.type === 'core.workflow.entrypoint');
 
-        const runtimeInputsCandidate = entrypoint?.data?.config?.runtimeInputs;
+        const runtimeInputsCandidate = (entrypoint?.data as any)?.config?.runtimeInputs;
 
         const runtimeInputs = Array.isArray(runtimeInputsCandidate) ? runtimeInputsCandidate : [];
 
@@ -438,6 +440,28 @@ export function ParameterField({
           )}
         </div>
       </div>
+    );
+  }
+
+  // Custom MCPs - enabledServers parameter uses custom multi-select from MCP servers API
+  if (componentId === 'mcp.custom' && parameter.id === 'enabledServers') {
+    const selectedServers = Array.isArray(currentValue) ? currentValue : [];
+    return (
+      <McpLibraryConfig value={selectedServers} onChange={onChange} disabled={isReceivingInput} />
+    );
+  }
+
+  // MCP Groups - enabledServers parameter uses dynamic group servers
+  if (componentId?.startsWith('mcp.group.') && parameter.id === 'enabledServers') {
+    const groupSlug = componentId.replace('mcp.group.', '');
+    const selectedServers = Array.isArray(currentValue) ? currentValue : [];
+    return (
+      <McpGroupConfig
+        groupSlug={groupSlug}
+        value={selectedServers}
+        onChange={onChange}
+        disabled={isReceivingInput}
+      />
     );
   }
 

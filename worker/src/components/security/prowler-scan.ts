@@ -399,14 +399,14 @@ const definition = defineComponent({
   retryPolicy: prowlerRetryPolicy,
   runner: {
     kind: 'docker',
-    image: 'prowlercloud/prowler:5.14.2',
+    image: 'ghcr.io/shipsecai/prowler:5.14.2',
     platform: 'linux/amd64',
     command: [], // Placeholder - actual command built dynamically in execute()
   },
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Execute Prowler inside Docker using `prowlercloud/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
+  docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
   ui: {
     slug: 'prowler-scan',
     version: '2.0.0',
@@ -426,6 +426,10 @@ const definition = defineComponent({
       'Run nightly `prowler aws --quick --severity-filter high,critical` scans on production accounts and forward findings into ELK.',
       'Use `prowler cloud` with custom flags to generate a multi-cloud compliance snapshot.',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'AWS and multi-cloud security assessment tool (Prowler).',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
@@ -562,7 +566,7 @@ const definition = defineComponent({
     // Prepare a one-off runner with dynamic command and volume
     const dockerRunner: DockerRunnerConfig = {
       kind: 'docker',
-      image: 'prowlercloud/prowler:5.14.2',
+      image: 'ghcr.io/shipsecai/prowler:5.14.2',
       platform: 'linux/amd64',
       network: 'bridge',
       timeoutSeconds: 900,

@@ -25,6 +25,20 @@ import {
 } from '../activities/human-input.activity';
 import { prepareRunPayloadActivity } from '../activities/run-dispatcher.activity';
 import { recordTraceEventActivity, initializeTraceActivity } from '../activities/trace.activity';
+import {
+  registerComponentToolActivity,
+  registerLocalMcpActivity,
+  registerRemoteMcpActivity,
+  cleanupLocalMcpActivity,
+  prepareAndRegisterToolActivity,
+  areAllToolsReadyActivity,
+} from '../activities/mcp.activity';
+import {
+  discoverMcpToolsActivity,
+  discoverMcpGroupToolsActivity,
+  cacheDiscoveryResultActivity,
+} from '../activities/mcp-discovery.activity';
+import { executeWebhookParsingScriptActivity } from '../activities/webhook-parsing.activity';
 
 // ... (existing imports)
 
@@ -39,10 +53,19 @@ import {
   KafkaNodeIOAdapter,
 } from '../../adapters';
 import { ConfigurationError } from '@shipsec/component-sdk';
+import { getTopicResolver } from '../../common/kafka-topic-resolver';
 import * as schema from '../../adapters/schema';
+import { logHeartbeat } from '../../utils/debug-logger';
 
-// Load environment variables from .env file
-config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../..', '.env') });
+// Load environment variables from instance-specific env if set, otherwise fall back
+// to the worker's default `.env`.
+const workerRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
+const instanceNum = process.env.SHIPSEC_INSTANCE;
+const instanceEnvPath = instanceNum
+  ? join(workerRoot, '..', '.instances', `instance-${instanceNum}`, 'worker.env')
+  : undefined;
+
+config({ path: instanceEnvPath ?? join(workerRoot, '.env') });
 
 if (typeof globalThis.crypto === 'undefined') {
   Object.defineProperty(globalThis, 'crypto', {
@@ -125,22 +148,28 @@ async function main() {
     });
   }
 
+  // Get instance-aware topic names
+  const topicResolver = getTopicResolver();
+  const instanceMsg = topicResolver.isInstanceIsolated()
+    ? ` (instance ${topicResolver.getInstanceId()})`
+    : '';
+
   const traceAdapter = new KafkaTraceAdapter({
     brokers: kafkaBrokers,
-    topic: process.env.EVENT_KAFKA_TOPIC ?? 'telemetry.events',
+    topic: topicResolver.getEventsTopic(),
     clientId: process.env.EVENT_KAFKA_CLIENT_ID ?? 'shipsec-worker-events',
   });
 
   const agentTracePublisher = new KafkaAgentTracePublisher({
     brokers: kafkaBrokers,
-    topic: process.env.AGENT_TRACE_KAFKA_TOPIC ?? 'telemetry.agent-trace',
+    topic: topicResolver.getAgentTraceTopic(),
     clientId: process.env.AGENT_TRACE_KAFKA_CLIENT_ID ?? 'shipsec-worker-agent-trace',
   });
 
   const nodeIOAdapter = new KafkaNodeIOAdapter(
     {
       brokers: kafkaBrokers,
-      topic: process.env.NODE_IO_KAFKA_TOPIC ?? 'telemetry.node-io',
+      topic: topicResolver.getNodeIOTopic(),
       clientId: process.env.NODE_IO_KAFKA_CLIENT_ID ?? 'shipsec-worker-node-io',
     },
     storageAdapter,
@@ -150,10 +179,10 @@ async function main() {
   try {
     logAdapter = new KafkaLogAdapter({
       brokers: kafkaBrokers,
-      topic: process.env.LOG_KAFKA_TOPIC ?? 'telemetry.logs',
+      topic: topicResolver.getLogsTopic(),
       clientId: process.env.LOG_KAFKA_CLIENT_ID ?? 'shipsec-worker',
     });
-    console.log(`✅ Kafka logging enabled (${kafkaBrokers.join(', ')})`);
+    console.log(`✅ Kafka logging enabled (${kafkaBrokers.join(', ')})${instanceMsg}`);
   } catch (error) {
     console.error('❌ Failed to initialize Kafka logging', error);
     throw error;
@@ -211,6 +240,14 @@ async function main() {
       createHumanInputRequestActivity,
       cancelHumanInputRequestActivity,
       recordTraceEventActivity,
+      registerComponentToolActivity,
+      registerLocalMcpActivity,
+      registerRemoteMcpActivity,
+      cleanupLocalMcpActivity,
+      discoverMcpToolsActivity,
+      discoverMcpGroupToolsActivity,
+      cacheDiscoveryResultActivity,
+      executeWebhookParsingScriptActivity,
     }).join(', ')}`,
   );
 
@@ -243,10 +280,39 @@ async function main() {
       cancelHumanInputRequestActivity,
       expireHumanInputRequestActivity,
       recordTraceEventActivity,
+      registerComponentToolActivity,
+      registerLocalMcpActivity,
+      registerRemoteMcpActivity,
+      cleanupLocalMcpActivity,
+      prepareAndRegisterToolActivity,
+      areAllToolsReadyActivity,
+      discoverMcpToolsActivity,
+      discoverMcpGroupToolsActivity,
+      cacheDiscoveryResultActivity,
+      executeWebhookParsingScriptActivity,
     },
     bundlerOptions: {
       ignoreModules: ['child_process'],
       webpackConfigHook: (config: any) => {
+        // Configure extension resolution for ES modules
+        // Add .workflow, .ts to handle all file types
+        if (config?.resolve) {
+          if (config.resolve?.extensions && Array.isArray(config.resolve.extensions)) {
+            // Add custom extensions for Temporal workflows
+            const customExts = ['.workflow', '.ts', '.workflow.js'];
+            customExts.forEach((ext) => {
+              if (!config.resolve.extensions.includes(ext)) {
+                config.resolve.extensions.unshift(ext);
+              }
+            });
+          }
+          // Also configure module resolution to handle these extensions
+          if (!config.resolve.extensionAlias) {
+            config.resolve.extensionAlias = {};
+          }
+          config.resolve.extensionAlias['.workflow'] = ['.workflow.js', '.workflow'];
+        }
+
         // Ensure node-pty native bindings are not bundled (they only load at runtime on the host)
         if (Array.isArray(config?.externals)) {
           config.externals.push({ 'node-pty': 'commonjs node-pty' });
@@ -323,20 +389,10 @@ async function main() {
 
   console.log(`⏳ Worker is now running and waiting for tasks...`);
 
-  // Set up periodic status logging
+  // Set up periodic heartbeat logging (file-based only)
   setInterval(() => {
-    console.log(
-      `💓 Worker heartbeat - Still polling on queue: ${taskQueue} (${new Date().toISOString()})`,
-    );
-
-    // Log worker stats to see if we're receiving any tasks
-    console.log(`📊 Worker stats check:`, {
-      taskQueue,
-      namespace,
-      timestamp: new Date().toISOString(),
-      workerBuildId: worker.options.buildId || 'default',
-    });
-  }, 15000); // Log every 15 seconds for better debugging
+    logHeartbeat(taskQueue);
+  }, 15000);
 
   console.log(`🚀 Starting worker.run() - this will block and listen for tasks...`);
   await worker.run();

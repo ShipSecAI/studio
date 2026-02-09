@@ -303,7 +303,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'trufflesecurity/trufflehog:v3.92.1',
+    image: 'ghcr.io/shipsecai/trufflehog:v3.93.1',
     entrypoint: 'trufflehog',
     network: 'bridge',
     command: [], // Will be built dynamically in execute
@@ -349,6 +349,10 @@ const definition = defineComponent({
       'Scan only changes in a Pull Request by setting branch to PR branch and sinceCommit to base branch.',
       'Scan last 10 commits in CI/CD using sinceCommit=HEAD~10 to catch recent secrets.',
     ],
+    agentTool: {
+      enabled: true,
+      toolDescription: 'Secret and credential leakage scanner (TruffleHog).',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);

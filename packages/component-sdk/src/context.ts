@@ -216,15 +216,9 @@ function createMetadata(
   metadata?: Partial<Omit<ExecutionContextMetadata, 'runId' | 'componentRef'>>,
 ): ExecutionContextMetadata {
   const scoped: ExecutionContextMetadata = {
+    ...metadata,
     runId,
     componentRef,
-    activityId: metadata?.activityId,
-    attempt: metadata?.attempt,
-    correlationId: metadata?.correlationId,
-    streamId: metadata?.streamId,
-    joinStrategy: metadata?.joinStrategy,
-    triggeredBy: metadata?.triggeredBy,
-    failure: metadata?.failure,
   };
 
   return Object.freeze(scoped);

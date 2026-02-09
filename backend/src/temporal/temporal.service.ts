@@ -20,6 +20,9 @@ import {
   shipsecWorkflowRun,
   testMinimalWorkflow,
   scheduleTriggerWorkflow,
+  mcpDiscoveryWorkflow,
+  mcpGroupDiscoveryWorkflow,
+  webhookParsingWorkflow,
 } from '@shipsec/studio-worker/workflows';
 import type { ExecutionTriggerMetadata, ScheduleOverlapPolicy } from '@shipsec/shared';
 
@@ -149,6 +152,12 @@ export class TemporalService implements OnModuleDestroy {
         return testMinimalWorkflow;
       case 'scheduleTriggerWorkflow':
         return scheduleTriggerWorkflow;
+      case 'mcpDiscoveryWorkflow':
+        return mcpDiscoveryWorkflow;
+      case 'mcpGroupDiscoveryWorkflow':
+        return mcpGroupDiscoveryWorkflow;
+      case 'webhookParsingWorkflow':
+        return webhookParsingWorkflow;
       default:
         throw new Error(`Unknown workflow type: ${workflowType}`);
     }
@@ -199,6 +208,19 @@ export class TemporalService implements OnModuleDestroy {
       `Sending signal ${input.signalName} to workflow ${input.workflowId} with args: ${JSON.stringify(input.args)}`,
     );
     await handle.signal(input.signalName, input.args);
+  }
+
+  /**
+   * Query a running workflow for state
+   */
+  async queryWorkflow<T = unknown>(input: {
+    workflowId: string;
+    queryType: string;
+    args?: unknown[];
+  }): Promise<T> {
+    const handle = await this.getWorkflowHandle({ workflowId: input.workflowId });
+    this.logger.debug(`Querying workflow ${input.workflowId} with query '${input.queryType}'`);
+    return handle.query(input.queryType, ...(input.args ?? []));
   }
 
   private async getWorkflowHandle(ref: WorkflowRunReference): Promise<WorkflowHandle<any>> {

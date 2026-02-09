@@ -220,7 +220,7 @@ export function ScheduleEditorDrawer({
       setWorkflowDetail(cached);
       setRuntimeInputs(
         normalizeRuntimeInputs(
-          cached.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID)?.data?.config
+          (cached.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID)?.data?.config as any)
             ?.runtimeInputs,
         ),
       );
@@ -235,7 +235,7 @@ export function ScheduleEditorDrawer({
         setWorkflowCache((prev) => ({ ...prev, [detail.id]: detail }));
         setWorkflowDetail(detail);
         const entryNode = detail.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID);
-        setRuntimeInputs(normalizeRuntimeInputs(entryNode?.data?.config?.runtimeInputs));
+        setRuntimeInputs(normalizeRuntimeInputs((entryNode?.data as any)?.config?.runtimeInputs));
       } catch (error) {
         if (!cancelled) {
           setFormError(error instanceof Error ? error.message : 'Unable to load workflow details');
@@ -469,7 +469,7 @@ export function ScheduleEditorDrawer({
       catchupWindowSeconds: Number(form.catchupWindowSeconds) || 0,
       inputPayload: {
         runtimeInputs: normalizeRuntimeValues(),
-        nodeOverrides: parseNodeOverrides(),
+        nodeOverrides: parseNodeOverrides() as any,
       },
     };
     setSubmitting(true);

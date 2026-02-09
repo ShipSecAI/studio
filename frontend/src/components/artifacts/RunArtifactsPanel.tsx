@@ -146,6 +146,13 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
     copiedRemoteUri,
   ]);
 
+  const handleDownloadAll = () => {
+    if (!entry || !entry.artifacts.length) return;
+    entry.artifacts.forEach((artifact) => {
+      downloadArtifact(artifact, { runId: runId || undefined });
+    });
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b bg-background/70 px-4 py-2">
@@ -168,6 +175,18 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
             Refresh
           </Button>
         ) : null}
+        {entry?.artifacts && entry.artifacts.length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleDownloadAll}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Download All
+          </Button>
+        )}
       </div>
       {content}
     </div>
@@ -177,8 +196,6 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
 function ArtifactRow({
   artifact,
   onDownload,
-  onCopy,
-  copied,
   onCopyRemoteUri,
   copiedRemoteUri,
   isDownloading,
@@ -240,12 +257,12 @@ function ArtifactRow({
       <td className="px-4 py-3 align-top text-sm text-muted-foreground">
         {formatTimestamp(artifact.createdAt)}
       </td>
-      <td className="px-4 py-3 align-top text-right">
+      <td className="px-4 py-3 align-top text-right overflow-x-auto">
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={onCopy} className="gap-2">
+          {/* <Button type="button" variant="ghost" size="sm" onClick={onCopy} className="gap-2">
             <Copy className="h-4 w-4" />
             {copied ? 'Copied' : 'Copy ID'}
-          </Button>
+          </Button> */}
           <Button
             type="button"
             variant="ghost"
