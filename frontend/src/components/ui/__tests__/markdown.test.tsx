@@ -31,7 +31,13 @@ describe('MarkdownView', () => {
 
   it('renders code blocks', () => {
     const markdown = '```js\nconst x = 1\n```';
-    render(<MarkdownView content={markdown} />);
-    expect(screen.getByText(/const x = 1/)).toBeInTheDocument();
+    const { container } = render(<MarkdownView content={markdown} />);
+    // Syntax highlighting splits code into tokens, so check for individual parts
+    expect(screen.getByText('const')).toBeInTheDocument();
+    expect(screen.getByText('x')).toBeInTheDocument();
+    // Check that the CodeBlock component wrapper is rendered
+    expect(container.querySelector('.rounded-lg.border')).toBeInTheDocument();
+    // Verify the language label is shown
+    expect(screen.getByText('js')).toBeInTheDocument();
   });
 });
