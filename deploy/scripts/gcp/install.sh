@@ -14,7 +14,10 @@ WORKERS_NS="${WORKERS_NS:-shipsec-workers}"
 WORKLOADS_NS="${WORKLOADS_NS:-shipsec-workloads}"
 
 AR_REPO="${AR_REPO:-shipsec-studio}"
-IMAGE_TAG="${IMAGE_TAG:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD)}"
+GIT_SHA="$(git -C "${ROOT_DIR}" rev-parse --short HEAD)"
+# Default tag includes a timestamp to avoid amd64/arm64 tag collisions and to
+# ensure GKE nodes pull the new image.
+IMAGE_TAG="${IMAGE_TAG:-${GIT_SHA}-$(date +%Y%m%d%H%M%S)}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -51,12 +54,10 @@ BACKEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend:${IMAGE
 WORKER_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/worker:${IMAGE_TAG}"
 FRONTEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/frontend:${IMAGE_TAG}"
 
-echo "[shipsec] Building + pushing backend/worker images..."
+echo "[shipsec] Building + pushing backend/worker images (linux/amd64)..."
 cd "${ROOT_DIR}"
-docker build -t "${BACKEND_IMAGE}" --target backend .
-docker push "${BACKEND_IMAGE}"
-docker build -t "${WORKER_IMAGE}" --target worker .
-docker push "${WORKER_IMAGE}"
+docker buildx build --platform linux/amd64 --target backend -t "${BACKEND_IMAGE}" --push .
+docker buildx build --platform linux/amd64 --target worker -t "${WORKER_IMAGE}" --push .
 
 echo "[shipsec] Creating namespaces (idempotent)..."
 kubectl --context "${KUBE_CONTEXT}" get namespace "${SYSTEM_NS}" >/dev/null 2>&1 || kubectl --context "${KUBE_CONTEXT}" create namespace "${SYSTEM_NS}"
@@ -103,13 +104,14 @@ fi
 
 echo "[shipsec] Backend external IP: ${BACKEND_IP}"
 
-echo "[shipsec] Building + pushing frontend image (VITE_API_URL points to backend LB)..."
-docker build -t "${FRONTEND_IMAGE}" \
+echo "[shipsec] Building + pushing frontend image (linux/amd64; VITE_API_URL points to backend LB)..."
+docker buildx build --platform linux/amd64 \
   --target frontend \
+  -t "${FRONTEND_IMAGE}" \
   --build-arg "VITE_API_URL=http://${BACKEND_IP}:3211" \
   --build-arg "VITE_BACKEND_URL=http://${BACKEND_IP}:3211" \
+  --push \
   .
-docker push "${FRONTEND_IMAGE}"
 
 echo "[shipsec] Enabling frontend deployment..."
 helm upgrade --install shipsec "${ROOT_DIR}/deploy/helm/shipsec" \
@@ -131,4 +133,3 @@ helm upgrade --install shipsec "${ROOT_DIR}/deploy/helm/shipsec" \
 
 echo "[shipsec] Done. Check services:"
 echo "  kubectl --context ${KUBE_CONTEXT} -n ${SYSTEM_NS} get svc -o wide"
-
