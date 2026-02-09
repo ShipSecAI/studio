@@ -3,6 +3,13 @@ variable "project_id" {
   description = "GCP project id (e.g. shipsec)."
 }
 
+variable "access_token" {
+  type        = string
+  description = "Optional short-lived OAuth access token (bypasses ADC)."
+  default     = null
+  sensitive   = true
+}
+
 variable "region" {
   type        = string
   description = "GCP region (e.g. us-central1)."
@@ -44,4 +51,3 @@ variable "node_disk_gb" {
   description = "Boot disk size (GB)."
   default     = 100
 }
-
