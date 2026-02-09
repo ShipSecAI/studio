@@ -56,6 +56,22 @@ terraform apply \
   -var cluster_name=shipsec-dev
 ```
 
+### Dev environment (no remote state; works without ADC)
+
+If you don't have ADC configured but want to apply once, use `envs/dev-local`:
+
+```bash
+export TF_VAR_access_token="$(gcloud auth print-access-token)"
+cd infra/gcp/envs/dev-local
+terraform init
+terraform apply \
+  -var project_id=shipsec \
+  -var region=us-central1 \
+  -var zone=us-central1-a \
+  -var cluster_name=shipsec-dev-tf \
+  -var node_count=1
+```
+
 Get credentials:
 
 ```bash
