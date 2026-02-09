@@ -266,15 +266,28 @@ export class McpGatewayService {
     const externalSources = allRegistered.filter((t) => t.type !== 'component');
     for (const source of externalSources) {
       try {
-        // All external tools must have a serverId (pre-registered in database)
-        if (!source.serverId) {
-          this.logger.warn(
-            `External tool ${source.toolName} has no serverId - skipping. Tools must be pre-discovered.`,
-          );
-          continue;
-        }
+        let tools: any[] = [];
 
-        const tools = await this.getPreDiscoveredTools(source.serverId);
+        // For local-mcp type, discover tools on-the-fly from endpoint
+        // For remote-mcp type, get pre-discovered tools from database
+        if (source.type === 'local-mcp') {
+          if (!source.endpoint) {
+            this.logger.warn(
+              `Local MCP tool ${source.toolName} has no endpoint - skipping.`,
+            );
+            continue;
+          }
+          tools = await this.discoverToolsFromEndpoint(source.endpoint);
+        } else {
+          // Remote MCPs must have a serverId (pre-registered in database)
+          if (!source.serverId) {
+            this.logger.warn(
+              `External tool ${source.toolName} has no serverId - skipping. Tools must be pre-discovered.`,
+            );
+            continue;
+          }
+          tools = await this.getPreDiscoveredTools(source.serverId);
+        }
 
         const prefix = source.toolName;
 
@@ -340,6 +353,48 @@ export class McpGatewayService {
         }));
     } catch (error) {
       this.logger.error(`Failed to load pre-discovered tools for server ${serverId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Discover tools on-the-fly from an MCP endpoint (for local-mcp type)
+   */
+  private async discoverToolsFromEndpoint(endpoint: string): Promise<any[]> {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {},
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
+        this.logger.warn(`Failed to discover tools from endpoint ${endpoint}: ${response.statusText}`);
+        return [];
+      }
+
+      const data = (await response.json()) as {
+        result?: { tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }> };
+        error?: { message: string };
+      };
+
+      if (data.error) {
+        this.logger.error(`MCP endpoint returned error: ${data.error.message}`);
+        return [];
+      }
+
+      return data.result?.tools ?? [];
+    } catch (error) {
+      this.logger.error(`Failed to discover tools from endpoint ${endpoint}:`, error);
       return [];
     }
   }

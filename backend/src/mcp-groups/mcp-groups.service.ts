@@ -368,13 +368,8 @@ export class McpGroupsService implements OnModuleInit {
       throw new BadRequestException(`MCP group template '${groupSlug}' not found`);
     }
 
-    // Handle AWS server ID mapping: aws-cloudtrail -> cloudtrail
-    let searchId = serverId;
-    if (groupSlug === 'aws' && serverId.startsWith('aws-')) {
-      searchId = serverId.replace('aws-', '');
-    }
-
-    const server = template.servers.find((s: any) => s.id === searchId || s.name === searchId);
+    // Search for server by ID (primary) or name (fallback)
+    const server = template.servers.find((s: any) => s.id === serverId || s.name === serverId);
     if (!server) {
       throw new BadRequestException(`Server '${serverId}' not found in group '${groupSlug}'`);
     }

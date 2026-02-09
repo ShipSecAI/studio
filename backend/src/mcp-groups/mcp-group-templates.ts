@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
  * Server configuration within a group template
  */
 export interface GroupTemplateServer {
+  id?: string;
   name: string;
   description?: string;
   transportType: 'http' | 'stdio' | 'sse' | 'websocket';
@@ -33,7 +34,7 @@ export interface McpGroupTemplate {
   name: string;
   description?: string;
   credentialContractName: string;
-  credentialMapping?: Record<string, unknown>;
+  credentialMapping?: Record<string, string>;
   defaultDockerImage: string;
   version: TemplateVersion;
   servers: GroupTemplateServer[];
@@ -76,16 +77,26 @@ const __dirname = dirname(__filename);
 const TEMPLATE_DIR = join(__dirname, 'templates');
 
 function loadTemplates(): Record<string, McpGroupTemplate> {
-  const templates: Record<string, McpGroupTemplate> = {};
-  const files = readdirSync(TEMPLATE_DIR).filter((file) => file.endsWith('.json'));
+  try {
+    const templates: Record<string, McpGroupTemplate> = {};
+    const files = readdirSync(TEMPLATE_DIR).filter((file) => file.endsWith('.json'));
 
-  for (const file of files) {
-    const raw = JSON.parse(readFileSync(join(TEMPLATE_DIR, file), 'utf-8')) as McpGroupTemplate;
-    const slug = raw.slug || file.replace(/\.json$/, '');
-    templates[slug] = { ...raw, slug };
+    for (const file of files) {
+      try {
+        const raw = JSON.parse(readFileSync(join(TEMPLATE_DIR, file), 'utf-8')) as McpGroupTemplate;
+
+        const slug = raw.slug || file.replace(/\.json$/, '');
+        templates[slug] = { ...raw, slug };
+      } catch (fileError) {
+        console.error(`[loadTemplates] ERROR loading ${file}:`, fileError);
+        throw fileError;
+      }
+    }
+    return templates;
+  } catch (e) {
+    console.error('[loadTemplates] FATAL ERROR:', e);
+    throw e;
   }
-
-  return templates;
 }
 
 /**

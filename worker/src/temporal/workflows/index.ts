@@ -113,8 +113,14 @@ const MCP_SERVER_COMPONENTS: Record<
   },
 };
 
+const MCP_GROUP_COMPONENTS = ['mcp.group.aws'];
+
 function isMcpServerComponent(componentId: string): boolean {
   return componentId in MCP_SERVER_COMPONENTS;
+}
+
+function isMcpGroupComponent(componentId: string): boolean {
+  return MCP_GROUP_COMPONENTS.includes(componentId);
 }
 
 /**
@@ -668,7 +674,12 @@ export async function shipsecWorkflowRun(
 
         const isToolMode = nodeMetadata?.mode === 'tool';
 
-        if (isToolMode) {
+        // MCP groups in tool mode should execute normally (not skip execution)
+        // They will register individual servers as separate tools during execution
+        const isMcpGroup = isMcpGroupComponent(action.componentId);
+        const shouldSkipExecution = isToolMode && !isMcpGroup;
+
+        if (shouldSkipExecution) {
           console.log(`[Workflow] Node ${action.ref} is in tool mode, registering...`);
 
           // Track any started containers for cleanup on failure
@@ -751,6 +762,43 @@ export async function shipsecWorkflowRun(
                 console.error(`[Workflow] Failed to cleanup MCP container: ${cleanupError}`);
               }
             }
+            throw error;
+          }
+        }
+
+        // MCP groups in tool mode: register as ready, then execute to register individual tools
+        if (isToolMode && isMcpGroup) {
+          console.log(`[Workflow] MCP Group node ${action.ref} is in tool mode, registering as ready and executing to register individual tools...`);
+
+          try {
+            // First register the MCP group as a ready tool (so workflow can proceed)
+            await prepareAndRegisterToolActivity({
+              runId: input.runId,
+              nodeId: action.ref,
+              componentId: action.componentId,
+              inputs: mergedInputs,
+              params: mergedParams,
+            });
+
+            console.log(`[Workflow] MCP Group node ${action.ref} registered as ready, now executing to register individual tools...`);
+
+            // Set the result as ready so dependent nodes can proceed
+            const toolResult = { mode: 'tool', status: 'ready', tools: [] };
+            results.set(action.ref, toolResult);
+
+            await recordTraceEventActivity({
+              type: 'NODE_COMPLETED',
+              runId: input.runId,
+              nodeRef: action.ref,
+              timestamp: new Date().toISOString(),
+              outputSummary: toolResult,
+              level: 'info',
+            });
+
+            // Continue executing the MCP group to register individual tools
+            // Fall through to the normal execution path below
+          } catch (error) {
+            console.error(`[Workflow] Failed to register MCP group ${action.ref} as ready:`, error);
             throw error;
           }
         }

@@ -193,6 +193,7 @@ export async function prepareAndRegisterToolActivity(input: {
     componentId: input.componentId,
     description: metadata.description,
     inputSchema: metadata.inputSchema,
+    parameters: input.params,
     credentials,
   });
 }
