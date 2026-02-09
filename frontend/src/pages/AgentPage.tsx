@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Send,
@@ -20,6 +20,8 @@ import {
   CloudCog,
   Database,
   Terminal,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -28,6 +30,8 @@ import { useChatStore, type ChatMessage } from '@/store/chatStore';
 import { useAuthProvider } from '@/auth/auth-context';
 import { MarkdownView } from '@/components/ui/markdown';
 import { StatusBar } from '@/components/agent/StatusBar';
+import { MoMADiagram } from '@/components/ui/MoMADiagram';
+import { useSidebar } from '@/components/layout/sidebar-context';
 
 // GitHub icon component
 function GitHubIcon({ className }: { className?: string }) {
@@ -71,7 +75,8 @@ type MessageContentType =
   | { type: 'quick-action-buttons'; actions: QuickActionOption[] }
   | { type: 'guardduty-alerts'; alerts: GuardDutyAlert[] }
   | { type: 'action-buttons'; buttons: ActionButton[] }
-  | { type: 'loading'; content: string };
+  | { type: 'loading'; content: string }
+  | { type: 'moma-diagram'; code: string };
 
 interface WorkflowOption {
   id: string;
@@ -576,57 +581,92 @@ function MessageBubble({
   const isUser = message.role === 'user';
   const isRichContent = Array.isArray(message.content);
 
-  return (
-    <div className={cn('flex w-full gap-3', isUser ? 'justify-end' : 'justify-start')}>
-      {/* Assistant avatar (left side) */}
-      {!isUser && (
-        <Avatar className="h-8 w-8 flex-shrink-0">
-          <AvatarImage src="/favicon.ico" alt="ShipSec AI" />
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs">AI</AvatarFallback>
-        </Avatar>
-      )}
+  // Extract diagrams from rich content to render outside the bubble
+  const contentWithDiagramsExtracted = useMemo(() => {
+    if (!isRichContent)
+      return {
+        bubbleContent: message.content as string | MessageContentType[],
+        diagrams: [] as MessageContentType[],
+      };
 
-      <div
-        className={cn(
-          'rounded-2xl px-4 py-3',
-          isUser
-            ? 'max-w-[70%] bg-primary text-primary-foreground'
-            : 'max-w-[85%] bg-muted text-foreground',
+    const content = message.content as MessageContentType[];
+    const diagrams: MessageContentType[] = [];
+    const bubbleContent: MessageContentType[] = [];
+
+    content.forEach((item) => {
+      if (item.type === 'moma-diagram') {
+        diagrams.push(item);
+      } else {
+        bubbleContent.push(item);
+      }
+    });
+
+    return { bubbleContent, diagrams };
+  }, [isRichContent, message.content]);
+
+  return (
+    <div className="flex flex-col w-full gap-3">
+      {/* Chat bubble */}
+      <div className={cn('flex w-full gap-3', isUser ? 'justify-end' : 'justify-start')}>
+        {/* Assistant avatar (left side) */}
+        {!isUser && (
+          <Avatar className="h-8 w-8 flex-shrink-0">
+            <AvatarImage src="/favicon.ico" alt="ShipSec AI" />
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+              AI
+            </AvatarFallback>
+          </Avatar>
         )}
-      >
-        {isRichContent ? (
-          <RichMessageContent
-            content={message.content as MessageContentType[]}
-            onWorkflowClick={onWorkflowClick}
-            onRepoClick={onRepoClick}
-            onFindingClick={onFindingClick}
-            onQuickActionClick={onQuickActionClick}
-            onAlertClick={onAlertClick}
-            onActionButtonClick={onActionButtonClick}
-          />
-        ) : (
-          <MarkdownView
-            content={message.content as string}
-            className={cn(
-              'text-sm prose prose-sm max-w-none',
-              isUser ? 'prose-invert' : 'dark:prose-invert',
-            )}
-          />
+
+        <div
+          className={cn(
+            'rounded-2xl px-4 py-3',
+            isUser
+              ? 'max-w-[70%] bg-primary text-primary-foreground'
+              : 'max-w-[85%] bg-muted text-foreground',
+          )}
+        >
+          {isRichContent ? (
+            <RichMessageContent
+              content={contentWithDiagramsExtracted.bubbleContent as MessageContentType[]}
+              onWorkflowClick={onWorkflowClick}
+              onRepoClick={onRepoClick}
+              onFindingClick={onFindingClick}
+              onQuickActionClick={onQuickActionClick}
+              onAlertClick={onAlertClick}
+              onActionButtonClick={onActionButtonClick}
+            />
+          ) : (
+            <MarkdownView
+              content={contentWithDiagramsExtracted.bubbleContent as string}
+              className={cn(
+                'text-sm prose prose-sm max-w-none',
+                isUser ? 'prose-invert' : 'dark:prose-invert',
+              )}
+            />
+          )}
+          <span className="text-xs opacity-60 mt-2 block">
+            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+
+        {/* User avatar (right side) */}
+        {isUser && (
+          <Avatar className="h-8 w-8 flex-shrink-0">
+            <AvatarImage src={userImageUrl} alt="You" />
+            <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+              {userInitials || <User className="h-4 w-4" />}
+            </AvatarFallback>
+          </Avatar>
         )}
-        <span className="text-xs opacity-60 mt-2 block">
-          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
       </div>
 
-      {/* User avatar (right side) */}
-      {isUser && (
-        <Avatar className="h-8 w-8 flex-shrink-0">
-          <AvatarImage src={userImageUrl} alt="You" />
-          <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-            {userInitials || <User className="h-4 w-4" />}
-          </AvatarFallback>
-        </Avatar>
-      )}
+      {/* Render diagrams outside the bubble, full width */}
+      {contentWithDiagramsExtracted.diagrams.map((item: MessageContentType, index: number) => (
+        <div key={`diagram-${index}`} className="w-full">
+          {item.type === 'moma-diagram' && <MoMADiagram code={item.code} />}
+        </div>
+      ))}
     </div>
   );
 }
@@ -652,10 +692,10 @@ function WelcomeScreen({ onSuggestedAction }: { onSuggestedAction: (action: stri
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+        {/* <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
           <Sparkles className="w-3 h-3" />
           <span>Powered by Claude Opus</span>
-        </div>
+        </div> */}
       </div>
 
       {/* Suggested actions */}
@@ -885,13 +925,14 @@ export function AgentPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Sidebar toggle from AppLayout context
+  const { isOpen: sidebarOpen, toggle: toggleSidebar, isMobile } = useSidebar();
+
   const authProvider = useAuthProvider();
   const { user } = authProvider.context;
 
-  // Get user avatar info
-  const userImageUrl =
-    user?.imageUrl ||
-    'https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18zMkZBb1JVSDBvenQ0bmp1ZG80aHliV0FHclcifQ?width=160';
+  // Get user avatar info from Clerk authentication
+  const userImageUrl = user?.imageUrl;
   const userInitials =
     user?.firstName && user?.lastName
       ? `${user.firstName[0]}${user.lastName[0]}`
@@ -1835,8 +1876,27 @@ export function AgentPage() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Status indicators bar */}
-      <StatusBar />
+      {/* Header with sidebar toggle and status bar */}
+      <div className="flex items-center border-b bg-background/60 backdrop-blur-sm relative">
+        {/* Sidebar toggle button - positioned at the start */}
+        {!isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            className="h-9 w-9 flex-shrink-0 ml-2 z-10"
+          >
+            {sidebarOpen ? (
+              <PanelLeftClose className="h-5 w-5" />
+            ) : (
+              <PanelLeftOpen className="h-5 w-5" />
+            )}
+          </Button>
+        )}
+        {/* Status indicators */}
+        <StatusBar className="border-0 bg-transparent flex-1" />
+      </div>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">

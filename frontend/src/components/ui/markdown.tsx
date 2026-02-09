@@ -5,6 +5,7 @@ import markdownItTaskLists from 'markdown-it-task-lists';
 import markdownItHTML5Embed from 'markdown-it-html5-embed';
 import markdownItImsize from '@/lib/markdown-it-imsize';
 import { cn } from '@/lib/utils';
+import { CodeBlock } from './CodeBlock';
 
 interface MarkdownViewProps {
   content: string;
@@ -13,6 +14,7 @@ interface MarkdownViewProps {
   // When provided, enables interactive task checkboxes and will be called
   // with the updated markdown string after a toggle.
   onEdit?: (next: string) => void;
+  showLineNumbers?: boolean;
 }
 
 // Initialize markdown-it with plugins (similar to n8n sticky notes)
@@ -67,6 +69,59 @@ function toggleNthTask(md: string, index: number): string {
 // Key: dataTestId, Value: expected content string
 const pendingCheckboxUpdates = new Map<string, string>();
 
+// Code block renderer with syntax highlighting
+const renderCodeBlocks = (html: string, showLineNumbers = true): React.ReactNode => {
+  const codeBlockRegex = /<pre><code class="language-(\w+)">(.*?)<\/code><\/pre>/gs;
+  const blocks: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(html)) !== null) {
+    // Add text before this code block
+    if (match.index > lastIndex) {
+      blocks.push(
+        <div
+          key={`text-${lastIndex}`}
+          dangerouslySetInnerHTML={{ __html: html.slice(lastIndex, match.index) }}
+        />,
+      );
+    }
+
+    const language = match[1];
+    const code = match[2]
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+
+    blocks.push(
+      <CodeBlock
+        key={`code-${match.index}`}
+        language={language}
+        value={code}
+        showLineNumbers={showLineNumbers}
+      />,
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last code block
+  if (lastIndex < html.length) {
+    blocks.push(
+      <div key={`text-${lastIndex}`} dangerouslySetInnerHTML={{ __html: html.slice(lastIndex) }} />,
+    );
+  }
+
+  // If no code blocks found, return original HTML
+  if (blocks.length === 0) {
+    return <div dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+
+  return <>{blocks}</>;
+};
+
 // Custom comparison for memo - only re-render when content/className/dataTestId change
 // Ignore onEdit since it's stored in a ref and changes every parent render
 function arePropsEqual(prevProps: MarkdownViewProps, nextProps: MarkdownViewProps): boolean {
@@ -88,7 +143,8 @@ function arePropsEqual(prevProps: MarkdownViewProps, nextProps: MarkdownViewProp
   const equal =
     prevProps.content === nextProps.content &&
     prevProps.className === nextProps.className &&
-    prevProps.dataTestId === nextProps.dataTestId;
+    prevProps.dataTestId === nextProps.dataTestId &&
+    prevProps.showLineNumbers === nextProps.showLineNumbers;
   if (!equal) {
     console.log('[MarkdownView] Props changed, will re-render');
   }
@@ -102,6 +158,7 @@ export const MarkdownView = memo(function MarkdownView({
   className,
   dataTestId,
   onEdit,
+  showLineNumbers = true,
 }: MarkdownViewProps) {
   console.log('[MarkdownView] Rendering with content length:', content.length);
   // Store onEdit in a ref so we can use a stable callback without re-renders
@@ -121,6 +178,12 @@ export const MarkdownView = memo(function MarkdownView({
     // Make checkboxes interactive by removing disabled attribute
     return rendered.replace(/(<input[^>]*type="checkbox"[^>]*)disabled([^>]*>)/g, '$1$2');
   }, [normalized]);
+
+  // Render with code block highlighting
+  const renderedContent = useMemo(
+    () => renderCodeBlocks(html, showLineNumbers),
+    [html, showLineNumbers],
+  );
 
   // Handle clicks on interactive elements - use useCallback for stable reference
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -216,8 +279,9 @@ export const MarkdownView = memo(function MarkdownView({
       onMouseDownCapture={handleMouseDown}
       onClick={handleClick}
       onWheel={handleWheel}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    >
+      {renderedContent}
+    </div>
   );
 }, arePropsEqual);
 

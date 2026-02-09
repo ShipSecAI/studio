@@ -21,7 +21,16 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Workflow, AlertCircle, Trash2, Loader2, Info } from 'lucide-react';
+import {
+  Workflow,
+  AlertCircle,
+  Trash2,
+  Loader2,
+  Info,
+  Plus,
+  PanelLeftOpen,
+  PanelLeftClose,
+} from 'lucide-react';
 import { api } from '@/services/api';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import { WorkflowMetadataSchema, type WorkflowMetadataNormalized } from '@/schemas/workflow';
@@ -30,6 +39,8 @@ import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
 import { useAuth } from '@/auth/auth-context';
 import { useRunStore } from '@/store/runStore';
+import { useSidebar } from '@/components/layout/sidebar-context';
+import { cn } from '@/lib/utils';
 
 export function WorkflowList() {
   const navigate = useNavigate();
@@ -49,6 +60,9 @@ export function WorkflowList() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const token = useAuthStore((state) => state.token);
   const adminUsername = useAuthStore((state) => state.adminUsername);
+
+  // Sidebar toggle from AppLayout context
+  const { isOpen: sidebarOpen, toggle: toggleSidebar, isMobile } = useSidebar();
 
   const MAX_RETRY_ATTEMPTS = 30; // Try for ~60 seconds (30 attempts × 2s)
   const RETRY_INTERVAL_MS = 2000; // 2 seconds between retries
@@ -186,23 +200,63 @@ export function WorkflowList() {
   };
 
   return (
-    <div className="flex-1 bg-background">
-      <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
-        {isReadOnly && (
-          <div className="mb-4 md:mb-6 rounded-md border border-border/60 bg-muted/30 px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm text-muted-foreground">
-            You are viewing workflows with read-only access. Administrators can create and edit
-            workflows.
-          </div>
+    <div className="flex-1 flex flex-col bg-background">
+      {/* Header with sidebar toggle */}
+      <div className="h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40">
+        {/* Sidebar toggle button */}
+        {!isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            className="h-9 w-9 flex-shrink-0"
+          >
+            {sidebarOpen ? (
+              <PanelLeftClose className="h-5 w-5" />
+            ) : (
+              <PanelLeftOpen className="h-5 w-5" />
+            )}
+          </Button>
         )}
 
-        <div className="mb-4 md:mb-8">
-          <h2 className="text-xl md:text-2xl font-bold mb-1 md:mb-2">Your Workflows</h2>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Create and manage security automation workflows with powerful visual tools
-          </p>
+        {/* Page title */}
+        <div className="flex items-center min-w-0 flex-1">
+          <h1 className="text-xl font-semibold truncate">Your Workflows</h1>
         </div>
 
-        {/* <div className="mb-6 flex flex-wrap gap-3">
+        {/* New Workflow button */}
+        {canManageWorkflows && (
+          <Button
+            onClick={handleCreateWorkflow}
+            size={isMobile ? 'sm' : 'default'}
+            className={cn('gap-2', isMobile && 'h-8 px-3 text-xs')}
+            disabled={isLoading}
+          >
+            <Plus className={cn('w-4 h-4', isMobile && 'w-3.5 h-3.5')} />
+            <span>
+              New <span className="hidden md:inline">Workflow</span>
+            </span>
+          </Button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-auto">
+        <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
+          {isReadOnly && (
+            <div className="mb-4 md:mb-6 rounded-md border border-border/60 bg-muted/30 px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm text-muted-foreground">
+              You are viewing workflows with read-only access. Administrators can create and edit
+              workflows.
+            </div>
+          )}
+
+          <div className="mb-4 md:mb-8">
+            <p className="text-sm md:text-base text-muted-foreground">
+              Create and manage security automation workflows with powerful visual tools
+            </p>
+          </div>
+
+          {/* <div className="mb-6 flex flex-wrap gap-3">
           <Button
             onClick={() => navigate('/workflows/new')}
             size="lg"
@@ -214,169 +268,170 @@ export function WorkflowList() {
           </Button>
         </div> */}
 
-        {isLoading ? (
-          <div className="border rounded-lg bg-card overflow-hidden">
-            {retryCount > 0 && (
-              <div className="px-3 md:px-6 py-3 md:py-4 border-b bg-muted/50 text-center">
-                <div className="flex items-center justify-center gap-2 md:gap-3">
-                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin text-primary" />
-                  <span className="text-sm md:text-base font-semibold text-foreground">
-                    Waiting for backend... ({retryCount}/{MAX_RETRY_ATTEMPTS})
-                  </span>
+          {isLoading ? (
+            <div className="border rounded-lg bg-card overflow-hidden">
+              {retryCount > 0 && (
+                <div className="px-3 md:px-6 py-3 md:py-4 border-b bg-muted/50 text-center">
+                  <div className="flex items-center justify-center gap-2 md:gap-3">
+                    <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin text-primary" />
+                    <span className="text-sm md:text-base font-semibold text-foreground">
+                      Waiting for backend... ({retryCount}/{MAX_RETRY_ATTEMPTS})
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Nodes</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-1 cursor-help">
-                              Last Run
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Times shown in your local timezone</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    <TableHead>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-1 cursor-help">
-                              Last Updated
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Times shown in your local timezone</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Array.from({ length: 5 }).map((_, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-[220px] bg-muted" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-[80px] bg-muted" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-[80px] bg-muted" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-[160px] bg-muted" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-[160px] bg-muted" />
-                      </TableCell>
-                      {canManageWorkflows && (
-                        <TableCell className="text-right">
-                          <Skeleton className="h-8 w-8 ml-auto rounded-md bg-muted" />
+              )}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Nodes</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1 cursor-help">
+                                Last Run
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Times shown in your local timezone</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+                      <TableHead>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1 cursor-help">
+                                Last Updated
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Times shown in your local timezone</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+                      {canManageWorkflows && <TableHead className="text-right">Actions</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 5 }).map((_, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Skeleton className="h-4 w-[220px] bg-muted" />
                         </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-[80px] bg-muted" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-[80px] bg-muted" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-[160px] bg-muted" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-[160px] bg-muted" />
+                        </TableCell>
+                        {canManageWorkflows && (
+                          <TableCell className="text-right">
+                            <Skeleton className="h-8 w-8 ml-auto rounded-md bg-muted" />
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 border rounded-lg bg-card border-destructive">
+              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+              <h3 className="text-lg font-semibold mb-2">Failed to load workflows</h3>
+              <p className="text-muted-foreground mb-4">{error}</p>
+              <Button onClick={handleTryAgain} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : workflows.length === 0 ? (
+            <div className="text-center py-8 md:py-12 border rounded-lg bg-card">
+              <Workflow className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 text-muted-foreground" />
+              <h3 className="text-base md:text-lg font-semibold mb-2">No workflows yet</h3>
+              <p className="text-sm md:text-base text-muted-foreground mb-4 px-4">
+                Create your first workflow to get started
+              </p>
+              <Button onClick={handleCreateWorkflow} disabled={isReadOnly} size="default">
+                Create Workflow
+              </Button>
+            </div>
+          ) : (
+            <div className="border rounded-lg bg-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[150px]">Name</TableHead>
+                      <TableHead className="min-w-[80px]">Nodes</TableHead>
+                      <TableHead className="min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[140px] hidden sm:table-cell">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1 cursor-help">
+                                Last Run
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Times shown in your local timezone</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+                      <TableHead className="min-w-[140px] hidden md:table-cell">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1 cursor-help">
+                                Last Updated
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Times shown in your local timezone</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+                      {canManageWorkflows && (
+                        <TableHead className="text-right min-w-[60px]">Actions</TableHead>
                       )}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {workflows.map((workflow) => (
+                      <WorkflowRowItem
+                        key={workflow.id}
+                        workflow={workflow}
+                        canManageWorkflows={canManageWorkflows}
+                        isDeleting={isDeleting}
+                        isLoading={isLoading}
+                        formatDate={formatDate}
+                        onRowClick={() => navigate(`/workflows/${workflow.id}`)}
+                        onDeleteClick={handleDeleteClick}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
-        ) : error ? (
-          <div className="text-center py-12 border rounded-lg bg-card border-destructive">
-            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
-            <h3 className="text-lg font-semibold mb-2">Failed to load workflows</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={handleTryAgain} variant="outline">
-              Try Again
-            </Button>
-          </div>
-        ) : workflows.length === 0 ? (
-          <div className="text-center py-8 md:py-12 border rounded-lg bg-card">
-            <Workflow className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 text-muted-foreground" />
-            <h3 className="text-base md:text-lg font-semibold mb-2">No workflows yet</h3>
-            <p className="text-sm md:text-base text-muted-foreground mb-4 px-4">
-              Create your first workflow to get started
-            </p>
-            <Button onClick={handleCreateWorkflow} disabled={isReadOnly} size="default">
-              Create Workflow
-            </Button>
-          </div>
-        ) : (
-          <div className="border rounded-lg bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[150px]">Name</TableHead>
-                    <TableHead className="min-w-[80px]">Nodes</TableHead>
-                    <TableHead className="min-w-[100px]">Status</TableHead>
-                    <TableHead className="min-w-[140px] hidden sm:table-cell">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-1 cursor-help">
-                              Last Run
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Times shown in your local timezone</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    <TableHead className="min-w-[140px] hidden md:table-cell">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-1 cursor-help">
-                              Last Updated
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Times shown in your local timezone</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    {canManageWorkflows && (
-                      <TableHead className="text-right min-w-[60px]">Actions</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workflows.map((workflow) => (
-                    <WorkflowRowItem
-                      key={workflow.id}
-                      workflow={workflow}
-                      canManageWorkflows={canManageWorkflows}
-                      isDeleting={isDeleting}
-                      isLoading={isLoading}
-                      formatDate={formatDate}
-                      onRowClick={() => navigate(`/workflows/${workflow.id}`)}
-                      onDeleteClick={handleDeleteClick}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {canManageWorkflows && (

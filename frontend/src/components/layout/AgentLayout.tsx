@@ -13,7 +13,6 @@ import {
   Moon,
   Menu,
   X,
-  Sparkles,
   Workflow,
   CalendarClock,
   Webhook,
@@ -180,10 +179,10 @@ export function AgentLayout({ children }: AgentLayoutProps) {
                 </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-lg">ShipSec AI</span>
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  {/* <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <Sparkles className="w-2.5 h-2.5" />
                     Powered by Claude Opus
-                  </span>
+                  </span> */}
                 </div>
               </Link>
               {isMobile && (

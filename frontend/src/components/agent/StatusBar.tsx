@@ -507,7 +507,11 @@ function LivePopoverContent() {
 
 // ─── Main StatusBar Component ───────────────────────────────────────────────
 
-export function StatusBar() {
+interface StatusBarProps {
+  className?: string;
+}
+
+export function StatusBar({ className }: StatusBarProps) {
   const totalFindings =
     findingsSummary.critical + findingsSummary.high + findingsSummary.medium + findingsSummary.low;
   const totalRepos = githubOrgs.reduce((sum, org) => sum + org.repos, 0);
@@ -515,7 +519,7 @@ export function StatusBar() {
   const activeScanners = scanners.filter((s) => s.status === 'active').length;
 
   return (
-    <div className="flex items-center border-b bg-background/60 backdrop-blur-sm">
+    <div className={cn('flex items-center border-b bg-background/60 backdrop-blur-sm', className)}>
       <div className="flex items-center gap-0.5 px-3 py-1 overflow-x-auto scrollbar-none">
         {/* AWS */}
         <StatusPill
