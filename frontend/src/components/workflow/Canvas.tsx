@@ -1182,6 +1182,7 @@ export function Canvas({
                   selectedNode={selectedNode}
                   onClose={() => setSelectedNode(null)}
                   onUpdateNode={handleUpdateNode}
+                  initialWidth={configPanelWidth}
                   workflowId={workflowId}
                   workflowSchedules={resolvedWorkflowSchedules}
                   schedulesLoading={resolvedSchedulesLoading}
