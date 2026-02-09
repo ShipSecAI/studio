@@ -1,0 +1,14 @@
+global:
+  namespace: shipsec-system
+
+# Keep infra in-cluster for the first GKE pass to move fast.
+# Move to managed services (Cloud SQL, Memorystore, GCS) later.
+
+minio:
+  service:
+    type: ClusterIP
+
+temporal:
+  uiService:
+    type: ClusterIP
+
