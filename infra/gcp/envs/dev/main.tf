@@ -3,6 +3,7 @@ locals {
     "cloudresourcemanager.googleapis.com",
     "serviceusage.googleapis.com",
     "iam.googleapis.com",
+    "compute.googleapis.com",
     "container.googleapis.com",
     "artifactregistry.googleapis.com",
     "secretmanager.googleapis.com",
@@ -111,4 +112,3 @@ output "cluster_location" {
 output "cluster_name" {
   value = google_container_cluster.gke.name
 }
-
