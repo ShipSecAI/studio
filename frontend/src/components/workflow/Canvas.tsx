@@ -152,6 +152,13 @@ export function Canvas({
     setConfigPanelOpen(Boolean(selectedNode));
   }, [selectedNode, setConfigPanelOpen]);
 
+  // Reset config panel width to default when sidebar closes
+  useEffect(() => {
+    if (!selectedNode) {
+      setConfigPanelWidth(432); // Reset to default width
+    }
+  }, [selectedNode]);
+
   const scheduleContext = useOptionalWorkflowSchedulesContext();
   const resolvedWorkflowSchedules = workflowSchedules ?? scheduleContext?.schedules ?? [];
   const resolvedSchedulesLoading = schedulesLoading ?? scheduleContext?.isLoading ?? false;
