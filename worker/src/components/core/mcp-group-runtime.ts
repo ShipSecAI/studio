@@ -254,6 +254,65 @@ export async function executeMcpGroupNode(
 }
 
 /**
+ * Discover tools from an MCP endpoint with exponential backoff retry
+ */
+async function discoverToolsWithRetry(
+  endpoint: string,
+  maxRetries: number = 5,
+  baseDelayMs: number = 500,
+): Promise<any[]> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[discoverToolsWithRetry] Attempt ${attempt}/${maxRetries}: Discovering tools from ${endpoint}`);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {},
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+        console.warn(`[discoverToolsWithRetry] Attempt ${attempt} failed: ${lastError.message}`);
+        throw lastError;
+      }
+
+      const data = await response.json();
+      if (data.error) {
+        lastError = new Error(`MCP error: ${data.error.message}`);
+        console.warn(`[discoverToolsWithRetry] Attempt ${attempt} failed: ${lastError.message}`);
+        throw lastError;
+      }
+
+      const tools = data.result?.tools ?? [];
+      console.log(`[discoverToolsWithRetry] ✓ Successfully discovered ${tools.length} tools on attempt ${attempt}`);
+      return tools;
+    } catch (error) {
+      lastError = error as Error;
+      
+      if (attempt < maxRetries) {
+        const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+        console.log(`[discoverToolsWithRetry] Retrying in ${delayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  console.error(`[discoverToolsWithRetry] ✗ Failed to discover tools after ${maxRetries} attempts: ${lastError?.message}`);
+  return [];
+}
+
+/**
  * Registers a server with the backend Tool Registry
  *
  * IMPORTANT: Uses a unique nodeId for each server (${groupNodeId}-${serverId})
@@ -302,6 +361,11 @@ async function registerServerWithBackend(
 
   const { token } = (await tokenResponse.json()) as { token: string };
 
+  // Discover tools from endpoint with retry logic
+  console.log(`[registerServerWithBackend] Discovering tools from endpoint...`);
+  const discoveredTools = await discoverToolsWithRetry(endpoint);
+  console.log(`[registerServerWithBackend] Discovered ${discoveredTools.length} tools`);
+
   // Register the local MCP with the Tool Registry using the unique nodeId
   console.log(`[registerServerWithBackend] Calling POST ${internalApiUrl}/register-local`);
   const registerResponse = await fetch(`${internalApiUrl}/register-local`, {
@@ -323,6 +387,8 @@ async function registerServerWithBackend(
       endpoint,
       containerId,
       serverId,
+      discoveredToolCount: discoveredTools.length,
+      discoveredToolNames: discoveredTools.map((t: any) => t.name),
     }),
   });
 
