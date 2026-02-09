@@ -24,6 +24,7 @@ interface RuntimeInput {
   type: RuntimeInputType;
   required: boolean;
   description?: string;
+  defaultValue?: string | number | boolean | object | null;
 }
 
 interface RuntimeInputsEditorProps {
@@ -212,6 +213,61 @@ export function RuntimeInputsEditor({ value, onChange }: RuntimeInputsEditorProp
                 >
                   Required input
                 </Label>
+              </div>
+
+              {/* Default Value Field */}
+              <div className="space-y-1">
+                <Label htmlFor={`input-${index}-defaultValue`} className="text-xs">
+                  Default Value
+                </Label>
+                <Input
+                  id={`input-${index}-defaultValue`}
+                  type={input.type === 'number' ? 'number' : 'text'}
+                  value={
+                    input.defaultValue === undefined || input.defaultValue === null
+                      ? ''
+                      : typeof input.defaultValue === 'string' ||
+                          typeof input.defaultValue === 'number'
+                        ? String(input.defaultValue)
+                        : JSON.stringify(input.defaultValue)
+                  }
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    if (nextValue === '') {
+                      updateInput(index, 'defaultValue', undefined);
+                      return;
+                    }
+                    if (input.type === 'number') {
+                      const parsed = Number(nextValue);
+                      if (!Number.isNaN(parsed)) {
+                        updateInput(index, 'defaultValue', parsed);
+                      }
+                    } else if (input.type === 'json' || input.type === 'array') {
+                      // Try to parse as JSON, otherwise store as string
+                      try {
+                        const parsed = JSON.parse(nextValue);
+                        updateInput(index, 'defaultValue', parsed);
+                      } catch {
+                        updateInput(index, 'defaultValue', nextValue);
+                      }
+                    } else {
+                      updateInput(index, 'defaultValue', nextValue);
+                    }
+                  }}
+                  placeholder={
+                    input.type === 'array'
+                      ? '["item1", "item2"]'
+                      : input.type === 'json'
+                        ? '{"key": "value"}'
+                        : input.type === 'number'
+                          ? '0'
+                          : 'Enter default value'
+                  }
+                  className="h-8 text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Value used when workflow is triggered without this input
+                </p>
               </div>
 
               {/* Output Port Preview */}

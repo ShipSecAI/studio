@@ -768,7 +768,7 @@ function WorkflowBuilderContent() {
     return [];
   }, [getComponent, nodes]);
 
-  // Resolve default values from Entry Point's __runtimeData input override
+  // Resolve default values from Entry Point's runtimeInputs parameter (defaultValue field)
   const resolveRuntimeInputDefaults = useCallback((): Record<string, unknown> => {
     const triggerNode = nodes.find((node) => {
       const nodeData = node.data as any;
@@ -782,14 +782,17 @@ function WorkflowBuilderContent() {
     }
 
     const nodeData = triggerNode.data as any;
-    const runtimeDataOverride = nodeData.config?.inputOverrides?.__runtimeData;
+    const runtimeInputsParam = nodeData.config?.params?.runtimeInputs;
 
-    if (
-      runtimeDataOverride &&
-      typeof runtimeDataOverride === 'object' &&
-      !Array.isArray(runtimeDataOverride)
-    ) {
-      return runtimeDataOverride as Record<string, unknown>;
+    // Extract default values from each runtime input definition
+    if (Array.isArray(runtimeInputsParam)) {
+      const defaults: Record<string, unknown> = {};
+      for (const input of runtimeInputsParam) {
+        if (input?.id && input.defaultValue !== undefined && input.defaultValue !== null) {
+          defaults[input.id] = input.defaultValue;
+        }
+      }
+      return defaults;
     }
 
     return {};

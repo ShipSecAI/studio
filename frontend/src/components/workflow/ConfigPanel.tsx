@@ -962,66 +962,96 @@ export function ConfigPanel({
             </CollapsibleSection>
           )}
 
-          {/* Inputs Section */}
-          {componentInputs.length > 0 && (
-            <CollapsibleSection
-              title="Inputs"
-              count={
-                isToolMode
-                  ? componentInputs.filter(isCredentialInput).length
-                  : componentInputs.length
-              }
-              defaultOpen={true}
-            >
-              <div className="space-y-0 mt-2">
-                {componentInputs.map((input, index) => {
-                  // Special handling for Entry Point's __runtimeData input
-                  // Render individual fields for each runtime input definition
-                  if (isEntryPointComponent && input.id === '__runtimeData') {
-                    const runtimeDataValue =
-                      typeof inputOverrides.__runtimeData === 'object' &&
-                      inputOverrides.__runtimeData !== null
-                        ? (inputOverrides.__runtimeData as Record<string, unknown>)
-                        : {};
-
-                    const handleRuntimeDataFieldChange = (fieldId: string, value: unknown) => {
-                      const updatedRuntimeData = { ...runtimeDataValue };
-                      if (value === undefined || value === '' || value === null) {
-                        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-                        delete updatedRuntimeData[fieldId];
-                      } else {
-                        updatedRuntimeData[fieldId] = value;
-                      }
-                      // Store as empty object to avoid validation issues, or the full object
-                      const finalValue =
-                        Object.keys(updatedRuntimeData).length > 0 ? updatedRuntimeData : undefined;
-                      handleInputOverrideChange('__runtimeData', finalValue);
-                    };
-
-                    // If no runtime inputs defined, show a helpful message
-                    if (runtimeInputDefinitions.length === 0) {
-                      return (
-                        <div
-                          key={input.id}
-                          className={cn('py-3', index > 0 && 'border-t border-border')}
-                        >
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-medium">{input.label}</span>
-                            </div>
-                            <Badge variant="outline" className="text-[10px] font-mono px-1.5">
-                              json
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            Add runtime inputs in the Parameters section below to define default
-                            values here.
-                          </p>
-                        </div>
-                      );
+          {/* Inputs Section - hide for Entry Point if only __runtimeData exists */}
+          {componentInputs.length > 0 &&
+            !(isEntryPointComponent && componentInputs.every((i) => i.id === '__runtimeData')) && (
+              <CollapsibleSection
+                title="Inputs"
+                count={
+                  isToolMode
+                    ? componentInputs.filter(isCredentialInput).length
+                    : isEntryPointComponent
+                      ? componentInputs.filter((i) => i.id !== '__runtimeData').length
+                      : componentInputs.length
+                }
+                defaultOpen={true}
+              >
+                <div className="space-y-0 mt-2">
+                  {componentInputs.map((input, index) => {
+                    // Skip __runtimeData input for Entry Point - default values are now set in the RuntimeInputsEditor
+                    if (isEntryPointComponent && input.id === '__runtimeData') {
+                      return null;
                     }
 
-                    // Render a field for each runtime input definition
+                    // Filter out non-credential inputs in tool mode
+                    if (isToolMode && !isCredentialInput(input)) {
+                      return null;
+                    }
+
+                    // Handle tools port with multiple connections
+                    const isToolsPort = input.id === 'tools';
+                    const toolEdges = isToolsPort
+                      ? getEdges().filter(
+                          (edge) =>
+                            edge.target === selectedNode.id && edge.targetHandle === 'tools',
+                        )
+                      : [];
+                    const connection = isToolsPort ? undefined : nodeData.inputs?.[input.id];
+                    const hasConnection = isToolsPort ? toolEdges.length > 0 : Boolean(connection);
+                    const manualValue = inputOverrides[input.id];
+                    const manualOverridesPort = input.valuePriority === 'manual-first';
+                    const allowsManualInput =
+                      inputSupportsManualValue(input) || manualOverridesPort;
+                    const manualValueProvided =
+                      allowsManualInput &&
+                      (!hasConnection || manualOverridesPort) &&
+                      manualValue !== undefined &&
+                      manualValue !== null &&
+                      (typeof manualValue === 'string' ? manualValue.trim().length > 0 : true);
+                    const manualLocked = hasConnection && !manualOverridesPort;
+                    const connectedSourceLabels = isToolsPort
+                      ? toolEdges
+                          .map((edge) => {
+                            const sourceNode = getNodes().find((n) => n.id === edge.source);
+                            return (sourceNode?.data as any)?.label || edge.source;
+                          })
+                          .filter(Boolean)
+                      : connection
+                        ? [connection.source]
+                        : [];
+                    const connectedSummary = (() => {
+                      if (connectedSourceLabels.length === 0) return '';
+                      if (connectedSourceLabels.length <= 2) {
+                        return connectedSourceLabels.join(', ');
+                      }
+                      return `${connectedSourceLabels.slice(0, 2).join(', ')} +${
+                        connectedSourceLabels.length - 2
+                      }`;
+                    })();
+                    const portType = resolvePortType(input);
+                    const primitiveName = portType?.kind === 'primitive' ? portType.name : null;
+                    const isNumberInput = primitiveName === 'number';
+                    const isBooleanInput = primitiveName === 'boolean';
+                    const isListOfTextInput = isListOfTextPort(portType);
+                    const manualInputValue =
+                      manualValue === undefined || manualValue === null
+                        ? ''
+                        : typeof manualValue === 'string'
+                          ? manualValue
+                          : String(manualValue);
+                    const isSecretInput = input.editor === 'secret' || primitiveName === 'secret';
+                    const useSecretSelect = isSecretInput;
+                    const manualPlaceholder = useSecretSelect
+                      ? 'Select a secret...'
+                      : input.id === 'supabaseUrl'
+                        ? 'https://<project-ref>.supabase.co or <project_ref>'
+                        : isNumberInput
+                          ? 'Enter a number to use without a connection'
+                          : isListOfTextInput
+                            ? 'Add entries or press Add to provide a list'
+                            : 'Enter text to use without a connection';
+                    const typeLabel = describePortType(portType);
+
                     return (
                       <div
                         key={input.id}
@@ -1030,355 +1060,178 @@ export function ConfigPanel({
                         <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm font-medium">{input.label}</span>
+                            {input.required && (
+                              <span className="text-[9px] text-destructive font-medium">*</span>
+                            )}
                           </div>
                           <Badge variant="outline" className="text-[10px] font-mono px-1.5">
-                            json
+                            {typeLabel}
                           </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                          Set default values for runtime inputs. These will be used when the
-                          workflow is triggered without providing values.
-                        </p>
-                        <div className="space-y-3">
-                          {runtimeInputDefinitions.map((runtimeInput: any) => {
-                            const fieldId = runtimeInput.id;
-                            const fieldLabel = runtimeInput.label || fieldId;
-                            const fieldType = runtimeInput.type || 'text';
-                            const fieldDescription = runtimeInput.description;
-                            const fieldRequired = runtimeInput.required ?? true;
-                            const currentValue = runtimeDataValue[fieldId];
-                            const hasValue =
-                              currentValue !== undefined &&
-                              currentValue !== null &&
-                              currentValue !== '';
+                        {input.description && (
+                          <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+                            {input.description}
+                          </p>
+                        )}
 
-                            return (
-                              <div
-                                key={fieldId}
-                                className="rounded-lg border bg-muted/20 p-3 space-y-2"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-sm font-medium">{fieldLabel}</span>
-                                    {fieldRequired && (
-                                      <span className="text-[9px] text-destructive font-medium">
-                                        *
-                                      </span>
-                                    )}
-                                  </div>
-                                  <Badge variant="outline" className="text-[10px] font-mono px-1.5">
-                                    {fieldType}
-                                  </Badge>
-                                </div>
-                                {fieldDescription && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {fieldDescription}
-                                  </p>
-                                )}
-                                <Input
-                                  id={`runtime-${fieldId}`}
-                                  type={fieldType === 'number' ? 'number' : 'text'}
-                                  value={
-                                    currentValue === undefined || currentValue === null
-                                      ? ''
-                                      : typeof currentValue === 'string' ||
-                                          typeof currentValue === 'number'
-                                        ? String(currentValue)
-                                        : JSON.stringify(currentValue)
+                        {allowsManualInput && (
+                          <div className="mt-2 space-y-1.5">
+                            <label
+                              htmlFor={`manual-${input.id}`}
+                              className="text-[11px] font-medium text-muted-foreground"
+                            >
+                              Value
+                            </label>
+                            {useSecretSelect ? (
+                              <SecretSelect
+                                value={typeof manualValue === 'string' ? manualValue : ''}
+                                onChange={(value) => {
+                                  // Handle both undefined (from clear button) and empty string
+                                  if (value === undefined || value === '' || value === null) {
+                                    handleInputOverrideChange(input.id, undefined);
+                                  } else {
+                                    handleInputOverrideChange(input.id, value);
                                   }
-                                  onChange={(e) => {
-                                    const nextValue = e.target.value;
-                                    if (nextValue === '') {
-                                      handleRuntimeDataFieldChange(fieldId, undefined);
-                                      return;
-                                    }
-                                    if (fieldType === 'number') {
-                                      const parsed = Number(nextValue);
-                                      if (!Number.isNaN(parsed)) {
-                                        handleRuntimeDataFieldChange(fieldId, parsed);
-                                      }
-                                    } else if (fieldType === 'json') {
-                                      // Store as string, will be parsed at runtime
-                                      try {
-                                        const parsed = JSON.parse(nextValue);
-                                        handleRuntimeDataFieldChange(fieldId, parsed);
-                                      } catch {
-                                        // Keep as string if not valid JSON
-                                        handleRuntimeDataFieldChange(fieldId, nextValue);
-                                      }
-                                    } else {
-                                      handleRuntimeDataFieldChange(fieldId, nextValue);
+                                }}
+                                placeholder={manualPlaceholder}
+                                className="text-sm"
+                                disabled={manualLocked}
+                              />
+                            ) : isBooleanInput ? (
+                              <div className="space-y-2">
+                                <Select
+                                  value={
+                                    typeof manualValue === 'boolean'
+                                      ? manualValue
+                                        ? 'true'
+                                        : 'false'
+                                      : undefined
+                                  }
+                                  onValueChange={(value) => {
+                                    if (value === 'true') {
+                                      handleInputOverrideChange(input.id, true);
+                                    } else if (value === 'false') {
+                                      handleInputOverrideChange(input.id, false);
                                     }
                                   }}
-                                  placeholder={`Enter default ${fieldType} value`}
-                                  className="text-sm"
-                                />
-                                <div className="text-[11px]">
-                                  {hasValue ? (
-                                    <div className="flex items-center gap-1.5 text-primary">
-                                      <Circle className="h-2 w-2 fill-current" />
-                                      <span>Value set</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground">
-                                      Leave blank to require a port connection.
-                                    </span>
-                                  )}
-                                </div>
+                                  disabled={manualLocked}
+                                >
+                                  <SelectTrigger className="text-sm">
+                                    <SelectValue placeholder="Select true or false" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="true">True</SelectItem>
+                                    <SelectItem value="false">False</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {!manualLocked && typeof manualValue === 'boolean' && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-fit text-xs px-2"
+                                    onClick={() => handleInputOverrideChange(input.id, undefined)}
+                                  >
+                                    Clear manual value
+                                  </Button>
+                                )}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Filter out non-credential inputs in tool mode
-                  if (isToolMode && !isCredentialInput(input)) {
-                    return null;
-                  }
-
-                  // Handle tools port with multiple connections
-                  const isToolsPort = input.id === 'tools';
-                  const toolEdges = isToolsPort
-                    ? getEdges().filter(
-                        (edge) => edge.target === selectedNode.id && edge.targetHandle === 'tools',
-                      )
-                    : [];
-                  const connection = isToolsPort ? undefined : nodeData.inputs?.[input.id];
-                  const hasConnection = isToolsPort ? toolEdges.length > 0 : Boolean(connection);
-                  const manualValue = inputOverrides[input.id];
-                  const manualOverridesPort = input.valuePriority === 'manual-first';
-                  const allowsManualInput = inputSupportsManualValue(input) || manualOverridesPort;
-                  const manualValueProvided =
-                    allowsManualInput &&
-                    (!hasConnection || manualOverridesPort) &&
-                    manualValue !== undefined &&
-                    manualValue !== null &&
-                    (typeof manualValue === 'string' ? manualValue.trim().length > 0 : true);
-                  const manualLocked = hasConnection && !manualOverridesPort;
-                  const connectedSourceLabels = isToolsPort
-                    ? toolEdges
-                        .map((edge) => {
-                          const sourceNode = getNodes().find((n) => n.id === edge.source);
-                          return (sourceNode?.data as any)?.label || edge.source;
-                        })
-                        .filter(Boolean)
-                    : connection
-                      ? [connection.source]
-                      : [];
-                  const connectedSummary = (() => {
-                    if (connectedSourceLabels.length === 0) return '';
-                    if (connectedSourceLabels.length <= 2) {
-                      return connectedSourceLabels.join(', ');
-                    }
-                    return `${connectedSourceLabels.slice(0, 2).join(', ')} +${
-                      connectedSourceLabels.length - 2
-                    }`;
-                  })();
-                  const portType = resolvePortType(input);
-                  const primitiveName = portType?.kind === 'primitive' ? portType.name : null;
-                  const isNumberInput = primitiveName === 'number';
-                  const isBooleanInput = primitiveName === 'boolean';
-                  const isListOfTextInput = isListOfTextPort(portType);
-                  const manualInputValue =
-                    manualValue === undefined || manualValue === null
-                      ? ''
-                      : typeof manualValue === 'string'
-                        ? manualValue
-                        : String(manualValue);
-                  const isSecretInput = input.editor === 'secret' || primitiveName === 'secret';
-                  const useSecretSelect = isSecretInput;
-                  const manualPlaceholder = useSecretSelect
-                    ? 'Select a secret...'
-                    : input.id === 'supabaseUrl'
-                      ? 'https://<project-ref>.supabase.co or <project_ref>'
-                      : isNumberInput
-                        ? 'Enter a number to use without a connection'
-                        : isListOfTextInput
-                          ? 'Add entries or press Add to provide a list'
-                          : 'Enter text to use without a connection';
-                  const typeLabel = describePortType(portType);
-
-                  return (
-                    <div
-                      key={input.id}
-                      className={cn('py-3', index > 0 && 'border-t border-border')}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium">{input.label}</span>
-                          {input.required && (
-                            <span className="text-[9px] text-destructive font-medium">*</span>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="text-[10px] font-mono px-1.5">
-                          {typeLabel}
-                        </Badge>
-                      </div>
-                      {input.description && (
-                        <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                          {input.description}
-                        </p>
-                      )}
-
-                      {allowsManualInput && (
-                        <div className="mt-2 space-y-1.5">
-                          <label
-                            htmlFor={`manual-${input.id}`}
-                            className="text-[11px] font-medium text-muted-foreground"
-                          >
-                            Value
-                          </label>
-                          {useSecretSelect ? (
-                            <SecretSelect
-                              value={typeof manualValue === 'string' ? manualValue : ''}
-                              onChange={(value) => {
-                                // Handle both undefined (from clear button) and empty string
-                                if (value === undefined || value === '' || value === null) {
-                                  handleInputOverrideChange(input.id, undefined);
-                                } else {
-                                  handleInputOverrideChange(input.id, value);
-                                }
-                              }}
-                              placeholder={manualPlaceholder}
-                              className="text-sm"
-                              disabled={manualLocked}
-                            />
-                          ) : isBooleanInput ? (
-                            <div className="space-y-2">
-                              <Select
-                                value={
-                                  typeof manualValue === 'boolean'
-                                    ? manualValue
-                                      ? 'true'
-                                      : 'false'
-                                    : undefined
-                                }
-                                onValueChange={(value) => {
-                                  if (value === 'true') {
-                                    handleInputOverrideChange(input.id, true);
-                                  } else if (value === 'false') {
-                                    handleInputOverrideChange(input.id, false);
+                            ) : isListOfTextInput ? (
+                              <ManualListChipsInput
+                                inputId={input.id}
+                                manualValue={manualValue}
+                                disabled={manualLocked}
+                                placeholder={manualPlaceholder}
+                                onChange={(value) => handleInputOverrideChange(input.id, value)}
+                              />
+                            ) : component?.id === 'core.artifact.writer' &&
+                              input.id === 'artifactName' ? (
+                              <DynamicArtifactNameInput
+                                value={manualInputValue}
+                                onChange={(value) => {
+                                  if (!value || value === '') {
+                                    handleInputOverrideChange(input.id, undefined);
+                                  } else {
+                                    handleInputOverrideChange(input.id, value);
                                   }
                                 }}
                                 disabled={manualLocked}
-                              >
-                                <SelectTrigger className="text-sm">
-                                  <SelectValue placeholder="Select true or false" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="true">True</SelectItem>
-                                  <SelectItem value="false">False</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              {!manualLocked && typeof manualValue === 'boolean' && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-fit text-xs px-2"
-                                  onClick={() => handleInputOverrideChange(input.id, undefined)}
-                                >
-                                  Clear manual value
-                                </Button>
-                              )}
-                            </div>
-                          ) : isListOfTextInput ? (
-                            <ManualListChipsInput
-                              inputId={input.id}
-                              manualValue={manualValue}
-                              disabled={manualLocked}
-                              placeholder={manualPlaceholder}
-                              onChange={(value) => handleInputOverrideChange(input.id, value)}
-                            />
-                          ) : component?.id === 'core.artifact.writer' &&
-                            input.id === 'artifactName' ? (
-                            <DynamicArtifactNameInput
-                              value={manualInputValue}
-                              onChange={(value) => {
-                                if (!value || value === '') {
-                                  handleInputOverrideChange(input.id, undefined);
-                                } else {
-                                  handleInputOverrideChange(input.id, value);
-                                }
-                              }}
-                              disabled={manualLocked}
-                              placeholder="{{run_id}}-{{timestamp}}"
-                            />
-                          ) : (
-                            <Input
-                              id={`manual-${input.id}`}
-                              type={isNumberInput ? 'number' : 'text'}
-                              value={manualInputValue}
-                              onChange={(e) => {
-                                const nextValue = e.target.value;
-                                if (nextValue === '') {
-                                  handleInputOverrideChange(input.id, undefined);
-                                  return;
-                                }
-                                if (isNumberInput) {
-                                  const parsed = Number(nextValue);
-                                  if (Number.isNaN(parsed)) {
+                                placeholder="{{run_id}}-{{timestamp}}"
+                              />
+                            ) : (
+                              <Input
+                                id={`manual-${input.id}`}
+                                type={isNumberInput ? 'number' : 'text'}
+                                value={manualInputValue}
+                                onChange={(e) => {
+                                  const nextValue = e.target.value;
+                                  if (nextValue === '') {
+                                    handleInputOverrideChange(input.id, undefined);
                                     return;
                                   }
-                                  handleInputOverrideChange(input.id, parsed);
-                                } else {
-                                  handleInputOverrideChange(input.id, nextValue);
-                                }
-                              }}
-                              placeholder={manualPlaceholder}
-                              className="text-sm"
-                              disabled={manualLocked}
-                            />
-                          )}
-                          {/* Skip helper text for DynamicArtifactNameInput as it has its own */}
-                          {!(
-                            component?.id === 'core.artifact.writer' && input.id === 'artifactName'
-                          ) &&
-                            (manualLocked ? (
-                              <p className="text-xs text-muted-foreground italic">
-                                Disconnect the port to edit manual input.
-                              </p>
-                            ) : (
-                              <p className="text-[10px] text-muted-foreground">
-                                {isBooleanInput
-                                  ? 'Select a value or clear manual input to require a port connection.'
-                                  : isListOfTextInput
-                                    ? 'Add entries or clear manual input to require a port connection.'
-                                    : 'Leave blank to require a port connection.'}
-                              </p>
-                            ))}
-                        </div>
-                      )}
-
-                      {/* Connection status - compact */}
-                      <div className="mt-2 text-[11px]">
-                        {manualValueProvided ? (
-                          <div className="flex items-center gap-1.5 text-primary">
-                            <Circle className="h-2 w-2 fill-current" />
-                            <span>Value set</span>
+                                  if (isNumberInput) {
+                                    const parsed = Number(nextValue);
+                                    if (Number.isNaN(parsed)) {
+                                      return;
+                                    }
+                                    handleInputOverrideChange(input.id, parsed);
+                                  } else {
+                                    handleInputOverrideChange(input.id, nextValue);
+                                  }
+                                }}
+                                placeholder={manualPlaceholder}
+                                className="text-sm"
+                                disabled={manualLocked}
+                              />
+                            )}
+                            {/* Skip helper text for DynamicArtifactNameInput as it has its own */}
+                            {!(
+                              component?.id === 'core.artifact.writer' &&
+                              input.id === 'artifactName'
+                            ) &&
+                              (manualLocked ? (
+                                <p className="text-xs text-muted-foreground italic">
+                                  Disconnect the port to edit manual input.
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-muted-foreground">
+                                  {isBooleanInput
+                                    ? 'Select a value or clear manual input to require a port connection.'
+                                    : isListOfTextInput
+                                      ? 'Add entries or clear manual input to require a port connection.'
+                                      : 'Leave blank to require a port connection.'}
+                                </p>
+                              ))}
                           </div>
-                        ) : hasConnection ? (
-                          <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>Connected from {connectedSummary || connection?.source}</span>
-                          </div>
-                        ) : input.required ? (
-                          <div className="flex items-center gap-1.5 text-destructive">
-                            <AlertCircle className="h-3 w-3" />
-                            <span>Required</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">Optional</span>
                         )}
+
+                        {/* Connection status - compact */}
+                        <div className="mt-2 text-[11px]">
+                          {manualValueProvided ? (
+                            <div className="flex items-center gap-1.5 text-primary">
+                              <Circle className="h-2 w-2 fill-current" />
+                              <span>Value set</span>
+                            </div>
+                          ) : hasConnection ? (
+                            <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>Connected from {connectedSummary || connection?.source}</span>
+                            </div>
+                          ) : input.required ? (
+                            <div className="flex items-center gap-1.5 text-destructive">
+                              <AlertCircle className="h-3 w-3" />
+                              <span>Required</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">Optional</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CollapsibleSection>
-          )}
+                    );
+                  })}
+                </div>
+              </CollapsibleSection>
+            )}
 
           {!isToolMode &&
             component.agentTool?.enabled &&
