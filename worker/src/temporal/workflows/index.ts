@@ -768,7 +768,7 @@ export async function shipsecWorkflowRun(
 
         // MCP groups in tool mode: register as ready, then execute to register individual tools
         if (isToolMode && isMcpGroup) {
-          console.log(`[Workflow] MCP Group node ${action.ref} is in tool mode, registering as ready and executing to register individual tools...`);
+          console.log(`[Workflow] MCP Group node ${action.ref} is in tool mode, registering as ready with backend...`);
 
           try {
             // First register the MCP group as a ready tool (so workflow can proceed)
@@ -780,23 +780,16 @@ export async function shipsecWorkflowRun(
               params: mergedParams,
             });
 
-            console.log(`[Workflow] MCP Group node ${action.ref} registered as ready, now executing to register individual tools...`);
+            console.log(`[Workflow] MCP Group node ${action.ref} registered as ready with backend, continuing to normal execution to register individual servers...`);
 
-            // Set the result as ready so dependent nodes can proceed
-            const toolResult = { mode: 'tool', status: 'ready', tools: [] };
-            results.set(action.ref, toolResult);
-
-            await recordTraceEventActivity({
-              type: 'NODE_COMPLETED',
-              runId: input.runId,
-              nodeRef: action.ref,
-              timestamp: new Date().toISOString(),
-              outputSummary: toolResult,
-              level: 'info',
-            });
-
-            // Continue executing the MCP group to register individual tools
-            // Fall through to the normal execution path below
+            // IMPORTANT: Do NOT set results or record NODE_COMPLETED here!
+            // The individual server registration happens during normal component execution
+            // when executeMcpGroupNode() is called from runComponentWithRetry() below.
+            // This allows the component's execute() function to register each server
+            // with unique nodeIds (${groupNodeId}-${serverId}) to prevent overwrites.
+            //
+            // Fall through to the normal execution path (runComponentWithRetry at line 866)
+            // where the component's execute() function will be called.
           } catch (error) {
             console.error(`[Workflow] Failed to register MCP group ${action.ref} as ready:`, error);
             throw error;
@@ -863,6 +856,9 @@ export async function shipsecWorkflowRun(
             );
           }
         }
+
+        // Debug logging: Track component execution start
+        console.log(`[Workflow] Executing component ${action.componentId} (node ${action.ref})${isMcpGroup ? ' [MCP Group]' : ''}${isToolMode ? ' [Tool Mode]' : ''}`);
 
         const output = await runComponentWithRetry(activityInput);
 

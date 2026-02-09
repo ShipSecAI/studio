@@ -86,7 +86,20 @@ export async function registerLocalMcpActivity(
   });
 }
 
+// DEBUG: To disable container cleanup for inspecting Docker logs:
+// Set environment variable: SKIP_CONTAINER_CLEANUP=true
+// Or uncomment the line below:
+// const SKIP_CLEANUP = true;
+const SKIP_CONTAINER_CLEANUP = process.env.SKIP_CONTAINER_CLEANUP === 'true';
+
 export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void> {
+  // DEBUG: Skip cleanup to inspect Docker logs
+  if (SKIP_CONTAINER_CLEANUP) {
+    console.log(`[MCP Cleanup] SKIP: Container cleanup disabled via SKIP_CONTAINER_CLEANUP env var`);
+    console.log(`[MCP Cleanup] Run 'docker ps -a | grep mcp' to see containers for run ${input.runId}`);
+    return;
+  }
+
   const response = (await callInternalApi('cleanup', { runId: input.runId })) as {
     containerIds?: string[];
   };

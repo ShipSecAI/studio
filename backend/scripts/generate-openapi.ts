@@ -14,11 +14,9 @@ async function generateOpenApi() {
 
   const { AppModule } = await import('../src/app.module');
 
-  console.log('Creating Nest app...');
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn'],
   });
-  console.log('Nest app created');
 
   // Set global prefix to match production
   app.setGlobalPrefix('api/v1');
@@ -31,7 +29,6 @@ async function generateOpenApi() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  console.log('Document paths keys:', Object.keys(document.paths));
   const cleaned = cleanupOpenApiDoc(document);
   const repoRootSpecPath = join(__dirname, '..', '..', 'openapi.json');
   const payload = JSON.stringify(cleaned, null, 2);
