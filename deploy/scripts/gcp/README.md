@@ -32,4 +32,16 @@ bash deploy/scripts/gcp/smoke.sh
 
 - This path uses DinD (privileged) for now. Treat it as trusted-tenant only.
 - Frontend is built with `VITE_API_URL` pointing to the backend LoadBalancer IP.
+- If you build from an Apple Silicon machine, you must push `linux/amd64` images to GKE nodes. Otherwise pods will crash with `exec format error`. `install.sh` enforces `--platform linux/amd64` and uses a unique `IMAGE_TAG` by default.
 
+## kubectl setup (on your machine)
+
+```bash
+gcloud components install gke-gcloud-auth-plugin --quiet
+gcloud config set project shipsec
+gcloud config set compute/region us-central1
+gcloud config set compute/zone us-central1-a
+gcloud container clusters get-credentials shipsec-dev --zone us-central1-a --project shipsec
+kubectl config current-context
+kubectl get nodes
+```
