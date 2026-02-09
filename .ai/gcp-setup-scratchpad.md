@@ -80,3 +80,71 @@ Terraform/OpenTofu note (Application Default Credentials):
 ```bash
 gcloud auth application-default print-access-token >/dev/null 2>&1 && echo 'adc:present' || echo 'adc:missing'
 ```
+
+### Live state check (2026-02-09T08:55:16Z)
+
+```bash
+gcloud config list --format='text(core.project,compute.region,compute.zone)'
+gcloud container clusters describe shipsec-dev --zone us-central1-a --project shipsec --format='value(status,currentMasterVersion,currentNodeVersion,endpoint)'
+kubectl config current-context
+kubectl get ns
+helm list -A
+kubectl get pods -A -o wide
+kubectl get svc -A -o wide
+```
+
+### Notes
+- gcloud warning about missing resource tag `environment` is informational; does not block GKE.
+
+## Debug (2026-02-09T08:59:44Z)
+
+```bash
+kubectl config current-context
+kubectl -n shipsec-system get deploy,po,cm,secret -o wide
+kubectl -n shipsec-workers get deploy,po -o wide
+kubectl -n shipsec-system describe pod -l app.kubernetes.io/component=backend
+kubectl -n shipsec-system describe pod -l app.kubernetes.io/component=frontend
+kubectl -n shipsec-workers describe pod -l app.kubernetes.io/component=worker
+kubectl -n shipsec-system logs -l app.kubernetes.io/component=backend --tail=200
+kubectl -n shipsec-system logs -l app.kubernetes.io/component=backend --tail=200 --previous
+kubectl -n shipsec-system logs -l app.kubernetes.io/component=frontend --tail=200
+kubectl -n shipsec-system logs -l app.kubernetes.io/component=frontend --tail=200 --previous
+kubectl -n shipsec-workers logs -l app.kubernetes.io/component=worker --tail=200
+kubectl -n shipsec-workers logs -l app.kubernetes.io/component=worker --tail=200 --previous
+```
+
+### Redeploy (amd64 images) (2026-02-09T09:00:18Z)
+
+```bash
+bash deploy/scripts/gcp/install.sh
+```
+
+### Post-redeploy checks (2026-02-09T09:06:34Z)
+
+```bash
+kubectl -n shipsec-system get pods -o wide
+kubectl -n shipsec-workers get pods -o wide
+kubectl -n shipsec-system logs -l app.kubernetes.io/component=backend --tail=120
+kubectl -n shipsec-workers logs -l app.kubernetes.io/component=worker --tail=120
+kubectl -n shipsec-system logs -l app.kubernetes.io/component=frontend --tail=120
+```
+
+```bash
+kubectl -n shipsec-system rollout status deploy/shipsec-frontend --timeout=180s
+```
+
+```bash
+curl -fsS http://35.225.241.234:3211/api/v1/health || true
+```
+
+```bash
+curl -fsS http://104.197.140.108:8080/ | head
+```
+
+```bash
+curl -I http://104.197.140.108:8080/ || true
+```
+
+```bash
+kubectl -n shipsec-system get deploy shipsec-backend shipsec-frontend -o jsonpath='{range .items[*]}{.metadata.name}{t}{.spec.template.spec.containers[0].image}{n}{end}'
+```
