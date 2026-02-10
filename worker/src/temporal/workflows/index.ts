@@ -218,6 +218,9 @@ export async function shipsecWorkflowRun(
             ...request.arguments,
           },
           params: request.parameters ?? {},
+          // Pass credentials as inputOverrides so resolveSecretInputOverrides
+          // in runComponentActivity resolves secret names to actual values.
+          inputOverrides: request.credentials ?? {},
           metadata: {
             streamId: request.callId,
           },
@@ -770,7 +773,9 @@ export async function shipsecWorkflowRun(
         // This prevents a race condition where the agent starts before child servers are discovered.
         // The agent's areAllToolsReadyActivity check will poll until this registration happens.
         if (isToolMode && isMcpGroup) {
-          console.log(`[Workflow] MCP Group node ${action.ref} is in tool mode, will register as ready AFTER execution completes (to avoid race with agent tool discovery)`);
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} is in tool mode, will register as ready AFTER execution completes (to avoid race with agent tool discovery)`,
+          );
         }
 
         if (isMcpServerComponent(action.componentId)) {
@@ -835,14 +840,18 @@ export async function shipsecWorkflowRun(
         }
 
         // Debug logging: Track component execution start
-        console.log(`[Workflow] Executing component ${action.componentId} (node ${action.ref})${isMcpGroup ? ' [MCP Group]' : ''}${isToolMode ? ' [Tool Mode]' : ''}`);
+        console.log(
+          `[Workflow] Executing component ${action.componentId} (node ${action.ref})${isMcpGroup ? ' [MCP Group]' : ''}${isToolMode ? ' [Tool Mode]' : ''}`,
+        );
 
         const output = await runComponentWithRetry(activityInput);
 
         // MCP groups in tool mode: NOW register the parent as ready after execution completes.
         // This ensures child servers are discovered and registered before the agent starts.
         if (isToolMode && isMcpGroup) {
-          console.log(`[Workflow] MCP Group node ${action.ref} execution complete, now registering parent as ready...`);
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} execution complete, now registering parent as ready...`,
+          );
           await prepareAndRegisterToolActivity({
             runId: input.runId,
             nodeId: action.ref,
@@ -850,7 +859,9 @@ export async function shipsecWorkflowRun(
             inputs: mergedInputs,
             params: mergedParams,
           });
-          console.log(`[Workflow] MCP Group node ${action.ref} registered as ready (child servers already registered during execution)`);
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} registered as ready (child servers already registered during execution)`,
+          );
         }
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)

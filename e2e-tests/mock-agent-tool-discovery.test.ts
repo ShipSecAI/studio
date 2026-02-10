@@ -253,7 +253,10 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
             data: {
               label: 'Mock Agent',
               config: {
-                params: {},
+                params: {
+                  callTools: true,
+                  maxToolCalls: 10,
+                },
                 inputOverrides: {},
               },
             },
@@ -320,8 +323,13 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
       expect(mockAgentCompleted).toBeDefined();
 
       const toolCount = mockAgentCompleted?.outputSummary?.toolCount as number | undefined;
+      // Note: outputSummary truncates arrays to `{keyCount: N}` via createLightweightSummary
+      const toolCallResultsCount = mockAgentCompleted?.outputSummary?.toolCallResultsCount as number | undefined;
+      const discoveredToolsCount = mockAgentCompleted?.outputSummary?.discoveredToolsCount as number | undefined;
 
-      console.log(`[e2e] Mock agent discovered ${toolCount} tools`);
+      console.log(`[e2e] Mock agent discovered ${toolCount} tools (discoveredToolsCount=${discoveredToolsCount})`);
+      console.log(`[e2e] Mock agent made ${toolCallResultsCount} tool calls`);
+      console.log(`[e2e] Full outputSummary: ${JSON.stringify(mockAgentCompleted?.outputSummary, null, 2)}`);
 
       expect(toolCount).toBeDefined();
       expect(toolCount).toBeGreaterThan(0);
@@ -330,6 +338,10 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
       expect(toolCount).toBeGreaterThan(2);
 
       console.log('[e2e] All expected tools discovered successfully!');
+
+      // Verify tool calls were made (at least component tools: abuseipdb + virustotal)
+      expect(toolCallResultsCount).toBeDefined();
+      expect(toolCallResultsCount).toBeGreaterThanOrEqual(2);
     },
   );
 });
