@@ -501,6 +501,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Executes dnsx inside Docker to resolve DNS records for the provided domains. Supports multiple record types, custom resolvers, and rate limiting.',
+  toolProvider: {
+    kind: 'component',
+    name: 'dns_resolver',
+    description: 'DNS resolution and record lookup tool (dnsx).',
+  },
   ui: {
     slug: 'dnsx',
     version: '1.0.0',
@@ -516,10 +521,6 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    agentTool: {
-      enabled: true,
-      toolDescription: 'DNS resolution and record lookup tool (dnsx).',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);

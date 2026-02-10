@@ -43,7 +43,7 @@ export class McpGatewayService {
     private readonly workflowRunRepository: WorkflowRunRepository,
     private readonly traceRepository: TraceRepository,
     private readonly mcpServersRepository: McpServersRepository,
-  ) {}
+  ) { }
 
   /**
    * Get or create an MCP Server instance for a specific workflow run
@@ -66,11 +66,15 @@ export class McpGatewayService {
         ? `${runId}:${allowedNodeIds.sort().map(escapeNodeId).join(',')}`
         : runId;
 
+    this.logger.log(`[getServerForRun] runId=${runId}, cacheKey=${cacheKey}, allowedNodeIds=${JSON.stringify(allowedNodeIds)}`);
+
     const existing = this.servers.get(cacheKey);
     if (existing) {
+      this.logger.log(`[getServerForRun] Returning cached server for cacheKey=${cacheKey}`);
       return existing;
     }
 
+    this.logger.log(`[getServerForRun] Creating NEW server for cacheKey=${cacheKey}`);
     const server = new McpServer({
       name: 'shipsec-studio-gateway',
       version: '1.0.0',
@@ -79,6 +83,7 @@ export class McpGatewayService {
     const toolSet = new Set<string>();
     this.registeredToolNames.set(cacheKey, toolSet);
     await this.registerTools(server, runId, allowedTools, allowedNodeIds, toolSet);
+    this.logger.log(`[getServerForRun] After registerTools, toolSet has ${toolSet.size} tools: ${[...toolSet].join(', ')}`);
     this.servers.set(cacheKey, server);
 
     return server;
@@ -109,6 +114,12 @@ export class McpGatewayService {
   }
 
   private async validateRunAccess(runId: string, organizationId?: string | null) {
+    console.log('[DEBUG] McpGatewayService this:', !!this);
+    console.log('[DEBUG] McpGatewayService toolRegistry:', !!this.toolRegistry);
+    console.log('[DEBUG] McpGatewayService temporalService:', !!this.temporalService);
+    console.log('[DEBUG] McpGatewayService workflowRunRepository:', !!this.workflowRunRepository);
+    console.log('[DEBUG] McpGatewayService traceRepository:', !!this.traceRepository);
+    console.log('[DEBUG] McpGatewayService mcpServersRepository:', !!this.mcpServersRepository);
     const run = await this.workflowRunRepository.findByRunId(runId);
     if (!run) {
       throw new NotFoundException(`Workflow run ${runId} not found`);
@@ -163,7 +174,12 @@ export class McpGatewayService {
     allowedNodeIds?: string[],
     registeredToolNames?: Set<string>,
   ) {
+    this.logger.log(`[registerTools] START: runId=${runId}, allowedNodeIds=${JSON.stringify(allowedNodeIds)}`);
     const allRegistered = await this.toolRegistry.getToolsForRun(runId, allowedNodeIds);
+    this.logger.log(`[registerTools] getToolsForRun returned ${allRegistered.length} tools:`);
+    for (const t of allRegistered) {
+      this.logger.log(`[registerTools]   nodeId=${t.nodeId}, toolName=${t.toolName}, type=${t.type}, status=${t.status}, endpoint=${t.endpoint?.substring(0, 80) ?? 'none'}, exposedToAgent=${t.exposedToAgent}`);
+    }
 
     // Filter by allowed tools if specified
     if (allowedTools && allowedTools.length > 0) {
@@ -176,6 +192,11 @@ export class McpGatewayService {
     // 1. Register Internal Tools
     const internalTools = allRegistered.filter((t) => t.type === 'component');
     for (const tool of internalTools) {
+      // Some tool-mode nodes are "providers" only (e.g. MCP groups) and should not be agent-callable.
+      if (tool.exposedToAgent === false) {
+        continue;
+      }
+
       if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(tool.toolName)) {
         continue;
       }
@@ -266,70 +287,106 @@ export class McpGatewayService {
     const externalSources = allRegistered.filter((t) => t.type !== 'component');
 
     // DEBUG: Log all external sources for troubleshooting
-    this.logger.debug(`[Gateway] Found ${externalSources.length} external sources for run ${runId}`);
+    this.logger.debug(
+      `[Gateway] Found ${externalSources.length} external sources for run ${runId}`,
+    );
     for (const source of externalSources) {
-      this.logger.debug(`[Gateway] External source: toolName=${source.toolName}, type=${source.type}, endpoint=${source.endpoint?.substring(0, 50)}, nodeId=${source.nodeId}`);
+      this.logger.debug(
+        `[Gateway] External source: toolName=${source.toolName}, type=${source.type}, endpoint=${source.endpoint?.substring(0, 50)}, nodeId=${source.nodeId}`,
+      );
     }
 
-    // Filter by allowedNodeIds - but for MCP groups, also include servers that start with the group node ID
-    // e.g., if allowedNodeIds includes 'aws-mcp-group', also include 'aws-mcp-group-aws-cloudtrail'
-    const filteredSources = allowedNodeIds && allowedNodeIds.length > 0
-      ? externalSources.filter((source) => {
+    // Filter by allowedNodeIds - support hierarchical node IDs with '/' separator
+    // e.g., if allowedNodeIds includes 'aws-mcp-group', also include 'aws-mcp-group/aws-cloudtrail'
+    // Also support legacy '-' separator for backward compatibility
+    this.logger.debug(
+      `[Gateway] Filtering ${externalSources.length} external sources with allowedNodeIds: ${allowedNodeIds?.join(', ') ?? 'none (allow all)'}`,
+    );
+    const filteredSources =
+      allowedNodeIds && allowedNodeIds.length > 0
+        ? externalSources.filter((source) => {
           // Direct match
           if (allowedNodeIds.includes(source.nodeId)) {
+            this.logger.debug(
+              `[Gateway] ✓ Including ${source.nodeId} (toolName=${source.toolName}) via direct match`,
+            );
             return true;
           }
-          // MCP group prefix match (e.g., 'aws-mcp-group' matches 'aws-mcp-group-aws-cloudtrail')
+          // Hierarchical match with '/' separator (new format)
+          // e.g., 'aws-mcp-group' matches 'aws-mcp-group/aws-cloudtrail'
           for (const allowedId of allowedNodeIds) {
-            if (source.nodeId.startsWith(`${allowedId}-`)) {
-              this.logger.debug(`[Gateway] Including MCP server ${source.nodeId} via group prefix ${allowedId}`);
+            if (source.nodeId.startsWith(`${allowedId}/`)) {
+              this.logger.debug(
+                `[Gateway] ✓ Including ${source.nodeId} (toolName=${source.toolName}) via hierarchical match with ${allowedId}`,
+              );
               return true;
             }
           }
+          this.logger.debug(
+            `[Gateway] ✗ Excluding ${source.nodeId} (toolName=${source.toolName}) - no match in allowedNodeIds`,
+          );
           return false;
         })
-      : externalSources;
+        : externalSources;
 
+    this.logger.log(`[registerTools] Processing ${filteredSources.length} external sources...`);
     for (const source of filteredSources) {
       try {
         let tools: any[] = [];
 
-        // For local-mcp type, discover tools on-the-fly from endpoint
-        // For remote-mcp type, get pre-discovered tools from database
-        if (source.type === 'local-mcp') {
+        // First, check Redis for pre-discovered tools (from registerMcpServer API)
+        this.logger.log(`[registerTools] External source: nodeId=${source.nodeId}, toolName=${source.toolName}, type=${source.type}, endpoint=${source.endpoint?.substring(0, 80) ?? 'none'}`);
+        const preDiscoveredTools = await this.toolRegistry.getServerTools(runId, source.nodeId);
+        this.logger.log(`[registerTools]   preDiscoveredTools from Redis: ${preDiscoveredTools ? preDiscoveredTools.length : 'null'}`);
+        if (preDiscoveredTools && preDiscoveredTools.length > 0) {
+          this.logger.log(
+            `[registerTools]   Using ${preDiscoveredTools.length} pre-discovered tools from Redis for ${source.toolName}`,
+          );
+          tools = preDiscoveredTools;
+        } else if (source.type === 'mcp-server' || source.type === 'local-mcp') {
+          // Fallback: discover tools on-the-fly from endpoint
           if (!source.endpoint) {
-            this.logger.warn(
-              `Local MCP tool ${source.toolName} has no endpoint - skipping.`,
-            );
+            this.logger.warn(`[registerTools]   MCP tool ${source.toolName} has no endpoint - skipping.`);
             continue;
           }
-          this.logger.debug(`[Gateway] Discovering tools from local MCP endpoint: ${source.endpoint} (toolName=${source.toolName})`);
+          this.logger.log(
+            `[registerTools]   FALLBACK: Discovering tools from endpoint: ${source.endpoint}`,
+          );
           tools = await this.discoverToolsFromEndpoint(source.endpoint);
-          this.logger.debug(`[Gateway] Discovered ${tools.length} tools from ${source.toolName}`);
+          this.logger.log(`[registerTools]   FALLBACK result: discovered ${tools.length} tools from ${source.toolName}`);
+          if (tools.length > 0) {
+            this.logger.log(`[registerTools]   FALLBACK tool names: ${tools.map((t: any) => t.name).join(', ')}`);
+          }
         } else {
           // Remote MCPs must have a serverId (pre-registered in database)
           if (!source.serverId) {
             this.logger.warn(
-              `External tool ${source.toolName} has no serverId - skipping. Tools must be pre-discovered.`,
+              `[registerTools]   External tool ${source.toolName} has no serverId - skipping.`,
             );
             continue;
           }
+          this.logger.log(`[registerTools]   Loading pre-discovered tools from DB for serverId=${source.serverId}`);
           tools = await this.getPreDiscoveredTools(source.serverId);
+          this.logger.log(`[registerTools]   DB result: ${tools.length} tools`);
         }
 
         const prefix = source.toolName;
+        this.logger.log(`[registerTools]   Registering ${tools.length} tools with prefix '${prefix}'`);
 
         for (const t of tools) {
           const proxiedName = `${prefix}__${t.name}`;
 
           if (allowedTools && allowedTools.length > 0 && !allowedTools.includes(proxiedName)) {
+            this.logger.log(`[registerTools]   Skipping ${proxiedName} - not in allowedTools`);
             continue;
           }
 
           if (registeredToolNames?.has(proxiedName)) {
+            this.logger.log(`[registerTools]   Skipping ${proxiedName} - already registered`);
             continue;
           }
 
+          this.logger.log(`[registerTools]   Registering tool: ${proxiedName}`);
           server.registerTool(
             proxiedName,
             {
@@ -386,49 +443,41 @@ export class McpGatewayService {
   }
 
   /**
-    * Discover tools on-the-fly from an MCP endpoint (for local-mcp type)
-    */
+   * Discover tools on-the-fly from an MCP endpoint (for local-mcp type)
+   */
   private async discoverToolsFromEndpoint(endpoint: string): Promise<any[]> {
     try {
-      this.logger.debug(`[Endpoint Discovery] Attempting to fetch tools from: ${endpoint}`);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
+      // Many MCP servers require a proper initialize handshake before tools/list will succeed.
+      // Use the official SDK client so discovery works consistently across servers.
+      this.logger.log(`[discoverToolsFromEndpoint] START: endpoint=${endpoint}`);
+
+      const sessionId = `tools-list-${Date.now()}-${randomBytes(8).toString('hex')}`;
+      const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
+        requestInit: {
+          headers: {
+            'Mcp-Session-Id': sessionId,
+            Accept: 'application/json, text/event-stream',
+          },
         },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/list',
-          params: {},
-        }),
-        signal: AbortSignal.timeout(10000),
       });
 
-      this.logger.debug(`[Endpoint Discovery] Response status: ${response.status} from ${endpoint}`);
-      if (!response.ok) {
-        this.logger.warn(`Failed to discover tools from endpoint ${endpoint}: ${response.statusText}`);
-        const body = await response.text();
-        this.logger.debug(`[Endpoint Discovery] Response body: ${body.substring(0, 200)}`);
-        return [];
+      const client = new Client(
+        { name: 'shipsec-gateway-tools-list', version: '1.0.0' },
+        { capabilities: {} },
+      );
+
+      await client.connect(transport);
+      const res = await client.listTools();
+      await client.close().catch(() => { });
+
+      const tools = res.tools ?? [];
+      this.logger.log(`[discoverToolsFromEndpoint] SUCCESS: Discovered ${tools.length} tool(s) from ${endpoint}`);
+      if (tools.length > 0) {
+        this.logger.log(`[discoverToolsFromEndpoint] Tool names: ${tools.map((t: any) => t.name).join(', ')}`);
       }
-
-      const data = (await response.json()) as {
-        result?: { tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }> };
-        error?: { message: string };
-      };
-
-      if (data.error) {
-        this.logger.error(`MCP endpoint returned error: ${data.error.message}`);
-        return [];
-      }
-
-      const tools = data.result?.tools ?? [];
-      this.logger.debug(`[Endpoint Discovery] Successfully discovered ${tools.length} tools from ${endpoint}`);
       return tools;
     } catch (error) {
-      this.logger.error(`Failed to discover tools from endpoint ${endpoint}:`, error);
+      this.logger.error(`[discoverToolsFromEndpoint] FAILED for ${endpoint}: ${error}`);
       return [];
     }
   }
@@ -492,7 +541,7 @@ export class McpGatewayService {
           await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
         }
       } finally {
-        await client.close().catch(() => {});
+        await client.close().catch(() => { });
       }
     }
 

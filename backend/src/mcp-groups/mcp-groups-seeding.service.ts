@@ -11,10 +11,7 @@ import {
   computeTemplateHash,
   type McpGroupTemplate,
 } from './mcp-group-templates';
-import {
-  SyncTemplatesResponse,
-  GroupTemplateDto,
-} from './dto/mcp-groups.dto';
+import { SyncTemplatesResponse, GroupTemplateDto } from './dto/mcp-groups.dto';
 
 /**
  * Result of syncing a single template
@@ -52,7 +49,10 @@ export class McpGroupsSeedingService {
    */
   getAllTemplates(): GroupTemplateDto[] {
     try {
-      this.logger.log('[getAllTemplates] Starting, templates count:', Object.keys(MCP_GROUP_TEMPLATES).length);
+      this.logger.log(
+        '[getAllTemplates] Starting, templates count:',
+        Object.keys(MCP_GROUP_TEMPLATES).length,
+      );
       const result = Object.values(MCP_GROUP_TEMPLATES).map((template) => {
         this.logger.log('[getAllTemplates] Converting template:', template.slug);
         return this.templateToDto(template);

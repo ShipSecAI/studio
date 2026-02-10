@@ -47,7 +47,7 @@ class MockRedis {
   async del(key: string) {
     return this.kv.delete(key) ? 1 : 0;
   }
-  async quit() {}
+  async quit() { }
 }
 
 describe('MCP Internal API (Integration)', () => {
@@ -67,7 +67,7 @@ describe('MCP Internal API (Integration)', () => {
     const encryption = new SecretsEncryptionService();
     const toolRegistryService = new ToolRegistryService(mockRedis as unknown as any, encryption);
     const mockGatewayService = {
-      refreshServersForRun: async () => {},
+      refreshServersForRun: async () => { },
     };
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), McpModule],
@@ -107,23 +107,23 @@ describe('MCP Internal API (Integration)', () => {
       )
       .overrideProvider(NodeIOIngestService)
       .useValue({
-        onModuleInit: async () => {},
-        onModuleDestroy: async () => {},
+        onModuleInit: async () => { },
+        onModuleDestroy: async () => { },
       })
       .overrideProvider(LogIngestService)
       .useValue({
-        onModuleInit: async () => {},
-        onModuleDestroy: async () => {},
+        onModuleInit: async () => { },
+        onModuleDestroy: async () => { },
       })
       .overrideProvider(EventIngestService)
       .useValue({
-        onModuleInit: async () => {},
-        onModuleDestroy: async () => {},
+        onModuleInit: async () => { },
+        onModuleDestroy: async () => { },
       })
       .overrideProvider(AgentTraceIngestService)
       .useValue({
-        onModuleInit: async () => {},
-        onModuleDestroy: async () => {},
+        onModuleInit: async () => { },
+        onModuleDestroy: async () => { },
       })
       .overrideProvider(ToolRegistryService)
       .useValue(toolRegistryService)
@@ -144,9 +144,9 @@ describe('MCP Internal API (Integration)', () => {
       .useValue({
         connect: async () => ({
           query: async () => ({ rows: [] }),
-          release: () => {},
+          release: () => { },
         }),
-        on: () => {},
+        on: () => { },
       })
       .overrideProvider(TOOL_REGISTRY_REDIS)
       .useValue(mockRedis)
@@ -198,6 +198,44 @@ describe('MCP Internal API (Integration)', () => {
     const tool = JSON.parse(toolJson!);
     expect(tool.toolName).toBe('test_tool');
     expect(tool.status).toBe('ready');
+  });
+
+  it('registers an MCP server with pre-discovered tools', async () => {
+    const payload = {
+      runId: 'run-test-2',
+      nodeId: 'mcp-library-test',
+      serverName: 'Test MCP Server',
+      transport: 'http',
+      endpoint: 'http://localhost:9999/mcp',
+      tools: [
+        { name: 'search', description: 'Search documents', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
+        { name: 'analyze', description: 'Analyze data', inputSchema: { type: 'object', properties: {} } },
+      ],
+    };
+
+    const response = await request(app.getHttpServer())
+      .post('/internal/mcp/register-mcp-server')
+      .set('x-internal-token', INTERNAL_TOKEN)
+      .send(payload);
+
+    expect(response.status).toBe(201);
+    expect(response.body).toEqual({ success: true, toolCount: 2 });
+
+    // Verify server is in Redis
+    const serverJson = await redis.hget('mcp:run:run-test-2:tools', 'mcp-library-test');
+    expect(serverJson).not.toBeNull();
+    const server = JSON.parse(serverJson!);
+    expect(server.toolName).toBe('Test MCP Server');
+    expect(server.endpoint).toBe('http://localhost:9999/mcp');
+    expect(server.status).toBe('ready');
+
+    // Verify pre-discovered tools are stored
+    const toolsJson = await redis.get('mcp:run:run-test-2:server:mcp-library-test:tools');
+    expect(toolsJson).not.toBeNull();
+    const tools = JSON.parse(toolsJson!);
+    expect(tools.length).toBe(2);
+    expect(tools[0].name).toBe('search');
+    expect(tools[0].inputSchema).toEqual({ type: 'object', properties: { query: { type: 'string' } } });
   });
 
   it('rejects identity-less internal requests', async () => {

@@ -2,6 +2,7 @@ import {
   componentRegistry,
   ConfigurationError,
   getCredentialInputIds,
+  isAgentCallable,
   getToolMetadata,
   ServiceError,
 } from '@shipsec/component-sdk';
@@ -189,6 +190,7 @@ export async function prepareAndRegisterToolActivity(input: {
 
   const metadata = getToolMetadata(component);
   const credentialIds = getCredentialInputIds(component);
+  const exposedToAgent = isAgentCallable(component);
 
   // Extract credentials from inputs/params
   const allInputs = { ...input.inputs, ...input.params };
@@ -203,6 +205,7 @@ export async function prepareAndRegisterToolActivity(input: {
     runId: input.runId,
     nodeId: input.nodeId,
     toolName: input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
+    exposedToAgent,
     componentId: input.componentId,
     description: metadata.description,
     inputSchema: metadata.inputSchema,

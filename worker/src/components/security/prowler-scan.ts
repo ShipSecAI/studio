@@ -415,6 +415,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
+  toolProvider: {
+    kind: 'component',
+    name: 'prowler_scan',
+    description: 'AWS and multi-cloud security assessment tool (Prowler).',
+  },
   ui: {
     slug: 'prowler-scan',
     version: '2.0.0',
@@ -434,10 +439,6 @@ const definition = defineComponent({
       'Run nightly `prowler aws --quick --severity-filter high,critical` scans on production accounts and forward findings into ELK.',
       'Use `prowler cloud` with custom flags to generate a multi-cloud compliance snapshot.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'AWS and multi-cloud security assessment tool (Prowler).',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);

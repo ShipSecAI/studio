@@ -311,10 +311,11 @@ const definition = defineComponent({
       'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
       'Quick passive discovery during scope triage workflows.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Passive subdomain enumeration tool (Subfinder).',
-    },
+  },
+  toolProvider: {
+    kind: 'component',
+    name: 'subdomain_discovery',
+    description: 'Passive subdomain enumeration tool (Subfinder).',
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);

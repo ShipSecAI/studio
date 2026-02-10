@@ -488,6 +488,11 @@ const definition = (defineComponent as any)({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Enumerate subdomains with OWASP Amass. Supports active techniques, brute forcing, alterations, recursion tuning, and DNS throttling.',
+  toolProvider: {
+    kind: 'component',
+    name: 'amass_enum',
+    description: 'Deep subdomain enumeration and attack surface mapping tool (Amass).',
+  },
   ui: {
     slug: 'amass',
     version: '1.0.0',
@@ -505,10 +510,6 @@ const definition = (defineComponent as any)({
     },
     isLatest: true,
     deprecated: false,
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Deep subdomain enumeration and attack surface mapping tool (Amass).',
-    },
     example:
       '`amass enum -d example.com -brute -alts` - Aggressively enumerates subdomains with brute force and alteration engines enabled.',
     examples: [
