@@ -365,8 +365,7 @@ module.exports = {
           TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
           TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
           TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
-          // DEBUG: Skip container cleanup for MCP debugging
-          SKIP_CONTAINER_CLEANUP: process.env.SKIP_CONTAINER_CLEANUP || 'true',
+          SKIP_CONTAINER_CLEANUP: process.env.SKIP_CONTAINER_CLEANUP || 'false',
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),

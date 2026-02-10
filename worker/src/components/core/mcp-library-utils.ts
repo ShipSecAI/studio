@@ -66,7 +66,7 @@ export async function fetchEnabledServers(
   const allServers = (await response.json()) as unknown[];
   return allServers
     .map((s) => McpServerSchema.parse(s))
-    .filter((s) => enabledServerIds.includes(s.id));
+    .filter((s) => s.enabled && enabledServerIds.includes(s.id));
 }
 
 export async function fetchResolvedConfig(
