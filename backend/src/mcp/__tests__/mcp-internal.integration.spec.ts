@@ -47,7 +47,7 @@ class MockRedis {
   async del(key: string) {
     return this.kv.delete(key) ? 1 : 0;
   }
-  async quit() { }
+  async quit() {}
 }
 
 describe('MCP Internal API (Integration)', () => {
@@ -67,7 +67,7 @@ describe('MCP Internal API (Integration)', () => {
     const encryption = new SecretsEncryptionService();
     const toolRegistryService = new ToolRegistryService(mockRedis as unknown as any, encryption);
     const mockGatewayService = {
-      refreshServersForRun: async () => { },
+      refreshServersForRun: async () => {},
     };
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), McpModule],
@@ -107,23 +107,23 @@ describe('MCP Internal API (Integration)', () => {
       )
       .overrideProvider(NodeIOIngestService)
       .useValue({
-        onModuleInit: async () => { },
-        onModuleDestroy: async () => { },
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
       })
       .overrideProvider(LogIngestService)
       .useValue({
-        onModuleInit: async () => { },
-        onModuleDestroy: async () => { },
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
       })
       .overrideProvider(EventIngestService)
       .useValue({
-        onModuleInit: async () => { },
-        onModuleDestroy: async () => { },
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
       })
       .overrideProvider(AgentTraceIngestService)
       .useValue({
-        onModuleInit: async () => { },
-        onModuleDestroy: async () => { },
+        onModuleInit: async () => {},
+        onModuleDestroy: async () => {},
       })
       .overrideProvider(ToolRegistryService)
       .useValue(toolRegistryService)
@@ -144,9 +144,9 @@ describe('MCP Internal API (Integration)', () => {
       .useValue({
         connect: async () => ({
           query: async () => ({ rows: [] }),
-          release: () => { },
+          release: () => {},
         }),
-        on: () => { },
+        on: () => {},
       })
       .overrideProvider(TOOL_REGISTRY_REDIS)
       .useValue(mockRedis)
@@ -208,8 +208,16 @@ describe('MCP Internal API (Integration)', () => {
       transport: 'http',
       endpoint: 'http://localhost:9999/mcp',
       tools: [
-        { name: 'search', description: 'Search documents', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
-        { name: 'analyze', description: 'Analyze data', inputSchema: { type: 'object', properties: {} } },
+        {
+          name: 'search',
+          description: 'Search documents',
+          inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+        },
+        {
+          name: 'analyze',
+          description: 'Analyze data',
+          inputSchema: { type: 'object', properties: {} },
+        },
       ],
     };
 
@@ -235,7 +243,10 @@ describe('MCP Internal API (Integration)', () => {
     const tools = JSON.parse(toolsJson!);
     expect(tools.length).toBe(2);
     expect(tools[0].name).toBe('search');
-    expect(tools[0].inputSchema).toEqual({ type: 'object', properties: { query: { type: 'string' } } });
+    expect(tools[0].inputSchema).toEqual({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+    });
   });
 
   it('rejects identity-less internal requests', async () => {

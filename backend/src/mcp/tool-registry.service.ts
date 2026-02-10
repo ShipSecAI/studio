@@ -261,9 +261,7 @@ export class ToolRegistryService implements OnModuleDestroy {
     if (nodeIds && nodeIds.length > 0) {
       this.logger.debug(`Filtering tools by nodeIds: ${nodeIds.join(', ')}`);
       tools = tools.filter(
-        (t) =>
-          nodeIds.includes(t.nodeId) ||
-          nodeIds.some((id) => t.nodeId.startsWith(`${id}/`)),
+        (t) => nodeIds.includes(t.nodeId) || nodeIds.some((id) => t.nodeId.startsWith(`${id}/`)),
       );
       this.logger.debug(`Filtered down to ${tools.length} tool(s)`);
     }

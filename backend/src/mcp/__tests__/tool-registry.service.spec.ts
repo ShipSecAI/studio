@@ -44,7 +44,7 @@ class MockRedis {
     return 1;
   }
 
-  async quit(): Promise<void> { }
+  async quit(): Promise<void> {}
 }
 
 // Mock encryption service
@@ -106,7 +106,11 @@ describe('ToolRegistryService', () => {
         transport: 'http',
         endpoint: 'http://localhost:8080/mcp',
         tools: [
-          { name: 'search', description: 'Search documents', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
+          {
+            name: 'search',
+            description: 'Search documents',
+            inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+          },
           { name: 'analyze', description: 'Analyze data' },
         ],
       });
@@ -122,8 +126,19 @@ describe('ToolRegistryService', () => {
 
     it('stores pre-discovered tools in separate Redis key', async () => {
       const discoveredTools = [
-        { name: 'fetch', description: 'Fetch data', inputSchema: { type: 'object', properties: { url: { type: 'string' } } } },
-        { name: 'store', description: 'Store data', inputSchema: { type: 'object', properties: { key: { type: 'string' }, value: { type: 'string' } } } },
+        {
+          name: 'fetch',
+          description: 'Fetch data',
+          inputSchema: { type: 'object', properties: { url: { type: 'string' } } },
+        },
+        {
+          name: 'store',
+          description: 'Store data',
+          inputSchema: {
+            type: 'object',
+            properties: { key: { type: 'string' }, value: { type: 'string' } },
+          },
+        },
       ];
 
       await service.registerMcpServer({
@@ -141,7 +156,10 @@ describe('ToolRegistryService', () => {
       expect(tools).not.toBeNull();
       expect(tools?.length).toBe(2);
       expect(tools?.[0].name).toBe('fetch');
-      expect(tools?.[0].inputSchema).toEqual({ type: 'object', properties: { url: { type: 'string' } } });
+      expect(tools?.[0].inputSchema).toEqual({
+        type: 'object',
+        properties: { url: { type: 'string' } },
+      });
       expect(tools?.[1].name).toBe('store');
     });
 
@@ -157,7 +175,7 @@ describe('ToolRegistryService', () => {
       });
 
       const tool = await service.getTool('run-1', 'stdio-mcp');
-      expect(tool?.type).toBe('mcp-server');  // stdio uses 'mcp-server' type
+      expect(tool?.type).toBe('mcp-server'); // stdio uses 'mcp-server' type
       expect(tool?.containerId).toBe('container-123');
     });
 

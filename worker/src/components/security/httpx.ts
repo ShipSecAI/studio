@@ -494,22 +494,24 @@ function parseHttpxOutput(raw: string): Finding[] {
     }
 
     const technologies = Array.isArray(payload.tech)
-      ? payload.tech.filter((item: unknown): item is string => typeof item === 'string' && item.length > 0)
+      ? payload.tech.filter(
+          (item: unknown): item is string => typeof item === 'string' && item.length > 0,
+        )
       : [];
 
     const chainStatus = Array.isArray(payload['chain-status'])
       ? payload['chain-status']
-        .map((value: unknown) => {
-          if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
-          }
-          if (typeof value === 'string' && value.trim().length > 0) {
-            const parsed = Number.parseInt(value, 10);
-            return Number.isFinite(parsed) ? parsed : null;
-          }
-          return null;
-        })
-        .filter((value: number | null): value is number => value !== null)
+          .map((value: unknown) => {
+            if (typeof value === 'number' && Number.isFinite(value)) {
+              return value;
+            }
+            if (typeof value === 'string' && value.trim().length > 0) {
+              const parsed = Number.parseInt(value, 10);
+              return Number.isFinite(parsed) ? parsed : null;
+            }
+            return null;
+          })
+          .filter((value: number | null): value is number => value !== null)
       : [];
 
     const findingCandidate: Finding = {
