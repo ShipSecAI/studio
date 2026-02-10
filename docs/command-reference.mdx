@@ -36,11 +36,12 @@ Starts the full development environment with hot-reload:
 - Runs database migrations
 - Starts backend, worker, and frontend via PM2
 
-**Access points:**
+**Access points (all via nginx on port 80):**
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:5173 |
-| Backend | http://localhost:3211 |
+| Frontend | http://localhost/ |
+| Backend API | http://localhost/api/ |
+| Analytics | http://localhost/analytics/ |
 | Temporal UI | http://localhost:8081 |
 
 ### Stop Development
@@ -79,11 +80,12 @@ just prod
 
 Starts the production environment using Docker Compose with pre-built images.
 
-**Access points:**
+**Access points (all via nginx on port 80):**
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:8090 |
-| Backend | http://localhost:3211 |
+| Frontend | http://localhost/ |
+| Backend API | http://localhost/api/ |
+| Analytics | http://localhost/analytics/ |
 | Temporal UI | http://localhost:8081 |
 
 ### Build and Start

@@ -24,11 +24,21 @@ just dev
 - **Nginx**: Uses `nginx.dev.conf` pointing to `host.docker.internal`
 - **Security**: Disabled for fast iteration
 
-**Access:**
+**Access (all via port 80):**
 
-- Frontend: http://localhost:5173
-- Backend: http://localhost:3211
-- Analytics: http://localhost:5601/analytics/
+- Frontend: http://localhost/
+- Backend API: http://localhost/api/
+- Analytics: http://localhost/analytics/
+
+**Nginx Routing (nginx.dev.conf):**
+
+| Path           | Target (host machine)         | Port |
+| -------------- | ----------------------------- | ---- |
+| `/analytics/*` | opensearch-dashboards         | 5601 |
+| `/api/*`       | host.docker.internal:backend  | 3211 |
+| `/*`           | host.docker.internal:frontend | 5173 |
+
+> **Note:** Service ports (5173, 3211, 5601) are accessible directly for debugging but should not be used in normal development. All traffic flows through nginx on port 80.
 
 ### Production Mode (`just prod`)
 

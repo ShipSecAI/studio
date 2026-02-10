@@ -62,15 +62,22 @@ The `just dev` command automatically:
 
 ## Service Endpoints
 
+In development mode, all application services are accessible through nginx on port 80:
+
 | Service | URL | Notes |
 |---------|-----|-------|
-| Frontend | http://localhost:5173 | Workflow builder |
-| Backend API | http://localhost:3211 | REST API |
+| Frontend | http://localhost/ | Workflow builder (via nginx) |
+| Backend API | http://localhost/api/ | REST API (via nginx) |
+| Analytics | http://localhost/analytics/ | OpenSearch Dashboards (via nginx) |
 | Temporal UI | http://localhost:8081 | Workflow management |
 | PostgreSQL | http://localhost:5433 | Database |
 | MinIO | http://localhost:9000 | Object storage |
 | MinIO Console | http://localhost:9001 | Credentials: `minioadmin/minioadmin` |
 | Loki | http://localhost:3100 | Logs |
+
+<Note>
+  Individual service ports (5173, 3211, 5601) are available for debugging but should not be used in normal development. All traffic flows through nginx on port 80.
+</Note>
 
 ---
 
@@ -128,7 +135,7 @@ This creates the `security-findings-*` index template with proper mappings for w
 | Service | URL | Notes |
 |---------|-----|-------|
 | OpenSearch | http://localhost:9200 | Search engine API |
-| OpenSearch Dashboards | http://localhost:5601 | Visualization UI |
+| OpenSearch Dashboards | http://localhost/analytics/ | Visualization UI (via nginx) |
 
 <Note>
   The analytics stack is optional. If OpenSearch is not configured, the Analytics Sink component will gracefully skip indexing and log a warning.
