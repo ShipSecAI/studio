@@ -1,18 +1,3 @@
 {
-  "mcpServers": {
-    "bedrock": {
-      "command": "uvx",
-      "args": ["mcp-server-bedrock"],
-      "env": {
-        "AWS_REGION": "us-east-1"
-      }
-    },
-    "lambda": {
-      "command": "uvx",
-      "args": ["mcp-server-lambda"],
-      "env": {
-        "AWS_REGION": "us-east-1"
-      }
-    }
-  }
+  "mcpServers": {}
 }

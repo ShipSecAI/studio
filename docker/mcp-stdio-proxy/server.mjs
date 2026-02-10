@@ -13,6 +13,7 @@ import {
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { randomUUID } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -142,7 +143,7 @@ if (hasNamedServers) {
       });
 
       const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
+        sessionIdGenerator: () => randomUUID(),
         enableJsonResponse: true,
       });
 
@@ -213,7 +214,7 @@ if (hasNamedServers) {
   });
 
   const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
+    sessionIdGenerator: () => randomUUID(),
     enableJsonResponse: true,
   });
 
