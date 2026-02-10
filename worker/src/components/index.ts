@@ -65,6 +65,9 @@ import './github/remove-org-membership';
 import './it-automation/google-workspace-license-unassign';
 import './it-automation/okta-user-offboard';
 
+// Dev / debug components
+import './dev/mock-agent';
+
 // Test utility components
 import './test/sleep-parallel';
 import './test/live-event-heartbeat';
