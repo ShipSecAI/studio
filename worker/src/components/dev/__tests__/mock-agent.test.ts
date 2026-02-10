@@ -46,7 +46,7 @@ describe('mock.agent', () => {
       createTestContext(),
     );
 
-    expect(result).toEqual({ discoveredTools: [], toolCount: 0 });
+    expect(result).toEqual({ discoveredTools: [], toolCount: 0, toolCallResults: [] });
   });
 
   test('discovers tools from gateway when connected tools exist', async () => {
