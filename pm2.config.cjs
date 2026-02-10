@@ -306,6 +306,16 @@ module.exports = {
         EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
         EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-backend-events-${instanceNum}`,
         EVENT_KAFKA_GROUP_ID: process.env.EVENT_KAFKA_GROUP_ID || `shipsec-event-ingestor-${instanceNum}`,
+        NODE_IO_KAFKA_TOPIC: process.env.NODE_IO_KAFKA_TOPIC || 'telemetry.node-io',
+        NODE_IO_KAFKA_CLIENT_ID:
+          process.env.NODE_IO_KAFKA_CLIENT_ID || `shipsec-backend-node-io-${instanceNum}`,
+        NODE_IO_KAFKA_GROUP_ID:
+          process.env.NODE_IO_KAFKA_GROUP_ID || `shipsec-node-io-ingestor-${instanceNum}`,
+        AGENT_TRACE_KAFKA_TOPIC: process.env.AGENT_TRACE_KAFKA_TOPIC || 'telemetry.agent-trace',
+        AGENT_TRACE_KAFKA_CLIENT_ID:
+          process.env.AGENT_TRACE_KAFKA_CLIENT_ID || `shipsec-backend-agent-trace-${instanceNum}`,
+        AGENT_TRACE_KAFKA_GROUP_ID:
+          process.env.AGENT_TRACE_KAFKA_GROUP_ID || `shipsec-agent-trace-ingestor-${instanceNum}`,
         ENABLE_INGEST_SERVICES: process.env.ENABLE_INGEST_SERVICES || 'true',
         INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
         TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',

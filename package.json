@@ -51,9 +51,9 @@
     "undici": "^7.19.0"
   },
   "lint-staged": {
-    "frontend/**/*.{ts,tsx,js,jsx}": "bunx eslint --fix --config frontend/eslint.config.mjs",
-    "backend/**/*.{ts,js}": "bunx eslint --fix --config backend/eslint.config.mjs",
-    "worker/**/*.{ts,js}": "bunx eslint --fix --config worker/eslint.config.mjs",
+    "frontend/**/*.{ts,tsx,js,jsx}": "bunx eslint@9 --fix --config frontend/eslint.config.mjs",
+    "backend/**/*.{ts,js}": "bunx eslint@9 --fix --config backend/eslint.config.mjs",
+    "worker/**/*.{ts,js}": "bunx eslint@9 --fix --config worker/eslint.config.mjs",
     "*.{json,md,yml,yaml}": "bunx prettier --write"
   },
   "dependencies": {
@@ -61,6 +61,7 @@
     "@grpc/grpc-js": "^1.14.3",
     "chalk": "^5.6.2",
     "chalk-animation": "^2.0.3",
-    "long": "^5.3.2"
+    "long": "^5.3.2",
+    "zod": "^4.3.6"
   }
 }

@@ -21,7 +21,7 @@ docker run --rm \
   --network host \
   -v "$DIR:/workspace" \
   -e OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
-  ghcr.io/anomalyco/opencode \
+  ghcr.io/shipsecai/opencode:1.1.53 \
   run --log-level INFO "$(cat prompt.txt)"
 
 # Kill MCP server

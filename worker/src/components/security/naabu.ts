@@ -187,7 +187,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'projectdiscovery/naabu:v2.3.7',
+    image: 'ghcr.io/shipsecai/naabu:v2.3.7',
     entrypoint: 'sh',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,

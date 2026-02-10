@@ -13,6 +13,8 @@ import {
 import type { FrontendNodeData } from '@/schemas/node';
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow';
 import { api } from '@/services/api';
+import { useSecretStore } from '@/store/secretStore';
+import { useComponentStore } from '@/store/componentStore';
 interface WorkflowMetadataShape {
   id: string | null;
   name: string;
@@ -131,6 +133,54 @@ export function useWorkflowImportExport({
         }),
       );
 
+      // Validate secret references
+      const removedSecrets: { param: string; node: string; secretId: string }[] = [];
+      try {
+        await useSecretStore.getState().fetchSecrets();
+        const secrets = useSecretStore.getState().secrets;
+        const secretIds = new Set(secrets.map((s) => s.id));
+
+        const componentStore = useComponentStore.getState();
+        if (Object.keys(componentStore.components).length === 0) {
+          await componentStore.fetchComponents();
+        }
+        const components = useComponentStore.getState().components;
+
+        resolvedNodes.forEach((node) => {
+          const data = node.data as FrontendNodeData;
+          const componentRef = data.componentId || data.componentSlug;
+          if (!componentRef) return;
+
+          const component =
+            componentStore.getComponent(componentRef) ||
+            Object.values(components).find((c) => c.slug === componentRef);
+
+          if (!component || !component.parameters) return;
+
+          // Find parameters that are secrets
+          const secretParams = component.parameters.filter((p) => p.type === 'secret');
+          const configParams = node.data.config.params || {};
+
+          secretParams.forEach((param) => {
+            const val = configParams[param.id];
+            // If value is a string (ID) and not in available secrets, remove it
+            if (typeof val === 'string' && val.trim().length > 0) {
+              if (!secretIds.has(val)) {
+                console.warn(
+                  `[Import] Removing invalid secret reference for param "${param.id}" in node "${node.id}" (secret ID: ${val})`,
+                );
+                removedSecrets.push({ param: param.id, node: node.id, secretId: val });
+                // Set to undefined to clear it
+                configParams[param.id] = undefined;
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Failed to validate secrets during import:', error);
+        // Continue with import even if validation fails
+      }
+
       resetWorkflow();
       setDesignNodes(resolvedNodes as ReactFlowNode<FrontendNodeData>[]);
       setDesignEdges(normalizedEdges);
@@ -151,6 +201,15 @@ export function useWorkflowImportExport({
         title: 'Workflow imported',
         description: `Loaded ${parsed.name}`,
       });
+
+      // Show warning if any invalid secret references were removed
+      if (removedSecrets.length > 0) {
+        toast({
+          variant: 'warning',
+          title: 'Invalid secret references removed',
+          description: `${removedSecrets.length} secret reference(s) could not be resolved and were cleared. Please select valid secrets from the Secrets Manager.`,
+        });
+      }
     },
     [
       canManageWorkflows,

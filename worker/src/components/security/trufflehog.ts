@@ -313,7 +313,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'trufflesecurity/trufflehog:v3.92.1',
+    image: 'ghcr.io/shipsecai/trufflehog:v3.93.1',
     entrypoint: 'trufflehog',
     network: 'bridge',
     command: [], // Will be built dynamically in execute

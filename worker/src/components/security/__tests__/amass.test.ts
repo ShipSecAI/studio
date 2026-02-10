@@ -107,13 +107,13 @@ describe.skip('amass component', () => {
     expect(result.rawOutput).toBe(rawOutput);
   });
 
-  it('should configure docker runner for owaspamass/amass image', () => {
+  it('should configure docker runner for ghcr.io/shipsecai/amass image', () => {
     const component = componentRegistry.get<AmassInput, AmassOutput>('shipsec.amass.enum');
     if (!component) throw new Error('Component not registered');
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('owaspamass/amass:v5.0.1');
+      expect(component.runner.image).toBe('ghcr.io/shipsecai/amass:v5.0.1');
       expect(component.runner.entrypoint).toBe('sh');
       expect(component.runner.command).toBeInstanceOf(Array);
     }
