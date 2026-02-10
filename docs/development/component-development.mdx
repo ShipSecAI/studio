@@ -765,8 +765,8 @@ Located in `e2e-tests/`. These tests create real workflows via the API and execu
 # Start full local environment
 just dev
 
-# Verify services are running
-curl http://localhost:3211/api/v1/health -H "x-internal-token: local-internal-token"
+# Verify services are running (via nginx)
+curl http://localhost/api/v1/health -H "x-internal-token: local-internal-token"
 ```
 
 **Run E2E tests:**
@@ -779,7 +779,7 @@ RUN_E2E=true bun --cwd e2e-tests test
 ```typescript
 import { describe, test, expect } from 'bun:test';
 
-const API_BASE = 'http://localhost:3211/api/v1';
+const API_BASE = 'http://localhost/api/v1';
 const HEADERS = {
   'Content-Type': 'application/json',
   'x-internal-token': 'local-internal-token',

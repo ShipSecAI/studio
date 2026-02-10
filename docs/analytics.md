@@ -282,23 +282,23 @@ The nginx `/analytics/` route always injects org-scoped proxy headers (`x-proxy-
 
 Access Dashboards directly on port 5601, bypassing nginx entirely. Without proxy headers, the basic auth fallback activates.
 
-**Development (port already exposed):**
+**Development (via nginx routing):**
 
 ```
-http://localhost:5601
+http://localhost/analytics
 ```
 
 Log in with the admin credentials defined in `docker/opensearch-security/internal_users.yml` (default: `admin` / `admin`).
 
 **Production (port not publicly exposed):**
 
-Use SSH port forwarding to tunnel to the server's Dashboards port:
+Use SSH port forwarding to tunnel to the server's nginx port:
 
 ```bash
-ssh -L 5601:localhost:5601 user@your-production-server
+ssh -L 80:localhost:80 user@your-production-server
 ```
 
-Then open `http://localhost:5601` locally.
+Then open `http://localhost/analytics` locally.
 
 If the Dashboards container doesn't bind to the host network, find its Docker IP first:
 

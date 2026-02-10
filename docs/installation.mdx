@@ -107,10 +107,10 @@ Add these environment variables to your backend and worker `.env` files:
 OPENSEARCH_URL=http://localhost:9200
 OPENSEARCH_USERNAME=admin
 OPENSEARCH_PASSWORD=admin
-OPENSEARCH_DASHBOARDS_URL=http://localhost:5601
+OPENSEARCH_DASHBOARDS_URL=http://localhost/analytics
 
 # Frontend (.env)
-VITE_OPENSEARCH_DASHBOARDS_URL=http://localhost:5601
+VITE_OPENSEARCH_DASHBOARDS_URL=http://localhost/analytics
 ```
 
 ### Setting Up the Index Template
@@ -155,9 +155,10 @@ just prod
 just prod build
 ```
 
-Production endpoints:
-- Frontend: http://localhost:8090
-- Backend: http://localhost:3211
+Production endpoints (all via nginx on port 80):
+- Frontend: http://localhost/
+- Backend API: http://localhost/api/
+- Analytics: http://localhost/analytics/
 - Temporal UI: http://localhost:8081
 
 ---
