@@ -13,6 +13,9 @@ export const ApiKeyPermissionsSchema = z.object({
     read: z.boolean(),
     cancel: z.boolean(),
   }),
+  audit: z.object({
+    read: z.boolean(),
+  }),
 });
 
 export const CreateApiKeySchema = z.object({

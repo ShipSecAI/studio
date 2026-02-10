@@ -16,6 +16,7 @@ import {
 import type { AuthContext } from '../auth/types';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { TemporalService } from '../temporal/temporal.service';
+import { AuditLogService } from '../audit/audit-log.service';
 import { WebhookRepository } from './repository/webhook.repository';
 import { WebhookDeliveryRepository } from './repository/webhook-delivery.repository';
 import type { WebhookConfigurationRecord, WebhookDeliveryRecord } from '../database/schema';
@@ -32,6 +33,7 @@ export class WebhooksService {
     private readonly deliveryRepository: WebhookDeliveryRepository,
     private readonly workflowsService: WorkflowsService,
     private readonly temporalService: TemporalService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   // Management methods (auth required)
@@ -95,6 +97,16 @@ export class WebhooksService {
     });
 
     this.logger.log(`Created webhook ${record.id} for workflow ${dto.workflowId}`);
+    this.auditLogService.record(auth, {
+      action: 'webhook.create',
+      resourceType: 'webhook',
+      resourceId: record.id,
+      resourceName: record.name,
+      metadata: {
+        workflowId: record.workflowId,
+        status: record.status,
+      },
+    });
     return this.mapConfigurationRecord(record);
   }
 
@@ -150,6 +162,16 @@ export class WebhooksService {
     }
 
     this.logger.log(`Updated webhook ${id}`);
+    this.auditLogService.record(auth, {
+      action: 'webhook.update',
+      resourceType: 'webhook',
+      resourceId: id,
+      resourceName: updated.name,
+      metadata: {
+        updatedFields: Object.keys(dto),
+        status: updated.status,
+      },
+    });
     return this.mapConfigurationRecord(updated);
   }
 
@@ -163,6 +185,15 @@ export class WebhooksService {
 
     await this.repository.delete(id, { organizationId: auth?.organizationId });
     this.logger.log(`Deleted webhook ${id}`);
+    this.auditLogService.record(auth, {
+      action: 'webhook.delete',
+      resourceType: 'webhook',
+      resourceId: id,
+      resourceName: existing.name,
+      metadata: {
+        workflowId: existing.workflowId,
+      },
+    });
   }
 
   async regeneratePath(auth: AuthContext | null, id: string): Promise<WebhookUrlResponse> {
@@ -185,6 +216,16 @@ export class WebhooksService {
     }
 
     this.logger.log(`Regenerated path for webhook ${id}: ${newPath}`);
+    this.auditLogService.record(auth, {
+      action: 'webhook.regenerate_path',
+      resourceType: 'webhook',
+      resourceId: id,
+      resourceName: updated.name,
+      metadata: {
+        oldPathHint: existing.webhookPath?.slice(-4) ?? null,
+        newPathHint: updated.webhookPath?.slice(-4) ?? null,
+      },
+    });
     return {
       id: updated.id,
       name: updated.name,
@@ -195,6 +236,15 @@ export class WebhooksService {
 
   async getUrl(auth: AuthContext | null, id: string): Promise<WebhookUrlResponse> {
     const webhook = await this.get(auth, id);
+    this.auditLogService.record(auth, {
+      action: 'webhook.url_access',
+      resourceType: 'webhook',
+      resourceId: webhook.id,
+      resourceName: webhook.name,
+      metadata: {
+        pathHint: webhook.webhookPath?.slice(-4) ?? null,
+      },
+    });
     return {
       id: webhook.id,
       name: webhook.name,

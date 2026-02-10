@@ -1879,6 +1879,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuditLogsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -2523,6 +2539,9 @@ export interface components {
                     read: boolean;
                     cancel: boolean;
                 };
+                audit: {
+                    read: boolean;
+                };
             };
             isActive: boolean;
             /** Format: date-time */
@@ -2548,6 +2567,9 @@ export interface components {
                     read: boolean;
                     cancel: boolean;
                 };
+                audit: {
+                    read: boolean;
+                };
             };
             /** Format: date-time */
             expiresAt?: string;
@@ -2569,6 +2591,9 @@ export interface components {
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
                 };
             };
             isActive: boolean;
@@ -2596,6 +2621,9 @@ export interface components {
                 runs: {
                     read: boolean;
                     cancel: boolean;
+                };
+                audit: {
+                    read: boolean;
                 };
             };
             isActive?: boolean;
@@ -3382,6 +3410,30 @@ export interface components {
             }[];
             error?: string;
             errorCode?: string;
+        };
+        ListAuditLogsResponseDto: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                organizationId: string | null;
+                actorId: string | null;
+                /** @enum {string} */
+                actorType: "user" | "api-key" | "internal" | "unknown";
+                actorDisplay: string | null;
+                action: string;
+                /** @enum {string} */
+                resourceType: "workflow" | "secret" | "api_key" | "webhook" | "artifact" | "analytics";
+                resourceId: string | null;
+                resourceName: string | null;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+                ip: string | null;
+                userAgent: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            nextCursor: string | null;
         };
     };
     responses: never;
@@ -7083,6 +7135,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GroupDiscoveryStatusDto"];
+                };
+            };
+        };
+    };
+    AuditLogsController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List audit log events for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAuditLogsResponseDto"];
                 };
             };
         };

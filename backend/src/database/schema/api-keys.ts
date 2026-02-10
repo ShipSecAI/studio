@@ -20,6 +20,9 @@ export interface ApiKeyPermissions {
     read: boolean;
     cancel: boolean;
   };
+  audit: {
+    read: boolean;
+  };
 }
 
 export const apiKeys = pgTable(

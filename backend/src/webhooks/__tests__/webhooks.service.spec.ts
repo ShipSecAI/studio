@@ -310,6 +310,10 @@ describe('WebhooksService', () => {
     getDefaultTaskQueue: () => 'shipsec-default',
   } as unknown as TemporalService;
 
+  const auditLogService = {
+    record: () => {},
+  };
+
   beforeEach(() => {
     repository = new InMemoryWebhookRepository();
     deliveryRepository = new InMemoryWebhookDeliveryRepository();
@@ -318,6 +322,7 @@ describe('WebhooksService', () => {
       deliveryRepository as unknown as WebhookDeliveryRepository,
       workflowsService,
       temporalService,
+      auditLogService as any,
     );
     ensureWorkflowAdminAccessCalls.length = 0;
     getCompiledWorkflowContextCalls.length = 0;

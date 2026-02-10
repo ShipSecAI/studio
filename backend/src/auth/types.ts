@@ -1,3 +1,5 @@
+import type { ApiKeyPermissions } from '../database/schema/api-keys';
+
 export type AuthRole = 'ADMIN' | 'MEMBER';
 
 export interface ApiKeyPermissions {

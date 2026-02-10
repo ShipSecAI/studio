@@ -34,6 +34,7 @@ import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
 import { TraceRepository } from '../trace/trace.repository';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AuditLogService } from '../audit/audit-log.service';
 import {
   ExecutionStatus,
   FailureSummary,
@@ -154,6 +155,7 @@ export class WorkflowsService {
     private readonly traceRepository: TraceRepository,
     private readonly temporalService: TemporalService,
     private readonly analyticsService: AnalyticsService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   private resolveOrganizationId(auth?: AuthContext | null): string | null {
@@ -320,6 +322,17 @@ export class WorkflowsService {
     this.logger.log(
       `Created workflow ${response.id} version ${version.version} (nodes=${input.nodes.length}, edges=${input.edges.length})`,
     );
+    this.auditLogService.record(auth ?? null, {
+      action: 'workflow.create',
+      resourceType: 'workflow',
+      resourceId: response.id,
+      resourceName: response.name,
+      metadata: {
+        nodeCount: input.nodes.length,
+        edgeCount: input.edges.length,
+        version: version.version,
+      },
+    });
     return response;
   }
 
@@ -351,6 +364,17 @@ export class WorkflowsService {
     this.logger.log(
       `Updated workflow ${response.id} to version ${version.version} (nodes=${input.nodes.length}, edges=${input.edges.length})`,
     );
+    this.auditLogService.record(auth ?? null, {
+      action: 'workflow.update',
+      resourceType: 'workflow',
+      resourceId: response.id,
+      resourceName: response.name,
+      metadata: {
+        nodeCount: input.nodes.length,
+        edgeCount: input.edges.length,
+        version: version.version,
+      },
+    });
     return response;
   }
 
@@ -368,6 +392,15 @@ export class WorkflowsService {
     const version = await this.versionRepository.findLatestByWorkflowId(id, { organizationId });
     const response = this.buildWorkflowResponse(record, version ?? null);
     this.logger.log(`Updated workflow ${response.id} metadata (name=${dto.name})`);
+    this.auditLogService.record(auth ?? null, {
+      action: 'workflow.update_metadata',
+      resourceType: 'workflow',
+      resourceId: response.id,
+      resourceName: response.name,
+      metadata: {
+        name: dto.name,
+      },
+    });
     return response;
   }
 
@@ -536,8 +569,15 @@ export class WorkflowsService {
 
   async delete(id: string, auth?: AuthContext | null): Promise<void> {
     const organizationId = await this.requireWorkflowAdmin(id, auth);
+    const existing = await this.repository.findById(id, { organizationId }).catch(() => null);
     await this.repository.delete(id, { organizationId });
     this.logger.log(`Deleted workflow ${id}`);
+    this.auditLogService.record(auth ?? null, {
+      action: 'workflow.delete',
+      resourceType: 'workflow',
+      resourceId: id,
+      resourceName: (existing as any)?.name ?? null,
+    });
   }
 
   async list(auth?: AuthContext | null): Promise<ServiceWorkflowResponse[]> {
@@ -777,6 +817,17 @@ export class WorkflowsService {
     this.logger.log(
       `Compiled workflow ${workflow.id} version ${version.version} with ${definition.actions.length} action(s); entrypoint=${definition.entrypoint.ref}`,
     );
+    this.auditLogService.record(auth ?? null, {
+      action: 'workflow.commit',
+      resourceType: 'workflow',
+      resourceId: workflow.id,
+      resourceName: workflow.name,
+      metadata: {
+        version: version.version,
+        actionCount: definition.actions.length,
+        entrypoint: definition.entrypoint.ref,
+      },
+    });
     return definition;
   }
 
@@ -799,6 +850,20 @@ export class WorkflowsService {
       nodeOverrides: options.nodeOverrides,
       runId: options.runId,
       idempotencyKey: options.idempotencyKey,
+    });
+
+    this.auditLogService.record(auth ?? null, {
+      action: 'workflow.run',
+      resourceType: 'workflow',
+      resourceId: prepared.workflowId,
+      resourceName: null,
+      metadata: {
+        runId: prepared.runId,
+        workflowVersion: prepared.workflowVersion,
+        triggerType: options.trigger?.type ?? null,
+        triggerSourceId: options.trigger?.sourceId ?? null,
+        triggerLabel: options.trigger?.label ?? null,
+      },
     });
 
     return this.startPreparedRun(prepared);
