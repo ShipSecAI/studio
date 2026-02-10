@@ -1,15 +1,18 @@
-import { describe, test, expect, beforeAll } from 'bun:test';
-import { spawnSync } from 'node:child_process';
+import { expect, beforeAll } from 'bun:test';
 
-import { getApiBaseUrl } from './helpers/api-base';
+import {
+  HEADERS,
+  e2eDescribe,
+  e2eTest,
+  pollRunStatus,
+  createWorkflow,
+  runWorkflow,
+  createOrRotateSecret,
+} from '../helpers/e2e-harness';
+
+import { getApiBaseUrl } from '../helpers/api-base';
 
 const API_BASE = getApiBaseUrl();
-const HEADERS = {
-  'Content-Type': 'application/json',
-  'x-internal-token': 'local-internal-token',
-};
-
-const runE2E = process.env.RUN_E2E === 'true';
 
 const ABUSEIPDB_API_KEY = process.env.ABUSEIPDB_API_KEY;
 const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY;
@@ -27,124 +30,11 @@ const requiredSecretsReady =
   typeof AWS_SECRET_ACCESS_KEY === 'string' &&
   AWS_SECRET_ACCESS_KEY.length > 0;
 
-const servicesAvailableSync = (() => {
-  if (!runE2E) return false;
-  try {
-    const result = spawnSync('curl', [
-      '-sf',
-      '--max-time',
-      '1',
-      '-H',
-      `x-internal-token: ${HEADERS['x-internal-token']}`,
-      `${API_BASE}/health`,
-    ]);
-    return result.status === 0;
-  } catch {
-    return false;
-  }
-})();
-
-const e2eDescribe = runE2E && servicesAvailableSync ? describe : describe.skip;
-
-function e2eTest(
-  name: string,
-  optionsOrFn: { timeout?: number } | (() => void | Promise<void>),
-  fn?: () => void | Promise<void>,
-): void {
-  if (runE2E && servicesAvailableSync) {
-    if (typeof optionsOrFn === 'function') {
-      test(name, optionsOrFn);
-    } else if (fn) {
-      (test as any)(name, optionsOrFn, fn);
-    }
-  } else {
-    const actualFn = typeof optionsOrFn === 'function' ? optionsOrFn : fn!;
-    test.skip(name, actualFn);
-  }
-}
-
-async function pollRunStatus(runId: string, timeoutMs = 300000): Promise<{ status: string }> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    const res = await fetch(`${API_BASE}/workflows/runs/${runId}/status`, { headers: HEADERS });
-    const s = await res.json();
-    if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(s.status)) return s;
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-  throw new Error(`Workflow run ${runId} timed out`);
-}
-
-async function createWorkflow(workflow: any): Promise<string> {
-  const res = await fetch(`${API_BASE}/workflows`, {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify(workflow),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to create workflow: ${res.status} ${text}`);
-  }
-  const { id } = await res.json();
-  return id;
-}
-
-async function runWorkflow(workflowId: string, inputs: Record<string, unknown> = {}): Promise<string> {
-  const res = await fetch(`${API_BASE}/workflows/${workflowId}/run`, {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify({ inputs }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to run workflow: ${res.status} ${text}`);
-  }
-  const { runId } = await res.json();
-  return runId;
-}
-
-async function listSecrets(): Promise<Array<{ id: string; name: string }>> {
-  const res = await fetch(`${API_BASE}/secrets`, { headers: HEADERS });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to list secrets: ${res.status} ${text}`);
-  }
-  return res.json();
-}
-
-async function createOrRotateSecret(name: string, value: string): Promise<string> {
-  const secrets = await listSecrets();
-  const existing = secrets.find((s) => s.name === name);
-  if (!existing) {
-    const res = await fetch(`${API_BASE}/secrets`, {
-      method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify({ name, value }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Failed to create secret: ${res.status} ${text}`);
-    }
-    const secret = await res.json();
-    return secret.id as string;
-  }
-
-  const res = await fetch(`${API_BASE}/secrets/${existing.id}/rotate`, {
-    method: 'PUT',
-    headers: HEADERS,
-    body: JSON.stringify({ value }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to rotate secret: ${res.status} ${text}`);
-  }
-  return existing.id;
-}
-
 e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
   beforeAll(() => {
     if (!requiredSecretsReady) {
       throw new Error(
-        'Missing required ENV vars. Copy e2e-tests/.env.eng-104.example to .env.eng-104 and fill secrets.',
+        'Missing required ENV vars. Copy e2e-tests/.env.e2e.example to .env.e2e and fill secrets.',
       );
     }
   });
@@ -263,9 +153,7 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
           },
         ],
         edges: [
-          // Start -> mock-agent
           { id: 'e1', source: 'start', target: 'mock-agent' },
-          // Tools -> mock-agent (tool connections)
           {
             id: 't1',
             source: 'abuseipdb',
@@ -287,7 +175,6 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
             sourceHandle: 'tools',
             targetHandle: 'tools',
           },
-          // AWS creds -> AWS MCP group
           {
             id: 'a1',
             source: 'aws-creds',
@@ -304,7 +191,7 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
       const runId = await runWorkflow(workflowId, { trigger: 'e2e-test' });
       console.log(`[e2e] Started run: ${runId}`);
 
-      const result = await pollRunStatus(runId);
+      const result = await pollRunStatus(runId, 300000);
       console.log(`[e2e] Run completed with status: ${result.status}`);
       expect(result.status).toBe('COMPLETED');
 
@@ -323,7 +210,6 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
       expect(mockAgentCompleted).toBeDefined();
 
       const toolCount = mockAgentCompleted?.outputSummary?.toolCount as number | undefined;
-      // Note: outputSummary truncates arrays to `{keyCount: N}` via createLightweightSummary
       const toolCallResultsCount = mockAgentCompleted?.outputSummary?.toolCallResultsCount as number | undefined;
       const discoveredToolsCount = mockAgentCompleted?.outputSummary?.discoveredToolsCount as number | undefined;
 
@@ -333,13 +219,10 @@ e2eDescribe('Mock Agent: Tool Discovery E2E', () => {
 
       expect(toolCount).toBeDefined();
       expect(toolCount).toBeGreaterThan(0);
-      // toolCount > 2 proves AWS MCP tools were discovered via the gateway
-      // (2 = abuseipdb_check + virustotal_lookup, so >2 means AWS tools are present)
       expect(toolCount).toBeGreaterThan(2);
 
       console.log('[e2e] All expected tools discovered successfully!');
 
-      // Verify tool calls were made (at least component tools: abuseipdb + virustotal)
       expect(toolCallResultsCount).toBeDefined();
       expect(toolCallResultsCount).toBeGreaterThanOrEqual(2);
     },

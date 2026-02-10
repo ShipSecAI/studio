@@ -3,8 +3,8 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { dirname } from 'node:path';
 
-const ENV_PATH = `${process.cwd()}/.env.eng-104`;
-const TEMPLATE_PATH = `${process.cwd()}/e2e-tests/.env.eng-104.example`;
+const ENV_PATH = `${process.cwd()}/.env.e2e`;
+const TEMPLATE_PATH = `${process.cwd()}/e2e-tests/.env.e2e.example`;
 
 type Field = {
   key: string;
