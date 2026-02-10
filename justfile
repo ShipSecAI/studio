@@ -107,7 +107,8 @@ dev action="start":
                 echo "🔐 OpenSearch Security: ENABLED (multi-tenant isolation active)"
                 echo "   OpenSearch admin: admin / ${OPENSEARCH_ADMIN_PASSWORD:-admin}"
                 echo ""
-                echo "💡 Direct ports (debugging): Frontend :5173, Backend :3211"
+                echo "💡 Direct ports (debugging only, use nginx in normal development):"
+                echo "   Frontend :5173, Backend :3211, Analytics :5601"
             else
                 echo "🚀 Starting development environment (local auth)..."
 
@@ -130,7 +131,8 @@ dev action="start":
                 echo "   Analytics:   http://localhost/analytics"
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
-                echo "💡 Direct ports (debugging): Frontend :5173, Backend :3211, OpenSearch :9200, Dashboards :5601"
+                echo "💡 Direct ports (debugging only, use nginx in normal development):"
+                echo "   Frontend :5173, Backend :3211, OpenSearch :9200, Analytics :5601"
                 echo ""
                 echo "💡 To enable Clerk auth + OpenSearch Security:"
                 echo "   Set CLERK_SECRET_KEY in backend/.env, then restart"
