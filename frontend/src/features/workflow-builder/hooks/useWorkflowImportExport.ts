@@ -12,6 +12,7 @@ import {
 } from '@/features/workflow-builder/hooks/useWorkflowGraphControllers';
 import type { FrontendNodeData } from '@/schemas/node';
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow';
+import { api } from '@/services/api';
 import { useSecretStore } from '@/store/secretStore';
 import { useComponentStore } from '@/store/componentStore';
 interface WorkflowMetadataShape {
@@ -100,6 +101,38 @@ export function useWorkflowImportExport({
       const normalizedNodes = deserializeNodes(workflowGraph);
       const normalizedEdges = deserializeEdges(workflowGraph);
 
+      // Resolve dynamic ports for all nodes (mirrors backend resolveGraphPorts).
+      // Components like Analytics Sink have empty base inputs and rely on
+      // resolvePorts to create their input handles from config params.
+      const resolvedNodes = await Promise.all(
+        normalizedNodes.map(async (node) => {
+          const componentId =
+            (node.data as FrontendNodeData).componentId ??
+            (node.data as FrontendNodeData).componentSlug;
+          if (!componentId) return node;
+
+          try {
+            const params = node.data.config?.params ?? {};
+            const inputOverrides = node.data.config?.inputOverrides ?? {};
+            const result = await api.components.resolvePorts(componentId, {
+              ...params,
+              ...inputOverrides,
+            });
+            if (!result) return node;
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                ...(result.inputs ? { dynamicInputs: result.inputs } : {}),
+                ...(result.outputs ? { dynamicOutputs: result.outputs } : {}),
+              },
+            };
+          } catch {
+            return node;
+          }
+        }),
+      );
+
       // Validate secret references
       const removedSecrets: { param: string; node: string; secretId: string }[] = [];
       try {
@@ -113,7 +146,7 @@ export function useWorkflowImportExport({
         }
         const components = useComponentStore.getState().components;
 
-        normalizedNodes.forEach((node) => {
+        resolvedNodes.forEach((node) => {
           const data = node.data as FrontendNodeData;
           const componentRef = data.componentId || data.componentSlug;
           if (!componentRef) return;
@@ -149,9 +182,9 @@ export function useWorkflowImportExport({
       }
 
       resetWorkflow();
-      setDesignNodes(normalizedNodes);
+      setDesignNodes(resolvedNodes as ReactFlowNode<FrontendNodeData>[]);
       setDesignEdges(normalizedEdges);
-      setExecutionNodes(cloneNodes(normalizedNodes));
+      setExecutionNodes(cloneNodes(resolvedNodes as ReactFlowNode<FrontendNodeData>[]));
       setExecutionEdges(cloneEdges(normalizedEdges));
       setMetadata({
         id: null,

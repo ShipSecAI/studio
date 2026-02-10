@@ -1,6 +1,7 @@
 # ShipSec Studio User Guide
 
 ## Table of Contents
+
 1. [Getting Started](#getting-started)
 2. [Interface Overview](#interface-overview)
 3. [Workflows](#workflows)
@@ -17,17 +18,19 @@
 ### Installation
 
 **One-Line Install (Recommended)**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | bash
 ```
 
 This installer will:
+
 - Check and install missing dependencies (docker, just, curl, jq, git)
 - Start Docker if not running
 - Clone the repository and start all services
 - Guide you through any required setup steps
 
-Once complete, visit **http://localhost:8090** to access ShipSec Studio.
+Once complete, visit **http://localhost** to access ShipSec Studio.
 
 ### Quick Start
 
@@ -41,22 +44,26 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 ## Interface Overview
 
 ### Top Bar
+
 - **Navigation**: Logo and workspace name
 - **Controls**: Save, Run, and Stop workflow buttons
 - **User Menu**: Account settings and logout
 
 ### Sidebar
+
 - **Component Palette**: Browse and search components
 - **Component Categories**: Organized by function (Core, AI, MCP, Security)
 - **Recent Components**: Quick access to frequently used components
 
 ### Canvas
+
 - **Workspace**: Visual workflow editor with drag-and-drop functionality
 - **Nodes**: Represent components with input/output ports
 - **Edges**: Show connections between components
 - **Grid**: Background grid for alignment
 
 ### Bottom Panel
+
 - **Logs**: Real-time execution logs
 - **Results**: Output data and results
 - **History**: Previous workflow executions
@@ -94,16 +101,19 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 ### Core Components
 
 #### Start Node
+
 - **Purpose**: Workflow entry point
 - **Output**: `data` - Workflow execution context
 - **Use**: Always required at the beginning of workflows
 
 #### End Node
+
 - **Purpose**: Workflow exit point
 - **Input**: `data` - Final workflow data
 - **Use**: Required to complete workflows
 
 #### HTTP Request
+
 - **Purpose**: Make HTTP requests to external APIs
 - **Configuration**:
   - Method (GET, POST, PUT, DELETE)
@@ -113,6 +123,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 - **Output**: Response data and status
 
 #### Filesystem
+
 - **Purpose**: Read and write files
 - **Operations**:
   - Read file contents
@@ -123,6 +134,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 ### AI Components
 
 #### AI Agent
+
 - **Purpose**: LLM-powered analysis and decision making
 - **Configuration**:
   - System prompt
@@ -136,6 +148,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 - **Use**: Natural language processing, analysis, content generation
 
 #### Prompt Template
+
 - **Purpose**: Create dynamic prompts with variables
 - **Features**:
   - Variable substitution
@@ -146,6 +159,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 ### MCP Components
 
 #### MCP Library
+
 - **Purpose**: Centralized MCP server management
 - **Features**:
   - Multi-server selection from library
@@ -158,6 +172,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 - **Use**: Enable multiple MCP servers without individual nodes
 
 **Example Usage**:
+
 1. Drag MCP Library to canvas
 2. Select AWS CloudTrail + CloudWatch servers
 3. Connect "tools" port to AI Agent "tools" port
@@ -166,6 +181,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 ### Security Components
 
 #### Nuclei Scanner
+
 - **Purpose**: Vulnerability scanning with Nuclei
 - **Configuration**:
   - Template selection
@@ -175,6 +191,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 - **Use**: Web application vulnerability scanning
 
 #### TruffleHog
+
 - **Purpose**: Secret detection in code
 - **Features**:
   - Git repository scanning
@@ -187,6 +204,7 @@ Once complete, visit **http://localhost:8090** to access ShipSec Studio.
 ### Human-in-the-Loop
 
 Pause workflows for human intervention:
+
 1. Add **Approval** component to workflow
 2. Configure approver and timeout
 3. Workflow pauses until approval granted
@@ -195,6 +213,7 @@ Pause workflows for human intervention:
 ### Scheduling
 
 Set up recurring workflows:
+
 1. Add **Schedule** component to workflow
 2. Configure CRON expression
 3. Set retention policies
@@ -203,6 +222,7 @@ Set up recurring workflows:
 ### API Integration
 
 Trigger workflows via REST API:
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/workflows/run \
   -H "Content-Type: application/json" \
@@ -212,6 +232,7 @@ curl -X POST http://localhost:3000/api/v1/workflows/run \
 ### Error Handling
 
 Configure error handling strategies:
+
 1. **Retry Logic**: Set retry attempts and delays
 2. **Fallback Nodes**: Alternative paths for failures
 3. **Error Notifications**: Email/webhook alerts
@@ -252,16 +273,19 @@ Configure error handling strategies:
 ### Common Issues
 
 **Workflow Won't Start**
+
 - Check all required components are connected
 - Verify input ports have data
 - Look for configuration errors
 
 **Components Not Connecting**
+
 - Ensure output contracts match input contracts
 - Check port types (data, control, trigger)
 - Verify component compatibility
 
 **Performance Issues**
+
 - Check for infinite loops
 - Monitor resource usage
 - Reduce concurrent operations
@@ -289,6 +313,7 @@ curl http://localhost:3000/api/v1/mcp-servers
 ## Support
 
 For issues and questions:
+
 1. Check the [Troubleshooting](#troubleshooting) section
 2. Search existing issues on GitHub
 3. Join Discord for community support

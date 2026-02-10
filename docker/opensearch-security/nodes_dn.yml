@@ -1,0 +1,12 @@
+# OpenSearch Security - Node Distinguished Names
+#
+# For single-node development, this file is empty.
+# In production multi-node clusters, list the DNs of all nodes.
+
+---
+_meta:
+  type: "nodesdn"
+  config_version: 2
+
+# Allow all nodes with certificates signed by our CA
+# (In production, specify exact node DNs for tighter security)

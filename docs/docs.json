@@ -42,6 +42,7 @@
             "pages": [
               "development/component-development",
               "development/isolated-volumes",
+              "development/workflow-analytics",
               "development/analytics",
               "development/release-process"
             ]

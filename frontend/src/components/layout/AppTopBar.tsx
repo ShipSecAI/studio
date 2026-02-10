@@ -93,6 +93,14 @@ export function AppTopBar({
       };
     }
 
+    if (location.pathname === '/analytics-settings') {
+      return {
+        title: 'Analytics Settings',
+        shortTitle: 'Analytics',
+        subtitle: 'Configure data retention and storage settings',
+      };
+    }
+
     return {
       title: 'Security Workflow Builder',
       shortTitle: 'Workflows',

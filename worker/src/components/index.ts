@@ -28,6 +28,7 @@ import './core/destination-s3';
 import './core/text-block';
 import './core/workflow-call';
 import './core/mcp-library';
+import './core/analytics-sink';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';
@@ -69,6 +70,7 @@ import './it-automation/okta-user-offboard';
 import './test/sleep-parallel';
 import './test/live-event-heartbeat';
 import './test/simple-http-mcp';
+import './test/analytics-fixture';
 
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';

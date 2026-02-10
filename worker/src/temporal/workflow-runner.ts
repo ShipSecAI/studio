@@ -304,6 +304,9 @@ export async function executeWorkflow(
         artifacts: scopedArtifacts,
         trace: options.trace,
         logCollector: forwardLog,
+        workflowId: options.workflowId,
+        workflowName: definition.title,
+        organizationId: options.organizationId,
       });
 
       try {

@@ -122,14 +122,21 @@ Components are the building blocks of workflows:
 
 ## Development URLs
 
+All application services are accessible through nginx on port 80:
+
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:3211 |
+| Frontend | http://localhost/ |
+| Backend API | http://localhost/api/ |
+| Analytics | http://localhost/analytics/ |
 | Temporal UI | http://localhost:8081 |
 | MinIO Console | http://localhost:9001 |
 | Redpanda Console | http://localhost:8082 |
 | Loki | http://localhost:3100 |
+
+<Note>
+  Individual service ports (5173, 3211, 5601) are available for debugging but should not be used in normal development. All traffic flows through nginx on port 80.
+</Note>
 
 ---
 

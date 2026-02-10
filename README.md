@@ -53,7 +53,7 @@ This installer will:
 - Clone the repository and start all services
 - Guide you through any required setup steps
 
-Once complete, visit **http://localhost:8090** to access ShipSec Studio.
+Once complete, visit **http://localhost** to access ShipSec Studio.
 
 ### 2. ShipSec Cloud (Preview)
 
@@ -79,7 +79,7 @@ cd studio
 just prod start-latest
 ```
 
-Access the studio at `http://localhost:8090`.
+Access the studio at `http://localhost`.
 
 ---
 
