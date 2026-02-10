@@ -845,12 +845,12 @@ export function ConfigPanel({
                 <div className="rounded-md border bg-muted/20 p-3 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="text-[10px] font-mono">
-                      {component.agentTool?.toolName ?? component.slug}
+                      {component.toolProvider?.name ?? component.slug}
                     </Badge>
                     <span className="text-xs font-semibold text-foreground">{component.name}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {component.agentTool?.toolDescription ?? component.description}
+                    {component.toolProvider?.description ?? component.description}
                   </p>
                 </div>
 
@@ -1221,7 +1221,7 @@ export function ConfigPanel({
           )}
 
           {!isToolMode &&
-            component.agentTool?.enabled &&
+            !!component.toolProvider &&
             toolSchemaJson &&
             component.category !== 'mcp' && (
               <CollapsibleSection title="Tool Schema" defaultOpen={false}>
@@ -1233,16 +1233,16 @@ export function ConfigPanel({
               </CollapsibleSection>
             )}
 
-          {component.category === 'mcp' && component.agentTool?.toolName && (
+          {component.category === 'mcp' && component.toolProvider?.name && (
             <CollapsibleSection title="MCP Server" defaultOpen={false}>
               <div className="mt-2 space-y-2 text-xs text-muted-foreground">
                 <div>
                   <span className="font-medium text-foreground">Tool name: </span>
-                  <span className="font-mono">{component.agentTool.toolName}</span>
+                  <span className="font-mono">{component.toolProvider.name}</span>
                 </div>
-                {component.agentTool.toolDescription && (
+                {component.toolProvider.description && (
                   <div className="text-[11px] leading-relaxed">
-                    {component.agentTool.toolDescription}
+                    {component.toolProvider.description}
                   </div>
                 )}
                 <div className="text-[11px] italic">

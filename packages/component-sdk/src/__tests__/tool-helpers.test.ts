@@ -251,7 +251,7 @@ describe('tool-helpers', () => {
   });
 
   describe('getToolName', () => {
-    it('uses agentTool.toolName when specified', () => {
+    it('uses toolProvider.name when specified', () => {
       const component = createComponent({
         toolProvider: {
           kind: 'component',
