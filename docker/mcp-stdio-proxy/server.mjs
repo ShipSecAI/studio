@@ -1,19 +1,12 @@
 import express from 'express';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
-  CallToolRequestSchema,
-  InitializeRequestSchema,
-  InitializedNotificationSchema,
-  ListToolsRequestSchema,
   LATEST_PROTOCOL_VERSION,
 } from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { randomUUID } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -66,6 +59,97 @@ function parseNamedServersConfig() {
   return null;
 }
 
+/**
+ * Handle a JSON-RPC request by forwarding to the stdio MCP client.
+ *
+ * This bypasses the MCP SDK's Server class which only accepts one `initialize`
+ * per lifetime. By handling JSON-RPC directly, we support unlimited HTTP clients
+ * (e.g. worker for discovery, then gateway for tool calls) sharing one stdio server.
+ */
+async function handleJsonRpc(req, res, stdioClient, name) {
+  const body = req.body;
+
+  // Notifications have no `id` — return 202 Accepted (expected by MCP SDK client)
+  if (body && body.method && body.id === undefined) {
+    return res.status(202).end();
+  }
+
+  if (!body || !body.method) {
+    return res.status(400).json({
+      jsonrpc: '2.0',
+      id: body?.id ?? null,
+      error: { code: -32600, message: 'Invalid request: missing method' },
+    });
+  }
+
+  try {
+    switch (body.method) {
+      case 'initialize': {
+        const result = {
+          protocolVersion: LATEST_PROTOCOL_VERSION,
+          capabilities: stdioClient.getServerCapabilities() ?? { tools: { listChanged: false } },
+          serverInfo: stdioClient.getServerVersion() ?? {
+            name: `mcp-proxy-${name}`,
+            version: '1.0.0',
+          },
+          instructions: stdioClient.getInstructions?.(),
+        };
+        return res.json({ jsonrpc: '2.0', id: body.id, result });
+      }
+
+      case 'tools/list': {
+        const result = await stdioClient.listTools();
+        return res.json({ jsonrpc: '2.0', id: body.id, result });
+      }
+
+      case 'tools/call': {
+        const result = await stdioClient.callTool({
+          name: body.params.name,
+          arguments: body.params.arguments ?? {},
+        });
+        return res.json({ jsonrpc: '2.0', id: body.id, result });
+      }
+
+      case 'resources/list': {
+        const result = await stdioClient.listResources();
+        return res.json({ jsonrpc: '2.0', id: body.id, result });
+      }
+
+      case 'resources/read': {
+        const result = await stdioClient.readResource({ uri: body.params.uri });
+        return res.json({ jsonrpc: '2.0', id: body.id, result });
+      }
+
+      case 'prompts/list': {
+        const result = await stdioClient.listPrompts();
+        return res.json({ jsonrpc: '2.0', id: body.id, result });
+      }
+
+      case 'prompts/get': {
+        const result = await stdioClient.getPrompt({
+          name: body.params.name,
+          arguments: body.params.arguments ?? {},
+        });
+        return res.json({ jsonrpc: '2.0', id: body.id, result });
+      }
+
+      default:
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          id: body.id,
+          error: { code: -32601, message: `Method not found: ${body.method}` },
+        });
+    }
+  } catch (error) {
+    console.error(`[mcp-proxy] Error handling ${body.method} for '${name}':`, error.message);
+    return res.status(200).json({
+      jsonrpc: '2.0',
+      id: body.id,
+      error: { code: -32603, message: error.message },
+    });
+  }
+}
+
 const port = Number.parseInt(process.env.PORT || process.env.MCP_PORT || '8080', 10);
 
 // Check if we have named servers configuration
@@ -76,14 +160,14 @@ const hasNamedServers = namedServersConfig && namedServersConfig.mcpServers;
 const command = process.env.MCP_COMMAND;
 const args = parseArgs(process.env.MCP_ARGS || '');
 
-// Map to store connected clients for named servers
-// name -> { client, server, transport }
+// Map to store connected stdio clients for named servers
+// name -> { client }
 const namedClients = new Map();
 
 if (hasNamedServers) {
   console.log('[mcp-proxy] Starting in NAMED SERVERS mode');
 
-  // Initialize all named servers
+  // Initialize all named servers (stdio connections only)
   for (const [name, serverConfig] of Object.entries(namedServersConfig.mcpServers)) {
     try {
       console.log(`[mcp-proxy] Initializing named server: ${name}`);
@@ -103,53 +187,7 @@ if (hasNamedServers) {
 
       await client.connect(clientTransport);
 
-      const server = new Server(
-        {
-          name: `mcp-proxy-${name}`,
-          version: '1.0.0',
-        },
-        {
-          capabilities: client.getServerCapabilities() ?? {
-            tools: { listChanged: false },
-          },
-        },
-      );
-
-      server.setRequestHandler(InitializeRequestSchema, async () => {
-        return {
-          protocolVersion: LATEST_PROTOCOL_VERSION,
-          capabilities: client.getServerCapabilities() ?? {},
-          serverInfo: client.getServerVersion() ?? {
-            name: `mcp-proxy-${name}`,
-            version: '1.0.0',
-          },
-          instructions: client.getInstructions?.(),
-        };
-      });
-
-      server.setNotificationHandler(InitializedNotificationSchema, () => {
-        // no-op
-      });
-
-      server.setRequestHandler(ListToolsRequestSchema, async () => {
-        return await client.listTools();
-      });
-
-      server.setRequestHandler(CallToolRequestSchema, async (request) => {
-        return await client.callTool({
-          name: request.params.name,
-          arguments: request.params.arguments ?? {},
-        });
-      });
-
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        enableJsonResponse: true,
-      });
-
-      await server.connect(transport);
-
-      namedClients.set(name, { client, server, transport });
+      namedClients.set(name, { client });
       console.log(`[mcp-proxy] Named server '${name}' ready`);
     } catch (err) {
       console.error(`[mcp-proxy] Failed to initialize named server '${name}':`, err.message);
@@ -174,53 +212,7 @@ if (hasNamedServers) {
 
   await client.connect(clientTransport);
 
-  const server = new Server(
-    {
-      name: 'shipsec-mcp-stdio-proxy',
-      version: '1.0.0',
-    },
-    {
-      capabilities: client.getServerCapabilities() ?? {
-        tools: { listChanged: false },
-      },
-    },
-  );
-
-  server.setRequestHandler(InitializeRequestSchema, async () => {
-    return {
-      protocolVersion: LATEST_PROTOCOL_VERSION,
-      capabilities: client.getServerCapabilities() ?? {},
-      serverInfo: client.getServerVersion() ?? {
-        name: 'shipsec-mcp-stdio-proxy',
-        version: '1.0.0',
-      },
-      instructions: client.getInstructions?.(),
-    };
-  });
-
-  server.setNotificationHandler(InitializedNotificationSchema, () => {
-    // no-op
-  });
-
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return await client.listTools();
-  });
-
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    return await client.callTool({
-      name: request.params.name,
-      arguments: request.params.arguments ?? {},
-    });
-  });
-
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-    enableJsonResponse: true,
-  });
-
-  await server.connect(transport);
-
-  namedClients.set('__default__', { client, server, transport });
+  namedClients.set('__default__', { client });
   console.log(`[mcp-proxy] Single server mode ready: ${command} ${args.join(' ')}`);
 }
 
@@ -257,35 +249,21 @@ app.get('/servers', (_req, res) => {
   });
 });
 
-// Legacy endpoint for single-server mode
-app.all('/mcp', async (req, res) => {
+// Legacy endpoint for single-server mode — POST handles JSON-RPC, GET/DELETE return 405
+app.post('/mcp', async (req, res) => {
   const namedClient = namedClients.get('__default__');
   if (!namedClient) {
     return res.status(503).json({ error: 'No MCP server connected' });
   }
 
-  console.log('[mcp-proxy] incoming request', {
-    method: req.method,
-    path: req.path,
-    headers: {
-      'mcp-session-id': req.headers['mcp-session-id'],
-      accept: req.headers['accept'],
-      'content-type': req.headers['content-type'],
-    },
-    body: req.body,
-  });
-  try {
-    await namedClient.transport.handleRequest(req, res, req.body);
-  } catch (error) {
-    console.error('[mcp-proxy] Failed to handle MCP request', error);
-    if (!res.headersSent) {
-      res.status(500).send('MCP proxy error');
-    }
-  }
+  await handleJsonRpc(req, res, namedClient.client, 'default');
 });
 
+app.get('/mcp', (_req, res) => res.status(405).json({ error: 'SSE not supported, use POST' }));
+app.delete('/mcp', (_req, res) => res.status(405).json({ error: 'Session cleanup not needed' }));
+
 // Named server endpoints: /servers/:name/sse
-app.all('/servers/:name/sse', async (req, res) => {
+app.post('/servers/:name/sse', async (req, res) => {
   const { name } = req.params;
   const namedClient = namedClients.get(name);
 
@@ -297,26 +275,15 @@ app.all('/servers/:name/sse', async (req, res) => {
     });
   }
 
-  console.log(`[mcp-proxy] incoming request for server '${name}'`, {
-    method: req.method,
-    path: req.path,
-    headers: {
-      'mcp-session-id': req.headers['mcp-session-id'],
-      accept: req.headers['accept'],
-      'content-type': req.headers['content-type'],
-    },
-    body: req.body,
-  });
-
-  try {
-    await namedClient.transport.handleRequest(req, res, req.body);
-  } catch (error) {
-    console.error(`[mcp-proxy] Failed to handle MCP request for server '${name}':`, error);
-    if (!res.headersSent) {
-      res.status(500).send(`MCP proxy error for server '${name}'`);
-    }
-  }
+  await handleJsonRpc(req, res, namedClient.client, name);
 });
+
+app.get('/servers/:name/sse', (_req, res) =>
+  res.status(405).json({ error: 'SSE not supported, use POST' })
+);
+app.delete('/servers/:name/sse', (_req, res) =>
+  res.status(405).json({ error: 'Session cleanup not needed' })
+);
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`[mcp-proxy] Listening on http://0.0.0.0:${port}`);

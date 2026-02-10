@@ -96,8 +96,12 @@ const SKIP_CONTAINER_CLEANUP = process.env.SKIP_CONTAINER_CLEANUP === 'true';
 export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void> {
   // DEBUG: Skip cleanup to inspect Docker logs
   if (SKIP_CONTAINER_CLEANUP) {
-    console.log(`[MCP Cleanup] SKIP: Container cleanup disabled via SKIP_CONTAINER_CLEANUP env var`);
-    console.log(`[MCP Cleanup] Run 'docker ps -a | grep mcp' to see containers for run ${input.runId}`);
+    console.log(
+      `[MCP Cleanup] SKIP: Container cleanup disabled via SKIP_CONTAINER_CLEANUP env var`,
+    );
+    console.log(
+      `[MCP Cleanup] Run 'docker ps -a | grep mcp' to see containers for run ${input.runId}`,
+    );
     return;
   }
 
@@ -204,7 +208,7 @@ export async function prepareAndRegisterToolActivity(input: {
   await callInternalApi('register-component', {
     runId: input.runId,
     nodeId: input.nodeId,
-    toolName: input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
+    toolName: metadata.name || input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
     exposedToAgent,
     componentId: input.componentId,
     description: metadata.description,

@@ -15,8 +15,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
-import { randomBytes } from 'node:crypto';
-
 import { ToolRegistryService, RegisteredTool } from './tool-registry.service';
 import { TemporalService } from '../temporal/temporal.service';
 import { WorkflowRunRepository } from '../workflows/repository/workflow-run.repository';
@@ -37,13 +35,18 @@ export class McpGatewayService {
   private readonly servers = new Map<string, McpServer>();
   private readonly registeredToolNames = new Map<string, Set<string>>();
 
+  // Persistent MCP client pool for external (proxied) tool calls.
+  // Key: endpoint URL. The stdio-proxy is stateful and rejects re-initialization,
+  // so we must reuse a single client per endpoint for the lifetime of the run.
+  private readonly externalClients = new Map<string, Client>();
+
   constructor(
     private readonly toolRegistry: ToolRegistryService,
     private readonly temporalService: TemporalService,
     private readonly workflowRunRepository: WorkflowRunRepository,
     private readonly traceRepository: TraceRepository,
     private readonly mcpServersRepository: McpServersRepository,
-  ) { }
+  ) {}
 
   /**
    * Get or create an MCP Server instance for a specific workflow run
@@ -66,7 +69,9 @@ export class McpGatewayService {
         ? `${runId}:${allowedNodeIds.sort().map(escapeNodeId).join(',')}`
         : runId;
 
-    this.logger.log(`[getServerForRun] runId=${runId}, cacheKey=${cacheKey}, allowedNodeIds=${JSON.stringify(allowedNodeIds)}`);
+    this.logger.log(
+      `[getServerForRun] runId=${runId}, cacheKey=${cacheKey}, allowedNodeIds=${JSON.stringify(allowedNodeIds)}`,
+    );
 
     const existing = this.servers.get(cacheKey);
     if (existing) {
@@ -83,7 +88,9 @@ export class McpGatewayService {
     const toolSet = new Set<string>();
     this.registeredToolNames.set(cacheKey, toolSet);
     await this.registerTools(server, runId, allowedTools, allowedNodeIds, toolSet);
-    this.logger.log(`[getServerForRun] After registerTools, toolSet has ${toolSet.size} tools: ${[...toolSet].join(', ')}`);
+    this.logger.log(
+      `[getServerForRun] After registerTools, toolSet has ${toolSet.size} tools: ${[...toolSet].join(', ')}`,
+    );
     this.servers.set(cacheKey, server);
 
     return server;
@@ -174,11 +181,15 @@ export class McpGatewayService {
     allowedNodeIds?: string[],
     registeredToolNames?: Set<string>,
   ) {
-    this.logger.log(`[registerTools] START: runId=${runId}, allowedNodeIds=${JSON.stringify(allowedNodeIds)}`);
+    this.logger.log(
+      `[registerTools] START: runId=${runId}, allowedNodeIds=${JSON.stringify(allowedNodeIds)}`,
+    );
     const allRegistered = await this.toolRegistry.getToolsForRun(runId, allowedNodeIds);
     this.logger.log(`[registerTools] getToolsForRun returned ${allRegistered.length} tools:`);
     for (const t of allRegistered) {
-      this.logger.log(`[registerTools]   nodeId=${t.nodeId}, toolName=${t.toolName}, type=${t.type}, status=${t.status}, endpoint=${t.endpoint?.substring(0, 80) ?? 'none'}, exposedToAgent=${t.exposedToAgent}`);
+      this.logger.log(
+        `[registerTools]   nodeId=${t.nodeId}, toolName=${t.toolName}, type=${t.type}, status=${t.status}, endpoint=${t.endpoint?.substring(0, 80) ?? 'none'}, exposedToAgent=${t.exposedToAgent}`,
+      );
     }
 
     // Filter by allowed tools if specified
@@ -305,28 +316,28 @@ export class McpGatewayService {
     const filteredSources =
       allowedNodeIds && allowedNodeIds.length > 0
         ? externalSources.filter((source) => {
-          // Direct match
-          if (allowedNodeIds.includes(source.nodeId)) {
-            this.logger.debug(
-              `[Gateway] ✓ Including ${source.nodeId} (toolName=${source.toolName}) via direct match`,
-            );
-            return true;
-          }
-          // Hierarchical match with '/' separator (new format)
-          // e.g., 'aws-mcp-group' matches 'aws-mcp-group/aws-cloudtrail'
-          for (const allowedId of allowedNodeIds) {
-            if (source.nodeId.startsWith(`${allowedId}/`)) {
+            // Direct match
+            if (allowedNodeIds.includes(source.nodeId)) {
               this.logger.debug(
-                `[Gateway] ✓ Including ${source.nodeId} (toolName=${source.toolName}) via hierarchical match with ${allowedId}`,
+                `[Gateway] ✓ Including ${source.nodeId} (toolName=${source.toolName}) via direct match`,
               );
               return true;
             }
-          }
-          this.logger.debug(
-            `[Gateway] ✗ Excluding ${source.nodeId} (toolName=${source.toolName}) - no match in allowedNodeIds`,
-          );
-          return false;
-        })
+            // Hierarchical match with '/' separator (new format)
+            // e.g., 'aws-mcp-group' matches 'aws-mcp-group/aws-cloudtrail'
+            for (const allowedId of allowedNodeIds) {
+              if (source.nodeId.startsWith(`${allowedId}/`)) {
+                this.logger.debug(
+                  `[Gateway] ✓ Including ${source.nodeId} (toolName=${source.toolName}) via hierarchical match with ${allowedId}`,
+                );
+                return true;
+              }
+            }
+            this.logger.debug(
+              `[Gateway] ✗ Excluding ${source.nodeId} (toolName=${source.toolName}) - no match in allowedNodeIds`,
+            );
+            return false;
+          })
         : externalSources;
 
     this.logger.log(`[registerTools] Processing ${filteredSources.length} external sources...`);
@@ -335,9 +346,13 @@ export class McpGatewayService {
         let tools: any[] = [];
 
         // First, check Redis for pre-discovered tools (from registerMcpServer API)
-        this.logger.log(`[registerTools] External source: nodeId=${source.nodeId}, toolName=${source.toolName}, type=${source.type}, endpoint=${source.endpoint?.substring(0, 80) ?? 'none'}`);
+        this.logger.log(
+          `[registerTools] External source: nodeId=${source.nodeId}, toolName=${source.toolName}, type=${source.type}, endpoint=${source.endpoint?.substring(0, 80) ?? 'none'}`,
+        );
         const preDiscoveredTools = await this.toolRegistry.getServerTools(runId, source.nodeId);
-        this.logger.log(`[registerTools]   preDiscoveredTools from Redis: ${preDiscoveredTools ? preDiscoveredTools.length : 'null'}`);
+        this.logger.log(
+          `[registerTools]   preDiscoveredTools from Redis: ${preDiscoveredTools ? preDiscoveredTools.length : 'null'}`,
+        );
         if (preDiscoveredTools && preDiscoveredTools.length > 0) {
           this.logger.log(
             `[registerTools]   Using ${preDiscoveredTools.length} pre-discovered tools from Redis for ${source.toolName}`,
@@ -346,16 +361,22 @@ export class McpGatewayService {
         } else if (source.type === 'mcp-server' || source.type === 'local-mcp') {
           // Fallback: discover tools on-the-fly from endpoint
           if (!source.endpoint) {
-            this.logger.warn(`[registerTools]   MCP tool ${source.toolName} has no endpoint - skipping.`);
+            this.logger.warn(
+              `[registerTools]   MCP tool ${source.toolName} has no endpoint - skipping.`,
+            );
             continue;
           }
           this.logger.log(
             `[registerTools]   FALLBACK: Discovering tools from endpoint: ${source.endpoint}`,
           );
           tools = await this.discoverToolsFromEndpoint(source.endpoint);
-          this.logger.log(`[registerTools]   FALLBACK result: discovered ${tools.length} tools from ${source.toolName}`);
+          this.logger.log(
+            `[registerTools]   FALLBACK result: discovered ${tools.length} tools from ${source.toolName}`,
+          );
           if (tools.length > 0) {
-            this.logger.log(`[registerTools]   FALLBACK tool names: ${tools.map((t: any) => t.name).join(', ')}`);
+            this.logger.log(
+              `[registerTools]   FALLBACK tool names: ${tools.map((t: any) => t.name).join(', ')}`,
+            );
           }
         } else {
           // Remote MCPs must have a serverId (pre-registered in database)
@@ -365,13 +386,17 @@ export class McpGatewayService {
             );
             continue;
           }
-          this.logger.log(`[registerTools]   Loading pre-discovered tools from DB for serverId=${source.serverId}`);
+          this.logger.log(
+            `[registerTools]   Loading pre-discovered tools from DB for serverId=${source.serverId}`,
+          );
           tools = await this.getPreDiscoveredTools(source.serverId);
           this.logger.log(`[registerTools]   DB result: ${tools.length} tools`);
         }
 
         const prefix = source.toolName;
-        this.logger.log(`[registerTools]   Registering ${tools.length} tools with prefix '${prefix}'`);
+        this.logger.log(
+          `[registerTools]   Registering ${tools.length} tools with prefix '${prefix}'`,
+        );
 
         for (const t of tools) {
           const proxiedName = `${prefix}__${t.name}`;
@@ -443,47 +468,68 @@ export class McpGatewayService {
   }
 
   /**
+   * Get or create a persistent MCP client for an external endpoint.
+   * The stdio-proxy is stateful: once initialized, it rejects subsequent initialize requests.
+   * We cache one client per endpoint and reuse it for both discovery and tool calls.
+   */
+  private async getOrCreateExternalClient(endpoint: string): Promise<Client> {
+    const existing = this.externalClients.get(endpoint);
+    if (existing) {
+      return existing;
+    }
+
+    this.logger.log(`[getOrCreateExternalClient] Creating new persistent client for ${endpoint}`);
+    const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
+      requestInit: {
+        headers: {
+          Accept: 'application/json, text/event-stream',
+        },
+      },
+    });
+
+    const client = new Client(
+      { name: 'shipsec-gateway-client', version: '1.0.0' },
+      { capabilities: {} },
+    );
+
+    await client.connect(transport);
+    this.externalClients.set(endpoint, client);
+    this.logger.log(`[getOrCreateExternalClient] Client connected and cached for ${endpoint}`);
+    return client;
+  }
+
+  /**
    * Discover tools on-the-fly from an MCP endpoint (for local-mcp type)
+   * Uses the persistent client pool so the same connection is reused for later tool calls.
    */
   private async discoverToolsFromEndpoint(endpoint: string): Promise<any[]> {
     try {
-      // Many MCP servers require a proper initialize handshake before tools/list will succeed.
-      // Use the official SDK client so discovery works consistently across servers.
       this.logger.log(`[discoverToolsFromEndpoint] START: endpoint=${endpoint}`);
 
-      const sessionId = `tools-list-${Date.now()}-${randomBytes(8).toString('hex')}`;
-      const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
-        requestInit: {
-          headers: {
-            'Mcp-Session-Id': sessionId,
-            Accept: 'application/json, text/event-stream',
-          },
-        },
-      });
-
-      const client = new Client(
-        { name: 'shipsec-gateway-tools-list', version: '1.0.0' },
-        { capabilities: {} },
-      );
-
-      await client.connect(transport);
+      const client = await this.getOrCreateExternalClient(endpoint);
       const res = await client.listTools();
-      await client.close().catch(() => { });
 
       const tools = res.tools ?? [];
-      this.logger.log(`[discoverToolsFromEndpoint] SUCCESS: Discovered ${tools.length} tool(s) from ${endpoint}`);
+      this.logger.log(
+        `[discoverToolsFromEndpoint] SUCCESS: Discovered ${tools.length} tool(s) from ${endpoint}`,
+      );
       if (tools.length > 0) {
-        this.logger.log(`[discoverToolsFromEndpoint] Tool names: ${tools.map((t: any) => t.name).join(', ')}`);
+        this.logger.log(
+          `[discoverToolsFromEndpoint] Tool names: ${tools.map((t: any) => t.name).join(', ')}`,
+        );
       }
       return tools;
     } catch (error) {
       this.logger.error(`[discoverToolsFromEndpoint] FAILED for ${endpoint}: ${error}`);
+      // If the client failed, remove it from cache so next attempt creates a fresh one
+      this.externalClients.delete(endpoint);
       return [];
     }
   }
 
   /**
-   * Proxies a tool call to an external MCP source
+   * Proxies a tool call to an external MCP source using the persistent client pool.
+   * The client is initialized once per endpoint and reused for all subsequent calls.
    */
   private async proxyCallToExternal(
     source: RegisteredTool,
@@ -497,28 +543,13 @@ export class McpGatewayService {
       );
     }
 
-    const MAX_RETRIES = 3;
     const TIMEOUT_MS = 30000;
-
+    const MAX_RETRIES = 3;
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const sessionId = `stdio-proxy-${Date.now()}-${randomBytes(8).toString('hex')}`;
-      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
-        requestInit: {
-          headers: {
-            'Mcp-Session-Id': sessionId,
-            Accept: 'application/json, text/event-stream',
-          },
-        },
-      });
-      const client = new Client(
-        { name: 'shipsec-gateway-client', version: '1.0.0' },
-        { capabilities: {} },
-      );
-
       try {
-        await client.connect(transport);
+        const client = await this.getOrCreateExternalClient(source.endpoint);
 
         const result = await Promise.race([
           client.callTool({
@@ -537,11 +568,11 @@ export class McpGatewayService {
       } catch (error) {
         lastError = error;
         this.logger.warn(`External tool call attempt ${attempt} failed: ${error}`);
+        // Evict the broken client so next attempt creates a fresh one
+        this.externalClients.delete(source.endpoint);
         if (attempt < MAX_RETRIES) {
           await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
         }
-      } finally {
-        await client.close().catch(() => { });
       }
     }
 
@@ -643,13 +674,24 @@ export class McpGatewayService {
   }
 
   /**
-   * Cleanup server instance for a run
+   * Cleanup server instance and external clients for a run
    */
   async cleanupRun(runId: string) {
+    // Close MCP gateway server
     const server = this.servers.get(runId);
     if (server) {
       await server.close();
       this.servers.delete(runId);
+    }
+
+    // Close all cached external MCP clients
+    // We close all of them since external endpoints are tied to the run's Docker containers
+    const clientEntries = Array.from(this.externalClients.entries());
+    for (const [endpoint, client] of clientEntries) {
+      await client.close().catch((err) => {
+        this.logger.warn(`Failed to close external client for ${endpoint}: ${err}`);
+      });
+      this.externalClients.delete(endpoint);
     }
   }
 }
