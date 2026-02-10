@@ -1,0 +1,65 @@
+# Audit Logging
+
+ShipSec Studio emits **audit events** for important platform actions so customers can answer: who did what, when, and in which organization.
+
+## Event Naming
+
+Use the pattern:
+
+- `{resource}.{verb}`
+
+Examples:
+
+- `workflow.create`
+- `workflow.update`
+- `workflow.run`
+- `secret.create`
+- `secret.rotate`
+- `secret.access`
+- `api_key.create`
+- `webhook.update`
+- `artifact.download`
+- `analytics.query`
+
+## Required Fields
+
+Every audit event should include:
+
+- `organizationId`: organization scope (falls back to `local-dev` for local/internal tooling)
+- `actorId`: user ID or API key ID (when available)
+- `actorType`: `user` | `api-key` | `internal` | `unknown`
+- `action`: event name (see above)
+- `resourceType`: `workflow` | `secret` | `api_key` | `webhook` | `artifact` | `analytics`
+- `resourceId`: resource identifier (when applicable)
+- `createdAt`: event timestamp
+
+Optional fields:
+
+- `resourceName`
+- `metadata` (safe, minimal details)
+- `ip`, `userAgent`
+
+## Safety Rules
+
+- Never log secret values, API key plaintext, or decrypted materials.
+- Avoid logging large payloads (workflow graphs, full webhook payloads, raw analytics queries).
+- Prefer small, explicit metadata fields like counts, IDs, versions, and booleans.
+- Audit logging must be **non-blocking**: failures to write audit logs must not break the API request.
+
+## Standard Pattern (Backend)
+
+Prefer emitting audit events in the **service layer** right after a successful action.
+
+```ts
+// Example: after a successful mutation
+this.auditLogService.record(auth, {
+  action: 'secret.rotate',
+  resourceType: 'secret',
+  resourceId: secret.id,
+  resourceName: secret.name,
+  metadata: {
+    resolvedVersion: secret.activeVersion,
+  },
+});
+```
+

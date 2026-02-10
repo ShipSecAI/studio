@@ -1,3 +1,5 @@
+import type { ApiKeyPermissions } from '../database/schema/api-keys';
+
 export type AuthRole = 'ADMIN' | 'MEMBER';
 
 export interface AuthContext {
@@ -6,6 +8,7 @@ export interface AuthContext {
   roles: AuthRole[];
   isAuthenticated: boolean;
   provider: string;
+  apiKeyPermissions?: ApiKeyPermissions;
 }
 
 export const DEFAULT_ROLES: AuthRole[] = ['ADMIN', 'MEMBER'];

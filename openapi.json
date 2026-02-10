@@ -15,6 +15,57 @@
         ]
       }
     },
+    "/api/v1/auth/validate": {
+      "get": {
+        "operationId": "AppController_validateAuth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "AppController_login",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AppController_logout",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/api/v1/agents/{agentRunId}/parts": {
       "get": {
         "operationId": "AgentsController_parts",
@@ -295,6 +346,9 @@
                           "workflowId": {
                             "type": "string"
                           },
+                          "organizationId": {
+                            "type": "string"
+                          },
                           "status": {
                             "type": "string",
                             "enum": [
@@ -411,6 +465,9 @@
                       "type": "string"
                     },
                     "workflowId": {
+                      "type": "string"
+                    },
+                    "organizationId": {
                       "type": "string"
                     },
                     "status": {
@@ -2456,6 +2513,147 @@
         ]
       }
     },
+    "/api/v1/analytics/query": {
+      "post": {
+        "operationId": "AnalyticsController_queryAnalytics",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 99
+            }
+          },
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum number of requests allowed per minute",
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsQueryRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query analytics data for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsQueryResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/settings": {
+      "get": {
+        "operationId": "AnalyticsController_getAnalyticsSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get analytics settings for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      },
+      "put": {
+        "operationId": "AnalyticsController_updateAnalyticsSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAnalyticsSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update analytics settings for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/ensure-tenant": {
+      "post": {
+        "operationId": "AnalyticsController_ensureTenant",
+        "parameters": [
+          {
+            "name": "x-internal-token",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ensure tenant resources exist for organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "securityEnabled": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/v1/api-keys": {
       "get": {
         "operationId": "ApiKeysController_list",
@@ -3007,20 +3205,23 @@
                           "type": "string"
                         }
                       },
-                      "agentTool": {
+                      "toolProvider": {
                         "type": "object",
                         "nullable": true,
                         "properties": {
-                          "enabled": {
-                            "type": "boolean"
-                          },
-                          "toolName": {
+                          "kind": {
                             "type": "string",
-                            "nullable": true
+                            "enum": [
+                              "component",
+                              "mcp-server",
+                              "mcp-group"
+                            ]
                           },
-                          "toolDescription": {
-                            "type": "string",
-                            "nullable": true
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         }
                       }
@@ -5236,7 +5437,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupTemplateDto"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "List available MCP group templates",
@@ -5733,40 +5944,16 @@
         ]
       }
     },
-    "/api/v1/internal/mcp/register-remote": {
+    "/api/v1/internal/mcp/register-mcp-server": {
       "post": {
-        "operationId": "InternalMcpController_registerRemote",
+        "operationId": "InternalMcpController_registerMcpServer",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RegisterRemoteMcpInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "InternalMcp"
-        ]
-      }
-    },
-    "/api/v1/internal/mcp/register-local": {
-      "post": {
-        "operationId": "InternalMcpController_registerLocal",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterLocalMcpInput"
+                "$ref": "#/components/schemas/RegisterMcpServerInput"
               }
             }
           }
@@ -5956,6 +6143,27 @@
         "summary": "Get MCP group discovery status",
         "tags": [
           "mcp"
+        ]
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "operationId": "AuditLogsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List audit log events for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAuditLogsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "audit-logs"
         ]
       }
     },
@@ -7672,6 +7880,141 @@
           "artifacts"
         ]
       },
+      "AnalyticsQueryRequestDto": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "description": "OpenSearch DSL query object",
+            "example": {
+              "match_all": {}
+            }
+          },
+          "size": {
+            "type": "number",
+            "description": "Number of results to return",
+            "example": 10,
+            "default": 10,
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "from": {
+            "type": "number",
+            "description": "Offset for pagination",
+            "example": 0,
+            "default": 0,
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "aggs": {
+            "type": "object",
+            "description": "OpenSearch aggregations object",
+            "example": {
+              "components": {
+                "terms": {
+                  "field": "component_id"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AnalyticsQueryResponseDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "description": "Total number of matching documents",
+            "example": 100
+          },
+          "hits": {
+            "type": "array",
+            "description": "Search hits",
+            "items": {
+              "type": "object"
+            }
+          },
+          "aggregations": {
+            "type": "object",
+            "description": "Aggregation results"
+          }
+        },
+        "required": [
+          "total",
+          "hits"
+        ]
+      },
+      "AnalyticsSettingsResponseDto": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "description": "Organization ID",
+            "example": "org_abc123"
+          },
+          "subscriptionTier": {
+            "type": "string",
+            "description": "Subscription tier",
+            "enum": [
+              "free",
+              "pro",
+              "enterprise"
+            ],
+            "example": "free"
+          },
+          "analyticsRetentionDays": {
+            "type": "number",
+            "description": "Data retention period in days",
+            "example": 30
+          },
+          "maxRetentionDays": {
+            "type": "number",
+            "description": "Maximum retention days allowed for this tier",
+            "example": 30
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Timestamp when settings were created",
+            "example": "2026-01-20T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Timestamp when settings were last updated",
+            "example": "2026-01-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "organizationId",
+          "subscriptionTier",
+          "analyticsRetentionDays",
+          "maxRetentionDays",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateAnalyticsSettingsDto": {
+        "type": "object",
+        "properties": {
+          "analyticsRetentionDays": {
+            "type": "number",
+            "description": "Data retention period in days (must be within tier limits)",
+            "example": 30,
+            "minimum": 1,
+            "maximum": 365
+          },
+          "subscriptionTier": {
+            "type": "string",
+            "description": "Subscription tier (optional - usually set by billing system)",
+            "enum": [
+              "free",
+              "pro",
+              "enterprise"
+            ]
+          }
+        }
+      },
       "ApiKeyResponseDto": {
         "type": "object",
         "properties": {
@@ -7727,11 +8070,23 @@
                   "read",
                   "cancel"
                 ]
+              },
+              "audit": {
+                "type": "object",
+                "properties": {
+                  "read": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "read"
+                ]
               }
             },
             "required": [
               "workflows",
-              "runs"
+              "runs",
+              "audit"
             ]
           },
           "isActive": {
@@ -7825,11 +8180,23 @@
                   "read",
                   "cancel"
                 ]
+              },
+              "audit": {
+                "type": "object",
+                "properties": {
+                  "read": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "read"
+                ]
               }
             },
             "required": [
               "workflows",
-              "runs"
+              "runs",
+              "audit"
             ]
           },
           "expiresAt": {
@@ -7906,11 +8273,23 @@
                   "read",
                   "cancel"
                 ]
+              },
+              "audit": {
+                "type": "object",
+                "properties": {
+                  "read": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "read"
+                ]
               }
             },
             "required": [
               "workflows",
-              "runs"
+              "runs",
+              "audit"
             ]
           },
           "isActive": {
@@ -8009,11 +8388,23 @@
                   "read",
                   "cancel"
                 ]
+              },
+              "audit": {
+                "type": "object",
+                "properties": {
+                  "read": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "read"
+                ]
               }
             },
             "required": [
               "workflows",
-              "runs"
+              "runs",
+              "audit"
             ]
           },
           "isActive": {
@@ -9697,7 +10088,9 @@
             "propertyNames": {
               "type": "string"
             },
-            "additionalProperties": {},
+            "additionalProperties": {
+              "type": "string"
+            },
             "nullable": true
           },
           "defaultDockerImage": {
@@ -9735,6 +10128,118 @@
           "updatedAt"
         ]
       },
+      "GroupTemplateDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "credentialContractName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "credentialMapping": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "defaultDockerImage": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "object",
+            "properties": {
+              "major": {
+                "type": "number"
+              },
+              "minor": {
+                "type": "number"
+              },
+              "patch": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "major",
+              "minor",
+              "patch"
+            ]
+          },
+          "servers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "transportType": {
+                  "type": "string",
+                  "enum": [
+                    "http",
+                    "stdio",
+                    "sse",
+                    "websocket"
+                  ]
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "recommended": {
+                  "type": "boolean"
+                },
+                "defaultSelected": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "transportType",
+                "recommended",
+                "defaultSelected"
+              ]
+            }
+          },
+          "templateHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "credentialContractName",
+          "defaultDockerImage",
+          "version",
+          "servers",
+          "templateHash"
+        ]
+      },
       "CreateMcpGroupDto": {
         "type": "object",
         "properties": {
@@ -9759,7 +10264,9 @@
             "propertyNames": {
               "type": "string"
             },
-            "additionalProperties": {},
+            "additionalProperties": {
+              "type": "string"
+            },
             "nullable": true
           },
           "defaultDockerImage": {
@@ -9796,7 +10303,9 @@
             "propertyNames": {
               "type": "string"
             },
-            "additionalProperties": {},
+            "additionalProperties": {
+              "type": "string"
+            },
             "nullable": true
           },
           "defaultDockerImage": {
@@ -9990,7 +10499,9 @@
                 "propertyNames": {
                   "type": "string"
                 },
-                "additionalProperties": {},
+                "additionalProperties": {
+                  "type": "string"
+                },
                 "nullable": true
               },
               "defaultDockerImage": {
@@ -10038,11 +10549,7 @@
         "type": "object",
         "properties": {}
       },
-      "RegisterRemoteMcpInput": {
-        "type": "object",
-        "properties": {}
-      },
-      "RegisterLocalMcpInput": {
+      "RegisterMcpServerInput": {
         "type": "object",
         "properties": {}
       },
@@ -10394,6 +10901,111 @@
         "required": [
           "workflowId",
           "status"
+        ]
+      },
+      "ListAuditLogsResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "organizationId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "actorId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "actorType": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "api-key",
+                    "internal",
+                    "unknown"
+                  ]
+                },
+                "actorDisplay": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "action": {
+                  "type": "string"
+                },
+                "resourceType": {
+                  "type": "string",
+                  "enum": [
+                    "workflow",
+                    "secret",
+                    "api_key",
+                    "webhook",
+                    "artifact",
+                    "analytics"
+                  ]
+                },
+                "resourceId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "resourceName": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "metadata": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "nullable": true
+                },
+                "ip": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "userAgent": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "organizationId",
+                "actorId",
+                "actorType",
+                "actorDisplay",
+                "action",
+                "resourceType",
+                "resourceId",
+                "resourceName",
+                "metadata",
+                "ip",
+                "userAgent",
+                "createdAt"
+              ]
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ]
       }
     }

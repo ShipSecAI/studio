@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Shield, User, LogOut, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface UserButtonProps {
   afterSignOutUrl?: string;
@@ -30,6 +31,7 @@ export const UserButton: React.FC<UserButtonProps> = ({
 }) => {
   const authProvider = useAuthProvider();
   const { user, isAuthenticated, isLoading } = authProvider.context;
+  const navigate = useNavigate();
 
   // Handle loading state
   if (isLoading) {
@@ -157,7 +159,7 @@ export const UserButton: React.FC<UserButtonProps> = ({
           <span>Profile</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/settings/audit')}>
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
         </DropdownMenuItem>

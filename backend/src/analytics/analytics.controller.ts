@@ -22,6 +22,7 @@ import {
   UpdateAnalyticsSettingsDto,
   TIER_LIMITS,
 } from './dto/analytics-settings.dto';
+import { AuditLogService } from '../audit/audit-log.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import { Public } from '../auth/public.decorator';
 import type { AuthContext } from '../auth/types';
@@ -43,6 +44,7 @@ export class AnalyticsController {
     private readonly organizationSettingsService: OrganizationSettingsService,
     private readonly openSearchTenantService: OpenSearchTenantService,
     private readonly configService: ConfigService,
+    private readonly auditLogService: AuditLogService,
   ) {
     this.internalServiceToken = this.configService.get<string>('INTERNAL_SERVICE_TOKEN') || '';
   }
@@ -105,6 +107,19 @@ export class AnalyticsController {
     if (from > MAX_QUERY_FROM) {
       throw new BadRequestException(`Invalid from: maximum is ${MAX_QUERY_FROM}`);
     }
+
+    this.auditLogService.record(auth, {
+      action: 'analytics.query',
+      resourceType: 'analytics',
+      resourceId: null,
+      resourceName: null,
+      metadata: {
+        size,
+        from,
+        hasQuery: Boolean(queryDto.query),
+        hasAggs: Boolean(queryDto.aggs),
+      },
+    });
 
     // Call the service to execute the query
     return this.securityAnalyticsService.query(auth.organizationId, {

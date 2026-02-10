@@ -6,6 +6,7 @@ import { SecretsEncryptionService } from './secrets.encryption';
 import { SecretsRepository, type SecretSummary, type SecretUpdateData } from './secrets.repository';
 import type { AuthContext } from '../auth/types';
 import { DEFAULT_ORGANIZATION_ID } from '../auth/constants';
+import { AuditLogService } from '../audit/audit-log.service';
 
 export interface CreateSecretInput {
   name: string;
@@ -37,6 +38,7 @@ export class SecretsService {
   constructor(
     private readonly repository: SecretsRepository,
     private readonly encryption: SecretsEncryptionService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   private resolveOrganizationId(auth: AuthContext | null): string {
@@ -70,7 +72,7 @@ export class SecretsService {
     const organizationId = this.assertOrganizationId(auth);
     const material = await this.encryption.encrypt(input.value);
 
-    return this.repository.createSecret(
+    const created = await this.repository.createSecret(
       {
         name: input.name,
         description: input.description ?? null,
@@ -86,6 +88,15 @@ export class SecretsService {
         organizationId,
       },
     );
+
+    this.auditLogService.record(auth, {
+      action: 'secret.create',
+      resourceType: 'secret',
+      resourceId: created.id,
+      resourceName: created.name,
+    });
+
+    return created;
   }
 
   async rotateSecret(
@@ -96,7 +107,7 @@ export class SecretsService {
     const organizationId = this.assertOrganizationId(auth);
     const material = await this.encryption.encrypt(input.value);
 
-    return this.repository.rotateSecret(
+    const rotated = await this.repository.rotateSecret(
       secretId,
       {
         encryptedValue: material.ciphertext,
@@ -108,15 +119,37 @@ export class SecretsService {
       },
       { organizationId },
     );
+
+    this.auditLogService.record(auth, {
+      action: 'secret.rotate',
+      resourceType: 'secret',
+      resourceId: rotated.id,
+      resourceName: rotated.name,
+    });
+
+    return rotated;
   }
 
-  async getSecretValue(
+  private async getSecretValueInternal(
     auth: AuthContext | null,
     secretId: string,
     version?: number,
+    resourceName?: string | null,
   ): Promise<SecretValue> {
     const organizationId = this.assertOrganizationId(auth);
     const record = await this.repository.findValueBySecretId(secretId, version, { organizationId });
+
+    this.auditLogService.record(auth, {
+      action: 'secret.access',
+      resourceType: 'secret',
+      resourceId: record.secretId,
+      resourceName: resourceName ?? null,
+      metadata: {
+        requestedVersion: version ?? null,
+        resolvedVersion: record.version,
+      },
+    });
+
     const value = await this.encryption.decrypt({
       ciphertext: record.encryptedValue,
       iv: record.iv,
@@ -131,6 +164,14 @@ export class SecretsService {
     };
   }
 
+  async getSecretValue(
+    auth: AuthContext | null,
+    secretId: string,
+    version?: number,
+  ): Promise<SecretValue> {
+    return this.getSecretValueInternal(auth, secretId, version, null);
+  }
+
   async getSecretValueByName(
     auth: AuthContext | null,
     secretName: string,
@@ -140,7 +181,7 @@ export class SecretsService {
     const organizationId = this.assertOrganizationId(auth);
     const secret = await this.repository.findByName(secretName, { organizationId });
     // Then get the value using the ID
-    return this.getSecretValue(auth, secret.id, version);
+    return this.getSecretValueInternal(auth, secret.id, version, secret.name);
   }
 
   async updateSecret(
@@ -179,11 +220,33 @@ export class SecretsService {
       return this.repository.findById(secretId, { organizationId });
     }
 
-    return this.repository.updateSecret(secretId, updates, { organizationId });
+    const updated = await this.repository.updateSecret(secretId, updates, { organizationId });
+    this.auditLogService.record(auth, {
+      action: 'secret.update',
+      resourceType: 'secret',
+      resourceId: updated.id,
+      resourceName: updated.name,
+      metadata: {
+        updatedFields: Object.keys(updates),
+      },
+    });
+    return updated;
   }
 
   async deleteSecret(auth: AuthContext | null, secretId: string): Promise<void> {
     const organizationId = this.assertOrganizationId(auth);
+    let existing: SecretSummary | null = null;
+    try {
+      existing = await this.repository.findById(secretId, { organizationId });
+    } catch {
+      existing = null;
+    }
     await this.repository.deleteSecret(secretId, { organizationId });
+    this.auditLogService.record(auth, {
+      action: 'secret.delete',
+      resourceType: 'secret',
+      resourceId: secretId,
+      resourceName: (existing as any)?.name ?? null,
+    });
   }
 }

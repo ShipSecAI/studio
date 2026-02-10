@@ -44,6 +44,9 @@ describe('SecretsService', () => {
     encrypt: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
   };
+  let auditLogService: {
+    record: ReturnType<typeof vi.fn>;
+  };
   let service: SecretsService;
 
   beforeEach(() => {
@@ -63,9 +66,14 @@ describe('SecretsService', () => {
       decrypt: vi.fn(),
     };
 
+    auditLogService = {
+      record: vi.fn(),
+    };
+
     service = new SecretsService(
       repository as unknown as SecretsRepository,
       encryption as unknown as SecretsEncryptionService,
+      auditLogService as any,
     );
   });
 

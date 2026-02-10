@@ -404,6 +404,7 @@ describe('WorkflowsService', () => {
       traceRepositoryMock as any,
       temporalService,
       analyticsServiceMock as any,
+      { record: vi.fn() } as any,
     );
   });
 
@@ -615,6 +616,7 @@ describe('WorkflowsService', () => {
       traceRepositoryMock as any,
       failureTemporalService,
       analyticsServiceMock as any,
+      { record: vi.fn() } as any,
     );
 
     const versionRecord = createWorkflowVersionRecord('workflow-id');

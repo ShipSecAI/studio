@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import type { AuthContext } from '../auth/types';
+import { AuditLogService } from '../audit/audit-log.service';
 import { ArtifactsRepository } from './artifacts.repository';
 import { FilesService } from './files.service';
 import type { ArtifactRecord } from '../database/schema/artifacts.schema';
@@ -24,6 +25,7 @@ export class ArtifactsService {
   constructor(
     private readonly repository: ArtifactsRepository,
     private readonly filesService: FilesService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async listRunArtifacts(
@@ -63,6 +65,17 @@ export class ArtifactsService {
 
   async downloadArtifact(auth: AuthContext | null, artifactId: string) {
     const artifact = await this.getArtifactRecord(auth, artifactId);
+    this.auditLogService.record(auth, {
+      action: 'artifact.download',
+      resourceType: 'artifact',
+      resourceId: artifact.id,
+      resourceName: artifact.name,
+      metadata: {
+        fileId: artifact.fileId,
+        workflowId: artifact.workflowId,
+        runId: artifact.runId ?? null,
+      },
+    });
     const download = await this.filesService.downloadFile(auth, artifact.fileId);
     return {
       artifact: this.toMetadata(artifact),
@@ -77,6 +90,17 @@ export class ArtifactsService {
     if (!artifact) {
       throw new NotFoundException(`Artifact ${artifactId} not found for run ${runId}`);
     }
+    this.auditLogService.record(auth, {
+      action: 'artifact.download',
+      resourceType: 'artifact',
+      resourceId: artifact.id,
+      resourceName: artifact.name,
+      metadata: {
+        fileId: artifact.fileId,
+        workflowId: artifact.workflowId,
+        runId,
+      },
+    });
     const download = await this.filesService.downloadFile(auth, artifact.fileId);
     return {
       artifact: this.toMetadata(artifact),
@@ -102,6 +126,18 @@ export class ArtifactsService {
     if (!deleted) {
       throw new NotFoundException(`Artifact ${artifactId} not found`);
     }
+
+    this.auditLogService.record(auth, {
+      action: 'artifact.delete',
+      resourceType: 'artifact',
+      resourceId: artifactId,
+      resourceName: artifact.name,
+      metadata: {
+        fileId: artifact.fileId,
+        workflowId: artifact.workflowId,
+        runId: artifact.runId ?? null,
+      },
+    });
   }
 
   private toMetadata(record: ArtifactRecord): ArtifactMetadataDto {
