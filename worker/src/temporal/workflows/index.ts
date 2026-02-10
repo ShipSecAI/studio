@@ -766,34 +766,11 @@ export async function shipsecWorkflowRun(
           }
         }
 
-        // MCP groups in tool mode: register as ready, then execute to register individual tools
+        // MCP groups in tool mode: execute FIRST, then register as ready AFTER discovery completes.
+        // This prevents a race condition where the agent starts before child servers are discovered.
+        // The agent's areAllToolsReadyActivity check will poll until this registration happens.
         if (isToolMode && isMcpGroup) {
-          console.log(`[Workflow] MCP Group node ${action.ref} is in tool mode, registering as ready with backend...`);
-
-          try {
-            // First register the MCP group as a ready tool (so workflow can proceed)
-            await prepareAndRegisterToolActivity({
-              runId: input.runId,
-              nodeId: action.ref,
-              componentId: action.componentId,
-              inputs: mergedInputs,
-              params: mergedParams,
-            });
-
-            console.log(`[Workflow] MCP Group node ${action.ref} registered as ready with backend, continuing to normal execution to register individual servers...`);
-
-            // IMPORTANT: Do NOT set results or record NODE_COMPLETED here!
-            // The individual server registration happens during normal component execution
-            // when executeMcpGroupNode() is called from runComponentWithRetry() below.
-            // This allows the component's execute() function to register each server
-            // with unique nodeIds (${groupNodeId}-${serverId}) to prevent overwrites.
-            //
-            // Fall through to the normal execution path (runComponentWithRetry at line 866)
-            // where the component's execute() function will be called.
-          } catch (error) {
-            console.error(`[Workflow] Failed to register MCP group ${action.ref} as ready:`, error);
-            throw error;
-          }
+          console.log(`[Workflow] MCP Group node ${action.ref} is in tool mode, will register as ready AFTER execution completes (to avoid race with agent tool discovery)`);
         }
 
         if (isMcpServerComponent(action.componentId)) {
@@ -861,6 +838,20 @@ export async function shipsecWorkflowRun(
         console.log(`[Workflow] Executing component ${action.componentId} (node ${action.ref})${isMcpGroup ? ' [MCP Group]' : ''}${isToolMode ? ' [Tool Mode]' : ''}`);
 
         const output = await runComponentWithRetry(activityInput);
+
+        // MCP groups in tool mode: NOW register the parent as ready after execution completes.
+        // This ensures child servers are discovered and registered before the agent starts.
+        if (isToolMode && isMcpGroup) {
+          console.log(`[Workflow] MCP Group node ${action.ref} execution complete, now registering parent as ready...`);
+          await prepareAndRegisterToolActivity({
+            runId: input.runId,
+            nodeId: action.ref,
+            componentId: action.componentId,
+            inputs: mergedInputs,
+            params: mergedParams,
+          });
+          console.log(`[Workflow] MCP Group node ${action.ref} registered as ready (child servers already registered during execution)`);
+        }
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
         if (isApprovalPending(output.output)) {
