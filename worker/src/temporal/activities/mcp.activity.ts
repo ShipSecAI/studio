@@ -69,19 +69,28 @@ export async function registerComponentToolActivity(
 export async function registerRemoteMcpActivity(
   input: RegisterRemoteMcpActivityInput,
 ): Promise<void> {
-  await callInternalApi('register-remote', input);
+  await callInternalApi('register-mcp-server', {
+    runId: input.runId,
+    nodeId: input.nodeId,
+    serverName: input.toolName,
+    transport: 'http' as const,
+    endpoint: input.endpoint,
+    ...(input.authToken ? { headers: { Authorization: `Bearer ${input.authToken}` } } : {}),
+  });
 }
 
 export async function registerLocalMcpActivity(
   input: RegisterLocalMcpActivityInput,
 ): Promise<void> {
   const port = input.port || 8080;
-  // Use provided endpoint/containerId or fall back to defaults
   const endpoint = input.endpoint || `http://localhost:${port}`;
   const containerId = input.containerId || `docker-${input.image.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-  await callInternalApi('register-local', {
-    ...input,
+  await callInternalApi('register-mcp-server', {
+    runId: input.runId,
+    nodeId: input.nodeId,
+    serverName: input.toolName,
+    transport: 'stdio' as const,
     endpoint,
     containerId,
   });

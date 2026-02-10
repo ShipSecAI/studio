@@ -261,7 +261,7 @@ export async function executeMcpGroupNode(
   } catch (error) {
     // Cleanup volume on error
     if (volume) {
-      await volume.cleanup().catch(() => { });
+      await volume.cleanup().catch(() => {});
     }
     throw error;
   }

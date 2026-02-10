@@ -53,6 +53,7 @@ export function computeTemplateHash(template: McpGroupTemplate): string {
     defaultDockerImage: template.defaultDockerImage,
     version: template.version,
     servers: template.servers.map((s) => ({
+      id: s.id,
       name: s.name,
       description: s.description,
       transportType: s.transportType,

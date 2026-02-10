@@ -374,7 +374,7 @@ export class McpGroupsSeedingService {
     dto.defaultDockerImage = template.defaultDockerImage;
     dto.version = template.version;
     dto.templateHash = computeTemplateHash(template);
-    dto.servers = template.servers.map((server, index) => {
+    dto.servers = template.servers.map((server) => {
       return {
         id: server.id,
         name: server.name,
