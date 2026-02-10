@@ -591,7 +591,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
               <div className="flex items-center gap-1">
                 {mode === 'design' &&
                   !isEntryPoint &&
-                  component?.agentTool?.enabled &&
+                  !!component?.toolProvider &&
                   !isToolModeOnly &&
                   componentCategory !== 'mcp' && (
                     <button
