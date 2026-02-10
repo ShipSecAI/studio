@@ -6,6 +6,7 @@ import '@shipsec/studio-worker/components';
 import {
   componentRegistry,
   extractPorts,
+  isAgentCallable,
   getToolSchema,
   type CachedComponentMetadata,
 } from '@shipsec/component-sdk';
@@ -46,8 +47,8 @@ function serializeComponent(entry: CachedComponentMetadata) {
     outputs: entry.outputs ?? [],
     parameters: entry.parameters ?? [],
     examples: metadata.examples ?? [],
-    agentTool: metadata.agentTool ?? null,
-    toolSchema: metadata.agentTool?.enabled ? getToolSchema(component) : null,
+    toolProvider: component.toolProvider ?? null,
+    toolSchema: isAgentCallable(component) ? getToolSchema(component) : null,
   };
 }
 

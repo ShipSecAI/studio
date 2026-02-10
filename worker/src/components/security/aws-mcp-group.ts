@@ -165,6 +165,21 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'AWS MCP Group node. Exposes tools from curated AWS MCP servers (CloudTrail, IAM, S3 Tables, CloudWatch, Network, Lambda, DynamoDB, Documentation, Well-Architected Security, API) using AWS credentials. Each selected server runs in its own container with the group image. Tools are registered with the Tool Registry and can be connected to any AI agent.',
+  toolProvider: {
+    kind: 'mcp-group',
+    name: 'aws',
+    description: 'Curated AWS MCP servers (CloudTrail, CloudWatch, IAM, S3, Lambda, DynamoDB, ...)',
+    mcp: {
+      image: 'shipsec/mcp-aws-suite:latest',
+      credentialMapping: {
+        AWS_ACCESS_KEY_ID: 'accessKeyId',
+        AWS_SECRET_ACCESS_KEY: 'secretAccessKey',
+        AWS_SESSION_TOKEN: 'sessionToken?',
+        AWS_REGION: 'region?',
+      },
+      servers: AwsGroupTemplate.servers,
+    },
+  },
   ui: {
     slug: 'aws-mcp-group',
     version: '1.0.0',
@@ -176,11 +191,6 @@ const definition = defineComponent({
     author: {
       name: 'ShipSecAI',
       type: 'shipsecai',
-    },
-    agentTool: {
-      enabled: false,  // MCP group is not a tool itself; it exposes individual tools
-      toolName: 'aws_mcp_group',
-      toolDescription: 'Expose AWS MCP tools from selected AWS services.',
     },
     isLatest: true,
   },
@@ -196,14 +206,14 @@ const definition = defineComponent({
     }
 
     // Use the group runtime helper to register tools
-    const result = await executeMcpGroupNode(context, { credentials }, { enabledServers }, AwsGroupTemplate);
+    await executeMcpGroupNode(context, { credentials }, { enabledServers }, AwsGroupTemplate);
 
     // Return the list of enabled tools to the tools output port
     // This allows the workflow to pass tool information to connected nodes
     return {
-      tools: enabledServers.map(serverId => ({
+      tools: enabledServers.map((serverId) => ({
         id: serverId,
-        name: AwsGroupTemplate.servers.find(s => s.id === serverId)?.name || serverId,
+        name: AwsGroupTemplate.servers.find((s) => s.id === serverId)?.name || serverId,
         type: 'mcp-server',
         group: 'aws',
       })),

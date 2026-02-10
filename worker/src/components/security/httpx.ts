@@ -247,16 +247,15 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    example:
-      '`httpx -l targets.txt -json -status-code 200,301` - Probe discovered hosts and capture responsive endpoints with matching status codes.',
     examples: [
       'Validate Subfinder or Amass discoveries by probing for live web services.',
       'Filter Naabu results to identify hosts exposing HTTP/S services on uncommon ports.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Live HTTP endpoint probe and metadata collector (httpx).',
-    },
+  },
+  toolProvider: {
+    kind: 'component',
+    name: 'httpx_probe',
+    description: 'Live HTTP endpoint probe and metadata collector (httpx).',
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
@@ -495,24 +494,22 @@ function parseHttpxOutput(raw: string): Finding[] {
     }
 
     const technologies = Array.isArray(payload.tech)
-      ? payload.tech.filter(
-          (item: unknown): item is string => typeof item === 'string' && item.length > 0,
-        )
+      ? payload.tech.filter((item: unknown): item is string => typeof item === 'string' && item.length > 0)
       : [];
 
     const chainStatus = Array.isArray(payload['chain-status'])
       ? payload['chain-status']
-          .map((value: unknown) => {
-            if (typeof value === 'number' && Number.isFinite(value)) {
-              return value;
-            }
-            if (typeof value === 'string' && value.trim().length > 0) {
-              const parsed = Number.parseInt(value, 10);
-              return Number.isFinite(parsed) ? parsed : null;
-            }
-            return null;
-          })
-          .filter((value: number | null): value is number => value !== null)
+        .map((value: unknown) => {
+          if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+          }
+          if (typeof value === 'string' && value.trim().length > 0) {
+            const parsed = Number.parseInt(value, 10);
+            return Number.isFinite(parsed) ? parsed : null;
+          }
+          return null;
+        })
+        .filter((value: number | null): value is number => value !== null)
       : [];
 
     const findingCandidate: Finding = {

@@ -333,6 +333,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Scan for secrets and credentials using TruffleHog. Supports Git repositories, GitHub, GitLab, filesystems, S3 buckets, Docker images, and more.',
+  toolProvider: {
+    kind: 'component',
+    name: 'secret_scan',
+    description: 'Secret and credential leakage scanner (TruffleHog).',
+  },
   ui: {
     slug: 'trufflehog',
     version: '1.0.0',
@@ -359,10 +364,6 @@ const definition = defineComponent({
       'Scan only changes in a Pull Request by setting branch to PR branch and sinceCommit to base branch.',
       'Scan last 10 commits in CI/CD using sinceCommit=HEAD~10 to catch recent secrets.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Secret and credential leakage scanner (TruffleHog).',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);

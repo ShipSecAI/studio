@@ -45,6 +45,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Select and enable custom MCP servers. All tools from selected servers will be available to connected AI agents.',
+  toolProvider: {
+    kind: 'component',
+    name: 'mcp_library',
+    description: 'Expose custom MCP tools from configured servers.',
+  },
   ui: {
     slug: 'mcp-library',
     version: '1.0.0',
@@ -55,11 +60,6 @@ const definition = defineComponent({
     author: {
       name: 'ShipSecAI',
       type: 'shipsecai',
-    },
-    agentTool: {
-      enabled: true,
-      toolName: 'mcp_library',
-      toolDescription: 'Expose custom MCP tools from configured servers.',
     },
     isLatest: true,
   },

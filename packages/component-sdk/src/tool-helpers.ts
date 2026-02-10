@@ -38,7 +38,7 @@ export interface ToolMetadata {
  * Check if a component is configured as an agent-callable tool.
  */
 export function isAgentCallable(component: ComponentDefinition): boolean {
-  return component.ui?.agentTool?.enabled === true;
+  return component.toolProvider?.kind === 'component';
 }
 
 /**
@@ -256,7 +256,14 @@ export function getToolSchema(component: ComponentDefinition): ToolInputSchema {
     }
   }
 
-  // 6. Add exposed parameters (if any)
+  // 6. Use explicit inputSchema if provided (overrides inferred schema)
+  if (component.toolProvider?.inputSchema) {
+    const override = component.toolProvider.inputSchema;
+    // Merge or replace depending on needs - for now we just use it as is if provided
+    return override;
+  }
+
+  // 7. Add exposed parameters (if any)
   if (parametersSchema && exposedParamIds.length > 0) {
     const paramSchema = (
       parametersSchema as { toJSONSchema(): Record<string, unknown> }
@@ -323,25 +330,25 @@ export function getToolSchema(component: ComponentDefinition): ToolInputSchema {
 
 /**
  * Get the tool name for a component.
- * Uses agentTool.toolName if specified, otherwise derives from component slug.
+ * Uses toolProvider.name if specified, otherwise derives from component slug.
  */
 export function getToolName(component: ComponentDefinition): string {
-  if (component.ui?.agentTool?.toolName) {
-    return component.ui.agentTool.toolName;
+  if (component.toolProvider?.name) {
+    return component.toolProvider.name;
   }
 
-  // Derive from slug: 'abuseipdb-lookup' → 'abuseipdb_lookup'
+  // Derive from slug: 'abuseipdb-check' → 'abuseipdb_check'
   const slug = component.ui?.slug ?? component.id;
   return slug.replace(/-/g, '_').replace(/\./g, '_');
 }
 
 /**
  * Get the tool description for a component.
- * Uses agentTool.toolDescription if specified, otherwise uses component docs/description.
+ * Uses toolProvider.description if specified, otherwise uses component docs/description.
  */
 export function getToolDescription(component: ComponentDefinition): string {
-  if (component.ui?.agentTool?.toolDescription) {
-    return component.ui.agentTool.toolDescription;
+  if (component.toolProvider?.description) {
+    return component.toolProvider.description;
   }
 
   return component.ui?.description ?? component.docs ?? component.label;
