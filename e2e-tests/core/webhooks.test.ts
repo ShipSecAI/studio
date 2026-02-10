@@ -1,107 +1,23 @@
 /**
  * E2E Tests - Smart Webhooks
- * 
+ *
  * Validates the creation, testing, and triggering of Smart Webhooks with custom parsing scripts.
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { expect, beforeAll } from 'bun:test';
 
-import { getApiBaseUrl } from './helpers/api-base';
-
-const API_BASE = getApiBaseUrl();
-const HEADERS = {
-  'Content-Type': 'application/json',
-  'x-internal-token': 'local-internal-token',
-};
-
-const runE2E = process.env.RUN_E2E === 'true';
-
-const servicesAvailableSync = (() => {
-  if (!runE2E) return false;
-  try {
-    const result = Bun.spawnSync([
-      'curl', '-sf', '--max-time', '1',
-      '-H', `x-internal-token: ${HEADERS['x-internal-token']}`,
-      `${API_BASE}/health`
-    ], { stdout: 'pipe', stderr: 'pipe' });
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
-})();
-
-async function checkServicesAvailable(): Promise<boolean> {
-  if (!runE2E) return false;
-  try {
-    const healthRes = await fetch(`${API_BASE}/health`, {
-      headers: HEADERS,
-      signal: AbortSignal.timeout(2000),
-    });
-    return healthRes.ok;
-  } catch {
-    return false;
-  }
-}
-
-const e2eDescribe = (runE2E && servicesAvailableSync) ? describe : describe.skip;
-
-function e2eTest(
-  name: string,
-  optionsOrFn: { timeout?: number } | (() => void | Promise<void>),
-  fn?: () => void | Promise<void>
-): void {
-  if (runE2E && servicesAvailableSync) {
-    if (typeof optionsOrFn === 'function') {
-      test(name, optionsOrFn);
-    } else if (fn) {
-      (test as any)(name, optionsOrFn, fn);
-    }
-  } else {
-    const actualFn = typeof optionsOrFn === 'function' ? optionsOrFn : fn!;
-    test.skip(name, actualFn);
-  }
-}
-
-// Helper: Poll run status
-async function pollRunStatus(runId: string, timeoutMs = 60000): Promise<{ status: string }> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    const res = await fetch(`${API_BASE}/workflows/runs/${runId}/status`, { headers: HEADERS });
-    const s = await res.json();
-    if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(s.status)) return s;
-    await new Promise(r => setTimeout(r, 1000));
-  }
-  throw new Error(`Workflow run ${runId} timed out`);
-}
-
-// Helper: Create workflow
-async function createWorkflow(workflow: any): Promise<string> {
-  const res = await fetch(`${API_BASE}/workflows`, {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify(workflow),
-  });
-  if (!res.ok) throw new Error(`Workflow creation failed: ${await res.text()}`);
-  const { id } = await res.json();
-  return id;
-}
-
-// Helper: Create webhook
-async function createWebhook(config: any): Promise<any> {
-    const res = await fetch(`${API_BASE}/webhooks/configurations`, {
-        method: 'POST',
-        headers: HEADERS,
-        body: JSON.stringify(config),
-    });
-    if (!res.ok) throw new Error(`Webhook creation failed: ${await res.text()}`);
-    return res.json();
-}
+import {
+  API_BASE,
+  HEADERS,
+  e2eDescribe,
+  e2eTest,
+  pollRunStatus,
+  createWorkflow,
+  createWebhook,
+  checkServicesAvailable,
+} from '../helpers/e2e-harness';
 
 beforeAll(async () => {
-    if (!runE2E) {
-        console.log('\n  Webhook E2E: Skipping (RUN_E2E not set)');
-        return;
-    }
     const available = await checkServicesAvailable();
     if (!available) console.log('    Backend API is not available. Skipping.');
 });
@@ -197,7 +113,7 @@ e2eDescribe('Smart Webhooks E2E Tests', () => {
     expect(testData.success).toBe(true);
     expect(testData.parsedData.repo_name).toBe('ShipSecAI/studio');
     expect(testData.parsedData.is_push).toBe('true');
-    console.log('    ✓ Script test successful');
+    console.log('    Script test successful');
 
     // 4. Trigger the webhook via public endpoint
     const triggerRes = await fetch(`${API_BASE}/webhooks/inbound/${webhookPath}`, {
@@ -210,19 +126,19 @@ e2eDescribe('Smart Webhooks E2E Tests', () => {
             repository: { full_name: 'ShipSecAI/studio' }
         })
     });
-    
+
     if (!triggerRes.ok) {
-        console.error(`    ✗ Trigger failed: ${triggerRes.status} ${await triggerRes.text()}`);
+        console.error(`    Trigger failed: ${triggerRes.status} ${await triggerRes.text()}`);
     }
     expect(triggerRes.ok).toBe(true);
     const { runId } = await triggerRes.json();
     expect(runId).toBeDefined();
-    console.log(`    ✓ Triggered! Run ID: ${runId}`);
+    console.log(`    Triggered! Run ID: ${runId}`);
 
     // 5. Verify workflow execution
     const status = await pollRunStatus(runId);
     expect(status.status).toBe('COMPLETED');
-    console.log('    ✓ Workflow execution COMPLETED');
+    console.log('    Workflow execution COMPLETED');
   });
 
 });

@@ -8,7 +8,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-ENV_FILE="$PROJECT_ROOT/.env.eng-104"
+ENV_FILE="$PROJECT_ROOT/.env.e2e"
 TEST_NAME="${1:-alert-investigation}"
 
 echo "🧪 ShipSec E2E Local Testing"
@@ -26,7 +26,7 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "⚠️  Missing $ENV_FILE"
     echo ""
     echo "Setting up environment..."
-    bun run e2e-tests/scripts/setup-eng-104-env.ts || {
+    bun run e2e-tests/scripts/setup-e2e-env.ts || {
         echo "❌ Setup cancelled"
         exit 1
     }
@@ -55,7 +55,7 @@ if [ ${#MISSING[@]} -gt 0 ]; then
         echo "   - $var"
     done
     echo ""
-    echo "Edit .env.eng-104 to add values"
+    echo "Edit .env.e2e to add values"
     exit 1
 fi
 
@@ -115,7 +115,7 @@ else
     echo "📖 Troubleshooting:"
     echo "   1. Check backend logs: just dev logs"
     echo "   2. View Temporal UI: http://localhost:8081"
-    echo "   3. Verify env vars: cat .env.eng-104"
+    echo "   3. Verify env vars: cat .env.e2e"
 fi
 
 exit $TEST_EXIT

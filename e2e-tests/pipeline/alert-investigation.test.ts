@@ -1,32 +1,23 @@
-import { describe, test, expect, beforeAll } from 'bun:test';
-import { spawnSync } from 'node:child_process';
+import { expect, beforeAll } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { getApiBaseUrl } from './helpers/api-base';
-
-const API_BASE = getApiBaseUrl();
-const HEADERS = {
-  'Content-Type': 'application/json',
-  'x-internal-token': 'local-internal-token',
-};
-
-const runE2E = process.env.RUN_E2E === 'true';
+import {
+  HEADERS,
+  e2eDescribe,
+  e2eTest,
+  pollRunStatus,
+  createWorkflow,
+  runWorkflow,
+  createOrRotateSecret,
+} from '../helpers/e2e-harness';
 
 const ZAI_API_KEY = process.env.ZAI_API_KEY;
 const ABUSEIPDB_API_KEY = process.env.ABUSEIPDB_API_KEY;
 const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY;
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
 const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-const AWS_SESSION_TOKEN = process.env.AWS_SESSION_TOKEN;
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-
-// NOTE: AWS MCPs now use the group mechanism (mcp.group.aws)
-// The old individual components (security.aws-cloudtrail-mcp, security.aws-cloudwatch-mcp) are deprecated
-const AWS_CLOUDTRAIL_MCP_IMAGE =
-  process.env.AWS_CLOUDTRAIL_MCP_IMAGE || 'shipsec/mcp-aws-cloudtrail:latest';
-const AWS_CLOUDWATCH_MCP_IMAGE =
-  process.env.AWS_CLOUDWATCH_MCP_IMAGE || 'shipsec/mcp-aws-cloudwatch:latest';
 
 const requiredSecretsReady =
   typeof ZAI_API_KEY === 'string' &&
@@ -40,140 +31,30 @@ const requiredSecretsReady =
   typeof AWS_SECRET_ACCESS_KEY === 'string' &&
   AWS_SECRET_ACCESS_KEY.length > 0;
 
-const servicesAvailableSync = (() => {
-  if (!runE2E) return false;
-  try {
-    const result = spawnSync('curl', [
-      '-sf',
-      '--max-time',
-      '1',
-      '-H',
-      `x-internal-token: ${HEADERS['x-internal-token']}`,
-      `${API_BASE}/health`,
-    ]);
-    return result.status === 0;
-  } catch {
-    return false;
-  }
-})();
-
-const e2eDescribe = runE2E && servicesAvailableSync ? describe : describe.skip;
-
-function e2eTest(
-  name: string,
-  optionsOrFn: { timeout?: number } | (() => void | Promise<void>),
-  fn?: () => void | Promise<void>,
-): void {
-  if (runE2E && servicesAvailableSync) {
-    if (typeof optionsOrFn === 'function') {
-      test(name, optionsOrFn);
-    } else if (fn) {
-      (test as any)(name, optionsOrFn, fn);
-    }
-  } else {
-    const actualFn = typeof optionsOrFn === 'function' ? optionsOrFn : fn!;
-    test.skip(name, actualFn);
-  }
-}
-
-async function pollRunStatus(runId: string, timeoutMs = 480000): Promise<{ status: string }> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    const res = await fetch(`${API_BASE}/workflows/runs/${runId}/status`, { headers: HEADERS });
-    const s = await res.json();
-    if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(s.status)) return s;
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-  throw new Error(`Workflow run ${runId} timed out`);
-}
-
-async function createWorkflow(workflow: any): Promise<string> {
-  const res = await fetch(`${API_BASE}/workflows`, {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify(workflow),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to create workflow: ${res.status} ${text}`);
-  }
-  const { id } = await res.json();
-  return id;
-}
-
-async function runWorkflow(workflowId: string, inputs: Record<string, unknown> = {}): Promise<string> {
-  const res = await fetch(`${API_BASE}/workflows/${workflowId}/run`, {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify({ inputs }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to run workflow: ${res.status} ${text}`);
-  }
-  const { runId } = await res.json();
-  return runId;
-}
-
-async function listSecrets(): Promise<Array<{ id: string; name: string }>> {
-  const res = await fetch(`${API_BASE}/secrets`, { headers: HEADERS });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to list secrets: ${res.status} ${text}`);
-  }
-  return res.json();
-}
-
-async function createOrRotateSecret(name: string, value: string): Promise<string> {
-  const secrets = await listSecrets();
-  const existing = secrets.find((s) => s.name === name);
-  if (!existing) {
-    const res = await fetch(`${API_BASE}/secrets`, {
-      method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify({ name, value }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Failed to create secret: ${res.status} ${text}`);
-    }
-    const secret = await res.json();
-    return secret.id as string;
-  }
-
-  const res = await fetch(`${API_BASE}/secrets/${existing.id}/rotate`, {
-    method: 'PUT',
-    headers: HEADERS,
-    body: JSON.stringify({ value }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to rotate secret: ${res.status} ${text}`);
-  }
-  return existing.id;
-}
-
 function loadGuardDutySample() {
   const filePath = join(process.cwd(), 'e2e-tests', 'fixtures', 'guardduty-alert.json');
   const raw = readFileSync(filePath, 'utf8');
   return JSON.parse(raw);
 }
 
+import { getApiBaseUrl } from '../helpers/api-base';
+const API_BASE = getApiBaseUrl();
+
 e2eDescribe('Alert Investigation: End-to-End Workflow', () => {
   beforeAll(() => {
     if (!requiredSecretsReady) {
-      throw new Error('Missing required ENV vars. Copy e2e-tests/.env.eng-104.example to .env.eng-104 and fill secrets.');
+      throw new Error('Missing required ENV vars. Copy e2e-tests/.env.e2e.example to .env.e2e and fill secrets.');
     }
   });
 
   e2eTest('triage workflow runs end-to-end with MCP tools + OpenCode agent', { timeout: 480000 }, async () => {
     const now = Date.now();
 
-    const abuseSecretName = `ENG104_ABUSE_${now}`;
-    const vtSecretName = `ENG104_VT_${now}`;
-    const zaiSecretName = `ENG104_ZAI_${now}`;
-    const awsAccessKeyName = `ENG104_AWS_ACCESS_${now}`;
-    const awsSecretKeyName = `ENG104_AWS_SECRET_${now}`;
+    const abuseSecretName = `E2E_ALERT_ABUSE_${now}`;
+    const vtSecretName = `E2E_ALERT_VT_${now}`;
+    const zaiSecretName = `E2E_ALERT_ZAI_${now}`;
+    const awsAccessKeyName = `E2E_ALERT_AWS_ACCESS_${now}`;
+    const awsSecretKeyName = `E2E_ALERT_AWS_SECRET_${now}`;
 
     await createOrRotateSecret(abuseSecretName, ABUSEIPDB_API_KEY!);
     await createOrRotateSecret(vtSecretName, VIRUSTOTAL_API_KEY!);
@@ -184,7 +65,7 @@ e2eDescribe('Alert Investigation: End-to-End Workflow', () => {
     const guardDutyAlert = loadGuardDutySample();
 
     const workflow = {
-      name: `E2E: ENG-104 Alert Investigation ${now}`,
+      name: `E2E: Alert Investigation ${now}`,
       nodes: [
         {
           id: 'start',
@@ -302,16 +183,14 @@ e2eDescribe('Alert Investigation: End-to-End Workflow', () => {
         { id: 't2', source: 'virustotal', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
         { id: 't3', source: 'aws-mcp-group', target: 'agent', sourceHandle: 'tools', targetHandle: 'tools' },
 
-
         { id: 'a1', source: 'aws-creds', target: 'aws-mcp-group', sourceHandle: 'credentials', targetHandle: 'credentials' },
-
       ],
     };
 
     const workflowId = await createWorkflow(workflow);
     const runId = await runWorkflow(workflowId, { alert: guardDutyAlert });
 
-    const result = await pollRunStatus(runId);
+    const result = await pollRunStatus(runId, 480000);
     expect(result.status).toBe('COMPLETED');
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -332,7 +211,5 @@ e2eDescribe('Alert Investigation: End-to-End Workflow', () => {
         expect(report.toLowerCase()).toContain('actions');
       }
     }
-
-    // Leave secrets for reuse across runs; rotation already updated values.
   });
 });

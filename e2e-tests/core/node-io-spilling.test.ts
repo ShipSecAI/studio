@@ -5,80 +5,16 @@
  * and can be retrieved via the backend API.
  */
 
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { expect, beforeAll } from 'bun:test';
 
-import { getApiBaseUrl } from './helpers/api-base';
-
-const API_BASE = getApiBaseUrl();
-const HEADERS = {
-  'Content-Type': 'application/json',
-  'x-internal-token': 'local-internal-token',
-};
-
-const runE2E = process.env.RUN_E2E === 'true';
-
-const servicesAvailableSync = (() => {
-  if (!runE2E) return false;
-  try {
-    const result = Bun.spawnSync([
-      'curl', '-sf', '--max-time', '1',
-      '-H', `x-internal-token: ${HEADERS['x-internal-token']}`,
-      `${API_BASE}/health`
-    ], { stdout: 'pipe', stderr: 'pipe' });
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
-})();
-
-async function checkServicesAvailable(): Promise<boolean> {
-  if (!runE2E) return false;
-  try {
-    const healthRes = await fetch(`${API_BASE}/health`, {
-      headers: HEADERS,
-      signal: AbortSignal.timeout(2000),
-    });
-    return healthRes.ok;
-  } catch {
-    return false;
-  }
-}
-
-const e2eDescribe = (runE2E && servicesAvailableSync) ? describe : describe.skip;
-
-function e2eTest(
-  name: string,
-  optionsOrFn: { timeout?: number } | (() => void | Promise<void>),
-  fn?: () => void | Promise<void>
-): void {
-  if (runE2E && servicesAvailableSync) {
-    if (typeof optionsOrFn === 'function') {
-      test(name, optionsOrFn);
-    } else if (fn) {
-      (test as any)(name, optionsOrFn, fn);
-    } else {
-      test(name, optionsOrFn as any);
-    }
-  } else {
-    const actualFn = typeof optionsOrFn === 'function' ? optionsOrFn : fn!;
-    test.skip(name, actualFn);
-  }
-}
-
-async function pollRunStatus(runId: string, timeoutMs = 180000): Promise<{ status: string }> {
-  const startTime = Date.now();
-  console.log(`  [Debug] Polling status for ${runId}...`);
-  while (Date.now() - startTime < timeoutMs) {
-    const res = await fetch(`${API_BASE}/workflows/runs/${runId}/status`, { headers: HEADERS });
-    const s = await res.json();
-    console.log(`  [Debug] Current status: ${s.status} (${Math.round((Date.now() - startTime) / 1000)}s)`);
-    if (['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED'].includes(s.status)) {
-      return s;
-    }
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-  throw new Error(`Workflow run ${runId} did not complete within ${timeoutMs}ms`);
-}
+import {
+  API_BASE,
+  HEADERS,
+  e2eDescribe,
+  e2eTest,
+  pollRunStatus,
+  checkServicesAvailable,
+} from '../helpers/e2e-harness';
 
 async function fetchNodeIO(runId: string, nodeRef: string, full = false) {
   const url = `${API_BASE}/workflows/runs/${runId}/node-io/${nodeRef}${full ? '?full=true' : ''}`;
@@ -142,10 +78,9 @@ export async function script(input: any) {
 }
 
 beforeAll(async () => {
-  if (!runE2E) return;
   const available = await checkServicesAvailable();
   if (!available) {
-    console.log('  ⚠️  Backend API is not available for Spilling E2E tests.');
+    console.log('  Backend API is not available for Spilling E2E tests.');
   }
 });
 
@@ -180,6 +115,6 @@ e2eDescribe('Node I/O Spilling E2E Tests', () => {
     expect(nodeIO.outputs.results.length).toBe(50000);
     expect(nodeIO.outputs.results[0].message).toContain('bloat message');
 
-    console.log(`  ✅ Successfully retrieved ${nodeIO.outputs.results.length} items from spilled storage`);
+    console.log(`  Successfully retrieved ${nodeIO.outputs.results.length} items from spilled storage`);
   });
 });
