@@ -96,5 +96,11 @@ import './scanners/opengrep';
 import './scanners/dependency';
 import './scanners/trivy';
 
+// Scanner components (GitHub integration)
+import './scanners/trufflehog';
+import './scanners/opengrep';
+import './scanners/dependency';
+import './scanners/trivy';
+
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';
