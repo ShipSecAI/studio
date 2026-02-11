@@ -100,8 +100,12 @@ frontend:
 ingress:
   enabled: false
   frontendHost: studio-next.shipsec.ai
-  backendHost: api.studio-next.shipsec.ai
+  backendHost: api-studio-next.shipsec.ai
   websocket: true
+  tls:
+    enabled: false
+    clusterIssuer: letsencrypt-prod
+    secretName: shipsec-tls
 
 execution:
   # "docker" = use Docker CLI (local dev / DIND), "k8s" = K8s Jobs (GKE / production)
