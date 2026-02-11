@@ -11,7 +11,7 @@ global:
 secrets:
   create: true
   name: shipsec-app-secrets
-  databaseUrl: "postgresql://shipsec:shipsec-dev-2026@10.25.225.3:5432/shipsec"
+  databaseUrl: 'postgresql://shipsec:shipsec-dev-2026@10.25.225.3:5432/shipsec'
   minioRootUser: minioadmin
   minioRootPassword: minioadmin
 
@@ -21,15 +21,15 @@ backend:
   env:
     NODE_ENV: production
     SHIPSEC_ENV: local
-    PORT: "3211"
-    ENABLE_INGEST_SERVICES: "false"
+    PORT: '3211'
+    ENABLE_INGEST_SERVICES: 'false'
     TEMPORAL_ADDRESS: shipsec-temporal.shipsec-system.svc.cluster.local:7233
     TEMPORAL_NAMESPACE: shipsec-dev
     TEMPORAL_TASK_QUEUE: shipsec-dev
     MINIO_ENDPOINT: shipsec-minio.shipsec-system.svc.cluster.local
-    MINIO_PORT: "9000"
+    MINIO_PORT: '9000'
     LOKI_URL: http://shipsec-loki.shipsec-system.svc.cluster.local:3100
-    TERMINAL_REDIS_URL: "redis://10.25.224.3:6379"
+    TERMINAL_REDIS_URL: 'redis://10.25.224.3:6379'
     LOG_KAFKA_BROKERS: shipsec-redpanda.shipsec-system.svc.cluster.local:9092
     LOG_KAFKA_TOPIC: telemetry.logs
     LOG_KAFKA_CLIENT_ID: shipsec-backend
@@ -42,16 +42,16 @@ worker:
   env:
     NODE_ENV: production
     SHIPSEC_ENV: local
-    ENABLE_INGEST_SERVICES: "false"
+    ENABLE_INGEST_SERVICES: 'false'
     TEMPORAL_ADDRESS: shipsec-temporal.shipsec-system.svc.cluster.local:7233
     TEMPORAL_NAMESPACE: shipsec-dev
     TEMPORAL_TASK_QUEUE: shipsec-dev
     MINIO_ENDPOINT: shipsec-minio.shipsec-system.svc.cluster.local
-    MINIO_PORT: "9000"
+    MINIO_PORT: '9000'
     MINIO_BUCKET_NAME: shipsec-files
     LOKI_URL: http://shipsec-loki.shipsec-system.svc.cluster.local:3100
-    TERMINAL_REDIS_URL: "redis://10.25.224.3:6379"
-    TERMINAL_REDIS_MAXLEN: "5000"
+    TERMINAL_REDIS_URL: 'redis://10.25.224.3:6379'
+    TERMINAL_REDIS_MAXLEN: '5000'
     LOG_KAFKA_BROKERS: shipsec-redpanda.shipsec-system.svc.cluster.local:9092
     LOG_KAFKA_TOPIC: telemetry.logs
     LOG_KAFKA_CLIENT_ID: shipsec-worker
@@ -62,3 +62,11 @@ worker:
 frontend:
   service:
     type: LoadBalancer
+
+# K8s Jobs for component execution — no DIND needed
+execution:
+  mode: k8s
+  k8s:
+    jobNamespace: shipsec-workloads
+    imagePullPolicy: IfNotPresent
+    imagePullSecret: ghcr-creds
