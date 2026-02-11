@@ -768,6 +768,36 @@ function WorkflowBuilderContent() {
     return [];
   }, [getComponent, nodes]);
 
+  // Resolve default values from Entry Point's runtimeInputs parameter (defaultValue field)
+  const resolveRuntimeInputDefaults = useCallback((): Record<string, unknown> => {
+    const triggerNode = nodes.find((node) => {
+      const nodeData = node.data as any;
+      const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+      const component = getComponent(componentRef);
+      return component?.id === 'core.workflow.entrypoint';
+    });
+
+    if (!triggerNode) {
+      return {};
+    }
+
+    const nodeData = triggerNode.data as any;
+    const runtimeInputsParam = nodeData.config?.params?.runtimeInputs;
+
+    // Extract default values from each runtime input definition
+    if (Array.isArray(runtimeInputsParam)) {
+      const defaults: Record<string, unknown> = {};
+      for (const input of runtimeInputsParam) {
+        if (input?.id && input.defaultValue !== undefined && input.defaultValue !== null) {
+          defaults[input.id] = input.defaultValue;
+        }
+      }
+      return defaults;
+    }
+
+    return {};
+  }, [getComponent, nodes]);
+
   const {
     runDialogOpen,
     setRunDialogOpen,
@@ -786,6 +816,7 @@ function WorkflowBuilderContent() {
     setNodes,
     toast,
     resolveRuntimeInputDefinitions,
+    resolveRuntimeInputDefaults,
     fetchRuns,
     markClean,
     navigate,
