@@ -26,6 +26,8 @@ import { WorkflowRoleGuard } from './workflow-role.guard';
     TerminalModule,
     AnalyticsModule,
     NodeIOModule,
+    // GitHubAppModule is @Global() — no import needed here.
+    // WorkflowsService accesses it via @Optional() @Inject('GitHubAppService').
   ],
   controllers: [WorkflowsController, InternalRunsController],
   providers: [

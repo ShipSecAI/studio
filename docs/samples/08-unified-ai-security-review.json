@@ -1,0 +1,282 @@
+{
+  "name": "Unified AI Security Review",
+  "description": "Run OpenGrep SAST and TruffleHog secret scans in parallel, feed raw findings + PR diffs directly to an OpenCode AI agent that produces a single unified PR comment.",
+  "nodes": [
+    {
+      "id": "entry-point",
+      "type": "core.workflow.entrypoint",
+      "position": { "x": 400, "y": 0 },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "owner",
+                "label": "Owner",
+                "type": "text",
+                "required": true,
+                "description": "Repository owner (org or user)"
+              },
+              {
+                "id": "repo",
+                "label": "Repo",
+                "type": "text",
+                "required": true,
+                "description": "Repository name"
+              },
+              {
+                "id": "prNumber",
+                "label": "PR Number",
+                "type": "number",
+                "required": true,
+                "description": "Pull request number to review"
+              },
+              {
+                "id": "repository",
+                "label": "Repository",
+                "type": "text",
+                "required": true,
+                "description": "Full repository in owner/repo format"
+              },
+              {
+                "id": "installationId",
+                "label": "Installation ID",
+                "type": "number",
+                "required": false,
+                "description": "GitHub App installation ID (auto-injected by trigger)"
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "clone-repo",
+      "type": "github.repo.clone",
+      "position": { "x": 200, "y": 200 },
+      "data": {
+        "label": "Clone Repository",
+        "config": {
+          "params": {
+            "depth": 0
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "pr-context",
+      "type": "github.pr.context",
+      "position": { "x": 600, "y": 200 },
+      "data": {
+        "label": "Get PR Context",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opengrep-scanner",
+      "type": "scanner.opengrep",
+      "position": { "x": 100, "y": 440 },
+      "data": {
+        "label": "OpenGrep SAST Scanner",
+        "config": {
+          "params": {
+            "ruleset": "auto",
+            "excludePaths": ["node_modules", "vendor", ".git", "dist", "build"],
+            "timeout": 300,
+            "jobs": 4
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "trufflehog-scanner",
+      "type": "scanner.trufflehog",
+      "position": { "x": 500, "y": 440 },
+      "data": {
+        "label": "TruffleHog Secret Scanner",
+        "config": {
+          "params": {
+            "onlyVerified": false,
+            "maxDepth": 50,
+            "concurrency": 8
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opencode-agent",
+      "type": "core.ai.opencode",
+      "position": { "x": 300, "y": 700 },
+      "data": {
+        "label": "Unified AI Security & Code Review",
+        "config": {
+          "params": {
+            "systemPrompt": "You are ShipSec AI, a unified security and code review agent. You receive:\n\n1. **PR Code Diffs** in /workspace/context.json — files changed in this PR with filenames, status, additions, deletions, and unified diff patches.\n2. **OpenGrep SAST Results** in /workspace/supplementary-a.txt — raw Semgrep/OpenGrep JSON output with SAST findings (may be empty if no issues found).\n3. **TruffleHog Secret Scan Results** in /workspace/supplementary-b.txt — raw TruffleHog JSONL output with secret findings (may be empty if no secrets found).\n\nYour job:\n\n### A. Parse & Contextualize Scanner Findings\n- Parse the raw JSON/JSONL scanner output files.\n- For each finding, cross-reference with the PR diffs to assess true positive vs false positive.\n- Focus on findings in files changed by this PR.\n\n### B. Independent Code Review\n- Review all diffs for issues scanners miss: logic errors, race conditions, missing error handling, input validation gaps, API misuse, performance issues, readability.\n\n### C. Unified Report\n\nOutput ONLY markdown. No preamble, greetings, or debug output. Start directly:\n\n## <img src=\"https://avatars.githubusercontent.com/u/211031279?s=200&v=4\" width=\"20\" height=\"20\" alt=\"ShipSec\" /> ShipSec Unified Security & Code Review\n\n### Executive Summary\n1-3 sentences: what this PR does and overall risk posture.\n\n### Findings Summary\n\n| | Severity | Category | File | Line | Finding |\n|---|----------|----------|------|------|---------|\n| \ud83d\udd34 | Critical | SAST/Secrets/Code Review | `file` | 42 | One-line description |\n| \ud83d\udfe0 | High | ... | ... | ... | ... |\n| \ud83d\udfe1 | Medium | ... | ... | ... | ... |\n| \ud83d\udd35 | Low | ... | ... | ... | ... |\n| \u2139\ufe0f | Info | ... | ... | ... | ... |\n\nSeverity icons: \ud83d\udd34 Critical, \ud83d\udfe0 High, \ud83d\udfe1 Medium, \ud83d\udd35 Low, \u2139\ufe0f Info\nCategory: **SAST** (OpenGrep), **Secrets** (TruffleHog), **Code Review** (your analysis)\nInclude ALL findings from all sources in one table, sorted by severity.\n\n### SAST Findings\nFor each OpenGrep finding: state true/false positive, explain risk, suggest fix.\nIf none: \"No SAST issues detected.\"\n\n### Secret Scan Findings\nFor each TruffleHog finding: assess test/mock vs real credential, recommend remediation.\nIf none: \"No exposed secrets detected.\"\n\n### Code Review Findings\nYour own findings not caught by scanners. For each: severity, file:line, issue, fix.\nIf none: \"No additional code quality issues identified.\"\n\n### Recommendations\nTop 3-5 prioritized action items.\n\n### Overall Assessment\nOne of:\n- \u2705 **Approve** \u2014 No critical/high issues, safe to merge\n- \u274c **Request Changes** \u2014 Critical or high-severity issues must be addressed\n- \ud83d\udcac **Comment** \u2014 Medium/low findings worth discussing\n\n---\n<sub><img src=\"https://avatars.githubusercontent.com/u/211031279?s=200&v=4\" width=\"14\" height=\"14\" alt=\"ShipSec\" /> ShipSec Unified Review \u2022 Powered by OpenGrep + TruffleHog + AI</sub>",
+            "autoApprove": true
+          },
+          "inputOverrides": {
+            "task": "Review this pull request for security vulnerabilities, exposed secrets, and code quality issues. Use the scanner findings in the supplementary files and the PR diffs in context.json to produce a unified security and code review report.",
+            "model": {
+              "provider": "zai-coding-plan",
+              "modelId": "glm-4.7",
+              "apiKey": "YOUR_ZAI_CODING_PLAN_API_KEY"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pr-comment",
+      "type": "github.pr.comment",
+      "position": { "x": 300, "y": 960 },
+      "data": {
+        "label": "Post Unified Review Comment",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-entry-repository-to-clone",
+      "source": "entry-point",
+      "target": "clone-repo",
+      "sourceHandle": "repository",
+      "targetHandle": "repository"
+    },
+    {
+      "id": "edge-entry-installationid-to-clone",
+      "source": "entry-point",
+      "target": "clone-repo",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-installationid-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-owner-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "prNumber",
+      "targetHandle": "pullNumber"
+    },
+    {
+      "id": "edge-clone-to-opengrep",
+      "source": "clone-repo",
+      "target": "opengrep-scanner",
+      "sourceHandle": "volumeName",
+      "targetHandle": "volumeName"
+    },
+    {
+      "id": "edge-clone-to-trufflehog",
+      "source": "clone-repo",
+      "target": "trufflehog-scanner",
+      "sourceHandle": "volumeName",
+      "targetHandle": "volumeName"
+    },
+    {
+      "id": "edge-pr-context-changedfiles-to-opengrep",
+      "source": "pr-context",
+      "target": "opengrep-scanner",
+      "sourceHandle": "changedFiles",
+      "targetHandle": "changedFiles"
+    },
+    {
+      "id": "edge-pr-context-changedfiles-to-trufflehog",
+      "source": "pr-context",
+      "target": "trufflehog-scanner",
+      "sourceHandle": "changedFiles",
+      "targetHandle": "changedFiles"
+    },
+    {
+      "id": "edge-opengrep-to-opencode",
+      "source": "opengrep-scanner",
+      "target": "opencode-agent",
+      "sourceHandle": "rawOutput",
+      "targetHandle": "supplementaryA"
+    },
+    {
+      "id": "edge-trufflehog-to-opencode",
+      "source": "trufflehog-scanner",
+      "target": "opencode-agent",
+      "sourceHandle": "rawOutput",
+      "targetHandle": "supplementaryB"
+    },
+    {
+      "id": "edge-pr-context-to-opencode",
+      "source": "pr-context",
+      "target": "opencode-agent",
+      "sourceHandle": "changedFilesDetailed",
+      "targetHandle": "context"
+    },
+    {
+      "id": "edge-opencode-to-pr-comment",
+      "source": "opencode-agent",
+      "target": "pr-comment",
+      "sourceHandle": "report",
+      "targetHandle": "body"
+    },
+    {
+      "id": "edge-entry-installationid-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-owner-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "prNumber",
+      "targetHandle": "prNumber"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.5
+  }
+}

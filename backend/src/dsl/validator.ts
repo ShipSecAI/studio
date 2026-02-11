@@ -161,34 +161,30 @@ function isPlaceholderIssue(issue: ZodIssue, placeholderFields: Set<string>): bo
     return false;
   }
 
-  switch (issue.code) {
-    case 'invalid_type':
-      return true;
-    case 'invalid_format':
-      return true;
-    case 'too_small':
-      return true;
-    case 'too_big':
-      return true;
-    case 'invalid_value':
-      // Enum/literal validation fails on placeholder objects with missing fields
-      // The actual value from upstream will have the correct enum value at runtime
-      return true;
-    case 'custom':
-      // Custom validations (from .refine()) fail on placeholders but will pass at runtime
-      // when the actual value comes from the connected edge
-      return true;
-    case 'invalid_union':
-      if ('unionErrors' in issue) {
-        const unionIssue = issue as ZodIssue & { unionErrors: ZodError[] };
-        return unionIssue.unionErrors.every((variant: ZodError) =>
-          variant.issues.every((inner) => inner.code === 'invalid_type'),
-        );
-      }
-      return false;
-    default:
-      return false;
+  const code = String(issue.code);
+  const placeholderCodes = new Set<string>([
+    'invalid_type',
+    'invalid_format',
+    'invalid_enum_value', // Zod v3
+    'invalid_value', // Zod v4 (enum / literal validation)
+    'invalid_string', // Zod v3
+    'too_small',
+    'too_big',
+    'custom',
+  ]);
+
+  if (placeholderCodes.has(code)) {
+    return true;
   }
+
+  if (code === 'invalid_union' && 'unionErrors' in issue) {
+    const unionIssue = issue as ZodIssue & { unionErrors: ZodError[] };
+    return unionIssue.unionErrors.every((variant: ZodError) =>
+      variant.issues.every((inner) => placeholderCodes.has(String(inner.code))),
+    );
+  }
+
+  return false;
 }
 
 /**

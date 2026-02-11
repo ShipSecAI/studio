@@ -1,0 +1,418 @@
+{
+  "name": "PR Security Check Run",
+  "description": "Triggered on PR events. Creates GitHub Check Runs, fetches PR context, clones the repo, runs OpenGrep and TruffleHog in parallel, then updates the check runs with results.",
+  "nodes": [
+    {
+      "id": "entry-point",
+      "type": "core.workflow.entrypoint",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "owner",
+                "label": "Owner",
+                "type": "text",
+                "required": true,
+                "description": "Repository owner (org or user)"
+              },
+              {
+                "id": "repo",
+                "label": "Repo",
+                "type": "text",
+                "required": true,
+                "description": "Repository name"
+              },
+              {
+                "id": "prNumber",
+                "label": "PR Number",
+                "type": "number",
+                "required": true,
+                "description": "Pull request number"
+              },
+              {
+                "id": "installationId",
+                "label": "Installation ID",
+                "type": "number",
+                "required": false,
+                "description": "GitHub App installation ID (auto-resolved if not provided)"
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "pr-context",
+      "type": "github.pr.context",
+      "position": {
+        "x": 300,
+        "y": 200
+      },
+      "data": {
+        "label": "Get PR Context",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "create-check-opengrep",
+      "type": "github.check.create",
+      "position": {
+        "x": 100,
+        "y": 420
+      },
+      "data": {
+        "label": "Create Check - OpenGrep",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "name": "OpenGrep SAST Scan",
+            "status": "in_progress"
+          }
+        }
+      }
+    },
+    {
+      "id": "create-check-trufflehog",
+      "type": "github.check.create",
+      "position": {
+        "x": 520,
+        "y": 420
+      },
+      "data": {
+        "label": "Create Check - TruffleHog",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "name": "TruffleHog Secret Scan",
+            "status": "in_progress"
+          }
+        }
+      }
+    },
+    {
+      "id": "clone-repo",
+      "type": "github.repo.clone",
+      "position": {
+        "x": 300,
+        "y": 640
+      },
+      "data": {
+        "label": "Clone PR Branch",
+        "config": {
+          "params": {
+            "repository": "owner/repo",
+            "depth": 1
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opengrep-scanner",
+      "type": "scanner.opengrep",
+      "position": {
+        "x": 100,
+        "y": 860
+      },
+      "data": {
+        "label": "OpenGrep SAST Scanner",
+        "config": {
+          "params": {
+            "ruleset": "auto",
+            "timeout": 300,
+            "jobs": 4
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "trufflehog-scanner",
+      "type": "scanner.trufflehog",
+      "position": {
+        "x": 520,
+        "y": 860
+      },
+      "data": {
+        "label": "TruffleHog Secret Scanner",
+        "config": {
+          "params": {
+            "onlyVerified": false,
+            "maxDepth": 50,
+            "concurrency": 8
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opengrep-log",
+      "type": "core.console.log",
+      "position": {
+        "x": 100,
+        "y": 1080
+      },
+      "data": {
+        "label": "Console Log - OpenGrep",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "label": "OpenGrep Findings"
+          }
+        }
+      }
+    },
+    {
+      "id": "trufflehog-log",
+      "type": "core.console.log",
+      "position": {
+        "x": 520,
+        "y": 1080
+      },
+      "data": {
+        "label": "Console Log - TruffleHog",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "label": "TruffleHog Findings"
+          }
+        }
+      }
+    },
+    {
+      "id": "update-check-opengrep",
+      "type": "github.check.update",
+      "position": {
+        "x": 100,
+        "y": 1300
+      },
+      "data": {
+        "label": "Update Check - OpenGrep",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "status": "completed",
+            "conclusion": "neutral"
+          }
+        }
+      }
+    },
+    {
+      "id": "update-check-trufflehog",
+      "type": "github.check.update",
+      "position": {
+        "x": 520,
+        "y": 1300
+      },
+      "data": {
+        "label": "Update Check - TruffleHog",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "status": "completed",
+            "conclusion": "neutral"
+          }
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-entry-installationId-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-installationId-to-check-opengrep",
+      "source": "entry-point",
+      "target": "create-check-opengrep",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-installationId-to-check-trufflehog",
+      "source": "entry-point",
+      "target": "create-check-trufflehog",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-installationId-to-update-opengrep",
+      "source": "entry-point",
+      "target": "update-check-opengrep",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-installationId-to-update-trufflehog",
+      "source": "entry-point",
+      "target": "update-check-trufflehog",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-owner-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "prNumber",
+      "targetHandle": "pullNumber"
+    },
+    {
+      "id": "edge-pr-context-sha-to-check-opengrep",
+      "source": "pr-context",
+      "target": "create-check-opengrep",
+      "sourceHandle": "headSha",
+      "targetHandle": "headSha"
+    },
+    {
+      "id": "edge-entry-owner-to-check-opengrep",
+      "source": "entry-point",
+      "target": "create-check-opengrep",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-check-opengrep",
+      "source": "entry-point",
+      "target": "create-check-opengrep",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-pr-context-sha-to-check-trufflehog",
+      "source": "pr-context",
+      "target": "create-check-trufflehog",
+      "sourceHandle": "headSha",
+      "targetHandle": "headSha"
+    },
+    {
+      "id": "edge-entry-owner-to-check-trufflehog",
+      "source": "entry-point",
+      "target": "create-check-trufflehog",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-check-trufflehog",
+      "source": "entry-point",
+      "target": "create-check-trufflehog",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-clone-to-opengrep",
+      "source": "clone-repo",
+      "target": "opengrep-scanner",
+      "sourceHandle": "volumePath",
+      "targetHandle": "volumePath"
+    },
+    {
+      "id": "edge-clone-to-trufflehog",
+      "source": "clone-repo",
+      "target": "trufflehog-scanner",
+      "sourceHandle": "volumePath",
+      "targetHandle": "volumePath"
+    },
+    {
+      "id": "edge-opengrep-to-log",
+      "source": "opengrep-scanner",
+      "target": "opengrep-log",
+      "sourceHandle": "findings",
+      "targetHandle": "data"
+    },
+    {
+      "id": "edge-trufflehog-to-log",
+      "source": "trufflehog-scanner",
+      "target": "trufflehog-log",
+      "sourceHandle": "findings",
+      "targetHandle": "data"
+    },
+    {
+      "id": "edge-create-check-opengrep-to-update",
+      "source": "create-check-opengrep",
+      "target": "update-check-opengrep",
+      "sourceHandle": "checkRunId",
+      "targetHandle": "checkRunId"
+    },
+    {
+      "id": "edge-entry-owner-to-update-opengrep",
+      "source": "entry-point",
+      "target": "update-check-opengrep",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-update-opengrep",
+      "source": "entry-point",
+      "target": "update-check-opengrep",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-opengrep-findings-to-update-check",
+      "source": "opengrep-scanner",
+      "target": "update-check-opengrep",
+      "sourceHandle": "rawOutput",
+      "targetHandle": "output"
+    },
+    {
+      "id": "edge-create-check-trufflehog-to-update",
+      "source": "create-check-trufflehog",
+      "target": "update-check-trufflehog",
+      "sourceHandle": "checkRunId",
+      "targetHandle": "checkRunId"
+    },
+    {
+      "id": "edge-entry-owner-to-update-trufflehog",
+      "source": "entry-point",
+      "target": "update-check-trufflehog",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-update-trufflehog",
+      "source": "entry-point",
+      "target": "update-check-trufflehog",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-trufflehog-findings-to-update-check",
+      "source": "trufflehog-scanner",
+      "target": "update-check-trufflehog",
+      "sourceHandle": "rawOutput",
+      "targetHandle": "output"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.45
+  }
+}

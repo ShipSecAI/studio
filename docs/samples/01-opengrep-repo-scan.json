@@ -1,0 +1,134 @@
+{
+  "name": "OpenGrep Repository Scan",
+  "description": "Clone a GitHub repository, run OpenGrep SAST scanner, and output normalized findings to console log.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "entry-point",
+        "type": "core.workflow.entrypoint",
+        "position": {
+          "x": -147.6231177094379,
+          "y": 129.01060445387066
+        },
+        "data": {
+          "label": "Entry Point",
+          "config": {
+            "params": {
+              "runtimeInputs": []
+            },
+            "inputOverrides": {}
+          }
+        }
+      },
+      {
+        "id": "clone-repo",
+        "type": "github.repo.clone",
+        "position": {
+          "x": 150.95809255896324,
+          "y": 133.86973476997326
+        },
+        "data": {
+          "label": "Clone Repository",
+          "config": {
+            "params": {
+              "depth": 1,
+              "repository": "LuD1161/dvwa"
+            },
+            "inputOverrides": {}
+          }
+        }
+      },
+      {
+        "id": "opengrep-scanner",
+        "type": "scanner.opengrep",
+        "position": {
+          "x": 460.81614598308056,
+          "y": 193.57533868392647
+        },
+        "data": {
+          "label": "OpenGrep SAST Scanner",
+          "config": {
+            "params": {
+              "jobs": 4,
+              "ruleset": "auto",
+              "timeout": 300
+            },
+            "inputOverrides": {}
+          }
+        }
+      },
+      {
+        "id": "console-log",
+        "type": "core.console.log",
+        "position": {
+          "x": 1116.3751311389549,
+          "y": 127.274208167111
+        },
+        "data": {
+          "label": "Console Log - OpenGrep Findings",
+          "config": {
+            "params": {},
+            "inputOverrides": {
+              "label": "OpenGrep Normalized Findings"
+            }
+          }
+        }
+      },
+      {
+        "id": "security-findings-normalize-1770512156026",
+        "type": "security.findings.normalize",
+        "position": {
+          "x": 803.2792055896874,
+          "y": 146.3357324139255
+        },
+        "data": {
+          "label": "Normalize Security Findings",
+          "config": {
+            "params": {
+              "scannerType": "auto",
+              "filterToChangedFiles": true
+            },
+            "inputOverrides": {}
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-clone-to-opengrep",
+        "source": "clone-repo",
+        "target": "opengrep-scanner",
+        "sourceHandle": "volumeName",
+        "targetHandle": "volumeName",
+        "type": "default"
+      },
+      {
+        "id": "reactflow__edge-security-findings-normalize-1770512156026findings-console-logdata",
+        "source": "security-findings-normalize-1770512156026",
+        "target": "console-log",
+        "sourceHandle": "findings",
+        "targetHandle": "data",
+        "type": "default"
+      },
+      {
+        "id": "reactflow__edge-opengrep-scannerfindings-security-findings-normalize-1770512156026rawFindings",
+        "source": "opengrep-scanner",
+        "target": "security-findings-normalize-1770512156026",
+        "sourceHandle": "findings",
+        "targetHandle": "rawFindings",
+        "type": "default"
+      }
+    ],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "metadata": {
+    "workflowId": "06dbd965-6e89-44ac-8498-f5a35c0dc611",
+    "currentVersionId": "b4a0271f-7687-48c4-b8ff-3f10a70c929b",
+    "currentVersion": 2,
+    "exportedAt": "2026-02-08T00:56:26.631Z"
+  }
+}

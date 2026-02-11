@@ -1,0 +1,263 @@
+{
+  "name": "Security Scan with PR Comments",
+  "description": "Clone a repository, run both OpenGrep and TruffleHog scanners in parallel, log normalized findings, and post results as PR comments.",
+  "nodes": [
+    {
+      "id": "entry-point",
+      "type": "core.workflow.entrypoint",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "repository",
+                "label": "Repository",
+                "type": "text",
+                "required": true,
+                "description": "GitHub repository in owner/repo format"
+              },
+              {
+                "id": "owner",
+                "label": "Owner",
+                "type": "text",
+                "required": true,
+                "description": "Repository owner (org or user)"
+              },
+              {
+                "id": "repo",
+                "label": "Repo",
+                "type": "text",
+                "required": true,
+                "description": "Repository name"
+              },
+              {
+                "id": "prNumber",
+                "label": "PR Number",
+                "type": "number",
+                "required": true,
+                "description": "Pull request number to comment on"
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "clone-repo",
+      "type": "github.repo.clone",
+      "position": {
+        "x": 300,
+        "y": 200
+      },
+      "data": {
+        "label": "Clone Repository",
+        "config": {
+          "params": {
+            "repository": "owner/repo",
+            "depth": 1
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opengrep-scanner",
+      "type": "scanner.opengrep",
+      "position": {
+        "x": 100,
+        "y": 420
+      },
+      "data": {
+        "label": "OpenGrep SAST Scanner",
+        "config": {
+          "params": {
+            "ruleset": "auto",
+            "timeout": 300,
+            "jobs": 4
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "trufflehog-scanner",
+      "type": "scanner.trufflehog",
+      "position": {
+        "x": 520,
+        "y": 420
+      },
+      "data": {
+        "label": "TruffleHog Secret Scanner",
+        "config": {
+          "params": {
+            "onlyVerified": false,
+            "maxDepth": 50,
+            "concurrency": 8
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opengrep-log",
+      "type": "core.console.log",
+      "position": {
+        "x": 100,
+        "y": 640
+      },
+      "data": {
+        "label": "Console Log - OpenGrep",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "label": "OpenGrep Normalized Findings"
+          }
+        }
+      }
+    },
+    {
+      "id": "trufflehog-log",
+      "type": "core.console.log",
+      "position": {
+        "x": 520,
+        "y": 640
+      },
+      "data": {
+        "label": "Console Log - TruffleHog",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "label": "TruffleHog Normalized Findings"
+          }
+        }
+      }
+    },
+    {
+      "id": "pr-comment-opengrep",
+      "type": "github.pr.comment",
+      "position": {
+        "x": 100,
+        "y": 860
+      },
+      "data": {
+        "label": "PR Comment - OpenGrep Results",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "pr-comment-trufflehog",
+      "type": "github.pr.comment",
+      "position": {
+        "x": 520,
+        "y": 860
+      },
+      "data": {
+        "label": "PR Comment - TruffleHog Results",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-clone-to-opengrep",
+      "source": "clone-repo",
+      "target": "opengrep-scanner",
+      "sourceHandle": "volumePath",
+      "targetHandle": "volumePath"
+    },
+    {
+      "id": "edge-clone-to-trufflehog",
+      "source": "clone-repo",
+      "target": "trufflehog-scanner",
+      "sourceHandle": "volumePath",
+      "targetHandle": "volumePath"
+    },
+    {
+      "id": "edge-opengrep-to-log",
+      "source": "opengrep-scanner",
+      "target": "opengrep-log",
+      "sourceHandle": "findings",
+      "targetHandle": "data"
+    },
+    {
+      "id": "edge-trufflehog-to-log",
+      "source": "trufflehog-scanner",
+      "target": "trufflehog-log",
+      "sourceHandle": "findings",
+      "targetHandle": "data"
+    },
+    {
+      "id": "edge-opengrep-to-pr-comment",
+      "source": "opengrep-scanner",
+      "target": "pr-comment-opengrep",
+      "sourceHandle": "rawOutput",
+      "targetHandle": "body"
+    },
+    {
+      "id": "edge-trufflehog-to-pr-comment",
+      "source": "trufflehog-scanner",
+      "target": "pr-comment-trufflehog",
+      "sourceHandle": "rawOutput",
+      "targetHandle": "body"
+    },
+    {
+      "id": "edge-entry-owner-to-opengrep-comment",
+      "source": "entry-point",
+      "target": "pr-comment-opengrep",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-opengrep-comment",
+      "source": "entry-point",
+      "target": "pr-comment-opengrep",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-opengrep-comment",
+      "source": "entry-point",
+      "target": "pr-comment-opengrep",
+      "sourceHandle": "prNumber",
+      "targetHandle": "prNumber"
+    },
+    {
+      "id": "edge-entry-owner-to-trufflehog-comment",
+      "source": "entry-point",
+      "target": "pr-comment-trufflehog",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-trufflehog-comment",
+      "source": "entry-point",
+      "target": "pr-comment-trufflehog",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-trufflehog-comment",
+      "source": "entry-point",
+      "target": "pr-comment-trufflehog",
+      "sourceHandle": "prNumber",
+      "targetHandle": "prNumber"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.65
+  }
+}

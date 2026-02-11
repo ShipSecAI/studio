@@ -10,7 +10,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { authConfig } from './config/auth.config';
 import { opensearchConfig } from './config/opensearch.config';
-import { validateBackendEnv } from './config/env.validate';
 import { OpenSearchModule } from './config/opensearch.module';
 import { AgentsModule } from './agents/agents.module';
 import { AuthModule } from './auth/auth.module';
@@ -26,15 +25,13 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { McpModule } from './mcp/mcp.module';
-import { StudioMcpModule } from './studio-mcp/studio-mcp.module';
-import { AuditModule } from './audit/audit.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
-import { TemplatesModule } from './templates/templates.module';
+import { GitHubAppModule } from './github-app/github-app.module';
 
 const coreModules = [
   AgentsModule,
@@ -53,9 +50,7 @@ const coreModules = [
   McpServersModule,
   McpGroupsModule,
   McpModule,
-  StudioMcpModule,
-  TemplatesModule,
-  AuditModule,
+  GitHubAppModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
@@ -81,7 +76,6 @@ function getEnvFilePaths(): string[] {
       isGlobal: true,
       envFilePath: getEnvFilePaths(),
       load: [authConfig, opensearchConfig],
-      validate: validateBackendEnv,
     }),
     ThrottlerModule.forRootAsync({
       useFactory: () => {

@@ -1,0 +1,200 @@
+{
+  "name": "AI Code Review",
+  "description": "Review pull request code changes using OpenCode agent via Z.AI GLM Coding Plan and post results as a PR comment.",
+  "nodes": [
+    {
+      "id": "entry-point",
+      "type": "core.workflow.entrypoint",
+      "position": { "x": 400, "y": 0 },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "owner",
+                "label": "Owner",
+                "type": "text",
+                "required": true,
+                "description": "Repository owner (org or user)"
+              },
+              {
+                "id": "repo",
+                "label": "Repo",
+                "type": "text",
+                "required": true,
+                "description": "Repository name"
+              },
+              {
+                "id": "prNumber",
+                "label": "PR Number",
+                "type": "number",
+                "required": true,
+                "description": "Pull request number to review"
+              },
+              {
+                "id": "repository",
+                "label": "Repository",
+                "type": "text",
+                "required": true,
+                "description": "Full repository in owner/repo format"
+              },
+              {
+                "id": "installationId",
+                "label": "Installation ID",
+                "type": "number",
+                "required": false,
+                "description": "GitHub App installation ID (auto-injected by trigger)"
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "clone-repo",
+      "type": "github.repo.clone",
+      "position": { "x": 400, "y": 200 },
+      "data": {
+        "label": "Clone Repository",
+        "config": {
+          "params": {
+            "depth": 0
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "pr-context",
+      "type": "github.pr.context",
+      "position": { "x": 700, "y": 200 },
+      "data": {
+        "label": "Get PR Context",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opencode-agent",
+      "type": "core.ai.opencode",
+      "position": { "x": 400, "y": 500 },
+      "data": {
+        "label": "OpenCode Code Review Agent",
+        "config": {
+          "params": {
+            "systemPrompt": "You are an expert code reviewer. Your job is to review pull request changes thoroughly and provide constructive, actionable feedback.\n\nReview Guidelines:\n1. Focus on code quality, correctness, security, and best practices\n2. Look for bugs, logic errors, and edge cases\n3. Check for security vulnerabilities (injection, XSS, auth issues, etc.)\n4. Evaluate error handling and input validation\n5. Assess code style and readability\n6. Identify performance concerns\n7. Suggest improvements with specific code examples when helpful\n\nOutput Format:\nGenerate a well-structured markdown report. Start directly with the report — do NOT include any preamble, greetings, or debug output.\n\n## Code Review Report\n\n### Summary\nBrief overview of what the PR does (1-2 sentences).\n\nThen immediately include a **Findings Summary** table:\n\n| | Severity | File | Line | Finding |\n|---|----------|------|------|---------|\n| \ud83d\udd34 | Critical | `filename.py` | 42 | One-line description |\n| \ud83d\udfe0 | Warning | `filename.py` | 15 | One-line description |\n| \ud83d\udfe1 | Suggestion | `filename.py` | 8 | One-line description |\n| \ud83d\udd35 | Info | `filename.py` | — | One-line description |\n\nSeverity icons: \ud83d\udd34 Critical, \ud83d\udfe0 Warning, \ud83d\udfe1 Suggestion, \ud83d\udd35 Info\n\n### Detailed Findings\nFor each finding, provide:\n- Severity and title\n- Affected file and line number(s)\n- What the issue is and why it matters\n- Recommended fix with a short code snippet if helpful\n\n### Overall Assessment\nOne of: \u2705 Approve / \u274c Request Changes / \ud83d\udcac Comment\n\nBe concise but thorough. Focus on the changed files only. Output ONLY the markdown report — no debug info, no preamble.",
+            "autoApprove": true
+          },
+          "inputOverrides": {
+            "task": "Review the pull request code changes provided in the context. Analyze each changed file's diff/patch and provide a thorough code review. Focus on bugs, security issues, code quality, and suggest improvements. Output a well-formatted markdown report.",
+            "model": {
+              "provider": "zai-coding-plan",
+              "modelId": "glm-4.7",
+              "apiKey": "YOUR_ZAI_CODING_PLAN_API_KEY"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pr-comment",
+      "type": "github.pr.comment",
+      "position": { "x": 400, "y": 740 },
+      "data": {
+        "label": "Post Review Comment",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-entry-installationid-to-clone",
+      "source": "entry-point",
+      "target": "clone-repo",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-installationid-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-installationid-to-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-owner-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "prNumber",
+      "targetHandle": "pullNumber"
+    },
+    {
+      "id": "edge-pr-context-to-agent-context",
+      "source": "pr-context",
+      "target": "opencode-agent",
+      "sourceHandle": "changedFilesDetailed",
+      "targetHandle": "context"
+    },
+    {
+      "id": "edge-agent-to-comment",
+      "source": "opencode-agent",
+      "target": "pr-comment",
+      "sourceHandle": "report",
+      "targetHandle": "body"
+    },
+    {
+      "id": "edge-entry-owner-to-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "prNumber",
+      "targetHandle": "prNumber"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.65
+  }
+}

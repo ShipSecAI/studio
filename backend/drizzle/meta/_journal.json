@@ -96,8 +96,22 @@
     {
       "idx": 13,
       "version": "7",
-      "when": 1762992000000,
-      "tag": "0026_add-run-status-cache",
+      "when": 1738972800000,
+      "tag": "0020_add-fail-on-trigger-rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1739059200000,
+      "tag": "0021_widen-github-ids-to-bigint",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1762646400000,
+      "tag": "0022_add-pr-review-fields",
       "breakpoints": true
     }
   ]

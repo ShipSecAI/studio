@@ -1,0 +1,229 @@
+{
+  "name": "OpenGrep PR & Repo Scanner",
+  "description": "Run OpenGrep SAST scanner on a GitHub repository or PR. Fetches PR context, clones the repo at the PR head, runs OpenGrep with security-audit rulesets, logs findings, and posts results as a PR comment.",
+  "nodes": [
+    {
+      "id": "entry-point",
+      "type": "core.workflow.entrypoint",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "owner",
+                "label": "Owner",
+                "type": "text",
+                "required": true,
+                "description": "Repository owner (org or user)"
+              },
+              {
+                "id": "repo",
+                "label": "Repo",
+                "type": "text",
+                "required": true,
+                "description": "Repository name"
+              },
+              {
+                "id": "prNumber",
+                "label": "PR Number",
+                "type": "number",
+                "required": true,
+                "description": "Pull request number to scan"
+              },
+              {
+                "id": "installationId",
+                "label": "Installation ID",
+                "type": "number",
+                "required": false,
+                "description": "GitHub App installation ID (auto-resolved if not provided)"
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "pr-context",
+      "type": "github.pr.context",
+      "position": {
+        "x": 300,
+        "y": 200
+      },
+      "data": {
+        "label": "Get PR Context",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "clone-repo",
+      "type": "github.repo.clone",
+      "position": {
+        "x": 300,
+        "y": 420
+      },
+      "data": {
+        "label": "Clone PR Branch",
+        "config": {
+          "params": {
+            "repository": "owner/repo",
+            "depth": 1
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "opengrep-scanner",
+      "type": "scanner.opengrep",
+      "position": {
+        "x": 300,
+        "y": 640
+      },
+      "data": {
+        "label": "OpenGrep SAST Scanner",
+        "config": {
+          "params": {
+            "ruleset": "auto",
+            "severityFilter": ["ERROR", "WARNING"],
+            "excludePaths": ["node_modules", "vendor", ".git", "dist", "build"],
+            "timeout": 300,
+            "jobs": 4
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "console-log",
+      "type": "core.console.log",
+      "position": {
+        "x": 520,
+        "y": 860
+      },
+      "data": {
+        "label": "Console Log - OpenGrep Findings",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "label": "OpenGrep SAST Findings"
+          }
+        }
+      }
+    },
+    {
+      "id": "pr-comment",
+      "type": "github.pr.comment",
+      "position": {
+        "x": 100,
+        "y": 860
+      },
+      "data": {
+        "label": "PR Comment - OpenGrep Results",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-entry-installationId-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-entry-owner-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-pr-context",
+      "source": "entry-point",
+      "target": "pr-context",
+      "sourceHandle": "prNumber",
+      "targetHandle": "pullNumber"
+    },
+    {
+      "id": "edge-entry-installationId-to-clone",
+      "source": "entry-point",
+      "target": "clone-repo",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    },
+    {
+      "id": "edge-clone-to-opengrep",
+      "source": "clone-repo",
+      "target": "opengrep-scanner",
+      "sourceHandle": "volumeName",
+      "targetHandle": "volumeName"
+    },
+    {
+      "id": "edge-opengrep-to-log",
+      "source": "opengrep-scanner",
+      "target": "console-log",
+      "sourceHandle": "findings",
+      "targetHandle": "data"
+    },
+    {
+      "id": "edge-opengrep-to-pr-comment",
+      "source": "opengrep-scanner",
+      "target": "pr-comment",
+      "sourceHandle": "rawOutput",
+      "targetHandle": "body"
+    },
+    {
+      "id": "edge-entry-owner-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "owner",
+      "targetHandle": "owner"
+    },
+    {
+      "id": "edge-entry-repo-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "repo",
+      "targetHandle": "repo"
+    },
+    {
+      "id": "edge-entry-pr-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "prNumber",
+      "targetHandle": "prNumber"
+    },
+    {
+      "id": "edge-entry-installationId-to-pr-comment",
+      "source": "entry-point",
+      "target": "pr-comment",
+      "sourceHandle": "installationId",
+      "targetHandle": "installationId"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.55
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "OpenGrep SAST on Pull Requests",
+  "description": "Automatically run OpenGrep SAST scanner when a pull request is opened, updated, or reopened. Posts findings as a PR comment and creates a GitHub Check Run.",
+  "repositoryPattern": "*",
+  "event": "pull_request",
+  "actions": ["opened", "synchronize", "reopened"],
+  "branches": [],
+  "workflowId": "0e842188-7a4a-45bb-a06a-7e5eecfa2151",
+  "postPrComment": true,
+  "createCheckRun": true,
+  "enabled": true,
+  "priority": 100
+}
