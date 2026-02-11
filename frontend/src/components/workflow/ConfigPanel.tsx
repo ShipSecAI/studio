@@ -99,8 +99,6 @@ interface ConfigPanelProps {
   selectedNode: Node<FrontendNodeData> | null;
   onClose: () => void;
   onUpdateNode?: (id: string, data: Partial<FrontendNodeData>) => void;
-  initialWidth?: number;
-  onWidthChange?: (width: number) => void;
   workflowId?: string | null;
   workflowSchedules?: WorkflowSchedule[];
   schedulesLoading?: boolean;
@@ -115,9 +113,7 @@ interface ConfigPanelProps {
   onViewSchedules?: () => void;
 }
 
-const MIN_PANEL_WIDTH = 280;
-const MAX_PANEL_WIDTH = 600;
-const DEFAULT_PANEL_WIDTH = 432;
+const PANEL_WIDTH = 432;
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
@@ -291,8 +287,6 @@ export function ConfigPanel({
   selectedNode,
   onClose,
   onUpdateNode,
-  initialWidth = DEFAULT_PANEL_WIDTH,
-  onWidthChange,
   workflowId: workflowIdProp,
   workflowSchedules,
   schedulesLoading,
@@ -324,48 +318,8 @@ export function ConfigPanel({
   // Use lastCreatedKey (full key) if available, otherwise null (will show placeholder)
   const activeApiKey = lastCreatedKey || null;
 
-  const [panelWidth, setPanelWidth] = useState(initialWidth);
-  const isResizing = useRef(false);
-  const resizeRef = useRef<HTMLDivElement>(null);
-
-  // Actual width to use - full width on mobile
-  const effectiveWidth = isMobile ? '100%' : panelWidth;
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      // Disable resizing on mobile
-      if (isMobile) return;
-      e.preventDefault();
-      isResizing.current = true;
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [isMobile],
-  );
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing.current) return;
-      const newWidth = window.innerWidth - e.clientX;
-      const clampedWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, newWidth));
-      setPanelWidth(clampedWidth);
-      onWidthChange?.(clampedWidth);
-    };
-
-    const handleMouseUp = () => {
-      isResizing.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [onWidthChange]);
+  // Fixed width on desktop, full width on mobile
+  const effectiveWidth = isMobile ? '100%' : PANEL_WIDTH;
 
   const handleParamValueChange = (paramId: string, value: any) => {
     if (!selectedNode || !onUpdateNode) return;
@@ -435,14 +389,6 @@ export function ConfigPanel({
           className="config-panel border-l bg-background flex flex-col h-full relative"
           style={{ width: effectiveWidth }}
         >
-          {/* Resize handle - hidden on mobile */}
-          {!isMobile && (
-            <div
-              ref={resizeRef}
-              onMouseDown={handleMouseDown}
-              className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
-            />
-          )}
           <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
             <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
             <Button
@@ -465,14 +411,6 @@ export function ConfigPanel({
         className="config-panel border-l bg-background flex flex-col h-full relative"
         style={{ width: effectiveWidth }}
       >
-        {/* Resize handle - hidden on mobile */}
-        {!isMobile && (
-          <div
-            ref={resizeRef}
-            onMouseDown={handleMouseDown}
-            className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
-          />
-        )}
         <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
           <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
           <Button
@@ -694,14 +632,6 @@ export function ConfigPanel({
       className="config-panel border-l bg-background flex flex-col h-full overflow-hidden relative"
       style={{ width: effectiveWidth }}
     >
-      {/* Resize Handle - hidden on mobile */}
-      {!isMobile && (
-        <div
-          ref={resizeRef}
-          onMouseDown={handleMouseDown}
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10"
-        />
-      )}
       {/* Header */}
       <div className="flex items-center justify-between px-3 md:px-4 py-3 border-b min-h-[56px] md:min-h-0">
         <h3 className="font-medium text-sm">{isToolMode ? 'Tool' : 'Configuration'}</h3>
