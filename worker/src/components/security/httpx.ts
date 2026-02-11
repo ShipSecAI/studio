@@ -11,7 +11,7 @@ import {
   port,
   param,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const inputSchema = inputs({
   targets: port(
@@ -301,7 +301,7 @@ const definition = defineComponent({
     });
 
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     try {
       const targets = Array.from(

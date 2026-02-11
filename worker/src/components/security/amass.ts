@@ -12,7 +12,7 @@ import {
   param,
   type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const AMASS_IMAGE = 'ghcr.io/shipsecai/amass:v5.0.1';
 const AMASS_TIMEOUT_SECONDS = (() => {
@@ -583,7 +583,7 @@ const definition = defineComponent({
     const tenantId = (context as any).tenantId ?? 'default-tenant';
 
     // Create isolated volume for this execution
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {

@@ -12,7 +12,7 @@ import {
   param,
 } from '@shipsec/component-sdk';
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 // Extract Supabase project ref from a standard URL like https://<project-ref>.supabase.co
 function inferProjectRef(supabaseUrl: string): string | null {
@@ -247,7 +247,7 @@ const definition = defineComponent({
     };
 
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
     const mountPath = '/data';
     const configFilename = 'scanner_config.yaml';
     const outputFilename = 'report.json';

@@ -18,7 +18,7 @@ import {
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const recommendedFlagOptions = [
   {
@@ -288,9 +288,26 @@ const recommendedFlagMap = new Map<RecommendedFlagId, string[]>(
   recommendedFlagOptions.map((option) => [option.id, [...option.args]]),
 );
 
-async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[]> {
+async function listVolumeFiles(volume: ReturnType<typeof createIsolatedVolume>): Promise<string[]> {
   const volumeName = volume.getVolumeName();
   if (!volumeName) return [];
+
+  // In K8s mode, volumes are ConfigMap-backed — list keys via K8s API
+  if (process.env.EXECUTION_MODE === 'k8s') {
+    try {
+      const k8s = await import('@kubernetes/client-node');
+      const kc = new k8s.KubeConfig();
+      kc.loadFromCluster();
+      const coreApi = kc.makeApiClient(k8s.CoreV1Api);
+      const namespace = process.env.K8S_JOB_NAMESPACE || 'shipsec-workloads';
+      const cm = await coreApi.readNamespacedConfigMap({ name: volumeName, namespace });
+      const keys = [...Object.keys(cm.data || {}), ...Object.keys(cm.binaryData || {})];
+      // Unflatten __ back to / (ConfigMap key encoding from IsolatedK8sVolume)
+      return keys.map((k) => k.replace(/__/g, '/'));
+    } catch {
+      return [];
+    }
+  }
 
   const dockerPath = await resolveDockerPath();
   return new Promise((resolve, reject) => {
@@ -342,12 +359,15 @@ async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[
  * the output directory to allow Prowler to create subdirectories.
  */
 async function setVolumeOwnership(
-  volume: IsolatedContainerVolume,
+  volume: ReturnType<typeof createIsolatedVolume>,
   uid = 1000,
   gid = 1000,
 ): Promise<void> {
   const volumeName = volume.getVolumeName();
   if (!volumeName) return;
+
+  // ConfigMap volumes in K8s are read-only projections — ownership is N/A
+  if (process.env.EXECUTION_MODE === 'k8s') return;
 
   const dockerPath = await resolveDockerPath();
   return new Promise((resolve, reject) => {
@@ -500,7 +520,7 @@ const definition = defineComponent({
     const awsEnv: Record<string, string> = {};
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     const awsCredsVolume = parsedInputs.credentials
-      ? new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-aws`)
+      ? createIsolatedVolume(tenantId, `${context.runId}-prowler-aws`)
       : null;
 
     if (parsedInputs.credentials) {
@@ -581,7 +601,7 @@ const definition = defineComponent({
     let rawSegments: string[] = [];
     let commandForOutput: string[] = cmd;
     let stderrCombined = '';
-    const outputVolume = new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-out`);
+    const outputVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-out`);
     let outputVolumeInitialized = false;
     let awsVolumeInitialized = false;
 

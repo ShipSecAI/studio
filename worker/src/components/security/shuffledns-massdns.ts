@@ -13,7 +13,7 @@ import {
   port,
   param,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const DEFAULT_RESOLVERS = ['1.1.1.1', '8.8.8.8'] as const;
 
@@ -280,7 +280,7 @@ const definition = defineComponent({
 
     // Write lists to an isolated volume and mount into the container
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
     const WORDS = 'words.txt';
     const SEEDS = 'seeds.txt';
     const RESOLVERS = 'resolvers.txt';

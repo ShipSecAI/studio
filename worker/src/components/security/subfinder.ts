@@ -12,7 +12,7 @@ import {
   port,
   param,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:v2.12.0';
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
@@ -377,7 +377,7 @@ const definition = defineComponent({
     const tenantId = (context as any).tenantId ?? 'default-tenant';
 
     // Create isolated volume for this execution
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
