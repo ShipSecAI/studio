@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { promisify } from 'util';
 import { exec as execCallback } from 'child_process';
 import { ValidationError, ConfigurationError, ContainerError } from '@shipsec/component-sdk';
+import { IsolatedK8sVolume } from './k8s-volume';
 
 const exec = promisify(execCallback);
 
@@ -505,6 +506,9 @@ export class IsolatedContainerVolume {
  * ```
  */
 export async function cleanupOrphanedVolumes(olderThanHours = 24): Promise<number> {
+  // In K8s mode volumes are ConfigMaps — no Docker daemon to query
+  if (process.env.EXECUTION_MODE === 'k8s') return 0;
+
   try {
     const { stdout } = await exec(
       'docker volume ls --filter "label=studio.managed=true" --format "{{.Name}}|||{{.CreatedAt}}"',
@@ -541,4 +545,21 @@ export async function cleanupOrphanedVolumes(olderThanHours = 24): Promise<numbe
     console.error(`Failed to cleanup orphaned volumes: ${error}`);
     return 0;
   }
+}
+
+/**
+ * Factory that returns the right IsolatedVolume implementation based on
+ * the EXECUTION_MODE environment variable.
+ *
+ * - 'k8s' → IsolatedK8sVolume (ConfigMap-backed, no Docker daemon needed)
+ * - anything else → IsolatedContainerVolume (Docker named volumes)
+ */
+export function createIsolatedVolume(
+  tenantId: string,
+  runId: string,
+): IsolatedContainerVolume | IsolatedK8sVolume {
+  if (process.env.EXECUTION_MODE === 'k8s') {
+    return new IsolatedK8sVolume(tenantId, runId);
+  }
+  return new IsolatedContainerVolume(tenantId, runId);
 }

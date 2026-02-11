@@ -516,6 +516,29 @@ async function runDockerWithPty<I, O>(
   });
 }
 
+/**
+ * Override hook for the docker runner. When set, all `kind: 'docker'` executions
+ * are routed through this function instead of the built-in runComponentInDocker.
+ *
+ * Used by the worker to plug in a K8s Job runner at startup:
+ *   setDockerRunnerOverride(runComponentInK8sJob)
+ */
+type DockerRunnerOverrideFn = <I, O>(
+  runner: DockerRunnerConfig,
+  params: I,
+  context: ExecutionContext,
+) => Promise<O>;
+
+let dockerRunnerOverride: DockerRunnerOverrideFn | null = null;
+
+export function setDockerRunnerOverride(fn: DockerRunnerOverrideFn): void {
+  dockerRunnerOverride = fn;
+}
+
+export function clearDockerRunnerOverride(): void {
+  dockerRunnerOverride = null;
+}
+
 export async function runComponentWithRunner<I, O>(
   runner: RunnerConfig,
   execute: (params: I, context: ExecutionContext) => Promise<O>,
@@ -526,6 +549,9 @@ export async function runComponentWithRunner<I, O>(
     case 'inline':
       return runComponentInline(execute, params, context);
     case 'docker':
+      if (dockerRunnerOverride) {
+        return dockerRunnerOverride<I, O>(runner, params, context);
+      }
       return runComponentInDocker<I, O>(runner, params, context);
     case 'remote':
       context.logger.info(`[Runner] remote execution stub for ${runner.endpoint}`);
