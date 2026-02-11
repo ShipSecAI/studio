@@ -118,24 +118,24 @@ spec:
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "cloudtrail:GetTrail",
-                "cloudtrail:GetTrailStatus",
-                "cloudtrail:LookupEvents",
-                "cloudwatch:GetMetricData",
-                "cloudwatch:ListMetrics",
-                "cloudwatch:GetMetricStatistics",
-                "logs:DescribeLogGroups",
-                "logs:DescribeLogStreams",
-                "logs:GetLogEvents"
-            ],
-            "Resource": "*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudtrail:GetTrail",
+        "cloudtrail:GetTrailStatus",
+        "cloudtrail:LookupEvents",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics",
+        "cloudwatch:GetMetricStatistics",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:GetLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
@@ -143,21 +143,21 @@ spec:
 
 ```json
 {
-    "family": "shipsec-studio",
-    "taskRoleArn": "arn:aws:iam::123456789012:role/ShipSecTaskRole",
-    "executionRoleArn": "arn:aws:iam::123456789012:role/ShipSecExecutionRole",
-    "containerDefinitions": [
+  "family": "shipsec-studio",
+  "taskRoleArn": "arn:aws:iam::123456789012:role/ShipSecTaskRole",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ShipSecExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "shipsec/studio-backend:latest",
+      "environment": [
         {
-            "name": "backend",
-            "image": "shipsec/studio-backend:latest",
-            "environment": [
-                {
-                    "name": "AWS_ROLE_ARN",
-                    "value": "arn:aws:iam::123456789012:role/ShipSecTaskRole"
-                }
-            ]
+          "name": "AWS_ROLE_ARN",
+          "value": "arn:aws:iam::123456789012:role/ShipSecTaskRole"
         }
-    ]
+      ]
+    }
+  ]
 }
 ```
 
@@ -208,17 +208,14 @@ aws ssm put-parameter --name "/shipsec/region" --value "us-east-1" --type "Strin
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ssm:GetParameters",
-                "ssm:GetParameter"
-            ],
-            "Resource": "arn:aws:ssm:us-east-1:123456789012:parameter/shipsec/*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameters", "ssm:GetParameter"],
+      "Resource": "arn:aws:ssm:us-east-1:123456789012:parameter/shipsec/*"
+    }
+  ]
 }
 ```
 
@@ -232,18 +229,14 @@ Create granular IAM policies with only required permissions.
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "cloudtrail:GetTrail",
-                "cloudtrail:GetTrailStatus",
-                "cloudtrail:LookupEvents"
-            ],
-            "Resource": "*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["cloudtrail:GetTrail", "cloudtrail:GetTrailStatus", "cloudtrail:LookupEvents"],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
@@ -251,18 +244,18 @@ Create granular IAM policies with only required permissions.
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "cloudwatch:GetMetricData",
-                "cloudwatch:ListMetrics",
-                "cloudwatch:GetMetricStatistics"
-            ],
-            "Resource": "*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics",
+        "cloudwatch:GetMetricStatistics"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
@@ -293,19 +286,19 @@ Implement automated credential rotation.
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "iam:CreateAccessKey",
-                "iam:DeleteAccessKey",
-                "iam:CreateAccessKey",
-                "iam:UpdateAccessKey"
-            ],
-            "Resource": "arn:aws:iam::123456789012:user/ShipSecUser"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateAccessKey",
+        "iam:DeleteAccessKey",
+        "iam:CreateAccessKey",
+        "iam:UpdateAccessKey"
+      ],
+      "Resource": "arn:aws:iam::123456789012:user/ShipSecUser"
+    }
+  ]
 }
 ```
 
@@ -331,15 +324,11 @@ Enable CloudTrail for all API calls made by ShipSec Studio.
 
 ```json
 {
-    "Name": "ShipSecStudioTrail",
-    "S3BucketName": "shipsec-cloudtrail-logs-123456789012",
-    "IncludeServiceNames": [
-        "cloudtrail",
-        "cloudwatch",
-        "logs"
-    ],
-    "IsMultiRegionTrail": true,
-    "IsLogging": true
+  "Name": "ShipSecStudioTrail",
+  "S3BucketName": "shipsec-cloudtrail-logs-123456789012",
+  "IncludeServiceNames": ["cloudtrail", "cloudwatch", "logs"],
+  "IsMultiRegionTrail": true,
+  "IsLogging": true
 }
 ```
 
@@ -351,20 +340,20 @@ Monitor credential usage and API calls.
 
 ```json
 {
-    "AlarmName": "ShipSecAPIErrorRate",
-    "MetricName": "Sum",
-    "Namespace": "AWS/CloudTrail",
-    "Statistic": "Sum",
-    "Period": 300,
-    "EvaluationPeriods": 2,
-    "Threshold": 10,
-    "ComparisonOperator": "GreaterThanThreshold",
-    "Dimensions": [
-        {
-            "Name": "TrailName",
-            "Value": "ShipSecStudioTrail"
-        }
-    ]
+  "AlarmName": "ShipSecAPIErrorRate",
+  "MetricName": "Sum",
+  "Namespace": "AWS/CloudTrail",
+  "Statistic": "Sum",
+  "Period": 300,
+  "EvaluationPeriods": 2,
+  "Threshold": 10,
+  "ComparisonOperator": "GreaterThanThreshold",
+  "Dimensions": [
+    {
+      "Name": "TrailName",
+      "Value": "ShipSecStudioTrail"
+    }
+  ]
 }
 ```
 
@@ -373,6 +362,7 @@ Monitor credential usage and API calls.
 ### Common Issues
 
 **Credential Denied**
+
 ```bash
 # Check credentials
 aws sts get-caller-identity
@@ -382,6 +372,7 @@ aws iam get-user --user-name ShipSecUser
 ```
 
 **Region Mismatch**
+
 ```bash
 # Check current region
 aws configure get region
@@ -391,6 +382,7 @@ aws configure set region us-east-1
 ```
 
 **Network Connectivity**
+
 ```bash
 # Test AWS connectivity
 aws s3 ls s3://test-bucket

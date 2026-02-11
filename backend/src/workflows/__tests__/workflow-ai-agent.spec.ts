@@ -75,20 +75,6 @@ const workflowGraph = WorkflowGraphSchema.parse({
         },
       },
     },
-    {
-      id: 'console-log',
-      type: 'core.console.log',
-      position: { x: 960, y: 160 },
-      data: {
-        label: 'Console Log',
-        config: {
-          params: {},
-          inputOverrides: {
-            label: 'Agent Output',
-          },
-        },
-      },
-    },
   ],
   edges: [
     {
@@ -105,13 +91,6 @@ const workflowGraph = WorkflowGraphSchema.parse({
       sourceHandle: 'chatModel',
       targetHandle: 'chatModel',
     },
-    {
-      id: 'agent-to-console',
-      source: 'agent-node',
-      target: 'console-log',
-      sourceHandle: 'responseText',
-      targetHandle: 'data',
-    },
   ],
   viewport: { x: 0, y: 0, zoom: 1 },
 });
@@ -125,7 +104,6 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       'entry-point',
       'gemini-provider',
       'agent-node',
-      'console-log',
     ]);
 
     const geminiAction = definition.actions.find((action) => action.ref === 'gemini-provider');
@@ -140,13 +118,6 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
     expect(agentAction?.inputMappings?.chatModel).toEqual({
       sourceRef: 'gemini-provider',
       sourceHandle: 'chatModel',
-    });
-
-    const consoleAction = definition.actions.find((action) => action.ref === 'console-log');
-    expect(consoleAction?.dependsOn).toEqual(['agent-node']);
-    expect(consoleAction?.inputMappings?.data).toEqual({
-      sourceRef: 'agent-node',
-      sourceHandle: 'responseText',
     });
   });
 
@@ -290,7 +261,7 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
     const definition = await service.commit(workflowId, authContext);
 
     expect(savedDefinition).not.toBeNull();
-    expect(savedDefinition!.actions.length).toBe(4);
+    expect(savedDefinition!.actions.length).toBe(3);
     expect(
       definition.actions.find((action) => action.componentId === 'core.ai.agent'),
     ).toBeDefined();

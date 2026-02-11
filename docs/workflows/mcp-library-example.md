@@ -5,6 +5,7 @@ This guide provides a complete example of using the MCP Library component with a
 ## Overview
 
 This workflow demonstrates how to:
+
 1. Use MCP Library to enable multiple AWS services
 2. Connect the MCP Library to an AI Agent
 3. Analyze AWS CloudTrail and CloudWatch data for security events
@@ -92,12 +93,14 @@ Respond in a structured format that can be easily parsed.
 ### 7. Configure Output Nodes
 
 **HTTP Request Node:**
+
 - Method: POST
 - URL: https://your-webhook-url.com/security-alerts
 - Headers: `Content-Type: application/json`
 - Transform AI Agent output to webhook format
 
 **Filesystem Node:**
+
 - Operation: Write file
 - Path: `/tmp/security-reports/aws-monitoring-{{timestamp}}.json`
 - Content: AI Agent output
@@ -124,6 +127,7 @@ Respond in a structured format that can be easily parsed.
 ### AI Agent Configuration
 
 **Prompt:**
+
 ```
 You are a security analyst monitoring AWS services for security events.
 

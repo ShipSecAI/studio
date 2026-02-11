@@ -11,11 +11,7 @@ import {
   computeTemplateHash,
   type McpGroupTemplate,
 } from './mcp-group-templates';
-import {
-  SyncTemplatesResponse,
-  GroupTemplateDto,
-  GroupTemplateServerDto,
-} from './dto/mcp-groups.dto';
+import { SyncTemplatesResponse, GroupTemplateDto } from './dto/mcp-groups.dto';
 
 /**
  * Result of syncing a single template
@@ -52,7 +48,21 @@ export class McpGroupsSeedingService {
    * Get all available templates as DTOs
    */
   getAllTemplates(): GroupTemplateDto[] {
-    return Object.values(MCP_GROUP_TEMPLATES).map((template) => this.templateToDto(template));
+    try {
+      this.logger.log(
+        '[getAllTemplates] Starting, templates count:',
+        Object.keys(MCP_GROUP_TEMPLATES).length,
+      );
+      const result = Object.values(MCP_GROUP_TEMPLATES).map((template) => {
+        this.logger.log('[getAllTemplates] Converting template:', template.slug);
+        return this.templateToDto(template);
+      });
+      this.logger.log('[getAllTemplates] Successfully converted', result.length, 'templates');
+      return result;
+    } catch (e) {
+      this.logger.error('[getAllTemplates] ERROR:', e);
+      throw e;
+    }
   }
 
   /**
@@ -365,16 +375,17 @@ export class McpGroupsSeedingService {
     dto.version = template.version;
     dto.templateHash = computeTemplateHash(template);
     dto.servers = template.servers.map((server) => {
-      const serverDto = new GroupTemplateServerDto();
-      serverDto.name = server.name;
-      serverDto.description = server.description;
-      serverDto.transportType = server.transportType;
-      serverDto.endpoint = server.endpoint;
-      serverDto.command = server.command;
-      serverDto.args = server.args;
-      serverDto.recommended = server.recommended ?? false;
-      serverDto.defaultSelected = server.defaultSelected ?? true;
-      return serverDto;
+      return {
+        id: server.id,
+        name: server.name,
+        description: server.description,
+        transportType: server.transportType,
+        endpoint: server.endpoint,
+        command: server.command,
+        args: server.args,
+        recommended: server.recommended ?? false,
+        defaultSelected: server.defaultSelected ?? true,
+      };
     });
     return dto;
   }

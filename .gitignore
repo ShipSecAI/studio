@@ -10,6 +10,9 @@ build/
 *.local
 *.tsbuildinfo
 
+# Context dumps (may contain secrets)
+.context
+
 # Environment variables
 .env
 .env.local
@@ -18,8 +21,7 @@ docker/.env
 .env.development.local
 .env.test.local
 .env.production.local
-.env.eng-104
-.env.eng-104
+.env.e2e
 .shipsec-instance
 
 # Logs

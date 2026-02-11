@@ -44,8 +44,6 @@ import { MCP_DISCOVERY_REDIS } from './mcp.tokens';
         const url = process.env.TOOL_REGISTRY_REDIS_URL ?? process.env.TERMINAL_REDIS_URL;
         if (!url) {
           console.warn('[MCP] Redis URL not set; tool registry disabled');
-        } else {
-          console.info(`[MCP] Tool registry Redis URL: ${url}`);
         }
         if (!url) {
           return null;

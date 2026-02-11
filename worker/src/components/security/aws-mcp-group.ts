@@ -46,42 +46,52 @@ const AwsGroupTemplate = McpGroupTemplateSchema.parse({
   servers: [
     {
       id: 'aws-cloudtrail',
+      name: 'cloudtrail',
       command: 'awslabs.cloudtrail-mcp-server',
     },
     {
       id: 'aws-iam',
+      name: 'iam',
       command: 'awslabs.iam-mcp-server',
     },
     {
       id: 'aws-s3-tables',
+      name: 's3-tables',
       command: 'awslabs.s3-tables-mcp-server',
     },
     {
       id: 'aws-cloudwatch',
+      name: 'cloudwatch',
       command: 'awslabs.cloudwatch-mcp-server',
     },
     {
       id: 'aws-network',
+      name: 'aws-network',
       command: 'awslabs.aws-network-mcp-server',
     },
     {
       id: 'aws-lambda',
+      name: 'lambda',
       command: 'awslabs.lambda-tool-mcp-server',
     },
     {
       id: 'aws-dynamodb',
+      name: 'dynamodb',
       command: 'awslabs.dynamodb-mcp-server',
     },
     {
       id: 'aws-documentation',
+      name: 'aws-documentation',
       command: 'awslabs.aws-documentation-mcp-server',
     },
     {
       id: 'aws-well-architected',
+      name: 'well-architected-security',
       command: 'awslabs.well-architected-security-mcp-server',
     },
     {
       id: 'aws-api',
+      name: 'aws-api',
       command: 'awslabs.aws-api-mcp-server',
     },
   ],
@@ -155,6 +165,21 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'AWS MCP Group node. Exposes tools from curated AWS MCP servers (CloudTrail, IAM, S3 Tables, CloudWatch, Network, Lambda, DynamoDB, Documentation, Well-Architected Security, API) using AWS credentials. Each selected server runs in its own container with the group image. Tools are registered with the Tool Registry and can be connected to any AI agent.',
+  toolProvider: {
+    kind: 'mcp-group',
+    name: 'aws',
+    description: 'Curated AWS MCP servers (CloudTrail, CloudWatch, IAM, S3, Lambda, DynamoDB, ...)',
+    mcp: {
+      image: 'shipsec/mcp-aws-suite:latest',
+      credentialMapping: {
+        AWS_ACCESS_KEY_ID: 'accessKeyId',
+        AWS_SECRET_ACCESS_KEY: 'secretAccessKey',
+        AWS_SESSION_TOKEN: 'sessionToken?',
+        AWS_REGION: 'region?',
+      },
+      servers: AwsGroupTemplate.servers,
+    },
+  },
   ui: {
     slug: 'aws-mcp-group',
     version: '1.0.0',
@@ -167,11 +192,6 @@ const definition = defineComponent({
       name: 'ShipSecAI',
       type: 'shipsecai',
     },
-    agentTool: {
-      enabled: true,
-      toolName: 'aws_mcp_group',
-      toolDescription: 'Expose AWS MCP tools from selected AWS services.',
-    },
     isLatest: true,
   },
   async execute({ inputs, params }, context) {
@@ -182,14 +202,22 @@ const definition = defineComponent({
 
     const enabledServers = params.enabledServers as string[];
     if (enabledServers.length === 0) {
-      return {};
+      return { tools: [] };
     }
 
     // Use the group runtime helper to register tools
     await executeMcpGroupNode(context, { credentials }, { enabledServers }, AwsGroupTemplate);
 
-    // Tools are registered, return empty (like MCP Library)
-    return {};
+    // Return the list of enabled tools to the tools output port
+    // This allows the workflow to pass tool information to connected nodes
+    return {
+      tools: enabledServers.map((serverId) => ({
+        id: serverId,
+        name: AwsGroupTemplate.servers.find((s) => s.id === serverId)?.name || serverId,
+        type: 'mcp-server',
+        group: 'aws',
+      })),
+    };
   },
 });
 

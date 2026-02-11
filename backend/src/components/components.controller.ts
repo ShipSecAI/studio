@@ -6,6 +6,7 @@ import '@shipsec/studio-worker/components';
 import {
   componentRegistry,
   extractPorts,
+  isAgentCallable,
   getToolSchema,
   type CachedComponentMetadata,
 } from '@shipsec/component-sdk';
@@ -46,8 +47,8 @@ function serializeComponent(entry: CachedComponentMetadata) {
     outputs: entry.outputs ?? [],
     parameters: entry.parameters ?? [],
     examples: metadata.examples ?? [],
-    agentTool: metadata.agentTool ?? null,
-    toolSchema: metadata.agentTool?.enabled ? getToolSchema(component) : null,
+    toolProvider: component.toolProvider ?? null,
+    toolSchema: isAgentCallable(component) ? getToolSchema(component) : null,
   };
 }
 
@@ -224,13 +225,13 @@ export class ComponentsController {
             type: 'array',
             items: { type: 'string' },
           },
-          agentTool: {
+          toolProvider: {
             type: 'object',
             nullable: true,
             properties: {
-              enabled: { type: 'boolean' },
-              toolName: { type: 'string', nullable: true },
-              toolDescription: { type: 'string', nullable: true },
+              kind: { type: 'string', enum: ['component', 'mcp-server', 'mcp-group'] },
+              name: { type: 'string' },
+              description: { type: 'string' },
             },
           },
         },

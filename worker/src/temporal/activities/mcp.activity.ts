@@ -2,6 +2,7 @@ import {
   componentRegistry,
   ConfigurationError,
   getCredentialInputIds,
+  isAgentCallable,
   getToolMetadata,
   ServiceError,
 } from '@shipsec/component-sdk';
@@ -68,19 +69,28 @@ export async function registerComponentToolActivity(
 export async function registerRemoteMcpActivity(
   input: RegisterRemoteMcpActivityInput,
 ): Promise<void> {
-  await callInternalApi('register-remote', input);
+  await callInternalApi('register-mcp-server', {
+    runId: input.runId,
+    nodeId: input.nodeId,
+    serverName: input.toolName,
+    transport: 'http' as const,
+    endpoint: input.endpoint,
+    ...(input.authToken ? { headers: { Authorization: `Bearer ${input.authToken}` } } : {}),
+  });
 }
 
 export async function registerLocalMcpActivity(
   input: RegisterLocalMcpActivityInput,
 ): Promise<void> {
   const port = input.port || 8080;
-  // Use provided endpoint/containerId or fall back to defaults
   const endpoint = input.endpoint || `http://localhost:${port}`;
   const containerId = input.containerId || `docker-${input.image.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-  await callInternalApi('register-local', {
-    ...input,
+  await callInternalApi('register-mcp-server', {
+    runId: input.runId,
+    nodeId: input.nodeId,
+    serverName: input.toolName,
+    transport: 'stdio' as const,
     endpoint,
     containerId,
   });
@@ -226,6 +236,7 @@ export async function prepareAndRegisterToolActivity(input: {
 
   const metadata = getToolMetadata(component);
   const credentialIds = getCredentialInputIds(component);
+  const exposedToAgent = isAgentCallable(component);
 
   // Extract credentials from inputs/params
   const allInputs = { ...input.inputs, ...input.params };
@@ -239,10 +250,12 @@ export async function prepareAndRegisterToolActivity(input: {
   await callInternalApi('register-component', {
     runId: input.runId,
     nodeId: input.nodeId,
-    toolName: input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
+    toolName: metadata.name || input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
+    exposedToAgent,
     componentId: input.componentId,
     description: metadata.description,
     inputSchema: metadata.inputSchema,
+    parameters: input.params,
     credentials,
   });
 }
