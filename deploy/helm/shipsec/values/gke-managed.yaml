@@ -1,0 +1,64 @@
+# GKE with managed services (Cloud SQL, Memorystore).
+# Layer on top of gke-dev.yaml:
+#   --values values/gke-dev.yaml --values values/gke-managed.yaml
+
+global:
+  namespaces:
+    system: shipsec-system
+    workers: shipsec-workers
+    workloads: shipsec-workloads
+
+secrets:
+  create: true
+  name: shipsec-app-secrets
+  databaseUrl: "postgresql://shipsec:shipsec-dev-2026@10.25.225.3:5432/shipsec"
+  minioRootUser: minioadmin
+  minioRootPassword: minioadmin
+
+backend:
+  service:
+    type: LoadBalancer
+  env:
+    NODE_ENV: production
+    SHIPSEC_ENV: local
+    PORT: "3211"
+    ENABLE_INGEST_SERVICES: "false"
+    TEMPORAL_ADDRESS: shipsec-temporal.shipsec-system.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: shipsec-dev
+    TEMPORAL_TASK_QUEUE: shipsec-dev
+    MINIO_ENDPOINT: shipsec-minio.shipsec-system.svc.cluster.local
+    MINIO_PORT: "9000"
+    LOKI_URL: http://shipsec-loki.shipsec-system.svc.cluster.local:3100
+    TERMINAL_REDIS_URL: "redis://10.25.224.3:6379"
+    LOG_KAFKA_BROKERS: shipsec-redpanda.shipsec-system.svc.cluster.local:9092
+    LOG_KAFKA_TOPIC: telemetry.logs
+    LOG_KAFKA_CLIENT_ID: shipsec-backend
+    EVENT_KAFKA_TOPIC: telemetry.events
+    EVENT_KAFKA_CLIENT_ID: shipsec-backend-events
+    EVENT_KAFKA_GROUP_ID: shipsec-event-ingestor
+    AUTH_PROVIDER: local
+
+worker:
+  env:
+    NODE_ENV: production
+    SHIPSEC_ENV: local
+    ENABLE_INGEST_SERVICES: "false"
+    TEMPORAL_ADDRESS: shipsec-temporal.shipsec-system.svc.cluster.local:7233
+    TEMPORAL_NAMESPACE: shipsec-dev
+    TEMPORAL_TASK_QUEUE: shipsec-dev
+    MINIO_ENDPOINT: shipsec-minio.shipsec-system.svc.cluster.local
+    MINIO_PORT: "9000"
+    MINIO_BUCKET_NAME: shipsec-files
+    LOKI_URL: http://shipsec-loki.shipsec-system.svc.cluster.local:3100
+    TERMINAL_REDIS_URL: "redis://10.25.224.3:6379"
+    TERMINAL_REDIS_MAXLEN: "5000"
+    LOG_KAFKA_BROKERS: shipsec-redpanda.shipsec-system.svc.cluster.local:9092
+    LOG_KAFKA_TOPIC: telemetry.logs
+    LOG_KAFKA_CLIENT_ID: shipsec-worker
+    EVENT_KAFKA_TOPIC: telemetry.events
+    EVENT_KAFKA_CLIENT_ID: shipsec-worker-events
+    BACKEND_URL: http://shipsec-backend.shipsec-system.svc.cluster.local:3211
+
+frontend:
+  service:
+    type: LoadBalancer

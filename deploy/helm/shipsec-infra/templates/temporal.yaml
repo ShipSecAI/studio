@@ -31,11 +31,11 @@ spec:
         - name: DB_NAME
           value: temporal
         - name: POSTGRES_USER
-          value: {{ .Values.postgres.user | quote }}
+          value: {{ .Values.temporal.postgresUser | default .Values.postgres.user | quote }}
         - name: POSTGRES_PWD
-          value: {{ .Values.postgres.password | quote }}
+          value: {{ .Values.temporal.postgresPassword | default .Values.postgres.password | quote }}
         - name: POSTGRES_SEEDS
-          value: shipsec-postgres
+          value: {{ .Values.temporal.postgresHost | default "shipsec-postgres" | quote }}
         - name: AUTO_SETUP
           value: "true"
         readinessProbe:

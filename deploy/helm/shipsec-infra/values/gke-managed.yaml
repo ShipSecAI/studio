@@ -1,0 +1,27 @@
+# GKE with managed services (Cloud SQL, Memorystore).
+# Layer on top of gke-dev.yaml:
+#   --values values/gke-dev.yaml --values values/gke-managed.yaml
+
+global:
+  namespace: shipsec-system
+
+# Replaced by Cloud SQL
+postgres:
+  enabled: false
+
+# Replaced by Memorystore
+redis:
+  enabled: false
+
+# Keep MinIO in-cluster (org policy blocks HMAC key creation for GCS S3 compat)
+minio:
+  service:
+    type: ClusterIP
+
+# Temporal stays in-cluster but points at Cloud SQL
+temporal:
+  postgresHost: "10.25.225.3"
+  postgresUser: "shipsec"
+  postgresPassword: "shipsec-dev-2026"
+  uiService:
+    type: ClusterIP
