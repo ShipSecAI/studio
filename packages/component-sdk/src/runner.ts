@@ -167,8 +167,8 @@ async function runComponentInDocker<I, O>(
         detachedArgs.splice(1, 0, '-d');
       }
 
-      // In detached mode, we don't want --rm because we want the container to persist for the registry
-      const persistentArgs = detachedArgs.filter(arg => arg !== '--rm');
+      // In detached mode, keep --rm only when explicitly requested
+      const persistentArgs = runner.autoRemove ? detachedArgs : detachedArgs.filter(arg => arg !== '--rm');
 
       capturedStdout = await runDockerWithStandardIO(persistentArgs, params, context, timeoutSeconds, runner.stdinJson, true);
 

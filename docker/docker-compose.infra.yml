@@ -7,8 +7,9 @@ services:
       POSTGRES_PASSWORD: shipsec
       POSTGRES_DB: shipsec
       POSTGRES_MULTIPLE_DATABASES: temporal
-    ports:
-      - "5433:5432"
+    # Internal only - use docker-compose.dev-ports.yml overlay for local dev access
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
@@ -33,8 +34,8 @@ services:
       - POSTGRES_PWD=shipsec
       - POSTGRES_SEEDS=postgres
       - AUTO_SETUP=true
-    ports:
-      - "7233:7233"
+    expose:
+      - "7233"
     volumes:
       - temporal_data:/var/lib/temporal
     restart: unless-stopped
@@ -47,8 +48,8 @@ services:
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:5173
-    ports:
-      - "8081:8080"
+    expose:
+      - "8080"
     restart: unless-stopped
 
   minio:
@@ -58,9 +59,9 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    expose:
+      - "9000"
+      - "9001"
     volumes:
       - minio_data:/data
     restart: unless-stopped
@@ -73,8 +74,8 @@ services:
   redis:
     image: redis:latest
     container_name: shipsec-redis
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -88,8 +89,8 @@ services:
     image: grafana/loki:3.2.1
     container_name: shipsec-loki
     command: -config.file=/etc/loki/local-config.yaml
-    ports:
-      - "3100:3100"
+    expose:
+      - "3100"
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
       - loki_data:/loki
@@ -113,9 +114,9 @@ services:
       - --node-id=0
       - --check=false
       - --advertise-kafka-addr=localhost:9092
-    ports:
-      - "9092:9092"
-      - "9644:9644"
+    expose:
+      - "9092"
+      - "9644"
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     restart: unless-stopped
@@ -132,11 +133,100 @@ services:
       - redpanda
     environment:
       CONFIG_FILEPATH: /etc/redpanda/console-config.yaml
-    ports:
-      - "8082:8080"
+    expose:
+      - "8080"
     volumes:
       - ./redpanda-console-config.yaml:/etc/redpanda/console-config.yaml:ro
     restart: unless-stopped
+
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: shipsec-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    # Ports exposed only within Docker network (not to host)
+    # Use docker-compose.dev-ports.yml overlay for local dev access
+    expose:
+      - "9200"
+      - "9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  opensearch-dashboards:
+    build:
+      context: .
+      dockerfile: opensearch-dashboards.Dockerfile
+    image: shipsec-opensearch-dashboards:2.11.1
+    container_name: shipsec-opensearch-dashboards
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    # Ports exposed only within Docker network (not to host)
+    # Use docker-compose.dev-ports.yml overlay for local dev access
+    # Production uses nginx reverse proxy at /analytics
+    expose:
+      - "5601"
+    volumes:
+      - ./opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/analytics/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Initialize OpenSearch Dashboards with default index patterns
+  opensearch-init:
+    image: curlimages/curl:8.5.0
+    container_name: shipsec-opensearch-init
+    depends_on:
+      opensearch-dashboards:
+        condition: service_healthy
+    volumes:
+      - ./opensearch-init.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    restart: "no"
+
+  # Nginx reverse proxy - unified entry point
+  # DEV MODE: Uses nginx.dev.conf which points to host.docker.internal for PM2 services
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: shipsec-nginx
+    depends_on:
+      opensearch-dashboards:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 volumes:
   postgres_data:
@@ -145,6 +235,7 @@ volumes:
   temporal_data:
   redis_data:
   redpanda_data:
+  opensearch_data:
 
 networks:
   default:

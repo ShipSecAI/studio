@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Kafka, Consumer } from 'kafkajs';
+import { getTopicResolver } from '../common/kafka-topic-resolver';
 
 import { LogStreamRepository } from '../trace/log-stream.repository';
 import type { KafkaLogEntry } from './log-entry.types';
@@ -24,7 +25,11 @@ export class LogIngestService implements OnModuleInit, OnModuleDestroy {
     if (this.kafkaBrokers.length === 0) {
       throw new Error('LOG_KAFKA_BROKERS must be configured for Kafka log ingestion');
     }
-    this.kafkaTopic = process.env.LOG_KAFKA_TOPIC ?? 'telemetry.logs';
+
+    // Use instance-aware topic name
+    const topicResolver = getTopicResolver();
+    this.kafkaTopic = topicResolver.getLogsTopic();
+
     this.kafkaGroupId = process.env.LOG_KAFKA_GROUP_ID ?? 'shipsec-log-ingestor';
     this.kafkaClientId = process.env.LOG_KAFKA_CLIENT_ID ?? 'shipsec-backend';
 

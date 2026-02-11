@@ -211,13 +211,14 @@ export const ComponentMetadataSchema = z.object({
   /**
    * Configuration for exposing this component as an agent-callable tool.
    */
-  agentTool: z
+  toolProvider: z
     .object({
-      enabled: z.boolean(),
-      toolName: z.string().optional(),
-      toolDescription: z.string().optional(),
+      kind: z.enum(['component', 'mcp-server', 'mcp-group']),
+      name: z.string(),
+      description: z.string(),
     })
-    .optional(),
+    .optional()
+    .nullable(),
 });
 
 export type ComponentMetadata = z.infer<typeof ComponentMetadataSchema>;

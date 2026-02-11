@@ -2,6 +2,7 @@ import {
   componentRegistry,
   ConfigurationError,
   getCredentialInputIds,
+  isAgentCallable,
   getToolMetadata,
   ServiceError,
 } from '@shipsec/component-sdk';
@@ -68,25 +69,51 @@ export async function registerComponentToolActivity(
 export async function registerRemoteMcpActivity(
   input: RegisterRemoteMcpActivityInput,
 ): Promise<void> {
-  await callInternalApi('register-remote', input);
+  await callInternalApi('register-mcp-server', {
+    runId: input.runId,
+    nodeId: input.nodeId,
+    serverName: input.toolName,
+    transport: 'http' as const,
+    endpoint: input.endpoint,
+    ...(input.authToken ? { headers: { Authorization: `Bearer ${input.authToken}` } } : {}),
+  });
 }
 
 export async function registerLocalMcpActivity(
   input: RegisterLocalMcpActivityInput,
 ): Promise<void> {
   const port = input.port || 8080;
-  // Use provided endpoint/containerId or fall back to defaults
   const endpoint = input.endpoint || `http://localhost:${port}`;
   const containerId = input.containerId || `docker-${input.image.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-  await callInternalApi('register-local', {
-    ...input,
+  await callInternalApi('register-mcp-server', {
+    runId: input.runId,
+    nodeId: input.nodeId,
+    serverName: input.toolName,
+    transport: 'stdio' as const,
     endpoint,
     containerId,
   });
 }
 
+// DEBUG: To disable container cleanup for inspecting Docker logs:
+// Set environment variable: SKIP_CONTAINER_CLEANUP=true
+// Or uncomment the line below:
+// const SKIP_CLEANUP = true;
+const SKIP_CONTAINER_CLEANUP = process.env.SKIP_CONTAINER_CLEANUP === 'true';
+
 export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void> {
+  // DEBUG: Skip cleanup to inspect Docker logs
+  if (SKIP_CONTAINER_CLEANUP) {
+    console.log(
+      `[MCP Cleanup] SKIP: Container cleanup disabled via SKIP_CONTAINER_CLEANUP env var`,
+    );
+    console.log(
+      `[MCP Cleanup] Run 'docker ps -a | grep mcp' to see containers for run ${input.runId}`,
+    );
+    return;
+  }
+
   const response = (await callInternalApi('cleanup', { runId: input.runId })) as {
     containerIds?: string[];
   };
@@ -176,6 +203,7 @@ export async function prepareAndRegisterToolActivity(input: {
 
   const metadata = getToolMetadata(component);
   const credentialIds = getCredentialInputIds(component);
+  const exposedToAgent = isAgentCallable(component);
 
   // Extract credentials from inputs/params
   const allInputs = { ...input.inputs, ...input.params };
@@ -189,10 +217,12 @@ export async function prepareAndRegisterToolActivity(input: {
   await callInternalApi('register-component', {
     runId: input.runId,
     nodeId: input.nodeId,
-    toolName: input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
+    toolName: metadata.name || input.nodeId.replace(/[^a-zA-Z0-9]/g, '_'),
+    exposedToAgent,
     componentId: input.componentId,
     description: metadata.description,
     inputSchema: metadata.inputSchema,
+    parameters: input.params,
     credentials,
   });
 }

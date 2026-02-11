@@ -905,6 +905,8 @@ function WorkflowBuilderContent() {
     <TopBar
       workflowId={id}
       selectedRunId={selectedRunId}
+      selectedRunStatus={selectedRun?.status ?? null}
+      selectedRunOrgId={selectedRun?.organizationId ?? null}
       isNew={isNewWorkflow}
       onRun={handleRun}
       onSave={handleSave}

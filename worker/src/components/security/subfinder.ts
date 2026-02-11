@@ -11,10 +11,13 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const SUBFINDER_IMAGE = 'projectdiscovery/subfinder:v2.12.0';
+const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:v2.12.0';
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
@@ -122,6 +125,11 @@ const outputSchema = outputs({
   subdomainCount: port(z.number(), {
     label: 'Subdomain Count',
     description: 'Number of subdomains discovered.',
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
 });
 
@@ -280,7 +288,7 @@ const definition = defineComponent({
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Runs projectdiscovery/subfinder to discover subdomains for a given domain. Optionally accepts a provider config secret to enable authenticated sources.',
+  docs: 'Runs subfinder to discover subdomains for a given domain. Optionally accepts a provider config secret to enable authenticated sources.',
   ui: {
     slug: 'subfinder',
     version: '1.0.0',
@@ -303,10 +311,11 @@ const definition = defineComponent({
       'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
       'Quick passive discovery during scope triage workflows.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Passive subdomain enumeration tool (Subfinder).',
-    },
+  },
+  toolProvider: {
+    kind: 'component',
+    name: 'subdomain_discovery',
+    description: 'Passive subdomain enumeration tool (Subfinder).',
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
@@ -360,6 +369,7 @@ const definition = defineComponent({
       context.logger.info('[Subfinder] Skipping execution because no domains were provided.');
       return {
         subdomains: [],
+        results: [],
         rawOutput: '',
         domainCount: 0,
         subdomainCount: 0,
@@ -511,11 +521,22 @@ const definition = defineComponent({
       });
     }
 
+    // Build analytics-ready results with scanner metadata
+    const analyticsResults: AnalyticsResult[] = subdomains.map((subdomain) => ({
+      scanner: 'subfinder',
+      finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
+      severity: 'info' as const,
+      asset_key: subdomain,
+      subdomain,
+      parent_domains: domains,
+    }));
+
     return {
       subdomains,
       rawOutput,
       domainCount,
       subdomainCount,
+      results: analyticsResults,
     };
   },
 });

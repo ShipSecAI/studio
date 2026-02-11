@@ -29,7 +29,7 @@ describe('trufflehog component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('trufflesecurity/trufflehog:v3.92.1');
+      expect(component.runner.image).toBe('ghcr.io/shipsecai/trufflehog:v3.93.1');
     }
   });
 
@@ -97,6 +97,18 @@ describe('trufflehog component', () => {
       secretCount: 1,
       verifiedCount: 1,
       hasVerifiedSecrets: true,
+      results: [
+        {
+          DetectorType: 'AWS',
+          DetectorName: 'AWS',
+          Verified: true,
+          Raw: 'AKIAIOSFODNN7EXAMPLE',
+          scanner: 'trufflehog',
+          severity: 'high',
+          finding_hash: 'abc123def456abcd',
+          asset_key: 'https://github.com/test/repo',
+        },
+      ],
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(JSON.stringify(mockOutput));
@@ -107,6 +119,9 @@ describe('trufflehog component', () => {
     expect(result.verifiedCount).toBe(1);
     expect(result.hasVerifiedSecrets).toBe(true);
     expect(result.secrets).toHaveLength(1);
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].scanner).toBe('trufflehog');
+    expect(result.results[0].severity).toBe('high');
   });
 
   it('should handle no secrets found', async () => {
@@ -135,6 +150,7 @@ describe('trufflehog component', () => {
       secretCount: 0,
       verifiedCount: 0,
       hasVerifiedSecrets: false,
+      results: [],
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(JSON.stringify(mockOutput));
@@ -145,6 +161,7 @@ describe('trufflehog component', () => {
     expect(result.verifiedCount).toBe(0);
     expect(result.hasVerifiedSecrets).toBe(false);
     expect(result.secrets).toHaveLength(0);
+    expect(result.results).toHaveLength(0);
   });
 
   it('should support different scan types', () => {
@@ -234,6 +251,26 @@ describe('trufflehog component', () => {
       secretCount: 2,
       verifiedCount: 1,
       hasVerifiedSecrets: true,
+      results: [
+        {
+          DetectorType: 'Generic',
+          Verified: false,
+          Raw: 'potential_secret_123',
+          scanner: 'trufflehog',
+          severity: 'high',
+          finding_hash: 'def456abc789def0',
+          asset_key: 'https://github.com/test/repo',
+        },
+        {
+          DetectorType: 'AWS',
+          Verified: true,
+          Raw: 'AKIAIOSFODNN7EXAMPLE',
+          scanner: 'trufflehog',
+          severity: 'high',
+          finding_hash: 'abc123def456abcd',
+          asset_key: 'https://github.com/test/repo',
+        },
+      ],
     };
 
     vi.spyOn(sdk, 'runComponentWithRunner').mockResolvedValue(JSON.stringify(mockOutput));
@@ -243,6 +280,7 @@ describe('trufflehog component', () => {
     expect(result.secretCount).toBe(2);
     expect(result.verifiedCount).toBe(1);
     expect(result.hasVerifiedSecrets).toBe(true);
+    expect(result.results).toHaveLength(2);
   });
 
   it('should handle parse errors gracefully', async () => {

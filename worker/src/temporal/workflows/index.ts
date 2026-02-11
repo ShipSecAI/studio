@@ -10,15 +10,15 @@ import {
   uuid4,
 } from '@temporalio/workflow';
 import type { ComponentRetryPolicy } from '@shipsec/component-sdk';
-import { runWorkflowWithScheduler } from '../workflow-scheduler';
-import { buildActionPayload } from '../input-resolver';
+import { runWorkflowWithScheduler } from '../workflow-scheduler.js';
+import { buildActionPayload } from '../input-resolver.js';
 import {
   resolveHumanInputSignal,
   executeToolCallSignal,
   type HumanInputResolution,
   type ToolCallRequest,
   type ToolCallResult,
-} from '../signals';
+} from '../signals.js';
 import type { ExecutionTriggerMetadata, PreparedRunPayload } from '@shipsec/shared';
 import type {
   RunComponentActivityInput,
@@ -113,8 +113,14 @@ const MCP_SERVER_COMPONENTS: Record<
   },
 };
 
+const MCP_GROUP_COMPONENTS = ['mcp.group.aws'];
+
 function isMcpServerComponent(componentId: string): boolean {
   return componentId in MCP_SERVER_COMPONENTS;
+}
+
+function isMcpGroupComponent(componentId: string): boolean {
+  return MCP_GROUP_COMPONENTS.includes(componentId);
 }
 
 /**
@@ -212,6 +218,9 @@ export async function shipsecWorkflowRun(
             ...request.arguments,
           },
           params: request.parameters ?? {},
+          // Pass credentials as inputOverrides so resolveSecretInputOverrides
+          // in runComponentActivity resolves secret names to actual values.
+          inputOverrides: request.credentials ?? {},
           metadata: {
             streamId: request.callId,
           },
@@ -642,6 +651,7 @@ export async function shipsecWorkflowRun(
         const activityInput: RunComponentActivityInput = {
           runId: input.runId,
           workflowId: input.workflowId,
+          workflowName: input.definition.title,
           workflowVersionId: input.workflowVersionId ?? null,
           organizationId: input.organizationId ?? null,
           action: {
@@ -667,7 +677,12 @@ export async function shipsecWorkflowRun(
 
         const isToolMode = nodeMetadata?.mode === 'tool';
 
-        if (isToolMode) {
+        // MCP groups in tool mode should execute normally (not skip execution)
+        // They will register individual servers as separate tools during execution
+        const isMcpGroup = isMcpGroupComponent(action.componentId);
+        const shouldSkipExecution = isToolMode && !isMcpGroup;
+
+        if (shouldSkipExecution) {
           console.log(`[Workflow] Node ${action.ref} is in tool mode, registering...`);
 
           // Track any started containers for cleanup on failure
@@ -754,6 +769,15 @@ export async function shipsecWorkflowRun(
           }
         }
 
+        // MCP groups in tool mode: execute FIRST, then register as ready AFTER discovery completes.
+        // This prevents a race condition where the agent starts before child servers are discovered.
+        // The agent's areAllToolsReadyActivity check will poll until this registration happens.
+        if (isToolMode && isMcpGroup) {
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} is in tool mode, will register as ready AFTER execution completes (to avoid race with agent tool discovery)`,
+          );
+        }
+
         if (isMcpServerComponent(action.componentId)) {
           throw ApplicationFailure.nonRetryable(
             `Component ${action.componentId} is tool-mode only`,
@@ -815,7 +839,30 @@ export async function shipsecWorkflowRun(
           }
         }
 
+        // Debug logging: Track component execution start
+        console.log(
+          `[Workflow] Executing component ${action.componentId} (node ${action.ref})${isMcpGroup ? ' [MCP Group]' : ''}${isToolMode ? ' [Tool Mode]' : ''}`,
+        );
+
         const output = await runComponentWithRetry(activityInput);
+
+        // MCP groups in tool mode: NOW register the parent as ready after execution completes.
+        // This ensures child servers are discovered and registered before the agent starts.
+        if (isToolMode && isMcpGroup) {
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} execution complete, now registering parent as ready...`,
+          );
+          await prepareAndRegisterToolActivity({
+            runId: input.runId,
+            nodeId: action.ref,
+            componentId: action.componentId,
+            inputs: mergedInputs,
+            params: mergedParams,
+          });
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} registered as ready (child servers already registered during execution)`,
+          );
+        }
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
         if (isApprovalPending(output.output)) {
@@ -1116,3 +1163,9 @@ export async function scheduleTriggerWorkflow(
 
   return child.result();
 }
+
+// Export MCP discovery workflow
+export { mcpDiscoveryWorkflow, mcpGroupDiscoveryWorkflow } from './mcp-discovery-workflow.js';
+
+// Export webhook parsing workflow (Docker execution must run in worker).
+export { webhookParsingWorkflow } from './webhook-parsing-workflow.js';

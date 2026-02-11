@@ -303,6 +303,7 @@ export class WorkflowsController {
             properties: {
               id: { type: 'string' },
               workflowId: { type: 'string' },
+              organizationId: { type: 'string' },
               status: {
                 type: 'string',
                 enum: [
@@ -372,6 +373,7 @@ export class WorkflowsController {
       properties: {
         id: { type: 'string' },
         workflowId: { type: 'string' },
+        organizationId: { type: 'string' },
         status: {
           type: 'string',
           enum: [

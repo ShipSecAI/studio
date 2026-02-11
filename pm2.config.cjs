@@ -196,9 +196,56 @@ function loadFrontendEnv() {
 
 const frontendEnv = loadFrontendEnv();
 
+// Load worker .env file for OpenSearch and other worker-specific variables
+function loadWorkerEnv() {
+  const envPath = path.join(__dirname, 'worker', '.env');
+  const env = {};
+
+  try {
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      envContent.split('\n').forEach((line) => {
+        const trimmed = line.trim();
+        // Skip comments and empty lines
+        if (!trimmed || trimmed.startsWith('#')) {
+          return;
+        }
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          let value = match[2].trim();
+          // Remove surrounding quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          env[key] = value;
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to load worker .env file:', err.message);
+  }
+
+  return env;
+}
+
+const workerEnv = loadWorkerEnv();
+
 // Determine environment from NODE_ENV or SHIPSEC_ENV
 const environment = process.env.SHIPSEC_ENV || process.env.NODE_ENV || 'development';
 const isProduction = environment === 'production';
+
+// Get instance number (0-9) for multi-instance support
+const instanceNum = process.env.SHIPSEC_INSTANCE || '0';
+const instanceDatabaseUrl = `postgresql://shipsec:shipsec@localhost:5433/shipsec_instance_${instanceNum}`;
+// Only set these defaults for local development. In production, credentials must
+// come from the environment / deployment config.
+const devInstanceEnv = isProduction
+  ? {}
+  : {
+      DATABASE_URL: instanceDatabaseUrl,
+      SECRET_STORE_MASTER_KEY: process.env.SECRET_STORE_MASTER_KEY || 'ShipSecLocalDevKey32Bytes!!!!!!!',
+    };
 
 // Environment-specific configuration
 const envConfig = {
@@ -216,64 +263,109 @@ const envConfig = {
 
 const currentEnvConfig = envConfig[isProduction ? 'production' : 'development'];
 
+// Helper to get instance-specific env file path
+function getInstanceEnvFile(appName, instance) {
+  return __dirname + `/.instances/instance-${instance}/${appName}.env`;
+}
+
+// Helper to get instance-specific ports
+function getInstancePort(basePort, instance) {
+  return basePort + parseInt(instance) * 100;
+}
+
+// Get env file (use instance-specific if it exists, otherwise fall back to root)
+function resolveEnvFile(appName, instance) {
+  const instancePath = getInstanceEnvFile(appName, instance);
+  const rootPath = __dirname + `/${appName}/.env`;
+  
+  if (fs.existsSync(instancePath)) {
+    return instancePath;
+  }
+  return rootPath;
+}
+
 module.exports = {
   apps: [
     {
-      name: 'shipsec-backend',
+      name: `shipsec-backend-${instanceNum}`,
       cwd: __dirname + '/backend',
       script: 'bun',
       args: isProduction ? 'src/main.ts' : 'run dev',
       interpreter: 'none',
-      env_file: __dirname + '/backend/.env',
+      env_file: resolveEnvFile('backend', instanceNum),
       env: {
         ...currentEnvConfig,
+        PORT: getInstancePort(3211, instanceNum),
+        // Ensure instance DB isolation even if dotenv auto-loads a workspace/default `.env`.
+        ...devInstanceEnv,
         TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
         LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
         LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
-        LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || 'shipsec-backend',
-        LOG_KAFKA_GROUP_ID: process.env.LOG_KAFKA_GROUP_ID || 'shipsec-backend-log-consumer',
+        LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-backend-${instanceNum}`,
+        LOG_KAFKA_GROUP_ID: process.env.LOG_KAFKA_GROUP_ID || `shipsec-backend-log-consumer-${instanceNum}`,
         EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
-        EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || 'shipsec-backend-events',
-        EVENT_KAFKA_GROUP_ID: process.env.EVENT_KAFKA_GROUP_ID || 'shipsec-event-ingestor',
+        EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-backend-events-${instanceNum}`,
+        EVENT_KAFKA_GROUP_ID: process.env.EVENT_KAFKA_GROUP_ID || `shipsec-event-ingestor-${instanceNum}`,
+        NODE_IO_KAFKA_TOPIC: process.env.NODE_IO_KAFKA_TOPIC || 'telemetry.node-io',
+        NODE_IO_KAFKA_CLIENT_ID:
+          process.env.NODE_IO_KAFKA_CLIENT_ID || `shipsec-backend-node-io-${instanceNum}`,
+        NODE_IO_KAFKA_GROUP_ID:
+          process.env.NODE_IO_KAFKA_GROUP_ID || `shipsec-node-io-ingestor-${instanceNum}`,
+        AGENT_TRACE_KAFKA_TOPIC: process.env.AGENT_TRACE_KAFKA_TOPIC || 'telemetry.agent-trace',
+        AGENT_TRACE_KAFKA_CLIENT_ID:
+          process.env.AGENT_TRACE_KAFKA_CLIENT_ID || `shipsec-backend-agent-trace-${instanceNum}`,
+        AGENT_TRACE_KAFKA_GROUP_ID:
+          process.env.AGENT_TRACE_KAFKA_GROUP_ID || `shipsec-agent-trace-ingestor-${instanceNum}`,
         ENABLE_INGEST_SERVICES: process.env.ENABLE_INGEST_SERVICES || 'true',
         INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
+        TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
+        TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
+        TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
       max_memory_restart: '500M',
     },
     {
-      name: 'shipsec-frontend',
+      name: `shipsec-frontend-${instanceNum}`,
       cwd: __dirname + '/frontend',
       script: 'bun',
-      args: 'run dev',
-      env_file: __dirname + '/frontend/.env',
+      // Ensure each instance binds to its own Vite port (default is 5173).
+      args: ['run', 'dev', '--', '--port', String(getInstancePort(5173, instanceNum)), '--strictPort'],
+      env_file: resolveEnvFile('frontend', instanceNum),
       env: {
         ...frontendEnv,
         ...currentEnvConfig,
+        VITE_API_URL: `http://localhost:${getInstancePort(3211, instanceNum)}`,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
     },
     {
-      name: 'shipsec-worker',
+      name: `shipsec-worker-${instanceNum}`,
       cwd: __dirname + '/worker',
       // Run the worker with Node + tsx to avoid Bun's SWC binding issues
       script: __dirname + '/node_modules/.bin/tsx',
       args: 'src/temporal/workers/dev.worker.ts',
-      env_file: __dirname + '/worker/.env',
+      env_file: resolveEnvFile('worker', instanceNum),
       env: Object.assign(
         {
+          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
           INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
-          STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || 'http://localhost:3211/api/v1',
+          STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || `http://localhost:${getInstancePort(3211, instanceNum)}/api/v1`,
+          ...devInstanceEnv,
           TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
           LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
           LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
-          LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || 'shipsec-worker',
+          LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-worker-${instanceNum}`,
           EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
-          EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || 'shipsec-worker-events',
+          EVENT_KAFKA_CLIENT_ID: process.env.EVENT_KAFKA_CLIENT_ID || `shipsec-worker-events-${instanceNum}`,
+          TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
+          TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
+          TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
+          SKIP_CONTAINER_CLEANUP: process.env.SKIP_CONTAINER_CLEANUP || 'false',
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
@@ -290,6 +382,7 @@ module.exports = {
       env_file: __dirname + '/worker/.env',
       env: Object.assign(
         {
+          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
           TEMPORAL_TASK_QUEUE: 'test-worker-integration',
           TEMPORAL_NAMESPACE: 'shipsec-dev',
           NODE_ENV: 'development',
@@ -297,25 +390,6 @@ module.exports = {
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
-    },
-    {
-      name: 'shipsec-mcp-server',
-      cwd: __dirname,
-      script: 'bun',
-      args: '.playground/mcp-server.ts',
-      env_file: __dirname + '/.playground/.env',
-      env: {
-        NODE_ENV: 'development',
-        MCP_PORT: process.env.MCP_PORT || '4312',
-        MCP_DELAY_MS: process.env.MCP_DELAY_MS || '1500',
-        GEMINI_API_KEY: process.env.GEMINI_API_KEY || 'AIzaSyArjdbc9tz8EGL94kyDLutWOAhVnzbcnjc',
-      },
-      watch: ['.playground/mcp-server.ts'],
-      ignore_watch: ['node_modules', '*.log'],
-      max_memory_restart: '200M',
-      restart_delay: 4000,
-      max_restarts: 10,
-      min_uptime: '10s',
     },
   ],
 };

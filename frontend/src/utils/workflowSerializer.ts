@@ -74,7 +74,7 @@ export function serializeNodes(reactFlowNodes: ReactFlowNode<FrontendNodeData>[]
       position: node.position,
       data: {
         label: node.data.label || '',
-        config,
+        config: config as any, // Cast to satisfy BackendNode config type
       },
     };
   });

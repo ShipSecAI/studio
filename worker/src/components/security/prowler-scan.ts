@@ -14,6 +14,9 @@ import {
   parameters,
   port,
   param,
+  analyticsResultSchema,
+  generateFindingHash,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
@@ -247,6 +250,11 @@ const outputSchema = outputs({
       'Array of normalized findings derived from Prowler ASFF output (includes severity, resource id, remediation).',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
   }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
   rawOutput: port(z.string(), {
     label: 'Raw Output',
     description: 'Raw Prowler output for debugging.',
@@ -399,14 +407,19 @@ const definition = defineComponent({
   retryPolicy: prowlerRetryPolicy,
   runner: {
     kind: 'docker',
-    image: 'prowlercloud/prowler:5.14.2',
+    image: 'ghcr.io/shipsecai/prowler:5.14.2',
     platform: 'linux/amd64',
     command: [], // Placeholder - actual command built dynamically in execute()
   },
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
-  docs: 'Execute Prowler inside Docker using `prowlercloud/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
+  docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
+  toolProvider: {
+    kind: 'component',
+    name: 'prowler_scan',
+    description: 'AWS and multi-cloud security assessment tool (Prowler).',
+  },
   ui: {
     slug: 'prowler-scan',
     version: '2.0.0',
@@ -426,10 +439,6 @@ const definition = defineComponent({
       'Run nightly `prowler aws --quick --severity-filter high,critical` scans on production accounts and forward findings into ELK.',
       'Use `prowler cloud` with custom flags to generate a multi-cloud compliance snapshot.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'AWS and multi-cloud security assessment tool (Prowler).',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
@@ -566,7 +575,7 @@ const definition = defineComponent({
     // Prepare a one-off runner with dynamic command and volume
     const dockerRunner: DockerRunnerConfig = {
       kind: 'docker',
-      image: 'prowlercloud/prowler:5.14.2',
+      image: 'ghcr.io/shipsecai/prowler:5.14.2',
       platform: 'linux/amd64',
       network: 'bridge',
       timeoutSeconds: 900,
@@ -734,9 +743,29 @@ const definition = defineComponent({
 
       const scanId = buildScanId(parsedInputs.accountId, parsedParams.scanMode);
 
+      // Build analytics-ready results (follows core.analytics.result.v1 contract)
+      const results: AnalyticsResult[] = findings.map((finding) => ({
+        scanner: 'prowler',
+        finding_hash: generateFindingHash(
+          finding.id,
+          finding.resourceId ?? finding.accountId ?? '',
+          finding.title ?? '',
+        ),
+        severity: mapToAnalyticsSeverity(finding.severity),
+        asset_key: finding.resourceId ?? finding.accountId ?? undefined,
+        // Include additional context for analytics
+        title: finding.title,
+        description: finding.description,
+        region: finding.region,
+        status: finding.status,
+        remediationText: finding.remediationText,
+        recommendationUrl: finding.recommendationUrl,
+      }));
+
       const output: Output = {
         scanId,
         findings,
+        results,
         rawOutput: rawSegments.join('\n'),
         summary: {
           totalFindings: findings.length,
@@ -941,6 +970,31 @@ function extractRegionFromArn(resourceId?: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Maps Prowler severity levels to analytics severity enum.
+ * Prowler: critical, high, medium, low, informational, unknown
+ * Analytics: critical, high, medium, low, info, none
+ */
+function mapToAnalyticsSeverity(
+  prowlerSeverity: NormalisedSeverity,
+): 'critical' | 'high' | 'medium' | 'low' | 'info' | 'none' {
+  switch (prowlerSeverity) {
+    case 'critical':
+      return 'critical';
+    case 'high':
+      return 'high';
+    case 'medium':
+      return 'medium';
+    case 'low':
+      return 'low';
+    case 'informational':
+      return 'info';
+    case 'unknown':
+    default:
+      return 'none';
+  }
 }
 
 componentRegistry.register(definition);

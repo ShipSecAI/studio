@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MarkdownView } from '@/components/ui/markdown';
+import { DynamicArtifactNameInput } from '@/components/workflow/DynamicArtifactNameInput';
 import {
   Select,
   SelectContent,
@@ -31,11 +32,12 @@ import { useComponentStore } from '@/store/componentStore';
 import { ParameterFieldWrapper } from './ParameterField';
 import { WebhookDetails } from './WebhookDetails';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
-import { DynamicArtifactNameInput } from './DynamicArtifactNameInput';
-import { useReactFlow } from 'reactflow';
+// TODO: McpLibraryToolSelector will be integrated in a future PR
+// import { McpLibraryToolSelector } from './McpLibraryToolSelector'
 import type { Node } from 'reactflow';
 import type { FrontendNodeData } from '@/schemas/node';
 import type { ComponentType, KeyboardEvent } from 'react';
+import { useReactFlow } from 'reactflow';
 import {
   describePortType,
   inputSupportsManualValue,
@@ -843,12 +845,12 @@ export function ConfigPanel({
                 <div className="rounded-md border bg-muted/20 p-3 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="text-[10px] font-mono">
-                      {component.agentTool?.toolName ?? component.slug}
+                      {component.toolProvider?.name ?? component.slug}
                     </Badge>
                     <span className="text-xs font-semibold text-foreground">{component.name}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {component.agentTool?.toolDescription ?? component.description}
+                    {component.toolProvider?.description ?? component.description}
                   </p>
                 </div>
 
@@ -925,7 +927,8 @@ export function ConfigPanel({
           )}
 
           {/* Parameters Section (Moved to Top) */}
-          {!isToolMode && componentParameters.length > 0 && (
+          {/* Show parameters if not tool mode, OR if we're in tool mode but have parameters to configure (e.g., MCP components) */}
+          {(!isToolMode || componentParameters.length > 0) && (
             <CollapsibleSection
               title="Parameters"
               count={componentParameters.length}
@@ -1218,7 +1221,7 @@ export function ConfigPanel({
           )}
 
           {!isToolMode &&
-            component.agentTool?.enabled &&
+            !!component.toolProvider &&
             toolSchemaJson &&
             component.category !== 'mcp' && (
               <CollapsibleSection title="Tool Schema" defaultOpen={false}>
@@ -1230,16 +1233,16 @@ export function ConfigPanel({
               </CollapsibleSection>
             )}
 
-          {component.category === 'mcp' && component.agentTool?.toolName && (
+          {component.category === 'mcp' && component.toolProvider?.name && (
             <CollapsibleSection title="MCP Server" defaultOpen={false}>
               <div className="mt-2 space-y-2 text-xs text-muted-foreground">
                 <div>
                   <span className="font-medium text-foreground">Tool name: </span>
-                  <span className="font-mono">{component.agentTool.toolName}</span>
+                  <span className="font-mono">{component.toolProvider.name}</span>
                 </div>
-                {component.agentTool.toolDescription && (
+                {component.toolProvider.description && (
                   <div className="text-[11px] leading-relaxed">
-                    {component.agentTool.toolDescription}
+                    {component.toolProvider.description}
                   </div>
                 )}
                 <div className="text-[11px] italic">

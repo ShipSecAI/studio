@@ -38,6 +38,7 @@ export interface DockerRunnerConfig {
   timeoutSeconds?: number;
   stdinJson?: boolean; // Whether to write params as JSON to container's stdin (default: true)
   detached?: boolean; // If true, start container and return immediately without waiting for exit
+  autoRemove?: boolean; // If true, keep --rm even when detached (auto-remove on exit)
   ports?: Record<string, number>; // Port mapping host (e.g., "0.0.0.0:8080" or "127.0.0.1:8080") -> container port
 }
 
@@ -87,6 +88,65 @@ export interface LogEventInput {
   timestamp: string;
   data?: unknown;
   metadata?: ExecutionContextMetadata;
+}
+
+export interface McpServerSpec {
+  id: string;
+  name: string;
+  command: string;
+  args?: string[];
+}
+
+export type ToolProviderKind =
+  | 'component' // Component exposes itself as a tool
+  | 'mcp-server' // Component runs a single MCP server
+  | 'mcp-group'; // Component manages multiple MCP servers
+
+export interface ToolProviderConfig {
+  kind: ToolProviderKind;
+
+  /**
+   * Tool name exposed to the agent.
+   * For 'component' kind, this is the tool name.
+   * For 'mcp-group', this is used as a prefix for child tools if needed.
+   */
+  name: string;
+
+  /**
+   * Description of what the tool(s) do, shown to the agent.
+   */
+  description: string;
+
+  /**
+   * Configuration for MCP-based tool providers.
+   * Required for 'mcp-server' and 'mcp-group' kinds.
+   */
+  mcp?: {
+    /** Docker image to use for the MCP server(s) */
+    image?: string;
+    /** Command to run if image is used (for 'mcp-server') */
+    command?: string[];
+    /** Mapping of environment variables to component inputs/params */
+    credentialMapping?: Record<string, string>;
+    /** Specification for individual servers in a group (for 'mcp-group') */
+    servers?: McpServerSpec[];
+  };
+
+  /**
+   * For 'component' kind, optional override for tool input schema.
+   * If not provided, it's inferred from component inputs.
+   */
+  inputSchema?: any;
+
+  /**
+   * Optional Docker configuration for 'component' kind tools that run via Docker
+   * but aren't full MCP servers (e.g., standard scanners).
+   */
+  docker?: {
+    image: string;
+    command: string[];
+    args?: string[];
+  };
 }
 
 export interface AgentTracePart {
@@ -270,7 +330,8 @@ export type ComponentParameterType =
   | 'artifact'
   | 'variable-list'
   | 'form-fields'
-  | 'selection-options';
+  | 'selection-options'
+  | 'analytics-inputs';
 
 export interface ComponentParameterOption {
   label: string;
@@ -322,24 +383,6 @@ export type ComponentUiType =
   | 'process'
   | 'output';
 
-/**
- * Configuration for exposing a component as an agent-callable tool.
- */
-export interface AgentToolConfig {
-  /** Whether this component can be used as an agent tool */
-  enabled: boolean;
-  /**
-   * Tool name exposed to the agent. Defaults to component slug with underscores.
-   * Should be descriptive and follow snake_case convention.
-   * @example 'check_ip_reputation', 'query_cloudtrail'
-   */
-  toolName?: string;
-  /**
-   * Description of what the tool does, shown to the agent.
-   * Should clearly explain the tool's purpose and when to use it.
-   */
-  toolDescription?: string;
-}
 
 export interface ComponentUiMetadata {
   slug: string;
@@ -358,12 +401,6 @@ export interface ComponentUiMetadata {
   examples?: string[];
   /** UI-only component - should not be included in workflow execution */
   uiOnly?: boolean;
-  /**
-   * Configuration for exposing this component as an agent-callable tool.
-   * When enabled, the component can be used in tool mode within workflows,
-   * allowing AI agents to invoke it via the MCP gateway.
-   */
-  agentTool?: AgentToolConfig;
 }
 
 export interface ExecutionContext {
@@ -375,6 +412,11 @@ export interface ExecutionContext {
   terminalCollector?: (chunk: TerminalChunkInput) => void;
   metadata: ExecutionContextMetadata;
   agentTracePublisher?: AgentTracePublisher;
+
+  // Workflow context (optional, available when running in workflow)
+  workflowId?: string;
+  workflowName?: string;
+  organizationId?: string | null;
 
   // Service interfaces - implemented by adapters
   storage?: IFileStorageService;
@@ -484,6 +526,11 @@ export interface ComponentDefinition<
   docs?: string;
   ui?: ComponentUiMetadata;
   requiresSecrets?: boolean;
+
+  /**
+   * Configuration for exposing this component (or its children) as agent-callable tools.
+   */
+  toolProvider?: ToolProviderConfig;
 
   /** Retry policy for this component (optional, uses default if not specified) */
   retryPolicy?: ComponentRetryPolicy;

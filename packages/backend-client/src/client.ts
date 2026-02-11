@@ -20,6 +20,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppController_validateAuth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AppController_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AppController_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/{agentRunId}/parts": {
         parameters: {
             query?: never;
@@ -574,6 +622,70 @@ export interface paths {
         get: operations["ArtifactsController_downloadArtifact"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["ArtifactsController_deleteArtifact"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_queryAnalytics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AnalyticsController_getAnalyticsSettings"];
+        put: operations["AnalyticsController_updateAnalyticsSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/ensure-tenant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_ensureTenant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1254,6 +1366,519 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all MCP servers */
+        get: operations["McpServersController_listServers"];
+        put?: never;
+        /** Create a new MCP server configuration */
+        post: operations["McpServersController_createServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List enabled MCP servers only */
+        get: operations["McpServersController_listEnabledServers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all tools from enabled MCP servers */
+        get: operations["McpServersController_getAllTools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get health status of all enabled servers */
+        get: operations["McpServersController_getHealthStatuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a specific MCP server */
+        get: operations["McpServersController_getServer"];
+        put?: never;
+        post?: never;
+        /** Delete an MCP server configuration */
+        delete: operations["McpServersController_deleteServer"];
+        options?: never;
+        head?: never;
+        /** Update an MCP server configuration */
+        patch: operations["McpServersController_updateServer"];
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/{id}/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List discovered tools from a server */
+        get: operations["McpServersController_getServerTools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/{id}/toggle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Toggle MCP server enabled/disabled status */
+        post: operations["McpServersController_toggleServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test connection to an MCP server */
+        post: operations["McpServersController_testConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/{serverId}/tools/{toolId}/toggle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Toggle a tool enabled/disabled state */
+        post: operations["McpServersController_toggleToolEnabled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-servers/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get resolved MCP server configuration (with secrets resolved) */
+        get: operations["McpServersController_getResolvedConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all MCP groups */
+        get: operations["McpGroupsController_listGroups"];
+        put?: never;
+        /** Create a new MCP group (admin only) */
+        post: operations["McpGroupsController_createGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List available MCP group templates */
+        get: operations["McpGroupsController_listTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/slug/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a group by slug */
+        get: operations["McpGroupsController_getGroupBySlug"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a specific MCP group */
+        get: operations["McpGroupsController_getGroup"];
+        put?: never;
+        post?: never;
+        /** Delete an MCP group (admin only) */
+        delete: operations["McpGroupsController_deleteGroup"];
+        options?: never;
+        head?: never;
+        /** Update an MCP group */
+        patch: operations["McpGroupsController_updateGroup"];
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/{id}/servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get servers in a group */
+        get: operations["McpGroupsController_getServersInGroup"];
+        put?: never;
+        /** Add a server to a group (admin only) */
+        post: operations["McpGroupsController_addServerToGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/{id}/servers/{serverId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a server from a group (admin only) */
+        delete: operations["McpGroupsController_removeServerFromGroup"];
+        options?: never;
+        head?: never;
+        /** Update server metadata in a group (admin only) */
+        patch: operations["McpGroupsController_updateServerInGroup"];
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/sync-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync group templates from code (admin only) */
+        post: operations["McpGroupsController_syncTemplates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-groups/templates/{slug}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a group template (admin only) */
+        post: operations["McpGroupsController_importTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/gateway": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unified MCP Gateway endpoint (Streamable HTTP) */
+        get: operations["McpGatewayController_handleGateway_get"];
+        /** Unified MCP Gateway endpoint (Streamable HTTP) */
+        put: operations["McpGatewayController_handleGateway_put"];
+        /** Unified MCP Gateway endpoint (Streamable HTTP) */
+        post: operations["McpGatewayController_handleGateway_post"];
+        /** Unified MCP Gateway endpoint (Streamable HTTP) */
+        delete: operations["McpGatewayController_handleGateway_delete"];
+        /** Unified MCP Gateway endpoint (Streamable HTTP) */
+        options: operations["McpGatewayController_handleGateway_options"];
+        /** Unified MCP Gateway endpoint (Streamable HTTP) */
+        head: operations["McpGatewayController_handleGateway_head"];
+        /** Unified MCP Gateway endpoint (Streamable HTTP) */
+        patch: operations["McpGatewayController_handleGateway_patch"];
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/generate-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_generateToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/register-component": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_registerComponent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/register-mcp-server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_registerMcpServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/cleanup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_cleanupRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/tools-ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_areToolsReady"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/register-group-server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_registerGroupServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start MCP tool discovery
+         * @description Initiates an asynchronous discovery workflow for an MCP server. Returns 202 ACCEPTED with a workflow ID for tracking progress.
+         */
+        post: operations["McpDiscoveryController_discover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/discover/{workflowId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get MCP discovery status
+         * @description Queries the status of an MCP discovery workflow by workflow ID. Returns current status and discovered tools if available.
+         */
+        get: operations["McpDiscoveryController_getStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/discover-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start MCP group tool discovery
+         * @description Initiates an asynchronous discovery workflow for multiple MCP servers. Returns 202 ACCEPTED with a workflow ID for tracking progress.
+         */
+        post: operations["McpDiscoveryController_discoverGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/discover-group/{workflowId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get MCP group discovery status
+         * @description Queries the status of an MCP group discovery workflow by workflow ID. Returns current status and discovered tools if available.
+         */
+        get: operations["McpDiscoveryController_getGroupStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/testing/webhooks": {
         parameters: {
             query?: never;
@@ -1319,9 +1944,35 @@ export interface components {
                 };
                 data: {
                     label: string;
-                    /** @default {} */
+                    /**
+                     * @default {
+                     *       "params": {},
+                     *       "inputOverrides": {}
+                     *     }
+                     */
                     config: {
-                        [key: string]: unknown;
+                        /** @default {} */
+                        params: {
+                            [key: string]: unknown;
+                        };
+                        /** @default {} */
+                        inputOverrides: {
+                            [key: string]: unknown;
+                        };
+                        /** @enum {string} */
+                        joinStrategy?: "all" | "any" | "first";
+                        streamId?: string;
+                        groupId?: string;
+                        maxConcurrency?: number;
+                        /** @enum {string} */
+                        mode?: "normal" | "tool";
+                        toolConfig?: {
+                            /** @default [] */
+                            boundInputIds: string[];
+                            /** @default [] */
+                            exposedInputIds: string[];
+                        };
+                        connectedToolNodeIds?: string[];
                     };
                     dynamicInputs?: {
                         [key: string]: unknown;
@@ -1370,9 +2021,35 @@ export interface components {
                     };
                     data: {
                         label: string;
-                        /** @default {} */
+                        /**
+                         * @default {
+                         *       "params": {},
+                         *       "inputOverrides": {}
+                         *     }
+                         */
                         config: {
-                            [key: string]: unknown;
+                            /** @default {} */
+                            params: {
+                                [key: string]: unknown;
+                            };
+                            /** @default {} */
+                            inputOverrides: {
+                                [key: string]: unknown;
+                            };
+                            /** @enum {string} */
+                            joinStrategy?: "all" | "any" | "first";
+                            streamId?: string;
+                            groupId?: string;
+                            maxConcurrency?: number;
+                            /** @enum {string} */
+                            mode?: "normal" | "tool";
+                            toolConfig?: {
+                                /** @default [] */
+                                boundInputIds: string[];
+                                /** @default [] */
+                                exposedInputIds: string[];
+                            };
+                            connectedToolNodeIds?: string[];
                         };
                         dynamicInputs?: {
                             [key: string]: unknown;
@@ -1426,9 +2103,35 @@ export interface components {
                 };
                 data: {
                     label: string;
-                    /** @default {} */
+                    /**
+                     * @default {
+                     *       "params": {},
+                     *       "inputOverrides": {}
+                     *     }
+                     */
                     config: {
-                        [key: string]: unknown;
+                        /** @default {} */
+                        params: {
+                            [key: string]: unknown;
+                        };
+                        /** @default {} */
+                        inputOverrides: {
+                            [key: string]: unknown;
+                        };
+                        /** @enum {string} */
+                        joinStrategy?: "all" | "any" | "first";
+                        streamId?: string;
+                        groupId?: string;
+                        maxConcurrency?: number;
+                        /** @enum {string} */
+                        mode?: "normal" | "tool";
+                        toolConfig?: {
+                            /** @default [] */
+                            boundInputIds: string[];
+                            /** @default [] */
+                            exposedInputIds: string[];
+                        };
+                        connectedToolNodeIds?: string[];
                     };
                     dynamicInputs?: {
                         [key: string]: unknown;
@@ -1470,7 +2173,7 @@ export interface components {
                 id: string;
                 label: string;
                 /** @enum {string} */
-                type: "text" | "string" | "number" | "json" | "array" | "file" | "boolean";
+                type: "text" | "string" | "number" | "json" | "array" | "file" | "boolean" | "secret";
                 /** @default true */
                 required: boolean;
                 description?: string;
@@ -1494,9 +2197,35 @@ export interface components {
                     };
                     data: {
                         label: string;
-                        /** @default {} */
+                        /**
+                         * @default {
+                         *       "params": {},
+                         *       "inputOverrides": {}
+                         *     }
+                         */
                         config: {
-                            [key: string]: unknown;
+                            /** @default {} */
+                            params: {
+                                [key: string]: unknown;
+                            };
+                            /** @default {} */
+                            inputOverrides: {
+                                [key: string]: unknown;
+                            };
+                            /** @enum {string} */
+                            joinStrategy?: "all" | "any" | "first";
+                            streamId?: string;
+                            groupId?: string;
+                            maxConcurrency?: number;
+                            /** @enum {string} */
+                            mode?: "normal" | "tool";
+                            toolConfig?: {
+                                /** @default [] */
+                                boundInputIds: string[];
+                                /** @default [] */
+                                exposedInputIds: string[];
+                            };
+                            connectedToolNodeIds?: string[];
                         };
                         dynamicInputs?: {
                             [key: string]: unknown;
@@ -1626,7 +2355,14 @@ export interface components {
             workflowId: string;
             nodeOverrides?: {
                 [key: string]: {
-                    [key: string]: unknown;
+                    /** @default {} */
+                    params: {
+                        [key: string]: unknown;
+                    };
+                    /** @default {} */
+                    inputOverrides: {
+                        [key: string]: unknown;
+                    };
                 };
             };
             trigger?: {
@@ -1680,6 +2416,96 @@ export interface components {
                 /** Format: date-time */
                 createdAt: string;
             }[];
+        };
+        AnalyticsQueryRequestDto: {
+            /**
+             * @description OpenSearch DSL query object
+             * @example {
+             *       "match_all": {}
+             *     }
+             */
+            query?: Record<string, never>;
+            /**
+             * @description Number of results to return
+             * @default 10
+             * @example 10
+             */
+            size: number;
+            /**
+             * @description Offset for pagination
+             * @default 0
+             * @example 0
+             */
+            from: number;
+            /**
+             * @description OpenSearch aggregations object
+             * @example {
+             *       "components": {
+             *         "terms": {
+             *           "field": "component_id"
+             *         }
+             *       }
+             *     }
+             */
+            aggs?: Record<string, never>;
+        };
+        AnalyticsQueryResponseDto: {
+            /**
+             * @description Total number of matching documents
+             * @example 100
+             */
+            total: number;
+            /** @description Search hits */
+            hits: Record<string, never>[];
+            /** @description Aggregation results */
+            aggregations?: Record<string, never>;
+        };
+        AnalyticsSettingsResponseDto: {
+            /**
+             * @description Organization ID
+             * @example org_abc123
+             */
+            organizationId: string;
+            /**
+             * @description Subscription tier
+             * @example free
+             * @enum {string}
+             */
+            subscriptionTier: "free" | "pro" | "enterprise";
+            /**
+             * @description Data retention period in days
+             * @example 30
+             */
+            analyticsRetentionDays: number;
+            /**
+             * @description Maximum retention days allowed for this tier
+             * @example 30
+             */
+            maxRetentionDays: number;
+            /**
+             * Format: date-time
+             * @description Timestamp when settings were created
+             * @example 2026-01-20T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Timestamp when settings were last updated
+             * @example 2026-01-20T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        UpdateAnalyticsSettingsDto: {
+            /**
+             * @description Data retention period in days (must be within tier limits)
+             * @example 30
+             */
+            analyticsRetentionDays?: number;
+            /**
+             * @description Subscription tier (optional - usually set by billing system)
+             * @enum {string}
+             */
+            subscriptionTier?: "free" | "pro" | "enterprise";
         };
         ApiKeyResponseDto: {
             id: string;
@@ -1949,7 +2775,14 @@ export interface components {
                 /** @default {} */
                 nodeOverrides: {
                     [key: string]: {
-                        [key: string]: unknown;
+                        /** @default {} */
+                        params: {
+                            [key: string]: unknown;
+                        };
+                        /** @default {} */
+                        inputOverrides: {
+                            [key: string]: unknown;
+                        };
                     };
                 };
             };
@@ -1985,7 +2818,14 @@ export interface components {
                 /** @default {} */
                 nodeOverrides: {
                     [key: string]: {
-                        [key: string]: unknown;
+                        /** @default {} */
+                        params: {
+                            [key: string]: unknown;
+                        };
+                        /** @default {} */
+                        inputOverrides: {
+                            [key: string]: unknown;
+                        };
                     };
                 };
             };
@@ -2182,6 +3022,367 @@ export interface components {
                 respondedAt: string | null;
             };
         };
+        McpServerResponseDto: {
+            id: string;
+            name: string;
+            description: string | null;
+            /** @enum {string} */
+            transportType: "http" | "stdio";
+            endpoint: string | null;
+            command: string | null;
+            args: string[] | null;
+            hasHeaders: boolean;
+            headerKeys: string[] | null;
+            enabled: boolean;
+            healthCheckUrl: string | null;
+            /** Format: date-time */
+            lastHealthCheck: string | null;
+            /** @enum {string|null} */
+            lastHealthStatus: "healthy" | "unhealthy" | "unknown" | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            groupId: string | null;
+        };
+        McpToolResponseDto: {
+            id: string;
+            toolName: string;
+            description: string | null;
+            inputSchema: {
+                [key: string]: unknown;
+            } | null;
+            serverId: string;
+            serverName: string;
+            enabled: boolean;
+            /** Format: date-time */
+            discoveredAt: string;
+        };
+        HealthStatusResponseDto: {
+            serverId: string;
+            /** @enum {string} */
+            status: "healthy" | "unhealthy" | "unknown";
+            /** Format: date-time */
+            checkedAt: string | null;
+        };
+        CreateMcpServerDto: {
+            name: string;
+            description?: string;
+            /** @enum {string} */
+            transportType: "http" | "stdio";
+            /** Format: uri */
+            endpoint?: string;
+            command?: string;
+            args?: string[];
+            headers?: {
+                [key: string]: string;
+            };
+            /** Format: uri */
+            healthCheckUrl?: string;
+            enabled?: boolean;
+            groupId?: string;
+            cacheToken?: string;
+        };
+        UpdateMcpServerDto: {
+            name?: string;
+            description?: string | null;
+            /** @enum {string} */
+            transportType?: "http" | "stdio";
+            /** Format: uri */
+            endpoint?: string | null;
+            command?: string | null;
+            args?: string[] | null;
+            headers?: {
+                [key: string]: string;
+            } | null;
+            /** Format: uri */
+            healthCheckUrl?: string | null;
+            enabled?: boolean;
+        };
+        TestConnectionResponseDto: {
+            success: boolean;
+            message?: string;
+            toolCount?: number;
+            protocolVersion?: string;
+            responseTimeMs?: number;
+        };
+        McpGroupResponseDto: {
+            id: string;
+            slug: string;
+            name: string;
+            description: string | null;
+            credentialContractName: string;
+            credentialMapping: {
+                [key: string]: string;
+            } | null;
+            defaultDockerImage: string | null;
+            enabled: boolean;
+            templateHash?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        GroupTemplateDto: {
+            slug: string;
+            name: string;
+            description?: string;
+            credentialContractName: string;
+            credentialMapping?: {
+                [key: string]: string;
+            };
+            defaultDockerImage: string;
+            version: {
+                major: number;
+                minor: number;
+                patch: number;
+            };
+            servers: {
+                name: string;
+                description?: string;
+                /** @enum {string} */
+                transportType: "http" | "stdio" | "sse" | "websocket";
+                endpoint?: string;
+                command?: string;
+                args?: string[];
+                recommended: boolean;
+                defaultSelected: boolean;
+            }[];
+            templateHash: string;
+        };
+        CreateMcpGroupDto: {
+            slug: string;
+            name: string;
+            description?: string | null;
+            credentialContractName: string;
+            credentialMapping?: {
+                [key: string]: string;
+            } | null;
+            defaultDockerImage?: string | null;
+            enabled?: boolean;
+        };
+        UpdateMcpGroupDto: {
+            name?: string;
+            description?: string | null;
+            credentialContractName?: string;
+            credentialMapping?: {
+                [key: string]: string;
+            } | null;
+            defaultDockerImage?: string | null;
+            enabled?: boolean;
+        };
+        McpGroupServerResponseDto: {
+            id: string;
+            name: string;
+            serverName: string;
+            description: string | null;
+            /** @enum {string} */
+            transportType: "http" | "stdio" | "sse" | "websocket";
+            endpoint: string | null;
+            command: string | null;
+            args: string[] | null;
+            enabled: boolean;
+            /** @enum {string} */
+            healthStatus: "healthy" | "unhealthy" | "unknown";
+            toolCount: number;
+            recommended: boolean;
+            defaultSelected: boolean;
+        };
+        AddServerToGroupDto: {
+            /** Format: uuid */
+            serverId: string;
+            recommended?: boolean;
+            defaultSelected?: boolean;
+        };
+        UpdateServerInGroupDto: {
+            recommended?: boolean;
+            defaultSelected?: boolean;
+        };
+        SyncTemplatesResponseDto: {
+            syncedCount: number;
+            createdCount: number;
+            updatedCount: number;
+            templates: string[];
+        };
+        ImportTemplateRequestDto: {
+            serverCacheTokens?: {
+                [key: string]: string;
+            };
+        };
+        ImportGroupTemplateResponseDto: {
+            /** @enum {string} */
+            action: "created" | "updated" | "skipped";
+            group: {
+                id: string;
+                slug: string;
+                name: string;
+                description: string | null;
+                credentialContractName: string;
+                credentialMapping: {
+                    [key: string]: string;
+                } | null;
+                defaultDockerImage: string | null;
+                enabled: boolean;
+                templateHash?: string | null;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+            };
+        };
+        RegisterComponentToolInput: Record<string, never>;
+        RegisterMcpServerInput: Record<string, never>;
+        DiscoveryInputDto: {
+            /**
+             * @description Transport type for MCP server
+             * @enum {string}
+             */
+            transport: "http" | "stdio";
+            /** @description Human-readable name for the MCP server */
+            name: string;
+            /**
+             * Format: uri
+             * @description HTTP endpoint for HTTP transport
+             */
+            endpoint?: string;
+            /** @description HTTP headers for authentication */
+            headers?: {
+                [key: string]: string;
+            };
+            /** @description Command to run for stdio transport */
+            command?: string;
+            /** @description Arguments for stdio command */
+            args?: string[];
+            /** @description Docker image for stdio transport */
+            image?: string;
+            /**
+             * Format: uuid
+             * @description Cache token for storing/retrieving discovery results
+             */
+            cacheToken?: string;
+        };
+        DiscoveryStartResponseDto: {
+            /**
+             * Format: uuid
+             * @description Unique ID for tracking the discovery workflow
+             */
+            workflowId: string;
+            /**
+             * Format: uuid
+             * @description Cache token for retrieving cached discovery results
+             */
+            cacheToken?: string;
+            /**
+             * @description Status indicating workflow has started
+             * @enum {string}
+             */
+            status: "started";
+        };
+        DiscoveryStatusDto: {
+            /**
+             * Format: uuid
+             * @description Workflow ID
+             */
+            workflowId: string;
+            /**
+             * @description Current status of discovery
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+            /** @description Discovered tools (available when completed) */
+            tools?: {
+                /** @description Tool name */
+                name: string;
+                /** @description Tool description */
+                description?: string;
+                /** @description JSON Schema for tool input */
+                inputSchema?: {
+                    [key: string]: unknown;
+                };
+            }[];
+            /** @description Number of tools discovered */
+            toolCount?: number;
+            /** @description Error message if discovery failed */
+            error?: string;
+            /** @description Error code for categorizing failures */
+            errorCode?: string;
+        };
+        GroupDiscoveryInputDto: {
+            /** @description Docker image for stdio transport */
+            image?: string;
+            /** @description Servers to discover */
+            servers: {
+                /** @description Server name */
+                name: string;
+                /**
+                 * @description Transport type for MCP server
+                 * @enum {string}
+                 */
+                transport: "http" | "stdio";
+                /**
+                 * Format: uri
+                 * @description HTTP endpoint for HTTP transport
+                 */
+                endpoint?: string;
+                /** @description HTTP headers for authentication */
+                headers?: {
+                    [key: string]: string;
+                };
+                /** @description Command to run for stdio transport */
+                command?: string;
+                /** @description Arguments for stdio command */
+                args?: string[];
+            }[];
+        };
+        GroupDiscoveryStartResponseDto: {
+            /**
+             * Format: uuid
+             * @description Unique ID for tracking the discovery workflow
+             */
+            workflowId: string;
+            /** @description Map of server name to cache token */
+            cacheTokens: {
+                [key: string]: string;
+            };
+            /**
+             * @description Status indicating workflow has started
+             * @enum {string}
+             */
+            status: "started";
+        };
+        GroupDiscoveryStatusDto: {
+            /**
+             * Format: uuid
+             * @description Workflow ID
+             */
+            workflowId: string;
+            /**
+             * @description Current status of discovery
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+            results?: {
+                name: string;
+                /** @enum {string} */
+                status: "running" | "completed" | "failed";
+                tools?: {
+                    /** @description Tool name */
+                    name: string;
+                    /** @description Tool description */
+                    description?: string;
+                    /** @description JSON Schema for tool input */
+                    inputSchema?: {
+                        [key: string]: unknown;
+                    };
+                }[];
+                toolCount?: number;
+                error?: string;
+                /** Format: uuid */
+                cacheToken?: string;
+            }[];
+            error?: string;
+            errorCode?: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2201,6 +3402,59 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AppController_validateAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AppController_login: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AppController_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2403,6 +3657,7 @@ export interface operations {
                         runs?: {
                             id?: string;
                             workflowId?: string;
+                            organizationId?: string;
                             /** @enum {string} */
                             status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
                             /** Format: date-time */
@@ -2456,6 +3711,7 @@ export interface operations {
                     "application/json": {
                         id?: string;
                         workflowId?: string;
+                        organizationId?: string;
                         /** @enum {string} */
                         status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
                         /** Format: date-time */
@@ -2968,7 +4224,7 @@ export interface operations {
             header?: never;
             path: {
                 runId: string;
-                id: string;
+                artifactId: string;
             };
             cookie?: never;
         };
@@ -3441,6 +4697,125 @@ export interface operations {
             };
         };
     };
+    ArtifactsController_deleteArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Artifact deleted successfully */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AnalyticsController_queryAnalytics: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Number of requests remaining in the current time window */
+                "X-RateLimit-Remaining"?: number;
+                /** @description Maximum number of requests allowed per minute */
+                "X-RateLimit-Limit"?: number;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsQueryRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Query analytics data for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsQueryResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_getAnalyticsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get analytics settings for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_updateAnalyticsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAnalyticsSettingsDto"];
+            };
+        };
+        responses: {
+            /** @description Update analytics settings for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_ensureTenant: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-internal-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ensure tenant resources exist for organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        securityEnabled?: boolean;
+                        message?: string;
+                    };
+                };
+            };
+        };
+    };
     ApiKeysController_list: {
         parameters: {
             query?: {
@@ -3652,6 +5027,8 @@ export interface operations {
                             } & {
                                 [key: string]: unknown;
                             };
+                            /** @enum {string|null} */
+                            editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
                             required?: boolean;
                             description?: string | null;
                             /** @enum {string|null} */
@@ -3690,6 +5067,12 @@ export interface operations {
                             rows?: number | null;
                         }[];
                         examples?: string[];
+                        toolProvider?: {
+                            /** @enum {string} */
+                            kind?: "component" | "mcp-server" | "mcp-group";
+                            name?: string;
+                            description?: string;
+                        } | null;
                     }[];
                 };
             };
@@ -3749,6 +5132,8 @@ export interface operations {
                             } & {
                                 [key: string]: unknown;
                             };
+                            /** @enum {string|null} */
+                            editor?: "text" | "textarea" | "number" | "boolean" | "select" | "multi-select" | "json" | "secret" | null;
                             required?: boolean;
                             description?: string | null;
                             /** @enum {string|null} */
@@ -3770,9 +5155,13 @@ export interface operations {
                         }[];
                         parameters?: unknown[];
                         examples?: unknown[];
-                        isLatest?: boolean | null;
                         deprecated?: boolean | null;
                         example?: string | null;
+                        agentTool?: {
+                            enabled?: boolean;
+                            toolName?: string | null;
+                            toolDescription?: string | null;
+                        } | null;
                     };
                 };
             };
@@ -4800,6 +6189,900 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicResolveResultDto"];
+                };
+            };
+        };
+    };
+    McpServersController_listServers: {
+        parameters: {
+            query: {
+                groupId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpServerResponseDto"][];
+                };
+            };
+        };
+    };
+    McpServersController_createServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMcpServerDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpServerResponseDto"];
+                };
+            };
+        };
+    };
+    McpServersController_listEnabledServers: {
+        parameters: {
+            query: {
+                groupId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpServerResponseDto"][];
+                };
+            };
+        };
+    };
+    McpServersController_getAllTools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpToolResponseDto"][];
+                };
+            };
+        };
+    };
+    McpServersController_getHealthStatuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthStatusResponseDto"][];
+                };
+            };
+        };
+    };
+    McpServersController_getServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpServerResponseDto"];
+                };
+            };
+        };
+    };
+    McpServersController_deleteServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpServersController_updateServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMcpServerDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpServerResponseDto"];
+                };
+            };
+        };
+    };
+    McpServersController_getServerTools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpToolResponseDto"][];
+                };
+            };
+        };
+    };
+    McpServersController_toggleServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpServerResponseDto"];
+                };
+            };
+        };
+    };
+    McpServersController_testConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestConnectionResponseDto"];
+                };
+            };
+        };
+    };
+    McpServersController_toggleToolEnabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                serverId: string;
+                toolId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpToolResponseDto"];
+                };
+            };
+        };
+    };
+    McpServersController_getResolvedConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    McpGroupsController_listGroups: {
+        parameters: {
+            query?: {
+                enabled?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupResponseDto"][];
+                };
+            };
+        };
+    };
+    McpGroupsController_createGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMcpGroupDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
+                };
+            };
+        };
+    };
+    McpGroupsController_listTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupTemplateDto"][];
+                };
+            };
+        };
+    };
+    McpGroupsController_getGroupBySlug: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
+                };
+            };
+        };
+    };
+    McpGroupsController_getGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
+                };
+            };
+        };
+    };
+    McpGroupsController_deleteGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGroupsController_updateGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMcpGroupDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupResponseDto"];
+                };
+            };
+        };
+    };
+    McpGroupsController_getServersInGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupServerResponseDto"][];
+                };
+            };
+        };
+    };
+    McpGroupsController_addServerToGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddServerToGroupDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupServerResponseDto"][];
+                };
+            };
+        };
+    };
+    McpGroupsController_removeServerFromGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                serverId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGroupsController_updateServerInGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                serverId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServerInGroupDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McpGroupServerResponseDto"][];
+                };
+            };
+        };
+    };
+    McpGroupsController_syncTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncTemplatesResponseDto"];
+                };
+            };
+        };
+    };
+    McpGroupsController_importTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportTemplateRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportGroupTemplateResponseDto"];
+                };
+            };
+        };
+    };
+    McpGatewayController_handleGateway_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGatewayController_handleGateway_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGatewayController_handleGateway_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGatewayController_handleGateway_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGatewayController_handleGateway_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGatewayController_handleGateway_head: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpGatewayController_handleGateway_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_generateToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_registerComponent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterComponentToolInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_registerMcpServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterMcpServerInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_cleanupRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_areToolsReady: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_registerGroupServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpDiscoveryController_discover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoveryInputDto"];
+            };
+        };
+        responses: {
+            /** @description Discovery workflow started successfully */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryStartResponseDto"];
+                };
+            };
+            /** @description Invalid input parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpDiscoveryController_getStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workflowId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Discovery status retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryStatusDto"];
+                };
+            };
+            /** @description Workflow not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    McpDiscoveryController_discoverGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupDiscoveryInputDto"];
+            };
+        };
+        responses: {
+            /** @description Group discovery workflow started successfully */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDiscoveryStartResponseDto"];
+                };
+            };
+        };
+    };
+    McpDiscoveryController_getGroupStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workflowId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Group discovery status retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDiscoveryStatusDto"];
                 };
             };
         };

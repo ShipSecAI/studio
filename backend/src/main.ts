@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
+import cookieParser from 'cookie-parser';
 
 import { isVersionCheckDisabled, performVersionCheck } from './version-check';
 
@@ -13,6 +14,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn'],
   });
+
+  // Enable cookie parsing for session auth
+  app.use(cookieParser());
 
   // Set global prefix for all routes
   app.setGlobalPrefix('api/v1');
@@ -26,14 +30,24 @@ async function bootstrap() {
   }
 
   // Enable CORS for frontend
+  // Build dynamic origin list for multi-instance dev (instances 0-9)
+  const instanceOrigins: string[] = [];
+  for (let i = 0; i <= 9; i++) {
+    const frontendPort = 5173 + i * 100;
+    const backendPort = 3211 + i * 100;
+    instanceOrigins.push(`http://localhost:${frontendPort}`);
+    instanceOrigins.push(`http://127.0.0.1:${frontendPort}`);
+    instanceOrigins.push(`http://localhost:${backendPort}`);
+    instanceOrigins.push(`http://127.0.0.1:${backendPort}`);
+  }
+
   app.enableCors({
     origin: [
       'http://localhost',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:3211',
+      'http://localhost:80',
       'http://localhost:8090',
       'https://studio.shipsec.ai',
+      ...instanceOrigins,
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -43,6 +57,9 @@ async function bootstrap() {
       'Accept',
       'Cache-Control',
       'x-organization-id',
+      'X-Real-IP',
+      'X-Forwarded-For',
+      'X-Forwarded-Proto',
     ],
   });
   const port = Number(process.env.PORT ?? 3211);

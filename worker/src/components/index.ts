@@ -26,7 +26,8 @@ import './core/destination-artifact';
 import './core/destination-s3';
 import './core/text-block';
 import './core/workflow-call';
-import './core/mcp-server';
+import './core/mcp-library';
+import './core/analytics-sink';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';
@@ -37,8 +38,6 @@ import './ai/openrouter-provider';
 import './ai/ai-agent';
 import './ai/llm-generate-text';
 import './ai/opencode';
-import './ai/mcp-http-provider';
-import './ai/mcp-tool-merge';
 
 // Security components
 import './security/subfinder';
@@ -56,8 +55,7 @@ import './security/trufflehog';
 import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
-import './security/aws-cloudtrail-mcp';
-import './security/aws-cloudwatch-mcp';
+import './security/aws-mcp-group';
 
 // GitHub components
 import './github/connection-provider';
@@ -67,10 +65,14 @@ import './github/remove-org-membership';
 import './it-automation/google-workspace-license-unassign';
 import './it-automation/okta-user-offboard';
 
+// Dev / debug components
+import './dev/mock-agent';
+
 // Test utility components
 import './test/sleep-parallel';
 import './test/live-event-heartbeat';
 import './test/simple-http-mcp';
+import './test/analytics-fixture';
 
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';

@@ -5,6 +5,7 @@ import { SecretsManager } from '@/pages/SecretsManager';
 import { ApiKeysManager } from '@/pages/ApiKeysManager';
 import { IntegrationsManager } from '@/pages/IntegrationsManager';
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary';
+import { McpLibraryPage } from '@/pages/McpLibraryPage';
 import { IntegrationCallback } from '@/pages/IntegrationCallback';
 import { NotFound } from '@/pages/NotFound';
 import { WebhooksPage } from '@/pages/WebhooksPage';
@@ -12,6 +13,7 @@ import { WebhookEditorPage } from '@/pages/WebhookEditorPage';
 import { SchedulesPage } from '@/pages/SchedulesPage';
 import { ActionCenterPage } from '@/pages/ActionCenterPage';
 import { RunRedirect } from '@/pages/RunRedirect';
+import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
 import { ToastProvider } from '@/components/ui/toast-provider';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthProvider } from '@/auth/auth-context';
@@ -84,7 +86,9 @@ function App() {
                     <Route path="/webhooks/:id/settings" element={<WebhookEditorPage />} />
                     <Route path="/schedules" element={<SchedulesPage />} />
                     <Route path="/action-center" element={<ActionCenterPage />} />
+                    <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
+                    <Route path="/mcp-library" element={<McpLibraryPage />} />
                     <Route path="/runs/:runId" element={<RunRedirect />} />
                     <Route
                       path="/integrations/callback/:provider"

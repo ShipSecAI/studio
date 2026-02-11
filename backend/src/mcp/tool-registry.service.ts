@@ -13,18 +13,19 @@ import { Injectable, Logger, Inject, OnModuleDestroy } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { type ToolInputSchema } from '@shipsec/component-sdk';
 import { SecretsEncryptionService } from '../secrets/secrets.encryption';
-import {
-  RegisterComponentToolInput,
-  RegisterLocalMcpInput,
-  RegisterRemoteMcpInput,
-} from './dto/mcp.dto';
+import { RegisterComponentToolInput, RegisterMcpServerInput } from './dto/mcp.dto';
 
 export const TOOL_REGISTRY_REDIS = Symbol('TOOL_REGISTRY_REDIS');
 
 /**
  * Types of tools that can be registered
  */
-export type RegisteredToolType = 'component' | 'remote-mcp' | 'local-mcp';
+export type RegisteredToolType =
+  | 'component'
+  | 'mcp-server'
+  | 'mcp-group'
+  | 'remote-mcp'
+  | 'local-mcp';
 
 /**
  * Status of a registered tool
@@ -41,8 +42,17 @@ export interface RegisteredTool {
   /** Tool name exposed to the agent */
   toolName: string;
 
+  /**
+   * Whether this registered tool should be exposed to AI agents via the MCP gateway.
+   * This allows "tool-mode" nodes that exist purely for readiness/dependency wiring.
+   */
+  exposedToAgent?: boolean;
+
   /** Type of tool */
   type: RegisteredToolType;
+
+  /** Original provider kind from component-sdk */
+  providerKind?: string;
 
   /** Current status */
   status: ToolStatus;
@@ -67,6 +77,9 @@ export interface RegisteredTool {
 
   /** Docker container ID (for local MCPs) */
   containerId?: string;
+
+  /** MCP Server ID (for pre-registered MCP servers with cached tools) */
+  serverId?: string;
 
   /** Error message if status is 'error' */
   errorMessage?: string;
@@ -123,7 +136,9 @@ export class ToolRegistryService implements OnModuleDestroy {
       nodeId,
       toolName,
       type: 'component',
+      providerKind: input.providerKind ?? 'component',
       status: 'ready',
+      exposedToAgent: input.exposedToAgent ?? true,
       componentId,
       parameters,
       description,
@@ -140,73 +155,94 @@ export class ToolRegistryService implements OnModuleDestroy {
   }
 
   /**
-   * Register a remote HTTP MCP server
+   * Register an MCP server with pre-discovered tools.
+   * This is the only method for registering MCP servers.
+   *
+   * The tools array should contain the actual tools discovered via MCP protocol's tools/list.
+   * This allows the gateway to expose the real tool names to agents.
    */
-  async registerRemoteMcp(input: RegisterRemoteMcpInput): Promise<void> {
+  async registerMcpServer(input: RegisterMcpServerInput): Promise<void> {
     if (!this.redis) {
       this.logger.warn('Redis not configured, tool registry disabled');
       return;
     }
 
-    const { runId, nodeId, toolName, description, inputSchema, endpoint, authToken } = input;
+    const {
+      runId,
+      nodeId,
+      serverName,
+      serverId,
+      transport,
+      endpoint,
+      containerId,
+      headers,
+      tools,
+    } = input;
 
-    // Encrypt auth token if provided - store as JSON object for consistency
+    // Encrypt headers if provided
     let encryptedCredentials: string | undefined;
-    if (authToken) {
-      const credentials = { authToken };
-      const encryptionMaterial = await this.encryption.encrypt(JSON.stringify(credentials));
+    if (headers && Object.keys(headers).length > 0) {
+      const encryptionMaterial = await this.encryption.encrypt(JSON.stringify(headers));
       encryptedCredentials = JSON.stringify(encryptionMaterial);
     }
 
+    // Create a RegisteredTool entry for the server
     const tool: RegisteredTool = {
       nodeId,
-      toolName,
-      type: 'remote-mcp',
+      toolName: serverName,
+      type: transport === 'stdio' ? 'mcp-server' : 'remote-mcp',
+      providerKind: 'mcp-server',
       status: 'ready',
-      description,
-      inputSchema,
+      description: `MCP server: ${serverName}`,
+      inputSchema: { type: 'object', properties: {} },
       endpoint,
+      containerId,
+      serverId,
       encryptedCredentials,
       registeredAt: new Date().toISOString(),
     };
 
     const key = this.getRegistryKey(runId);
     await this.redis.hset(key, nodeId, JSON.stringify(tool));
-    await this.redis.expire(key, REGISTRY_TTL_SECONDS);
 
-    this.logger.log(`Registered remote MCP: ${toolName} (node: ${nodeId}, run: ${runId})`);
+    // Also store the discovered tools for the gateway to use
+    if (tools && tools.length > 0) {
+      const toolsKey = `mcp:run:${runId}:server:${nodeId}:tools`;
+      await this.redis.set(toolsKey, JSON.stringify(tools));
+      await this.redis.expire(toolsKey, REGISTRY_TTL_SECONDS);
+      this.logger.log(
+        `Registered MCP server: ${serverName} with ${tools.length} tools (node: ${nodeId}, run: ${runId})`,
+      );
+    } else {
+      this.logger.log(
+        `Registered MCP server: ${serverName} (no tools pre-discovered) (node: ${nodeId}, run: ${runId})`,
+      );
+    }
+
+    await this.redis.expire(key, REGISTRY_TTL_SECONDS);
   }
 
   /**
-   * Register a local stdio MCP running in Docker
+   * Get the pre-discovered tools for an MCP server
    */
-  async registerLocalMcp(input: RegisterLocalMcpInput): Promise<void> {
+  async getServerTools(
+    runId: string,
+    nodeId: string,
+  ): Promise<
+    { name: string; description?: string; inputSchema?: Record<string, unknown> }[] | null
+  > {
     if (!this.redis) {
-      this.logger.warn('Redis not configured, tool registry disabled');
-      return;
+      return null;
     }
 
-    const { runId, nodeId, toolName, description, inputSchema, endpoint, containerId } = input;
+    const toolsKey = `mcp:run:${runId}:server:${nodeId}:tools`;
+    const toolsJson = await this.redis.get(toolsKey);
 
-    const tool: RegisteredTool = {
-      nodeId,
-      toolName,
-      type: 'local-mcp',
-      status: 'ready',
-      description,
-      inputSchema,
-      endpoint,
-      containerId,
-      registeredAt: new Date().toISOString(),
-    };
+    if (!toolsJson) {
+      return null;
+    }
 
-    const key = this.getRegistryKey(runId);
-    await this.redis.hset(key, nodeId, JSON.stringify(tool));
-    await this.redis.expire(key, REGISTRY_TTL_SECONDS);
-
-    this.logger.log(
-      `Registered local MCP: ${toolName} (node: ${nodeId}, container: ${containerId}, run: ${runId})`,
-    );
+    return JSON.parse(toolsJson);
   }
 
   async getToolsForRun(runId: string, nodeIds?: string[]): Promise<RegisteredTool[]> {
@@ -224,7 +260,9 @@ export class ToolRegistryService implements OnModuleDestroy {
 
     if (nodeIds && nodeIds.length > 0) {
       this.logger.debug(`Filtering tools by nodeIds: ${nodeIds.join(', ')}`);
-      tools = tools.filter((t) => nodeIds.includes(t.nodeId));
+      tools = tools.filter(
+        (t) => nodeIds.includes(t.nodeId) || nodeIds.some((id) => t.nodeId.startsWith(`${id}/`)),
+      );
       this.logger.debug(`Filtered down to ${tools.length} tool(s)`);
     }
 
@@ -347,7 +385,7 @@ export class ToolRegistryService implements OnModuleDestroy {
 
     const tools = await this.getToolsForRun(runId);
     const containerIds = tools
-      .filter((t) => t.type === 'local-mcp' && t.containerId)
+      .filter((t) => (t.type === 'local-mcp' || t.type === 'mcp-server') && t.containerId)
       .map((t) => t.containerId!);
 
     const key = this.getRegistryKey(runId);

@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { WebhookConfigurationRecord, WebhookDeliveryRecord } from '../../database/schema';
 import type { AuthContext } from '../../auth/types';
 import type { WorkflowDefinition } from '../../dsl/types';
@@ -7,6 +7,7 @@ import type { WebhookRepository } from '../repository/webhook.repository';
 import type { WebhookDeliveryRepository } from '../repository/webhook-delivery.repository';
 import { WebhooksService } from '../webhooks.service';
 import type { WorkflowsService } from '../../workflows/workflows.service';
+import type { TemporalService } from '../../temporal/temporal.service';
 
 const authContext: AuthContext = {
   userId: 'admin-user',
@@ -291,12 +292,23 @@ describe('WebhooksService', () => {
     startPreparedRun,
   } as unknown as WorkflowsService;
 
-  // Mock the Docker-based script execution
-  const mockScriptExec = mock(() => ({
-    exec: async () => ({
-      stdout: '---RESULT_START---\n{"prTitle":"Test PR","prNumber":42}\n---RESULT_END---',
-    }),
-  }));
+  const temporalStartCalls: unknown[][] = [];
+  const temporalStartWorkflow = async (...args: unknown[]) => {
+    temporalStartCalls.push(args);
+    return { workflowId: 'webhook-parse-1', runId: 'run-1', taskQueue: 'shipsec-default' };
+  };
+
+  const temporalResultCalls: unknown[][] = [];
+  const temporalGetWorkflowResult = async (...args: unknown[]) => {
+    temporalResultCalls.push(args);
+    return { prTitle: 'Test PR', prNumber: 42 };
+  };
+
+  const temporalService = {
+    startWorkflow: temporalStartWorkflow,
+    getWorkflowResult: temporalGetWorkflowResult,
+    getDefaultTaskQueue: () => 'shipsec-default',
+  } as unknown as TemporalService;
 
   beforeEach(() => {
     repository = new InMemoryWebhookRepository();
@@ -305,12 +317,14 @@ describe('WebhooksService', () => {
       repository as unknown as WebhookRepository,
       deliveryRepository as unknown as WebhookDeliveryRepository,
       workflowsService,
+      temporalService,
     );
     ensureWorkflowAdminAccessCalls.length = 0;
     getCompiledWorkflowContextCalls.length = 0;
     prepareRunPayloadCalls.length = 0;
     startPreparedRunCalls.length = 0;
-    mockScriptExec.mockClear();
+    temporalStartCalls.length = 0;
+    temporalResultCalls.length = 0;
   });
 
   describe('list', () => {

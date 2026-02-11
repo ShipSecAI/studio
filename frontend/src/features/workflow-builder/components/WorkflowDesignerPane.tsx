@@ -162,9 +162,15 @@ export function WorkflowDesignerPane({
         onScheduleAction: handleScheduleAction,
         onScheduleDelete: handleScheduleDelete,
         onViewSchedules: onNavigateToSchedules,
-        onOpenScheduleSidebar: () => setSchedulePanelExpanded(true),
+        onOpenScheduleSidebar: () => {
+          setSchedulePanelExpanded(true);
+          setWebhooksPanelExpanded(false);
+        },
         onCloseScheduleSidebar: () => setSchedulePanelExpanded(false),
-        onOpenWebhooksSidebar: () => setWebhooksPanelExpanded(true),
+        onOpenWebhooksSidebar: () => {
+          setWebhooksPanelExpanded(true);
+          setSchedulePanelExpanded(false);
+        },
       }}
     >
       <div className="flex-1 h-full flex overflow-hidden">
@@ -186,6 +192,10 @@ export function WorkflowDesignerPane({
             onClearNodeSelection={handleClearNodeSelection}
             onNodeSelectionChange={handleNodeSelectionChange}
             onSnapshot={onCaptureSnapshot}
+            schedulePanelExpanded={schedulePanelExpanded}
+            webhooksPanelExpanded={webhooksPanelExpanded}
+            onCloseScheduleSidebar={() => setSchedulePanelExpanded(false)}
+            onCloseWebhooksSidebar={() => setWebhooksPanelExpanded(false)}
           />
         </div>
 
@@ -235,12 +245,11 @@ export function WorkflowDesignerPane({
 
         {/* Webhooks Panel - Side panel on desktop, portal on mobile */}
         {webhooksPanelExpanded &&
-          workflowId &&
           (isMobile ? (
             createPortal(
               <div className="flex h-full w-full overflow-hidden bg-background">
                 <WorkflowWebhooksSidebar
-                  workflowId={workflowId}
+                  workflowId={workflowId ?? null}
                   nodes={nodes}
                   defaultWebhookUrl={defaultWebhookUrl}
                   onClose={() => setWebhooksPanelExpanded(false)}
@@ -260,7 +269,7 @@ export function WorkflowDesignerPane({
               }}
             >
               <WorkflowWebhooksSidebar
-                workflowId={workflowId}
+                workflowId={workflowId ?? null}
                 nodes={nodes}
                 defaultWebhookUrl={defaultWebhookUrl}
                 onClose={() => setWebhooksPanelExpanded(false)}
