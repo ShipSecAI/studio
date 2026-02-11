@@ -75,22 +75,6 @@ const workflowGraph = WorkflowGraphSchema.parse({
         },
       },
     },
-    {
-      id: 'text-block',
-      type: 'core.text.splitter',
-      position: { x: 960, y: 160 },
-      data: {
-        label: 'Output Splitter',
-        config: {
-          params: {
-            separator: '\\n',
-          },
-          inputOverrides: {
-            text: 'Agent Output',
-          },
-        },
-      },
-    },
   ],
   edges: [
     {
@@ -107,11 +91,6 @@ const workflowGraph = WorkflowGraphSchema.parse({
       sourceHandle: 'chatModel',
       targetHandle: 'chatModel',
     },
-    {
-      id: 'agent-to-text',
-      source: 'agent-node',
-      target: 'text-block',
-    },
   ],
   viewport: { x: 0, y: 0, zoom: 1 },
 });
@@ -125,7 +104,6 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       'entry-point',
       'gemini-provider',
       'agent-node',
-      'text-block',
     ]);
 
     const geminiAction = definition.actions.find((action) => action.ref === 'gemini-provider');
@@ -141,9 +119,6 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
       sourceRef: 'gemini-provider',
       sourceHandle: 'chatModel',
     });
-
-    const textBlockAction = definition.actions.find((action) => action.ref === 'text-block');
-    expect(textBlockAction?.dependsOn).toEqual(['agent-node']);
   });
 
   it('commits the workflow via service and persists compiled definition', async () => {
@@ -286,7 +261,7 @@ describe('Workflow d177b3c0-644e-40f0-8aa2-7b4f2c13a3af', () => {
     const definition = await service.commit(workflowId, authContext);
 
     expect(savedDefinition).not.toBeNull();
-    expect(savedDefinition!.actions.length).toBe(4);
+    expect(savedDefinition!.actions.length).toBe(3);
     expect(
       definition.actions.find((action) => action.componentId === 'core.ai.agent'),
     ).toBeDefined();
