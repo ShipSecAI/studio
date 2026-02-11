@@ -157,10 +157,7 @@ export function TemplateLibraryPage() {
           {/* Category and Tag Filters */}
           <div className="flex flex-wrap gap-3">
             {/* Category Select */}
-            <Select
-              value={selectedCategory || 'all'}
-              onValueChange={handleCategoryChange}
-            >
+            <Select value={selectedCategory || 'all'} onValueChange={handleCategoryChange}>
               <SelectTrigger className="w-[180px]">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Category" />
@@ -168,7 +165,10 @@ export function TemplateLibraryPage() {
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
                 {categories.map((cat) => (
-                  <SelectItem key={cat.category || 'uncategorized'} value={cat.category || 'uncategorized'}>
+                  <SelectItem
+                    key={cat.category || 'uncategorized'}
+                    value={cat.category || 'uncategorized'}
+                  >
                     {cat.category || 'Uncategorized'} ({cat.count})
                   </SelectItem>
                 ))}
@@ -207,7 +207,14 @@ export function TemplateLibraryPage() {
                 <p className="font-medium text-destructive">Error loading templates</p>
                 <p className="text-sm text-destructive/80">{error}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => { clearError(); fetchTemplates(); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  clearError();
+                  fetchTemplates();
+                }}
+              >
                 Retry
               </Button>
             </div>
@@ -348,26 +355,20 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
       {/* Required Secrets Badge */}
       {template.requiredSecrets && template.requiredSecrets.length > 0 && (
         <div className="mb-3 p-2 rounded bg-muted/50 text-xs">
-          <span className="font-medium">Requires {template.requiredSecrets.length} secret{template.requiredSecrets.length > 1 ? 's' : ''}</span>
+          <span className="font-medium">
+            Requires {template.requiredSecrets.length} secret
+            {template.requiredSecrets.length > 1 ? 's' : ''}
+          </span>
         </div>
       )}
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button
-          size="sm"
-          className="flex-1"
-          onClick={() => onUse(template)}
-          disabled={!canUse}
-        >
+        <Button size="sm" className="flex-1" onClick={() => onUse(template)} disabled={!canUse}>
           Use Template
         </Button>
         {template.repository && (
-          <Button
-            size="sm"
-            variant="outline"
-            asChild
-          >
+          <Button size="sm" variant="outline" asChild>
             <a
               href={`https://github.com/${template.repository}/blob/${template.branch || 'main'}/${template.path}`}
               target="_blank"

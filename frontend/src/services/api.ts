@@ -174,11 +174,7 @@ async function fetchScheduleById(id: string): Promise<WorkflowSchedule> {
  */
 export const api = {
   templates: {
-    list: async (params?: {
-      category?: string;
-      search?: string;
-      tags?: string[];
-    }) => {
+    list: async (params?: { category?: string; search?: string; tags?: string[] }) => {
       const searchParams = new URLSearchParams();
       if (params?.category) searchParams.set('category', params.category);
       if (params?.search) searchParams.set('search', params.search);
@@ -234,7 +230,9 @@ export const api = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to publish template' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to publish template' }));
         throw new Error(errorData.message || 'Failed to publish template');
       }
 
@@ -256,7 +254,9 @@ export const api = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to use template' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to use template' }));
         throw new Error(errorData.message || 'Failed to use template');
       }
 

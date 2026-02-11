@@ -420,7 +420,9 @@ export function TopBar({
                           aria-label="Publish as template"
                         >
                           <Package className="h-4 w-4" />
-                          <span className="text-xs font-medium hidden lg:inline">Publish as Template</span>
+                          <span className="text-xs font-medium hidden lg:inline">
+                            Publish as Template
+                          </span>
                         </Button>
                       )}
                     </div>

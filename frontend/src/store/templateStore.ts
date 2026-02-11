@@ -14,7 +14,7 @@ export interface Template {
   version?: string;
   manifest: Record<string, unknown>;
   graph?: Record<string, unknown>;
-  requiredSecrets: Array<{ name: string; type: string; description?: string }>;
+  requiredSecrets: { name: string; type: string; description?: string }[];
   popularity: number;
   isOfficial: boolean;
   isVerified: boolean;
@@ -117,10 +117,9 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
       if (selectedTags.length > 0) params.set('tags', selectedTags.join(','));
 
       const headers = await getApiAuthHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/templates?${params.toString()}`,
-        { headers },
-      );
+      const response = await fetch(`${API_BASE_URL}/api/v1/templates?${params.toString()}`, {
+        headers,
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch templates');
@@ -216,7 +215,9 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to publish template' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to publish template' }));
         throw new Error(errorData.message || 'Failed to publish template');
       }
 
@@ -253,7 +254,9 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to use template' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: 'Failed to use template' }));
         throw new Error(errorData.message || 'Failed to use template');
       }
 
