@@ -83,8 +83,8 @@ FROM base AS frontend
 # Frontend build-time configuration
 ARG VITE_AUTH_PROVIDER=local
 ARG VITE_CLERK_PUBLISHABLE_KEY=""
-ARG VITE_API_URL=http://localhost:3211
-ARG VITE_BACKEND_URL=http://localhost:3211
+ARG VITE_API_URL=""
+ARG VITE_BACKEND_URL=""
 ARG VITE_DEFAULT_ORG_ID=local-dev
 ARG VITE_GIT_SHA=unknown
 ARG VITE_PUBLIC_POSTHOG_KEY=""
@@ -123,8 +123,8 @@ FROM base AS frontend-debug
 # Frontend build-time configuration
 ARG VITE_AUTH_PROVIDER=local
 ARG VITE_CLERK_PUBLISHABLE_KEY=""
-ARG VITE_API_URL=http://localhost:3211
-ARG VITE_BACKEND_URL=http://localhost:3211
+ARG VITE_API_URL=""
+ARG VITE_BACKEND_URL=""
 ARG VITE_DEFAULT_ORG_ID=local-dev
 ARG VITE_GIT_SHA=unknown
 ARG VITE_PUBLIC_POSTHOG_KEY=""
