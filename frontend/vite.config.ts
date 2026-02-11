@@ -23,9 +23,9 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     open: false,
-    allowedHosts: ['studio.shipsec.ai'],
+    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai'],
   },
   preview: {
-    allowedHosts: ['studio.shipsec.ai'],
+    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai'],
   },
 })
