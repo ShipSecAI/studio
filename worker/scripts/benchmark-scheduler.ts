@@ -146,8 +146,8 @@ const parallelDefinition: WorkflowDefinition = {
     },
     {
       ref: 'merge',
-      componentId: 'core.console.log',
-      params: { data: 'merge complete' },
+      componentId: 'core.workflow.entrypoint',
+      params: {},
       dependsOn: ['branch1', 'branch2'],
       inputMappings: {},
       inputOverrides: {},

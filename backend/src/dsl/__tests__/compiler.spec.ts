@@ -195,15 +195,16 @@ describe('compileWorkflowGraph', () => {
       nodes: [
         {
           id: 'log-node',
-          type: 'core.console.log',
+          type: 'core.http.request',
           position: { x: 0, y: 0 },
           data: {
-            label: 'Console',
+            label: 'HTTP Request',
             config: {
-              params: {},
+              params: {
+                method: 'GET',
+              },
               inputOverrides: {
-                label: 'Log',
-                data: 'hello',
+                url: 'https://example.com',
               },
             },
           },
@@ -252,48 +253,48 @@ describe('compileWorkflowGraph', () => {
         },
         {
           id: 'branchA',
-          type: 'core.text.splitter',
+          type: 'core.http.request',
           position: { x: -100, y: 100 },
           data: {
             label: 'Branch A',
             config: {
               params: {
-                separator: '\n',
+                method: 'POST',
               },
               inputOverrides: {
-                text: 'Branch A payload',
+                url: 'https://example.com/branch-a',
               },
             },
           },
         },
         {
           id: 'branchB',
-          type: 'core.text.splitter',
+          type: 'core.http.request',
           position: { x: 100, y: 100 },
           data: {
             label: 'Branch B',
             config: {
               params: {
-                separator: '\n',
+                method: 'POST',
               },
               inputOverrides: {
-                text: 'Branch B payload',
+                url: 'https://example.com/branch-b',
               },
             },
           },
         },
         {
           id: 'merge',
-          type: 'core.text.splitter',
+          type: 'core.http.request',
           position: { x: 0, y: 200 },
           data: {
             label: 'Merge',
             config: {
               params: {
-                separator: '\n',
+                method: 'POST',
               },
               inputOverrides: {
-                text: 'Merge payload',
+                url: 'https://example.com/merge',
               },
             },
           },

@@ -11,7 +11,7 @@ export const awsCredentialSchema = () =>
       sessionToken: z.string().optional(),
       region: z.string().optional(),
     }),
-    { schemaName: awsCredentialContractName, isCredential: true }
+    { schemaName: awsCredentialContractName, isCredential: true },
   );
 
 export type AwsCredential = z.infer<ReturnType<typeof awsCredentialSchema>>;
@@ -97,18 +97,6 @@ export const McpToolDefinitionSchema = () =>
 
 export type McpToolDefinition = z.infer<ReturnType<typeof McpToolDefinitionSchema>>;
 
-export const consoleLogResultContractName = 'core.console-log.result.v1';
-export const consoleLogResultSchema = () =>
-  withPortMeta(
-    z.object({
-      logged: z.boolean(),
-      preview: z.string(),
-    }),
-    { schemaName: consoleLogResultContractName }
-  );
-
-export type ConsoleLogResult = z.infer<ReturnType<typeof consoleLogResultSchema>>;
-
 export const secretMetadataContractName = 'core.secret-fetch.metadata.v1';
 export const secretMetadataSchema = () =>
   withPortMeta(
@@ -117,7 +105,7 @@ export const secretMetadataSchema = () =>
       version: z.number(),
       format: z.enum(['raw', 'json']),
     }),
-    { schemaName: secretMetadataContractName }
+    { schemaName: secretMetadataContractName },
   );
 
 export type SecretMetadata = z.infer<ReturnType<typeof secretMetadataSchema>>;
@@ -132,17 +120,16 @@ export const fileContractSchema = () =>
       size: z.number(),
       content: z.string(),
     }),
-    { schemaName: fileContractName }
+    { schemaName: fileContractName },
   );
 
 export type FileContract = z.infer<ReturnType<typeof fileContractSchema>>;
 
 export const destinationWriterContractName = 'destination.writer';
 export const destinationWriterSchema = () =>
-  withPortMeta(
-    z.object(DestinationConfigSchema.shape),
-    { schemaName: destinationWriterContractName }
-  );
+  withPortMeta(z.object(DestinationConfigSchema.shape), {
+    schemaName: destinationWriterContractName,
+  });
 
 export type DestinationWriter = z.infer<ReturnType<typeof destinationWriterSchema>>;
 
@@ -157,7 +144,7 @@ export const manualApprovalPendingSchema = () =>
       respondedAt: z.string(),
       requestId: z.string(),
     }),
-    { schemaName: manualApprovalPendingContractName }
+    { schemaName: manualApprovalPendingContractName },
   );
 
 export type ManualApprovalPending = z.infer<ReturnType<typeof manualApprovalPendingSchema>>;
@@ -180,7 +167,7 @@ export const manualSelectionPendingSchema = () =>
       respondedAt: z.string(),
       requestId: z.string(),
     }),
-    { schemaName: manualSelectionPendingContractName }
+    { schemaName: manualSelectionPendingContractName },
   );
 
 export type ManualSelectionPending = z.infer<ReturnType<typeof manualSelectionPendingSchema>>;
