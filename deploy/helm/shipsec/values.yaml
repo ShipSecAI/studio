@@ -99,8 +99,7 @@ frontend:
 
 ingress:
   enabled: false
-  frontendHost: studio-next.shipsec.ai
-  backendHost: api-studio-next.shipsec.ai
+  host: studio-next.shipsec.ai
   websocket: true
   tls:
     enabled: false

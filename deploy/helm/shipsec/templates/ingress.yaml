@@ -21,14 +21,20 @@ spec:
   {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:
-        - {{ .Values.ingress.frontendHost }}
-        - {{ .Values.ingress.backendHost }}
+        - {{ .Values.ingress.host }}
       secretName: {{ .Values.ingress.tls.secretName }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.frontendHost }}
+    - host: {{ .Values.ingress.host }}
       http:
         paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: shipsec-backend
+                port:
+                  number: 3211
           - path: /
             pathType: Prefix
             backend:
@@ -36,14 +42,4 @@ spec:
                 name: shipsec-frontend
                 port:
                   number: 8080
-    - host: {{ .Values.ingress.backendHost }}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: shipsec-backend
-                port:
-                  number: 3211
 {{- end }}
