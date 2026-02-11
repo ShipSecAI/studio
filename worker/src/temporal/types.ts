@@ -229,7 +229,7 @@ export interface PrepareAndRegisterToolActivityInput {
   params: Record<string, unknown>;
 }
 
-export interface CleanupLocalMcpActivityInput {
+export interface CleanupRunResourcesActivityInput {
   runId: string;
 }
 

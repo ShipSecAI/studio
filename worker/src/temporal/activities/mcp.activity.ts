@@ -6,7 +6,7 @@ import {
   ServiceError,
 } from '@shipsec/component-sdk';
 import {
-  CleanupLocalMcpActivityInput,
+  CleanupRunResourcesActivityInput,
   RegisterComponentToolActivityInput,
   RegisterLocalMcpActivityInput,
   RegisterRemoteMcpActivityInput,
@@ -86,7 +86,9 @@ export async function registerLocalMcpActivity(
   });
 }
 
-export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void> {
+export async function cleanupRunResourcesActivity(
+  input: CleanupRunResourcesActivityInput,
+): Promise<void> {
   const response = (await callInternalApi('cleanup', { runId: input.runId })) as {
     containerIds?: string[];
   };

@@ -28,7 +28,7 @@ import type {
   WorkflowAction,
   PrepareRunPayloadActivityInput,
   RegisterComponentToolActivityInput,
-  CleanupLocalMcpActivityInput,
+  CleanupRunResourcesActivityInput,
   RegisterLocalMcpActivityInput,
   PrepareAndRegisterToolActivityInput,
 } from '../types';
@@ -40,7 +40,7 @@ const {
   createHumanInputRequestActivity,
   expireHumanInputRequestActivity,
   registerLocalMcpActivity,
-  cleanupLocalMcpActivity,
+  cleanupRunResourcesActivity,
   prepareAndRegisterToolActivity,
   areAllToolsReadyActivity,
 } = proxyActivities<{
@@ -70,7 +70,7 @@ const {
   expireHumanInputRequestActivity(requestId: string): Promise<void>;
   registerComponentToolActivity(input: RegisterComponentToolActivityInput): Promise<void>;
   registerLocalMcpActivity(input: RegisterLocalMcpActivityInput): Promise<void>;
-  cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void>;
+  cleanupRunResourcesActivity(input: CleanupRunResourcesActivityInput): Promise<void>;
   prepareAndRegisterToolActivity(input: PrepareAndRegisterToolActivityInput): Promise<void>;
   areAllToolsReadyActivity(input: {
     runId: string;
@@ -746,7 +746,7 @@ export async function shipsecWorkflowRun(
                 `[Workflow] Cleaning up MCP container ${startedContainerId} after registration failure`,
               );
               try {
-                await cleanupLocalMcpActivity({ runId: input.runId });
+                await cleanupRunResourcesActivity({ runId: input.runId });
               } catch (cleanupError) {
                 console.error(`[Workflow] Failed to cleanup MCP container: ${cleanupError}`);
               }
@@ -1013,7 +1013,7 @@ export async function shipsecWorkflowRun(
     console.log(
       `[Workflow] Cleaning up MCP containers for run ${input.runId} (success=${workflowCompletedSuccessfully})`,
     );
-    await cleanupLocalMcpActivity({ runId: input.runId }).catch((err) => {
+    await cleanupRunResourcesActivity({ runId: input.runId }).catch((err) => {
       console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
     });
     await finalizeRunActivity({ runId: input.runId }).catch((err) => {
