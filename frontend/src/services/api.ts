@@ -83,14 +83,10 @@ function resolveApiBaseUrl() {
     }
   }
 
-  // When no explicit API URL is configured, use same-origin relative path.
-  // Works with path-based routing (e.g. /api/v1/* routed to backend via Ingress).
-  // Falls back to localhost only in local dev where Vite proxy handles it.
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return '';
-  }
-
-  return 'http://localhost:3211';
+  // No explicit API URL — use same-origin relative paths.
+  // Works with path-based routing (/api/v1/* routed to backend via Ingress).
+  // For local dev, set VITE_API_URL=http://localhost:3211 in frontend/.env
+  return '';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
