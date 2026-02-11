@@ -1,3 +1,9 @@
+# --------------------------------------------------------------------------
+# Adopt the existing shipsec-dev GKE cluster into Terraform.
+# The cluster was created imperatively on the default VPC, so we reference
+# the network/subnet as data sources rather than managing them.
+# --------------------------------------------------------------------------
+
 locals {
   services = toset([
     "cloudresourcemanager.googleapis.com",
@@ -27,30 +33,16 @@ resource "google_artifact_registry_repository" "docker" {
   depends_on = [google_project_service.enabled]
 }
 
-resource "google_compute_network" "vpc" {
-  project                 = var.project_id
-  name                    = "${var.cluster_name}-vpc"
-  auto_create_subnetworks = false
-
-  depends_on = [google_project_service.enabled]
+# The cluster lives on the default VPC — we don't manage it, just reference it.
+data "google_compute_network" "default" {
+  project = var.project_id
+  name    = "default"
 }
 
-resource "google_compute_subnetwork" "subnet" {
-  project       = var.project_id
-  region        = var.region
-  name          = "${var.cluster_name}-subnet"
-  network       = google_compute_network.vpc.id
-  ip_cidr_range = "10.10.0.0/16"
-
-  secondary_ip_range {
-    range_name    = "pods"
-    ip_cidr_range = "10.20.0.0/16"
-  }
-
-  secondary_ip_range {
-    range_name    = "services"
-    ip_cidr_range = "10.30.0.0/20"
-  }
+data "google_compute_subnetwork" "default" {
+  project = var.project_id
+  region  = var.region
+  name    = "default"
 }
 
 resource "google_container_cluster" "gke" {
@@ -59,23 +51,27 @@ resource "google_container_cluster" "gke" {
   location = var.zone
 
   deletion_protection      = false
-  remove_default_node_pool = true
   initial_node_count       = 1
 
   release_channel {
     channel = "REGULAR"
   }
 
-  network    = google_compute_network.vpc.id
-  subnetwork = google_compute_subnetwork.subnet.id
+  network    = data.google_compute_network.default.id
+  subnetwork = data.google_compute_subnetwork.default.id
 
   ip_allocation_policy {
-    cluster_secondary_range_name  = "pods"
-    services_secondary_range_name = "services"
+    cluster_secondary_range_name  = "gke-shipsec-dev-pods-0a61f82c"
   }
 
   workload_identity_config {
     workload_pool = "${var.project_id}.svc.id.goog"
+  }
+
+  # initial_node_count drifts to 0 after remove_default_node_pool removes it.
+  # node_config/node_pool are managed by the separate google_container_node_pool resource.
+  lifecycle {
+    ignore_changes = [initial_node_count, node_config, node_pool]
   }
 
   depends_on = [google_project_service.enabled]
@@ -96,7 +92,12 @@ resource "google_container_node_pool" "default_pool" {
     image_type   = "COS_CONTAINERD"
 
     oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/devstorage.read_only",
+      "https://www.googleapis.com/auth/logging.write",
+      "https://www.googleapis.com/auth/monitoring",
+      "https://www.googleapis.com/auth/service.management.readonly",
+      "https://www.googleapis.com/auth/servicecontrol",
+      "https://www.googleapis.com/auth/trace.append",
     ]
   }
 }
@@ -112,4 +113,3 @@ output "cluster_location" {
 output "cluster_name" {
   value = google_container_cluster.gke.name
 }
-
