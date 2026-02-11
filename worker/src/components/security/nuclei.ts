@@ -13,7 +13,7 @@ import {
   port,
   param,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 import * as yaml from 'js-yaml';
 
 const inputSchema = inputs({
@@ -321,7 +321,7 @@ const definition = defineComponent({
     context.logger.info(`[Nuclei] Starting scan for ${parsedInputs.targets.length} target(s)`);
 
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    let volume: IsolatedContainerVolume | null = null;
+    let volume: ReturnType<typeof createIsolatedVolume> | null = null;
 
     try {
       const hasCustomArchive = !!parsedInputs.customTemplateArchive;
@@ -384,7 +384,7 @@ const definition = defineComponent({
       }
 
       // ===== TypeScript: Prepare all files for volume =====
-      volume = new IsolatedContainerVolume(tenantId, context.runId);
+      volume = createIsolatedVolume(tenantId, context.runId);
       const files: Record<string, string | Buffer> = {};
 
       // Always add targets file

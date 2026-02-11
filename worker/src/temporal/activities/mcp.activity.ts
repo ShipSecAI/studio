@@ -87,6 +87,9 @@ export async function registerLocalMcpActivity(
 }
 
 export async function cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void> {
+  // In K8s mode there are no local Docker containers to clean up
+  if (process.env.EXECUTION_MODE === 'k8s') return;
+
   const response = (await callInternalApi('cleanup', { runId: input.runId })) as {
     containerIds?: string[];
   };

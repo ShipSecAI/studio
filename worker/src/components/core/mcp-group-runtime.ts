@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ExecutionContext } from '@shipsec/component-sdk';
 import { startMcpDockerServer } from './mcp-runtime';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 /**
  * Schema for MCP Group Templates (code-defined)
@@ -223,8 +223,8 @@ export async function executeMcpGroupNode(
   const serverDetails = await fetchGroupServers(groupTemplate.slug, enabledServers, context);
 
   const endpoints: McpServerEndpoint[] = [];
-  const volumes: ReturnType<IsolatedContainerVolume['getVolumeConfig']>[] = [];
-  let volume: IsolatedContainerVolume | null = null;
+  const volumes: ReturnType<ReturnType<typeof createIsolatedVolume>['getVolumeConfig']>[] = [];
+  let volume: ReturnType<typeof createIsolatedVolume> | null = null;
 
   try {
     // Create volume if AWS files are needed
@@ -232,7 +232,7 @@ export async function executeMcpGroupNode(
       const awsFiles = buildAwsCredentialFiles(credentials);
       if (awsFiles) {
         const tenantId = (context as any).tenantId ?? 'default-tenant';
-        volume = new IsolatedContainerVolume(tenantId, context.runId);
+        volume = createIsolatedVolume(tenantId, context.runId);
         await volume.initialize({
           credentials: awsFiles.credentials,
           config: awsFiles.config,

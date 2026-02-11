@@ -464,6 +464,8 @@ async function cleanupContainer(containerId: string | undefined): Promise<void> 
   if (!containerId) {
     return;
   }
+  // In K8s mode there is no Docker daemon — skip container cleanup
+  if (process.env.EXECUTION_MODE === 'k8s') return;
   // Validate container ID to prevent command injection
   if (!/^[a-zA-Z0-9_.-][a-zA-Z0-9_.-]*$/.test(containerId)) {
     console.warn(`[MCP Discovery] Skipping cleanup with unsafe container id: ${containerId}`);

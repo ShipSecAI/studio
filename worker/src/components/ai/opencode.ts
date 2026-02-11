@@ -11,7 +11,7 @@ import {
   param,
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 import { DEFAULT_GATEWAY_URL, getGatewaySessionToken } from './utils';
 
 const inputSchema = inputs({
@@ -241,7 +241,7 @@ Please investigate the issue and generate a detailed report.
 
     // 4. Setup Isolated Volume
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     try {
       // 5. Execute Docker Container
