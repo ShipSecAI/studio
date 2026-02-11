@@ -52,3 +52,23 @@ variable "node_disk_gb" {
   default     = 100
 }
 
+# --- Managed services ---
+
+variable "cloudsql_tier" {
+  type        = string
+  description = "Cloud SQL machine tier."
+  default     = "db-custom-1-3840"
+}
+
+variable "db_password" {
+  type        = string
+  description = "Password for the shipsec Cloud SQL user."
+  sensitive   = true
+}
+
+variable "redis_memory_gb" {
+  type        = number
+  description = "Memorystore Redis memory in GB."
+  default     = 1
+}
+
