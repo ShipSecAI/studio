@@ -11,11 +11,8 @@ import {
   parameters,
   port,
   param,
-  generateFindingHash,
-  analyticsResultSchema,
-  type AnalyticsResult,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const recordTypeEnum = z.enum([
   'A',
@@ -35,7 +32,7 @@ const recordTypeEnum = z.enum([
 
 const outputModeEnum = z.enum(['silent', 'json']);
 
-const DNSX_IMAGE = 'ghcr.io/shipsecai/dnsx:latest';
+const DNSX_IMAGE = 'ghcr.io/shipsecai/dnsx:v1.2.2';
 const DNSX_TIMEOUT_SECONDS = 180;
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
@@ -238,8 +235,8 @@ const dnsxLineSchema = z
   .passthrough();
 
 const outputSchema = outputs({
-  dnsRecords: port(z.array(z.any()), {
-    label: 'DNS Records',
+  results: port(z.array(z.any()), {
+    label: 'Results',
     description: 'DNS resolution results returned by dnsx.',
     allowAny: true,
     reason: 'dnsx returns heterogeneous record payloads.',
@@ -272,11 +269,6 @@ const outputSchema = outputs({
   errors: port(z.array(z.string()).optional(), {
     label: 'Errors',
     description: 'Errors encountered during dnsx execution.',
-  }),
-  results: port(z.array(analyticsResultSchema()), {
-    label: 'Results',
-    description:
-      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
 });
 
@@ -483,26 +475,24 @@ const definition = defineComponent({
   runner: {
     kind: 'docker',
     image: DNSX_IMAGE,
-    // The dnsx image is distroless (no shell available).
-    // Use the image's default entrypoint directly and pass args via command.
+    // IMPORTANT: Use shell wrapper for PTY compatibility
+    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
+    // The shell wrapper ensures proper TTY signal handling and clean exit
+    // See docs/component-development.md "Docker Entrypoint Pattern" for details
+    entrypoint: 'sh',
     network: 'bridge',
     timeoutSeconds: DNSX_TIMEOUT_SECONDS,
     env: {
-      // Image runs as nonroot — /root is not writable.
-      // Use /tmp so dnsx can create its config dir.
-      HOME: '/tmp',
+      HOME: '/root',
     },
-    command: [],
+    // Shell wrapper pattern: sh -c 'dnsx "$@"' -- [args...]
+    // This allows dynamic args to be appended and properly passed to dnsx
+    command: ['-c', 'dnsx "$@"', '--'],
   },
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Executes dnsx inside Docker to resolve DNS records for the provided domains. Supports multiple record types, custom resolvers, and rate limiting.',
-  toolProvider: {
-    kind: 'component',
-    name: 'dns_resolver',
-    description: 'DNS resolution and record lookup tool (dnsx).',
-  },
   ui: {
     slug: 'dnsx',
     version: '1.0.0',
@@ -518,6 +508,10 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
+    agentTool: {
+      enabled: true,
+      toolDescription: 'DNS resolution and record lookup tool (dnsx).',
+    },
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
@@ -572,7 +566,6 @@ const definition = defineComponent({
     if (domainCount === 0) {
       context.logger.info('[DNSX] Skipping dnsx execution because no domains were provided.');
       return outputSchema.parse({
-        dnsRecords: [],
         results: [],
         rawOutput: '',
         domainCount: 0,
@@ -621,7 +614,7 @@ const definition = defineComponent({
     const tenantId = (context as any).tenantId ?? 'default-tenant';
 
     // Create isolated volume for this execution
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     const baseRunner = definition.runner;
     if (baseRunner.kind !== 'docker') {
@@ -652,7 +645,11 @@ const definition = defineComponent({
         network: baseRunner.network,
         timeoutSeconds: baseRunner.timeoutSeconds ?? DNSX_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
-        // Pass dnsx CLI args directly (image default entrypoint is dnsx)
+        // Preserve the shell wrapper from baseRunner (sh -c 'dnsx "$@"' --)
+        // This is critical for PTY compatibility - do not override with 'dnsx'
+        entrypoint: baseRunner.entrypoint,
+        // Append dnsx arguments to shell wrapper command
+        // Resulting command: ['sh', '-c', 'dnsx "$@"', '--', ...dnsxArgs]
         command: [...(baseRunner.command ?? []), ...dnsxArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
@@ -773,24 +770,8 @@ const definition = defineComponent({
           .filter((host): host is string => typeof host === 'string' && host.length > 0),
       );
 
-      // Build analytics-ready results with scanner metadata
-      const analyticsResults: AnalyticsResult[] = normalisedRecords.map((record) => ({
-        scanner: 'dnsx',
-        finding_hash: generateFindingHash(
-          'dns-resolution',
-          record.host,
-          JSON.stringify(record.answers),
-        ),
-        severity: 'info' as const,
-        asset_key: record.host,
-        host: record.host,
-        record_types: Object.keys(record.answers),
-        answers: record.answers,
-      }));
-
       return {
-        dnsRecords: normalisedRecords,
-        results: analyticsResults,
+        results: normalisedRecords,
         rawOutput: params.rawOutput,
         domainCount: params.domainCount,
         recordCount: params.recordCount,
@@ -829,7 +810,6 @@ const definition = defineComponent({
 
       if (trimmed.length === 0) {
         return {
-          dnsRecords: [],
           results: [],
           rawOutput,
           domainCount: domainCount,
@@ -854,7 +834,6 @@ const definition = defineComponent({
                 ? (record.domainCount as number)
                 : domainCount;
             return {
-              dnsRecords: [],
               results: [],
               rawOutput: trimmed,
               domainCount: errorDomainCount,
@@ -869,10 +848,10 @@ const definition = defineComponent({
           const validated = outputSchema.safeParse(record);
           if (validated.success) {
             return buildOutput({
-              records: validated.data.dnsRecords as z.infer<typeof dnsxLineSchema>[],
+              records: validated.data.results as z.infer<typeof dnsxLineSchema>[],
               rawOutput: validated.data.rawOutput ?? rawOutput,
               domainCount: validated.data.domainCount ?? domainCount,
-              recordCount: validated.data.recordCount ?? validated.data.dnsRecords.length,
+              recordCount: validated.data.recordCount ?? validated.data.results.length,
               recordTypes: validated.data.recordTypes ?? recordTypes,
               resolvers: validated.data.resolvers ?? resolverList,
               errors: validated.data.errors,
@@ -890,7 +869,6 @@ const definition = defineComponent({
 
       if (lines.length === 0) {
         return {
-          dnsRecords: [],
           results: [],
           rawOutput,
           domainCount: domainCount,
@@ -917,24 +895,8 @@ const definition = defineComponent({
         };
       });
 
-      // Build analytics-ready results
-      const analyticsResults: AnalyticsResult[] = silentRecords.map((record) => ({
-        scanner: 'dnsx',
-        finding_hash: generateFindingHash(
-          'dns-resolution',
-          record.host,
-          JSON.stringify(record.answers),
-        ),
-        severity: 'info' as const,
-        asset_key: record.host,
-        host: record.host,
-        record_types: Object.keys(record.answers),
-        answers: record.answers,
-      }));
-
       return {
-        dnsRecords: silentRecords,
-        results: analyticsResults,
+        results: silentRecords,
         rawOutput,
         domainCount: domainCount,
         recordCount: silentRecords.length,
@@ -957,7 +919,6 @@ const definition = defineComponent({
 
       if (trimmed.length === 0) {
         return {
-          dnsRecords: [],
           results: [],
           rawOutput,
           domainCount: domainCount,
@@ -1014,24 +975,8 @@ const definition = defineComponent({
           };
         });
 
-        // Build analytics-ready results
-        const analyticsResults: AnalyticsResult[] = fallbackResults.map((record) => ({
-          scanner: 'dnsx',
-          finding_hash: generateFindingHash(
-            'dns-resolution',
-            record.host,
-            JSON.stringify(record.answers),
-          ),
-          severity: 'info' as const,
-          asset_key: record.host,
-          host: record.host,
-          record_types: Object.keys(record.answers),
-          answers: record.answers,
-        }));
-
         return {
-          dnsRecords: fallbackResults,
-          results: analyticsResults,
+          results: fallbackResults,
           rawOutput,
           domainCount: domainCount,
           recordCount: fallbackResults.length,
@@ -1071,7 +1016,6 @@ const definition = defineComponent({
           : JSON.stringify(rawPayload, null, 2).slice(0, 5000);
 
       return {
-        dnsRecords: [],
         results: [],
         rawOutput,
         domainCount: domainCount,
@@ -1084,10 +1028,10 @@ const definition = defineComponent({
     }
 
     return buildOutput({
-      records: safeResult.data.dnsRecords as z.infer<typeof dnsxLineSchema>[],
+      records: safeResult.data.results as z.infer<typeof dnsxLineSchema>[],
       rawOutput: safeResult.data.rawOutput,
       domainCount: safeResult.data.domainCount ?? domainCount,
-      recordCount: safeResult.data.recordCount ?? safeResult.data.dnsRecords.length,
+      recordCount: safeResult.data.recordCount ?? safeResult.data.results.length,
       recordTypes: safeResult.data.recordTypes,
       resolvers: safeResult.data.resolvers,
       errors: safeResult.data.errors,

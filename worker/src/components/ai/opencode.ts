@@ -11,7 +11,7 @@ import {
   param,
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 import { DEFAULT_GATEWAY_URL, getGatewaySessionToken } from './utils';
 
 const inputSchema = inputs({
@@ -99,7 +99,7 @@ const definition = defineComponent({
   category: 'ai',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/opencode:latest',
+    image: 'ghcr.io/shipsecai/opencode:1.1.53',
     entrypoint: 'opencode', // We will override this in execution
     network: 'host' as const, // Required to access localhost gateway
     command: ['help'],
@@ -241,14 +241,10 @@ Please investigate the issue and generate a detailed report.
 
     // 4. Setup Isolated Volume
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     try {
       // 5. Execute Docker Container
-      // HACK: Fail fast after listing tools for faster iteration on MCP tool registration
-      // TODO: Remove this hack once MCP tool registration is working correctly
-      const HACK_FAIL_FAST_AFTER_TOOL_LIST = 'false';
-
       // Write a wrapper script to properly execute opencode with file reading
       // The script runs inside the container, so $(cat /workspace/prompt.txt) works correctly
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
@@ -257,14 +253,7 @@ Please investigate the issue and generate a detailed report.
         'set -e',
         'cd /workspace',
         'echo "[OpenCode] Listing MCP tools before run..."',
-        'opencode mcp list --log-level ERROR > /tmp/mcp_tools.txt 2>&1',
-        'cat /tmp/mcp_tools.txt',
-        'echo "[OpenCode] === Full tool list output above ==="',
-        // HACK: Exit after listing tools for fast iteration
-        `if [ "${HACK_FAIL_FAST_AFTER_TOOL_LIST}" = "true" ]; then`,
-        '  echo "[OpenCode] HACK: Exiting after tool list for fast iteration"',
-        '  exit 1',
-        'fi',
+        'opencode mcp list --log-level ERROR || true',
         'echo "[OpenCode] Starting agent run..."',
         'opencode run --log-level ERROR "$(cat /workspace/prompt.txt)"',
         '',

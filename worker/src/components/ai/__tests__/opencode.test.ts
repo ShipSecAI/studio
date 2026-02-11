@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'bun:test';
 import { componentRegistry } from '@shipsec/component-sdk';
 import * as SDK from '@shipsec/component-sdk'; // Import for spying
-import { IsolatedContainerVolume } from '../../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../../utils/isolated-volume';
 import * as utils from '../utils';
 import '../opencode'; // Register the component
 
-// Mock IsolatedContainerVolume
+// Mock createIsolatedVolume
 vi.mock('../../../utils/isolated-volume', () => {
   return {
-    IsolatedContainerVolume: vi.fn().mockImplementation(() => ({
+    createIsolatedVolume: vi.fn().mockImplementation(() => ({
       initialize: vi.fn().mockResolvedValue('mock-volume-name'),
       cleanup: vi.fn().mockResolvedValue(undefined),
       getVolumeConfig: vi
@@ -84,8 +84,8 @@ describe('shipsec.opencode.agent', () => {
 
     expect(result.report).toContain('# Report');
 
-    expect(IsolatedContainerVolume).toHaveBeenCalled();
-    const volumeInstance = (IsolatedContainerVolume as any).mock.results[0].value;
+    expect(createIsolatedVolume).toHaveBeenCalled();
+    const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
     const initCall = volumeInstance.initialize.mock.calls[0][0];
 
     expect(initCall['context.json']).toContain('"alertId": "123"');
@@ -93,7 +93,7 @@ describe('shipsec.opencode.agent', () => {
 
     expect(runSpy).toHaveBeenCalled();
     const runnerCall = runSpy.mock.calls[0][0];
-    expect(runnerCall.image).toBe('ghcr.io/shipsecai/opencode:latest');
+    expect(runnerCall.image).toBe('ghcr.io/shipsecai/opencode:1.1.53');
     expect(runnerCall.network).toBe('host');
     expect(runnerCall.env.OPENAI_API_KEY).toBe('sk-test');
   });
@@ -131,8 +131,8 @@ describe('shipsec.opencode.agent', () => {
 
     await component.execute({ inputs, params }, context as any);
 
-    expect(IsolatedContainerVolume).toHaveBeenCalled();
-    const volumeInstance = (IsolatedContainerVolume as any).mock.results[0].value;
+    expect(createIsolatedVolume).toHaveBeenCalled();
+    const volumeInstance = (createIsolatedVolume as any).mock.results[0].value;
     const initCall = volumeInstance.initialize.mock.calls[0][0];
 
     const config = JSON.parse(initCall['opencode.jsonc']);

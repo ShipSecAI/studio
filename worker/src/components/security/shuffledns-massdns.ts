@@ -12,11 +12,8 @@ import {
   parameters,
   port,
   param,
-  generateFindingHash,
-  analyticsResultSchema,
-  type AnalyticsResult,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const DEFAULT_RESOLVERS = ['1.1.1.1', '8.8.8.8'] as const;
 
@@ -165,11 +162,6 @@ const outputSchema = outputs({
     label: 'Subdomain Count',
     description: 'Number of unique subdomains discovered.',
   }),
-  results: port(z.array(analyticsResultSchema()), {
-    label: 'Results',
-    description:
-      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
-  }),
 });
 
 const definition = defineComponent({
@@ -288,7 +280,7 @@ const definition = defineComponent({
 
     // Write lists to an isolated volume and mount into the container
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
     const WORDS = 'words.txt';
     const SEEDS = 'seeds.txt';
     const RESOLVERS = 'resolvers.txt';
@@ -379,19 +371,8 @@ const definition = defineComponent({
 
       const deduped = Array.from(new Set(subdomains));
 
-      // Build analytics-ready results with scanner metadata
-      const analyticsResults: AnalyticsResult[] = deduped.map((subdomain) => ({
-        scanner: 'shuffledns',
-        finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
-        severity: 'info' as const,
-        asset_key: subdomain,
-        subdomain,
-        parent_domains: domains,
-      }));
-
       return outputSchema.parse({
         subdomains: deduped,
-        results: analyticsResults,
         rawOutput,
         domainCount: domains.length,
         subdomainCount: deduped.length,
@@ -416,31 +397,17 @@ const definition = defineComponent({
             .map((line) => line.trim())
             .filter((line) => line.length > 0);
 
-      const deduped = Array.from(new Set(subdomainsValue));
-
-      // Build analytics-ready results
-      const analyticsResults: AnalyticsResult[] = deduped.map((subdomain) => ({
-        scanner: 'shuffledns',
-        finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
-        severity: 'info' as const,
-        asset_key: subdomain,
-        subdomain,
-        parent_domains: domains,
-      }));
-
       return outputSchema.parse({
-        subdomains: deduped,
-        results: analyticsResults,
+        subdomains: Array.from(new Set(subdomainsValue)),
         rawOutput: maybeRaw || subdomainsValue.join('\n'),
         domainCount: domains.length,
-        subdomainCount: deduped.length,
+        subdomainCount: subdomainsValue.length,
       });
     }
 
     // Fallback – empty
     return outputSchema.parse({
       subdomains: [],
-      results: [],
       rawOutput: '',
       domainCount: domains.length,
       subdomainCount: 0,

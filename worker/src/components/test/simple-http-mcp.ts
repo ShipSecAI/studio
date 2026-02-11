@@ -13,7 +13,7 @@ import {
   runComponentWithRunner,
 } from '@shipsec/component-sdk';
 import { z } from 'zod';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const inputSchema = inputs({});
 
@@ -70,7 +70,7 @@ const definition = defineComponent({
   async execute({ inputs: _inputs, params }, context) {
     const { port } = params;
     const { tenantId = 'default' } = context as any;
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     try {
       // Create MCP server script
