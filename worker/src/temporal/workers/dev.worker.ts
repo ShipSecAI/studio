@@ -29,7 +29,7 @@ import {
   registerComponentToolActivity,
   registerLocalMcpActivity,
   registerRemoteMcpActivity,
-  cleanupRunResourcesActivity,
+  cleanupLocalMcpActivity,
   prepareAndRegisterToolActivity,
   areAllToolsReadyActivity,
 } from '../activities/mcp.activity';
@@ -56,7 +56,6 @@ import { ConfigurationError } from '@shipsec/component-sdk';
 import { getTopicResolver } from '../../common/kafka-topic-resolver';
 import * as schema from '../../adapters/schema';
 import { logHeartbeat } from '../../utils/debug-logger';
-import { validateWorkerEnv } from '../../config/env.validate';
 
 // Load environment variables from instance-specific env if set, otherwise fall back
 // to the worker's default `.env`.
@@ -67,7 +66,6 @@ const instanceEnvPath = instanceNum
   : undefined;
 
 config({ path: instanceEnvPath ?? join(workerRoot, '.env') });
-validateWorkerEnv(process.env);
 
 if (typeof globalThis.crypto === 'undefined') {
   Object.defineProperty(globalThis, 'crypto', {
@@ -232,6 +230,14 @@ async function main() {
 
   console.log(`✅ Service adapters initialized`);
 
+  // Register K8s runner override if EXECUTION_MODE=k8s
+  if (process.env.EXECUTION_MODE === 'k8s') {
+    const { runComponentInK8sJob } = await import('../../utils/k8s-runner');
+    const { setDockerRunnerOverride } = await import('@shipsec/component-sdk');
+    setDockerRunnerOverride(runComponentInK8sJob);
+    console.log('[Worker] K8s execution mode enabled — docker runner overridden with K8s Jobs');
+  }
+
   console.log(`🏗️ Creating Temporal worker...`);
   console.log(
     `   - Activities: ${Object.keys({
@@ -245,7 +251,7 @@ async function main() {
       registerComponentToolActivity,
       registerLocalMcpActivity,
       registerRemoteMcpActivity,
-      cleanupRunResourcesActivity,
+      cleanupLocalMcpActivity,
       discoverMcpToolsActivity,
       discoverMcpGroupToolsActivity,
       cacheDiscoveryResultActivity,
@@ -285,7 +291,7 @@ async function main() {
       registerComponentToolActivity,
       registerLocalMcpActivity,
       registerRemoteMcpActivity,
-      cleanupRunResourcesActivity,
+      cleanupLocalMcpActivity,
       prepareAndRegisterToolActivity,
       areAllToolsReadyActivity,
       discoverMcpToolsActivity,
