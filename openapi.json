@@ -5236,17 +5236,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/GroupTemplateDto"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "summary": "List available MCP group templates",
@@ -5808,6 +5798,20 @@
     "/api/v1/internal/mcp/tools-ready": {
       "post": {
         "operationId": "InternalMcpController_areToolsReady",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "InternalMcp"
+        ]
+      }
+    },
+    "/api/v1/internal/mcp/register-group-server": {
+      "post": {
+        "operationId": "InternalMcpController_registerGroupServer",
         "parameters": [],
         "responses": {
           "201": {
@@ -9729,116 +9733,6 @@
           "enabled",
           "createdAt",
           "updatedAt"
-        ]
-      },
-      "GroupTemplateDto": {
-        "type": "object",
-        "properties": {
-          "slug": {
-            "type": "string",
-            "minLength": 1
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "description": {
-            "type": "string"
-          },
-          "credentialContractName": {
-            "type": "string",
-            "minLength": 1
-          },
-          "credentialMapping": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {}
-          },
-          "defaultDockerImage": {
-            "type": "string",
-            "minLength": 1
-          },
-          "version": {
-            "type": "object",
-            "properties": {
-              "major": {
-                "type": "number"
-              },
-              "minor": {
-                "type": "number"
-              },
-              "patch": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "major",
-              "minor",
-              "patch"
-            ]
-          },
-          "servers": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "description": {
-                  "type": "string"
-                },
-                "transportType": {
-                  "type": "string",
-                  "enum": [
-                    "http",
-                    "stdio",
-                    "sse",
-                    "websocket"
-                  ]
-                },
-                "endpoint": {
-                  "type": "string"
-                },
-                "command": {
-                  "type": "string"
-                },
-                "args": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "recommended": {
-                  "type": "boolean"
-                },
-                "defaultSelected": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "name",
-                "transportType",
-                "recommended",
-                "defaultSelected"
-              ]
-            }
-          },
-          "templateHash": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "slug",
-          "name",
-          "credentialContractName",
-          "defaultDockerImage",
-          "version",
-          "servers",
-          "templateHash"
         ]
       },
       "CreateMcpGroupDto": {

@@ -130,6 +130,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Check the reputation of an IP address using the AbuseIPDB API.',
+  toolProvider: {
+    kind: 'component',
+    name: 'abuseipdb_check',
+    description: 'IP reputation and abuse report lookup (AbuseIPDB).',
+  },
   ui: {
     slug: 'abuseipdb-check',
     version: '1.0.0',
@@ -140,10 +145,6 @@ const definition = defineComponent({
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
-    agentTool: {
-      enabled: true,
-      toolDescription: 'IP reputation and abuse report lookup (AbuseIPDB).',
-    },
   },
   async execute({ inputs, params }, context) {
     const { ipAddress, apiKey } = inputs;

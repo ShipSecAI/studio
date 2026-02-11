@@ -190,6 +190,7 @@ export interface RegisterComponentToolActivityInput {
   runId: string;
   nodeId: string;
   toolName: string;
+  exposedToAgent?: boolean;
   componentId: string;
   description: string;
   inputSchema: any;

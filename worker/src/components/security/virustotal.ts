@@ -93,6 +93,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Check the reputation of an IP, Domain, File Hash, or URL using the VirusTotal v3 API.',
+  toolProvider: {
+    kind: 'component',
+    name: 'virustotal_lookup',
+    description: 'Threat intelligence lookup for IPs, domains, hashes, and URLs (VirusTotal).',
+  },
   ui: {
     slug: 'virustotal-lookup',
     version: '1.0.0',
@@ -103,11 +108,6 @@ const definition = defineComponent({
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
-    agentTool: {
-      enabled: true,
-      toolDescription:
-        'Threat intelligence lookup for IPs, domains, hashes, and URLs (VirusTotal).',
-    },
   },
   async execute({ inputs, params }, context) {
     const { indicator, apiKey } = inputs;

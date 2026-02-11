@@ -7,52 +7,13 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 
-import { getApiBaseUrl } from './helpers/api-base';
-
-const API_BASE = getApiBaseUrl();
-const HEADERS = {
-    'Content-Type': 'application/json',
-    'x-internal-token': 'local-internal-token',
-};
-
-const runE2E = process.env.RUN_E2E === 'true';
-
-async function checkServicesAvailable(): Promise<boolean> {
-    if (!runE2E) return false;
-    try {
-        const healthRes = await fetch(`${API_BASE}/health`, {
-            headers: HEADERS,
-            signal: AbortSignal.timeout(2000),
-        });
-        return healthRes.ok;
-    } catch {
-        return false;
-    }
-}
-
-// Helper to poll workflow run status
-async function pollRunStatus(runId: string, timeoutMs = 60000): Promise<{ status: string }> {
-    const startTime = Date.now();
-    const pollInterval = 1000;
-
-    while (Date.now() - startTime < timeoutMs) {
-        const res = await fetch(`${API_BASE}/workflows/runs/${runId}/status`, { headers: HEADERS });
-        const s = await res.json();
-        if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(s.status)) {
-            return s;
-        }
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-    }
-    throw new Error(`Workflow run ${runId} did not complete within ${timeoutMs}ms`);
-}
-
-// Helper to get trace events
-async function getTraceEvents(runId: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/workflows/runs/${runId}/trace`, { headers: HEADERS });
-    if (!res.ok) return [];
-    const trace = await res.json();
-    return trace?.events ?? [];
-}
+import {
+  API_BASE,
+  HEADERS,
+  runE2E,
+  pollRunStatus,
+  checkServicesAvailable,
+} from '../helpers/e2e-harness';
 
 const e2eDescribe = runE2E ? describe : describe.skip;
 
@@ -98,8 +59,6 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
     });
 
     test('Secret ID in inputOverrides is resolved to actual value', async () => {
-        // Create a workflow with core.logic.script
-        // We define an input variable 'mySecret' of type 'secret'
         const workflow = {
             name: 'Test: Secret Resolution',
             nodes: [
@@ -130,8 +89,6 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
 }`,
                             },
                             inputOverrides: {
-                                // Pass the secret ID here. 
-                                // Because 'mySecret' is type 'secret', the activity should resolve this ID.
                                 mySecret: secretId,
                             },
                         },
@@ -151,7 +108,6 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
         const { id: workflowId } = await createRes.json();
         console.log(`    Created workflow: ${workflowId}`);
 
-        // Run the workflow
         const runRes = await fetch(`${API_BASE}/workflows/${workflowId}/run`, {
             method: 'POST',
             headers: HEADERS,
@@ -160,11 +116,9 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
         const { runId } = await runRes.json();
         console.log(`    Run ID: ${runId}`);
 
-        // Wait for completion
         const result = await pollRunStatus(runId);
         expect(result.status).toBe('COMPLETED');
 
-        // Fetch full node-io to verify outputs (trace might be truncated)
         const nodeIORes = await fetch(`${API_BASE}/workflows/runs/${runId}/node-io`, { headers: HEADERS });
         const nodeIO = await nodeIORes.json();
         const scriptNode = nodeIO?.nodes?.find((n: any) => n.nodeRef === 'script');
@@ -172,7 +126,6 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
         expect(scriptNode).toBeDefined();
         console.log(`    Script node IO: ${JSON.stringify(scriptNode.outputs)}`);
 
-        // The echoedSecret should be the ACTUAL VALUE, not the secretId
         expect(scriptNode.outputs.echoedSecret).toBe('resolved-secret-value-xyz-789');
         expect(scriptNode.outputs.echoedSecret).not.toBe(secretId);
 
@@ -180,9 +133,6 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
     });
 
     test('Secret Loader (core.secret.fetch) resolved value flows to downstream components', async () => {
-        // This test pipes a Secret Loader into a Script node.
-        // Secret Loader output 'secret' is masked in the API.
-        // Script node then echoes it to a 'string' port which is NOT masked.
         const workflow = {
             name: 'Test: Secret Loader Flow',
             nodes: [
@@ -238,7 +188,6 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
         const { id: workflowId } = await createRes.json();
         console.log(`    Created workflow: ${workflowId}`);
 
-        // Run the workflow
         const runRes = await fetch(`${API_BASE}/workflows/${workflowId}/run`, {
             method: 'POST',
             headers: HEADERS,
@@ -247,11 +196,9 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
         const { runId } = await runRes.json();
         console.log(`    Run ID: ${runId}`);
 
-        // Wait for completion
         const result = await pollRunStatus(runId);
         expect(result.status).toBe('COMPLETED');
 
-        // Fetch node-io
         const nodeIORes = await fetch(`${API_BASE}/workflows/runs/${runId}/node-io`, { headers: HEADERS });
         const nodeIO = await nodeIORes.json();
 
@@ -261,12 +208,7 @@ e2eDescribe('Secret Resolution E2E Tests', () => {
         console.log(`    Loader node IO (Expected Masked): ${JSON.stringify(loaderNode.outputs)}`);
         console.log(`    Echo node IO (Expected Plaintext): ${JSON.stringify(echoNode.outputs)}`);
 
-        // 1. Loader's output 'secret' should be masked in the API
         expect(loaderNode.outputs.secret).toBe('***');
-
-        // 2. Echo node's output 'echoed' (string) should be the ACTUAL SECRET VALUE
-        // This proves that even though the API masks 'secret' ports, the values 
-        // were correctly resolved and passed between components in the worker.
         expect(echoNode.outputs.echoed).toBe('resolved-secret-value-xyz-789');
 
         console.log('    SUCCESS: Secret Loader value correctly flowed and was verified via Echo');
