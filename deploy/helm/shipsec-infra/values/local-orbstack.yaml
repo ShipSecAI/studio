@@ -1,0 +1,14 @@
+global:
+  namespace: shipsec-system
+
+temporal:
+  uiService:
+    type: LoadBalancer
+    port: 8081
+
+minio:
+  service:
+    type: LoadBalancer
+    apiPort: 9000
+    consolePort: 9001
+

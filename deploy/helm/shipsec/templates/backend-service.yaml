@@ -1,0 +1,20 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-backend
+  namespace: {{ .Values.global.namespaces.system }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.backend.service.type }}
+  ports:
+  - name: http
+    port: {{ .Values.backend.service.port }}
+    targetPort: http
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: backend
+{{- end }}
+

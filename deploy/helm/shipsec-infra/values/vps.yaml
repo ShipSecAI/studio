@@ -1,0 +1,11 @@
+global:
+  namespace: shipsec-system
+
+minio:
+  service:
+    type: ClusterIP
+
+temporal:
+  uiService:
+    type: ClusterIP
+

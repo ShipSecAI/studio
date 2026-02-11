@@ -1,0 +1,15 @@
+global:
+  namespaces:
+    system: shipsec-system
+    workers: shipsec-workers
+    workloads: shipsec-workloads
+
+backend:
+  service:
+    type: ClusterIP
+    port: 3211
+
+frontend:
+  service:
+    type: ClusterIP
+    port: 8080

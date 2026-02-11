@@ -1,0 +1,16 @@
+secrets:
+  create: false
+
+backend:
+  service:
+    type: ClusterIP
+
+frontend:
+  service:
+    type: ClusterIP
+
+execution:
+  dind:
+    enabled: false
+  workerDockerHost: ""
+

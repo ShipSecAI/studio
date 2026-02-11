@@ -1,0 +1,63 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipsec-backend
+  namespace: {{ .Values.global.namespaces.system }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        {{- include "shipsec.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      containers:
+      - name: backend
+        image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 3211
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: DATABASE_URL
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: MINIO_ROOT_USER
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: MINIO_ROOT_PASSWORD
+        {{- range $k, $v := .Values.backend.env }}
+        - name: {{ $k }}
+          value: {{ $v | quote }}
+        {{- end }}
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.backend.resources | nindent 10 }}
+{{- end }}

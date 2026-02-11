@@ -1,0 +1,56 @@
+{{- if .Values.loki.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipsec-loki
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: loki
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: loki
+    spec:
+      containers:
+      - name: loki
+        image: {{ .Values.loki.image | quote }}
+        args: ["-config.file=/etc/loki/local-config.yaml"]
+        ports:
+        - name: http
+          containerPort: 3100
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-loki
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 3100
+    targetPort: http
+  selector:
+    app.kubernetes.io/component: loki
+{{- end }}
+
