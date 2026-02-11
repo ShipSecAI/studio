@@ -17,6 +17,7 @@ import {
   Undo2,
   Redo2,
   ExternalLink,
+  Package,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -40,6 +41,7 @@ interface TopBarProps {
   onSave: () => Promise<void> | void;
   onImport?: (file: File) => Promise<void> | void;
   onExport?: () => void;
+  onPublishTemplate?: () => void;
   canManageWorkflows?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -54,10 +56,12 @@ export function TopBar({
   selectedRunId,
   selectedRunStatus,
   selectedRunOrgId,
+  isNew,
   onRun,
   onSave,
   onImport,
   onExport,
+  onPublishTemplate,
   canManageWorkflows = true,
   onUndo,
   onRedo,
@@ -366,7 +370,7 @@ export function TopBar({
                       <Redo2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  {(onImport || onExport) && (
+                  {(onImport || onExport || onPublishTemplate) && (
                     <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
                       {onImport && (
                         <>
@@ -405,10 +409,24 @@ export function TopBar({
                           <span className="text-xs font-medium hidden lg:inline">Export</span>
                         </Button>
                       )}
+                      {onPublishTemplate && !isNew && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 xl:px-3 gap-2 text-primary"
+                          onClick={onPublishTemplate}
+                          disabled={!canEdit}
+                          aria-label="Publish as template"
+                        >
+                          <Package className="h-4 w-4" />
+                          <span className="text-xs font-medium hidden lg:inline">Publish as Template</span>
+                        </Button>
+                      )}
                     </div>
                   )}
 
-                  {(onImport || onExport) && (
+                  {(onImport || onExport || onPublishTemplate) && (
                     <div className="flex md:hidden">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -430,6 +448,12 @@ export function TopBar({
                             <DropdownMenuItem onClick={handleExport}>
                               <Download className="mr-2 h-4 w-4" />
                               <span>Export</span>
+                            </DropdownMenuItem>
+                          )}
+                          {onPublishTemplate && !isNew && (
+                            <DropdownMenuItem onClick={onPublishTemplate} disabled={!canEdit}>
+                              <Package className="mr-2 h-4 w-4" />
+                              <span>Publish as Template</span>
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>

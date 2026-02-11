@@ -13,6 +13,7 @@ import { ExecutionInspector } from '@/components/timeline/ExecutionInspector';
 import { RunBreadcrumbs } from '@/components/timeline/RunBreadcrumbs';
 import { RunWorkflowDialog } from '@/components/workflow/RunWorkflowDialog';
 import { WorkflowBuilderShell } from '@/components/workflow/WorkflowBuilderShell';
+import { PublishTemplateModal } from '@/features/templates/PublishTemplateModal';
 import {
   useWorkflowGraphControllers,
   cloneNodes,
@@ -132,6 +133,9 @@ function WorkflowBuilderContent() {
 
   // Execution dirty state: tracks if nodes have been rearranged in execution mode
   const [_executionDirty, setExecutionDirty] = useState(false);
+
+  // Publish template modal state
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
 
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
@@ -912,6 +916,7 @@ function WorkflowBuilderContent() {
       onSave={handleSave}
       onImport={handleImportWorkflow}
       onExport={handleExportWorkflow}
+      onPublishTemplate={() => setIsPublishModalOpen(true)}
       canManageWorkflows={canManageWorkflows}
       onUndo={undo}
       onRedo={redo}
@@ -968,44 +973,54 @@ function WorkflowBuilderContent() {
   );
 
   return (
-    <WorkflowBuilderShell
-      mode={mode}
-      topBar={topBarNode}
-      isLibraryVisible={isLibraryVisible}
-      onToggleLibrary={toggleLibrary}
-      libraryContent={<Sidebar />}
-      canvasContent={canvasContent}
-      showScheduleSidebarContainer={false}
-      isScheduleSidebarVisible={schedulesPanelOpen}
-      scheduleSidebarContent={null}
-      isInspectorVisible={isInspectorVisible}
-      inspectorContent={inspectorContent}
-      inspectorWidth={inspectorWidth}
-      setInspectorWidth={setInspectorWidth}
-      showLoadingOverlay={shouldShowInitialLoader}
-      scheduleDrawer={null}
-      runDialog={runDialogNode}
-      isConfigPanelVisible={configPanelOpen}
-      configPanelContent={null} // Will be portalled
-      onUndo={undo}
-      onRedo={redo}
-      canUndo={canUndo}
-      canRedo={canRedo}
-      executionOverlay={
-        selectedRun?.parentRunId ? (
-          <RunBreadcrumbs
-            currentRun={{
-              id: selectedRun.id,
-              workflowId: selectedRun.workflowId,
-              workflowName: selectedRun.workflowName,
-              parentRunId: selectedRun.parentRunId,
-              parentNodeRef: selectedRun.parentNodeRef,
-            }}
-            variant="floating"
-          />
-        ) : null
-      }
-    />
+    <>
+      <WorkflowBuilderShell
+        mode={mode}
+        topBar={topBarNode}
+        isLibraryVisible={isLibraryVisible}
+        onToggleLibrary={toggleLibrary}
+        libraryContent={<Sidebar />}
+        canvasContent={canvasContent}
+        showScheduleSidebarContainer={false}
+        isScheduleSidebarVisible={schedulesPanelOpen}
+        scheduleSidebarContent={null}
+        isInspectorVisible={isInspectorVisible}
+        inspectorContent={inspectorContent}
+        inspectorWidth={inspectorWidth}
+        setInspectorWidth={setInspectorWidth}
+        showLoadingOverlay={shouldShowInitialLoader}
+        scheduleDrawer={null}
+        runDialog={runDialogNode}
+        isConfigPanelVisible={configPanelOpen}
+        configPanelContent={null} // Will be portalled
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        executionOverlay={
+          selectedRun?.parentRunId ? (
+            <RunBreadcrumbs
+              currentRun={{
+                id: selectedRun.id,
+                workflowId: selectedRun.workflowId,
+                workflowName: selectedRun.workflowName,
+                parentRunId: selectedRun.parentRunId,
+                parentNodeRef: selectedRun.parentNodeRef,
+              }}
+              variant="floating"
+            />
+          ) : null
+        }
+      />
+      {!isNewWorkflow && workflowId && (
+        <PublishTemplateModal
+          workflowId={workflowId}
+          workflowName={metadata.name || 'Untitled Workflow'}
+          open={isPublishModalOpen}
+          onOpenChange={setIsPublishModalOpen}
+        />
+      )}
+    </>
   );
 }
 
