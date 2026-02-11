@@ -63,6 +63,12 @@ frontend:
   service:
     type: LoadBalancer
 
+ingress:
+  enabled: true
+  frontendHost: studio-next.shipsec.ai
+  backendHost: api.studio-next.shipsec.ai
+  websocket: true
+
 # K8s Jobs for component execution — no DIND needed
 execution:
   mode: k8s

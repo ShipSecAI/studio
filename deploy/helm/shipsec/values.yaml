@@ -97,6 +97,12 @@ frontend:
       cpu: 500m
       memory: 512Mi
 
+ingress:
+  enabled: false
+  frontendHost: studio-next.shipsec.ai
+  backendHost: api.studio-next.shipsec.ai
+  websocket: true
+
 execution:
   # "docker" = use Docker CLI (local dev / DIND), "k8s" = K8s Jobs (GKE / production)
   mode: docker
