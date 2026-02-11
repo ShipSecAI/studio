@@ -45,13 +45,14 @@ export class GitHubTemplateService {
     author: string;
     manifest: Record<string, unknown>;
     graph: Record<string, unknown>;
-    requiredSecrets: Array<{ name: string; type: string; description?: string; placeholder?: string }>;
+    requiredSecrets: { name: string; type: string; description?: string; placeholder?: string }[];
   }): Promise<{ prNumber: number; prUrl: string; branch: string }> {
     if (!this.isConfigured()) {
       throw new Error('GitHub integration not configured');
     }
 
-    const { templateName, description, category, tags, author, manifest, graph, requiredSecrets } = params;
+    const { templateName, description, category, tags, author, manifest, graph, requiredSecrets } =
+      params;
 
     // Create branch name
     const timestamp = Date.now();
@@ -114,7 +115,10 @@ export class GitHubTemplateService {
         branch: branchName,
       };
     } catch (error) {
-      this.logger.error(`Failed to create template PR: ${(error as Error).message}`, (error as Error).stack);
+      this.logger.error(
+        `Failed to create template PR: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       throw error;
     }
   }
@@ -123,12 +127,12 @@ export class GitHubTemplateService {
    * Get all templates from the repository
    */
   async getTemplatesFromRepo(): Promise<
-    Array<{
+    {
       name: string;
       path: string;
       sha: string;
       content: Record<string, unknown>;
-    }>
+    }[]
   > {
     if (!this.isConfigured()) {
       return [];
@@ -173,7 +177,10 @@ export class GitHubTemplateService {
 
       return templates;
     } catch (error) {
-      this.logger.error(`Failed to fetch templates from repo: ${(error as Error).message}`, (error as Error).stack);
+      this.logger.error(
+        `Failed to fetch templates from repo: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       return [];
     }
   }
@@ -207,7 +214,10 @@ export class GitHubTemplateService {
       if ((error as any).status === 404) {
         return null;
       }
-      this.logger.error(`Failed to fetch template ${name}: ${(error as Error).message}`, (error as Error).stack);
+      this.logger.error(
+        `Failed to fetch template ${name}: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       return null;
     }
   }
@@ -285,7 +295,10 @@ export class GitHubTemplateService {
 
       return null;
     } catch (error) {
-      this.logger.error(`Failed to check PR status: ${(error as Error).message}`, (error as Error).stack);
+      this.logger.error(
+        `Failed to check PR status: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       return null;
     }
   }

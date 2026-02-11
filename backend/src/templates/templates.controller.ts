@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { TemplateService } from './templates.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
 import { RequireWorkflowRole } from '../workflows/workflow-role.guard';
@@ -120,7 +130,7 @@ export class TemplatesController {
    */
   @Post('sync')
   @UseGuards(RequireWorkflowRole('ADMIN'))
-  async syncTemplates(@CurrentAuth() auth: { organizationId?: string }) {
+  async syncTemplates(@CurrentAuth() _auth: { organizationId?: string }) {
     return await this.templateService.syncTemplates();
   }
 
@@ -134,7 +144,10 @@ export class TemplatesController {
 }
 
 class HttpException extends Error {
-  constructor(message: string, public status: number) {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
     super(message);
   }
 }

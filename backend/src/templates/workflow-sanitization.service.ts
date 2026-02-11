@@ -106,10 +106,10 @@ export class WorkflowSanitizationService {
       const connection = value as Record<string, unknown>;
       if (connection.kind === 'secret' || connection.kind === 'primitive_secret') {
         return {
-          name: connection.name as string || `secret_${key}`,
-          type: connection.type as string || 'string',
+          name: (connection.name as string) || `secret_${key}`,
+          type: (connection.type as string) || 'string',
           description: connection.description as string | undefined,
-          placeholder: this.generatePlaceholder(connection.name as string || key),
+          placeholder: this.generatePlaceholder((connection.name as string) || key),
         };
       }
     }

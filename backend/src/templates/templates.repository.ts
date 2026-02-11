@@ -1,5 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { templatesTable, templatesSubmissionsTable, type TemplateManifest } from '../database/schema/templates';
+import {
+  templatesTable,
+  templatesSubmissionsTable,
+  type TemplateManifest,
+} from '../database/schema/templates';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DRIZZLE_TOKEN } from '../database/database.module';
@@ -15,15 +19,8 @@ export class TemplatesRepository {
   /**
    * Find all active templates
    */
-  async findAll(filters?: {
-    category?: string;
-    search?: string;
-    tags?: string[];
-  }) {
-    const query = this.db
-      .select()
-      .from(templatesTable)
-      .where(eq(templatesTable.isActive, true));
+  async findAll(filters?: { category?: string; search?: string; tags?: string[] }) {
+    const query = this.db.select().from(templatesTable).where(eq(templatesTable.isActive, true));
 
     // Apply filters if provided
     if (filters?.category) {
@@ -32,9 +29,11 @@ export class TemplatesRepository {
 
     if (filters?.search) {
       // Search in name and description
-      return (query as any).where(
-        sql`${templatesTable.name} ILIKE ${`%${filters.search}%`} OR ${templatesTable.description} ILIKE ${`%${filters.search}%`}`,
-      ).execute();
+      return (query as any)
+        .where(
+          sql`${templatesTable.name} ILIKE ${`%${filters.search}%`} OR ${templatesTable.description} ILIKE ${`%${filters.search}%`}`,
+        )
+        .execute();
     }
 
     return (query as any).orderBy(desc(templatesTable.popularity)).execute();
@@ -84,7 +83,7 @@ export class TemplatesRepository {
     commitSha?: string;
     manifest: TemplateManifest;
     graph?: Record<string, unknown>;
-    requiredSecrets?: Array<{ name: string; type: string; description?: string }>;
+    requiredSecrets?: { name: string; type: string; description?: string }[];
     isOfficial?: boolean;
     isVerified?: boolean;
   }) {
@@ -106,11 +105,7 @@ export class TemplatesRepository {
       return results[0];
     } else {
       // Create new template
-      const results = await this.db
-        .insert(templatesTable)
-        .values(template)
-        .returning()
-        .execute();
+      const results = await this.db.insert(templatesTable).values(template).returning().execute();
 
       return results[0];
     }
@@ -188,10 +183,7 @@ export class TemplatesRepository {
     manifest?: TemplateManifest;
     graph?: Record<string, unknown>;
   }) {
-    const results = await this.db
-      .insert(templatesSubmissionsTable)
-      .values(submission)
-      .returning();
+    const results = await this.db.insert(templatesSubmissionsTable).values(submission).returning();
 
     return results[0];
   }

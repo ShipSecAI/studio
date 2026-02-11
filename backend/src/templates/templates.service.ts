@@ -23,11 +23,7 @@ export class TemplateService {
   /**
    * List all templates with optional filters
    */
-  async listTemplates(filters?: {
-    category?: string;
-    search?: string;
-    tags?: string[];
-  }) {
+  async listTemplates(filters?: { category?: string; search?: string; tags?: string[] }) {
     return await this.templatesRepository.findAll(filters);
   }
 
@@ -73,7 +69,7 @@ export class TemplateService {
     submittedBy: string;
     organizationId?: string;
   }) {
-    const { workflowId, name, description, category, tags, author, submittedBy, organizationId } = params;
+    const { workflowId, name, description, category, tags, author, submittedBy } = params;
 
     // Get workflow from database
     const workflow = await this.workflowsRepository.findById(workflowId);
@@ -165,10 +161,10 @@ export class TemplateService {
       organizationId?: string;
     },
   ) {
-    const { workflowName, secretMappings, userId } = params;
+    const { workflowName, userId } = params;
 
     // Get template from database or GitHub
-    let template = await this.templatesRepository.findById(templateId);
+    const template = await this.templatesRepository.findById(templateId);
     let graph: Record<string, unknown>;
 
     if (template && template.graph) {
@@ -183,20 +179,25 @@ export class TemplateService {
     }
 
     // Create new workflow from template graph
-    const newWorkflow = await this.workflowsRepository.create({
-      name: workflowName,
-      description: `Created from template: ${templateId}`,
-      nodes: Array.isArray(graph.nodes) ? graph.nodes : [],
-      edges: Array.isArray(graph.edges) ? graph.edges : [],
-      viewport: { x: 0, y: 0, zoom: 1 }
-    }, { organizationId: params.organizationId });
+    const newWorkflow = await this.workflowsRepository.create(
+      {
+        name: workflowName,
+        description: `Created from template: ${templateId}`,
+        nodes: Array.isArray(graph.nodes) ? graph.nodes : [],
+        edges: Array.isArray(graph.edges) ? graph.edges : [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+      { organizationId: params.organizationId },
+    );
 
     // Increment template popularity
     if (template) {
       await this.templatesRepository.incrementPopularity(template.id);
     }
 
-    this.logger.log(`Template ${templateId} used by ${userId} to create workflow ${newWorkflow.id}`);
+    this.logger.log(
+      `Template ${templateId} used by ${userId} to create workflow ${newWorkflow.id}`,
+    );
 
     return {
       workflowId: newWorkflow.id,
@@ -234,11 +235,11 @@ export class TemplateService {
         version: (manifest as any).version as string,
         manifest: manifest as TemplateManifest,
         graph: graph as Record<string, unknown>,
-        requiredSecrets: requiredSecrets as Array<{
+        requiredSecrets: requiredSecrets as {
           name: string;
           type: string;
           description?: string;
-        }>,
+        }[],
         isOfficial: false,
         isVerified: false,
       });

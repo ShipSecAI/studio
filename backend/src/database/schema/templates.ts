@@ -55,9 +55,7 @@ export const templatesSubmissionsTable = pgTable('templates_submissions', {
   commitSha: varchar('commit_sha', { length: 100 }),
   pullRequestNumber: integer('pr_number'),
   pullRequestUrl: varchar('pr_url', { length: 500 }),
-  status: varchar('status', { length: 50 })
-    .notNull()
-    .default('pending'), // pending, approved, rejected, merged
+  status: varchar('status', { length: 50 }).notNull().default('pending'), // pending, approved, rejected, merged
   submittedBy: varchar('submitted_by', { length: 191 }).notNull(),
   organizationId: varchar('organization_id', { length: 191 }),
   manifest: jsonb('manifest').$type<TemplateManifest>(),
