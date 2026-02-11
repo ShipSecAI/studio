@@ -1,0 +1,47 @@
+{{- if and .Values.worker.enabled (eq .Values.execution.mode "k8s") }}
+# ServiceAccount for the worker to create K8s Jobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shipsec-worker
+  namespace: {{ .Values.global.namespaces.workers }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+---
+# Role in the workloads namespace — worker creates Jobs and ConfigMaps here
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: shipsec-job-runner
+  namespace: {{ .Values.global.namespaces.workloads }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+rules:
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["create", "get", "list", "watch", "delete"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create", "get", "update", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+---
+# Bind the worker SA (in shipsec-workers) to the Role (in shipsec-workloads)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: shipsec-worker-job-runner
+  namespace: {{ .Values.global.namespaces.workloads }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: shipsec-job-runner
+subjects:
+- kind: ServiceAccount
+  name: shipsec-worker
+  namespace: {{ .Values.global.namespaces.workers }}
+{{- end }}
