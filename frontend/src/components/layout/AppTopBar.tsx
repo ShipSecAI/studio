@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { env } from '@/config/env';
 import { cn } from '@/lib/utils';
+import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 
 interface AppTopBarProps {
   title?: string;
@@ -24,6 +26,46 @@ export function AppTopBar({
   isMobile = false,
 }: AppTopBarProps) {
   const location = useLocation();
+  const [hasActiveScans, setHasActiveScans] = useState(false);
+  const [loadingActiveScans, setLoadingActiveScans] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadActiveScans = async () => {
+      try {
+        const headers = await getApiAuthHeaders();
+        const response = await fetch(
+          `${API_BASE_URL}/api/v1/github/scans?status=running,pending&limit=1`,
+          { headers },
+        );
+        if (!response.ok) return;
+        const scans = (await response.json()) as unknown;
+        if (cancelled) return;
+        setHasActiveScans(Array.isArray(scans) && scans.length > 0);
+      } catch {
+        if (!cancelled) {
+          setHasActiveScans(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingActiveScans(false);
+        }
+      }
+    };
+
+    setLoadingActiveScans(true);
+    loadActiveScans().catch(() => {});
+
+    const timer = window.setInterval(() => {
+      loadActiveScans().catch(() => {});
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   // Determine page title and navigation based on current route
   const getPageInfo = () => {
@@ -42,14 +84,6 @@ export function AppTopBar({
         title: 'Workflow Builder',
         shortTitle: 'Builder',
         subtitle: 'Design and automate security workflows',
-      };
-    }
-
-    if (location.pathname === '/templates') {
-      return {
-        title: 'Template Library',
-        shortTitle: 'Templates',
-        subtitle: 'Browse and use pre-built workflow templates',
       };
     }
 
@@ -101,11 +135,11 @@ export function AppTopBar({
       };
     }
 
-    if (location.pathname === '/analytics-settings') {
+    if (location.pathname.startsWith('/github')) {
       return {
-        title: 'Analytics Settings',
-        shortTitle: 'Analytics',
-        subtitle: 'Configure data retention and storage settings',
+        title: 'GitHub Integration',
+        shortTitle: 'GitHub',
+        subtitle: 'Manage repositories, trigger rules, and scan results',
       };
     }
 
@@ -178,7 +212,21 @@ export function AppTopBar({
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">{actions}</div>
+      <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+        {hasActiveScans && (
+          <Button variant="outline" size={isMobile ? 'sm' : 'default'} asChild>
+            <Link to="/github?tab=scans&status=running,pending">
+              {loadingActiveScans ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+              )}
+              Live scans
+            </Link>
+          </Button>
+        )}
+        {actions}
+      </div>
     </div>
   );
 }

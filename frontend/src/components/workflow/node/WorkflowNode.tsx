@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { MarkdownView } from '@/components/ui/markdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useComponents } from '@/hooks/queries/useComponentQueries';
+import { useComponentStore } from '@/store/componentStore';
 import { useExecutionStore } from '@/store/executionStore';
 import { useExecutionTimelineStore, type NodeVisualState } from '@/store/executionTimelineStore';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -34,6 +34,7 @@ import type { InputPort } from '@/schemas/component';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useThemeStore } from '@/store/themeStore';
 import {
+  type ComponentCategory,
   getCategorySeparatorColor,
   getCategoryHeaderBackgroundColor,
 } from '@/utils/categoryColors';
@@ -43,11 +44,11 @@ import {
   isCredentialInput,
 } from '@/utils/portUtils';
 import { WebhookDetails } from '../WebhookDetails';
-import { useApiKeyUiStore } from '@/hooks/queries/useApiKeyQueries';
+import { useApiKeyStore } from '@/store/apiKeyStore';
 import { API_V1_URL } from '@/services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEntryPointActions } from '../entry-point-context';
-import { useSecrets } from '@/hooks/queries/useSecretQueries';
+import { useSecretStore } from '@/store/secretStore';
 import { getSecretLabel } from '@/api/secrets';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
@@ -79,15 +80,8 @@ const TOOL_MODE_ONLY_COMPONENTS = new Set([
  */
 export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Store hooks
-  const { data: componentIndex, isLoading: loading } = useComponents();
-  const getComponent = (ref: string) => {
-    if (!componentIndex || !ref) return null;
-    if (componentIndex.byId[ref]) return componentIndex.byId[ref];
-    const idFromSlug = componentIndex.slugIndex[ref];
-    if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
-    return null;
-  };
-  const { data: secrets = [] } = useSecrets();
+  const { getComponent, loading } = useComponentStore();
+  const secrets = useSecretStore((state) => state.secrets);
   const { getNodes, getEdges, setNodes, deleteElements } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const { nodeStates, selectedRunId, selectNode, isPlaying, playbackMode, isLiveFollowing } =
@@ -98,7 +92,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const prefetchTerminal = useExecutionStore((state) => state.prefetchTerminal);
   const terminalSession = useExecutionStore((state) => state.getTerminalSession(id, 'pty'));
   const theme = useThemeStore((state) => state.theme);
-  const lastCreatedKey = useApiKeyUiStore((state) => state.lastCreatedKey);
+  const { lastCreatedKey } = useApiKeyStore();
   // @ts-expect-error - FIXME: Check actual store structure
   const workflowIdFromStore = useWorkflowStore((state) => state.workflow?.id);
   const {
@@ -154,11 +148,12 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   // Cast to access extended frontend fields
   const nodeData = data as FrontendNodeData;
   const componentRef: string | undefined = nodeData.componentId ?? nodeData.componentSlug;
-  const component = componentRef ? getComponent(componentRef) : null;
+  const component = getComponent(componentRef);
   const isTextBlock = component?.id === 'core.ui.text';
   const isEntryPoint = component?.id === 'core.workflow.entrypoint';
   const isDarkMode = theme === 'dark';
-  const componentCategory = component?.category ?? 'input';
+  const componentCategory: ComponentCategory =
+    (component?.category as ComponentCategory) || (isEntryPoint ? 'input' : 'input');
   const isToolModeOnly = component?.id ? TOOL_MODE_ONLY_COMPONENTS.has(component.id) : false;
   const showMcpBadge = componentCategory === 'mcp' || isToolModeOnly;
   const isToolMode = Boolean(
@@ -1033,6 +1028,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       input.editor === 'secret' ||
                       (input.connectionType?.kind === 'primitive' &&
                         input.connectionType.name === 'secret');
+                    const isGitHubCloneRepositoryInput =
+                      component?.id === 'github.repo.clone' && input.id === 'repository';
 
                     if (isSecretInput && manualDisplayVal) {
                       const secret = secrets.find(
@@ -1042,7 +1039,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     }
 
                     const previewText =
-                      manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
+                      isGitHubCloneRepositoryInput || manualDisplay.length <= 24
+                        ? manualDisplay
+                        : `${manualDisplay.slice(0, 24)}…`;
                     const handleClassName = cn(
                       '!w-[10px] !h-[10px] !border-2 !rounded-full',
                       input.required
@@ -1070,7 +1069,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                             <div className="mt-0.5">
                               <span
                                 className={cn(
-                                  'font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[120px] inline-flex items-center gap-1',
+                                  'font-mono px-1 py-0.5 rounded text-[10px] inline-flex items-center gap-1',
+                                  isGitHubCloneRepositoryInput
+                                    ? 'max-w-[180px] whitespace-normal break-all text-[9px] leading-tight'
+                                    : 'truncate max-w-[120px]',
                                   isSecretInput
                                     ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 font-semibold'
                                     : 'text-foreground bg-muted',

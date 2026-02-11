@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import * as LucideIcons from 'lucide-react';
-import { useComponents } from '@/hooks/queries/useComponentQueries';
+import { useComponentStore } from '@/store/componentStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,8 +13,7 @@ import type { ComponentMetadata } from '@/schemas/component';
 import { cn } from '@/lib/utils';
 import { env } from '@/config/env';
 import { Skeleton } from '@/components/ui/skeleton';
-import { COMPONENT_CATEGORY_ORDER, isComponentCategory } from '@shipsec/shared';
-import { getCategorySeparatorColor, getCategoryTextColorClass } from '@/utils/categoryColors';
+import { type ComponentCategory, getCategorySeparatorColor } from '@/utils/categoryColors';
 import { useThemeStore } from '@/store/themeStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -201,8 +200,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
-  const { data: componentIndex, isLoading: loading, error: componentsError } = useComponents();
-  const error = componentsError?.message ?? null;
+  const { getAllComponents, fetchComponents, loading, error } = useComponentStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const theme = useThemeStore((state) => state.theme);
@@ -212,13 +210,24 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   const hasBranchInfo = Boolean(frontendBranch || backendBranch);
 
   // Get category accent color (for left border) - uses separator colors for brightness
-  const getCategoryAccentColor = (category: string): string => {
-    return getCategorySeparatorColor(category, isDarkMode);
+  const getCategoryAccentColor = (category: string): string | undefined => {
+    return getCategorySeparatorColor(category as ComponentCategory, isDarkMode);
   };
 
   // Get category text color with good contrast in both light and dark modes
   const getCategoryTextColor = (category: string): string => {
-    return getCategoryTextColorClass(category);
+    const categoryColors: Record<string, string> = {
+      input: 'text-blue-600 dark:text-blue-400',
+      transform: 'text-orange-600 dark:text-orange-400',
+      ai: 'text-purple-600 dark:text-purple-400',
+      mcp: 'text-teal-600 dark:text-teal-400',
+      security: 'text-red-600 dark:text-red-400',
+      scanners: 'text-rose-600 dark:text-rose-400',
+      it_ops: 'text-cyan-600 dark:text-cyan-400',
+      notification: 'text-pink-600 dark:text-pink-400',
+      output: 'text-green-600 dark:text-green-400',
+    };
+    return categoryColors[category] || 'text-foreground';
   };
 
   // Custom scrollbar state
@@ -229,8 +238,15 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isScrollingRef = useRef(false);
 
+  // Fetch components on mount
+  useEffect(() => {
+    fetchComponents().catch((error) => {
+      console.error('Failed to load components', error);
+    });
+  }, [fetchComponents]);
+
   const showDemoComponents = useWorkflowUiStore((state) => state.showDemoComponents);
-  const allComponents = componentIndex ? Object.values(componentIndex.byId) : [];
+  const allComponents = getAllComponents();
 
   // Helper to identify demo components
   const isDemoComponent = (component: ComponentMetadata) => {
@@ -285,6 +301,19 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     );
   }, [filteredComponents]);
 
+  // Category display order
+  const categoryOrder = [
+    'input',
+    'output',
+    'notification',
+    'security',
+    'scanners',
+    'mcp',
+    'ai',
+    'transform',
+    'it_ops',
+  ] as const;
+
   // Filter components based on search query
   const filteredComponentsByCategory = useMemo(() => {
     const filtered = searchQuery.trim()
@@ -324,8 +353,8 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
 
     // Sort categories by predefined order
     const sortedEntries = Object.entries(filtered).sort(([a], [b]) => {
-      const indexA = isComponentCategory(a) ? COMPONENT_CATEGORY_ORDER.indexOf(a) : -1;
-      const indexB = isComponentCategory(b) ? COMPONENT_CATEGORY_ORDER.indexOf(b) : -1;
+      const indexA = categoryOrder.indexOf(a as (typeof categoryOrder)[number]);
+      const indexB = categoryOrder.indexOf(b as (typeof categoryOrder)[number]);
       // If category not in order list, put it at the end
       if (indexA === -1 && indexB === -1) return 0;
       if (indexA === -1) return 1;

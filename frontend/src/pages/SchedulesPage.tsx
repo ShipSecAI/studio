@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,16 +21,9 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PauseCircle, PlayCircle, RefreshCw, Search, Edit3, Plus, Trash2 } from 'lucide-react';
+import { useScheduleStore } from '@/store/scheduleStore';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  useSchedules,
-  usePauseSchedule,
-  useResumeSchedule,
-  useRunSchedule,
-  useDeleteSchedule,
-} from '@/hooks/queries/useScheduleQueries';
-import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
-import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/services/api';
 import {
   ScheduleEditorDrawer,
   type WorkflowOption,
@@ -69,41 +62,68 @@ const getWorkflowName = (workflowId: string, workflows: WorkflowOption[]): strin
 
 export function SchedulesPage() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [workflowOptions, setWorkflowOptions] = useState<WorkflowOption[]>([]);
+  const [workflowsLoading, setWorkflowsLoading] = useState(true);
   const [actionState, setActionState] = useState<Record<string, 'run' | 'toggle'>>({});
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<'create' | 'edit'>('create');
   const [activeSchedule, setActiveSchedule] = useState<WorkflowSchedule | null>(null);
 
-  // Local filter state (search is client-side, workflowId & status go to the query)
-  const initialWorkflowId = searchParams.get('workflowId') || null;
-  const [filters, setFilters] = useState<{
-    search: string;
-    status: string;
-    workflowId: string | null;
-  }>({ search: '', status: 'all', workflowId: initialWorkflowId });
+  const schedules = useScheduleStore((state) => state.schedules);
+  const isLoading = useScheduleStore((state) => state.isLoading);
+  const error = useScheduleStore((state) => state.error);
+  const filters = useScheduleStore((state) => state.filters);
+  const fetchSchedules = useScheduleStore((state) => state.fetchSchedules);
+  const refreshSchedules = useScheduleStore((state) => state.refreshSchedules);
+  const setFilters = useScheduleStore((state) => state.setFilters);
+  const pauseSchedule = useScheduleStore((state) => state.pauseSchedule);
+  const resumeSchedule = useScheduleStore((state) => state.resumeSchedule);
+  const runSchedule = useScheduleStore((state) => state.runSchedule);
+  const deleteSchedule = useScheduleStore((state) => state.deleteSchedule);
+  const upsertSchedule = useScheduleStore((state) => state.upsertSchedule);
 
-  const {
-    data: schedules = [],
-    isLoading,
-    error: schedulesError,
-  } = useSchedules({
-    workflowId: filters.workflowId,
-    status: filters.status as any,
-  });
-  const error = schedulesError?.message ?? null;
+  useEffect(() => {
+    const initialWorkflowId = searchParams.get('workflowId');
+    if (initialWorkflowId) {
+      setFilters({ workflowId: initialWorkflowId });
+    }
+  }, []);
 
-  const { data: workflowsRaw = [], isLoading: workflowsLoading } = useWorkflowsSummary();
-  const workflowOptions: WorkflowOption[] = useMemo(
-    () => workflowsRaw.map((w: any) => ({ id: w.id, name: w.name ?? 'Untitled workflow' })),
-    [workflowsRaw],
-  );
+  useEffect(() => {
+    fetchSchedules({ force: true }).catch(() => {
+      /* errors handled in store */
+    });
+  }, [fetchSchedules, filters.workflowId, filters.status]);
 
-  const pauseScheduleMutation = usePauseSchedule();
-  const resumeScheduleMutation = useResumeSchedule();
-  const runScheduleMutation = useRunSchedule();
-  const deleteScheduleMutation = useDeleteSchedule();
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const workflowList = await api.workflows.list();
+        if (cancelled) return;
+        const normalized = workflowList.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name ?? 'Untitled workflow',
+        }));
+        setWorkflowOptions(normalized);
+      } catch (err) {
+        console.error('Failed to load workflows', err);
+        toast({
+          title: 'Unable to load workflows',
+          description: err instanceof Error ? err.message : 'Please try refreshing the page.',
+          variant: 'destructive',
+        });
+      } finally {
+        if (!cancelled) {
+          setWorkflowsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
 
   const filteredSchedules = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
@@ -132,7 +152,7 @@ export function SchedulesPage() {
 
   const handleWorkflowFilterChange = (value: string) => {
     const workflowId = value === 'all' ? null : value;
-    setFilters((prev) => ({ ...prev, workflowId }));
+    setFilters({ workflowId });
     const nextParams = new URLSearchParams(searchParams);
     if (workflowId) {
       nextParams.set('workflowId', workflowId);
@@ -143,7 +163,7 @@ export function SchedulesPage() {
   };
 
   const handleStatusFilterChange = (value: string) => {
-    setFilters((prev) => ({ ...prev, status: value as typeof filters.status }));
+    setFilters({ status: value as typeof filters.status });
   };
 
   const openCreateDrawer = () => {
@@ -159,7 +179,7 @@ export function SchedulesPage() {
   };
 
   const handleScheduleSaved = (savedSchedule: WorkflowSchedule, mode: 'create' | 'edit') => {
-    queryClient.invalidateQueries({ queryKey: ['schedules'] });
+    upsertSchedule(savedSchedule);
     toast({
       title: mode === 'create' ? 'Schedule created' : 'Schedule updated',
       description:
@@ -173,13 +193,13 @@ export function SchedulesPage() {
     markAction(schedule.id, 'toggle');
     try {
       if (schedule.status === 'active') {
-        await pauseScheduleMutation.mutateAsync(schedule.id);
+        await pauseSchedule(schedule.id);
         toast({
           title: 'Schedule paused',
           description: `"${schedule.name}" has been paused.`,
         });
       } else {
-        await resumeScheduleMutation.mutateAsync(schedule.id);
+        await resumeSchedule(schedule.id);
         toast({
           title: 'Schedule resumed',
           description: `"${schedule.name}" is active again.`,
@@ -199,7 +219,7 @@ export function SchedulesPage() {
   const handleRunNow = async (schedule: WorkflowSchedule) => {
     markAction(schedule.id, 'run');
     try {
-      await runScheduleMutation.mutateAsync(schedule.id);
+      await runSchedule(schedule.id);
       toast({
         title: 'Run requested',
         description: `Scheduled cadence "${schedule.name}" is executing now.`,
@@ -217,7 +237,7 @@ export function SchedulesPage() {
 
   const handleRefresh = async () => {
     try {
-      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      await refreshSchedules();
       toast({
         title: 'Schedules refreshed',
         description: 'Latest schedule statuses have been loaded.',
@@ -243,7 +263,7 @@ export function SchedulesPage() {
     }
     markAction(schedule.id, 'run');
     try {
-      await deleteScheduleMutation.mutateAsync(schedule.id);
+      await deleteSchedule(schedule.id);
       toast({
         title: 'Schedule deleted',
         description: `"${schedule.name}" has been deleted.`,
@@ -260,6 +280,8 @@ export function SchedulesPage() {
   };
 
   const isActionBusy = (id: string) => Boolean(actionState[id]);
+  const getScheduleScansHref = (scheduleId: string) =>
+    `/github?tab=scans&source=schedule&scheduleId=${encodeURIComponent(scheduleId)}`;
 
   const renderStatusBadge = (status: string) => {
     const variant = STATUS_VARIANTS[status] || 'outline';
@@ -282,9 +304,7 @@ export function SchedulesPage() {
               <Input
                 placeholder="Filter by schedule or workflow"
                 value={filters.search}
-                onChange={(event) =>
-                  setFilters((prev) => ({ ...prev, search: event.target.value }))
-                }
+                onChange={(event) => setFilters({ search: event.target.value })}
               />
             </div>
             <div className="flex flex-wrap gap-2">
@@ -455,6 +475,17 @@ export function SchedulesPage() {
                                       <span className="hidden md:inline">Pause</span>
                                     </>
                                   )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 md:px-3"
+                                  asChild
+                                >
+                                  <Link to={getScheduleScansHref(schedule.id)}>
+                                    <span className="hidden md:inline">View scans</span>
+                                    <span className="md:hidden">Scans</span>
+                                  </Link>
                                 </Button>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
