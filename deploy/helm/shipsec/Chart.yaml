@@ -1,0 +1,7 @@
+apiVersion: v2
+name: shipsec
+description: ShipSec Studio app (backend, worker, frontend) with optional DinD
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

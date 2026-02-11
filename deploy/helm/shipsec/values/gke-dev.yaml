@@ -1,0 +1,14 @@
+global:
+  namespaces:
+    system: shipsec-system
+    workers: shipsec-workers
+    workloads: shipsec-workloads
+
+backend:
+  service:
+    type: LoadBalancer
+
+frontend:
+  service:
+    type: LoadBalancer
+

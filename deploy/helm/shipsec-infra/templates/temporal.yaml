@@ -1,0 +1,131 @@
+{{- if .Values.temporal.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipsec-temporal
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: temporal
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: temporal
+    spec:
+      containers:
+      - name: temporal
+        image: {{ .Values.temporal.image | quote }}
+        ports:
+        - name: grpc
+          containerPort: 7233
+        env:
+        - name: DB
+          value: postgres12
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: temporal
+        - name: POSTGRES_USER
+          value: {{ .Values.postgres.user | quote }}
+        - name: POSTGRES_PWD
+          value: {{ .Values.postgres.password | quote }}
+        - name: POSTGRES_SEEDS
+          value: shipsec-postgres
+        - name: AUTO_SETUP
+          value: "true"
+        readinessProbe:
+          tcpSocket:
+            port: grpc
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: grpc
+          initialDelaySeconds: 60
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-temporal
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: grpc
+    port: 7233
+    targetPort: grpc
+  selector:
+    app.kubernetes.io/component: temporal
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipsec-temporal-ui
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: temporal-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: temporal-ui
+    spec:
+      containers:
+      - name: temporal-ui
+        image: {{ .Values.temporal.uiImage | quote }}
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: TEMPORAL_ADDRESS
+          value: shipsec-temporal:7233
+        - name: TEMPORAL_NAMESPACE
+          value: default
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-temporal-ui
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+spec:
+  {{- $uiSvcType := "ClusterIP" -}}
+  {{- $uiSvcPort := 8080 -}}
+  {{- with .Values.temporal.uiService -}}
+  {{- if .type }}{{- $uiSvcType = .type }}{{- end -}}
+  {{- if .port }}{{- $uiSvcPort = .port }}{{- end -}}
+  {{- end }}
+  type: {{ $uiSvcType }}
+  ports:
+  - name: http
+    port: {{ $uiSvcPort }}
+    targetPort: http
+  selector:
+    app.kubernetes.io/component: temporal-ui
+{{- end }}

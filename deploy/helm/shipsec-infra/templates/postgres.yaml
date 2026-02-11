@@ -1,0 +1,109 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: shipsec-postgres-secret
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  POSTGRES_USER: {{ .Values.postgres.user | quote }}
+  POSTGRES_PASSWORD: {{ .Values.postgres.password | quote }}
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shipsec-postgres-initdb
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+data:
+  create-temporal-db.sh: |
+    #!/bin/bash
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE DATABASE temporal;
+      GRANT ALL PRIVILEGES ON DATABASE temporal TO $POSTGRES_USER;
+    EOSQL
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shipsec-postgres
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: shipsec-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: {{ .Values.postgres.image | quote }}
+        ports:
+        - name: postgres
+          containerPort: 5432
+        env:
+        # GKE (and some other environments) mount ext4 volumes with a `lost+found`
+        # directory at the volume root. Postgres initdb fails if the data dir is
+        # not empty, so we point PGDATA at a subdirectory.
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        envFrom:
+        - secretRef:
+            name: shipsec-postgres-secret
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: initdb
+          mountPath: /docker-entrypoint-initdb.d
+        readinessProbe:
+          exec:
+            command: ["sh", "-c", "pg_isready -U $POSTGRES_USER"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command: ["sh", "-c", "pg_isready -U $POSTGRES_USER"]
+          initialDelaySeconds: 15
+          periodSeconds: 10
+      volumes:
+      - name: initdb
+        configMap:
+          name: shipsec-postgres-initdb
+          defaultMode: 0755
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: {{ .Values.postgres.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipsec-postgres
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "shipsec-infra.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: postgres
+  selector:
+    app.kubernetes.io/component: postgres
+{{- end }}
