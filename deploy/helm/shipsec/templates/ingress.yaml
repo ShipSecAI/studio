@@ -13,8 +13,18 @@ metadata:
     {{- if .Values.ingress.websocket }}
     nginx.ingress.kubernetes.io/enable-websocket: "true"
     {{- end }}
+    {{- if .Values.ingress.tls.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.clusterIssuer }}
+    {{- end }}
 spec:
   ingressClassName: nginx
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.frontendHost }}
+        - {{ .Values.ingress.backendHost }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
   rules:
     - host: {{ .Values.ingress.frontendHost }}
       http:

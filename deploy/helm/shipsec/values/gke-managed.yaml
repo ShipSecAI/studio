@@ -66,8 +66,12 @@ frontend:
 ingress:
   enabled: true
   frontendHost: studio-next.shipsec.ai
-  backendHost: api.studio-next.shipsec.ai
+  backendHost: api-studio-next.shipsec.ai
   websocket: true
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+    secretName: shipsec-tls
 
 # K8s Jobs for component execution — no DIND needed
 execution:
