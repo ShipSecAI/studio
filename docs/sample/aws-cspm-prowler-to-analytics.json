@@ -1,0 +1,122 @@
+{
+  "name": "AWS CSPM – Prowler Scan to Analytics",
+  "description": "End-to-end AWS CSPM workflow: resolves credentials from an integration connection, runs a Prowler security scan, and indexes the results into the Analytics dashboard via OpenSearch.",
+  "nodes": [
+    {
+      "id": "entry-1",
+      "type": "core.workflow.entrypoint",
+      "position": { "x": 300, "y": 50 },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "connectionId",
+                "label": "AWS Integration Connection ID",
+                "type": "text",
+                "required": true,
+                "description": "The ID of the AWS integration connection. Find this in Settings > Integrations > AWS."
+              },
+              {
+                "id": "regions",
+                "label": "AWS Regions",
+                "type": "text",
+                "required": false,
+                "description": "Comma-separated AWS regions to scan. Defaults to us-east-1.",
+                "default": "us-east-1"
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "resolve-creds-1",
+      "type": "core.integration.resolve-credentials",
+      "position": { "x": 300, "y": 280 },
+      "data": {
+        "label": "Resolve AWS Credentials",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "prowler-1",
+      "type": "security.prowler.scan",
+      "position": { "x": 300, "y": 510 },
+      "data": {
+        "label": "Prowler Security Scan",
+        "config": {
+          "params": {
+            "scanMode": "aws",
+            "recommendedFlags": ["severity-high-critical", "ignore-exit-code", "no-banner"]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "analytics-sink-1",
+      "type": "core.analytics.sink",
+      "position": { "x": 300, "y": 770 },
+      "data": {
+        "label": "Analytics Sink",
+        "config": {
+          "params": {
+            "dataInputs": [
+              {
+                "id": "input1",
+                "label": "Prowler Results",
+                "sourceTag": "prowler"
+              }
+            ],
+            "failOnError": false
+          },
+          "inputOverrides": {}
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-entry-to-resolve",
+      "source": "entry-1",
+      "target": "resolve-creds-1",
+      "sourceHandle": "connectionId",
+      "targetHandle": "connectionId"
+    },
+    {
+      "id": "e-resolve-to-prowler-creds",
+      "source": "resolve-creds-1",
+      "target": "prowler-1",
+      "sourceHandle": "data",
+      "targetHandle": "credentials"
+    },
+    {
+      "id": "e-resolve-to-prowler-account",
+      "source": "resolve-creds-1",
+      "target": "prowler-1",
+      "sourceHandle": "accountId",
+      "targetHandle": "accountId"
+    },
+    {
+      "id": "e-entry-to-prowler-regions",
+      "source": "entry-1",
+      "target": "prowler-1",
+      "sourceHandle": "regions",
+      "targetHandle": "regions"
+    },
+    {
+      "id": "e-prowler-to-analytics",
+      "source": "prowler-1",
+      "target": "analytics-sink-1",
+      "sourceHandle": "results",
+      "targetHandle": "input1"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}

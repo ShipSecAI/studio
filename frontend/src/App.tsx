@@ -4,6 +4,7 @@ import { WorkflowBuilder } from '@/features/workflow-builder/WorkflowBuilder';
 import { SecretsManager } from '@/pages/SecretsManager';
 import { ApiKeysManager } from '@/pages/ApiKeysManager';
 import { IntegrationsManager } from '@/pages/IntegrationsManager';
+import { IntegrationDetailPage } from '@/pages/IntegrationDetailPage';
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary';
 import { McpLibraryPage } from '@/pages/McpLibraryPage';
 import { IntegrationCallback } from '@/pages/IntegrationCallback';
@@ -13,10 +14,7 @@ import { WebhookEditorPage } from '@/pages/WebhookEditorPage';
 import { SchedulesPage } from '@/pages/SchedulesPage';
 import { ActionCenterPage } from '@/pages/ActionCenterPage';
 import { RunRedirect } from '@/pages/RunRedirect';
-import { GitHubPage } from '@/pages/GitHubPage';
-import { ScanResultPage } from '@/pages/ScanResultPage';
-import CreateTriggerRulePage from '@/pages/CreateTriggerRulePage';
-import EditTriggerRulePage from '@/pages/EditTriggerRulePage';
+import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
 import { ToastProvider } from '@/components/ui/toast-provider';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthProvider } from '@/auth/auth-context';
@@ -25,7 +23,6 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AnalyticsRouterListener } from '@/features/analytics/AnalyticsRouterListener';
 import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge';
 import { CommandPalette, useCommandPaletteKeyboard } from '@/features/command-palette';
-import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration();
@@ -83,6 +80,7 @@ function App() {
                     <Route path="/secrets" element={<SecretsManager />} />
                     <Route path="/api-keys" element={<ApiKeysManager />} />
                     <Route path="/integrations" element={<IntegrationsManager />} />
+                    <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
                     <Route path="/webhooks" element={<WebhooksPage />} />
                     <Route path="/webhooks/new" element={<WebhookEditorPage />} />
                     <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
@@ -93,10 +91,6 @@ function App() {
                     <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
                     <Route path="/mcp-library" element={<McpLibraryPage />} />
-                    <Route path="/github" element={<GitHubPage />} />
-                    <Route path="/github/triggers/new" element={<CreateTriggerRulePage />} />
-                    <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
-                    <Route path="/github/scans/:id" element={<ScanResultPage />} />
                     <Route path="/runs/:runId" element={<RunRedirect />} />
                     <Route
                       path="/integrations/callback/:provider"

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -15,9 +16,16 @@ import {
   loadIntegrationProviders,
   summarizeProvider,
 } from './integration-providers';
+import { getCatalog, type IntegrationProviderDefinition } from './integration-catalog';
 import { IntegrationsRepository } from './integrations.repository';
 import { TokenEncryptionService } from './token.encryption';
+import { AwsService } from './aws.service';
+import { SlackService } from './slack.service';
+import { SetupTokenService } from './setup-token.service';
+import { generateExternalId, formatExternalIdForDisplay } from './external-id-generator';
+import type { CreateAwsConnectionDto } from './integrations.dto';
 import type { IntegrationTokenRecord } from '../database/schema';
+import type { AuthContext } from '../auth/types';
 
 export interface OAuthStartResponse {
   provider: string;
@@ -31,9 +39,15 @@ export interface IntegrationConnection {
   provider: string;
   providerName: string;
   userId: string;
+  credentialType: string;
+  displayName: string;
+  organizationId: string;
   scopes: string[];
   tokenType: string;
   expiresAt: Date | null;
+  lastValidatedAt: Date | null;
+  lastValidationStatus: string | null;
+  lastUsedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   status: 'active' | 'expired';
@@ -84,6 +98,9 @@ export class IntegrationsService implements OnModuleInit {
   constructor(
     private readonly repository: IntegrationsRepository,
     private readonly encryption: TokenEncryptionService,
+    private readonly awsService: AwsService,
+    private readonly slackService: SlackService,
+    private readonly setupTokenService: SetupTokenService,
   ) {
     this.providers = loadIntegrationProviders();
   }
@@ -91,6 +108,18 @@ export class IntegrationsService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     await this.reloadProviderOverrides();
   }
+
+  /* ------------------------------------------------------------------ */
+  /*  Catalog                                                           */
+  /* ------------------------------------------------------------------ */
+
+  getCatalog(): IntegrationProviderDefinition[] {
+    return getCatalog();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Provider listing & configuration                                  */
+  /* ------------------------------------------------------------------ */
 
   listProviders(): IntegrationProviderSummary[] {
     return Object.values(this.providers).map((config) =>
@@ -208,14 +237,30 @@ export class IntegrationsService implements OnModuleInit {
     this.providerOverrides.delete(providerId);
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  Connection listing                                                */
+  /* ------------------------------------------------------------------ */
+
   async listConnections(userId: string): Promise<IntegrationConnection[]> {
     const records = await this.repository.listConnections(userId);
     return records.map((record) => this.toConnection(record));
   }
 
+  async listConnectionsForOrg(
+    auth: AuthContext,
+    provider?: string,
+  ): Promise<IntegrationConnection[]> {
+    const records = await this.repository.listConnectionsByOrg(auth.organizationId!, provider);
+    return records.map((record) => this.toConnection(record));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  OAuth flow                                                        */
+  /* ------------------------------------------------------------------ */
+
   async startOAuthSession(
     providerId: string,
-    input: { userId: string; redirectUri: string; scopes?: string[] },
+    input: { userId: string; organizationId: string; redirectUri: string; scopes?: string[] },
   ): Promise<OAuthStartResponse> {
     const provider = await this.resolveProviderForAuth(providerId);
 
@@ -249,6 +294,7 @@ export class IntegrationsService implements OnModuleInit {
       state,
       userId: input.userId,
       provider: providerId,
+      organizationId: input.organizationId,
       codeVerifier,
     });
 
@@ -271,8 +317,13 @@ export class IntegrationsService implements OnModuleInit {
       scopes?: string[];
     },
   ): Promise<IntegrationConnection> {
+    this.logger.log(
+      `[completeOAuth] Starting exchange for provider=${providerId}, redirectUri=${input.redirectUri}`,
+    );
     const provider = await this.resolveProviderForAuth(providerId);
+    this.logger.log(`[completeOAuth] Provider resolved: ${provider.id}`);
     const stateRecord = await this.repository.consumeOAuthState(input.state);
+    this.logger.log(`[completeOAuth] State consumed: ${!!stateRecord}`);
 
     if (!stateRecord) {
       throw new BadRequestException('OAuth state is missing or has already been used');
@@ -284,8 +335,10 @@ export class IntegrationsService implements OnModuleInit {
       throw new BadRequestException('OAuth state does not match the provider');
     }
 
+    const organizationId = stateRecord.organizationId ?? `workspace-${input.userId}`;
     const scopes = this.normalizeScopes(input.scopes, provider);
 
+    this.logger.log(`[completeOAuth] Requesting tokens from ${provider.tokenUrl}`);
     const rawResponse = await this.requestTokens(provider, {
       grantType: 'authorization_code',
       code: input.code,
@@ -293,34 +346,51 @@ export class IntegrationsService implements OnModuleInit {
       codeVerifier: stateRecord.codeVerifier,
       scopes,
     });
+    this.logger.log(
+      `[completeOAuth] Token response received, keys: ${Object.keys(rawResponse).join(', ')}`,
+    );
 
     const persisted = await this.persistTokenResponse({
       userId: input.userId,
+      organizationId,
+      credentialType: 'oauth',
+      displayName: providerId,
       provider,
       scopes,
       rawResponse,
-      previous: await this.repository.findByProvider(input.userId, providerId),
+      previous: await this.repository.findByUserAndProvider(input.userId, providerId),
     });
+    this.logger.log(`[completeOAuth] Connection persisted: ${persisted.id}`);
 
     return this.toConnection(persisted);
   }
 
-  async refreshConnection(id: string, userId: string): Promise<IntegrationConnection> {
-    const record = await this.repository.findById(id);
-    if (!record || record.userId !== userId) {
-      throw new NotFoundException(`Connection ${id} was not found for user ${userId}`);
-    }
+  /* ------------------------------------------------------------------ */
+  /*  Refresh & disconnect                                              */
+  /* ------------------------------------------------------------------ */
 
+  async refreshConnection(id: string, auth: AuthContext): Promise<IntegrationConnection> {
+    const record = await this.assertConnectionOwnership(id, auth);
     const refreshed = await this.refreshTokenRecord(record);
     return this.toConnection(refreshed);
   }
 
-  async disconnect(id: string, userId: string): Promise<void> {
-    await this.repository.deleteConnection(id, userId);
+  async disconnect(id: string, auth: AuthContext): Promise<void> {
+    await this.assertConnectionOwnership(id, auth);
+
+    if (!auth.roles.includes('ADMIN')) {
+      throw new ForbiddenException('Only admins can disconnect integrations');
+    }
+
+    await this.repository.deleteConnection(id);
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  Token retrieval                                                   */
+  /* ------------------------------------------------------------------ */
+
   async getProviderToken(providerId: string, userId: string): Promise<ProviderTokenResponse> {
-    const record = await this.repository.findByProvider(userId, providerId);
+    const record = await this.repository.findByUserAndProvider(userId, providerId);
     if (!record) {
       throw new NotFoundException(`No credentials found for provider ${providerId}`);
     }
@@ -365,6 +435,321 @@ export class IntegrationsService implements OnModuleInit {
     };
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  AWS connection                                                    */
+  /* ------------------------------------------------------------------ */
+
+  getAwsSetupInfo(orgId: string): {
+    platformRoleArn: string;
+    externalId: string;
+    setupToken: string;
+    trustPolicyTemplate: string;
+    externalIdDisplay: string;
+  } {
+    let platformRoleArn: string;
+    try {
+      platformRoleArn = this.awsService.getPlatformRoleArn();
+    } catch {
+      throw new BadRequestException(
+        'AWS integration is not configured. Set the SHIPSEC_PLATFORM_ROLE_ARN environment variable and restart the backend.',
+      );
+    }
+    const externalId = generateExternalId();
+    const setupToken = this.setupTokenService.generate(orgId, externalId);
+    const trustPolicyTemplate = JSON.stringify(
+      {
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: { AWS: platformRoleArn },
+            Action: 'sts:AssumeRole',
+            Condition: { StringEquals: { 'sts:ExternalId': externalId } },
+          },
+        ],
+      },
+      null,
+      2,
+    );
+    return {
+      platformRoleArn,
+      externalId,
+      setupToken,
+      trustPolicyTemplate,
+      externalIdDisplay: formatExternalIdForDisplay(externalId),
+    };
+  }
+
+  async createAwsConnection(
+    auth: AuthContext,
+    input: CreateAwsConnectionDto,
+  ): Promise<IntegrationConnection> {
+    const orgId = auth.organizationId!;
+    const userId = auth.userId!;
+
+    // Verify setup token — cryptographically binds externalId to this org
+    this.setupTokenService.verify(input.setupToken, orgId, input.externalId);
+
+    // Validate: can platform identity assume this role with this externalId?
+    try {
+      await this.awsService.assumeRoleWithPlatformIdentity(
+        input.roleArn,
+        input.externalId,
+        input.region,
+      );
+    } catch (error: any) {
+      const platformArn = this.awsService.getPlatformRoleArn();
+      throw new BadRequestException(
+        `Cannot assume role ${input.roleArn}. Ensure the trust policy includes: ` +
+          `Principal {"AWS": "${platformArn}"} and Condition sts:ExternalId: "${input.externalId}". ` +
+          `Error: ${error.message}`,
+      );
+    }
+
+    // Store: roleArn + externalId + region only — no customer secrets
+    const encryptedCreds = await this.encryption.encrypt(
+      JSON.stringify({
+        roleArn: input.roleArn,
+        externalId: input.externalId,
+        region: input.region,
+      }),
+    );
+
+    const record = await this.repository.insertConnection({
+      userId,
+      provider: 'aws',
+      organizationId: orgId,
+      credentialType: 'iam_role',
+      displayName: input.displayName,
+      scopes: [],
+      accessToken: encryptedCreds,
+      refreshToken: null,
+      tokenType: 'Bearer',
+      expiresAt: null,
+      lastValidatedAt: new Date(),
+      lastValidationStatus: 'valid',
+      metadata: {
+        roleArn: input.roleArn,
+        externalId: input.externalId,
+        region: input.region ?? null,
+      },
+    });
+    return this.toConnection(record);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Slack webhook connection                                          */
+  /* ------------------------------------------------------------------ */
+
+  async createSlackWebhookConnection(
+    auth: AuthContext,
+    input: { displayName: string; webhookUrl: string },
+  ): Promise<IntegrationConnection> {
+    const userId = auth.userId!;
+    const organizationId = auth.organizationId!;
+
+    // Encrypt the webhook URL as a JSON payload
+    const encryptedCreds = await this.encryption.encrypt(
+      JSON.stringify({ webhookUrl: input.webhookUrl }),
+    );
+
+    const record = await this.repository.insertConnection({
+      userId,
+      provider: 'slack',
+      organizationId,
+      credentialType: 'webhook',
+      displayName: input.displayName,
+      scopes: [],
+      accessToken: encryptedCreds,
+      refreshToken: null,
+      tokenType: 'Bearer',
+      expiresAt: null,
+      metadata: {},
+    });
+
+    return this.toConnection(record);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Connection validation                                             */
+  /* ------------------------------------------------------------------ */
+
+  async validateConnection(connectionId: string): Promise<{ valid: boolean; error?: string }> {
+    const record = await this.repository.findById(connectionId);
+    if (!record) {
+      throw new NotFoundException(`Connection ${connectionId} was not found`);
+    }
+
+    const decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
+
+    let result: { valid: boolean; error?: string };
+
+    if (record.provider === 'aws' && record.credentialType === 'iam_role') {
+      const creds = JSON.parse(decrypted);
+      try {
+        await this.awsService.assumeRoleWithPlatformIdentity(
+          creds.roleArn,
+          creds.externalId,
+          creds.region,
+        );
+        result = { valid: true };
+      } catch (error: any) {
+        result = { valid: false, error: error.message };
+      }
+    } else if (record.provider === 'slack' && record.credentialType === 'webhook') {
+      const creds = JSON.parse(decrypted);
+      const webhookResult = await this.slackService.testWebhook(creds.webhookUrl);
+      result = { valid: webhookResult.ok, error: webhookResult.error };
+    } else {
+      // For OAuth or other types, we cannot generically validate; treat as valid.
+      result = { valid: true };
+    }
+
+    // Update health fields
+    await this.repository.updateConnectionHealth(connectionId, {
+      lastValidatedAt: new Date(),
+      lastValidationStatus: result.valid ? 'valid' : 'invalid',
+      lastValidationError: result.error ?? null,
+    });
+
+    return result;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  AWS Org discovery                                                 */
+  /* ------------------------------------------------------------------ */
+
+  async discoverOrgAccounts(
+    connectionId: string,
+  ): Promise<{ accounts: { id: string; name: string; status: string; email: string }[] }> {
+    const record = await this.repository.findById(connectionId);
+    if (!record) {
+      throw new NotFoundException(`Connection ${connectionId} was not found`);
+    }
+
+    const decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
+    const creds = JSON.parse(decrypted);
+
+    const assumed = await this.awsService.assumeRoleWithPlatformIdentity(
+      creds.roleArn,
+      creds.externalId,
+      creds.region,
+    );
+    return this.awsService.discoverOrgAccounts({
+      accessKeyId: assumed.accessKeyId,
+      secretAccessKey: assumed.secretAccessKey,
+      sessionToken: assumed.sessionToken,
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Credential resolution (for worker / internal use)                 */
+  /* ------------------------------------------------------------------ */
+
+  async resolveConnectionCredentials(connectionId: string): Promise<{
+    credentialType: string;
+    provider: string;
+    data: Record<string, unknown>;
+    accountId?: string;
+    region?: string;
+    displayName?: string;
+  }> {
+    const record = await this.repository.findById(connectionId);
+    if (!record) {
+      throw new NotFoundException(`Connection ${connectionId} was not found`);
+    }
+
+    const decrypted = await this.encryption.decrypt(record.accessToken as SecretEncryptionMaterial);
+
+    let data: Record<string, unknown>;
+    let accountId: string | undefined;
+    let region: string | undefined;
+
+    switch (record.credentialType) {
+      case 'oauth': {
+        // Existing OAuth flow: decrypt + optional refresh, return access token
+        const provider = this.providers[record.provider];
+        let hydratedRecord = record;
+        if (provider) {
+          hydratedRecord = await this.ensureFreshToken(record, provider);
+        }
+        const accessToken = await this.encryption.decrypt(
+          hydratedRecord.accessToken as SecretEncryptionMaterial,
+        );
+        data = {
+          accessToken,
+          tokenType: hydratedRecord.tokenType ?? 'Bearer',
+        };
+        break;
+      }
+      case 'iam_role': {
+        const creds = JSON.parse(decrypted);
+        const assumed = await this.awsService.assumeRoleWithPlatformIdentity(
+          creds.roleArn,
+          creds.externalId,
+          creds.region,
+        );
+        data = {
+          accessKeyId: assumed.accessKeyId,
+          secretAccessKey: assumed.secretAccessKey,
+          sessionToken: assumed.sessionToken,
+          region: creds.region,
+        };
+        // Extract account ID from role ARN (arn:aws:iam::<account-id>:role/...)
+        const arnMatch =
+          typeof creds.roleArn === 'string' ? creds.roleArn.match(/^arn:aws:iam::(\d{12}):/) : null;
+        accountId = arnMatch?.[1];
+        region = creds.region ?? undefined;
+        break;
+      }
+      case 'webhook': {
+        const creds = JSON.parse(decrypted);
+        data = {
+          webhookUrl: creds.webhookUrl,
+        };
+        break;
+      }
+      default:
+        throw new BadRequestException(`Unsupported credential type: ${record.credentialType}`);
+    }
+
+    // Update lastUsedAt
+    await this.repository.updateLastUsedAt(connectionId);
+
+    return {
+      credentialType: record.credentialType,
+      provider: record.provider,
+      data,
+      accountId,
+      region,
+      displayName: record.displayName ?? undefined,
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Ownership assertion                                               */
+  /* ------------------------------------------------------------------ */
+
+  async assertConnectionOwnership(
+    connectionId: string,
+    auth: AuthContext,
+  ): Promise<IntegrationTokenRecord> {
+    const record = await this.repository.findById(connectionId);
+    if (!record) {
+      throw new NotFoundException(`Connection ${connectionId} was not found`);
+    }
+
+    if (record.organizationId !== auth.organizationId) {
+      throw new ForbiddenException('You do not have access to this connection');
+    }
+
+    return record;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Private helpers: scopes                                           */
+  /* ------------------------------------------------------------------ */
+
   private cleanScopes(scopes: string[]): string[] {
     return Array.from(new Set(scopes.map((scope) => scope.trim()).filter(Boolean))).sort();
   }
@@ -383,6 +768,10 @@ export class IntegrationsService implements OnModuleInit {
     const source = scopes && scopes.length > 0 ? scopes : provider.defaultScopes;
     return this.cleanScopes(source);
   }
+
+  /* ------------------------------------------------------------------ */
+  /*  Private helpers: provider resolution                              */
+  /* ------------------------------------------------------------------ */
 
   private async resolveProviderForAuth(providerId: string): Promise<ResolvedProviderConfig> {
     const base = this.requireProvider(providerId);
@@ -413,23 +802,34 @@ export class IntegrationsService implements OnModuleInit {
     return provider;
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  Private helpers: record ↔ connection mapping                      */
+  /* ------------------------------------------------------------------ */
+
   private toConnection(record: IntegrationTokenRecord): IntegrationConnection {
-    const provider = this.requireProvider(record.provider);
+    const provider = this.providers[record.provider];
+    const providerName = provider?.name ?? record.provider;
     const expiresAt = record.expiresAt ? new Date(record.expiresAt) : null;
     const isExpired = expiresAt ? expiresAt.getTime() < Date.now() : false;
 
     return {
       id: record.id,
       provider: record.provider,
-      providerName: provider.name,
+      providerName,
       userId: record.userId,
+      credentialType: record.credentialType ?? 'oauth',
+      displayName: record.displayName ?? record.provider,
+      organizationId: record.organizationId,
       scopes: record.scopes ?? [],
       tokenType: record.tokenType ?? 'Bearer',
       expiresAt,
+      lastValidatedAt: record.lastValidatedAt ? new Date(record.lastValidatedAt) : null,
+      lastValidationStatus: record.lastValidationStatus ?? null,
+      lastUsedAt: record.lastUsedAt ? new Date(record.lastUsedAt) : null,
       createdAt: new Date(record.createdAt),
       updatedAt: new Date(record.updatedAt),
       status: isExpired ? 'expired' : 'active',
-      supportsRefresh: provider.supportsRefresh,
+      supportsRefresh: provider?.supportsRefresh ?? false,
       hasRefreshToken: Boolean(record.refreshToken),
       metadata: this.coerceMetadata(record.metadata),
     };
@@ -442,6 +842,10 @@ export class IntegrationsService implements OnModuleInit {
     return metadata as Record<string, unknown>;
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  Private helpers: PKCE                                             */
+  /* ------------------------------------------------------------------ */
+
   private generateCodeVerifier(): string {
     return randomBytes(32).toString('base64url');
   }
@@ -449,6 +853,10 @@ export class IntegrationsService implements OnModuleInit {
   private generateCodeChallenge(verifier: string): string {
     return createHash('sha256').update(verifier).digest('base64url');
   }
+
+  /* ------------------------------------------------------------------ */
+  /*  Private helpers: token exchange                                   */
+  /* ------------------------------------------------------------------ */
 
   private async requestTokens(
     provider: IntegrationProviderConfig,
@@ -539,8 +947,15 @@ export class IntegrationsService implements OnModuleInit {
     return payload;
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  Private helpers: persist & refresh token records                   */
+  /* ------------------------------------------------------------------ */
+
   private async persistTokenResponse(input: {
     userId: string;
+    organizationId: string;
+    credentialType: string;
+    displayName: string;
     provider: IntegrationProviderConfig;
     scopes: string[];
     rawResponse: Record<string, any>;
@@ -571,6 +986,9 @@ export class IntegrationsService implements OnModuleInit {
 
     return this.repository.upsertConnection({
       userId: input.userId,
+      organizationId: input.organizationId,
+      credentialType: input.credentialType,
+      displayName: input.displayName,
       provider: input.provider.id,
       scopes: grantedScopes,
       accessToken: accessMaterial,
@@ -629,6 +1047,9 @@ export class IntegrationsService implements OnModuleInit {
 
     return this.repository.upsertConnection({
       userId: record.userId,
+      organizationId: record.organizationId,
+      credentialType: record.credentialType ?? 'oauth',
+      displayName: record.displayName ?? record.provider,
       provider: record.provider,
       scopes: grantedScopes,
       accessToken: accessMaterial,
@@ -638,6 +1059,10 @@ export class IntegrationsService implements OnModuleInit {
       metadata,
     });
   }
+
+  /* ------------------------------------------------------------------ */
+  /*  Private helpers: token extraction & expiry                        */
+  /* ------------------------------------------------------------------ */
 
   private extractToken(value: unknown, field: string): string {
     if (typeof value === 'string' && value.trim().length > 0) {

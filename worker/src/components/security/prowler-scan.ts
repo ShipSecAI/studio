@@ -14,11 +14,14 @@ import {
   parameters,
   port,
   param,
+  analyticsResultSchema,
+  generateFindingHash,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { awsCredentialSchema } from '@shipsec/contracts';
-import { createIsolatedVolume } from '../../utils/isolated-volume';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
 const recommendedFlagOptions = [
   {
@@ -247,6 +250,11 @@ const outputSchema = outputs({
       'Array of normalized findings derived from Prowler ASFF output (includes severity, resource id, remediation).',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
   }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
   rawOutput: port(z.string(), {
     label: 'Raw Output',
     description: 'Raw Prowler output for debugging.',
@@ -288,26 +296,9 @@ const recommendedFlagMap = new Map<RecommendedFlagId, string[]>(
   recommendedFlagOptions.map((option) => [option.id, [...option.args]]),
 );
 
-async function listVolumeFiles(volume: ReturnType<typeof createIsolatedVolume>): Promise<string[]> {
+async function listVolumeFiles(volume: IsolatedContainerVolume): Promise<string[]> {
   const volumeName = volume.getVolumeName();
   if (!volumeName) return [];
-
-  // In K8s mode, volumes are ConfigMap-backed — list keys via K8s API
-  if (process.env.EXECUTION_MODE === 'k8s') {
-    try {
-      const k8s = await import('@kubernetes/client-node');
-      const kc = new k8s.KubeConfig();
-      kc.loadFromCluster();
-      const coreApi = kc.makeApiClient(k8s.CoreV1Api);
-      const namespace = process.env.K8S_JOB_NAMESPACE || 'shipsec-workloads';
-      const cm = await coreApi.readNamespacedConfigMap({ name: volumeName, namespace });
-      const keys = [...Object.keys(cm.data || {}), ...Object.keys(cm.binaryData || {})];
-      // Unflatten __ back to / (ConfigMap key encoding from IsolatedK8sVolume)
-      return keys.map((k) => k.replace(/__/g, '/'));
-    } catch {
-      return [];
-    }
-  }
 
   const dockerPath = await resolveDockerPath();
   return new Promise((resolve, reject) => {
@@ -359,15 +350,12 @@ async function listVolumeFiles(volume: ReturnType<typeof createIsolatedVolume>):
  * the output directory to allow Prowler to create subdirectories.
  */
 async function setVolumeOwnership(
-  volume: ReturnType<typeof createIsolatedVolume>,
+  volume: IsolatedContainerVolume,
   uid = 1000,
   gid = 1000,
 ): Promise<void> {
   const volumeName = volume.getVolumeName();
   if (!volumeName) return;
-
-  // ConfigMap volumes in K8s are read-only projections — ownership is N/A
-  if (process.env.EXECUTION_MODE === 'k8s') return;
 
   const dockerPath = await resolveDockerPath();
   return new Promise((resolve, reject) => {
@@ -419,7 +407,7 @@ const definition = defineComponent({
   retryPolicy: prowlerRetryPolicy,
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/prowler:5.14.2',
+    image: 'ghcr.io/shipsecai/prowler:latest',
     platform: 'linux/amd64',
     command: [], // Placeholder - actual command built dynamically in execute()
   },
@@ -427,6 +415,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Execute Prowler inside Docker using `ghcr.io/shipsecai/prowler` (amd64 enforced on ARM hosts). Supports AWS account scans and the multi-cloud `prowler cloud` overview, with optional CLI flag customisation.',
+  toolProvider: {
+    kind: 'component',
+    name: 'prowler_scan',
+    description: 'AWS and multi-cloud security assessment tool (Prowler).',
+  },
   ui: {
     slug: 'prowler-scan',
     version: '2.0.0',
@@ -446,10 +439,6 @@ const definition = defineComponent({
       'Run nightly `prowler aws --quick --severity-filter high,critical` scans on production accounts and forward findings into ELK.',
       'Use `prowler cloud` with custom flags to generate a multi-cloud compliance snapshot.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'AWS and multi-cloud security assessment tool (Prowler).',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
@@ -520,7 +509,7 @@ const definition = defineComponent({
     const awsEnv: Record<string, string> = {};
     const tenantId = (context as any).tenantId ?? 'default-tenant';
     const awsCredsVolume = parsedInputs.credentials
-      ? createIsolatedVolume(tenantId, `${context.runId}-prowler-aws`)
+      ? new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-aws`)
       : null;
 
     if (parsedInputs.credentials) {
@@ -586,7 +575,7 @@ const definition = defineComponent({
     // Prepare a one-off runner with dynamic command and volume
     const dockerRunner: DockerRunnerConfig = {
       kind: 'docker',
-      image: 'ghcr.io/shipsecai/prowler:5.14.2',
+      image: 'ghcr.io/shipsecai/prowler:latest',
       platform: 'linux/amd64',
       network: 'bridge',
       timeoutSeconds: 900,
@@ -601,7 +590,7 @@ const definition = defineComponent({
     let rawSegments: string[] = [];
     let commandForOutput: string[] = cmd;
     let stderrCombined = '';
-    const outputVolume = createIsolatedVolume(tenantId, `${context.runId}-prowler-out`);
+    const outputVolume = new IsolatedContainerVolume(tenantId, `${context.runId}-prowler-out`);
     let outputVolumeInitialized = false;
     let awsVolumeInitialized = false;
 
@@ -716,13 +705,16 @@ const definition = defineComponent({
         }
       }
 
-      if (rawSegments.length === 0) {
-        throw new ServiceError('Prowler did not produce any ASFF output files.', {
-          details: { volumeName: outputVolume.getVolumeName() },
-        });
-      }
+      const { findings, errors } =
+        rawSegments.length > 0
+          ? normaliseFindings(rawSegments, context.runId)
+          : { findings: [] as NormalisedFinding[], errors: [] as string[] };
 
-      const { findings, errors } = normaliseFindings(rawSegments, context.runId);
+      if (rawSegments.length === 0) {
+        context.logger.info(
+          '[ProwlerScan] Prowler produced no ASFF output — likely 0 findings for the selected severity/region.',
+        );
+      }
 
       const generatedAt = new Date().toISOString();
       const severityCounts: Record<NormalisedSeverity, number> = {
@@ -754,9 +746,29 @@ const definition = defineComponent({
 
       const scanId = buildScanId(parsedInputs.accountId, parsedParams.scanMode);
 
+      // Build analytics-ready results (follows core.analytics.result.v1 contract)
+      const results: AnalyticsResult[] = findings.map((finding) => ({
+        scanner: 'prowler',
+        finding_hash: generateFindingHash(
+          finding.id,
+          finding.resourceId ?? finding.accountId ?? '',
+          finding.title ?? '',
+        ),
+        severity: mapToAnalyticsSeverity(finding.severity),
+        asset_key: finding.resourceId ?? finding.accountId ?? undefined,
+        // Include additional context for analytics
+        title: finding.title,
+        description: finding.description,
+        region: finding.region,
+        status: finding.status,
+        remediationText: finding.remediationText,
+        recommendationUrl: finding.recommendationUrl,
+      }));
+
       const output: Output = {
         scanId,
         findings,
+        results,
         rawOutput: rawSegments.join('\n'),
         summary: {
           totalFindings: findings.length,
@@ -961,6 +973,31 @@ function extractRegionFromArn(resourceId?: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Maps Prowler severity levels to analytics severity enum.
+ * Prowler: critical, high, medium, low, informational, unknown
+ * Analytics: critical, high, medium, low, info, none
+ */
+function mapToAnalyticsSeverity(
+  prowlerSeverity: NormalisedSeverity,
+): 'critical' | 'high' | 'medium' | 'low' | 'info' | 'none' {
+  switch (prowlerSeverity) {
+    case 'critical':
+      return 'critical';
+    case 'high':
+      return 'high';
+    case 'medium':
+      return 'medium';
+    case 'low':
+      return 'low';
+    case 'informational':
+      return 'info';
+    case 'unknown':
+    default:
+      return 'none';
+  }
 }
 
 componentRegistry.register(definition);

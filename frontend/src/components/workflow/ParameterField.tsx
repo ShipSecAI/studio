@@ -18,11 +18,11 @@ import type { Parameter } from '@/schemas/component';
 import type { InputMapping } from '@/schemas/node';
 import { useSecretStore } from '@/store/secretStore';
 import { useIntegrationStore } from '@/store/integrationStore';
-import { getCurrentUserId } from '@/lib/currentUser';
+// D17: getCurrentUserId no longer needed for connection fetching
 import { useArtifactStore } from '@/store/artifactStore';
-import { useGitHubStore } from '@/store/githubStore';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
+import type { IntegrationConnection } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import {
   Dialog,
@@ -66,12 +66,12 @@ export function ParameterField({
   const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
   const refreshSecrets = useSecretStore((state) => state.refresh);
 
-  const integrationConnections = useIntegrationStore((state) => state.connections);
-  const fetchIntegrationConnections = useIntegrationStore((state) => state.fetchConnections);
+  const fetchMergedConnections = useIntegrationStore((state) => state.fetchMergedConnections);
   const integrationLoading = useIntegrationStore((state) => state.loadingConnections);
   const integrationError = useIntegrationStore((state) => state.error);
 
-  const currentUserId = useMemo(() => getCurrentUserId(), []);
+  // D17: merged connections from both user-scoped and org-scoped endpoints
+  const [mergedConnections, setMergedConnections] = useState<IntegrationConnection[]>([]);
   const hasFetchedConnectionsRef = useRef(false);
   const autoSelectedConnectionRef = useRef(false);
 
@@ -90,61 +90,26 @@ export function ParameterField({
   const isRemoveGithubComponent = componentId === 'github.org.membership.remove';
   const isProviderGithubComponent = componentId === 'github.connection.provider';
   const isGitHubConnectionComponent = isRemoveGithubComponent || isProviderGithubComponent;
-  const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId';
+  const isGenericCredentialResolver = componentId === 'core.integration.resolve-credentials';
+  const isConnectionSelector =
+    (isGitHubConnectionComponent || isGenericCredentialResolver) && parameter.id === 'connectionId';
   const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection';
 
   const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id);
   const isWorkflowCallComponent = componentId === 'core.workflow.call';
   const isWorkflowSelector = isWorkflowCallComponent && parameter.id === 'workflowId';
 
-  // GitHub App component detection (clone repo)
-  const isGitHubCloneComponent = componentId === 'github.repo.clone';
-  const isRepoSelector = isGitHubCloneComponent && parameter.id === 'repository';
-  const isBranchSelector = isGitHubCloneComponent && parameter.id === 'branch';
-  const isGitHubAppComponent = componentId?.startsWith('github.') ?? false;
-
-  const ghInstallations = useGitHubStore((s) => s.installations);
-  const ghRepositories = useGitHubStore((s) => s.repositories);
-  const ghBranchesByRepo = useGitHubStore((s) => s.branchesByRepo);
-  const ghBranchesLoading = useGitHubStore((s) => s.branchesLoading);
-  const ghFetchInstallations = useGitHubStore((s) => s.fetchInstallations);
-  const ghFetchRepositories = useGitHubStore((s) => s.fetchRepositories);
-  const ghFetchBranches = useGitHubStore((s) => s.fetchBranches);
-  const ghHasFetchedRef = useRef(false);
-
-  // Lazily fetch GitHub data when a GitHub App component is detected
-  useEffect(() => {
-    if (!isGitHubAppComponent || ghHasFetchedRef.current) return;
-    ghHasFetchedRef.current = true;
-    ghFetchInstallations().catch(() => {});
-    ghFetchRepositories().catch(() => {});
-  }, [isGitHubAppComponent, ghFetchInstallations, ghFetchRepositories]);
-
-  // For branch selector: resolve repo ID from current repo value and fetch branches
-  const selectedRepoFullName =
-    isGitHubCloneComponent && typeof (parameters as any)?.repository === 'string'
-      ? (parameters as any).repository
-      : typeof currentValue === 'string' && isBranchSelector
-        ? undefined
-        : undefined;
-
-  const selectedGhRepo = useMemo(
-    () =>
-      selectedRepoFullName
-        ? ghRepositories.find((r) => r.fullName === selectedRepoFullName)
-        : undefined,
-    [ghRepositories, selectedRepoFullName],
-  );
-
-  useEffect(() => {
-    if (!isBranchSelector || !selectedGhRepo) return;
-    ghFetchBranches(selectedGhRepo.id).catch(() => {});
-  }, [isBranchSelector, selectedGhRepo, ghFetchBranches]);
-
+  // D17: use merged connections (combines user-scoped and org-scoped)
   const githubConnections = useMemo(
-    () => integrationConnections.filter((connection) => connection.provider === 'github'),
-    [integrationConnections],
+    () => mergedConnections.filter((connection) => connection.provider === 'github'),
+    [mergedConnections],
   );
+
+  // All connections for the generic credential resolver (no provider filter)
+  const allConnections = useMemo(() => mergedConnections, [mergedConnections]);
+
+  // Pick the right list depending on the component
+  const connectionOptions = isGenericCredentialResolver ? allConnections : githubConnections;
 
   const [workflowOptions, setWorkflowOptions] = useState<{ id: string; name: string }[]>([]);
   const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false);
@@ -227,10 +192,13 @@ export function ParameterField({
       return;
     }
     hasFetchedConnectionsRef.current = true;
-    fetchIntegrationConnections(currentUserId).catch((error) => {
-      console.error('Failed to load integration connections', error);
-    });
-  }, [isConnectionSelector, fetchIntegrationConnections, currentUserId]);
+    // D17: fetch merged connections (user-scoped + org-scoped, deduped)
+    fetchMergedConnections()
+      .then((merged) => setMergedConnections(merged))
+      .catch((error) => {
+        console.error('Failed to load integration connections', error);
+      });
+  }, [isConnectionSelector, fetchMergedConnections]);
 
   useEffect(() => {
     if (!isConnectionSelector || integrationLoading) {
@@ -245,8 +213,8 @@ export function ParameterField({
       return;
     }
 
-    if (githubConnections.length === 1 && !autoSelectedConnectionRef.current) {
-      const [firstConnection] = githubConnections;
+    if (connectionOptions.length === 1 && !autoSelectedConnectionRef.current) {
+      const [firstConnection] = connectionOptions;
       if (firstConnection) {
         autoSelectedConnectionRef.current = true;
         onChange(firstConnection.id);
@@ -259,7 +227,7 @@ export function ParameterField({
     }
   }, [
     isConnectionSelector,
-    githubConnections,
+    connectionOptions,
     integrationLoading,
     currentValue,
     onChange,
@@ -269,7 +237,8 @@ export function ParameterField({
 
   const handleRefreshConnections = async () => {
     try {
-      await fetchIntegrationConnections(currentUserId, true);
+      const merged = await fetchMergedConnections();
+      setMergedConnections(merged);
     } catch (error) {
       console.error('Failed to refresh integration connections', error);
     }
@@ -406,7 +375,6 @@ export function ParameterField({
           onChange={(event) => {
             autoSelectedConnectionRef.current = true;
             const nextValue = event.target.value;
-            console.log('Selected GitHub connection ID:', nextValue);
             if (nextValue === '') {
               onChange(undefined);
               if (isRemoveGithubComponent) {
@@ -424,10 +392,12 @@ export function ParameterField({
           className="w-full px-3 py-2 text-sm border rounded-md bg-background"
           disabled={disabled}
         >
-          <option value="">Select a GitHub connection…</option>
-          {githubConnections.map((connection) => (
+          <option value="">
+            {isGenericCredentialResolver ? 'Select a connection…' : 'Select a GitHub connection…'}
+          </option>
+          {connectionOptions.map((connection) => (
             <option key={connection.id} value={connection.id}>
-              {connection.providerName} · {connection.userId}
+              {connection.displayName ?? connection.providerName} · {connection.provider}
             </option>
           ))}
         </select>
@@ -438,9 +408,11 @@ export function ParameterField({
 
         {integrationError && <p className="text-xs text-destructive">{integrationError}</p>}
 
-        {!integrationLoading && githubConnections.length === 0 && (
+        {!integrationLoading && connectionOptions.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            No active GitHub connections yet. Connect GitHub from the Connections manager.
+            {isGenericCredentialResolver
+              ? 'No active connections yet. Add a connection from the Integrations page.'
+              : 'No active GitHub connections yet. Connect GitHub from the Connections manager.'}
           </p>
         )}
 
@@ -507,86 +479,6 @@ export function ParameterField({
         onChange={onChange}
         disabled={isReceivingInput}
       />
-    );
-  }
-
-  // GitHub App - Repository selector dropdown
-  if (isRepoSelector && ghRepositories.length > 0) {
-    const reposByInstallation = ghInstallations
-      .map((inst) => ({
-        installation: inst,
-        repos: ghRepositories.filter((r) => r.installationId === inst.id),
-      }))
-      .filter((g) => g.repos.length > 0);
-
-    return (
-      <div className="space-y-2">
-        <select
-          id={parameter.id}
-          value={currentValue || ''}
-          onChange={(e) => {
-            const next = e.target.value;
-            onChange(next || undefined);
-            // Reset branch when repo changes
-            if (next !== currentValue) {
-              onUpdateParameter?.('branch', undefined);
-            }
-          }}
-          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
-          disabled={isReceivingInput}
-        >
-          <option value="">Select a repository…</option>
-          {reposByInstallation.map(({ installation, repos }) => (
-            <optgroup
-              key={installation.id}
-              label={`${installation.accountLogin}${installation.accountType === 'Organization' ? ' (org)' : ''}`}
-            >
-              {repos.map((repo) => (
-                <option key={repo.id} value={repo.fullName}>
-                  {repo.fullName}
-                  {repo.isPrivate ? ' 🔒' : ''}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        {ghRepositories.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            No repositories connected. Install the GitHub App first.
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  // GitHub App - Branch selector dropdown
-  if (isBranchSelector && selectedGhRepo) {
-    const branches = ghBranchesByRepo[selectedGhRepo.id] ?? [];
-    const loading = ghBranchesLoading === selectedGhRepo.id;
-
-    return (
-      <div className="space-y-2">
-        <select
-          id={parameter.id}
-          value={currentValue || ''}
-          onChange={(e) => onChange(e.target.value || undefined)}
-          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
-          disabled={isReceivingInput || loading}
-        >
-          <option value="">{loading ? 'Loading branches…' : 'Default branch'}</option>
-          {branches.map((b) => (
-            <option key={b.name} value={b.name}>
-              {b.name}
-              {b.isDefault ? ' (default)' : ''}
-            </option>
-          ))}
-        </select>
-        {!loading && branches.length === 0 && selectedGhRepo && (
-          <p className="text-xs text-muted-foreground">
-            Could not load branches. You can type a branch name manually below.
-          </p>
-        )}
-      </div>
     );
   }
 
