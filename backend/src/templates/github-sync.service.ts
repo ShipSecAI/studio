@@ -58,7 +58,11 @@ export class GitHubSyncService implements OnModuleInit {
    */
   async onModuleInit(): Promise<void> {
     const { owner, repo, branch } = this.getRepoConfig();
+    const hasToken = !!this.getToken();
     this.logger.log(`Template repo: ${owner}/${repo} (branch: ${branch})`);
+    this.logger.log(
+      `GitHub API auth: ${hasToken ? 'token configured (5000 req/hr)' : 'unauthenticated (60 req/hr)'}`,
+    );
     this.logger.log('Starting automatic template sync...');
     try {
       const result = await this.syncTemplates();
@@ -69,6 +73,28 @@ export class GitHubSyncService implements OnModuleInit {
       this.logger.error('Startup sync failed', err);
       // Don't throw - allow the application to start even if sync fails
     }
+  }
+
+  /**
+   * Get the GitHub token for authenticated API requests (optional).
+   * With a token: 5,000 requests/hour. Without: 60 requests/hour.
+   */
+  private getToken(): string | undefined {
+    return this.configService.get<string>('GITHUB_TEMPLATE_TOKEN');
+  }
+
+  /**
+   * Build common headers for GitHub API requests.
+   */
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github.v3+json',
+    };
+    const token = this.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
   }
 
   /**
@@ -97,7 +123,7 @@ export class GitHubSyncService implements OnModuleInit {
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
 
     const response = await fetch(url, {
-      headers: { Accept: 'application/vnd.github.v3+json' },
+      headers: this.getHeaders(),
     });
 
     if (!response.ok) {
@@ -130,7 +156,7 @@ export class GitHubSyncService implements OnModuleInit {
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
 
     const response = await fetch(url, {
-      headers: { Accept: 'application/vnd.github.v3+json' },
+      headers: this.getHeaders(),
     });
 
     if (!response.ok) {

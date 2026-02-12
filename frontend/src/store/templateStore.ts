@@ -239,7 +239,12 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
 
       const result = await response.json();
       set({ isLoading: false });
-      return result;
+      // Backend returns { workflow: { id, ... }, templateId, templateName }
+      // Map to the shape the frontend expects: { workflowId, templateName }
+      return {
+        workflowId: result.workflow?.id ?? result.workflowId,
+        templateName: result.templateName,
+      };
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : 'Failed to use template',

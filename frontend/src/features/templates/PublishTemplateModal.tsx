@@ -212,7 +212,7 @@ function generateTemplateJson(workflow: WorkflowResponse, metadata: TemplateMeta
     requiredSecrets,
   };
 
-  return JSON.stringify(template);
+  return JSON.stringify(template, null, 2);
 }
 
 /**
