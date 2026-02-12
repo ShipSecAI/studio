@@ -12,6 +12,7 @@ import { WorkflowBuilder } from '@/features/workflow-builder/WorkflowBuilder';
 import { SecretsManager } from '@/pages/SecretsManager';
 import { ApiKeysManager } from '@/pages/ApiKeysManager';
 import { IntegrationsManager } from '@/pages/IntegrationsManager';
+import { IntegrationDetailPage } from '@/pages/IntegrationDetailPage';
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary';
 import { McpLibraryPage } from '@/pages/McpLibraryPage';
 import { IntegrationCallback } from '@/pages/IntegrationCallback';
@@ -271,6 +272,7 @@ function App() {
                     <Route path="/secrets" element={<SecretsManager />} />
                     <Route path="/api-keys" element={<ApiKeysManager />} />
                     <Route path="/integrations" element={<IntegrationsManager />} />
+                    <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
                     <Route path="/webhooks" element={<WebhooksPage />} />
                     <Route path="/webhooks/new" element={<WebhookEditorPage />} />
                     <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
