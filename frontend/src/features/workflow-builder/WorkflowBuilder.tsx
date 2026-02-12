@@ -916,6 +916,13 @@ function WorkflowBuilderContent() {
   // This allows smooth transition without forcing mode change
   const isInspectorVisible = mode === 'execution' || (selectedRunId !== null && mode !== 'design');
 
+  const hasAnalyticsSink = useMemo(() => {
+    return designNodes.some((node) => {
+      const ref = node.data?.componentId ?? node.data?.componentSlug;
+      return ref === 'core.analytics.sink' || ref === 'analytics-sink';
+    });
+  }, [designNodes]);
+
   const shouldShowInitialLoader =
     isLoading && designNodes.length === 0 && executionNodes.length === 0 && !isNewWorkflow;
 
@@ -948,6 +955,7 @@ function WorkflowBuilderContent() {
       onRedo={redo}
       canUndo={canUndo}
       canRedo={canRedo}
+      hasAnalyticsSink={hasAnalyticsSink}
     />
   );
 
