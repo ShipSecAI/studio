@@ -96,6 +96,8 @@ function WorkflowBuilderContent() {
   const isNewWorkflow = id === 'new';
   // Detect if we're on a /runs URL (execution mode without specific run)
   const isRunsRoute = location.pathname.includes('/runs') && !routeRunId;
+  // Detect if we're in the workflow builder (not other parts of the app)
+  const isInWorkflowBuilder = location.pathname.match(/^\/workflows\/[^/]/) !== null;
   const { metadata, isDirty, setMetadata, setWorkflowId, markClean, markDirty, resetWorkflow } =
     useWorkflowStore();
   const { toast } = useToast();
@@ -911,7 +913,7 @@ function WorkflowBuilderContent() {
       selectedRunId={selectedRunId}
       selectedRunStatus={selectedRun?.status ?? null}
       selectedRunOrgId={selectedRun?.organizationId ?? null}
-      isNew={isNewWorkflow}
+      isInWorkflowBuilder={isInWorkflowBuilder}
       onRun={handleRun}
       onSave={handleSave}
       onImport={handleImportWorkflow}

@@ -200,41 +200,18 @@ export const useTemplateStore = create<TemplateStore>((set, get) => ({
 
   /**
    * Publish a workflow as a template
+   * Note: This is now a no-op that returns success immediately.
+   * The actual GitHub submission is handled by the PublishTemplateModal
+   * which opens GitHub directly in the browser.
    */
   publishTemplate: async (data) => {
-    set({ isLoading: true, error: null });
-    try {
-      const headers = await getApiAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/api/v1/templates/publish`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Failed to publish template' }));
-        throw new Error(errorData.message || 'Failed to publish template');
-      }
-
-      const result = await response.json();
-      set({ isLoading: false });
-
-      // Refresh submissions
-      get().fetchMySubmissions();
-
-      return result;
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to publish template',
-        isLoading: false,
-      });
-      throw err;
-    }
+    // No-op: Return success immediately since the modal handles GitHub
+    // The modal will open GitHub in the browser for the user to submit
+    return Promise.resolve({
+      templateId: data.workflowId,
+      pullRequestUrl: '',
+      pullRequestNumber: 0,
+    });
   },
 
   /**

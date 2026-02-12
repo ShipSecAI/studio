@@ -19,8 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, AlertCircle, CheckCircle2, GitPullRequest, X } from 'lucide-react';
-import { useTemplateStore } from '@/store/templateStore';
+import { Loader2, AlertCircle, CheckCircle2, GitPullRequest, X, ExternalLink } from 'lucide-react';
+import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 import { cn } from '@/lib/utils';
 
 interface PublishTemplateModalProps {
@@ -28,12 +28,12 @@ interface PublishTemplateModalProps {
   workflowName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: (result: {
-    templateId: string;
-    pullRequestUrl: string;
-    pullRequestNumber: number;
-  }) => void;
+  onSuccess?: () => void;
 }
+
+// GitHub repository configuration for templates
+const GITHUB_TEMPLATE_REPO = 'krishna9358/workflow-templates'; // format: owner/repo
+const GITHUB_BRANCH = 'main';
 
 const TEMPLATE_CATEGORIES = [
   'Security',
@@ -66,6 +66,177 @@ const COMMON_TAGS = [
   'detection',
 ];
 
+interface WorkflowResponse {
+  id: string;
+  name: string;
+  description?: string;
+  manifest: Record<string, unknown>;
+  graph: Record<string, unknown>;
+}
+
+interface TemplateMetadata {
+  name: string;
+  description?: string;
+  category: string;
+  tags: string[];
+  author: string;
+  version: string;
+}
+
+interface TemplateJson {
+  _metadata: TemplateMetadata;
+  manifest: Record<string, unknown>;
+  graph: Record<string, unknown>;
+  requiredSecrets: Array<{ name: string; type: string; description?: string }>;
+}
+
+/**
+ * Sanitize secrets from the workflow graph by replacing secret references with placeholders
+ */
+function sanitizeGraphForTemplate(
+  graph: Record<string, unknown>,
+): Record<string, unknown> {
+  const sanitized = JSON.parse(JSON.stringify(graph)); // Deep clone
+
+  // Helper to recursively sanitize secret references
+  const traverseAndSanitize = (obj: unknown): unknown => {
+    if (typeof obj === 'object' && obj !== null) {
+      if (Array.isArray(obj)) {
+        return obj.map(traverseAndSanitize);
+      }
+
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        // Check for secret reference patterns
+        if (
+          key === 'secretId' ||
+          key === 'secret_name' ||
+          key === 'secretName' ||
+          key === 'secret_ref' ||
+          key === 'secretRef'
+        ) {
+          result[key] = '{{SECRET_PLACEHOLDER}}';
+        } else if (
+          typeof value === 'string' &&
+          (value.includes('${secrets.') || value.includes('${secret.') || value.includes('{{secret.'))
+        ) {
+          // Replace secret interpolation expressions with placeholder
+          result[key] = value.replace(/\$\{secrets\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
+                         .replace(/\$\{secret\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
+                         .replace(/\{\{secret\.[^}]+\}\}/g, '{{SECRET_PLACEHOLDER}}');
+        } else {
+          result[key] = traverseAndSanitize(value);
+        }
+      }
+      return result;
+    }
+    return obj;
+  };
+
+  return traverseAndSanitize(sanitized) as Record<string, unknown>;
+}
+
+/**
+ * Extract secret requirements from the graph for documentation
+ */
+function extractRequiredSecrets(
+  graph: Record<string, unknown>,
+): Array<{ name: string; type: string; description?: string }> {
+  const secrets = new Map<string, { type: string; description?: string }>();
+
+  const traverseAndExtract = (obj: unknown, path: string[] = []) => {
+    if (typeof obj === 'object' && obj !== null) {
+      if (Array.isArray(obj)) {
+        obj.forEach((item, idx) => traverseAndExtract(item, [...path, String(idx)]));
+        return;
+      }
+
+      for (const [key, value] of Object.entries(obj)) {
+        if (
+          key === 'secretId' ||
+          key === 'secret_name' ||
+          key === 'secretName'
+        ) {
+          if (typeof value === 'string') {
+            // Infer type from context
+            const context = path[path.length - 2] || 'generic';
+            const type = context.toLowerCase().includes('api') ? 'api_key' :
+                        context.toLowerCase().includes('token') ? 'token' :
+                        context.toLowerCase().includes('password') ? 'password' :
+                        'generic';
+            secrets.set(value, { type, description: `Secret for ${context}` });
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          traverseAndExtract(value, [...path, key]);
+        }
+      }
+    }
+  };
+
+  traverseAndExtract(graph);
+  return Array.from(secrets.entries()).map(([name, info]) => ({
+    name,
+    type: info.type,
+    description: info.description,
+  }));
+}
+
+/**
+ * Generate the template JSON structure with metadata
+ */
+function generateTemplateJson(
+  workflow: WorkflowResponse,
+  metadata: TemplateMetadata,
+): string {
+  const sanitizedGraph = sanitizeGraphForTemplate(workflow.graph);
+  const requiredSecrets = extractRequiredSecrets(workflow.graph);
+
+  const template: TemplateJson = {
+    _metadata: metadata,
+    manifest: workflow.manifest,
+    graph: sanitizedGraph,
+    requiredSecrets,
+  };
+
+  return JSON.stringify(template, null, 2);
+}
+
+/**
+ * Generate GitHub URL for creating a new file with pre-filled content
+ * Uses the quick-pull flow which always creates a PR
+ */
+function generateGitHubUrl(
+  owner: string,
+  repo: string,
+  branch: string,
+  filename: string,
+  content: string,
+  templateName: string,
+): string {
+  // Use GitHub's create file API URL with quick-pull parameter
+  // This ensures the "Propose new file" flow is used instead of direct commit
+  const baseUrl = `https://github.com/${owner}/${repo}/new/${branch}`;
+  const params = new URLSearchParams();
+  params.set('filename', filename);
+  params.set('value', content);
+  params.set('message', `Add template: ${templateName}`);
+  // This hints to GitHub to use PR flow
+  params.set('quick_pull', '1');
+
+  return `${baseUrl}?${params.toString()}`;
+}
+
+/**
+ * Sanitize filename to be safe for use in URLs
+ */
+function sanitizeFilename(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    + '.json';
+}
+
 export function PublishTemplateModal({
   workflowId,
   workflowName,
@@ -73,8 +244,6 @@ export function PublishTemplateModal({
   onOpenChange,
   onSuccess,
 }: PublishTemplateModalProps) {
-  const { publishTemplate, isLoading } = useTemplateStore();
-
   const [name, setName] = useState(workflowName);
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<string>('');
@@ -82,49 +251,84 @@ export function PublishTemplateModal({
   const [tagInput, setTagInput] = useState('');
   const [author, setAuthor] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
-    templateId: string;
-    pullRequestUrl: string;
-    pullRequestNumber: number;
-  } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError(null);
+      setIsLoading(true);
 
       if (!name.trim()) {
         setError('Please enter a template name');
+        setIsLoading(false);
         return;
       }
 
       if (!category) {
         setError('Please select a category');
+        setIsLoading(false);
         return;
       }
 
       if (!author.trim()) {
         setError('Please enter your name or organization');
+        setIsLoading(false);
         return;
       }
 
       try {
-        const publishResult = await publishTemplate({
-          workflowId,
+        // Fetch the workflow data from the backend
+        const headers = await getApiAuthHeaders();
+        const response = await fetch(`${API_BASE_URL}/api/v1/workflows/${workflowId}`, {
+          headers,
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch workflow data');
+        }
+
+        const workflow: WorkflowResponse = await response.json();
+
+        // Generate the template JSON
+        const metadata: TemplateMetadata = {
           name: name.trim(),
           description: description.trim() || undefined,
-          category: category || '', // Ensure category is a string
+          category: category || '',
           tags,
           author: author.trim(),
-        });
+          version: '1.0.0',
+        };
 
-        setResult(publishResult);
-        onSuccess?.(publishResult);
+        const templateJson = generateTemplateJson(workflow, metadata);
+        const filename = `templates/${sanitizeFilename(name.trim())}`;
+
+        // Parse the GitHub repo config
+        const [owner, repo] = GITHUB_TEMPLATE_REPO.split('/');
+
+        // Generate the GitHub URL with quick-pull flow
+        const githubUrl = generateGitHubUrl(
+          owner,
+          repo,
+          GITHUB_BRANCH,
+          filename,
+          templateJson,
+          name.trim(),
+        );
+
+        // Open the GitHub URL in a new tab
+        window.open(githubUrl, '_blank', 'noopener,noreferrer');
+
+        // Show success state
+        setSuccess(true);
+        onSuccess?.();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to publish template');
+        setError(err instanceof Error ? err.message : 'Failed to prepare template for publishing');
+      } finally {
+        setIsLoading(false);
       }
     },
-    [workflowId, name, description, category, tags, author, publishTemplate, onSuccess],
+    [workflowId, name, description, category, tags, author, onSuccess],
   );
 
   const handleAddTag = () => {
@@ -156,7 +360,7 @@ export function PublishTemplateModal({
         setTags([]);
         setAuthor('');
         setError(null);
-        setResult(null);
+        setSuccess(false);
       }, 200);
     }
   };
@@ -170,12 +374,11 @@ export function PublishTemplateModal({
             Publish as Template
           </DialogTitle>
           <DialogDescription>
-            Submit your workflow as a template. A pull request will be created in the templates
-            repository.
+            Submit your workflow as a template to the GitHub repository.
           </DialogDescription>
         </DialogHeader>
 
-        {result ? (
+        {success ? (
           // Success State
           <div className="py-6">
             <div className="flex flex-col items-center text-center space-y-4">
@@ -183,25 +386,39 @@ export function PublishTemplateModal({
                 <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Template Submitted!</h3>
+                <h3 className="text-lg font-semibold">Template Ready for Submission!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Your template has been submitted as PR #{result.pullRequestNumber}
+                  A new tab has opened with your template pre-filled
                 </p>
               </div>
-              <div className="w-full p-3 rounded-lg bg-muted/50 space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Template ID:</span>
-                  <code className="text-xs bg-background px-2 py-0.5 rounded">
-                    {result.templateId}
-                  </code>
+              <div className="w-full p-3 rounded-lg bg-muted/50 space-y-3 text-sm">
+                <p className="text-left">
+                  <strong>Next steps:</strong>
+                </p>
+                <ol className="text-left list-decimal list-inside space-y-2 text-muted-foreground">
+                  <li>
+                    <strong>Review</strong> the template content in the opened tab
+                  </li>
+                  <li>
+                    <strong>Commit message</strong> is pre-filled with your template name
+                  </li>
+                  <li>
+                    <strong>Important:</strong> Click &quot;Propose new file&quot; (NOT &quot;Commit directly&quot;)
+                  </li>
+                  <li>
+                    <strong>Create Pull Request</strong> to submit your template for review
+                  </li>
+                </ol>
+                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs">
+                  <strong>Note:</strong> Creating a PR allows reviewers to check your template before it&apos;s added to the library.
                 </div>
                 <a
-                  href={result.pullRequestUrl}
+                  href={`https://github.com/${GITHUB_TEMPLATE_REPO}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline flex items-center gap-1"
                 >
-                  View Pull Request →
+                  View Repository on GitHub <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
               <p className="text-xs text-muted-foreground max-w-sm">
@@ -314,8 +531,8 @@ export function PublishTemplateModal({
             <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
               <p>
                 <strong>Note:</strong> Your workflow will be sanitized before publishing. All secret
-                references will be removed and replaced with placeholders. The pull request will be
-                created in the templates repository for review.
+                references will be removed and replaced with placeholders. Clicking submit will open
+                GitHub in a new tab where you can review and create a pull request.
               </p>
             </div>
 

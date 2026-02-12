@@ -8,10 +8,14 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  HttpException,
 } from '@nestjs/common';
 import { TemplateService } from './templates.service';
+import { GitHubSyncService } from './github-sync.service';
 import { CurrentAuth } from '../auth/auth-context.decorator';
-import { RequireWorkflowRole } from '../workflows/workflow-role.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { Public } from '../auth/public.decorator';
 
 /**
  * Templates Controller
@@ -19,11 +23,15 @@ import { RequireWorkflowRole } from '../workflows/workflow-role.guard';
  */
 @Controller('templates')
 export class TemplatesController {
-  constructor(private readonly templateService: TemplateService) {}
+  constructor(
+    private readonly templateService: TemplateService,
+    private readonly githubSyncService: GitHubSyncService,
+  ) {}
 
   /**
-   * GET /templates - List all templates with optional filters
+   * GET /templates - List all templates with optional filters (public)
    */
+  @Public()
   @Get()
   async listTemplates(
     @Query('category') category?: string,
@@ -44,16 +52,18 @@ export class TemplatesController {
   }
 
   /**
-   * GET /templates/categories - List available categories
+   * GET /templates/categories - List available categories (public)
    */
+  @Public()
   @Get('categories')
   async getCategories() {
     return await this.templateService.getCategories();
   }
 
   /**
-   * GET /templates/tags - List available tags
+   * GET /templates/tags - List available tags (public)
    */
+  @Public()
   @Get('tags')
   async getTags() {
     return await this.templateService.getTags();
@@ -68,8 +78,29 @@ export class TemplatesController {
   }
 
   /**
-   * GET /templates/:id - Get template details by ID
+   * GET /templates/repo-info - Get GitHub repository information (public)
+   * IMPORTANT: Must come before :id route to avoid route conflict
    */
+  @Public()
+  @Get('repo-info')
+  async getRepoInfo() {
+    return await this.githubSyncService.getRepositoryInfo();
+  }
+
+  /**
+   * GET /templates/submissions - Get template submissions for current user
+   * IMPORTANT: Must come before :id route to avoid route conflict
+   */
+  @Get('submissions')
+  async getSubmissions(@CurrentAuth() auth: { userId?: string; organizationId?: string }) {
+    return await this.templateService.getSubmissions(auth.userId || auth.organizationId || '');
+  }
+
+  /**
+   * GET /templates/:id - Get template details by ID (public)
+   * IMPORTANT: Must be last to avoid conflicting with specific routes
+   */
+  @Public()
   @Get(':id')
   async getTemplate(@Param('id') id: string) {
     const template = await this.templateService.getTemplateById(id);
@@ -80,10 +111,14 @@ export class TemplatesController {
   }
 
   /**
-   * POST /templates/publish - Publish a workflow as a template (creates PR)
+   * POST /templates/publish - Validate a workflow for template submission
+   *
+   * Note: This endpoint now only validates templates. PR creation has been removed.
+   * Users should create PRs via GitHub web flow after validation.
    */
   @Post('publish')
-  @UseGuards(RequireWorkflowRole('ADMIN'))
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   @HttpCode(HttpStatus.ACCEPTED)
   async publishTemplate(
     @CurrentAuth() auth: { userId?: string; organizationId?: string },
@@ -108,7 +143,8 @@ export class TemplatesController {
    * POST /templates/:id/use - Use a template to create a new workflow
    */
   @Post(':id/use')
-  @UseGuards(RequireWorkflowRole('ADMIN'))
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   async useTemplate(
     @Param('id') id: string,
     @CurrentAuth() auth: { userId?: string; organizationId?: string },
@@ -127,27 +163,13 @@ export class TemplatesController {
 
   /**
    * POST /templates/sync - Sync templates from GitHub (admin only)
+   *
+   * Fetches templates from the GitHub repository and stores them in the database.
    */
   @Post('sync')
-  @UseGuards(RequireWorkflowRole('ADMIN'))
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   async syncTemplates(@CurrentAuth() _auth: { organizationId?: string }) {
-    return await this.templateService.syncTemplates();
-  }
-
-  /**
-   * GET /templates/submissions - Get template submissions for current user
-   */
-  @Get('submissions')
-  async getSubmissions(@CurrentAuth() auth: { userId?: string; organizationId?: string }) {
-    return await this.templateService.getSubmissions(auth.userId || auth.organizationId || '');
-  }
-}
-
-class HttpException extends Error {
-  constructor(
-    message: string,
-    public status: number,
-  ) {
-    super(message);
+    return await this.githubSyncService.syncTemplates();
   }
 }

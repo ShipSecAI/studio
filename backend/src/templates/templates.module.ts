@@ -1,25 +1,27 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '../database/database.module';
 import { TemplatesController } from './templates.controller';
 import { TemplateService } from './templates.service';
-import { GitHubTemplateService } from './github-template.service';
 import { WorkflowSanitizationService } from './workflow-sanitization.service';
 import { TemplatesRepository } from './templates.repository';
-import { WorkflowsModule } from '../workflows/workflows.module';
+import { GitHubSyncService } from './github-sync.service';
 
-// TemplatesModule temporarily disabled due to Bun+NestJS compatibility issue
-// See: https://github.com/oven-sh/bun/issues/4858
-
+/**
+ * Templates Module
+ * Handles template library operations.
+ *
+ * Uses GitHub web flow for publishing and GitHub API for syncing templates.
+ */
 @Module({
-  imports: [DatabaseModule, forwardRef(() => WorkflowsModule), ConfigModule],
+  imports: [DatabaseModule, ConfigModule],
   controllers: [TemplatesController],
   providers: [
     TemplateService,
-    GitHubTemplateService,
     WorkflowSanitizationService,
     TemplatesRepository,
+    GitHubSyncService,
   ],
-  exports: [TemplateService],
+  exports: [TemplateService, GitHubSyncService],
 })
 export class TemplatesModule {}

@@ -31,9 +31,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
-// TemplatesModule temporarily removed due to Bun+NestJS compatibility issue
-// See: https://github.com/oven-sh/bun/issues/4858
-// import { TemplatesModule } from './templates/templates.module';
+import { TemplatesModule } from './templates/templates.module';
 
 const coreModules = [
   AgentsModule,
@@ -52,10 +50,11 @@ const coreModules = [
   McpServersModule,
   McpGroupsModule,
   McpModule,
-  // TemplatesModule - removed until Bun+NestJS issue is resolved
+  TemplatesModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
+
 
 function getEnvFilePaths(): string[] {
   // In multi-instance dev, each instance has its own env file under:

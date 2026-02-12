@@ -18,6 +18,7 @@ import {
   Redo2,
   ExternalLink,
   Package,
+  ChevronDown,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -30,13 +31,18 @@ import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import { env } from '@/config/env';
+// import {
+//   DropdownMenu,
+//   DropdownMenuContent,
+//   DropdownMenuItem,
+//   DropdownMenuTrigger,
+// } from '@/components/ui/dropdown-menu';
 
 interface TopBarProps {
   workflowId?: string;
   selectedRunId?: string | null;
   selectedRunStatus?: string | null;
   selectedRunOrgId?: string | null;
-  isNew?: boolean;
   onRun?: () => void;
   onSave: () => Promise<void> | void;
   onImport?: (file: File) => Promise<void> | void;
@@ -47,6 +53,7 @@ interface TopBarProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  isInWorkflowBuilder?: boolean;
 }
 
 const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow';
@@ -56,7 +63,7 @@ export function TopBar({
   selectedRunId,
   selectedRunStatus,
   selectedRunOrgId,
-  isNew,
+  isInWorkflowBuilder,
   onRun,
   onSave,
   onImport,
@@ -370,7 +377,7 @@ export function TopBar({
                       <Redo2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  {(onImport || onExport || onPublishTemplate) && (
+                  {(onImport || onExport) && (
                     <div className="hidden md:flex items-center gap-1.5 sm:gap-2">
                       {onImport && (
                         <>
@@ -409,26 +416,10 @@ export function TopBar({
                           <span className="text-xs font-medium hidden lg:inline">Export</span>
                         </Button>
                       )}
-                      {onPublishTemplate && !isNew && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 xl:px-3 gap-2 text-primary"
-                          onClick={onPublishTemplate}
-                          disabled={!canEdit}
-                          aria-label="Publish as template"
-                        >
-                          <Package className="h-4 w-4" />
-                          <span className="text-xs font-medium hidden lg:inline">
-                            Publish as Template
-                          </span>
-                        </Button>
-                      )}
                     </div>
                   )}
 
-                  {(onImport || onExport || onPublishTemplate) && (
+                  {(onImport || onExport) && (
                     <div className="flex md:hidden">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -450,12 +441,6 @@ export function TopBar({
                             <DropdownMenuItem onClick={handleExport}>
                               <Download className="mr-2 h-4 w-4" />
                               <span>Export</span>
-                            </DropdownMenuItem>
-                          )}
-                          {onPublishTemplate && !isNew && (
-                            <DropdownMenuItem onClick={onPublishTemplate} disabled={!canEdit}>
-                              <Package className="mr-2 h-4 w-4" />
-                              <span>Publish as Template</span>
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -539,15 +524,42 @@ export function TopBar({
                   </Button>
                 )}
 
-              <Button
-                onClick={handleRun}
-                disabled={!canEdit}
-                size="sm"
-                className="gap-1.5 md:gap-2 min-w-0"
-              >
-                <Play className="h-4 w-4" />
-                <span className="hidden sm:inline">Run</span>
-              </Button>
+              {/* Run button with dropdown for Publish */}
+              <div className="flex items-center">
+                <Button
+                  onClick={handleRun}
+                  disabled={!canEdit}
+                  size="sm"
+                  className="gap-1.5 md:gap-2 min-w-0 rounded-r-none"
+                >
+                  <Play className="h-4 w-4" />
+                  <span className="hidden sm:inline">Run</span>
+                </Button>
+                {onPublishTemplate && isInWorkflowBuilder && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="sm"
+                        className="px-1.5 rounded-l-none border-l border-primary-foreground/20"
+                        disabled={!canEdit}
+                        aria-label="More actions"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                      <DropdownMenuItem
+                        onClick={onPublishTemplate}
+                        disabled={!canEdit}
+
+                      >
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>Publish as Template</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             </div>
           </div>
         </div>
