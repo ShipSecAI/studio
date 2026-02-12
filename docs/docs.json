@@ -15,18 +15,15 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": [
-              "index",
-              "quickstart",
-              "installation",
-              "command-reference"
-            ]
+            "pages": ["index", "quickstart", "installation", "command-reference"]
           },
           {
             "group": "Architecture",
-            "pages": [
-              "architecture"
-            ]
+            "pages": ["architecture"]
+          },
+          {
+            "group": "Integrations",
+            "pages": ["integrations"]
           },
           {
             "group": "Components",

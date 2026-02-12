@@ -155,6 +155,79 @@ Outputs data to workflow logs for debugging.
 
 ---
 
+## Integrations & Cloud
+
+### Integration Credential Resolver
+
+Resolves credentials from an integration connection at runtime. This component bridges the [Integrations](/integrations) system with workflow execution, enabling workflows to securely access cloud provider credentials without hardcoding secrets.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `connectionId` | Text | Integration connection ID. Wire from Entry Point or set as a parameter. |
+| `regions` | Text | Optional comma-separated region override |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `credentialType` | String | Type of credentials (`iam_role`, `oauth`, `api_key`, `webhook`) |
+| `provider` | String | Integration provider (`aws`, `slack`, etc.) |
+| `accountId` | String | Provider account identifier (e.g. AWS 12-digit account ID) |
+| `regions` | String | Resolved regions (input override or connection default) |
+| `data` | Object | Resolved credential payload (varies by provider and credential type) |
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `connectionId` | Text | Static connection ID. Overridden when wired from upstream. |
+
+**Example use cases:**
+- Resolve AWS IAM role credentials for Prowler scans
+- Fetch Slack webhook URLs for notification workflows
+- Multi-account workflows with per-account connection IDs
+
+---
+
+### AWS Org Discovery
+
+Lists all accounts in an AWS Organization using the `organizations:ListAccounts` API. Paginates through all accounts automatically.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `credentials` | AWS Credentials | AWS credentials with `organizations:ListAccounts` permission |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `accounts` | Array | List of `{ id, name, status, email }` objects |
+| `organizationId` | String | AWS Organization ID |
+
+**Example use cases:**
+- Discover all member accounts before running multi-account CSPM scans
+- Build inventory of active AWS accounts for compliance
+
+---
+
+### AWS Assume Role
+
+Assumes an AWS IAM role via STS `AssumeRole` and returns temporary credentials (1 hour TTL). Essential for cross-account access patterns.
+
+| Input | Type | Description |
+|-------|------|-------------|
+| `sourceCredentials` | AWS Credentials | Credentials used to call STS |
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `roleArn` | String | ARN of the IAM role to assume (required) |
+| `externalId` | String | Optional external ID for the trust policy |
+| `sessionName` | String | STS session name (default: `shipsec-session`) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `credentials` | AWS Credentials | Temporary assumed-role credentials |
+
+**Example use cases:**
+- Cross-account Prowler scans using a central management account
+- Assume least-privilege roles for specific scan tasks
+
+---
+
 ## Storage Destinations
 
 ### Artifact Writer
