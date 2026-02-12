@@ -386,40 +386,32 @@ async function waitForJobCompletion(
  * Stream pod logs to the context logger and terminal collector.
  * Uses the K8s Log API with a writable stream to capture output in real-time.
  */
-async function waitForContainerRunning(
-  podName: string,
-  namespace: string,
-  timeoutMs = 60_000,
-): Promise<void> {
-  const core = getCoreApi();
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const pod = await core.readNamespacedPod({ name: podName, namespace });
-    const containerStatus = pod.status?.containerStatuses?.find((c) => c.name === 'component');
-    if (containerStatus?.state?.running || containerStatus?.state?.terminated) {
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-}
-
 async function streamPodLogs(
   podName: string,
   namespace: string,
   context: ExecutionContext,
 ): Promise<void> {
-  // Wait for container to be running before streaming logs
-  await waitForContainerRunning(podName, namespace);
-
+  const core = getCoreApi();
   const kc = getKubeConfig();
   const log = new k8s.Log(kc);
 
-  const { PassThrough } = await import('stream');
-  const logStream = new PassThrough();
+  // Wait for container to be ready (running or already terminated)
+  const deadline = Date.now() + 60_000;
+  let containerTerminated = false;
+  while (Date.now() < deadline) {
+    const pod = await core.readNamespacedPod({ name: podName, namespace });
+    const cs = pod.status?.containerStatuses?.find((c) => c.name === 'component');
+    if (cs?.state?.terminated) {
+      containerTerminated = true;
+      break;
+    }
+    if (cs?.state?.running) {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
 
-  logStream.on('data', (chunk: Buffer) => {
-    const text = chunk.toString();
-    // Feed to terminal collector for real-time UI streaming
+  const emitToCollectors = (text: string) => {
     if (context.terminalCollector) {
       context.terminalCollector({
         runId: context.runId,
@@ -432,7 +424,6 @@ async function streamPodLogs(
         origin: 'k8s-job',
       });
     }
-    // Also feed to log collector
     if (context.logCollector) {
       context.logCollector({
         runId: context.runId,
@@ -443,6 +434,34 @@ async function streamPodLogs(
         timestamp: new Date().toISOString(),
       });
     }
+  };
+
+  // If container already terminated, read final logs instead of following
+  if (containerTerminated) {
+    try {
+      const logResponse = await core.readNamespacedPodLog({
+        name: podName,
+        namespace,
+        container: 'component',
+      });
+      const logText = typeof logResponse === 'string' ? logResponse : String(logResponse);
+      if (logText) {
+        emitToCollectors(logText);
+      }
+    } catch (err) {
+      context.logger.warn(
+        `[K8sRunner] Failed to read terminated pod logs: ${(err as Error).message}`,
+      );
+    }
+    return;
+  }
+
+  // Container is running — stream logs in real-time
+  const { PassThrough } = await import('stream');
+  const logStream = new PassThrough();
+
+  logStream.on('data', (chunk: Buffer) => {
+    emitToCollectors(chunk.toString());
   });
 
   try {
