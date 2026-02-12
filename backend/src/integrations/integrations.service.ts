@@ -310,7 +310,6 @@ export class IntegrationsService implements OnModuleInit {
   async completeOAuthSession(
     providerId: string,
     input: {
-      userId: string;
       state: string;
       code: string;
       redirectUri: string;
@@ -321,21 +320,19 @@ export class IntegrationsService implements OnModuleInit {
       `[completeOAuth] Starting exchange for provider=${providerId}, redirectUri=${input.redirectUri}`,
     );
     const provider = await this.resolveProviderForAuth(providerId);
-    this.logger.log(`[completeOAuth] Provider resolved: ${provider.id}`);
     const stateRecord = await this.repository.consumeOAuthState(input.state);
-    this.logger.log(`[completeOAuth] State consumed: ${!!stateRecord}`);
 
     if (!stateRecord) {
       throw new BadRequestException('OAuth state is missing or has already been used');
-    }
-    if (stateRecord.userId !== input.userId) {
-      throw new BadRequestException('OAuth state does not match the requesting user');
     }
     if (stateRecord.provider !== providerId) {
       throw new BadRequestException('OAuth state does not match the provider');
     }
 
-    const organizationId = stateRecord.organizationId ?? `workspace-${input.userId}`;
+    // userId derived from the state record (created during startOAuth with auth context).
+    // The exchange endpoint is @Public() — the one-time state token is the proof of identity.
+    const userId = stateRecord.userId;
+    const organizationId = stateRecord.organizationId ?? `workspace-${userId}`;
     const scopes = this.normalizeScopes(input.scopes, provider);
 
     this.logger.log(`[completeOAuth] Requesting tokens from ${provider.tokenUrl}`);
@@ -346,19 +343,31 @@ export class IntegrationsService implements OnModuleInit {
       codeVerifier: stateRecord.codeVerifier,
       scopes,
     });
-    this.logger.log(
-      `[completeOAuth] Token response received, keys: ${Object.keys(rawResponse).join(', ')}`,
-    );
+
+    // For Slack, extract workspace name from the token response for a better display name
+    const displayName = rawResponse?.team?.name ?? rawResponse?.team_name ?? providerId;
+
+    // For Slack, fetch the workspace icon via team.info (best-effort, non-blocking)
+    if (providerId === 'slack' && rawResponse?.access_token) {
+      try {
+        const teamInfo = await this.slackService.getTeamInfo(rawResponse.access_token);
+        if (teamInfo.ok && teamInfo.icon) {
+          rawResponse._teamIcon = teamInfo.icon;
+        }
+      } catch {
+        // Non-critical — icon will simply be absent
+      }
+    }
 
     const persisted = await this.persistTokenResponse({
-      userId: input.userId,
+      userId,
       organizationId,
       credentialType: 'oauth',
-      displayName: providerId,
+      displayName,
       provider,
       scopes,
       rawResponse,
-      previous: await this.repository.findByUserAndProvider(input.userId, providerId),
+      previous: await this.repository.findByUserAndProvider(userId, providerId),
     });
     this.logger.log(`[completeOAuth] Connection persisted: ${persisted.id}`);
 
@@ -600,8 +609,35 @@ export class IntegrationsService implements OnModuleInit {
       const creds = JSON.parse(decrypted);
       const webhookResult = await this.slackService.testWebhook(creds.webhookUrl);
       result = { valid: webhookResult.ok, error: webhookResult.error };
+    } else if (record.provider === 'slack' && record.credentialType === 'oauth') {
+      // Validate the OAuth bot token by calling Slack's auth.test API
+      const authResult = await this.slackService.authTest(decrypted);
+      result = { valid: authResult.ok, error: authResult.error };
+
+      // Best-effort: enrich metadata with workspace icon if missing
+      if (authResult.ok) {
+        try {
+          const existingMeta = this.coerceMetadata(record.metadata);
+          const payload = (existingMeta.providerPayload ?? {}) as Record<string, any>;
+          if (!payload._teamIcon) {
+            const teamInfo = await this.slackService.getTeamInfo(decrypted);
+            if (teamInfo.ok && teamInfo.icon) {
+              payload._teamIcon = teamInfo.icon;
+              const updatedMeta = { ...existingMeta, providerPayload: payload };
+              await this.repository.updateConnectionHealth(connectionId, {
+                lastValidatedAt: new Date(),
+                lastValidationStatus: 'valid',
+                metadata: updatedMeta,
+              });
+              return result;
+            }
+          }
+        } catch {
+          // Non-critical — icon enrichment failure doesn't affect validation
+        }
+      }
     } else {
-      // For OAuth or other types, we cannot generically validate; treat as valid.
+      // For other types, we cannot generically validate; treat as valid.
       result = { valid: true };
     }
 

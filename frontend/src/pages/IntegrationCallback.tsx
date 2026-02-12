@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 import type { components } from '@shipsec/backend-client';
 import { api } from '@/services/api';
-import { getCurrentUserId } from '@/lib/currentUser';
 import { env } from '@/config/env';
 
 type IntegrationConnection = components['schemas']['IntegrationConnectionResponse'];
@@ -16,10 +15,12 @@ export function IntegrationCallback() {
   const { provider } = useParams<{ provider: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const userId = useMemo(() => getCurrentUserId(), []);
 
   const [status, setStatus] = useState<CallbackStatus>('pending');
   const [message, setMessage] = useState('Exchanging authorization code…');
+  // Ref guard prevents double-execution in React 18 strict mode.
+  // Do NOT combine with a `cancelled` cleanup — strict mode unmounts between
+  // the two dev-only mounts, which would cancel the in-flight fetch.
   const exchangeStartedRef = useRef(false);
 
   useEffect(() => {
@@ -52,24 +53,15 @@ export function IntegrationCallback() {
     }
     exchangeStartedRef.current = true;
 
-    const authCode = code;
-    const authState = state;
-
     const redirectUri = `${env.VITE_APP_URL}/integrations/callback/${providerId}`;
-    let cancelled = false;
 
     async function exchangeCode() {
       try {
         const connection = await api.integrations.completeOAuth(providerId, {
-          userId,
-          code: authCode,
-          state: authState,
+          code,
+          state,
           redirectUri,
         });
-
-        if (cancelled) {
-          return;
-        }
 
         broadcastConnection(connection);
         setStatus('success');
@@ -79,9 +71,6 @@ export function IntegrationCallback() {
           navigate(target, { replace: true });
         }, 1200);
       } catch (error) {
-        if (cancelled) {
-          return;
-        }
         const description =
           error instanceof Error ? error.message : 'Failed to exchange authorization code.';
         setStatus('error');
@@ -90,11 +79,7 @@ export function IntegrationCallback() {
     }
 
     exchangeCode();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate, provider, searchParams, userId]);
+  }, [navigate, provider, searchParams]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-6">

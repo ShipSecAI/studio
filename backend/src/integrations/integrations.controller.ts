@@ -372,7 +372,8 @@ export class IntegrationsController {
     }
 
     await this.integrations.assertConnectionOwnership(id, auth);
-    return this.integrations.validateConnection(id);
+    const result = await this.integrations.validateConnection(id);
+    return { ok: result.valid, error: result.error };
   }
 
   /* ------------------------------------------------------------------ */

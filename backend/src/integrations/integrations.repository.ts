@@ -217,17 +217,19 @@ export class IntegrationsRepository {
       lastValidatedAt: Date;
       lastValidationStatus: string;
       lastValidationError?: string | null;
+      metadata?: Record<string, unknown>;
     },
   ): Promise<void> {
-    await this.db
-      .update(integrationTokens)
-      .set({
-        lastValidatedAt: health.lastValidatedAt,
-        lastValidationStatus: health.lastValidationStatus,
-        lastValidationError: health.lastValidationError ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(integrationTokens.id, id));
+    const setClause: Record<string, any> = {
+      lastValidatedAt: health.lastValidatedAt,
+      lastValidationStatus: health.lastValidationStatus,
+      lastValidationError: health.lastValidationError ?? null,
+      updatedAt: new Date(),
+    };
+    if (health.metadata) {
+      setClause.metadata = health.metadata;
+    }
+    await this.db.update(integrationTokens).set(setClause).where(eq(integrationTokens.id, id));
   }
 
   async updateLastUsedAt(id: string): Promise<void> {
