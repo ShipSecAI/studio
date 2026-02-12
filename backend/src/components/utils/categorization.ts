@@ -18,6 +18,9 @@ const SUPPORTED_CATEGORIES: readonly ComponentCategory[] = [
   'notification',
   'manual_action',
   'output',
+  'process',
+  'cloud',
+  'core',
 ];
 
 const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConfig> = {
@@ -83,6 +86,27 @@ const COMPONENT_CATEGORY_CONFIG: Record<ComponentCategory, ComponentCategoryConf
     description: 'Data export, notifications, and integrations',
     emoji: '📤',
     icon: 'Upload',
+  },
+  process: {
+    label: 'Process',
+    color: 'text-slate-600',
+    description: 'Data processing and transformation steps',
+    emoji: '⚙️',
+    icon: 'Cog',
+  },
+  cloud: {
+    label: 'Cloud',
+    color: 'text-sky-600',
+    description: 'Cloud provider integrations and services',
+    emoji: '☁️',
+    icon: 'Cloud',
+  },
+  core: {
+    label: 'Core',
+    color: 'text-gray-600',
+    description: 'Core platform utilities and credential management',
+    emoji: '🔧',
+    icon: 'Wrench',
   },
 };
 

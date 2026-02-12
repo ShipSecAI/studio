@@ -1,6 +1,6 @@
 {
-  "name": "AWS CSPM – Prowler Scan to Analytics",
-  "description": "End-to-end AWS CSPM workflow: resolves credentials from an integration connection, runs a Prowler security scan, and indexes the results into the Analytics dashboard via OpenSearch.",
+  "name": "AWS CSPM \u2013 Org-Wide Prowler Scan to Analytics",
+  "description": "Resolves AWS org credentials, scans all member accounts with Prowler, and indexes aggregated findings into Analytics.",
   "nodes": [
     {
       "id": "entry-1",
@@ -13,10 +13,10 @@
             "runtimeInputs": [
               {
                 "id": "connectionId",
-                "label": "AWS Integration Connection ID",
+                "label": "AWS Org Connection ID",
                 "type": "text",
                 "required": true,
-                "description": "The ID of the AWS integration connection. Find this in Settings > Integrations > AWS."
+                "description": "The ID of the AWS integration connection for the organization management account."
               },
               {
                 "id": "regions",
@@ -37,7 +37,7 @@
       "type": "core.integration.resolve-credentials",
       "position": { "x": 300, "y": 280 },
       "data": {
-        "label": "Resolve AWS Credentials",
+        "label": "Resolve Org Credentials",
         "config": {
           "params": { "provider": "aws" },
           "inputOverrides": {}
@@ -49,9 +49,12 @@
       "type": "security.prowler.scan",
       "position": { "x": 300, "y": 510 },
       "data": {
-        "label": "Prowler Security Scan",
+        "label": "Org-Wide Prowler Scan",
         "config": {
           "params": {
+            "orgScan": true,
+            "memberRoleName": "OrganizationAccountAccessRole",
+            "continueOnError": true,
             "scanMode": "aws",
             "recommendedFlags": ["severity-high-critical", "ignore-exit-code", "no-banner"]
           },
@@ -70,8 +73,8 @@
             "dataInputs": [
               {
                 "id": "input1",
-                "label": "Prowler Results",
-                "sourceTag": "prowler"
+                "label": "Org Prowler Results",
+                "sourceTag": "prowler-org"
               }
             ],
             "failOnError": false

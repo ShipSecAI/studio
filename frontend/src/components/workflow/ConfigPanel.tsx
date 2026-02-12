@@ -884,6 +884,7 @@ export function ConfigPanel({
                         parameters={manualParameters}
                         onUpdateParameter={handleParamValueChange}
                         allComponentParameters={componentParameters}
+                        nodeLabel={nodeData.label}
                       />
                     </div>
                   );

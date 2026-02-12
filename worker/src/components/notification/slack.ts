@@ -19,12 +19,13 @@ const inputSchema = inputs({
 });
 
 const parameterSchema = parameters({
-  authType: param(z.enum(['bot_token', 'webhook']).default('bot_token'), {
+  authType: param(z.enum(['bot_token', 'webhook', 'credentials']).default('bot_token'), {
     label: 'Connection Method',
     editor: 'select',
     options: [
       { label: 'Slack App (Bot Token)', value: 'bot_token' },
       { label: 'Incoming Webhook', value: 'webhook' },
+      { label: 'Integration Connection', value: 'credentials' },
     ],
   }),
   variables: param(
@@ -48,6 +49,29 @@ const outputSchema = outputs({
     label: 'Error',
   }),
 });
+
+/**
+ * Recursively flatten nested plain objects so that all leaf values
+ * are available as top-level keys.  For example:
+ *   { summary: { totalFindings: 5, severityCounts: { critical: 1 } } }
+ * becomes:
+ *   { summary: {...}, totalFindings: 5, severityCounts: {...}, critical: 1 }
+ *
+ * Later keys win when there are collisions, which gives inner objects
+ * higher specificity than outer ones (desirable for templates).
+ */
+function flattenObject(
+  obj: Record<string, any>,
+  result: Record<string, any> = {},
+): Record<string, any> {
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = value;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      flattenObject(value as Record<string, any>, result);
+    }
+  }
+  return result;
+}
 
 /**
  * Simple helper to replace {{var}} placeholders in a string
@@ -104,6 +128,109 @@ const slackRetryPolicy: ComponentRetryPolicy = {
   nonRetryableErrorTypes: ['AuthenticationError', 'ConfigurationError', 'ValidationError'],
 };
 
+// ---------------------------------------------------------------------------
+// Execution helpers (one per auth mode)
+// ---------------------------------------------------------------------------
+
+async function executeWebhook(
+  body: any,
+  webhookUrl: unknown,
+  context: any,
+): Promise<z.infer<typeof outputSchema>> {
+  if (!webhookUrl) {
+    throw new ConfigurationError('Slack Webhook URL is required.', {
+      configKey: 'webhookUrl',
+    });
+  }
+  const url = typeof webhookUrl === 'string' ? webhookUrl : String(webhookUrl);
+  const response = await context.http.fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const responseBody = await response.text();
+    throw fromHttpResponse(response, responseBody);
+  }
+  return outputSchema.parse({ ok: true });
+}
+
+async function executeBotToken(
+  body: any,
+  slackToken: unknown,
+  channel: unknown,
+  thread_ts: unknown,
+  context: any,
+): Promise<z.infer<typeof outputSchema>> {
+  if (!slackToken) {
+    throw new ConfigurationError('Slack token missing.', {
+      configKey: 'slackToken',
+    });
+  }
+  body.channel = channel;
+  body.thread_ts = thread_ts;
+
+  const token = typeof slackToken === 'string' ? slackToken : String(slackToken);
+  const response = await context.http.fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const result = (await response.json()) as any;
+  if (!result.ok) {
+    if (result.error === 'invalid_auth' || result.error === 'token_revoked') {
+      throw new AuthenticationError(`Slack authentication failed: ${result.error}`);
+    }
+    return outputSchema.parse({ ok: false, error: result.error });
+  }
+  return outputSchema.parse({ ok: true, ts: result.ts });
+}
+
+async function executeWithCredentials(
+  body: any,
+  credentials: unknown,
+  channel: unknown,
+  thread_ts: unknown,
+  context: any,
+): Promise<z.infer<typeof outputSchema>> {
+  if (!credentials || typeof credentials !== 'object') {
+    throw new ConfigurationError(
+      'Credentials are required. Wire the "Credentials Data" output from an Integration Credential Resolver.',
+      { configKey: 'credentials' },
+    );
+  }
+
+  const creds = credentials as Record<string, unknown>;
+
+  // Auto-detect credential type from the resolved data shape
+  if ('accessToken' in creds && creds.accessToken) {
+    // OAuth bot token — delegate to the bot token flow
+    context.logger.info('[Slack] Using OAuth bot token from resolved credentials');
+    if (!channel) {
+      throw new ConfigurationError(
+        'Channel is required when using OAuth credentials. Set it as an input override or wire it from an upstream node.',
+        { configKey: 'channel' },
+      );
+    }
+    return executeBotToken(body, creds.accessToken, channel, thread_ts, context);
+  }
+
+  if ('webhookUrl' in creds && creds.webhookUrl) {
+    // Webhook URL — delegate to the webhook flow
+    context.logger.info('[Slack] Using webhook URL from resolved credentials');
+    return executeWebhook(body, creds.webhookUrl, context);
+  }
+
+  throw new ConfigurationError(
+    'Unrecognized credential format. Expected credentials with "accessToken" (OAuth) or "webhookUrl" (webhook).',
+    { configKey: 'credentials' },
+  );
+}
+
 const definition = defineComponent({
   id: 'core.notification.slack',
   label: 'Slack Message',
@@ -116,7 +243,7 @@ const definition = defineComponent({
   docs: 'Send dynamic Slack messages with {{variable}} support in both text and Block Kit JSON.',
   ui: {
     slug: 'slack-message',
-    version: '1.2.0',
+    version: '1.3.0',
     type: 'output',
     category: 'notification',
     description: 'Send plain text or rich Block Kit messages with dynamic template support.',
@@ -145,6 +272,22 @@ const definition = defineComponent({
         reason: 'Webhook URLs are secrets.',
         connectionType: { kind: 'primitive', name: 'secret' },
       });
+    } else if (params.authType === 'credentials') {
+      inputShape.credentials = port(z.record(z.string(), z.unknown()), {
+        label: 'Credentials',
+        description:
+          'Resolved credentials from the Integration Credential Resolver. Accepts OAuth (bot token) or webhook credentials.',
+        allowAny: true,
+        reason: 'Credential payloads vary by provider and credential type.',
+        editor: 'secret',
+        connectionType: { kind: 'any' },
+      });
+      inputShape.channel = port(z.string().optional(), {
+        label: 'Channel',
+        description:
+          'Slack channel ID or name. Required when credentials resolve to an OAuth bot token.',
+      });
+      inputShape.thread_ts = port(z.string().optional(), { label: 'Thread TS' });
     } else {
       inputShape.slackToken = port(z.unknown(), {
         label: 'Bot Token',
@@ -169,12 +312,17 @@ const definition = defineComponent({
     return { inputs: inputs(inputShape) };
   },
   async execute({ inputs, params }, context) {
-    const { text, blocks, channel, thread_ts, slackToken, webhookUrl } = inputs as Record<
-      string,
-      unknown
-    >;
+    const { text, blocks, channel, thread_ts, slackToken, webhookUrl, credentials } =
+      inputs as Record<string, unknown>;
     const { authType } = params;
-    const contextData = { ...params, ...inputs };
+    // Include execution context metadata so templates can use {{runId}}, {{workflowId}}, etc.
+    const contextData = flattenObject({
+      ...params,
+      ...inputs,
+      runId: context.runId,
+      workflowId: context.workflowId ?? '',
+      workflowName: context.workflowName ?? '',
+    });
 
     // 1. Interpolate text
     const finalText = interpolate(text as string, contextData);
@@ -192,67 +340,25 @@ const definition = defineComponent({
         finalBlocks = undefined;
       }
     } else if (Array.isArray(blocks)) {
-      // If it's already an object, we'd need a deep interpolation,
-      // but typically users will pass a JSON string template for simplicity.
-      // For now, let's stringify and interpolate to support variables in objects too!
       const str = JSON.stringify(blocks);
       const interpolated = interpolate(str, contextData);
       finalBlocks = JSON.parse(interpolated);
     }
 
-    context.logger.info(`[Slack] Sending message to ${authType}...`);
+    context.logger.info(`[Slack] Sending message via ${authType}...`);
 
     const body: any = {
       text: finalText,
       blocks: finalBlocks,
     };
 
-    if (authType === 'webhook') {
-      if (!webhookUrl) {
-        throw new ConfigurationError('Slack Webhook URL is required.', {
-          configKey: 'webhookUrl',
-        });
-      }
-      const url = typeof webhookUrl === 'string' ? webhookUrl : String(webhookUrl);
-      const response = await context.http.fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        const responseBody = await response.text();
-        throw fromHttpResponse(response, responseBody);
-      }
-      return outputSchema.parse({ ok: true });
+    // 3. Dispatch based on auth type
+    if (authType === 'credentials') {
+      return executeWithCredentials(body, credentials, channel, thread_ts, context);
+    } else if (authType === 'webhook') {
+      return executeWebhook(body, webhookUrl, context);
     } else {
-      if (!slackToken) {
-        throw new ConfigurationError('Slack token missing.', {
-          configKey: 'slackToken',
-        });
-      }
-      body.channel = channel;
-      body.thread_ts = thread_ts;
-
-      const token = typeof slackToken === 'string' ? slackToken : String(slackToken);
-      const response = await context.http.fetch('https://slack.com/api/chat.postMessage', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
-
-      const result = (await response.json()) as any;
-      if (!result.ok) {
-        // Slack API returns ok: false with an error code
-        // Check for common auth errors
-        if (result.error === 'invalid_auth' || result.error === 'token_revoked') {
-          throw new AuthenticationError(`Slack authentication failed: ${result.error}`);
-        }
-        return outputSchema.parse({ ok: false, error: result.error });
-      }
-      return outputSchema.parse({ ok: true, ts: result.ts });
+      return executeBotToken(body, slackToken, channel, thread_ts, context);
     }
   },
 });

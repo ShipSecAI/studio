@@ -2,6 +2,18 @@ import { create } from 'zustand';
 import { api } from '@/services/api';
 import type { IntegrationConnection, IntegrationCatalogEntry } from '@/services/api';
 
+interface AwsSetupInfoCache {
+  platformRoleArn: string;
+  externalId: string;
+  setupToken: string;
+  trustPolicyTemplate: string;
+  externalIdDisplay?: string;
+  fetchedAt: number; // Date.now() when fetched
+}
+
+// Setup token TTL is 30 min on the backend; use 25 min as a safe margin
+const AWS_SETUP_INFO_TTL_MS = 25 * 60 * 1000;
+
 interface IntegrationStoreState {
   connections: IntegrationConnection[];
   orgConnections: IntegrationConnection[];
@@ -12,6 +24,7 @@ interface IntegrationStoreState {
   error: string | null;
   initialized: boolean;
   orgInitialized: boolean;
+  _awsSetupInfoCache: AwsSetupInfoCache | null;
 }
 
 interface IntegrationStoreActions {
@@ -91,6 +104,7 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
   error: null,
   initialized: false,
   orgInitialized: false,
+  _awsSetupInfoCache: null,
 
   fetchConnections: async (force = false) => {
     const { loadingConnections, initialized } = get();
@@ -203,12 +217,20 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
   },
 
   getAwsSetupInfo: async () => {
-    return api.integrations.getAwsSetupInfo();
+    const cached = get()._awsSetupInfoCache;
+    if (cached && Date.now() - cached.fetchedAt < AWS_SETUP_INFO_TTL_MS) {
+      const { fetchedAt: _, ...info } = cached;
+      return info;
+    }
+    const info = await api.integrations.getAwsSetupInfo();
+    set({ _awsSetupInfoCache: { ...info, fetchedAt: Date.now() } });
+    return info;
   },
 
   createAwsConnection: async (payload) => {
     try {
       const connection = await api.integrations.createAwsConnection(payload);
+      set({ _awsSetupInfoCache: null }); // clear so next connection gets a fresh ExternalId
       get().upsertConnection(connection);
       return connection;
     } catch (error) {

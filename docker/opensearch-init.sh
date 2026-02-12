@@ -61,36 +61,43 @@ if [ "$SECURITY_ENABLED" = "true" ]; then
   exit 0
 fi
 
-# Check if index pattern already exists (insecure mode only)
-echo "[opensearch-init] Checking for existing index patterns..."
-EXISTING=$(auth_curl -sf "${DASHBOARDS_URL}${DASHBOARDS_BASE_PATH}/api/saved_objects/_find?type=index-pattern&search_fields=title&search=security-findings-*" \
-  -H "osd-xsrf: true" 2>/dev/null || echo '{"total":0}')
+# Helper: create an index pattern if it doesn't already exist
+create_index_pattern() {
+  local PATTERN_ID="$1"
 
-TOTAL=$(echo "$EXISTING" | grep -o '"total":[0-9]*' | grep -o '[0-9]*' || echo "0")
+  EXISTING=$(auth_curl -sf "${DASHBOARDS_URL}${DASHBOARDS_BASE_PATH}/api/saved_objects/index-pattern/${PATTERN_ID}" \
+    -H "osd-xsrf: true" 2>/dev/null || echo '')
 
-if [ "$TOTAL" -gt 0 ]; then
-  echo "[opensearch-init] Index pattern 'security-findings-*' already exists, skipping creation"
-else
-  echo "[opensearch-init] Creating index pattern 'security-findings-*'..."
+  if echo "$EXISTING" | grep -q '"type":"index-pattern"'; then
+    echo "[opensearch-init] Index pattern '${PATTERN_ID}' already exists, skipping creation"
+    return
+  fi
 
-  # Use specific ID so dashboards can reference it consistently
-  RESPONSE=$(auth_curl -sf -X POST "${DASHBOARDS_URL}${DASHBOARDS_BASE_PATH}/api/saved_objects/index-pattern/security-findings-*" \
+  echo "[opensearch-init] Creating index pattern '${PATTERN_ID}'..."
+  RESPONSE=$(auth_curl -sf -X POST "${DASHBOARDS_URL}${DASHBOARDS_BASE_PATH}/api/saved_objects/index-pattern/${PATTERN_ID}" \
     -H "Content-Type: application/json" \
     -H "osd-xsrf: true" \
-    -d '{
-      "attributes": {
-        "title": "security-findings-*",
-        "timeFieldName": "@timestamp"
+    -d "{
+      \"attributes\": {
+        \"title\": \"${PATTERN_ID}\",
+        \"timeFieldName\": \"@timestamp\"
       }
-    }' 2>&1)
+    }" 2>&1)
 
   if echo "$RESPONSE" | grep -q '"type":"index-pattern"'; then
-    echo "[opensearch-init] Successfully created index pattern 'security-findings-*'"
+    echo "[opensearch-init] Successfully created index pattern '${PATTERN_ID}'"
   else
-    echo "[opensearch-init] WARNING: Failed to create index pattern. Response: $RESPONSE"
-    # Don't fail - the pattern might be created later when data exists
+    echo "[opensearch-init] WARNING: Failed to create index pattern '${PATTERN_ID}'. Response: $RESPONSE"
   fi
-fi
+}
+
+# Create index patterns (insecure mode only)
+# Generic pattern for all findings
+create_index_pattern "security-findings-*"
+
+# Org-specific pattern for local dev (matches the frontend's org-scoped dashboard links)
+LOCAL_DEV_ORG_ID="${DEFAULT_ORGANIZATION_ID:-local-dev}"
+create_index_pattern "security-findings-${LOCAL_DEV_ORG_ID}-*"
 
 # Set as default index pattern (optional, helps UX)
 echo "[opensearch-init] Setting default index pattern..."

@@ -207,6 +207,8 @@ services:
     depends_on:
       opensearch-dashboards:
         condition: service_healthy
+    environment:
+      - DEFAULT_ORGANIZATION_ID=${DEFAULT_ORGANIZATION_ID:-local-dev}
     volumes:
       - ./opensearch-init.sh:/init.sh:ro
     entrypoint: ['/bin/sh', '/init.sh']

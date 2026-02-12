@@ -58,8 +58,8 @@ export function IntegrationCallback() {
     async function exchangeCode() {
       try {
         const connection = await api.integrations.completeOAuth(providerId, {
-          code,
-          state,
+          code: code!,
+          state: state!,
           redirectUri,
         });
 

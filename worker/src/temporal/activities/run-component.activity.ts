@@ -200,6 +200,10 @@ export async function runComponentActivity(
     agentTracePublisher: globalAgentTracePublisher,
   });
 
+  // Resolve dynamic port schemas (from resolvePorts) so secret masking covers them
+  const resolvedPortSchemas =
+    typeof component.resolvePorts === 'function' ? component.resolvePorts(params) : undefined;
+
   // Record node I/O start (using raw inputs/params from workflow)
   await globalNodeIO?.recordStart({
     runId: input.runId,
@@ -207,7 +211,11 @@ export async function runComponentActivity(
     workflowId: input.workflowId,
     organizationId: input.organizationId,
     componentId: action.componentId,
-    inputs: maskSecretInputs(component, { ...inputs, ...params }) as Record<string, unknown>,
+    inputs: maskSecretInputs(
+      component,
+      { ...inputs, ...params },
+      resolvedPortSchemas?.inputs,
+    ) as Record<string, unknown>,
   });
 
   context.trace?.record({
@@ -514,7 +522,10 @@ export async function runComponentActivity(
         runId: input.runId,
         nodeRef: action.ref,
         componentId: action.componentId,
-        outputs: maskSecretOutputs(component, output) as Record<string, unknown>,
+        outputs: maskSecretOutputs(component, output, resolvedPortSchemas?.outputs) as Record<
+          string,
+          unknown
+        >,
         status: 'completed',
       });
 

@@ -9,12 +9,12 @@ services:
       POSTGRES_MULTIPLE_DATABASES: temporal
     # Internal only - use docker-compose.dev-ports.yml overlay for local dev access
     expose:
-      - "5432"
+      - '5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U shipsec"]
+      test: ['CMD-SHELL', 'pg_isready -U shipsec']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -35,7 +35,7 @@ services:
       - POSTGRES_SEEDS=postgres
       - AUTO_SETUP=true
     expose:
-      - "7233"
+      - '7233'
     volumes:
       - temporal_data:/var/lib/temporal
     restart: unless-stopped
@@ -49,7 +49,7 @@ services:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:5173
     expose:
-      - "8080"
+      - '8080'
     restart: unless-stopped
 
   minio:
@@ -60,13 +60,13 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     expose:
-      - "9000"
-      - "9001"
+      - '9000'
+      - '9001'
     volumes:
       - minio_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -75,12 +75,12 @@ services:
     image: redis:latest
     container_name: shipsec-redis
     expose:
-      - "6379"
+      - '6379'
     volumes:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -90,13 +90,13 @@ services:
     container_name: shipsec-loki
     command: -config.file=/etc/loki/local-config.yaml
     expose:
-      - "3100"
+      - '3100'
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
       - loki_data:/loki
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3100/ready']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -115,13 +115,13 @@ services:
       - --check=false
       - --advertise-kafka-addr=localhost:9092
     expose:
-      - "9092"
-      - "9644"
+      - '9092'
+      - '9644'
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9644/v1/status/ready"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9644/v1/status/ready']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -134,7 +134,7 @@ services:
     environment:
       CONFIG_FILEPATH: /etc/redpanda/console-config.yaml
     expose:
-      - "8080"
+      - '8080'
     volumes:
       - ./redpanda-console-config.yaml:/etc/redpanda/console-config.yaml:ro
     restart: unless-stopped
@@ -145,7 +145,7 @@ services:
     environment:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
-      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - 'OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m'
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_INSTALL_DEMO_CONFIG=true
     ulimits:
@@ -158,13 +158,13 @@ services:
     # Ports exposed only within Docker network (not to host)
     # Use docker-compose.dev-ports.yml overlay for local dev access
     expose:
-      - "9200"
-      - "9600"
+      - '9200'
+      - '9600'
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:9200/_cluster/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -185,12 +185,12 @@ services:
     # Use docker-compose.dev-ports.yml overlay for local dev access
     # Production uses nginx reverse proxy at /analytics
     expose:
-      - "5601"
+      - '5601'
     volumes:
       - ./opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5601/analytics/api/status || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:5601/analytics/api/status || exit 1']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -202,10 +202,12 @@ services:
     depends_on:
       opensearch-dashboards:
         condition: service_healthy
+    environment:
+      - DEFAULT_ORGANIZATION_ID=${DEFAULT_ORGANIZATION_ID:-local-dev}
     volumes:
       - ./opensearch-init.sh:/init.sh:ro
-    entrypoint: ["/bin/sh", "/init.sh"]
-    restart: "no"
+    entrypoint: ['/bin/sh', '/init.sh']
+    restart: 'no'
 
   # Nginx reverse proxy - unified entry point
   # DEV MODE: Uses nginx.dev.conf which points to host.docker.internal for PM2 services
@@ -216,14 +218,14 @@ services:
       opensearch-dashboards:
         condition: service_healthy
     ports:
-      - "80:80"
+      - '80:80'
     volumes:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost/health']
       interval: 30s
       timeout: 10s
       retries: 5

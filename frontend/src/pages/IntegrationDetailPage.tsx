@@ -145,7 +145,7 @@ interface AwsFormProps {
 function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
   const store = useIntegrationStore();
   const { toast } = useToast();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [loadingSetup, setLoadingSetup] = useState(true);
@@ -286,6 +286,22 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
           <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold border-current">
             2
           </span>
+          Attach Permissions
+        </button>
+        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        <button
+          type="button"
+          onClick={() => setStep(3)}
+          className={cn(
+            'flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+            step === 3
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80',
+          )}
+        >
+          <span className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold border-current">
+            3
+          </span>
           Connection Details
         </button>
       </div>
@@ -296,9 +312,10 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
           <div className="space-y-3">
             <Label className="text-sm font-semibold">Configure Trust Policy</Label>
             <p className="text-sm text-muted-foreground">
-              Create an IAM role in your AWS account and set its trust policy to the JSON below.
-              This allows ShipSec to securely access your account using a unique External ID &mdash;
-              without you sharing any access keys.
+              In your AWS account, go to <strong>IAM &rarr; Roles &rarr; Create role</strong> and
+              select <strong>&ldquo;Custom trust policy&rdquo;</strong> as the trusted entity type.
+              Paste the JSON below as the trust policy. This allows ShipSec to securely access your
+              account using a unique External ID &mdash; without you sharing any access keys.
             </p>
             <div className="relative">
               <pre className="rounded-md border bg-muted/50 p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">
@@ -398,12 +415,101 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
         </div>
       )}
 
-      {/* ── Step 2: Connection Details ── */}
+      {/* ── Step 2: Attach Permissions ── */}
       {step === 2 && (
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Attach Permissions</Label>
+            <p className="text-sm text-muted-foreground">
+              After creating the IAM role with the trust policy, attach the following AWS managed
+              policies to define what ShipSec can access in your account.
+            </p>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Required Policies
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
+                  <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shrink-0 mt-0.5">
+                    <Shield className="h-3 w-3" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">SecurityAudit</p>
+                    <p className="text-xs text-muted-foreground">
+                      Read-only access to security configuration data. Required for compliance
+                      scanning and security posture assessment.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
+                  <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shrink-0 mt-0.5">
+                    <Eye className="h-3 w-3" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">ViewOnlyAccess</p>
+                    <p className="text-xs text-muted-foreground">
+                      Read-only access to list and describe resources across AWS services. Used for
+                      resource discovery and inventory.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                For Organizations (management account only)
+              </p>
+              <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
+                <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-primary shrink-0 mt-0.5">
+                  <Shield className="h-3 w-3" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">OrganizationsReadOnlyAccess</p>
+                  <p className="text-xs text-muted-foreground">
+                    Read-only access to AWS Organizations. Only needed on the management account to
+                    discover and list member accounts.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-md border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 p-3">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                <strong>Tip:</strong> In the AWS IAM console, search for each policy name in the
+                &ldquo;Add permissions &rarr; Attach policies directly&rdquo; step and check the box
+                to attach it. These are AWS managed policies &mdash; no custom policy JSON is
+                needed.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setStep(1);
+                setResult(null);
+              }}
+            >
+              Back
+            </Button>
+            <Button type="button" onClick={() => setStep(3)} className="gap-1.5">
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </DialogFooter>
+        </div>
+      )}
+
+      {/* ── Step 3: Connection Details ── */}
+      {step === 3 && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Enter the details of the IAM role you created in Step 1.
+              Enter the details of the IAM role you created and configured in the previous steps.
             </p>
             <div className="space-y-2">
               <Label htmlFor="aws-display-name">Display Name *</Label>
@@ -459,7 +565,7 @@ function AwsConnectionForm({ onCreated, onCancel }: AwsFormProps) {
               type="button"
               variant="outline"
               onClick={() => {
-                setStep(1);
+                setStep(2);
                 setResult(null);
               }}
               disabled={submitting}
@@ -822,7 +928,7 @@ export function IntegrationDetailPage() {
 
   useEffect(() => {
     if (provider) {
-      fetchOrgConnections(provider, true);
+      fetchOrgConnections(undefined, true);
     }
   }, [provider, fetchOrgConnections]);
 
@@ -887,7 +993,7 @@ export function IntegrationDetailPage() {
         }
       }
       // Refresh the connections list to pick up updated lastValidationStatus
-      fetchOrgConnections(provider, true);
+      fetchOrgConnections(undefined, true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Validation request failed.';
       toast({ title: 'Error', description: message, variant: 'destructive' });
@@ -912,7 +1018,7 @@ export function IntegrationDetailPage() {
       });
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
-      fetchOrgConnections(provider, true);
+      fetchOrgConnections(undefined, true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete connection.';
       toast({ title: 'Delete failed', description: message, variant: 'destructive' });
@@ -923,7 +1029,7 @@ export function IntegrationDetailPage() {
 
   const handleConnectionCreated = () => {
     setDialogOpen(false);
-    fetchOrgConnections(provider, true);
+    fetchOrgConnections(undefined, true);
   };
 
   // ---- Loading state ----
@@ -1133,6 +1239,12 @@ export function IntegrationDetailPage() {
                             alt={teamName}
                             className="h-10 w-10 rounded-lg flex-shrink-0 object-cover"
                           />
+                        ) : connVisuals?.logo ? (
+                          <img
+                            src={connVisuals.logo}
+                            alt={conn.provider}
+                            className="h-10 w-10 rounded-lg flex-shrink-0 object-contain bg-muted p-1"
+                          />
                         ) : (
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-muted text-muted-foreground font-semibold text-sm">
                             {(teamName ?? '?').slice(0, 2).toUpperCase()}
@@ -1151,7 +1263,7 @@ export function IntegrationDetailPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {credentialTypeBadge(conn.credentialType)}
+                        {credentialTypeBadge(conn.credentialType ?? 'unknown')}
                         {conn.scopes && conn.scopes.length > 0 && (
                           <span className="text-[10px] text-muted-foreground">
                             {conn.scopes.length} scope{conn.scopes.length !== 1 ? 's' : ''}

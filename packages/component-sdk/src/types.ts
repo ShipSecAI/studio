@@ -323,6 +323,7 @@ export type ComponentParameterType =
   | 'textarea'
   | 'number'
   | 'boolean'
+  | 'toggle'
   | 'select'
   | 'multi-select'
   | 'json'
@@ -374,7 +375,10 @@ export type ComponentCategory =
   | 'it_ops'
   | 'notification'
   | 'manual_action'
-  | 'output';
+  | 'output'
+  | 'process'
+  | 'cloud'
+  | 'core';
 
 export type ComponentUiType =
   | 'trigger'

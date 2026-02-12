@@ -2686,9 +2686,15 @@ export interface components {
             provider: string;
             providerName: string;
             userId: string;
+            credentialType?: string;
+            displayName?: string;
+            organizationId?: string;
             scopes: string[];
             tokenType: string;
-            expiresAt?: string;
+            expiresAt?: string | null;
+            lastValidatedAt?: string | null;
+            lastValidationStatus?: string | null;
+            lastUsedAt?: string | null;
             createdAt: string;
             updatedAt: string;
             /** @enum {string} */
@@ -2696,7 +2702,7 @@ export interface components {
             supportsRefresh: boolean;
             hasRefreshToken: boolean;
             /** @description Provider-specific metadata saved alongside the connection */
-            metadata?: Record<string, never>;
+            metadata?: Record<string, unknown>;
         };
         StartOAuthDto: {
             /** @description Application user identifier to associate the connection with */

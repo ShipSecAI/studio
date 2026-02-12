@@ -10,6 +10,47 @@ import {
 import { awsCredentialSchema } from '@shipsec/contracts';
 import { OrganizationsClient, paginateListAccounts } from '@aws-sdk/client-organizations';
 
+/**
+ * Reusable helper: discovers all accounts in an AWS Organization.
+ * Exported for use by other components (e.g. prowler org scan).
+ */
+export async function discoverOrgAccounts(
+  credentials: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken?: string;
+    region?: string;
+  },
+  region?: string,
+): Promise<{ id: string; name: string; status: string; email: string }[]> {
+  const client = new OrganizationsClient({
+    credentials: {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken,
+    },
+    region: region ?? credentials.region ?? 'us-east-1',
+  });
+
+  const accounts: { id: string; name: string; status: string; email: string }[] = [];
+  const paginator = paginateListAccounts({ client }, {});
+
+  for await (const page of paginator) {
+    if (page.Accounts) {
+      for (const account of page.Accounts) {
+        accounts.push({
+          id: account.Id ?? '',
+          name: account.Name ?? '',
+          status: account.Status ?? 'UNKNOWN',
+          email: account.Email ?? '',
+        });
+      }
+    }
+  }
+
+  return accounts;
+}
+
 const inputSchema = inputs({
   credentials: port(awsCredentialSchema(), {
     label: 'AWS Credentials',
@@ -65,31 +106,7 @@ const definition = defineComponent({
 
     context.emitProgress('Discovering AWS Organization accounts...');
 
-    const client = new OrganizationsClient({
-      credentials: {
-        accessKeyId: creds.accessKeyId,
-        secretAccessKey: creds.secretAccessKey,
-        sessionToken: creds.sessionToken,
-      },
-      region: creds.region ?? 'us-east-1',
-    });
-
-    const accounts: { id: string; name: string; status: string; email: string }[] = [];
-
-    const paginator = paginateListAccounts({ client }, {});
-
-    for await (const page of paginator) {
-      if (page.Accounts) {
-        for (const account of page.Accounts) {
-          accounts.push({
-            id: account.Id ?? '',
-            name: account.Name ?? '',
-            status: account.Status ?? 'UNKNOWN',
-            email: account.Email ?? '',
-          });
-        }
-      }
-    }
+    const accounts = await discoverOrgAccounts(creds, creds.region);
 
     context.logger.info(
       `[AWSOrGDiscovery] Discovered ${accounts.length} accounts in the organization.`,

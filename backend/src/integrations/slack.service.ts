@@ -53,7 +53,7 @@ export class SlackService {
         },
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
 
       if (!data.ok) {
         this.logger.error(`Slack auth.test failed: ${data.error}`);
@@ -89,7 +89,7 @@ export class SlackService {
         },
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
 
       if (!data.ok) {
         this.logger.warn(`Slack team.info failed: ${data.error}`);
@@ -126,7 +126,7 @@ export class SlackService {
         },
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
 
       if (!data.ok) {
         this.logger.error(`Slack API error: ${data.error}`);
@@ -166,7 +166,7 @@ export class SlackService {
         }),
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
 
       if (!data.ok) {
         this.logger.error(`Failed to send message: ${data.error}`);

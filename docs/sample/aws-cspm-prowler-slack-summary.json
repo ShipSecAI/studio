@@ -1,6 +1,6 @@
 {
   "name": "AWS CSPM – Prowler Scan to Slack Summary",
-  "description": "Resolves AWS credentials from an integration connection, runs a Prowler security scan (high+critical severity), and sends a summary of findings to a Slack channel via webhook.",
+  "description": "Resolves AWS credentials from an integration connection, runs a Prowler security scan (high+critical severity), and sends a summary of findings to a Slack channel via an integration connection (OAuth or webhook).",
   "nodes": [
     {
       "id": "entry-1",
@@ -27,11 +27,27 @@
                 "default": "us-east-1"
               },
               {
-                "id": "slackWebhookUrl",
-                "label": "Slack Webhook URL",
+                "id": "slackConnectionId",
+                "label": "Slack Integration Connection ID",
                 "type": "text",
                 "required": true,
-                "description": "Slack Incoming Webhook URL to send the scan summary to."
+                "description": "The ID of the Slack integration connection (OAuth or webhook). Find this in Settings > Integrations > Slack."
+              },
+              {
+                "id": "slackChannel",
+                "label": "Slack Channel",
+                "type": "text",
+                "required": false,
+                "description": "Slack channel to post to (e.g. #security-alerts). Required for OAuth connections, ignored for webhook connections.",
+                "default": "#general"
+              },
+              {
+                "id": "dashboardBaseUrl",
+                "label": "Dashboard Base URL",
+                "type": "text",
+                "required": false,
+                "description": "Base URL of your deployment (e.g. https://your-domain). Used to build the analytics dashboard link in the Slack notification.",
+                "default": "http://localhost"
               }
             ]
           },
@@ -42,11 +58,23 @@
     {
       "id": "resolve-creds-1",
       "type": "core.integration.resolve-credentials",
-      "position": { "x": 300, "y": 280 },
+      "position": { "x": 450, "y": 280 },
       "data": {
         "label": "Resolve AWS Credentials",
         "config": {
-          "params": {},
+          "params": { "provider": "aws" },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "resolve-slack-creds-1",
+      "type": "core.integration.resolve-credentials",
+      "position": { "x": 100, "y": 550 },
+      "data": {
+        "label": "Resolve Slack Credentials",
+        "config": {
+          "params": { "provider": "slack" },
           "inputOverrides": {}
         }
       }
@@ -54,7 +82,7 @@
     {
       "id": "prowler-1",
       "type": "security.prowler.scan",
-      "position": { "x": 300, "y": 510 },
+      "position": { "x": 450, "y": 510 },
       "data": {
         "label": "Prowler Security Scan",
         "config": {
@@ -74,11 +102,14 @@
         "label": "Slack Scan Summary",
         "config": {
           "params": {
-            "authType": "webhook",
-            "variables": [{ "name": "scanSummary", "type": "json" }]
+            "authType": "credentials",
+            "variables": [
+              { "name": "scanSummary", "type": "json" },
+              { "name": "dashboardBaseUrl", "type": "string" }
+            ]
           },
           "inputOverrides": {
-            "text": "🔒 *Prowler Security Scan Complete*\n\n📊 *Summary*\n• Total findings: {{totalFindings}}\n• Failed: {{failed}} | Passed: {{passed}}\n• Regions: {{regions}}\n\n🔴 Critical: {{critical}} | 🟠 High: {{high}} | 🟡 Medium: {{medium}} | 🟢 Low: {{low}}\n\nGenerated at {{generatedAt}}"
+            "text": "🔒 *Prowler Security Scan Complete*\n\n📊 *Summary*\n• Total findings: {{totalFindings}}\n• Failed: {{failed}} | Passed: {{passed}}\n• Regions: {{regions}}\n\n🔴 Critical: {{critical}} | 🟠 High: {{high}} | 🟡 Medium: {{medium}} | 🟢 Low: {{low}}\n\n📈 <{{dashboardBaseUrl}}/analytics/app/data-explorer/discover/#?_a=(discover%3A(columns%3A!(_source)%2Cinterval%3Aauto%2Csort%3A!())%2Cmetadata%3A(indexPattern%3A'security-findings-*'%2Cview%3Adiscover))&_q=(query%3A(language%3Akuery%2Cquery%3A'shipsec.run_id.keyword%3A%22{{runId}}%22'))&_g=(filters%3A!()%2CrefreshInterval%3A(pause%3A!t%2Cvalue%3A0)%2Ctime%3A(from%3Anow-1y%2Cto%3Anow))|View Findings in Dashboard>\n\nGenerated at {{generatedAt}}"
           }
         }
       }
@@ -98,6 +129,13 @@
       "target": "resolve-creds-1",
       "sourceHandle": "regions",
       "targetHandle": "regions"
+    },
+    {
+      "id": "e-entry-to-slack-resolver",
+      "source": "entry-1",
+      "target": "resolve-slack-creds-1",
+      "sourceHandle": "slackConnectionId",
+      "targetHandle": "connectionId"
     },
     {
       "id": "e-resolve-to-prowler-creds",
@@ -121,11 +159,18 @@
       "targetHandle": "regions"
     },
     {
-      "id": "e-entry-to-slack-webhook",
+      "id": "e-slack-resolver-to-slack",
+      "source": "resolve-slack-creds-1",
+      "target": "slack-1",
+      "sourceHandle": "data",
+      "targetHandle": "credentials"
+    },
+    {
+      "id": "e-entry-to-slack-channel",
       "source": "entry-1",
       "target": "slack-1",
-      "sourceHandle": "slackWebhookUrl",
-      "targetHandle": "webhookUrl"
+      "sourceHandle": "slackChannel",
+      "targetHandle": "channel"
     },
     {
       "id": "e-prowler-to-slack-summary",
@@ -133,6 +178,13 @@
       "target": "slack-1",
       "sourceHandle": "summary",
       "targetHandle": "scanSummary"
+    },
+    {
+      "id": "e-entry-to-slack-dashboard-url",
+      "source": "entry-1",
+      "target": "slack-1",
+      "sourceHandle": "dashboardBaseUrl",
+      "targetHandle": "dashboardBaseUrl"
     }
   ],
   "viewport": { "x": 0, "y": 0, "zoom": 1 }
