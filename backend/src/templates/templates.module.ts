@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '../database/database.module';
 import { TemplatesController } from './templates.controller';
+import { WebhookController } from './webhook.controller';
 import { TemplateService } from './templates.service';
 import { WorkflowSanitizationService } from './workflow-sanitization.service';
 import { TemplatesRepository } from './templates.repository';
@@ -15,7 +16,7 @@ import { GitHubSyncService } from './github-sync.service';
  */
 @Module({
   imports: [DatabaseModule, ConfigModule],
-  controllers: [TemplatesController],
+  controllers: [TemplatesController, WebhookController],
   providers: [
     TemplateService,
     WorkflowSanitizationService,
