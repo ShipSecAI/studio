@@ -62,9 +62,13 @@ bun run test
 
 #### Integrations Module
 
-- **OAuth Provider**: Multi-provider OAuth orchestration
-- **Token Vault**: Encrypted storage of access tokens
-- **Connection Management**: OAuth lifecycle and refresh handling
+- **Provider Catalog**: Static integration catalog (AWS, Slack) with auth methods, setup scenarios, and configuration
+- **OAuth Provider**: Multi-provider OAuth orchestration (GitHub, Slack, Zoom) with PKCE support
+- **Token Vault**: AES-256-GCM encrypted storage of access and refresh tokens
+- **Connection Management**: Full lifecycle management -- create, validate, refresh, disconnect
+- **AWS Service**: IAM Role connections with STS AssumeRole, Organization account discovery, trust policy generation
+- **Slack Service**: Webhook connections with test messaging support
+- **Credential Resolution**: Internal API for worker components to resolve typed credentials at runtime
 
 #### Logging & Events Module
 
@@ -134,12 +138,27 @@ INTEGRATION_STORE_MASTER_KEY=your-32-character-integ-key!!!!!
 - `GET /api/v1/files/{id}/download` - Download file
 - `GET /api/v1/files/{id}/metadata` - Get file metadata
 
-### Secrets & Integrations
+### Secrets
 
 - `GET /api/v1/secrets` - List secrets
 - `POST /api/v1/secrets` - Create secret
-- `GET /api/v1/integrations/providers` - List OAuth providers
-- `POST /api/v1/integrations/{provider}/start` - Start OAuth flow
+
+### Integrations
+
+- `GET /integrations/catalog` - List integration provider catalog
+- `GET /integrations/connections` - List user connections
+- `GET /integrations/org/connections` - List organization connections
+- `DELETE /integrations/connections/{id}` - Remove a connection
+- `POST /integrations/connections/{id}/refresh` - Refresh connection tokens
+- `GET /integrations/providers` - List OAuth providers
+- `POST /integrations/{provider}/start` - Start OAuth flow
+- `POST /integrations/{provider}/exchange` - Complete OAuth exchange
+- `GET /integrations/aws/setup-info` - Get IAM trust policy and external ID
+- `POST /integrations/aws/connections` - Create AWS IAM role connection
+- `POST /integrations/aws/connections/{id}/validate` - Validate AWS connection
+- `POST /integrations/aws/connections/{id}/discover-org` - Discover AWS Organization accounts
+- `POST /integrations/slack/connections` - Create Slack webhook connection
+- `POST /integrations/slack/connections/{id}/test` - Test Slack connection
 
 ## Project Structure
 

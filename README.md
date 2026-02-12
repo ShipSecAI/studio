@@ -43,7 +43,7 @@ The easiest way to run ShipSec Studio on your own infrastructure:
 #### One-Line Install
 
 ```bash
-curl -fsSL https://get.shipsec.ai | bash
+curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | bash
 ```
 
 This installer will:
@@ -91,7 +91,16 @@ Native support for industry-standard security tools including:
 
 - **Discovery**: `Subfinder`, `DNSX`, `Naabu`, `HTTPx`
 - **Vulnerability**: `Nuclei`, `TruffleHog`
+- **CSPM**: `Prowler` for AWS cloud security posture management
 - **Utility**: `JSON Transform`, `Logic Scripts`, `HTTP Requests`
+
+### Cloud & Platform Integrations
+
+First-class integration support with encrypted credential management:
+
+- **AWS**: IAM Role connections with STS AssumeRole, Organization account discovery, cross-account scanning
+- **Slack**: Incoming Webhooks and OAuth App connections for notifications and alerts
+- **Credential Resolution**: Workflow components that securely resolve connection credentials at runtime
 
 ### Advanced Orchestration
 
@@ -137,12 +146,8 @@ Run multiple isolated dev instances on one machine for parallel feature work:
 # Instance 0 (default)
 just dev
 
-# Switch active workspace instance
-just instance use 1
-just dev
-
-# Manage per-instance env files
-just instance-env init 1
+# Instance 1 — offset ports (frontend :5273, backend :3311)
+SHIPSEC_INSTANCE=1 just dev
 ```
 
 Each instance gets its own frontend port, backend port, database, and Temporal namespace while sharing a single Docker infra stack. See [Multi-Instance Development Guide](docs/MULTI-INSTANCE-DEV.md) for full details.

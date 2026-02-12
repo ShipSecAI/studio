@@ -9,10 +9,10 @@ Components are the building blocks of ShipSec Studio workflows. Each component p
 
 <CardGroup cols={2}>
   <Card title="Core" icon="cube" href="/components/core">
-    Triggers, file handling, data transformation, and outputs
+    Triggers, file handling, data transformation, cloud integrations, and outputs
   </Card>
   <Card title="Security" icon="shield" href="/components/security">
-    Subdomain discovery, port scanning, DNS resolution, secret detection
+    Subdomain discovery, port scanning, DNS resolution, secret detection, CSPM
   </Card>
   <Card title="AI" icon="brain" href="/components/ai">
     Provider configurations and autonomous agents
@@ -68,6 +68,17 @@ Manual Trigger → TruffleHog → OpenAI Provider → AI Generate Text → Notif
 3. **OpenAI Provider** – Set up model and API key
 4. **AI Generate Text** – Analyzes and prioritizes findings
 5. **Notify** – Alerts team via Slack, Discord, or email
+
+### AWS Cloud Security Posture (CSPM)
+
+```
+Entry Point → Credential Resolver → Prowler Scan → Analytics Sink
+```
+
+1. **Entry Point** – Collects AWS connection ID and regions
+2. **Integration Credential Resolver** – Resolves AWS IAM credentials from the [Integrations](/integrations) system
+3. **Prowler Scan** – Runs cloud security posture checks (severity high/critical)
+4. **Analytics Sink** – Indexes findings into OpenSearch for dashboards and alerts
 
 ## Execution Context
 
