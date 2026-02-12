@@ -68,7 +68,7 @@ worker:
 frontend:
   image:
     repository: us-central1-docker.pkg.dev/shipsec/shipsec-studio/frontend
-    tag: c4c663fc-fe-20260212034158
+    tag: 21a84c73-fe-20260212115953
   service:
     type: LoadBalancer
 
