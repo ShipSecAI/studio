@@ -50,7 +50,7 @@ export const AWS_PROVIDER: IntegrationProviderDefinition = {
       type: 'iam_role',
       label: 'IAM Role',
       description:
-        'Create an IAM role in your AWS account with a trust policy that allows the ShipSec platform to assume it. No customer secrets are stored.',
+        'Create an IAM role in your AWS account (IAM → Roles → Create role → "Custom trust policy") that allows the ShipSec platform to assume it. No customer secrets are stored.',
       fields: [
         {
           id: 'roleArn',

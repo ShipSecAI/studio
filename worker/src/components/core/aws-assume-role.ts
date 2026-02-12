@@ -12,6 +12,55 @@ import {
 import { awsCredentialSchema } from '@shipsec/contracts';
 import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
 
+/**
+ * Reusable helper: assumes an AWS IAM role via STS.
+ * Exported for use by other components (e.g. prowler org scan).
+ */
+export async function assumeRole(
+  sourceCredentials: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken?: string;
+    region?: string;
+  },
+  roleArn: string,
+  options?: { externalId?: string; sessionName?: string },
+): Promise<{
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  region?: string;
+}> {
+  const stsClient = new STSClient({
+    credentials: {
+      accessKeyId: sourceCredentials.accessKeyId,
+      secretAccessKey: sourceCredentials.secretAccessKey,
+      sessionToken: sourceCredentials.sessionToken,
+    },
+    region: sourceCredentials.region ?? 'us-east-1',
+  });
+
+  const command = new AssumeRoleCommand({
+    RoleArn: roleArn,
+    RoleSessionName: options?.sessionName ?? 'shipsec-session',
+    DurationSeconds: 3600,
+    ...(options?.externalId ? { ExternalId: options.externalId } : {}),
+  });
+
+  const response = await stsClient.send(command);
+
+  if (!response.Credentials) {
+    throw new Error(`STS AssumeRole did not return credentials for role ${roleArn}.`);
+  }
+
+  return {
+    accessKeyId: response.Credentials.AccessKeyId ?? '',
+    secretAccessKey: response.Credentials.SecretAccessKey ?? '',
+    sessionToken: response.Credentials.SessionToken,
+    region: sourceCredentials.region,
+  };
+}
+
 const inputSchema = inputs({
   sourceCredentials: port(awsCredentialSchema(), {
     label: 'Source Credentials',
@@ -84,49 +133,22 @@ const definition = defineComponent({
       );
     }
 
-    const roleArn = params.roleArn;
-    const sessionName = params.sessionName ?? 'shipsec-session';
+    const roleArn = params.roleArn as string;
+    const sessionName = (params.sessionName as string) ?? 'shipsec-session';
 
     context.emitProgress(`Assuming role ${roleArn}...`);
 
-    const stsClient = new STSClient({
-      credentials: {
-        accessKeyId: sourceCreds.accessKeyId,
-        secretAccessKey: sourceCreds.secretAccessKey,
-        sessionToken: sourceCreds.sessionToken,
-      },
-      region: sourceCreds.region ?? 'us-east-1',
+    const credentials = await assumeRole(sourceCreds, roleArn, {
+      externalId: params.externalId as string | undefined,
+      sessionName,
     });
-
-    const command = new AssumeRoleCommand({
-      RoleArn: roleArn,
-      RoleSessionName: sessionName,
-      DurationSeconds: 3600,
-      ...(params.externalId ? { ExternalId: params.externalId } : {}),
-    });
-
-    const response = await stsClient.send(command);
-
-    if (!response.Credentials) {
-      throw new ConfigurationError(
-        `STS AssumeRole did not return credentials for role ${roleArn}.`,
-        { configKey: 'roleArn' },
-      );
-    }
 
     context.logger.info(
       `[AWSAssumeRole] Successfully assumed role ${roleArn} (session: ${sessionName}).`,
     );
     context.emitProgress(`Assumed role ${roleArn} successfully.`);
 
-    return outputSchema.parse({
-      credentials: {
-        accessKeyId: response.Credentials.AccessKeyId ?? '',
-        secretAccessKey: response.Credentials.SecretAccessKey ?? '',
-        sessionToken: response.Credentials.SessionToken,
-        region: sourceCreds.region,
-      },
-    });
+    return outputSchema.parse({ credentials });
   },
 });
 

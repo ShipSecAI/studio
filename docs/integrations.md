@@ -209,7 +209,7 @@ Assumes an IAM role via STS and returns temporary credentials. Useful for cross-
 
 ## Sample Workflows
 
-Three pre-built workflow templates are available in `docs/sample/`:
+Four pre-built workflow templates are available in `docs/sample/`:
 
 ### AWS CSPM -- Org Account Discovery
 
@@ -243,21 +243,44 @@ End-to-end CSPM workflow: resolves AWS credentials, runs a Prowler security scan
 - `connectionId` (required) -- AWS integration connection ID
 - `regions` (optional) -- Comma-separated AWS regions (default: `us-east-1`)
 
+### AWS CSPM -- Org-Wide Prowler Scan to Analytics
+
+**File:** `docs/sample/aws-cspm-org-prowler-to-analytics.json`
+
+```
+Entry Point → Resolve Credentials → Prowler Scan (orgScan=true) → Analytics Sink
+```
+
+Resolves AWS credentials for the organization management account, discovers all member accounts via AWS Organizations, assumes a cross-account role in each, runs Prowler per-account, and indexes aggregated findings into the Analytics dashboard. Failed accounts are recorded and scanning continues.
+
+**Runtime Inputs:**
+
+- `connectionId` (required) -- AWS integration connection ID for the management account
+- `regions` (optional) -- Comma-separated AWS regions (default: `us-east-1`)
+
+**Key Parameters:**
+
+- `orgScan: true` -- Enables organization-wide scanning
+- `memberRoleName` -- IAM role to assume in each member account (default: `OrganizationAccountAccessRole`)
+- `continueOnError: true` -- Record errors per account and continue scanning
+
 ### AWS CSPM -- Prowler Scan to Slack Summary
 
 **File:** `docs/sample/aws-cspm-prowler-slack-summary.json`
 
 ```
-Entry Point → Resolve Credentials → Prowler Scan → Slack Message
+Entry Point → Resolve AWS Credentials → Prowler Scan ─┐
+           └→ Resolve Slack Credentials ───────────────┴→ Slack Message
 ```
 
-Resolves AWS credentials, runs a Prowler security scan (severity high/critical), and sends a formatted summary of findings to a Slack channel via an Incoming Webhook.
+Resolves AWS credentials, runs a Prowler security scan (severity high/critical), resolves Slack credentials from an integration connection (OAuth or webhook), and sends a formatted summary of findings to a Slack channel.
 
 **Runtime Inputs:**
 
 - `connectionId` (required) -- AWS integration connection ID
 - `regions` (optional) -- Comma-separated AWS regions (default: `us-east-1`)
-- `slackWebhookUrl` (required) -- Slack Incoming Webhook URL for the target channel
+- `slackConnectionId` (required) -- Slack integration connection ID (OAuth or webhook)
+- `slackChannel` (optional) -- Slack channel to post to (required for OAuth, ignored for webhook; default: `#general`)
 
 ### Importing Sample Workflows
 

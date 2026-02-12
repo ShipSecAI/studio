@@ -39,7 +39,7 @@
       "data": {
         "label": "Resolve AWS Credentials",
         "config": {
-          "params": {},
+          "params": { "provider": "aws" },
           "inputOverrides": {}
         }
       }

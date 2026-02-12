@@ -42,6 +42,7 @@ interface ParameterFieldProps {
   componentId?: string;
   parameters?: Record<string, unknown> | undefined;
   onUpdateParameter?: (paramId: string, value: any) => void;
+  nodeLabel?: string;
 }
 
 /**
@@ -55,6 +56,7 @@ export function ParameterField({
   componentId,
   parameters,
   onUpdateParameter,
+  nodeLabel,
 }: ParameterFieldProps) {
   const currentValue = value !== undefined ? value : parameter.default;
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -105,11 +107,29 @@ export function ParameterField({
     [mergedConnections],
   );
 
-  // All connections for the generic credential resolver (no provider filter)
-  const allConnections = useMemo(() => mergedConnections, [mergedConnections]);
+  // For the generic credential resolver, filter by explicit `provider` param or infer from node label
+  const credResolverProviderFilter = useMemo(() => {
+    if (!isGenericCredentialResolver) return undefined;
+    // 1. Explicit provider parameter takes priority
+    const map = (parameters ?? {}) as Record<string, unknown>;
+    const explicit = typeof map?.provider === 'string' ? map.provider.trim().toLowerCase() : '';
+    if (explicit) return explicit;
+    // 2. Infer from node label (e.g. "Resolve AWS Credentials" → "aws")
+    const KNOWN_PROVIDERS = ['aws', 'slack', 'github'];
+    const label = (nodeLabel ?? '').toLowerCase();
+    return KNOWN_PROVIDERS.find((p) => label.includes(p));
+  }, [isGenericCredentialResolver, parameters, nodeLabel]);
+
+  const filteredConnections = useMemo(
+    () =>
+      credResolverProviderFilter
+        ? mergedConnections.filter((c) => c.provider === credResolverProviderFilter)
+        : mergedConnections,
+    [mergedConnections, credResolverProviderFilter],
+  );
 
   // Pick the right list depending on the component
-  const connectionOptions = isGenericCredentialResolver ? allConnections : githubConnections;
+  const connectionOptions = isGenericCredentialResolver ? filteredConnections : githubConnections;
 
   const [workflowOptions, setWorkflowOptions] = useState<{ id: string; name: string }[]>([]);
   const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false);
@@ -567,6 +587,7 @@ export function ParameterField({
       );
 
     case 'boolean':
+    case 'toggle':
       return (
         <div className="flex items-center justify-between">
           <label htmlFor={parameter.id} className="text-sm font-medium cursor-pointer select-none">
@@ -1082,6 +1103,7 @@ interface ParameterFieldWrapperProps {
   parameters?: Record<string, unknown> | undefined;
   onUpdateParameter?: (paramId: string, value: any) => void;
   allComponentParameters?: Parameter[];
+  nodeLabel?: string;
 }
 
 /**
@@ -1121,7 +1143,8 @@ function isHeaderToggleParameter(
   parameter: Parameter,
   allComponentParameters: Parameter[] | undefined,
 ): boolean {
-  if (parameter.type !== 'boolean' || !allComponentParameters) return false;
+  if ((parameter.type !== 'boolean' && parameter.type !== 'toggle') || !allComponentParameters)
+    return false;
 
   // Check if any other parameter has visibleWhen referencing this param
   return allComponentParameters.some((p) => p.visibleWhen && parameter.id in p.visibleWhen);
@@ -1139,6 +1162,7 @@ export function ParameterFieldWrapper({
   parameters,
   onUpdateParameter,
   allComponentParameters,
+  nodeLabel,
 }: ParameterFieldWrapperProps) {
   // Check visibility conditions
   if (!shouldShowParameter(parameter, parameters)) {
@@ -1268,7 +1292,7 @@ export function ParameterFieldWrapper({
   }
 
   // Standard parameter field rendering
-  const isBooleanParameter = parameter.type === 'boolean';
+  const isBooleanParameter = parameter.type === 'boolean' || parameter.type === 'toggle';
 
   return (
     <div
@@ -1300,6 +1324,7 @@ export function ParameterFieldWrapper({
         componentId={componentId}
         parameters={parameters}
         onUpdateParameter={onUpdateParameter}
+        nodeLabel={nodeLabel}
       />
 
       {/* Description after field (toggle control) - for boolean parameters */}

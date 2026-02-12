@@ -19,6 +19,8 @@
     "seed:aws-workflow": "bun scripts/seed-aws-cspm-workflow.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-organizations": "^3.750.0",
+    "@aws-sdk/client-sts": "^3.750.0",
     "@clerk/backend": "^2.29.5",
     "@clerk/types": "^4.101.13",
     "@grpc/grpc-js": "^1.14.3",
@@ -30,8 +32,6 @@
     "@nestjs/platform-express": "^10.4.22",
     "@nestjs/swagger": "^11.2.5",
     "@nestjs/throttler": "^6.5.0",
-    "@aws-sdk/client-organizations": "^3.750.0",
-    "@aws-sdk/client-sts": "^3.750.0",
     "@opensearch-project/opensearch": "^3.5.1",
     "@shipsec/backend-client": "workspace:*",
     "@shipsec/component-sdk": "workspace:*",
@@ -48,6 +48,7 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "cookie-parser": "^1.4.7",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",

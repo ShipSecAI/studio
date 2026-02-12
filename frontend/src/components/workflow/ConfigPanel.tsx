@@ -48,7 +48,6 @@ import {
 import { API_V1_URL, api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useApiKeyStore } from '@/store/apiKeyStore';
-import { useGitHubStore } from '@/store/githubStore';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
 import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
@@ -306,10 +305,6 @@ export function ConfigPanel({
   const navigate = useNavigate();
   const schedulesContext = useOptionalWorkflowSchedulesContext();
 
-  // GitHub App installations for installation dropdown
-  const ghInstallations = useGitHubStore((s) => s.installations);
-  const ghFetchInstallations = useGitHubStore((s) => s.fetchInstallations);
-
   // Get API key for curl command
 
   const lastCreatedKey = useApiKeyStore((state) => state.lastCreatedKey);
@@ -323,70 +318,14 @@ export function ConfigPanel({
   // Use lastCreatedKey (full key) if available, otherwise null (will show placeholder)
   const activeApiKey = lastCreatedKey || null;
 
-  const [panelWidth, setPanelWidth] = useState(initialWidth);
-  const isResizing = useRef(false);
-  const resizeRef = useRef<HTMLDivElement>(null);
-  const latestNodeConfigRef = useRef<FrontendNodeData['config']>({
-    params: {},
-    inputOverrides: {},
-  });
-
-  // Actual width to use - full width on mobile
-  const effectiveWidth = isMobile ? '100%' : panelWidth;
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      // Disable resizing on mobile
-      if (isMobile) return;
-      e.preventDefault();
-      isResizing.current = true;
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [isMobile],
-  );
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing.current) return;
-      const newWidth = window.innerWidth - e.clientX;
-      const clampedWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, newWidth));
-      setPanelWidth(clampedWidth);
-      onWidthChange?.(clampedWidth);
-    };
-
-    const handleMouseUp = () => {
-      isResizing.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [onWidthChange]);
-
-  useEffect(() => {
-    if (!selectedNode) {
-      latestNodeConfigRef.current = { params: {}, inputOverrides: {} };
-      return;
-    }
-
-    const config = selectedNode.data.config ?? { params: {}, inputOverrides: {} };
-    latestNodeConfigRef.current = {
-      ...config,
-      params: { ...(config.params ?? {}) },
-      inputOverrides: { ...(config.inputOverrides ?? {}) },
-    };
-  }, [selectedNode]);
+  // Fixed width on desktop, full width on mobile
+  const effectiveWidth = isMobile ? '100%' : PANEL_WIDTH;
 
   const handleParamValueChange = (paramId: string, value: any) => {
     if (!selectedNode || !onUpdateNode) return;
-    const config = latestNodeConfigRef.current ?? { params: {}, inputOverrides: {} };
+
+    const nodeData: FrontendNodeData = selectedNode.data;
+    const config = nodeData.config || { params: {}, inputOverrides: {} };
 
     let updatedParams = {
       ...(config.params ?? {}),
@@ -399,21 +338,19 @@ export function ConfigPanel({
       updatedParams[paramId] = value;
     }
 
-    const updatedConfig: FrontendNodeData['config'] = {
-      ...config,
-      params: updatedParams,
-      inputOverrides: { ...(config.inputOverrides ?? {}) },
-    };
-    latestNodeConfigRef.current = updatedConfig;
-
     onUpdateNode(selectedNode.id, {
-      config: updatedConfig,
+      config: {
+        ...config,
+        params: updatedParams,
+      },
     });
   };
 
   const handleInputOverrideChange = (inputId: string, value: any) => {
     if (!selectedNode || !onUpdateNode) return;
-    const config = latestNodeConfigRef.current ?? { params: {}, inputOverrides: {} };
+
+    const nodeData: FrontendNodeData = selectedNode.data;
+    const config = nodeData.config || { params: {}, inputOverrides: {} };
 
     let updatedOverrides = {
       ...(config.inputOverrides ?? {}),
@@ -426,15 +363,11 @@ export function ConfigPanel({
       updatedOverrides[inputId] = value;
     }
 
-    const updatedConfig: FrontendNodeData['config'] = {
-      ...config,
-      params: { ...(config.params ?? {}) },
-      inputOverrides: updatedOverrides,
-    };
-    latestNodeConfigRef.current = updatedConfig;
-
     onUpdateNode(selectedNode.id, {
-      config: updatedConfig,
+      config: {
+        ...config,
+        inputOverrides: updatedOverrides,
+      },
     });
   };
 
@@ -572,15 +505,6 @@ export function ConfigPanel({
       }
     };
   }, [component?.id, JSON.stringify(manualParameters), JSON.stringify(inputOverrides)]); // Deep compare parameters and overrides
-
-  // Lazy-fetch GitHub installations when a GitHub component is selected
-  const isGitHubAppComponent = component?.id?.startsWith('github.') ?? false;
-  const ghFetchedRef = useRef(false);
-  useEffect(() => {
-    if (!isGitHubAppComponent || ghFetchedRef.current) return;
-    ghFetchedRef.current = true;
-    ghFetchInstallations().catch(() => {});
-  }, [isGitHubAppComponent, ghFetchInstallations]);
 
   const componentInputs = dynamicInputs ?? component.inputs ?? [];
   const componentOutputs = dynamicOutputs ?? component.outputs ?? [];
@@ -960,6 +884,7 @@ export function ConfigPanel({
                         parameters={manualParameters}
                         onUpdateParameter={handleParamValueChange}
                         allComponentParameters={componentParameters}
+                        nodeLabel={nodeData.label}
                       />
                     </div>
                   );
@@ -1162,135 +1087,29 @@ export function ConfigPanel({
                                   }
                                 }}
                                 disabled={manualLocked}
-                              >
-                                <SelectTrigger className="text-sm">
-                                  <SelectValue placeholder="Select true or false" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="true">True</SelectItem>
-                                  <SelectItem value="false">False</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              {!manualLocked && typeof manualValue === 'boolean' && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-fit text-xs px-2"
-                                  onClick={() => handleInputOverrideChange(input.id, undefined)}
-                                >
-                                  Clear manual value
-                                </Button>
-                              )}
-                            </div>
-                          ) : isListOfTextInput ? (
-                            <ManualListChipsInput
-                              inputId={input.id}
-                              manualValue={manualValue}
-                              disabled={manualLocked}
-                              placeholder={manualPlaceholder}
-                              onChange={(value) => handleInputOverrideChange(input.id, value)}
-                            />
-                          ) : isGitHubAppComponent && input.id === 'installationId' ? (
-                            <div className="space-y-1.5">
-                              <select
+                                placeholder="{{run_id}}-{{timestamp}}"
+                              />
+                            ) : (
+                              <Input
                                 id={`manual-${input.id}`}
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                value={
-                                  manualValue !== undefined && manualValue !== null
-                                    ? String(manualValue)
-                                    : ''
-                                }
+                                type={isNumberInput ? 'number' : 'text'}
+                                value={manualInputValue}
                                 onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (!val) {
+                                  const nextValue = e.target.value;
+                                  if (nextValue === '') {
                                     handleInputOverrideChange(input.id, undefined);
-                                  } else {
-                                    handleInputOverrideChange(input.id, Number(val));
-                                  }
-                                }}
-                                disabled={manualLocked}
-                              >
-                                <option value="">
-                                  {ghInstallations.length === 0
-                                    ? 'No installations found'
-                                    : 'Select an installation...'}
-                                </option>
-                                {ghInstallations.map((inst) => (
-                                  <option key={inst.id} value={String(inst.installationId)}>
-                                    {inst.accountLogin} ({inst.accountType})
-                                  </option>
-                                ))}
-                              </select>
-                              {ghInstallations.length > 0 &&
-                                manualValue !== undefined &&
-                                manualValue !== null && (
-                                  <div className="flex items-center gap-2 px-1">
-                                    {(() => {
-                                      const selected = ghInstallations.find(
-                                        (i) => i.installationId === Number(manualValue),
-                                      );
-                                      if (!selected) return null;
-                                      return (
-                                        <>
-                                          {selected.accountAvatarUrl && (
-                                            <img
-                                              src={selected.accountAvatarUrl}
-                                              alt={selected.accountLogin}
-                                              className="w-4 h-4 rounded-full"
-                                            />
-                                          )}
-                                          <span className="text-xs text-muted-foreground">
-                                            {selected.accountLogin}
-                                          </span>
-                                          <Badge variant="outline" className="text-[9px] px-1 py-0">
-                                            {selected.accountType}
-                                          </Badge>
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                )}
-                              <p className="text-[10px] text-muted-foreground">
-                                Note: Installation ID is automatically injected at runtime for
-                                triggered scans. Only set this for manual testing.
-                              </p>
-                            </div>
-                          ) : component?.id === 'core.artifact.writer' &&
-                            input.id === 'artifactName' ? (
-                            <DynamicArtifactNameInput
-                              value={manualInputValue}
-                              onChange={(value) => {
-                                if (!value || value === '') {
-                                  handleInputOverrideChange(input.id, undefined);
-                                } else {
-                                  handleInputOverrideChange(input.id, value);
-                                }
-                              }}
-                              disabled={manualLocked}
-                              placeholder="{{run_id}}-{{timestamp}}"
-                            />
-                          ) : (
-                            <Input
-                              id={`manual-${input.id}`}
-                              type={isNumberInput ? 'number' : 'text'}
-                              value={manualInputValue}
-                              onChange={(e) => {
-                                const nextValue = e.target.value;
-                                if (nextValue === '') {
-                                  handleInputOverrideChange(input.id, undefined);
-                                  return;
-                                }
-                                if (isNumberInput) {
-                                  const parsed = Number(nextValue);
-                                  if (Number.isNaN(parsed)) {
                                     return;
                                   }
-                                  handleInputOverrideChange(input.id, parsed);
-                                } else {
-                                  handleInputOverrideChange(input.id, nextValue);
-                                }
-                              }}
+                                  if (isNumberInput) {
+                                    const parsed = Number(nextValue);
+                                    if (Number.isNaN(parsed)) {
+                                      return;
+                                    }
+                                    handleInputOverrideChange(input.id, parsed);
+                                  } else {
+                                    handleInputOverrideChange(input.id, nextValue);
+                                  }
+                                }}
                                 placeholder={manualPlaceholder}
                                 className="text-sm"
                                 disabled={manualLocked}

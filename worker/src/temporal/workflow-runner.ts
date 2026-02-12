@@ -526,6 +526,9 @@ function extractFailureMessage(value: { success: boolean; error?: unknown }): st
 function maskSecretOutputs(outputPorts: ComponentPortMetadata[], output: unknown): unknown {
   const secretPorts =
     outputPorts.filter((port) => {
+      if (port.editor === 'secret') {
+        return true;
+      }
       const connectionType = port.connectionType;
 
       if (connectionType.kind === 'primitive') {

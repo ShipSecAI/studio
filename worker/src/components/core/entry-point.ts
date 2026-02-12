@@ -34,6 +34,7 @@ const runtimeInputDefinitionSchema = z.preprocess(
       .describe('Type of input data'),
     required: z.boolean().default(true).describe('Whether this input is required'),
     description: z.string().optional().describe('Help text for the input'),
+    default: z.unknown().optional().describe('Default value when not provided at runtime'),
   }),
 );
 
@@ -142,7 +143,16 @@ const definition = defineComponent({
     const outputs: Record<string, unknown> = {};
 
     for (const inputDef of runtimeInputs) {
-      const value = __runtimeData?.[inputDef.id];
+      let value = __runtimeData?.[inputDef.id];
+
+      // Apply default when value is not provided
+      if (
+        (value === undefined || value === null || value === '') &&
+        inputDef.default !== undefined
+      ) {
+        value = inputDef.default;
+        context.logger.info(`[EntryPoint] Using default for '${inputDef.id}': ${inputDef.default}`);
+      }
 
       if (inputDef.required && (value === undefined || value === null)) {
         throw new ValidationError(

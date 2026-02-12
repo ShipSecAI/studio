@@ -171,7 +171,7 @@ export class AwsService implements OnModuleInit {
       return { accounts };
     } catch (error) {
       this.logger.error('Failed to discover organization accounts', error);
-      throw new Error(error.message || 'Failed to discover organization accounts');
+      throw new Error((error as Error).message || 'Failed to discover organization accounts');
     }
   }
 }

@@ -56,9 +56,15 @@ function getSecretPorts(ports: ComponentPortMetadata[]): { id: string }[] {
 
 /**
  * Masks inputs containing sensitive information (secrets) based on component port schemas.
+ * When a component uses `resolvePorts`, pass `resolvedInputsSchema` so that dynamically
+ * created secret ports (e.g. credentials) are also masked.
  */
-export function maskSecretInputs(component: RegisteredComponent, input: unknown): unknown {
-  const inputPorts = extractPorts(component.inputs);
+export function maskSecretInputs(
+  component: RegisteredComponent,
+  input: unknown,
+  resolvedInputsSchema?: unknown,
+): unknown {
+  const inputPorts = extractPorts((resolvedInputsSchema ?? component.inputs) as any);
   const secretPorts = getSecretPorts(inputPorts);
   let masked = maskSecretPorts(secretPorts, input);
 
@@ -119,9 +125,15 @@ export function maskSecretParameters(component: RegisteredComponent, params: unk
 
 /**
  * Masks outputs containing sensitive information (secrets) based on component port schemas.
+ * When a component uses `resolvePorts`, pass `resolvedOutputsSchema` so that dynamically
+ * created secret ports are also masked.
  */
-export function maskSecretOutputs(component: RegisteredComponent, output: unknown): unknown {
-  const outputPorts = extractPorts(component.outputs);
+export function maskSecretOutputs(
+  component: RegisteredComponent,
+  output: unknown,
+  resolvedOutputsSchema?: unknown,
+): unknown {
+  const outputPorts = extractPorts((resolvedOutputsSchema ?? component.outputs) as any);
   const secretPorts = getSecretPorts(outputPorts);
 
   if (secretPorts.length === 0) {

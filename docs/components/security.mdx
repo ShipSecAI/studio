@@ -227,20 +227,65 @@ Scans for leaked credentials across repositories, filesystems, and cloud storage
 ### Prowler Scan
 
 <Info>
-[GitHub](https://github.com/prowler-cloud/prowler) · Docker: `ghcr.io/shipsecai/prowler`
+[GitHub](https://github.com/prowler-cloud/prowler) · Docker: `ghcr.io/shipsecai/prowler:5.14.2`
 </Info>
 
-Cloud (AWS, Azure, GCP) security posture management. Best practices auditing.
+Cloud security posture management. Supports single-account scanning and **org-wide multi-account scanning** for AWS Organizations.
+
+**Component ID:** `security.prowler.scan`
 
 | Input | Type | Description |
 |-------|------|-------------|
-| `credentials` | Object | AWS credentials |
-| `checks` | Array | Specific checks to run |
+| `accountId` | String (optional) | AWS account ID to tag findings with. Required when `orgScan` is false. |
+| `credentials` | AWS Credentials (optional) | AWS credentials from the Credential Resolver. Required for AWS scans. |
+| `regions` | String | Comma-separated AWS regions (default: `us-east-1`). |
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `severity` | Array | Filter by severity |
-| `services` | Array | AWS services to audit |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `scanMode` | Select | `aws` | `aws` for single/org account scan, `cloud` for multi-cloud overview. |
+| `recommendedFlags` | Multi-Select | severity-high-critical, ignore-exit-code, no-banner | Pre-selected CLI flags. |
+| `customFlags` | Textarea | — | Additional CLI flags appended verbatim. |
+| `orgScan` | Toggle | `false` | Enable org-wide scanning (discovers and scans all member accounts). |
+| `memberRoleName` | String | `OrganizationAccountAccessRole` | IAM role to assume in each member account. Visible when `orgScan=true`. |
+| `externalId` | String | — | Optional external ID for cross-account trust policy. Visible when `orgScan=true`. |
+| `continueOnError` | Toggle | `true` | Continue scanning if a member account fails. Visible when `orgScan=true`. |
+| `skipManagementAccount` | Toggle | `false` | Exclude the management account from scanning. Visible when `orgScan=true`. |
+| `maxConcurrency` | Number (1-5) | `1` | Number of accounts to scan in parallel. Visible when `orgScan=true`. |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `scanId` | String | Deterministic scan run identifier. |
+| `findings` | Array | Normalized findings (severity, resource, remediation). |
+| `results` | Array | Analytics-ready results. Connect to **Analytics Sink**. |
+| `rawOutput` | String | Raw Prowler output for debugging. |
+| `summary` | Object | Aggregate counts, regions, and per-account summaries (org mode). |
+| `command` | Array | CLI arguments used during the run. |
+| `stderr` | String | Standard error output from Prowler. |
+| `errors` | Array | Errors encountered during scanning. |
+
+#### Org-Wide Scanning
+
+When `orgScan` is enabled, the component:
+
+1. Discovers all active accounts via AWS Organizations (using the management account credentials).
+2. For each member account, assumes the configured IAM role via STS.
+3. Runs a full Prowler scan per account.
+4. Aggregates findings across all accounts with per-account status summaries.
+
+Failed accounts are recorded with their error message and scanning continues to the next account (when `continueOnError=true`).
+
+```
+Management Account Credentials
+    ↓
+Org Discovery (ListAccounts)
+    ↓
+For each member account:
+    AssumeRole → Prowler Scan → Collect Findings
+    ↓
+Aggregate Results → Analytics Sink
+```
+
+**Sample workflow:** [`docs/sample/aws-cspm-org-prowler-to-analytics.json`](/docs/sample/aws-cspm-org-prowler-to-analytics.json)
 
 ### Supabase Scanner
 

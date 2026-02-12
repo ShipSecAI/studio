@@ -46,6 +46,15 @@ const parameterSchema = parameters({
         'Select an integration connection to resolve credentials from. Overridden when wired from an upstream node.',
     },
   ),
+  provider: param(
+    z.string().trim().optional().describe('Filter connections by provider (e.g. aws, slack).'),
+    {
+      label: 'Provider Filter',
+      editor: 'text',
+      description:
+        'Optional: restrict the connection dropdown to a specific provider (e.g. "aws", "slack"). Leave empty to show all.',
+    },
+  ),
 });
 
 const outputSchema = outputs({
