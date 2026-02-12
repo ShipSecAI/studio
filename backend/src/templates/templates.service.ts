@@ -1,7 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus, Optional } from '@nestjs/common';
 import { WorkflowSanitizationService } from './workflow-sanitization.service';
 import { TemplatesRepository } from './templates.repository';
-import { TemplateManifest } from '../database/schema/templates';
 
 /**
  * Templates Service
@@ -64,7 +63,7 @@ export class TemplateService {
    * Note: With GitHub web flow, this is now disabled. Users should use
    * the frontend modal which opens GitHub directly.
    */
-  async publishTemplate(params: {
+  async publishTemplate(_params: {
     workflowId: string;
     name: string;
     description: string;
@@ -86,8 +85,8 @@ export class TemplateService {
    * Note: This is currently disabled since WorkflowRepository is not available.
    */
   async useTemplate(
-    templateId: string,
-    params: {
+    _templateId: string,
+    _params: {
       workflowName: string;
       secretMappings?: Record<string, string>;
       userId?: string;
@@ -98,21 +97,6 @@ export class TemplateService {
       'Template usage is currently disabled. Use the GitHub web flow to access templates.',
       HttpStatus.NOT_IMPLEMENTED,
     );
-  }
-
-  /**
-   * Sync templates from GitHub repository
-   *
-   * Note: This endpoint is now a no-op. GitHub sync has been removed.
-   */
-  async syncTemplates() {
-    this.logger.warn('Template sync from GitHub has been disabled');
-
-    return {
-      synced: [],
-      total: 0,
-      message: 'GitHub sync has been disabled',
-    };
   }
 
   /**
