@@ -209,7 +209,7 @@ Assumes an IAM role via STS and returns temporary credentials. Useful for cross-
 
 ## Sample Workflows
 
-Two pre-built workflow templates are available in `docs/sample/`:
+Three pre-built workflow templates are available in `docs/sample/`:
 
 ### AWS CSPM -- Org Account Discovery
 
@@ -242,6 +242,22 @@ End-to-end CSPM workflow: resolves AWS credentials, runs a Prowler security scan
 
 - `connectionId` (required) -- AWS integration connection ID
 - `regions` (optional) -- Comma-separated AWS regions (default: `us-east-1`)
+
+### AWS CSPM -- Prowler Scan to Slack Summary
+
+**File:** `docs/sample/aws-cspm-prowler-slack-summary.json`
+
+```
+Entry Point → Resolve Credentials → Prowler Scan → Slack Message
+```
+
+Resolves AWS credentials, runs a Prowler security scan (severity high/critical), and sends a formatted summary of findings to a Slack channel via an Incoming Webhook.
+
+**Runtime Inputs:**
+
+- `connectionId` (required) -- AWS integration connection ID
+- `regions` (optional) -- Comma-separated AWS regions (default: `us-east-1`)
+- `slackWebhookUrl` (required) -- Slack Incoming Webhook URL for the target channel
 
 ### Importing Sample Workflows
 
