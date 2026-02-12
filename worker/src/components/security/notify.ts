@@ -4,13 +4,23 @@ import {
   ComponentRetryPolicy,
   runComponentWithRunner,
   ConfigurationError,
+  ContainerError,
   defineComponent,
   inputs,
   outputs,
   parameters,
   port,
   param,
+  type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+
+const NOTIFY_IMAGE = 'ghcr.io/shipsecai/notify:v1.0.7';
+const INPUT_MOUNT_NAME = 'inputs';
+const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
+const MESSAGES_FILE_NAME = 'messages.txt';
+const PROVIDER_CONFIG_FILE_NAME = 'provider-config.yaml';
+const NOTIFY_CONFIG_FILE_NAME = 'notify-config.yaml';
 
 const inputSchema = inputs({
   messages: port(
@@ -207,91 +217,100 @@ const dockerTimeoutSeconds = (() => {
   return parsed;
 })();
 
+interface BuildNotifyArgsOptions {
+  messagesFile: string;
+  providerConfigFile: string;
+  notifyConfigFile?: string;
+  providerIds?: string[];
+  recipientIds?: string[];
+  messageFormat?: string;
+  bulk: boolean;
+  silent: boolean;
+  verbose: boolean;
+  charLimit?: number;
+  delaySeconds?: number;
+  rateLimit?: number;
+  proxy?: string;
+}
+
+/**
+ * Build Notify CLI arguments in TypeScript.
+ * Follows the Dynamic Args Pattern from component-development.mdx
+ */
+const buildNotifyArgs = (options: BuildNotifyArgsOptions): string[] => {
+  const args: string[] = [];
+
+  // Input file (messages) — uses -i flag instead of stdin piping
+  args.push('-i', options.messagesFile);
+
+  // Provider config (required)
+  args.push('-provider-config', options.providerConfigFile);
+
+  // Optional notify config
+  if (options.notifyConfigFile) {
+    args.push('-config', options.notifyConfigFile);
+  }
+
+  // Boolean flags
+  if (options.bulk) {
+    args.push('-bulk');
+  }
+
+  // Verbose and silent are mutually exclusive — verbose takes precedence
+  if (options.verbose) {
+    args.push('-verbose');
+  } else if (options.silent) {
+    args.push('-silent');
+  }
+
+  // Numeric options
+  if (options.charLimit != null) {
+    args.push('-char-limit', String(options.charLimit));
+  }
+  if (options.delaySeconds != null) {
+    args.push('-delay', String(options.delaySeconds));
+  }
+  if (options.rateLimit != null) {
+    args.push('-rate-limit', String(options.rateLimit));
+  }
+
+  // String options
+  if (options.proxy) {
+    args.push('-proxy', options.proxy);
+  }
+  if (options.messageFormat) {
+    args.push('-msg-format', options.messageFormat);
+  }
+
+  // Provider and recipient filtering
+  if (options.providerIds && options.providerIds.length > 0) {
+    args.push('-provider', options.providerIds.join(','));
+  }
+  if (options.recipientIds && options.recipientIds.length > 0) {
+    args.push('-id', options.recipientIds.join(','));
+  }
+
+  return args;
+};
+
 const definition = defineComponent({
   id: 'shipsec.notify.dispatch',
   label: 'ProjectDiscovery Notify',
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/notify:v1.0.7',
-    entrypoint: 'sh',
+    image: NOTIFY_IMAGE,
+    // The notify image is distroless (no shell available).
+    // Use the image's default entrypoint directly and pass args via command.
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,
     env: {
-      HOME: '/root',
+      // Image runs as nonroot — /root is not writable.
+      // Use /tmp so notify can create its config dir.
+      HOME: '/tmp',
     },
-    command: [
-      '-c',
-      String.raw`set -euo pipefail
-
-INPUT=$(cat)
-
-# Extract fields from JSON using jq if available, fallback to sed
-if command -v jq >/dev/null 2>&1; then
-  MESSAGES=$(printf "%s" "$INPUT" | jq -r '.messages // ""')
-  PROVIDER_CONFIG=$(printf "%s" "$INPUT" | jq -r '.providerConfig // ""')
-  NOTIFY_CONFIG=$(printf "%s" "$INPUT" | jq -r '.notifyConfig // ""')
-else
-  MESSAGES=$(printf "%s" "$INPUT" | sed -n 's/.*"messages":"\([^"]*\)".*/\1/p')
-  PROVIDER_CONFIG=$(printf "%s" "$INPUT" | sed -n 's/.*"providerConfig":"\([^"]*\)".*/\1/p')
-  NOTIFY_CONFIG=$(printf "%s" "$INPUT" | sed -n 's/.*"notifyConfig":"\([^"]*\)".*/\1/p')
-fi
-
-# Validate required fields
-if [ -z "$PROVIDER_CONFIG" ]; then
-  echo "Provider configuration is required" >&2
-  exit 1
-fi
-
-# Create temporary files for configs and messages
-PROVIDER_CONFIG_FILE=$(mktemp)
-MESSAGE_FILE=$(mktemp)
-NOTIFY_CONFIG_FILE=""
-
-if [ -n "$NOTIFY_CONFIG" ]; then
-  NOTIFY_CONFIG_FILE=$(mktemp)
-fi
-
-trap 'rm -f "$PROVIDER_CONFIG_FILE" "$MESSAGE_FILE" "$NOTIFY_CONFIG_FILE"' EXIT
-
-# Write provider config to temp file
-printf "%s" "$PROVIDER_CONFIG" | base64 -d > "$PROVIDER_CONFIG_FILE"
-
-# Write notify config to temp file if provided
-if [ -n "$NOTIFY_CONFIG" ]; then
-  printf "%s" "$NOTIFY_CONFIG" | base64 -d > "$NOTIFY_CONFIG_FILE"
-fi
-
-# Write messages to temp file
-printf "%s" "$MESSAGES" | base64 -d > "$MESSAGE_FILE"
-
-# Build command from args array
-if command -v jq >/dev/null 2>&1; then
-  ARGS=$(printf "%s" "$INPUT" | jq -r '.args[]' 2>/dev/null || echo "")
-else
-  ARGS_JSON=$(printf "%s" "$INPUT" | sed -n 's/.*"args":\[\([^]]*\)\].*/\1/p')
-  ARGS=$(printf "%s" "$ARGS_JSON" | tr ',' '\n' | sed 's/^"//; s/"$//' | grep -v '^$')
-fi
-
-# Build command with provider config
-set -- notify -provider-config "$PROVIDER_CONFIG_FILE"
-
-# Add notify config if provided
-if [ -n "$NOTIFY_CONFIG_FILE" ]; then
-  set -- "$@" -config "$NOTIFY_CONFIG_FILE"
-fi
-
-# Add arguments from TypeScript
-while IFS= read -r arg; do
-  [ -n "$arg" ] && set -- "$@" "$arg"
-done << EOF
-$ARGS
-EOF
-
-# Execute notify
-cat "$MESSAGE_FILE" | "$@"
-`,
-    ],
+    command: [],
+    stdinJson: false,
   },
   inputs: inputSchema,
   outputs: outputSchema,
@@ -338,7 +357,8 @@ cat "$MESSAGE_FILE" | "$@"
     }
 
     const { messages, recipientIds, providerConfig, notifyConfig } = inputs;
-    const { providerIds } = params;
+    const parsedParams = parameterSchema.parse(params);
+    const { providerIds } = parsedParams;
 
     context.logger.info(
       `[Notify] Sending ${messages.length} message(s) via ${providerIds && providerIds.length > 0 ? providerIds.join(', ') : 'all configured providers'}`,
@@ -347,67 +367,76 @@ cat "$MESSAGE_FILE" | "$@"
       `Sending ${messages.length} notification${messages.length > 1 ? 's' : ''}`,
     );
 
-    // Build notify command arguments (all logic in TypeScript!)
-    // Note: Config file paths will be added by bash script using temp files
-    const args: string[] = [];
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const baseRunner = definition.runner;
 
-    // Boolean flags
-    if (params.bulk ?? true) {
-      args.push('-bulk');
-    }
-
-    // Verbose and silent are mutually exclusive - verbose takes precedence
-    if (params.verbose ?? false) {
-      args.push('-verbose');
-    } else if (params.silent ?? true) {
-      args.push('-silent');
+    if (baseRunner.kind !== 'docker') {
+      throw new ContainerError('Notify runner is expected to be docker-based.', {
+        details: { expectedKind: 'docker', actualKind: baseRunner.kind },
+      });
     }
 
-    // Numeric options
-    if (params.charLimit != null) {
-      args.push('-char-limit', String(params.charLimit));
-    }
-    if (params.delaySeconds != null) {
-      args.push('-delay', String(params.delaySeconds));
-    }
-    if (params.rateLimit != null) {
-      args.push('-rate-limit', String(params.rateLimit));
-    }
+    let rawOutput: string;
+    try {
+      // Prepare input files for the volume
+      const inputFiles: Record<string, string> = {
+        [MESSAGES_FILE_NAME]: messages.join('\n'),
+        [PROVIDER_CONFIG_FILE_NAME]: providerConfig,
+      };
 
-    // String options
-    if (params.proxy) {
-      args.push('-proxy', params.proxy);
-    }
-    if (params.messageFormat) {
-      args.push('-msg-format', params.messageFormat);
-    }
+      // Add notify config file if provided
+      if (notifyConfig && notifyConfig.trim().length > 0) {
+        inputFiles[NOTIFY_CONFIG_FILE_NAME] = notifyConfig;
+      }
 
-    // Provider and recipient filtering
-    if (providerIds && providerIds.length > 0) {
-      args.push('-provider', providerIds.join(','));
+      const volumeName = await volume.initialize(inputFiles);
+      context.logger.info(`[Notify] Created isolated volume: ${volumeName}`);
+
+      // Build notify CLI arguments in TypeScript
+      const notifyArgs = buildNotifyArgs({
+        messagesFile: `${CONTAINER_INPUT_DIR}/${MESSAGES_FILE_NAME}`,
+        providerConfigFile: `${CONTAINER_INPUT_DIR}/${PROVIDER_CONFIG_FILE_NAME}`,
+        notifyConfigFile:
+          notifyConfig && notifyConfig.trim().length > 0
+            ? `${CONTAINER_INPUT_DIR}/${NOTIFY_CONFIG_FILE_NAME}`
+            : undefined,
+        providerIds,
+        recipientIds,
+        messageFormat: parsedParams.messageFormat,
+        bulk: parsedParams.bulk ?? true,
+        silent: parsedParams.silent ?? true,
+        verbose: parsedParams.verbose ?? false,
+        charLimit: parsedParams.charLimit,
+        delaySeconds: parsedParams.delaySeconds,
+        rateLimit: parsedParams.rateLimit,
+        proxy: parsedParams.proxy,
+      });
+
+      const runnerConfig: DockerRunnerConfig = {
+        kind: 'docker',
+        image: baseRunner.image,
+        network: baseRunner.network,
+        timeoutSeconds: baseRunner.timeoutSeconds ?? dockerTimeoutSeconds,
+        env: { ...(baseRunner.env ?? {}) },
+        stdinJson: false,
+        // Pass notify CLI args directly (image default entrypoint is notify)
+        command: [...(baseRunner.command ?? []), ...notifyArgs],
+        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
+      };
+
+      const result = await runComponentWithRunner<Record<string, never>, string>(
+        runnerConfig,
+        async () => '',
+        {},
+        context,
+      );
+
+      rawOutput = typeof result === 'string' ? result.trim() : '';
+    } finally {
+      await volume.cleanup();
+      context.logger.info('[Notify] Cleaned up isolated volume');
     }
-    if (recipientIds && recipientIds.length > 0) {
-      args.push('-id', recipientIds.join(','));
-    }
-
-    // Build docker payload (minimal, just data for bash)
-    const dockerPayload = {
-      messages: Buffer.from(messages.join('\n'), 'utf8').toString('base64'),
-      providerConfig: Buffer.from(providerConfig, 'utf8').toString('base64'),
-      notifyConfig: notifyConfig ? Buffer.from(notifyConfig, 'utf8').toString('base64') : '',
-      args, // TypeScript-built command arguments!
-    };
-
-    // Execute notify via Docker
-    const rawResult = await runComponentWithRunner<typeof dockerPayload, string>(
-      this.runner,
-      async () => '',
-      dockerPayload,
-      context,
-    );
-
-    // Return raw output
-    const rawOutput = typeof rawResult === 'string' ? rawResult.trim() : '';
 
     context.logger.info(`[Notify] Notifications sent successfully`);
 

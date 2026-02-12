@@ -470,19 +470,14 @@ const definition = (defineComponent as any)({
   runner: {
     kind: 'docker',
     image: AMASS_IMAGE,
-    // IMPORTANT: Use shell wrapper for PTY compatibility
-    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
-    // The shell wrapper ensures proper TTY signal handling and clean exit
-    // See docs/component-development.md "Docker Entrypoint Pattern" for details
-    entrypoint: 'sh',
+    // The amass image is distroless (no shell available).
+    // Use the image's default entrypoint directly and pass args via command.
     network: 'bridge',
     timeoutSeconds: AMASS_TIMEOUT_SECONDS,
     env: {
       HOME: '/tmp',
     },
-    // Shell wrapper pattern: sh -c 'amass "$@"' -- [args...]
-    // This allows dynamic args to be appended and properly passed to amass
-    command: ['-c', 'amass "$@"', '--'],
+    command: [],
   },
   inputs: inputSchema,
   outputs: outputSchema,
@@ -643,9 +638,7 @@ const definition = (defineComponent as any)({
         network: baseRunner.network,
         timeoutSeconds: baseRunner.timeoutSeconds ?? AMASS_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
-        // Preserve the shell wrapper from baseRunner (sh -c 'amass "$@"' --)
-        entrypoint: baseRunner.entrypoint,
-        // Append amass arguments to shell wrapper command
+        // Pass amass CLI args directly (image default entrypoint is amass)
         command: [...(baseRunner.command ?? []), ...amassArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };

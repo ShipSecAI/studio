@@ -483,19 +483,16 @@ const definition = defineComponent({
   runner: {
     kind: 'docker',
     image: DNSX_IMAGE,
-    // IMPORTANT: Use shell wrapper for PTY compatibility
-    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
-    // The shell wrapper ensures proper TTY signal handling and clean exit
-    // See docs/component-development.md "Docker Entrypoint Pattern" for details
-    entrypoint: 'sh',
+    // The dnsx image is distroless (no shell available).
+    // Use the image's default entrypoint directly and pass args via command.
     network: 'bridge',
     timeoutSeconds: DNSX_TIMEOUT_SECONDS,
     env: {
-      HOME: '/root',
+      // Image runs as nonroot — /root is not writable.
+      // Use /tmp so dnsx can create its config dir.
+      HOME: '/tmp',
     },
-    // Shell wrapper pattern: sh -c 'dnsx "$@"' -- [args...]
-    // This allows dynamic args to be appended and properly passed to dnsx
-    command: ['-c', 'dnsx "$@"', '--'],
+    command: [],
   },
   inputs: inputSchema,
   outputs: outputSchema,
@@ -655,11 +652,7 @@ const definition = defineComponent({
         network: baseRunner.network,
         timeoutSeconds: baseRunner.timeoutSeconds ?? DNSX_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
-        // Preserve the shell wrapper from baseRunner (sh -c 'dnsx "$@"' --)
-        // This is critical for PTY compatibility - do not override with 'dnsx'
-        entrypoint: baseRunner.entrypoint,
-        // Append dnsx arguments to shell wrapper command
-        // Resulting command: ['sh', '-c', 'dnsx "$@"', '--', ...dnsxArgs]
+        // Pass dnsx CLI args directly (image default entrypoint is dnsx)
         command: [...(baseRunner.command ?? []), ...dnsxArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
