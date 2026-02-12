@@ -386,11 +386,31 @@ async function waitForJobCompletion(
  * Stream pod logs to the context logger and terminal collector.
  * Uses the K8s Log API with a writable stream to capture output in real-time.
  */
+async function waitForContainerRunning(
+  podName: string,
+  namespace: string,
+  timeoutMs = 60_000,
+): Promise<void> {
+  const core = getCoreApi();
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const pod = await core.readNamespacedPod({ name: podName, namespace });
+    const containerStatus = pod.status?.containerStatuses?.find((c) => c.name === 'component');
+    if (containerStatus?.state?.running || containerStatus?.state?.terminated) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
 async function streamPodLogs(
   podName: string,
   namespace: string,
   context: ExecutionContext,
 ): Promise<void> {
+  // Wait for container to be running before streaming logs
+  await waitForContainerRunning(podName, namespace);
+
   const kc = getKubeConfig();
   const log = new k8s.Log(kc);
 

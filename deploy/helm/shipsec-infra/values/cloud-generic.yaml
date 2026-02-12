@@ -19,4 +19,4 @@ redpanda:
   enabled: true
 
 loki:
-  enabled: false
+  enabled: true
