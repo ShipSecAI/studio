@@ -285,7 +285,7 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
   return (
     <div
       className={cn(
-        'border rounded-lg p-4 transition-all duration-200 bg-card',
+        'flex flex-col border rounded-lg p-4 transition-all duration-200 bg-card',
         isHovered && 'shadow-md border-primary/50',
       )}
       onMouseEnter={() => setIsHovered(true)}
@@ -307,63 +307,69 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
         )}
       </div>
 
-      {/* Description */}
-      {template.description && (
-        <p className="text-sm text-muted-foreground mb-3 line-clamp-2" title={template.description}>
-          {template.description}
-        </p>
-      )}
+      {/* Content area - grows to fill available space */}
+      <div className="flex-1">
+        {/* Description */}
+        {template.description && (
+          <p
+            className="text-sm text-muted-foreground mb-3 line-clamp-2"
+            title={template.description}
+          >
+            {template.description}
+          </p>
+        )}
 
-      {/* Tags */}
-      {template.tags && template.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {template.tags.slice(0, 3).map((tag) => (
-            <Badge key={tag} variant="outline" className="text-xs">
-              {tag}
-            </Badge>
-          ))}
-          {template.tags.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{template.tags.length - 3}
-            </Badge>
+        {/* Tags */}
+        {template.tags && template.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {template.tags.slice(0, 3).map((tag) => (
+              <Badge key={tag} variant="outline" className="text-xs">
+                {tag}
+              </Badge>
+            ))}
+            {template.tags.length > 3 && (
+              <Badge variant="outline" className="text-xs">
+                +{template.tags.length - 3}
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Metadata */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
+          {template.category && (
+            <span className="flex items-center gap-1">
+              <FolderOpen className="h-3 w-3" />
+              {template.category}
+            </span>
+          )}
+          {template.author && (
+            <span className="flex items-center gap-1" title={template.author}>
+              <Copy className="h-3 w-3" />
+              {template.author.length > 15 ? `${template.author.slice(0, 15)}...` : template.author}
+            </span>
+          )}
+          {template.popularity > 0 && (
+            <span className="flex items-center gap-1">
+              <Star className="h-3 w-3" />
+              {template.popularity}
+            </span>
           )}
         </div>
-      )}
 
-      {/* Metadata */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
-        {template.category && (
-          <span className="flex items-center gap-1">
-            <FolderOpen className="h-3 w-3" />
-            {template.category}
-          </span>
-        )}
-        {template.author && (
-          <span className="flex items-center gap-1" title={template.author}>
-            <Copy className="h-3 w-3" />
-            {template.author.length > 15 ? `${template.author.slice(0, 15)}...` : template.author}
-          </span>
-        )}
-        {template.popularity > 0 && (
-          <span className="flex items-center gap-1">
-            <Star className="h-3 w-3" />
-            {template.popularity}
-          </span>
+        {/* Required Secrets Badge */}
+        {template.requiredSecrets && template.requiredSecrets.length > 0 && (
+          <div className="mb-3 p-2 rounded bg-muted/50 text-xs">
+            <span className="font-medium">
+              Requires {template.requiredSecrets.length} secret
+              {template.requiredSecrets.length > 1 ? 's' : ''}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* Required Secrets Badge */}
-      {template.requiredSecrets && template.requiredSecrets.length > 0 && (
-        <div className="mb-3 p-2 rounded bg-muted/50 text-xs">
-          <span className="font-medium">
-            Requires {template.requiredSecrets.length} secret
-            {template.requiredSecrets.length > 1 ? 's' : ''}
-          </span>
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex gap-2">
+      {/* Actions - pinned to bottom */}
+      <div className="flex gap-2 mt-auto pt-2">
         <Button size="sm" className="flex-1" onClick={() => onUse(template)} disabled={!canUse}>
           Use Template
         </Button>

@@ -89,9 +89,6 @@ interface TemplateJson {
   requiredSecrets: { name: string; type: string; description?: string }[];
 }
 
-// Max URL length before falling back to clipboard (GitHub rejects ~8KB+ URLs)
-const MAX_URL_LENGTH = 7500;
-
 /**
  * Sanitize secrets from the workflow graph by replacing secret references with placeholders
  */
@@ -215,12 +212,12 @@ function generateTemplateJson(workflow: WorkflowResponse, metadata: TemplateMeta
     requiredSecrets,
   };
 
-  return JSON.stringify(template, null, 2);
+  return JSON.stringify(template);
 }
 
 /**
- * Generate GitHub URL for creating a new file.
- * Includes template content in URL when possible; returns whether content was embedded.
+ * Generate GitHub URL for creating a new file with template content pre-filled.
+ * Uses minified JSON to keep the URL short enough for GitHub.
  */
 function generateGitHubUrl(
   owner: string,
@@ -229,7 +226,7 @@ function generateGitHubUrl(
   filename: string,
   templateName: string,
   content: string,
-): { url: string; contentInUrl: boolean } {
+): string {
   const baseUrl = `https://github.com/${owner}/${repo}/new/${branch}`;
   const params = new URLSearchParams();
   params.set('filename', filename);
@@ -237,15 +234,7 @@ function generateGitHubUrl(
   params.set('message', `Add template: ${templateName}`);
   params.set('quick_pull', '1');
 
-  const fullUrl = `${baseUrl}?${params.toString()}`;
-
-  if (fullUrl.length <= MAX_URL_LENGTH) {
-    return { url: fullUrl, contentInUrl: true };
-  }
-
-  // URL too long — drop content, user will paste from clipboard
-  params.delete('value');
-  return { url: `${baseUrl}?${params.toString()}`, contentInUrl: false };
+  return `${baseUrl}?${params.toString()}`;
 }
 
 /**
@@ -276,7 +265,6 @@ export function PublishTemplateModal({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [usedClipboard, setUsedClipboard] = useState(false);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -330,8 +318,8 @@ export function PublishTemplateModal({
         // Parse the GitHub repo config
         const [owner, repo] = GITHUB_TEMPLATE_REPO.split('/');
 
-        // Try to embed content in URL; falls back to clipboard for large templates
-        const { url: githubUrl, contentInUrl } = generateGitHubUrl(
+        // Generate GitHub URL with template content pre-filled
+        const githubUrl = generateGitHubUrl(
           owner,
           repo,
           GITHUB_BRANCH,
@@ -339,11 +327,6 @@ export function PublishTemplateModal({
           name.trim(),
           templateJson,
         );
-
-        if (!contentInUrl) {
-          await navigator.clipboard.writeText(templateJson);
-          setUsedClipboard(true);
-        }
 
         // Open the GitHub URL in a new tab
         window.open(githubUrl, '_blank', 'noopener,noreferrer');
@@ -390,7 +373,6 @@ export function PublishTemplateModal({
         setAuthor('');
         setError(null);
         setSuccess(false);
-        setUsedClipboard(false);
       }, 200);
     }
   };
@@ -418,9 +400,7 @@ export function PublishTemplateModal({
               <div>
                 <h3 className="text-lg font-semibold">Template Ready for Submission!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {usedClipboard
-                    ? 'Template JSON copied to clipboard. A new tab has opened on GitHub.'
-                    : 'A new tab has opened with your template pre-filled on GitHub.'}
+                  A new tab has opened with your template pre-filled on GitHub.
                 </p>
               </div>
               <div className="w-full p-3 rounded-lg bg-muted/50 space-y-3 text-sm">
@@ -428,11 +408,6 @@ export function PublishTemplateModal({
                   <strong>Next steps:</strong>
                 </p>
                 <ol className="text-left list-decimal list-inside space-y-2 text-muted-foreground">
-                  {usedClipboard && (
-                    <li>
-                      <strong>Paste</strong> the template content into the editor (Ctrl+V / Cmd+V)
-                    </li>
-                  )}
                   <li>
                     <strong>Review</strong> the template content in the opened tab
                   </li>

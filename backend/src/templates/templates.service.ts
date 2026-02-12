@@ -1,6 +1,9 @@
-import { Injectable, Logger, HttpException, HttpStatus, Optional } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { WorkflowSanitizationService } from './workflow-sanitization.service';
 import { TemplatesRepository } from './templates.repository';
+import { WorkflowsService } from '../workflows/workflows.service';
+import { WorkflowGraphSchema } from '../workflows/dto/workflow-graph.dto';
+import type { AuthContext } from '../auth/types';
 
 /**
  * Templates Service
@@ -8,8 +11,6 @@ import { TemplatesRepository } from './templates.repository';
  *
  * Note: PR creation has been removed. The backend now serves templates
  * for browsing only. Users will create PRs through GitHub web flow.
- *
- * WorkflowRepository is optional since the GitHub web flow doesn't need it.
  */
 @Injectable()
 export class TemplateService {
@@ -18,7 +19,7 @@ export class TemplateService {
   constructor(
     private readonly sanitizationService: WorkflowSanitizationService,
     private readonly templatesRepository: TemplatesRepository,
-    @Optional() private readonly workflowsRepository?: any,
+    private readonly workflowsService: WorkflowsService,
   ) {}
 
   /**
@@ -82,21 +83,70 @@ export class TemplateService {
   /**
    * Use a template to create a new workflow
    *
-   * Note: This is currently disabled since WorkflowRepository is not available.
+   * Fetches the template by ID, creates a new workflow from its graph data,
+   * names it with the provided workflowName, and increments the template's
+   * popularity counter.
    */
   async useTemplate(
-    _templateId: string,
-    _params: {
+    templateId: string,
+    params: {
       workflowName: string;
       secretMappings?: Record<string, string>;
       userId?: string;
       organizationId?: string;
     },
   ) {
-    throw new HttpException(
-      'Template usage is currently disabled. Use the GitHub web flow to access templates.',
-      HttpStatus.NOT_IMPLEMENTED,
+    // 1. Find the template
+    const template = await this.templatesRepository.findById(templateId);
+    if (!template) {
+      throw new NotFoundException(`Template ${templateId} not found`);
+    }
+
+    // 2. Validate that the template has graph data
+    if (!template.graph) {
+      throw new HttpException(
+        'Template does not contain workflow graph data',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    // 3. Build the workflow graph from the template, overriding the name
+    const graphData = {
+      ...template.graph,
+      name: params.workflowName,
+    };
+
+    // Parse through the WorkflowGraphSchema to ensure it conforms to the
+    // expected shape (adds defaults for viewport, config, etc.)
+    const workflowGraph = WorkflowGraphSchema.parse(graphData);
+
+    // 4. Create the workflow via WorkflowsService
+    const authContext: AuthContext = {
+      userId: params.userId ?? null,
+      organizationId: params.organizationId ?? null,
+      roles: ['ADMIN'],
+      isAuthenticated: true,
+      provider: 'template',
+    };
+
+    this.logger.log(
+      `Creating workflow "${params.workflowName}" from template "${template.name}" (${templateId})`,
     );
+
+    const workflow = await this.workflowsService.create(workflowGraph, authContext);
+
+    // 5. Increment the template's popularity counter
+    await this.templatesRepository.incrementPopularity(templateId);
+
+    this.logger.log(
+      `Created workflow ${workflow.id} from template ${templateId}, popularity incremented`,
+    );
+
+    return {
+      workflow,
+      templateId,
+      templateName: template.name,
+    };
   }
 
   /**

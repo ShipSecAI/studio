@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '../database/database.module';
+import { WorkflowsModule } from '../workflows/workflows.module';
 import { TemplatesController } from './templates.controller';
 import { TemplateService } from './templates.service';
 import { WorkflowSanitizationService } from './workflow-sanitization.service';
@@ -15,7 +16,7 @@ import { GitHubSyncService } from './github-sync.service';
  * Templates are synced on startup and via manual admin trigger.
  */
 @Module({
-  imports: [DatabaseModule, ConfigModule],
+  imports: [DatabaseModule, ConfigModule, WorkflowsModule],
   controllers: [TemplatesController],
   providers: [TemplateService, WorkflowSanitizationService, TemplatesRepository, GitHubSyncService],
   exports: [TemplateService, GitHubSyncService],
