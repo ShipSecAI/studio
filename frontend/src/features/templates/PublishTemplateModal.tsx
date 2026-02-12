@@ -85,10 +85,12 @@ interface TemplateMetadata {
 
 interface TemplateJson {
   _metadata: TemplateMetadata;
-  manifest: Record<string, unknown>;
   graph: Record<string, unknown>;
   requiredSecrets: { name: string; type: string; description?: string }[];
 }
+
+// Max URL length before falling back to clipboard (GitHub rejects ~8KB+ URLs)
+const MAX_URL_LENGTH = 7500;
 
 /**
  * Sanitize secrets from the workflow graph by replacing secret references with placeholders
@@ -182,16 +184,34 @@ function extractRequiredSecrets(
 }
 
 /**
+ * Strip viewport and node positions from graph to reduce JSON size.
+ * These are UI layout hints and not needed for the template's functionality.
+ */
+function stripLayoutData(graph: Record<string, unknown>): Record<string, unknown> {
+  const stripped = { ...graph };
+  delete stripped.viewport;
+
+  if (Array.isArray(stripped.nodes)) {
+    stripped.nodes = (stripped.nodes as Record<string, unknown>[]).map((node) => {
+      const { position, ...rest } = node;
+      return rest;
+    });
+  }
+
+  return stripped;
+}
+
+/**
  * Generate the template JSON structure with metadata
  */
 function generateTemplateJson(workflow: WorkflowResponse, metadata: TemplateMetadata): string {
   const sanitizedGraph = sanitizeGraphForTemplate(workflow.graph);
+  const compactGraph = stripLayoutData(sanitizedGraph);
   const requiredSecrets = extractRequiredSecrets(workflow.graph);
 
   const template: TemplateJson = {
     _metadata: metadata,
-    manifest: workflow.manifest,
-    graph: sanitizedGraph,
+    graph: compactGraph,
     requiredSecrets,
   };
 
@@ -199,8 +219,8 @@ function generateTemplateJson(workflow: WorkflowResponse, metadata: TemplateMeta
 }
 
 /**
- * Generate GitHub URL for creating a new file with pre-filled content
- * Uses the quick-pull flow which always creates a PR
+ * Generate GitHub URL for creating a new file.
+ * Includes template content in URL when possible; returns whether content was embedded.
  */
 function generateGitHubUrl(
   owner: string,
@@ -208,16 +228,24 @@ function generateGitHubUrl(
   branch: string,
   filename: string,
   templateName: string,
-): string {
-  // Open GitHub's "new file" page with filename pre-filled.
-  // Template content is copied to clipboard separately to avoid URL length limits.
+  content: string,
+): { url: string; contentInUrl: boolean } {
   const baseUrl = `https://github.com/${owner}/${repo}/new/${branch}`;
   const params = new URLSearchParams();
   params.set('filename', filename);
+  params.set('value', content);
   params.set('message', `Add template: ${templateName}`);
   params.set('quick_pull', '1');
 
-  return `${baseUrl}?${params.toString()}`;
+  const fullUrl = `${baseUrl}?${params.toString()}`;
+
+  if (fullUrl.length <= MAX_URL_LENGTH) {
+    return { url: fullUrl, contentInUrl: true };
+  }
+
+  // URL too long — drop content, user will paste from clipboard
+  params.delete('value');
+  return { url: `${baseUrl}?${params.toString()}`, contentInUrl: false };
 }
 
 /**
@@ -248,6 +276,7 @@ export function PublishTemplateModal({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [usedClipboard, setUsedClipboard] = useState(false);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -298,14 +327,23 @@ export function PublishTemplateModal({
         const templateJson = generateTemplateJson(workflow, metadata);
         const filename = `templates/${sanitizeFilename(name.trim())}`;
 
-        // Copy template JSON to clipboard (avoids GitHub URL length limits)
-        await navigator.clipboard.writeText(templateJson);
-
         // Parse the GitHub repo config
         const [owner, repo] = GITHUB_TEMPLATE_REPO.split('/');
 
-        // Generate the GitHub URL (filename only, content is on clipboard)
-        const githubUrl = generateGitHubUrl(owner, repo, GITHUB_BRANCH, filename, name.trim());
+        // Try to embed content in URL; falls back to clipboard for large templates
+        const { url: githubUrl, contentInUrl } = generateGitHubUrl(
+          owner,
+          repo,
+          GITHUB_BRANCH,
+          filename,
+          name.trim(),
+          templateJson,
+        );
+
+        if (!contentInUrl) {
+          await navigator.clipboard.writeText(templateJson);
+          setUsedClipboard(true);
+        }
 
         // Open the GitHub URL in a new tab
         window.open(githubUrl, '_blank', 'noopener,noreferrer');
@@ -352,6 +390,7 @@ export function PublishTemplateModal({
         setAuthor('');
         setError(null);
         setSuccess(false);
+        setUsedClipboard(false);
       }, 200);
     }
   };
@@ -379,7 +418,9 @@ export function PublishTemplateModal({
               <div>
                 <h3 className="text-lg font-semibold">Template Ready for Submission!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Template JSON copied to clipboard. A new tab has opened on GitHub.
+                  {usedClipboard
+                    ? 'Template JSON copied to clipboard. A new tab has opened on GitHub.'
+                    : 'A new tab has opened with your template pre-filled on GitHub.'}
                 </p>
               </div>
               <div className="w-full p-3 rounded-lg bg-muted/50 space-y-3 text-sm">
@@ -387,11 +428,13 @@ export function PublishTemplateModal({
                   <strong>Next steps:</strong>
                 </p>
                 <ol className="text-left list-decimal list-inside space-y-2 text-muted-foreground">
+                  {usedClipboard && (
+                    <li>
+                      <strong>Paste</strong> the template content into the editor (Ctrl+V / Cmd+V)
+                    </li>
+                  )}
                   <li>
-                    <strong>Paste</strong> the template content into the editor (Ctrl+V / Cmd+V)
-                  </li>
-                  <li>
-                    <strong>Commit message</strong> is pre-filled with your template name
+                    <strong>Review</strong> the template content in the opened tab
                   </li>
                   <li>
                     <strong>Important:</strong> Click &quot;Propose new file&quot; (NOT &quot;Commit

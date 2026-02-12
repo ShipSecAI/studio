@@ -33,7 +33,7 @@ interface TemplateJson {
     author: string;
     version: string;
   };
-  manifest: Record<string, unknown>;
+  manifest?: Record<string, unknown>;
   graph: Record<string, unknown>;
   requiredSecrets: { name: string; type: string; description?: string }[];
 }
@@ -171,11 +171,6 @@ export class GitHubSyncService implements OnModuleInit {
         return null;
       }
 
-      if (!template.manifest) {
-        this.logger.warn(`Template missing manifest: ${path}`);
-        return null;
-      }
-
       if (!template.graph) {
         this.logger.warn(`Template missing graph: ${path}`);
         return null;
@@ -239,6 +234,16 @@ export class GitHubSyncService implements OnModuleInit {
             continue;
           }
 
+          // Build manifest from _metadata if not provided separately
+          const manifest: TemplateManifest = (template.manifest as TemplateManifest) || {
+            name: template._metadata.name,
+            description: template._metadata.description,
+            version: template._metadata.version,
+            author: template._metadata.author,
+            category: template._metadata.category,
+            tags: template._metadata.tags,
+          };
+
           await this.templatesRepository.upsert({
             name: template._metadata.name,
             description: template._metadata.description,
@@ -249,7 +254,7 @@ export class GitHubSyncService implements OnModuleInit {
             path: file.path,
             branch,
             version: template._metadata.version,
-            manifest: template.manifest as TemplateManifest,
+            manifest,
             graph: template.graph,
             requiredSecrets: template.requiredSecrets,
           });
