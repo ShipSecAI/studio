@@ -39,7 +39,7 @@ spec:
         - --overprovisioned
         - --node-id=0
         - --check=false
-        - --advertise-kafka-addr=shipsec-redpanda:9092
+        - --advertise-kafka-addr=shipsec-redpanda.{{ .Values.global.namespace }}.svc.cluster.local:9092
         ports:
         - name: kafka
           containerPort: 9092
