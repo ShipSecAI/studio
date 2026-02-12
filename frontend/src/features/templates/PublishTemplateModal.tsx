@@ -207,17 +207,14 @@ function generateGitHubUrl(
   repo: string,
   branch: string,
   filename: string,
-  content: string,
   templateName: string,
 ): string {
-  // Use GitHub's create file API URL with quick-pull parameter
-  // This ensures the "Propose new file" flow is used instead of direct commit
+  // Open GitHub's "new file" page with filename pre-filled.
+  // Template content is copied to clipboard separately to avoid URL length limits.
   const baseUrl = `https://github.com/${owner}/${repo}/new/${branch}`;
   const params = new URLSearchParams();
   params.set('filename', filename);
-  params.set('value', content);
   params.set('message', `Add template: ${templateName}`);
-  // This hints to GitHub to use PR flow
   params.set('quick_pull', '1');
 
   return `${baseUrl}?${params.toString()}`;
@@ -301,18 +298,14 @@ export function PublishTemplateModal({
         const templateJson = generateTemplateJson(workflow, metadata);
         const filename = `templates/${sanitizeFilename(name.trim())}`;
 
+        // Copy template JSON to clipboard (avoids GitHub URL length limits)
+        await navigator.clipboard.writeText(templateJson);
+
         // Parse the GitHub repo config
         const [owner, repo] = GITHUB_TEMPLATE_REPO.split('/');
 
-        // Generate the GitHub URL with quick-pull flow
-        const githubUrl = generateGitHubUrl(
-          owner,
-          repo,
-          GITHUB_BRANCH,
-          filename,
-          templateJson,
-          name.trim(),
-        );
+        // Generate the GitHub URL (filename only, content is on clipboard)
+        const githubUrl = generateGitHubUrl(owner, repo, GITHUB_BRANCH, filename, name.trim());
 
         // Open the GitHub URL in a new tab
         window.open(githubUrl, '_blank', 'noopener,noreferrer');
@@ -386,7 +379,7 @@ export function PublishTemplateModal({
               <div>
                 <h3 className="text-lg font-semibold">Template Ready for Submission!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  A new tab has opened with your template pre-filled
+                  Template JSON copied to clipboard. A new tab has opened on GitHub.
                 </p>
               </div>
               <div className="w-full p-3 rounded-lg bg-muted/50 space-y-3 text-sm">
@@ -395,7 +388,7 @@ export function PublishTemplateModal({
                 </p>
                 <ol className="text-left list-decimal list-inside space-y-2 text-muted-foreground">
                   <li>
-                    <strong>Review</strong> the template content in the opened tab
+                    <strong>Paste</strong> the template content into the editor (Ctrl+V / Cmd+V)
                   </li>
                   <li>
                     <strong>Commit message</strong> is pre-filled with your template name
