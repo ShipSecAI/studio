@@ -1,6 +1,8 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+const apiTarget = process.env.VITE_API_URL || 'http://localhost:3211';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -21,12 +23,11 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 5173,
     open: false,
     allowedHosts: ['studio.shipsec.ai', 'frontend'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3211',
+        target: apiTarget,
         changeOrigin: true,
         secure: false,
       },
@@ -40,4 +41,4 @@ export default defineConfig({
   preview: {
     allowedHosts: ['studio.shipsec.ai', 'frontend'],
   },
-})
+});
