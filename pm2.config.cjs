@@ -178,7 +178,11 @@ function loadFrontendEnv(envFilePath) {
         const match = trimmed.match(/^([^=]+)=(.*)$/);
         if (match) {
           const key = match[1].trim();
-          const value = match[2].trim();
+          let value = match[2].trim();
+          // Remove surrounding quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
           // Only include VITE_* variables for frontend
           if (key.startsWith('VITE_')) {
             env[key] = value;
