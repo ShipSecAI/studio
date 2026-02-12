@@ -16,13 +16,16 @@ secrets:
   minioRootPassword: minioadmin
 
 backend:
+  image:
+    repository: us-central1-docker.pkg.dev/shipsec/shipsec-studio/backend
+    tag: 718736ca-20260209130018
   service:
     type: LoadBalancer
   env:
     NODE_ENV: production
     SHIPSEC_ENV: local
     PORT: '3211'
-    ENABLE_INGEST_SERVICES: 'false'
+    ENABLE_INGEST_SERVICES: 'true'
     TEMPORAL_ADDRESS: shipsec-temporal.shipsec-system.svc.cluster.local:7233
     TEMPORAL_NAMESPACE: shipsec-dev
     TEMPORAL_TASK_QUEUE: shipsec-dev
@@ -39,6 +42,9 @@ backend:
     AUTH_PROVIDER: local
 
 worker:
+  image:
+    repository: us-central1-docker.pkg.dev/shipsec/shipsec-studio/worker
+    tag: 62a5228a-k8s-v4-20260212020547
   env:
     NODE_ENV: production
     SHIPSEC_ENV: local
@@ -60,6 +66,9 @@ worker:
     BACKEND_URL: http://shipsec-backend.shipsec-system.svc.cluster.local:3211
 
 frontend:
+  image:
+    repository: us-central1-docker.pkg.dev/shipsec/shipsec-studio/frontend
+    tag: c4c663fc-fe-20260212034158
   service:
     type: LoadBalancer
 

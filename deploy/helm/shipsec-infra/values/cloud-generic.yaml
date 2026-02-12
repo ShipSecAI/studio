@@ -1,18 +1,22 @@
+# Managed services — disabled (Cloud SQL, Memorystore)
 postgres:
   enabled: false
 
 redis:
   enabled: false
 
+# Still runs in-cluster
 minio:
-  enabled: false
+  enabled: true
 
 temporal:
-  enabled: false
+  enabled: true
+  postgresHost: '10.25.225.3'
+  postgresUser: shipsec
+  postgresPassword: shipsec-dev-2026
 
 redpanda:
-  enabled: false
+  enabled: true
 
 loki:
   enabled: false
-
