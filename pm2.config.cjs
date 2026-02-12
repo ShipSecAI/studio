@@ -162,14 +162,13 @@ if (!swcBinaryPath) {
   console.warn('Unable to automatically resolve SWC native binary; Temporal workers will use default resolution.');
 }
 
-// Load frontend .env file and extract VITE_* variables
-function loadFrontendEnv() {
-  const envPath = path.join(__dirname, 'frontend', '.env');
+// Load .env file and extract VITE_* variables for frontend
+function loadFrontendEnv(envFilePath) {
   const env = { NODE_ENV: 'development' };
-  
+
   try {
-    if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf-8');
+    if (fs.existsSync(envFilePath)) {
+      const envContent = fs.readFileSync(envFilePath, 'utf-8');
       envContent.split('\n').forEach((line) => {
         const trimmed = line.trim();
         // Skip comments and empty lines
@@ -190,11 +189,9 @@ function loadFrontendEnv() {
   } catch (err) {
     console.warn('Failed to load frontend .env file:', err.message);
   }
-  
+
   return env;
 }
-
-const frontendEnv = loadFrontendEnv();
 
 // Load worker .env file for OpenSearch and other worker-specific variables
 function loadWorkerEnv() {
@@ -334,9 +331,8 @@ module.exports = {
       args: ['run', 'dev', '--', '--port', String(getInstancePort(5173, instanceNum)), '--strictPort'],
       env_file: resolveEnvFile('frontend', instanceNum),
       env: {
-        ...frontendEnv,
+        ...loadFrontendEnv(resolveEnvFile('frontend', instanceNum)),
         ...currentEnvConfig,
-        VITE_API_URL: `http://localhost:${getInstancePort(3211, instanceNum)}`,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
