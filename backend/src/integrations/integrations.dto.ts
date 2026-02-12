@@ -1,12 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsUrl, Matches, MinLength } from 'class-validator';
+
+// --- OAuth DTOs (D16: userId removed, derived from auth context) ---
 
 export class StartOAuthDto {
-  @ApiProperty({ description: 'Application user identifier to associate the connection with' })
-  @IsString()
-  @MinLength(1)
-  userId!: string;
-
   @ApiProperty({ description: 'Frontend callback URL that receives the OAuth code' })
   @IsString()
   @IsUrl()
@@ -31,19 +28,12 @@ export class CompleteOAuthDto extends StartOAuthDto {
   code!: string;
 }
 
-export class RefreshConnectionDto {
-  @ApiProperty({ description: 'Application user identifier that owns the connection' })
-  @IsString()
-  @MinLength(1)
-  userId!: string;
-}
+// D16: userId removed from these DTOs — now derived from @CurrentAuth()
+export class RefreshConnectionDto {}
 
-export class DisconnectConnectionDto {
-  @ApiProperty({ description: 'Application user identifier that owns the connection' })
-  @IsString()
-  @MinLength(1)
-  userId!: string;
-}
+export class DisconnectConnectionDto {}
+
+// --- Provider config DTOs ---
 
 export class UpsertProviderConfigDto {
   @ApiProperty({ description: 'OAuth client identifier used for this provider' })
@@ -59,6 +49,70 @@ export class UpsertProviderConfigDto {
   @MinLength(1)
   clientSecret?: string;
 }
+
+// --- AWS connection DTOs ---
+
+export class CreateAwsConnectionDto {
+  @ApiProperty({ description: 'Display name for this connection' })
+  @IsString()
+  @MinLength(1)
+  displayName!: string;
+
+  @ApiProperty({ description: 'IAM role ARN for ShipSec to assume' })
+  @IsString()
+  @Matches(/^arn:aws:iam::\d{12}:role\/.+$/, {
+    message: 'roleArn must be a valid IAM role ARN (arn:aws:iam::<account-id>:role/<role-name>)',
+  })
+  roleArn!: string;
+
+  @ApiPropertyOptional({ description: 'Default AWS region' })
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @ApiProperty({ description: 'External ID from setup-info endpoint' })
+  @IsString()
+  @MinLength(1)
+  externalId!: string;
+
+  @ApiProperty({ description: 'Signed setup token from setup-info endpoint' })
+  @IsString()
+  @MinLength(1)
+  setupToken!: string;
+}
+
+export class AwsSetupInfoResponseDto {
+  @ApiProperty()
+  platformRoleArn!: string;
+
+  @ApiProperty()
+  externalId!: string;
+
+  @ApiProperty()
+  setupToken!: string;
+
+  @ApiProperty()
+  trustPolicyTemplate!: string;
+
+  @ApiPropertyOptional()
+  externalIdDisplay?: string;
+}
+
+// --- Slack connection DTOs ---
+
+export class CreateSlackWebhookConnectionDto {
+  @ApiProperty({ description: 'Display name for this webhook connection' })
+  @IsString()
+  @MinLength(1)
+  displayName!: string;
+
+  @ApiProperty({ description: 'Slack incoming webhook URL' })
+  @IsString()
+  @IsUrl()
+  webhookUrl!: string;
+}
+
+// --- Response DTOs ---
 
 export class ProviderConfigurationResponse {
   @ApiProperty()
@@ -132,6 +186,15 @@ export class IntegrationConnectionResponse {
   @ApiProperty()
   userId!: string;
 
+  @ApiProperty()
+  credentialType!: string;
+
+  @ApiProperty()
+  displayName!: string;
+
+  @ApiPropertyOptional()
+  organizationId?: string;
+
   @ApiProperty({ type: [String] })
   scopes!: string[];
 
@@ -140,6 +203,15 @@ export class IntegrationConnectionResponse {
 
   @ApiPropertyOptional()
   expiresAt?: string | null;
+
+  @ApiPropertyOptional()
+  lastValidatedAt?: string | null;
+
+  @ApiPropertyOptional()
+  lastValidationStatus?: string | null;
+
+  @ApiPropertyOptional()
+  lastUsedAt?: string | null;
 
   @ApiProperty()
   createdAt!: string;
@@ -178,4 +250,59 @@ export class ConnectionTokenResponseDto {
 
   @ApiPropertyOptional()
   expiresAt?: string | null;
+}
+
+export class ValidateAwsResponseDto {
+  @ApiProperty()
+  valid!: boolean;
+
+  @ApiPropertyOptional()
+  accountId?: string;
+
+  @ApiPropertyOptional()
+  arn?: string;
+
+  @ApiPropertyOptional()
+  error?: string;
+}
+
+export class OrgAccountDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiPropertyOptional()
+  email?: string;
+}
+
+export class DiscoverOrgAccountsResponseDto {
+  @ApiProperty({ type: [OrgAccountDto] })
+  accounts!: OrgAccountDto[];
+}
+
+export class ConnectionCredentialsResponseDto {
+  @ApiProperty({ description: 'Credential type discriminator' })
+  credentialType!: string;
+
+  @ApiProperty()
+  provider!: string;
+
+  @ApiProperty({ description: 'Type-specific credential data' })
+  data!: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: 'Provider account identifier (e.g. AWS 12-digit account ID)',
+  })
+  accountId?: string;
+
+  @ApiPropertyOptional({ description: 'Default region from the connection' })
+  region?: string;
+
+  @ApiPropertyOptional({ description: 'Display name of the connection' })
+  displayName?: string;
 }

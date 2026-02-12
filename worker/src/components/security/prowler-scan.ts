@@ -705,13 +705,16 @@ const definition = defineComponent({
         }
       }
 
-      if (rawSegments.length === 0) {
-        throw new ServiceError('Prowler did not produce any ASFF output files.', {
-          details: { volumeName: outputVolume.getVolumeName() },
-        });
-      }
+      const { findings, errors } =
+        rawSegments.length > 0
+          ? normaliseFindings(rawSegments, context.runId)
+          : { findings: [] as NormalisedFinding[], errors: [] as string[] };
 
-      const { findings, errors } = normaliseFindings(rawSegments, context.runId);
+      if (rawSegments.length === 0) {
+        context.logger.info(
+          '[ProwlerScan] Prowler produced no ASFF output — likely 0 findings for the selected severity/region.',
+        );
+      }
 
       const generatedAt = new Date().toISOString();
       const severityCounts: Record<NormalisedSeverity, number> = {

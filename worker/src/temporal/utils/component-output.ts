@@ -37,6 +37,9 @@ function maskSecretPorts(secretPorts: { id: string }[], data: unknown): unknown 
  */
 function getSecretPorts(ports: ComponentPortMetadata[]): { id: string }[] {
   return ports.filter((port) => {
+    if (port.editor === 'secret') {
+      return true;
+    }
     const connType = port.connectionType;
     if (!connType) {
       return false;

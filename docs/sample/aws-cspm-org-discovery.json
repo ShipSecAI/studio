@@ -1,0 +1,108 @@
+{
+  "name": "AWS CSPM – Org Account Discovery",
+  "description": "Resolves AWS credentials from an integration connection, discovers all AWS Organization member accounts, and optionally assumes a cross-account role for scanning.",
+  "nodes": [
+    {
+      "id": "entry-1",
+      "type": "core.workflow.entrypoint",
+      "position": { "x": 250, "y": 50 },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "connectionId",
+                "label": "AWS Integration Connection ID",
+                "type": "text",
+                "required": true,
+                "description": "The ID of the AWS integration connection to resolve credentials from. Find this in Settings > Integrations > AWS."
+              },
+              {
+                "id": "targetRoleArn",
+                "label": "Target Role ARN (optional)",
+                "type": "text",
+                "required": false,
+                "description": "If provided, the workflow will assume this cross-account role after discovering accounts."
+              },
+              {
+                "id": "externalId",
+                "label": "External ID (optional)",
+                "type": "text",
+                "required": false,
+                "description": "External ID for the STS AssumeRole call, if required by the trust policy."
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "resolve-creds-1",
+      "type": "core.integration.resolve-credentials",
+      "position": { "x": 250, "y": 280 },
+      "data": {
+        "label": "Resolve AWS Credentials",
+        "config": {
+          "params": {},
+          "inputOverrides": {
+            "connectionId": "{{entry-1.connectionId}}"
+          }
+        }
+      }
+    },
+    {
+      "id": "org-discovery-1",
+      "type": "core.aws.org-discovery",
+      "position": { "x": 100, "y": 510 },
+      "data": {
+        "label": "Discover Org Accounts",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "assume-role-1",
+      "type": "core.aws.assume-role",
+      "position": { "x": 400, "y": 510 },
+      "data": {
+        "label": "Assume Cross-Account Role",
+        "config": {
+          "params": {
+            "roleArn": "{{entry-1.targetRoleArn}}",
+            "externalId": "{{entry-1.externalId}}",
+            "sessionName": "shipsec-cspm-scan"
+          },
+          "inputOverrides": {}
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-entry-to-resolve",
+      "source": "entry-1",
+      "target": "resolve-creds-1",
+      "sourceHandle": "connectionId",
+      "targetHandle": "connectionId"
+    },
+    {
+      "id": "e-resolve-to-discovery",
+      "source": "resolve-creds-1",
+      "target": "org-discovery-1",
+      "sourceHandle": "data",
+      "targetHandle": "credentials"
+    },
+    {
+      "id": "e-resolve-to-assume",
+      "source": "resolve-creds-1",
+      "target": "assume-role-1",
+      "sourceHandle": "data",
+      "targetHandle": "sourceCredentials"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}

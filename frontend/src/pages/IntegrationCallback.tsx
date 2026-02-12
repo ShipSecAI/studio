@@ -55,7 +55,7 @@ export function IntegrationCallback() {
     const authCode = code;
     const authState = state;
 
-    const redirectUri = `${window.location.origin}/integrations/callback/${providerId}`;
+    const redirectUri = `${env.VITE_APP_URL}/integrations/callback/${providerId}`;
     let cancelled = false;
 
     async function exchangeCode() {
@@ -75,9 +75,7 @@ export function IntegrationCallback() {
         setStatus('success');
         setMessage(`Connected to ${connection.providerName}. Redirecting…`);
         setTimeout(() => {
-          const target = env.VITE_ENABLE_CONNECTIONS
-            ? `/integrations?connected=${connection.provider}`
-            : '/';
+          const target = env.VITE_ENABLE_CONNECTIONS ? `/integrations/${connection.provider}` : '/';
           navigate(target, { replace: true });
         }, 1200);
       } catch (error) {
@@ -114,7 +112,9 @@ export function IntegrationCallback() {
         {status !== 'pending' && (
           <Button
             variant="outline"
-            onClick={() => navigate(env.VITE_ENABLE_CONNECTIONS ? '/integrations' : '/')}
+            onClick={() =>
+              navigate(env.VITE_ENABLE_CONNECTIONS ? `/integrations/${provider}` : '/')
+            }
           >
             {env.VITE_ENABLE_CONNECTIONS ? 'Return to connections' : 'Return home'}
           </Button>

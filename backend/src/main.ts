@@ -41,6 +41,12 @@ async function bootstrap() {
     instanceOrigins.push(`http://127.0.0.1:${backendPort}`);
   }
 
+  // Allow extra CORS origins (e.g. ngrok tunnels) via comma-separated env var
+  const extraOrigins = (process.env.CORS_EXTRA_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.enableCors({
     origin: [
       'http://localhost',
@@ -48,6 +54,7 @@ async function bootstrap() {
       'http://localhost:8090',
       'https://studio.shipsec.ai',
       ...instanceOrigins,
+      ...extraOrigins,
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

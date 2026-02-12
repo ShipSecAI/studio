@@ -15,7 +15,8 @@
     "migration:push": "bun x drizzle-kit push",
     "migration:smoke": "bun scripts/migration-smoke.ts",
     "delete:runs": "bun scripts/delete-all-workflow-runs.ts",
-    "setup:opensearch": "bun scripts/setup-opensearch.ts"
+    "setup:opensearch": "bun scripts/setup-opensearch.ts",
+    "seed:aws-workflow": "bun scripts/seed-aws-cspm-workflow.ts"
   },
   "dependencies": {
     "@clerk/backend": "^2.29.5",
@@ -29,6 +30,8 @@
     "@nestjs/platform-express": "^10.4.22",
     "@nestjs/swagger": "^11.2.5",
     "@nestjs/throttler": "^6.5.0",
+    "@aws-sdk/client-organizations": "^3.750.0",
+    "@aws-sdk/client-sts": "^3.750.0",
     "@opensearch-project/opensearch": "^3.5.1",
     "@shipsec/backend-client": "workspace:*",
     "@shipsec/component-sdk": "workspace:*",

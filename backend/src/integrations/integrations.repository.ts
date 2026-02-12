@@ -16,11 +16,31 @@ import {
 interface UpsertIntegrationTokenInput {
   userId: string;
   provider: string;
+  organizationId: string;
+  credentialType: string;
+  displayName: string;
   scopes: string[];
   accessToken: SecretEncryptionMaterial;
   refreshToken: SecretEncryptionMaterial | null;
   tokenType: string;
   expiresAt?: Date | null;
+  metadata?: Record<string, unknown>;
+}
+
+interface InsertConnectionInput {
+  userId: string;
+  provider: string;
+  organizationId: string;
+  credentialType: string;
+  displayName: string;
+  scopes?: string[];
+  accessToken: SecretEncryptionMaterial;
+  refreshToken?: SecretEncryptionMaterial | null;
+  tokenType?: string;
+  expiresAt?: Date | null;
+  lastValidatedAt?: Date | null;
+  lastValidationStatus?: string | null;
+  lastValidationError?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -48,7 +68,7 @@ export class IntegrationsRepository {
     return record;
   }
 
-  async findByProvider(
+  async findByUserAndProvider(
     userId: string,
     provider: string,
   ): Promise<IntegrationTokenRecord | undefined> {
@@ -60,10 +80,45 @@ export class IntegrationsRepository {
     return record;
   }
 
+  async findByOrgAndProvider(
+    organizationId: string,
+    provider: string,
+  ): Promise<IntegrationTokenRecord | undefined> {
+    const [record] = await this.db
+      .select()
+      .from(integrationTokens)
+      .where(
+        and(
+          eq(integrationTokens.organizationId, organizationId),
+          eq(integrationTokens.provider, provider),
+        ),
+      )
+      .limit(1);
+    return record;
+  }
+
+  async listConnectionsByOrg(
+    organizationId: string,
+    provider?: string,
+  ): Promise<IntegrationTokenRecord[]> {
+    const conditions = [eq(integrationTokens.organizationId, organizationId)];
+    if (provider) {
+      conditions.push(eq(integrationTokens.provider, provider));
+    }
+    return await this.db
+      .select()
+      .from(integrationTokens)
+      .where(and(...conditions))
+      .orderBy(integrationTokens.provider);
+  }
+
   async upsertConnection(input: UpsertIntegrationTokenInput): Promise<IntegrationTokenRecord> {
     const payload = {
       userId: input.userId,
       provider: input.provider,
+      organizationId: input.organizationId,
+      credentialType: input.credentialType,
+      displayName: input.displayName,
       scopes: input.scopes,
       accessToken: input.accessToken,
       refreshToken: input.refreshToken,
@@ -80,7 +135,12 @@ export class IntegrationsRepository {
         createdAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [integrationTokens.userId, integrationTokens.provider],
+        target: [
+          integrationTokens.organizationId,
+          integrationTokens.provider,
+          integrationTokens.credentialType,
+          integrationTokens.displayName,
+        ],
         set: payload,
       })
       .returning();
@@ -88,10 +148,61 @@ export class IntegrationsRepository {
     return record;
   }
 
-  async deleteConnection(id: string, userId: string): Promise<void> {
-    await this.db
-      .delete(integrationTokens)
-      .where(and(eq(integrationTokens.id, id), eq(integrationTokens.userId, userId)));
+  /**
+   * Insert a new connection (no upsert). For non-OAuth connection types.
+   * On unique constraint violation, catches the error and returns the existing connection (D12).
+   */
+  async insertConnection(input: InsertConnectionInput): Promise<IntegrationTokenRecord> {
+    try {
+      const [record] = await this.db
+        .insert(integrationTokens)
+        .values({
+          userId: input.userId,
+          provider: input.provider,
+          organizationId: input.organizationId,
+          credentialType: input.credentialType,
+          displayName: input.displayName,
+          scopes: input.scopes ?? [],
+          accessToken: input.accessToken,
+          refreshToken: input.refreshToken ?? null,
+          tokenType: input.tokenType ?? 'Bearer',
+          expiresAt: input.expiresAt ?? null,
+          lastValidatedAt: input.lastValidatedAt ?? null,
+          lastValidationStatus: input.lastValidationStatus ?? null,
+          lastValidationError: input.lastValidationError ?? null,
+          metadata: input.metadata ?? {},
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      return record;
+    } catch (error: any) {
+      // Unique constraint violation — return existing connection (D12 natural idempotency)
+      if (error?.code === '23505') {
+        const existing = await this.db
+          .select()
+          .from(integrationTokens)
+          .where(
+            and(
+              eq(integrationTokens.organizationId, input.organizationId),
+              eq(integrationTokens.provider, input.provider),
+              eq(integrationTokens.credentialType, input.credentialType),
+              eq(integrationTokens.displayName, input.displayName),
+            ),
+          )
+          .limit(1);
+
+        if (existing[0]) {
+          return existing[0];
+        }
+      }
+      throw error;
+    }
+  }
+
+  async deleteConnection(id: string): Promise<void> {
+    await this.db.delete(integrationTokens).where(eq(integrationTokens.id, id));
   }
 
   async deleteByProvider(userId: string, provider: string): Promise<void> {
@@ -100,10 +211,37 @@ export class IntegrationsRepository {
       .where(and(eq(integrationTokens.userId, userId), eq(integrationTokens.provider, provider)));
   }
 
+  async updateConnectionHealth(
+    id: string,
+    health: {
+      lastValidatedAt: Date;
+      lastValidationStatus: string;
+      lastValidationError?: string | null;
+    },
+  ): Promise<void> {
+    await this.db
+      .update(integrationTokens)
+      .set({
+        lastValidatedAt: health.lastValidatedAt,
+        lastValidationStatus: health.lastValidationStatus,
+        lastValidationError: health.lastValidationError ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(integrationTokens.id, id));
+  }
+
+  async updateLastUsedAt(id: string): Promise<void> {
+    await this.db
+      .update(integrationTokens)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(integrationTokens.id, id));
+  }
+
   async createOAuthState(payload: {
     state: string;
     userId: string;
     provider: string;
+    organizationId?: string | null;
     codeVerifier?: string | null;
   }): Promise<IntegrationOAuthStateRecord> {
     const [record] = await this.db
@@ -112,6 +250,7 @@ export class IntegrationsRepository {
         state: payload.state,
         userId: payload.userId,
         provider: payload.provider,
+        organizationId: payload.organizationId ?? null,
         codeVerifier: payload.codeVerifier ?? null,
       })
       .onConflictDoUpdate({
@@ -119,6 +258,7 @@ export class IntegrationsRepository {
         set: {
           userId: payload.userId,
           provider: payload.provider,
+          organizationId: payload.organizationId ?? null,
           codeVerifier: payload.codeVerifier ?? null,
           createdAt: new Date(),
         },

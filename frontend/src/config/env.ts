@@ -9,6 +9,7 @@ interface FrontendEnv {
   VITE_ENABLE_CONNECTIONS: boolean;
   VITE_ENABLE_IT_OPS: boolean;
   VITE_API_URL: string;
+  VITE_APP_URL: string;
   VITE_OPENSEARCH_DASHBOARDS_URL: string;
 }
 
@@ -20,6 +21,7 @@ export const env: FrontendEnv = {
   VITE_ENABLE_CONNECTIONS: import.meta.env.VITE_ENABLE_CONNECTIONS === 'true',
   VITE_ENABLE_IT_OPS: import.meta.env.VITE_ENABLE_IT_OPS === 'true',
   VITE_API_URL: (import.meta.env.VITE_API_URL as string | undefined) ?? '',
+  VITE_APP_URL: (import.meta.env.VITE_APP_URL as string | undefined) ?? window.location.origin,
   VITE_OPENSEARCH_DASHBOARDS_URL:
     (import.meta.env.VITE_OPENSEARCH_DASHBOARDS_URL as string | undefined) ?? '',
 };

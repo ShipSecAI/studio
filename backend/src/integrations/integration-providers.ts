@@ -41,6 +41,16 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
     .map((scope) => scope.trim())
     .filter(Boolean) ?? ['user:read:admin'];
 
+  const slackScopes = process.env.SLACK_OAUTH_SCOPES?.split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean) ?? [
+    'channels:read',
+    'chat:write',
+    'chat:write.public',
+    'commands',
+    'im:write',
+  ];
+
   return {
     github: {
       id: 'github',
@@ -81,6 +91,22 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
       },
       clientId: process.env.ZOOM_OAUTH_CLIENT_ID ?? null,
       clientSecret: process.env.ZOOM_OAUTH_CLIENT_SECRET ?? null,
+    },
+    slack: {
+      id: 'slack',
+      name: 'Slack',
+      description: 'Send messages and alerts to Slack channels via the Slack API.',
+      docsUrl: 'https://api.slack.com/authentication/oauth-v2',
+      authorizeUrl: 'https://slack.com/oauth/v2/authorize',
+      tokenUrl: 'https://slack.com/api/oauth.v2.access',
+      defaultScopes: slackScopes,
+      scopeSeparator: ',',
+      supportsRefresh: false,
+      usesPkce: false,
+      tokenRequestEncoding: 'form',
+      tokenAuthMethod: 'client_secret_post',
+      clientId: process.env.SLACK_OAUTH_CLIENT_ID ?? null,
+      clientSecret: process.env.SLACK_OAUTH_CLIENT_SECRET ?? null,
     },
   };
 }

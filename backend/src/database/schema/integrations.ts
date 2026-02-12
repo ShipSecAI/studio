@@ -2,11 +2,11 @@ import {
   index,
   jsonb,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
   varchar,
-  text,
 } from 'drizzle-orm/pg-core';
 
 export const integrationTokens = pgTable(
@@ -15,6 +15,9 @@ export const integrationTokens = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     userId: varchar('user_id', { length: 191 }).notNull(),
     provider: varchar('provider', { length: 64 }).notNull(),
+    credentialType: varchar('credential_type', { length: 32 }).notNull().default('oauth'),
+    displayName: varchar('display_name', { length: 191 }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
     accessToken: jsonb('access_token')
       .$type<{
@@ -34,15 +37,22 @@ export const integrationTokens = pgTable(
       .default(null),
     tokenType: varchar('token_type', { length: 32 }).default('Bearer'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    lastValidatedAt: timestamp('last_validated_at', { withTimezone: true }),
+    lastValidationStatus: varchar('last_validation_status', { length: 16 }),
+    lastValidationError: text('last_validation_error'),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    userProviderIdx: index('integration_tokens_user_idx').on(table.userId),
-    userProviderUnique: uniqueIndex('integration_tokens_user_provider_uidx').on(
-      table.userId,
+    userIdx: index('integration_tokens_user_idx').on(table.userId),
+    orgIdx: index('integration_tokens_org_idx').on(table.organizationId),
+    orgProviderTypeNameUnique: uniqueIndex('integration_tokens_org_provider_type_name_uidx').on(
+      table.organizationId,
       table.provider,
+      table.credentialType,
+      table.displayName,
     ),
   }),
 );
@@ -54,6 +64,7 @@ export const integrationOAuthStates = pgTable(
     state: text('state').notNull(),
     userId: varchar('user_id', { length: 191 }).notNull(),
     provider: varchar('provider', { length: 64 }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }),
     codeVerifier: text('code_verifier'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },

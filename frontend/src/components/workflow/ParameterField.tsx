@@ -18,10 +18,11 @@ import type { Parameter } from '@/schemas/component';
 import type { InputMapping } from '@/schemas/node';
 import { useSecretStore } from '@/store/secretStore';
 import { useIntegrationStore } from '@/store/integrationStore';
-import { getCurrentUserId } from '@/lib/currentUser';
+// D17: getCurrentUserId no longer needed for connection fetching
 import { useArtifactStore } from '@/store/artifactStore';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
+import type { IntegrationConnection } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import {
   Dialog,
@@ -65,12 +66,12 @@ export function ParameterField({
   const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
   const refreshSecrets = useSecretStore((state) => state.refresh);
 
-  const integrationConnections = useIntegrationStore((state) => state.connections);
-  const fetchIntegrationConnections = useIntegrationStore((state) => state.fetchConnections);
+  const fetchMergedConnections = useIntegrationStore((state) => state.fetchMergedConnections);
   const integrationLoading = useIntegrationStore((state) => state.loadingConnections);
   const integrationError = useIntegrationStore((state) => state.error);
 
-  const currentUserId = useMemo(() => getCurrentUserId(), []);
+  // D17: merged connections from both user-scoped and org-scoped endpoints
+  const [mergedConnections, setMergedConnections] = useState<IntegrationConnection[]>([]);
   const hasFetchedConnectionsRef = useRef(false);
   const autoSelectedConnectionRef = useRef(false);
 
@@ -89,17 +90,26 @@ export function ParameterField({
   const isRemoveGithubComponent = componentId === 'github.org.membership.remove';
   const isProviderGithubComponent = componentId === 'github.connection.provider';
   const isGitHubConnectionComponent = isRemoveGithubComponent || isProviderGithubComponent;
-  const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId';
+  const isGenericCredentialResolver = componentId === 'core.integration.resolve-credentials';
+  const isConnectionSelector =
+    (isGitHubConnectionComponent || isGenericCredentialResolver) && parameter.id === 'connectionId';
   const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection';
 
   const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id);
   const isWorkflowCallComponent = componentId === 'core.workflow.call';
   const isWorkflowSelector = isWorkflowCallComponent && parameter.id === 'workflowId';
 
+  // D17: use merged connections (combines user-scoped and org-scoped)
   const githubConnections = useMemo(
-    () => integrationConnections.filter((connection) => connection.provider === 'github'),
-    [integrationConnections],
+    () => mergedConnections.filter((connection) => connection.provider === 'github'),
+    [mergedConnections],
   );
+
+  // All connections for the generic credential resolver (no provider filter)
+  const allConnections = useMemo(() => mergedConnections, [mergedConnections]);
+
+  // Pick the right list depending on the component
+  const connectionOptions = isGenericCredentialResolver ? allConnections : githubConnections;
 
   const [workflowOptions, setWorkflowOptions] = useState<{ id: string; name: string }[]>([]);
   const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false);
@@ -182,10 +192,13 @@ export function ParameterField({
       return;
     }
     hasFetchedConnectionsRef.current = true;
-    fetchIntegrationConnections(currentUserId).catch((error) => {
-      console.error('Failed to load integration connections', error);
-    });
-  }, [isConnectionSelector, fetchIntegrationConnections, currentUserId]);
+    // D17: fetch merged connections (user-scoped + org-scoped, deduped)
+    fetchMergedConnections()
+      .then((merged) => setMergedConnections(merged))
+      .catch((error) => {
+        console.error('Failed to load integration connections', error);
+      });
+  }, [isConnectionSelector, fetchMergedConnections]);
 
   useEffect(() => {
     if (!isConnectionSelector || integrationLoading) {
@@ -200,8 +213,8 @@ export function ParameterField({
       return;
     }
 
-    if (githubConnections.length === 1 && !autoSelectedConnectionRef.current) {
-      const [firstConnection] = githubConnections;
+    if (connectionOptions.length === 1 && !autoSelectedConnectionRef.current) {
+      const [firstConnection] = connectionOptions;
       if (firstConnection) {
         autoSelectedConnectionRef.current = true;
         onChange(firstConnection.id);
@@ -214,7 +227,7 @@ export function ParameterField({
     }
   }, [
     isConnectionSelector,
-    githubConnections,
+    connectionOptions,
     integrationLoading,
     currentValue,
     onChange,
@@ -224,7 +237,8 @@ export function ParameterField({
 
   const handleRefreshConnections = async () => {
     try {
-      await fetchIntegrationConnections(currentUserId, true);
+      const merged = await fetchMergedConnections();
+      setMergedConnections(merged);
     } catch (error) {
       console.error('Failed to refresh integration connections', error);
     }
@@ -361,7 +375,6 @@ export function ParameterField({
           onChange={(event) => {
             autoSelectedConnectionRef.current = true;
             const nextValue = event.target.value;
-            console.log('Selected GitHub connection ID:', nextValue);
             if (nextValue === '') {
               onChange(undefined);
               if (isRemoveGithubComponent) {
@@ -379,10 +392,12 @@ export function ParameterField({
           className="w-full px-3 py-2 text-sm border rounded-md bg-background"
           disabled={disabled}
         >
-          <option value="">Select a GitHub connection…</option>
-          {githubConnections.map((connection) => (
+          <option value="">
+            {isGenericCredentialResolver ? 'Select a connection…' : 'Select a GitHub connection…'}
+          </option>
+          {connectionOptions.map((connection) => (
             <option key={connection.id} value={connection.id}>
-              {connection.providerName} · {connection.userId}
+              {connection.displayName ?? connection.providerName} · {connection.provider}
             </option>
           ))}
         </select>
@@ -393,9 +408,11 @@ export function ParameterField({
 
         {integrationError && <p className="text-xs text-destructive">{integrationError}</p>}
 
-        {!integrationLoading && githubConnections.length === 0 && (
+        {!integrationLoading && connectionOptions.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            No active GitHub connections yet. Connect GitHub from the Connections manager.
+            {isGenericCredentialResolver
+              ? 'No active connections yet. Add a connection from the Integrations page.'
+              : 'No active GitHub connections yet. Connect GitHub from the Connections manager.'}
           </p>
         )}
 
