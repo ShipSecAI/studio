@@ -1,0 +1,139 @@
+{
+  "name": "AWS CSPM – Prowler Scan to Slack Summary",
+  "description": "Resolves AWS credentials from an integration connection, runs a Prowler security scan (high+critical severity), and sends a summary of findings to a Slack channel via webhook.",
+  "nodes": [
+    {
+      "id": "entry-1",
+      "type": "core.workflow.entrypoint",
+      "position": { "x": 300, "y": 50 },
+      "data": {
+        "label": "Entry Point",
+        "config": {
+          "params": {
+            "runtimeInputs": [
+              {
+                "id": "connectionId",
+                "label": "AWS Integration Connection ID",
+                "type": "text",
+                "required": true,
+                "description": "The ID of the AWS integration connection. Find this in Settings > Integrations > AWS."
+              },
+              {
+                "id": "regions",
+                "label": "AWS Regions",
+                "type": "text",
+                "required": false,
+                "description": "Comma-separated AWS regions to scan. Defaults to us-east-1.",
+                "default": "us-east-1"
+              },
+              {
+                "id": "slackWebhookUrl",
+                "label": "Slack Webhook URL",
+                "type": "text",
+                "required": true,
+                "description": "Slack Incoming Webhook URL to send the scan summary to."
+              }
+            ]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "resolve-creds-1",
+      "type": "core.integration.resolve-credentials",
+      "position": { "x": 300, "y": 280 },
+      "data": {
+        "label": "Resolve AWS Credentials",
+        "config": {
+          "params": {},
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "prowler-1",
+      "type": "security.prowler.scan",
+      "position": { "x": 300, "y": 510 },
+      "data": {
+        "label": "Prowler Security Scan",
+        "config": {
+          "params": {
+            "scanMode": "aws",
+            "recommendedFlags": ["severity-high-critical", "ignore-exit-code", "no-banner"]
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "slack-1",
+      "type": "core.notification.slack",
+      "position": { "x": 300, "y": 770 },
+      "data": {
+        "label": "Slack Scan Summary",
+        "config": {
+          "params": {
+            "authType": "webhook",
+            "variables": [{ "name": "scanSummary", "type": "json" }]
+          },
+          "inputOverrides": {
+            "text": "🔒 *Prowler Security Scan Complete*\n\n📊 *Summary*\n• Total findings: {{totalFindings}}\n• Failed: {{failed}} | Passed: {{passed}}\n• Regions: {{regions}}\n\n🔴 Critical: {{critical}} | 🟠 High: {{high}} | 🟡 Medium: {{medium}} | 🟢 Low: {{low}}\n\nGenerated at {{generatedAt}}"
+          }
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-entry-to-resolve",
+      "source": "entry-1",
+      "target": "resolve-creds-1",
+      "sourceHandle": "connectionId",
+      "targetHandle": "connectionId"
+    },
+    {
+      "id": "e-entry-to-resolve-regions",
+      "source": "entry-1",
+      "target": "resolve-creds-1",
+      "sourceHandle": "regions",
+      "targetHandle": "regions"
+    },
+    {
+      "id": "e-resolve-to-prowler-creds",
+      "source": "resolve-creds-1",
+      "target": "prowler-1",
+      "sourceHandle": "data",
+      "targetHandle": "credentials"
+    },
+    {
+      "id": "e-resolve-to-prowler-account",
+      "source": "resolve-creds-1",
+      "target": "prowler-1",
+      "sourceHandle": "accountId",
+      "targetHandle": "accountId"
+    },
+    {
+      "id": "e-entry-to-prowler-regions",
+      "source": "entry-1",
+      "target": "prowler-1",
+      "sourceHandle": "regions",
+      "targetHandle": "regions"
+    },
+    {
+      "id": "e-entry-to-slack-webhook",
+      "source": "entry-1",
+      "target": "slack-1",
+      "sourceHandle": "slackWebhookUrl",
+      "targetHandle": "webhookUrl"
+    },
+    {
+      "id": "e-prowler-to-slack-summary",
+      "source": "prowler-1",
+      "target": "slack-1",
+      "sourceHandle": "summary",
+      "targetHandle": "scanSummary"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}
