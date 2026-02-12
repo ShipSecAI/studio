@@ -55,7 +55,6 @@ const coreModules = [
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
 
-
 function getEnvFilePaths(): string[] {
   // In multi-instance dev, each instance has its own env file under:
   //   .instances/instance-N/backend.env

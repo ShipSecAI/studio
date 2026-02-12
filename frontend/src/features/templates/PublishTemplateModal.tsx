@@ -87,15 +87,13 @@ interface TemplateJson {
   _metadata: TemplateMetadata;
   manifest: Record<string, unknown>;
   graph: Record<string, unknown>;
-  requiredSecrets: Array<{ name: string; type: string; description?: string }>;
+  requiredSecrets: { name: string; type: string; description?: string }[];
 }
 
 /**
  * Sanitize secrets from the workflow graph by replacing secret references with placeholders
  */
-function sanitizeGraphForTemplate(
-  graph: Record<string, unknown>,
-): Record<string, unknown> {
+function sanitizeGraphForTemplate(graph: Record<string, unknown>): Record<string, unknown> {
   const sanitized = JSON.parse(JSON.stringify(graph)); // Deep clone
 
   // Helper to recursively sanitize secret references
@@ -118,12 +116,15 @@ function sanitizeGraphForTemplate(
           result[key] = '{{SECRET_PLACEHOLDER}}';
         } else if (
           typeof value === 'string' &&
-          (value.includes('${secrets.') || value.includes('${secret.') || value.includes('{{secret.'))
+          (value.includes('${secrets.') ||
+            value.includes('${secret.') ||
+            value.includes('{{secret.'))
         ) {
           // Replace secret interpolation expressions with placeholder
-          result[key] = value.replace(/\$\{secrets\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
-                         .replace(/\$\{secret\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
-                         .replace(/\{\{secret\.[^}]+\}\}/g, '{{SECRET_PLACEHOLDER}}');
+          result[key] = value
+            .replace(/\$\{secrets\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
+            .replace(/\$\{secret\.[^}]+\}/g, '{{SECRET_PLACEHOLDER}}')
+            .replace(/\{\{secret\.[^}]+\}\}/g, '{{SECRET_PLACEHOLDER}}');
         } else {
           result[key] = traverseAndSanitize(value);
         }
@@ -141,7 +142,7 @@ function sanitizeGraphForTemplate(
  */
 function extractRequiredSecrets(
   graph: Record<string, unknown>,
-): Array<{ name: string; type: string; description?: string }> {
+): { name: string; type: string; description?: string }[] {
   const secrets = new Map<string, { type: string; description?: string }>();
 
   const traverseAndExtract = (obj: unknown, path: string[] = []) => {
@@ -152,18 +153,17 @@ function extractRequiredSecrets(
       }
 
       for (const [key, value] of Object.entries(obj)) {
-        if (
-          key === 'secretId' ||
-          key === 'secret_name' ||
-          key === 'secretName'
-        ) {
+        if (key === 'secretId' || key === 'secret_name' || key === 'secretName') {
           if (typeof value === 'string') {
             // Infer type from context
             const context = path[path.length - 2] || 'generic';
-            const type = context.toLowerCase().includes('api') ? 'api_key' :
-                        context.toLowerCase().includes('token') ? 'token' :
-                        context.toLowerCase().includes('password') ? 'password' :
-                        'generic';
+            const type = context.toLowerCase().includes('api')
+              ? 'api_key'
+              : context.toLowerCase().includes('token')
+                ? 'token'
+                : context.toLowerCase().includes('password')
+                  ? 'password'
+                  : 'generic';
             secrets.set(value, { type, description: `Secret for ${context}` });
           }
         } else if (typeof value === 'object' && value !== null) {
@@ -184,10 +184,7 @@ function extractRequiredSecrets(
 /**
  * Generate the template JSON structure with metadata
  */
-function generateTemplateJson(
-  workflow: WorkflowResponse,
-  metadata: TemplateMetadata,
-): string {
+function generateTemplateJson(workflow: WorkflowResponse, metadata: TemplateMetadata): string {
   const sanitizedGraph = sanitizeGraphForTemplate(workflow.graph);
   const requiredSecrets = extractRequiredSecrets(workflow.graph);
 
@@ -230,11 +227,12 @@ function generateGitHubUrl(
  * Sanitize filename to be safe for use in URLs
  */
 function sanitizeFilename(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    + '.json';
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') + '.json'
+  );
 }
 
 export function PublishTemplateModal({
@@ -403,14 +401,16 @@ export function PublishTemplateModal({
                     <strong>Commit message</strong> is pre-filled with your template name
                   </li>
                   <li>
-                    <strong>Important:</strong> Click &quot;Propose new file&quot; (NOT &quot;Commit directly&quot;)
+                    <strong>Important:</strong> Click &quot;Propose new file&quot; (NOT &quot;Commit
+                    directly&quot;)
                   </li>
                   <li>
                     <strong>Create Pull Request</strong> to submit your template for review
                   </li>
                 </ol>
                 <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs">
-                  <strong>Note:</strong> Creating a PR allows reviewers to check your template before it&apos;s added to the library.
+                  <strong>Note:</strong> Creating a PR allows reviewers to check your template
+                  before it&apos;s added to the library.
                 </div>
                 <a
                   href={`https://github.com/${GITHUB_TEMPLATE_REPO}`}

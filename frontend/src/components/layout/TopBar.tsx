@@ -548,11 +548,7 @@ export function TopBar({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[180px]">
-                      <DropdownMenuItem
-                        onClick={onPublishTemplate}
-                        disabled={!canEdit}
-
-                      >
+                      <DropdownMenuItem onClick={onPublishTemplate} disabled={!canEdit}>
                         <Package className="mr-2 h-4 w-4" />
                         <span>Publish as Template</span>
                       </DropdownMenuItem>
