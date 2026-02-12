@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TemplatesRepository } from './templates.repository';
 import { TemplateManifest } from '../database/schema/templates';
@@ -35,17 +35,18 @@ interface TemplateJson {
   };
   manifest: Record<string, unknown>;
   graph: Record<string, unknown>;
-  requiredSecrets: Array<{ name: string; type: string; description?: string }>;
+  requiredSecrets: { name: string; type: string; description?: string }[];
 }
 
 /**
  * GitHub Sync Service
- * Fetches templates from a GitHub repository and stores them in the database
- * Uses GitHub's public API (no authentication needed for public repos)
+ * Fetches templates from a public GitHub repository and stores them in the database.
+ * Syncs automatically on startup and on-demand via the admin "Sync from GitHub" button.
  */
 @Injectable()
-export class GitHubSyncService {
+export class GitHubSyncService implements OnModuleInit {
   private readonly logger = new Logger(GitHubSyncService.name);
+  private isSyncing = false;
 
   constructor(
     private readonly configService: ConfigService,
@@ -53,10 +54,31 @@ export class GitHubSyncService {
   ) {}
 
   /**
-   * Get the GitHub repository configuration from environment variables
+   * Sync templates once on startup.
+   */
+  async onModuleInit(): Promise<void> {
+    const { owner, repo, branch } = this.getRepoConfig();
+    this.logger.log(`Template repo: ${owner}/${repo} (branch: ${branch})`);
+    this.logger.log('Starting automatic template sync...');
+    try {
+      const result = await this.syncTemplates();
+      this.logger.log(
+        `Startup sync complete: ${result.synced.length} synced, ${result.failed.length} failed`,
+      );
+    } catch (err) {
+      this.logger.error('Startup sync failed', err);
+      // Don't throw - allow the application to start even if sync fails
+    }
+  }
+
+  /**
+   * Get the GitHub repository configuration from environment variables.
    */
   private getRepoConfig(): { owner: string; repo: string; branch: string } {
-    const repo = this.configService.get<string>('GITHUB_TEMPLATE_REPO', 'krishna9358/workflow-templates');
+    const repo = this.configService.get<string>(
+      'GITHUB_TEMPLATE_REPO',
+      'krishna9358/workflow-templates',
+    );
     const branch = this.configService.get<string>('GITHUB_TEMPLATE_BRANCH', 'main');
     const [owner, repoName] = repo.split('/');
 
@@ -68,21 +90,30 @@ export class GitHubSyncService {
   }
 
   /**
-   * Fetch directory contents from GitHub
+   * Fetch directory contents from GitHub's public API.
    */
   private async fetchDirectory(path: string): Promise<GitHubFile[]> {
     const { owner, repo, branch } = this.getRepoConfig();
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
 
     const response = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-      },
+      headers: { Accept: 'application/vnd.github.v3+json' },
     });
 
     if (!response.ok) {
       if (response.status === 404) {
-        return []; // Directory doesn't exist
+        this.logger.warn(`Directory not found: ${path}`);
+        return [];
+      }
+      if (response.status === 403) {
+        const resetHeader = response.headers.get('x-ratelimit-reset');
+        const resetIn = resetHeader
+          ? Math.ceil((Number(resetHeader) * 1000 - Date.now()) / 60000)
+          : '?';
+        this.logger.warn(
+          `GitHub API rate limit exceeded. Resets in ~${resetIn} min. Skipping sync.`,
+        );
+        return [];
       }
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
@@ -92,21 +123,23 @@ export class GitHubSyncService {
   }
 
   /**
-   * Fetch a single file's content from GitHub
+   * Fetch a single file's content from GitHub.
    */
   private async fetchFileContent(path: string): Promise<string | null> {
     const { owner, repo, branch } = this.getRepoConfig();
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
 
     const response = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-      },
+      headers: { Accept: 'application/vnd.github.v3+json' },
     });
 
     if (!response.ok) {
       if (response.status === 404) {
         this.logger.warn(`File not found: ${path}`);
+        return null;
+      }
+      if (response.status === 403) {
+        this.logger.warn('GitHub API rate limit exceeded, skipping file fetch');
         return null;
       }
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
@@ -118,17 +151,21 @@ export class GitHubSyncService {
       return Buffer.from(data.content, 'base64').toString('utf-8');
     }
 
-    return data.download_url ? fetch(data.download_url).then((r) => r.text()) : null;
+    if (data.download_url) {
+      const dlResponse = await fetch(data.download_url);
+      return dlResponse.text();
+    }
+
+    return null;
   }
 
   /**
-   * Parse and validate template JSON
+   * Parse and validate template JSON.
    */
   private parseTemplateJson(content: string, path: string): TemplateJson | null {
     try {
       const template = JSON.parse(content) as TemplateJson;
 
-      // Validate required fields
       if (!template._metadata?.name) {
         this.logger.warn(`Template missing _metadata.name: ${path}`);
         return null;
@@ -152,22 +189,27 @@ export class GitHubSyncService {
   }
 
   /**
-   * Sync templates from GitHub to the database
-   * @returns Summary of sync operation
+   * Sync templates from GitHub to the database.
+   * Called on startup and when admin clicks "Sync from GitHub".
    */
   async syncTemplates(): Promise<{
     synced: string[];
-    failed: Array<{ path: string; error: string }>;
+    failed: { path: string; error: string }[];
     total: number;
   }> {
+    if (this.isSyncing) {
+      this.logger.warn('Sync already in progress, skipping');
+      return { synced: [], failed: [], total: 0 };
+    }
+    this.isSyncing = true;
+
     const { owner, repo, branch } = this.getRepoConfig();
     this.logger.log(`Starting template sync from ${owner}/${repo}/${branch}`);
 
     const synced: string[] = [];
-    const failed: Array<{ path: string; error: string }> = [];
+    const failed: { path: string; error: string }[] = [];
 
     try {
-      // Fetch the templates directory
       const files = await this.fetchDirectory('templates');
 
       if (files.length === 0) {
@@ -175,18 +217,11 @@ export class GitHubSyncService {
         return { synced, failed, total: 0 };
       }
 
-      // Process each template file
       for (const file of files) {
         if (file.type !== 'file') continue;
-
-        // Only process JSON files
-        if (!file.name.endsWith('.json')) {
-          this.logger.debug(`Skipping non-JSON file: ${file.name}`);
-          continue;
-        }
+        if (!file.name.endsWith('.json')) continue;
 
         try {
-          // Fetch file content
           const content = await this.fetchFileContent(file.path);
 
           if (!content) {
@@ -194,15 +229,16 @@ export class GitHubSyncService {
             continue;
           }
 
-          // Parse template
           const template = this.parseTemplateJson(content, file.path);
 
           if (!template) {
-            failed.push({ path: file.path, error: 'Invalid template format' });
+            failed.push({
+              path: file.path,
+              error: 'Invalid template format',
+            });
             continue;
           }
 
-          // Upsert to database
           await this.templatesRepository.upsert({
             name: template._metadata.name,
             description: template._metadata.description,
@@ -216,8 +252,6 @@ export class GitHubSyncService {
             manifest: template.manifest as TemplateManifest,
             graph: template.graph,
             requiredSecrets: template.requiredSecrets,
-            isOfficial: false, // TODO: Mark official templates based on author
-            isVerified: false, // TODO: Mark verified templates
           });
 
           synced.push(template._metadata.name);
@@ -233,13 +267,15 @@ export class GitHubSyncService {
     } catch (err) {
       this.logger.error('Failed to sync templates from GitHub', err);
       throw err;
+    } finally {
+      this.isSyncing = false;
     }
 
     return { synced, failed, total: synced.length };
   }
 
   /**
-   * Get repository information
+   * Get repository information.
    */
   async getRepositoryInfo(): Promise<{
     owner: string;

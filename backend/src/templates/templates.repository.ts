@@ -17,26 +17,32 @@ export class TemplatesRepository {
   constructor(@Inject(DRIZZLE_TOKEN) private readonly db: NodePgDatabase) {}
 
   /**
-   * Find all active templates
+   * Find all active templates with optional filters.
    */
   async findAll(filters?: { category?: string; search?: string; tags?: string[] }) {
-    const query = this.db.select().from(templatesTable).where(eq(templatesTable.isActive, true));
+    const conditions = [eq(templatesTable.isActive, true)];
 
-    // Apply filters if provided
     if (filters?.category) {
-      return (query as any).where(eq(templatesTable.category, filters.category)).execute();
+      conditions.push(eq(templatesTable.category, filters.category));
     }
 
     if (filters?.search) {
-      // Search in name and description
-      return (query as any)
-        .where(
-          sql`${templatesTable.name} ILIKE ${`%${filters.search}%`} OR ${templatesTable.description} ILIKE ${`%${filters.search}%`}`,
-        )
-        .execute();
+      const escaped = filters.search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      conditions.push(
+        sql`(${templatesTable.name} ILIKE ${'%' + escaped + '%'} OR ${templatesTable.description} ILIKE ${'%' + escaped + '%'})`,
+      );
     }
 
-    return (query as any).orderBy(desc(templatesTable.popularity)).execute();
+    if (filters?.tags && filters.tags.length > 0) {
+      conditions.push(sql`${templatesTable.tags} @> ${JSON.stringify(filters.tags)}::jsonb`);
+    }
+
+    return this.db
+      .select()
+      .from(templatesTable)
+      .where(and(...conditions))
+      .orderBy(desc(templatesTable.popularity))
+      .execute();
   }
 
   /**
