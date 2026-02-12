@@ -411,17 +411,20 @@ async function streamPodLogs(
     await new Promise((r) => setTimeout(r, 500));
   }
 
+  let chunkIndex = 0;
   const emitToCollectors = (text: string) => {
     if (context.terminalCollector) {
+      chunkIndex += 1;
       context.terminalCollector({
         runId: context.runId,
         nodeRef: context.componentRef,
-        stream: 'stdout',
-        chunkIndex: 0,
-        payload: text,
+        stream: 'pty',
+        chunkIndex,
+        payload: Buffer.from(text).toString('base64'),
         recordedAt: new Date().toISOString(),
         deltaMs: 0,
         origin: 'k8s-job',
+        runnerKind: 'k8s',
       });
     }
     if (context.logCollector) {
