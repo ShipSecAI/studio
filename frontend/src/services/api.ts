@@ -586,7 +586,8 @@ export const api = {
       },
     ): Promise<TerminalChunkResponse> => {
       const headers = await getAuthHeaders();
-      const url = new URL(`${API_V1_URL}/workflows/runs/${executionId}/terminal`);
+      const path = `${API_V1_URL}/workflows/runs/${executionId}/terminal`;
+      const url = new URL(path, window.location.origin);
       if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
       if (params?.stream) url.searchParams.set('stream', params.stream);
       if (params?.cursor) url.searchParams.set('cursor', params.cursor);
