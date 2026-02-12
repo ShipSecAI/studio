@@ -96,7 +96,7 @@ function healthBadge(connection: IntegrationConnection) {
   const status = connection.lastValidationStatus ?? connection.status;
   if (status === 'active' || status === 'valid' || status === 'ok') {
     return (
-      <Badge variant="secondary" className="gap-1">
+      <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
         <CheckCircle className="h-3 w-3" />
         Healthy
       </Badge>
@@ -495,7 +495,7 @@ interface SlackFormProps {
 function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
   const store = useIntegrationStore();
   const { toast } = useToast();
-  const [tab, setTab] = useState<string>('webhook');
+  const [tab, setTab] = useState<string>('oauth');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -579,15 +579,28 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full">
-          <TabsTrigger value="webhook" className="flex-1">
-            Webhook
-          </TabsTrigger>
           <TabsTrigger value="oauth" className="flex-1">
             OAuth
           </TabsTrigger>
+          <TabsTrigger value="webhook" className="flex-1">
+            Webhook
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="webhook" className="mt-4">
+        <TabsContent value="webhook" className="mt-4 space-y-4">
+          {/* Main CTA */}
+          <div className="flex flex-col items-center text-center py-2 space-y-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
+              <img src="/icons/slack.svg" alt="Slack" className="h-7 w-7" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Send alerts to a Slack channel via Webhook</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Paste an incoming webhook URL to post messages directly to a channel.
+              </p>
+            </div>
+          </div>
+
           <form onSubmit={handleWebhookSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="wh-display-name">Display Name *</Label>
@@ -631,19 +644,29 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
               </div>
             )}
 
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={submitting}>
+            <div className="flex justify-center pt-2">
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="gap-2 bg-[#4A154B] hover:bg-[#3a1139] text-white"
+              >
                 {submitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Creating...
                   </>
                 ) : (
-                  'Create Connection'
+                  <>
+                    <img src="/icons/slack.svg" alt="" className="h-4 w-4 brightness-0 invert" />
+                    Add to Channel
+                  </>
                 )}
+              </Button>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+                Cancel
               </Button>
             </DialogFooter>
           </form>
@@ -853,12 +876,12 @@ export function IntegrationDetailPage() {
         if (result.ok) {
           toast({
             title: 'Test passed',
-            description: `Test message sent via ${connection.displayName}.`,
+            description: `${connection.displayName} connection is healthy.`,
           });
         } else {
           toast({
             title: 'Test failed',
-            description: result.error ?? 'Could not deliver test message.',
+            description: result.error ?? 'Connection test failed.',
             variant: 'destructive',
           });
         }
@@ -1087,20 +1110,56 @@ export function IntegrationDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {connections.map((conn) => {
                 const isValidating = validatingId === conn.id;
+                const meta = (conn.metadata ?? {}) as Record<string, any>;
+                const providerPayload = meta.providerPayload ?? {};
+                const teamName = providerPayload?.team?.name ?? conn.displayName;
+                const teamId = providerPayload?.team?.id;
+                const teamIcon: string | undefined = providerPayload?._teamIcon;
+                const connVisuals = PROVIDER_VISUALS[conn.provider];
+
                 return (
-                  <Card key={conn.id}>
+                  <Card
+                    key={conn.id}
+                    className={cn(
+                      'overflow-hidden transition-shadow hover:shadow-md',
+                      connVisuals?.borderAccent,
+                    )}
+                  >
                     <CardContent className="p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-semibold text-sm truncate">
-                          {conn.displayName || '\u2014'}
-                        </h3>
-                        {healthBadge(conn)}
+                      <div className="flex items-start gap-3">
+                        {teamIcon ? (
+                          <img
+                            src={teamIcon}
+                            alt={teamName}
+                            className="h-10 w-10 rounded-lg flex-shrink-0 object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0 bg-muted text-muted-foreground font-semibold text-sm">
+                            {(teamName ?? '?').slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-semibold text-sm truncate">{teamName}</h3>
+                            {healthBadge(conn)}
+                          </div>
+                          {teamId && (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                              {teamId}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {credentialTypeBadge(conn.credentialType)}
+                        {conn.scopes && conn.scopes.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {conn.scopes.length} scope{conn.scopes.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Created {formatTimestamp(conn.createdAt)}
+                        Connected {formatTimestamp(conn.createdAt)}
                       </p>
                       <div className="flex items-center gap-2 pt-2 border-t">
                         <Button
@@ -1131,6 +1190,19 @@ export function IntegrationDetailPage() {
                   </Card>
                 );
               })}
+
+              {/* Add Connection card */}
+              <Card
+                className="overflow-hidden border-2 border-dashed hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                onClick={() => setDialogOpen(true)}
+              >
+                <CardContent className="p-4 h-full flex flex-col items-center justify-center gap-2 min-h-[160px]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                    <Plus className="h-5 w-5 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium text-muted-foreground">Add Connection</span>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>

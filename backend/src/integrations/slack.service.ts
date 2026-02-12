@@ -39,6 +39,81 @@ export class SlackService {
   }
 
   /**
+   * Test a Slack bot token via auth.test. Returns workspace info.
+   */
+  async authTest(
+    botToken: string,
+  ): Promise<{ ok: boolean; error?: string; teamName?: string; teamId?: string; url?: string }> {
+    try {
+      const response = await fetch('https://slack.com/api/auth.test', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${botToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        this.logger.error(`Slack auth.test failed: ${data.error}`);
+        return { ok: false, error: data.error || 'auth.test failed' };
+      }
+
+      return {
+        ok: true,
+        teamName: data.team,
+        teamId: data.team_id,
+        url: data.url,
+      };
+    } catch (error) {
+      this.logger.error('Network error calling auth.test:', error);
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Unknown network error',
+      };
+    }
+  }
+
+  /**
+   * Fetch workspace info (name + icon) via team.info. Requires team:read scope.
+   */
+  async getTeamInfo(
+    botToken: string,
+  ): Promise<{ ok: boolean; icon?: string; name?: string; id?: string }> {
+    try {
+      const response = await fetch('https://slack.com/api/team.info', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${botToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        this.logger.warn(`Slack team.info failed: ${data.error}`);
+        return { ok: false };
+      }
+
+      // Pick the largest available icon (image_230 > image_132 > image_88 > image_68)
+      const icons = data.team?.icon ?? {};
+      const icon =
+        icons.image_230 || icons.image_132 || icons.image_88 || icons.image_68 || icons.image_44;
+
+      return {
+        ok: true,
+        icon: icons.image_default ? undefined : icon,
+        name: data.team?.name,
+        id: data.team?.id,
+      };
+    } catch (error) {
+      this.logger.warn('Failed to fetch team.info (non-critical):', error);
+      return { ok: false };
+    }
+  }
+
+  /**
    * List Slack channels using a bot token
    */
   async listChannels(botToken: string): Promise<{ channels: { id: string; name: string }[] }> {

@@ -49,6 +49,7 @@ export function loadIntegrationProviders(): Record<string, IntegrationProviderCo
     'chat:write.public',
     'commands',
     'im:write',
+    'team:read',
   ];
 
   return {
