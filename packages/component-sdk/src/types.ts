@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ComponentCategory } from '@shipsec/shared';
 
 import type {
   IArtifactService,
@@ -363,18 +364,6 @@ export interface ComponentAuthorMetadata {
   type: ComponentAuthorType;
   url?: string;
 }
-
-// Categories supported by the new functional grouping plus legacy values for backwards compatibility
-export type ComponentCategory =
-  | 'input'
-  | 'transform'
-  | 'ai'
-  | 'mcp'
-  | 'security'
-  | 'it_ops'
-  | 'notification'
-  | 'manual_action'
-  | 'output';
 
 export type ComponentUiType =
   | 'trigger'

@@ -22,6 +22,15 @@ worker/src/components/
 └── manual-action/   # Human-in-the-loop (approvals, forms)
 ```
 
+### Category Source of Truth
+
+Component categories are defined once in `packages/shared/src/component-categories.ts`.
+
+- Backend categorization and API metadata read from this shared registry.
+- Frontend schema validation and category styling also read from the same registry.
+
+When adding or renaming a category, update this shared file so backend and frontend stay in sync.
+
 ### ID Naming Convention
 
 ```

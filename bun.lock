@@ -203,6 +203,7 @@
       "name": "@shipsec/component-sdk",
       "version": "0.1.0",
       "dependencies": {
+        "@shipsec/shared": "workspace:*",
         "zod": "^4.3.6",
       },
       "devDependencies": {
