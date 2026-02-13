@@ -25,7 +25,7 @@ rules:
   resources: ["configmaps"]
   verbs: ["create", "get", "update", "delete"]
 - apiGroups: [""]
-  resources: ["pods", "pods/log"]
+  resources: ["pods", "pods/log", "pods/attach"]
   verbs: ["get", "list", "watch"]
 ---
 # Bind the worker SA (in shipsec-workers) to the Role (in shipsec-workloads)
