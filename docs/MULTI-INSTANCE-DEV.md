@@ -78,7 +78,7 @@ http://localhost:5273        # frontend
 http://localhost:3311/api    # backend API
 ```
 
-The Vite dev server proxies `/api` calls to the correct backend port automatically via `VITE_API_URL`.
+The Vite dev server proxies `/api` calls to the correct backend port automatically (computed from `SHIPSEC_INSTANCE` in `vite.config.ts`).
 
 ## Commands
 
