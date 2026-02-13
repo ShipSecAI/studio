@@ -35,32 +35,18 @@ function createComponent(
 
 describe('tool-helpers', () => {
   describe('isAgentCallable', () => {
-    it('returns false when agentTool is not configured', () => {
+    it('returns false when toolProvider is not configured', () => {
       const component = createComponent();
       expect(isAgentCallable(component)).toBe(false);
     });
 
-    it('returns false when agentTool.enabled is false', () => {
+    // Note: Component is callable if it has a toolProvider defined
+    it('returns true when toolProvider is configured', () => {
       const component = createComponent({
-        ui: {
-          slug: 'test',
-          version: '1.0.0',
-          type: 'process',
-          category: 'security',
-          agentTool: { enabled: false },
-        },
-      });
-      expect(isAgentCallable(component)).toBe(false);
-    });
-
-    it('returns true when agentTool.enabled is true', () => {
-      const component = createComponent({
-        ui: {
-          slug: 'test',
-          version: '1.0.0',
-          type: 'process',
-          category: 'security',
-          agentTool: { enabled: true },
+        toolProvider: {
+          kind: 'component',
+          name: 'test_tool',
+          description: 'Test Tool Description',
         },
       });
       expect(isAgentCallable(component)).toBe(true);
@@ -265,17 +251,12 @@ describe('tool-helpers', () => {
   });
 
   describe('getToolName', () => {
-    it('uses agentTool.toolName when specified', () => {
+    it('uses toolProvider.name when specified', () => {
       const component = createComponent({
-        ui: {
-          slug: 'abuseipdb-lookup',
-          version: '1.0.0',
-          type: 'process',
-          category: 'security',
-          agentTool: {
-            enabled: true,
-            toolName: 'check_ip_reputation',
-          },
+        toolProvider: {
+          kind: 'component',
+          name: 'check_ip_reputation',
+          description: 'IP reputation and abuse report lookup (AbuseIPDB).',
         },
       });
       expect(getToolName(component)).toBe('check_ip_reputation');
@@ -288,7 +269,11 @@ describe('tool-helpers', () => {
           version: '1.0.0',
           type: 'process',
           category: 'security',
-          agentTool: { enabled: true },
+        },
+        toolProvider: {
+          kind: 'component',
+          name: '',
+          description: '',
         },
       });
       expect(getToolName(component)).toBe('abuseipdb_lookup');
@@ -304,11 +289,11 @@ describe('tool-helpers', () => {
           type: 'process',
           category: 'security',
           description: 'Look up IP reputation',
-          agentTool: {
-            enabled: true,
-            toolName: 'check_ip_reputation',
-            toolDescription: 'Check if an IP address is malicious',
-          },
+        },
+        toolProvider: {
+          kind: 'component',
+          name: 'check_ip_reputation',
+          description: 'Check if an IP address is malicious',
         },
         inputs: inputs({
           apiKey: port(z.string(), { label: 'API Key', editor: 'secret' }),

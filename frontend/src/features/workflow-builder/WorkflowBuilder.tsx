@@ -774,6 +774,36 @@ function WorkflowBuilderContent() {
     return [];
   }, [getComponent, nodes]);
 
+  // Resolve default values from Entry Point's runtimeInputs parameter (defaultValue field)
+  const resolveRuntimeInputDefaults = useCallback((): Record<string, unknown> => {
+    const triggerNode = nodes.find((node) => {
+      const nodeData = node.data as any;
+      const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+      const component = getComponent(componentRef);
+      return component?.id === 'core.workflow.entrypoint';
+    });
+
+    if (!triggerNode) {
+      return {};
+    }
+
+    const nodeData = triggerNode.data as any;
+    const runtimeInputsParam = nodeData.config?.params?.runtimeInputs;
+
+    // Extract default values from each runtime input definition
+    if (Array.isArray(runtimeInputsParam)) {
+      const defaults: Record<string, unknown> = {};
+      for (const input of runtimeInputsParam) {
+        if (input?.id && input.defaultValue !== undefined && input.defaultValue !== null) {
+          defaults[input.id] = input.defaultValue;
+        }
+      }
+      return defaults;
+    }
+
+    return {};
+  }, [getComponent, nodes]);
+
   const {
     runDialogOpen,
     setRunDialogOpen,
@@ -792,6 +822,7 @@ function WorkflowBuilderContent() {
     setNodes,
     toast,
     resolveRuntimeInputDefinitions,
+    resolveRuntimeInputDefaults,
     fetchRuns,
     markClean,
     navigate,
@@ -891,6 +922,15 @@ function WorkflowBuilderContent() {
   // This allows smooth transition without forcing mode change
   const isInspectorVisible = mode === 'execution' || (selectedRunId !== null && mode !== 'design');
 
+  const hasAnalyticsSink = useMemo(() => {
+    // When viewing a specific run, bypass the sink check — the run may have
+    // indexed results even if the current design no longer contains a sink.
+    if (selectedRunId) return true;
+    return designNodes.some((node) => {
+      return (node.data?.componentId ?? node.data?.componentSlug) === 'core.analytics.sink';
+    });
+  }, [designNodes, selectedRunId]);
+
   const shouldShowInitialLoader =
     isLoading && designNodes.length === 0 && executionNodes.length === 0 && !isNewWorkflow;
 
@@ -924,6 +964,7 @@ function WorkflowBuilderContent() {
       onRedo={redo}
       canUndo={canUndo}
       canRedo={canRedo}
+      hasAnalyticsSink={hasAnalyticsSink}
     />
   );
 

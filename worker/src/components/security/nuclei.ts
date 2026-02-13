@@ -291,6 +291,12 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Run ProjectDiscovery Nuclei vulnerability scanner with custom or built-in templates. Supports quick YAML testing or bulk scans with template archives.',
+  toolProvider: {
+    kind: 'component',
+    name: 'nuclei_scan',
+    description:
+      'Fast vulnerability scanner for CVEs, misconfigurations, and exposures using YAML templates.',
+  },
   ui: {
     slug: 'nuclei',
     version: '1.0.0',
@@ -316,11 +322,6 @@ const definition = defineComponent({
       'Bulk custom scan: Upload zip archive via Entry Point → File Loader → Nuclei',
       'Comprehensive scan: Combine custom archive + built-in templates for complete coverage',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription:
-        'Fast vulnerability scanner for CVEs, misconfigurations, and exposures using YAML templates.',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);

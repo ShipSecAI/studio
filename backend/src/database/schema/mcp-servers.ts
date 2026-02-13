@@ -27,7 +27,7 @@ export const mcpGroups = pgTable(
     // Credential configuration
     credentialContractName: varchar('credential_contract_name', { length: 191 }).notNull(),
     credentialMapping: jsonb('credential_mapping')
-      .$type<Record<string, unknown> | null>()
+      .$type<Record<string, string> | null>()
       .default(null),
 
     // Default Docker image for servers in this group

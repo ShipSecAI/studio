@@ -17,7 +17,7 @@ import {
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:v2.12.0';
+const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:latest';
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
@@ -271,19 +271,16 @@ const definition = defineComponent({
   runner: {
     kind: 'docker',
     image: SUBFINDER_IMAGE,
-    // IMPORTANT: Use shell wrapper for PTY compatibility
-    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
-    // The shell wrapper ensures proper TTY signal handling and clean exit
-    // See docs/component-development.md "Docker Entrypoint Pattern" for details
-    entrypoint: 'sh',
+    // The subfinder image is distroless (no shell available).
+    // Use the image's default entrypoint directly and pass args via command.
     network: 'bridge',
     timeoutSeconds: SUBFINDER_TIMEOUT_SECONDS,
     env: {
-      HOME: '/root',
+      // Image runs as nonroot — /root is not writable.
+      // Use /tmp so subfinder can create its config dir.
+      HOME: '/tmp',
     },
-    // Shell wrapper pattern: sh -c 'subfinder "$@"' -- [args...]
-    // This allows dynamic args to be appended and properly passed to subfinder
-    command: ['-c', 'subfinder "$@"', '--'],
+    command: [],
   },
   inputs: inputSchema,
   outputs: outputSchema,
@@ -311,10 +308,11 @@ const definition = defineComponent({
       'Enumerate subdomains for a single target domain prior to Amass or Naabu.',
       'Quick passive discovery during scope triage workflows.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Passive subdomain enumeration tool (Subfinder).',
-    },
+  },
+  toolProvider: {
+    kind: 'component',
+    name: 'subdomain_discovery',
+    description: 'Passive subdomain enumeration tool (Subfinder).',
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
@@ -433,9 +431,7 @@ const definition = defineComponent({
         network: baseRunner.network,
         timeoutSeconds: baseRunner.timeoutSeconds ?? SUBFINDER_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
-        // Preserve the shell wrapper from baseRunner (sh -c 'subfinder "$@"' --)
-        entrypoint: baseRunner.entrypoint,
-        // Append subfinder arguments to shell wrapper command
+        // Pass subfinder CLI args directly (image default entrypoint is subfinder)
         command: [...(baseRunner.command ?? []), ...subfinderArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };

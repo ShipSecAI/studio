@@ -16,7 +16,6 @@ import './core/test-error-generator';
 import './notification/slack';
 import './core/text-splitter';
 import './core/text-joiner';
-import './core/console-log';
 import './core/secret-fetch';
 import './core/array-pick';
 import './core/array-pack';
@@ -65,6 +64,9 @@ import './github/remove-org-membership';
 // IT Automation components
 import './it-automation/google-workspace-license-unassign';
 import './it-automation/okta-user-offboard';
+
+// Dev / debug components
+import './dev/mock-agent';
 
 // Test utility components
 import './test/sleep-parallel';

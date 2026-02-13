@@ -129,6 +129,22 @@ Learn more about our design decisions and system components in the **[Architectu
 
 ---
 
+## 🔀 Multi-Instance Development
+
+Run multiple isolated dev instances on one machine for parallel feature work:
+
+```bash
+# Instance 0 (default)
+just dev
+
+# Instance 1 — offset ports (frontend :5273, backend :3311)
+SHIPSEC_INSTANCE=1 just dev
+```
+
+Each instance gets its own frontend port, backend port, database, and Temporal namespace while sharing a single Docker infra stack. See [Multi-Instance Development Guide](docs/MULTI-INSTANCE-DEV.md) for full details.
+
+---
+
 ## ✍️ Contributing
 
 We welcome contributions to the management plane, worker logic, or new security components.

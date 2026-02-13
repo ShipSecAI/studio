@@ -14,7 +14,6 @@ export default tseslint.config(
       'build',
       'node_modules',
       'coverage',
-      'vite.config.ts',
       '**/*.js',
       '**/*.mjs',
       '**/*.cjs',
@@ -33,7 +32,7 @@ export default tseslint.config(
         ...globals.es2024,
       },
       parserOptions: {
-        project: './tsconfig.json',
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },

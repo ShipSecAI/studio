@@ -190,6 +190,7 @@ export interface RegisterComponentToolActivityInput {
   runId: string;
   nodeId: string;
   toolName: string;
+  exposedToAgent?: boolean;
   componentId: string;
   description: string;
   inputSchema: any;
@@ -229,7 +230,7 @@ export interface PrepareAndRegisterToolActivityInput {
   params: Record<string, unknown>;
 }
 
-export interface CleanupLocalMcpActivityInput {
+export interface CleanupRunResourcesActivityInput {
   runId: string;
 }
 

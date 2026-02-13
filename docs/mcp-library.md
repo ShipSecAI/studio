@@ -17,6 +17,7 @@ The MCP Library component provides a centralized way to select and enable multip
 ## Ports
 
 **Outputs:**
+
 - `tools` (contract: `mcp.tool`) - Anchor port for tool registration. Connect this to AI Agent's tools input.
 
 ## Parameters
@@ -71,6 +72,7 @@ graph TD
 ```
 
 **Steps:**
+
 1. Add MCP Library node and select AWS CloudTrail + CloudWatch servers
 2. Add AI Agent node and connect MCP Library tools to AI Agent tools
 3. Add a Report Generator node to format the results
@@ -156,6 +158,7 @@ services:
 ### Filesystem Server
 
 The filesystem server provides access to:
+
 - Temporary directories for each workflow run
 - Shared volumes between containers
 - Host file system (when explicitly configured)
@@ -166,11 +169,11 @@ The filesystem server provides access to:
 
 ### Choosing the Right Servers
 
-| Server | Best For | Tools Available |
-|--------|----------|-----------------|
-| AWS CloudTrail | API activity monitoring, security auditing, compliance | 15 tools |
-| AWS CloudWatch | Metrics, logs, alarms, real-time monitoring | 8 tools |
-| Filesystem | File operations, data processing, temp files | 6 tools |
+| Server         | Best For                                               | Tools Available |
+| -------------- | ------------------------------------------------------ | --------------- |
+| AWS CloudTrail | API activity monitoring, security auditing, compliance | 15 tools        |
+| AWS CloudWatch | Metrics, logs, alarms, real-time monitoring            | 8 tools         |
+| Filesystem     | File operations, data processing, temp files           | 6 tools         |
 
 ### Health Status Indicators
 
@@ -183,16 +186,19 @@ The filesystem server provides access to:
 ### Common Issues
 
 **Servers Not Loading**
+
 - Check backend API: `curl http://localhost:3000/api/v1/mcp-servers`
 - Verify backend service is running
 - Check network connectivity
 
 **Tools Not Available to AI Agent**
+
 - Ensure MCP Library is connected to AI Agent tools port
 - Check Tool Registry for registered tools
 - Verify MCP Gateway is running
 
 **Container Spawning Failed**
+
 - Check Docker is running and accessible
 - Verify image exists: `shipsec/mcp-stdio-proxy:latest`
 - Check container resource limits

@@ -210,7 +210,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/httpx:v1.7.4',
+    image: 'ghcr.io/shipsecai/httpx:latest',
     entrypoint: 'httpx',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,
@@ -247,16 +247,15 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    example:
-      '`httpx -l targets.txt -json -status-code 200,301` - Probe discovered hosts and capture responsive endpoints with matching status codes.',
     examples: [
       'Validate Subfinder or Amass discoveries by probing for live web services.',
       'Filter Naabu results to identify hosts exposing HTTP/S services on uncommon ports.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Live HTTP endpoint probe and metadata collector (httpx).',
-    },
+  },
+  toolProvider: {
+    kind: 'component',
+    name: 'httpx_probe',
+    description: 'Live HTTP endpoint probe and metadata collector (httpx).',
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);

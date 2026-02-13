@@ -11,7 +11,15 @@ import {
   generateFindingHash,
   analyticsResultSchema,
   type AnalyticsResult,
+  type DockerRunnerConfig,
+  ContainerError,
 } from '@shipsec/component-sdk';
+import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+
+const NAABU_IMAGE = 'ghcr.io/shipsecai/naabu:latest';
+const INPUT_MOUNT_NAME = 'inputs';
+const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
+const TARGETS_FILE_NAME = 'targets.txt';
 
 const inputSchema = inputs({
   targets: port(
@@ -181,107 +189,86 @@ const dockerTimeoutSeconds = (() => {
   return parsed;
 })();
 
+interface BuildNaabuArgsOptions {
+  targetFile: string;
+  ports?: string;
+  topPorts?: number;
+  excludePorts?: string;
+  rate?: number;
+  retries?: number;
+  enablePing: boolean;
+  interface?: string;
+}
+
+/**
+ * Build Naabu CLI arguments in TypeScript.
+ * Follows the Dynamic Args Pattern from component-development.mdx
+ */
+const buildNaabuArgs = (options: BuildNaabuArgsOptions): string[] => {
+  const args: string[] = [];
+
+  // Target list file
+  args.push('-list', options.targetFile);
+
+  // JSON output for structured parsing
+  args.push('-json');
+
+  // Silent mode for clean output
+  args.push('-silent');
+
+  // Stream mode to prevent output buffering (critical for PTY)
+  args.push('-stream');
+
+  // Port configuration
+  if (options.ports) {
+    args.push('-p', options.ports);
+  }
+  if (typeof options.topPorts === 'number' && options.topPorts >= 1) {
+    args.push('-top-ports', String(options.topPorts));
+  }
+  if (options.excludePorts) {
+    args.push('-exclude-ports', options.excludePorts);
+  }
+
+  // Rate and retries
+  if (typeof options.rate === 'number' && options.rate >= 1) {
+    args.push('-rate', String(options.rate));
+  }
+  if (typeof options.retries === 'number') {
+    args.push('-retries', String(options.retries));
+  }
+
+  // Ping probes
+  if (options.enablePing) {
+    args.push('-ping');
+  }
+
+  // Network interface
+  if (options.interface) {
+    args.push('-interface', options.interface);
+  }
+
+  return args;
+};
+
 const definition = defineComponent({
   id: 'shipsec.naabu.scan',
   label: 'Naabu Port Scan',
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/naabu:v2.3.7',
-    entrypoint: 'sh',
+    image: NAABU_IMAGE,
+    // The naabu image is distroless (no shell available).
+    // Use the image's default entrypoint directly and pass args via command.
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,
-    command: [
-      '-c',
-      String.raw`set -eo pipefail
-
-INPUT=$(cat)
-
-TARGETS_SECTION=$(printf "%s" "$INPUT" | tr -d '\n' | sed -n 's/.*"targets":[[:space:]]*\[\([^]]*\)\].*/\1/p')
-
-if [ -z "$TARGETS_SECTION" ]; then
-  exit 0
-fi
-
-TARGETS=$(printf "%s" "$TARGETS_SECTION" | tr ',' '\n' | sed 's/"//g; s/^[[:space:]]*//; s/[[:space:]]*$//' | sed '/^$/d')
-
-if [ -z "$TARGETS" ]; then
-  exit 0
-fi
-
-extract_string() {
-  key="$1"
-  printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*\"[^\"]*\"" | head -n1 | sed "s/.*\"$key\":[[:space:]]*\"\([^\"]*\)\".*/\1/"
-}
-
-extract_number() {
-  key="$1"
-  printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*[0-9][0-9]*" | head -n1 | sed 's/[^0-9]//g'
-}
-
-extract_bool() {
-  key="$1"
-  default="$2"
-  value=$(printf "%s" "$INPUT" | tr -d '\n' | grep -o "\"$key\":[[:space:]]*\\(true\\|false\\)" | head -n1 | sed 's/.*://; s/[[:space:]]//g')
-  if [ -z "$value" ]; then
-    echo "$default"
-  elif [ "$value" = "true" ]; then
-    echo "true"
-  else
-    echo "false"
-  fi
-}
-
-PORTS=$(extract_string "ports" | tr -d ' ')
-EXCLUDE_PORTS=$(extract_string "excludePorts" | tr -d ' ')
-INTERFACE=$(extract_string "interface")
-TOP_PORTS=$(extract_number "topPorts")
-RATE=$(extract_number "rate")
-RETRIES=$(extract_number "retries")
-ENABLE_PING=$(extract_bool "enablePing" "false")
-
-LIST_FILE=$(mktemp)
-trap 'rm -f "$LIST_FILE"' EXIT
-
-printf "%s\n" "$TARGETS" > "$LIST_FILE"
-
-CMD="naabu -list $LIST_FILE -json -silent"
-
-if [ -n "$PORTS" ]; then
-  CMD="$CMD -p $PORTS"
-fi
-if [ -n "$TOP_PORTS" ]; then
-  CMD="$CMD -top-ports $TOP_PORTS"
-fi
-if [ -n "$EXCLUDE_PORTS" ]; then
-  CMD="$CMD -exclude-ports $EXCLUDE_PORTS"
-fi
-if [ -n "$RATE" ]; then
-  CMD="$CMD -rate $RATE"
-fi
-if [ -n "$RETRIES" ]; then
-  CMD="$CMD -retries $RETRIES"
-fi
-if [ "$ENABLE_PING" = "true" ]; then
-  CMD="$CMD -ping"
-fi
-if [ -n "$INTERFACE" ]; then
-  CMD="$CMD -interface $INTERFACE"
-fi
-
-# CRITICAL: Enable stream mode to prevent output buffering
-# ProjectDiscovery tools buffer output by default, causing containers to appear hung
-# -stream flag: Disables buffering + forces immediate output flush
-# Without this, naabu buffers up to 8KB before flushing, causing timeout failures
-# See docs/component-development.md "Output Buffering" section for details
-CMD="$CMD -stream"
-
-eval "$CMD"
-`,
-    ],
     env: {
-      HOME: '/root',
+      // Image runs as nonroot — /root is not writable.
+      // Use /tmp so naabu can create its config dir.
+      HOME: '/tmp',
     },
+    command: [],
+    stdinJson: false,
   },
   inputs: inputSchema,
   outputs: outputSchema,
@@ -309,98 +296,144 @@ eval "$CMD"
       'Scan Amass or Subfinder discoveries to identify exposed services.',
       'Target a custom list of IPs with tuned rate and retries for stealth scans.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Fast TCP port scanner (Naabu).',
-    },
+  },
+  toolProvider: {
+    kind: 'component',
+    name: 'port_scan',
+    description: 'Fast TCP port scanner (Naabu).',
   },
   async execute({ inputs, params }, context) {
-    const trimmedPorts = params.ports?.trim();
-    const trimmedExclude = params.excludePorts?.trim();
-    const trimmedInterface = params.interface?.trim();
+    const parsedParams = parameterSchema.parse(params);
+    const trimmedPorts = parsedParams.ports?.trim();
+    const trimmedExclude = parsedParams.excludePorts?.trim();
+    const trimmedInterface = parsedParams.interface?.trim();
 
-    const runnerParams = {
-      ...params,
-      targets: inputs.targets,
+    const effectiveOptions = {
       ports: trimmedPorts && trimmedPorts.length > 0 ? trimmedPorts : undefined,
+      topPorts: parsedParams.topPorts,
       excludePorts: trimmedExclude && trimmedExclude.length > 0 ? trimmedExclude : undefined,
+      rate: parsedParams.rate,
+      retries: parsedParams.retries ?? 1,
+      enablePing: parsedParams.enablePing ?? false,
       interface: trimmedInterface && trimmedInterface.length > 0 ? trimmedInterface : undefined,
     };
 
     context.logger.info(
-      `[Naabu] Scanning ${runnerParams.targets.length} target(s) with options: ports=${runnerParams.ports ?? 'default'}, topPorts=${runnerParams.topPorts ?? 'default'}, excludePorts=${runnerParams.excludePorts ?? 'none'}, rate=${runnerParams.rate ?? 'auto'}, retries=${runnerParams.retries}, enablePing=${runnerParams.enablePing ?? false}`,
+      `[Naabu] Scanning ${inputs.targets.length} target(s) with options: ports=${effectiveOptions.ports ?? 'default'}, topPorts=${effectiveOptions.topPorts ?? 'default'}, rate=${effectiveOptions.rate ?? 'auto'}, retries=${effectiveOptions.retries}`,
     );
 
     context.emitProgress({
       message: 'Launching Naabu port scan…',
       level: 'info',
-      data: { targets: runnerParams.targets.slice(0, 5) },
+      data: { targets: inputs.targets.slice(0, 5) },
     });
 
-    const result = await runComponentWithRunner(
-      this.runner,
-      async () => ({}) as Output,
-      runnerParams,
-      context,
+    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const baseRunner = definition.runner;
+
+    if (baseRunner.kind !== 'docker') {
+      throw new ContainerError('Naabu runner is expected to be docker-based.', {
+        details: { expectedKind: 'docker', actualKind: baseRunner.kind },
+      });
+    }
+
+    let rawOutput: string;
+    try {
+      // Write targets to input file
+      const inputFiles: Record<string, string> = {
+        [TARGETS_FILE_NAME]: inputs.targets.join('\n'),
+      };
+
+      const volumeName = await volume.initialize(inputFiles);
+      context.logger.info(`[Naabu] Created isolated volume: ${volumeName}`);
+
+      // Build naabu CLI arguments in TypeScript
+      const naabuArgs = buildNaabuArgs({
+        targetFile: `${CONTAINER_INPUT_DIR}/${TARGETS_FILE_NAME}`,
+        ...effectiveOptions,
+      });
+
+      const runnerConfig: DockerRunnerConfig = {
+        kind: 'docker',
+        image: baseRunner.image,
+        network: baseRunner.network,
+        timeoutSeconds: baseRunner.timeoutSeconds ?? dockerTimeoutSeconds,
+        env: { ...(baseRunner.env ?? {}) },
+        stdinJson: false,
+        // Pass naabu CLI args directly (image default entrypoint is naabu)
+        command: [...(baseRunner.command ?? []), ...naabuArgs],
+        volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
+      };
+
+      try {
+        const result = await runComponentWithRunner(
+          runnerConfig,
+          async () => ({}) as Output,
+          {},
+          context,
+        );
+        rawOutput = typeof result === 'string' ? result : '';
+      } catch (error) {
+        // Naabu can exit non-zero when some probes fail,
+        // but may still have produced valid output. Preserve partial results.
+        if (error instanceof ContainerError) {
+          const details = (error as any).details as Record<string, unknown> | undefined;
+          const capturedStdout = details?.stdout;
+          if (typeof capturedStdout === 'string' && capturedStdout.trim().length > 0) {
+            context.logger.warn(
+              `[Naabu] Container exited non-zero but produced output. Preserving partial results.`,
+            );
+            rawOutput = capturedStdout;
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
+        }
+      }
+    } finally {
+      await volume.cleanup();
+      context.logger.info('[Naabu] Cleaned up isolated volume');
+    }
+
+    // Parse naabu JSON output
+    const findings = parseNaabuOutput(rawOutput);
+
+    // Build analytics-ready results
+    const analyticsResults: AnalyticsResult[] = findings.map((finding) => ({
+      scanner: 'naabu',
+      finding_hash: generateFindingHash('open-port', finding.host, String(finding.port)),
+      severity: 'info' as const,
+      asset_key: `${finding.host}:${finding.port}`,
+      host: finding.host,
+      port: finding.port,
+      protocol: finding.protocol,
+      ip: finding.ip,
+    }));
+
+    context.logger.info(
+      `[Naabu] Found ${findings.length} open ports across ${inputs.targets.length} targets`,
     );
 
-    if (typeof result === 'string') {
-      const findings = parseNaabuOutput(result);
-
-      // Build analytics-ready results with scanner metadata
-      const analyticsResults: AnalyticsResult[] = findings.map((finding) => ({
-        scanner: 'naabu',
-        finding_hash: generateFindingHash('open-port', finding.host, String(finding.port)),
-        severity: 'info' as const,
-        asset_key: `${finding.host}:${finding.port}`,
-        host: finding.host,
-        port: finding.port,
-        protocol: finding.protocol,
-        ip: finding.ip,
-      }));
-
-      const output: Output = {
-        findings,
-        results: analyticsResults,
-        rawOutput: result,
-        targetCount: runnerParams.targets.length,
-        openPortCount: findings.length,
-        options: {
-          ports: runnerParams.ports ?? null,
-          topPorts: runnerParams.topPorts ?? null,
-          excludePorts: runnerParams.excludePorts ?? null,
-          rate: runnerParams.rate ?? null,
-          retries: runnerParams.retries ?? 1,
-          enablePing: runnerParams.enablePing ?? false,
-          interface: runnerParams.interface ?? null,
-        },
-      };
-      return outputSchema.parse(output);
-    }
-
-    if (result && typeof result === 'object') {
-      const parsed = outputSchema.safeParse(result);
-      if (parsed.success) {
-        return parsed.data;
-      }
-    }
-
-    return {
-      findings: [],
-      results: [],
-      rawOutput: typeof result === 'string' ? result : '',
-      targetCount: runnerParams.targets.length,
-      openPortCount: 0,
+    const output: Output = {
+      findings,
+      results: analyticsResults,
+      rawOutput,
+      targetCount: inputs.targets.length,
+      openPortCount: findings.length,
       options: {
-        ports: runnerParams.ports ?? null,
-        topPorts: runnerParams.topPorts ?? null,
-        excludePorts: runnerParams.excludePorts ?? null,
-        rate: runnerParams.rate ?? null,
-        retries: runnerParams.retries ?? 1,
-        enablePing: runnerParams.enablePing ?? false,
-        interface: runnerParams.interface ?? null,
+        ports: effectiveOptions.ports ?? null,
+        topPorts: effectiveOptions.topPorts ?? null,
+        excludePorts: effectiveOptions.excludePorts ?? null,
+        rate: effectiveOptions.rate ?? null,
+        retries: effectiveOptions.retries,
+        enablePing: effectiveOptions.enablePing,
+        interface: effectiveOptions.interface ?? null,
       },
     };
+
+    return outputSchema.parse(output);
   },
 });
 

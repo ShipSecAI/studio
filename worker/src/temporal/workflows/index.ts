@@ -28,7 +28,7 @@ import type {
   WorkflowAction,
   PrepareRunPayloadActivityInput,
   RegisterComponentToolActivityInput,
-  CleanupLocalMcpActivityInput,
+  CleanupRunResourcesActivityInput,
   RegisterLocalMcpActivityInput,
   PrepareAndRegisterToolActivityInput,
 } from '../types';
@@ -40,7 +40,7 @@ const {
   createHumanInputRequestActivity,
   expireHumanInputRequestActivity,
   registerLocalMcpActivity,
-  cleanupLocalMcpActivity,
+  cleanupRunResourcesActivity,
   prepareAndRegisterToolActivity,
   areAllToolsReadyActivity,
 } = proxyActivities<{
@@ -70,7 +70,7 @@ const {
   expireHumanInputRequestActivity(requestId: string): Promise<void>;
   registerComponentToolActivity(input: RegisterComponentToolActivityInput): Promise<void>;
   registerLocalMcpActivity(input: RegisterLocalMcpActivityInput): Promise<void>;
-  cleanupLocalMcpActivity(input: CleanupLocalMcpActivityInput): Promise<void>;
+  cleanupRunResourcesActivity(input: CleanupRunResourcesActivityInput): Promise<void>;
   prepareAndRegisterToolActivity(input: PrepareAndRegisterToolActivityInput): Promise<void>;
   areAllToolsReadyActivity(input: {
     runId: string;
@@ -113,8 +113,14 @@ const MCP_SERVER_COMPONENTS: Record<
   },
 };
 
+const MCP_GROUP_COMPONENTS = ['mcp.group.aws'];
+
 function isMcpServerComponent(componentId: string): boolean {
   return componentId in MCP_SERVER_COMPONENTS;
+}
+
+function isMcpGroupComponent(componentId: string): boolean {
+  return MCP_GROUP_COMPONENTS.includes(componentId);
 }
 
 /**
@@ -212,6 +218,9 @@ export async function shipsecWorkflowRun(
             ...request.arguments,
           },
           params: request.parameters ?? {},
+          // Pass credentials as inputOverrides so resolveSecretInputOverrides
+          // in runComponentActivity resolves secret names to actual values.
+          inputOverrides: request.credentials ?? {},
           metadata: {
             streamId: request.callId,
           },
@@ -668,7 +677,12 @@ export async function shipsecWorkflowRun(
 
         const isToolMode = nodeMetadata?.mode === 'tool';
 
-        if (isToolMode) {
+        // MCP groups in tool mode should execute normally (not skip execution)
+        // They will register individual servers as separate tools during execution
+        const isMcpGroup = isMcpGroupComponent(action.componentId);
+        const shouldSkipExecution = isToolMode && !isMcpGroup;
+
+        if (shouldSkipExecution) {
           console.log(`[Workflow] Node ${action.ref} is in tool mode, registering...`);
 
           // Track any started containers for cleanup on failure
@@ -746,13 +760,22 @@ export async function shipsecWorkflowRun(
                 `[Workflow] Cleaning up MCP container ${startedContainerId} after registration failure`,
               );
               try {
-                await cleanupLocalMcpActivity({ runId: input.runId });
+                await cleanupRunResourcesActivity({ runId: input.runId });
               } catch (cleanupError) {
                 console.error(`[Workflow] Failed to cleanup MCP container: ${cleanupError}`);
               }
             }
             throw error;
           }
+        }
+
+        // MCP groups in tool mode: execute FIRST, then register as ready AFTER discovery completes.
+        // This prevents a race condition where the agent starts before child servers are discovered.
+        // The agent's areAllToolsReadyActivity check will poll until this registration happens.
+        if (isToolMode && isMcpGroup) {
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} is in tool mode, will register as ready AFTER execution completes (to avoid race with agent tool discovery)`,
+          );
         }
 
         if (isMcpServerComponent(action.componentId)) {
@@ -816,7 +839,30 @@ export async function shipsecWorkflowRun(
           }
         }
 
+        // Debug logging: Track component execution start
+        console.log(
+          `[Workflow] Executing component ${action.componentId} (node ${action.ref})${isMcpGroup ? ' [MCP Group]' : ''}${isToolMode ? ' [Tool Mode]' : ''}`,
+        );
+
         const output = await runComponentWithRetry(activityInput);
+
+        // MCP groups in tool mode: NOW register the parent as ready after execution completes.
+        // This ensures child servers are discovered and registered before the agent starts.
+        if (isToolMode && isMcpGroup) {
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} execution complete, now registering parent as ready...`,
+          );
+          await prepareAndRegisterToolActivity({
+            runId: input.runId,
+            nodeId: action.ref,
+            componentId: action.componentId,
+            inputs: mergedInputs,
+            params: mergedParams,
+          });
+          console.log(
+            `[Workflow] MCP Group node ${action.ref} registered as ready (child servers already registered during execution)`,
+          );
+        }
 
         // Check if this is a pending human input request (approval gate, form, choice, etc.)
         if (isApprovalPending(output.output)) {
@@ -1013,7 +1059,7 @@ export async function shipsecWorkflowRun(
     console.log(
       `[Workflow] Cleaning up MCP containers for run ${input.runId} (success=${workflowCompletedSuccessfully})`,
     );
-    await cleanupLocalMcpActivity({ runId: input.runId }).catch((err) => {
+    await cleanupRunResourcesActivity({ runId: input.runId }).catch((err) => {
       console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
     });
     await finalizeRunActivity({ runId: input.runId }).catch((err) => {

@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "bun@1.1.20",
   "scripts": {
-    "dev": "bun run migration:push && bun --watch src/main.ts",
+    "dev": "bun run migration:push --force && bun --watch src/main.ts",
     "start": "bun run migration:push && bun run src/main.ts",
     "start:prod": "bun run build/main.js",
     "build": "bun build src/main.ts --outdir build --target bun",
@@ -77,6 +77,7 @@
     "@typescript-eslint/eslint-plugin": "^8.53.1",
     "@typescript-eslint/parser": "^8.53.1",
     "bun-types": "^1.3.6",
+    "cookie-parser": "^1.4.7",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { ExecutionContext } from '@shipsec/component-sdk';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { startMcpDockerServer } from './mcp-runtime';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
@@ -20,6 +22,7 @@ export const McpGroupTemplateSchema = z.object({
   servers: z.array(
     z.object({
       id: z.string(),
+      name: z.string(),
       command: z.string(),
       args: z.array(z.string()).optional(),
     }),
@@ -49,81 +52,6 @@ export const GroupCredentialsSchema = z.object({
 });
 
 export type GroupCredentials = z.infer<typeof GroupCredentialsSchema>;
-
-/**
- * Fetches server details from the MCP Group Servers API
- */
-async function fetchGroupServers(
-  groupSlug: string,
-  serverIds: string[],
-  context: ExecutionContext,
-): Promise<McpServerEndpoint[]> {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  const internalApiUrl = `${backendUrl}/internal/mcp`;
-
-  // Generate internal API token
-  const tokenResponse = await fetch(`${internalApiUrl}/generate-token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      runId: context.runId,
-      allowedNodeIds: [context.componentRef],
-    }),
-  });
-
-  if (!tokenResponse.ok) {
-    throw new Error(`Failed to generate internal API token: ${tokenResponse.statusText}`);
-  }
-
-  const { token } = (await tokenResponse.json()) as { token: string };
-
-  const results: McpServerEndpoint[] = [];
-
-  for (const serverId of serverIds) {
-    try {
-      const registerResponse = await fetch(`${internalApiUrl}/register-group-server`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          runId: context.runId,
-          nodeId: context.componentRef,
-          groupSlug,
-          serverId,
-        }),
-      });
-
-      if (!registerResponse.ok) {
-        throw new Error(`Failed to fetch server ${serverId}: ${registerResponse.statusText}`);
-      }
-
-      const serverData = (await registerResponse.json()) as {
-        command: string;
-        args?: string[];
-        endpoint?: string;
-      };
-
-      // For HTTP servers, return directly
-      if (serverData.endpoint) {
-        results.push({
-          endpoint: serverData.endpoint,
-          containerId: '',
-          serverId,
-        });
-      }
-      // For stdio servers, we'll start containers below
-    } catch (error) {
-      console.error(`Failed to fetch server ${serverId}:`, error);
-      throw error;
-    }
-  }
-
-  return results;
-}
 
 /**
  * Maps credential contract values to environment variables
@@ -205,22 +133,40 @@ export async function executeMcpGroupNode(
   params: { enabledServers: string[] },
   groupTemplate: McpGroupTemplate,
 ): Promise<{ endpoints: McpServerEndpoint[] }> {
-  const credentials = inputs.credentials;
   const enabledServers = params.enabledServers || [];
+  console.log(`[executeMcpGroupNode] ============================================`);
+  console.log(`[executeMcpGroupNode] Starting execution for group ${groupTemplate.slug}`);
+  console.log(`[executeMcpGroupNode] Component ref: ${context.componentRef}`);
+  console.log(`[executeMcpGroupNode] Run ID: ${context.runId}`);
+  console.log(`[executeMcpGroupNode] Enabled servers: ${enabledServers.join(', ')}`);
+  console.log(
+    `[executeMcpGroupNode] [DEBUG] componentRef should match workflow node ID for proper gateway filtering`,
+  );
+  console.log(
+    `[executeMcpGroupNode] [DEBUG] Child server nodeIds will be: ${enabledServers.map((s) => `${context.componentRef}/${s}`).join(', ')}`,
+  );
+
+  const credentials = inputs.credentials;
 
   if (!credentials || Object.keys(credentials).length === 0) {
     throw new Error('Credentials are required for MCP group execution');
   }
 
   if (enabledServers.length === 0) {
+    console.log(`[executeMcpGroupNode] No enabled servers, returning empty endpoints`);
     return { endpoints: [] };
   }
 
   // Build environment variables from credential mapping
   const env = buildCredentialEnv(credentials, groupTemplate.credentialMapping);
+  console.log(`[executeMcpGroupNode] Built credential env:`, Object.keys(env));
 
-  // Fetch server details from backend
-  const serverDetails = await fetchGroupServers(groupTemplate.slug, enabledServers, context);
+  // Get enabled servers from template (no API call needed!)
+  const enabledServerTemplates = groupTemplate.servers.filter((s) => enabledServers.includes(s.id));
+
+  console.log(
+    `[executeMcpGroupNode] Processing ${enabledServerTemplates.length} enabled servers from template`,
+  );
 
   const endpoints: McpServerEndpoint[] = [];
   const volumes: ReturnType<IsolatedContainerVolume['getVolumeConfig']>[] = [];
@@ -241,55 +187,76 @@ export async function executeMcpGroupNode(
       }
     }
 
-    // Start container for each stdio server
-    for (const serverDetail of serverDetails) {
-      if (!serverDetail.endpoint) {
-        // This is a stdio server, need to start container
-        const serverTemplate = groupTemplate.servers.find((s) => s.id === serverDetail.serverId);
+    // Process each enabled server
+    for (const serverTemplate of enabledServerTemplates) {
+      console.log(`[executeMcpGroupNode] ----------------------------------------`);
+      console.log(`[executeMcpGroupNode] Starting container for server: ${serverTemplate.id}`);
+      console.log(`[executeMcpGroupNode] Command: ${serverTemplate.command}`);
+      console.log(`[executeMcpGroupNode] Args: ${JSON.stringify(serverTemplate.args || [])}`);
+      console.log(`[executeMcpGroupNode] Image: ${groupTemplate.defaultDockerImage}`);
 
-        if (!serverTemplate) {
-          throw new Error(`Server template not found: ${serverDetail.serverId}`);
-        }
+      // Set MCP_COMMAND for the stdio proxy
+      // MCP_NAMED_SERVERS='{}' disables the built-in named-servers.json config
+      // so the proxy falls through to MCP_COMMAND mode
+      const serverEnv: Record<string, string> = {
+        ...env,
+        MCP_COMMAND: serverTemplate.command,
+        MCP_NAMED_SERVERS: '{}',
+      };
 
-        // Set MCP_COMMAND for the stdio proxy
-        const serverEnv: Record<string, string> = {
-          ...env,
-          MCP_COMMAND: serverTemplate.command,
-        };
-
-        if (serverTemplate.args && serverTemplate.args.length > 0) {
-          serverEnv.MCP_ARGS = JSON.stringify(serverTemplate.args);
-        }
-
-        const result = await startMcpDockerServer({
-          image: groupTemplate.defaultDockerImage,
-          command: serverTemplate.command.split(' '),
-          env: serverEnv,
-          port: 0, // Auto-assign port
-          params: {},
-          context,
-          volumes,
-        });
-
-        // Register with backend
-        await registerServerWithBackend(
-          serverDetail.serverId,
-          result.endpoint,
-          result.containerId ?? '',
-          context,
-        );
-
-        endpoints.push({
-          endpoint: result.endpoint,
-          containerId: result.containerId || '',
-          serverId: serverDetail.serverId,
-        });
-      } else {
-        // HTTP server, already has endpoint
-        endpoints.push(serverDetail);
+      if (serverTemplate.args && serverTemplate.args.length > 0) {
+        serverEnv.MCP_ARGS = JSON.stringify(serverTemplate.args);
       }
+
+      console.log(`[executeMcpGroupNode] Env vars:`, Object.keys(serverEnv));
+
+      const result = await startMcpDockerServer({
+        image: groupTemplate.defaultDockerImage,
+        command: [],
+        env: serverEnv,
+        port: 0, // Auto-assign port
+        params: {},
+        context,
+        volumes,
+      });
+
+      console.log(`[executeMcpGroupNode] Container started successfully!`);
+      console.log(`[executeMcpGroupNode] Endpoint: ${result.endpoint}`);
+      console.log(`[executeMcpGroupNode] Container ID: ${result.containerId}`);
+
+      // Register with backend using hierarchical node ID (parent/child format)
+      // This allows explicit hierarchical queries instead of fragile prefix matching
+      const uniqueNodeId = `${context.componentRef}/${serverTemplate.id}`;
+      console.log(`[executeMcpGroupNode] Registering with backend...`);
+      console.log(`[executeMcpGroupNode] Unique nodeId: ${uniqueNodeId}`);
+      console.log(
+        `[executeMcpGroupNode] Backend URL: ${process.env.BACKEND_URL || 'http://localhost:3211'}`,
+      );
+
+      await registerServerWithBackend(
+        serverTemplate.id,
+        result.endpoint,
+        result.containerId ?? '',
+        context,
+      );
+
+      console.log(`[executeMcpGroupNode] Registration successful!`);
+
+      endpoints.push({
+        endpoint: result.endpoint,
+        containerId: result.containerId || '',
+        serverId: serverTemplate.id,
+      });
     }
 
+    console.log(`[executeMcpGroupNode] ============================================`);
+    console.log(`[executeMcpGroupNode] Execution complete!`);
+    console.log(`[executeMcpGroupNode] Total endpoints: ${endpoints.length}`);
+    console.log(
+      `[executeMcpGroupNode] Endpoints:`,
+      endpoints.map((e) => `${e.serverId} -> ${e.endpoint}`),
+    );
+    console.log(`[executeMcpGroupNode] ============================================`);
     return { endpoints };
   } catch (error) {
     // Cleanup volume on error
@@ -301,7 +268,86 @@ export async function executeMcpGroupNode(
 }
 
 /**
- * Registers a server with the backend Tool Registry
+ * Schema for discovered MCP tools
+ */
+interface McpTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+/**
+ * Discover tools from an MCP endpoint with exponential backoff retry.
+ *
+ * Uses the MCP SDK Client + StreamableHTTPClientTransport so that a proper
+ * `initialize` handshake is performed before `tools/list`.  Many MCP servers
+ * (including the AWS MCP servers) reject a bare `tools/list` request without
+ * a preceding `initialize`, which caused the old raw-fetch implementation to
+ * silently return zero tools.
+ */
+async function discoverToolsWithRetry(
+  endpoint: string,
+  maxRetries = 8,
+  baseDelayMs = 1000,
+): Promise<McpTool[]> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    let client: Client | null = null;
+    try {
+      console.log(
+        `[discoverToolsWithRetry] Attempt ${attempt}/${maxRetries}: Discovering tools from ${endpoint}`,
+      );
+
+      const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
+        requestInit: {
+          headers: {
+            Accept: 'application/json, text/event-stream',
+          },
+        },
+      });
+
+      client = new Client(
+        { name: 'shipsec-worker-tool-discovery', version: '1.0.0' },
+        { capabilities: {} },
+      );
+
+      await client.connect(transport);
+      const res = await client.listTools();
+      await client.close().catch(() => {});
+
+      const tools: McpTool[] = (res.tools ?? []).map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema as Record<string, unknown> | undefined,
+      }));
+      console.log(
+        `[discoverToolsWithRetry] ✓ Discovered ${tools.length} tools on attempt ${attempt}`,
+      );
+      return tools;
+    } catch (error) {
+      lastError = error as Error;
+      await client?.close().catch(() => {});
+      console.warn(`[discoverToolsWithRetry] Attempt ${attempt} failed: ${lastError.message}`);
+
+      if (attempt < maxRetries) {
+        const delayMs = Math.min(baseDelayMs * Math.pow(2, attempt - 1), 5000);
+        console.log(`[discoverToolsWithRetry] Retrying in ${delayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  console.error(
+    `[discoverToolsWithRetry] ✗ Failed after ${maxRetries} attempts: ${lastError?.message}`,
+  );
+  return [];
+}
+
+/**
+ * Registers a server with the backend Tool Registry using the new clean API.
+ *
+ * Uses the /register-mcp-server endpoint which accepts pre-discovered tools.
  */
 async function registerServerWithBackend(
   serverId: string,
@@ -309,49 +355,49 @@ async function registerServerWithBackend(
   containerId: string,
   context: ExecutionContext,
 ): Promise<void> {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-  const internalApiUrl = `${backendUrl}/internal/mcp`;
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3211';
+  const internalApiUrl = `${backendUrl}/api/v1/internal/mcp`;
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token';
 
-  // Generate internal API token
-  const tokenResponse = await fetch(`${internalApiUrl}/generate-token`, {
+  // Use a unique nodeId for each server to avoid overwriting in Redis
+  // Format: ${groupNodeId}/${serverId} (e.g., "aws-mcp-group/aws-cloudtrail")
+  const uniqueNodeId = `${context.componentRef}/${serverId}`;
+
+  console.log(`[registerServerWithBackend] Registering server ${serverId}`);
+  console.log(`[registerServerWithBackend] Unique nodeId: ${uniqueNodeId}`);
+  console.log(`[registerServerWithBackend] Endpoint: ${endpoint}`);
+
+  // Discover tools from endpoint with retry logic
+  console.log(`[registerServerWithBackend] Discovering tools from endpoint...`);
+  const discoveredTools = await discoverToolsWithRetry(endpoint);
+  console.log(`[registerServerWithBackend] Discovered ${discoveredTools.length} tools`);
+
+  // Register using the new clean API
+  const registerResponse = await fetch(`${internalApiUrl}/register-mcp-server`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-internal-token': internalToken,
     },
     body: JSON.stringify({
       runId: context.runId,
-      allowedNodeIds: [context.componentRef],
-    }),
-  });
-
-  if (!tokenResponse.ok) {
-    throw new Error(`Failed to generate internal API token: ${tokenResponse.statusText}`);
-  }
-
-  const { token } = (await tokenResponse.json()) as { token: string };
-
-  // Register the local MCP with the Tool Registry
-  const registerResponse = await fetch(`${internalApiUrl}/register-local`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      runId: context.runId,
-      nodeId: context.componentRef,
-      toolName: serverId,
-      description: `MCP tools from ${serverId}`,
-      inputSchema: {
-        type: 'object',
-        properties: {},
-      },
+      nodeId: uniqueNodeId,
+      serverName: serverId,
+      serverId,
+      transport: 'stdio',
       endpoint,
       containerId,
+      tools: discoveredTools,
     }),
   });
 
   if (!registerResponse.ok) {
+    const errorText = await registerResponse.text();
+    console.error(`[registerServerWithBackend] Registration failed: ${errorText}`);
     throw new Error(`Failed to register server ${serverId}: ${registerResponse.statusText}`);
   }
+
+  console.log(
+    `[registerServerWithBackend] ✓ Registered ${serverId} with ${discoveredTools.length} tools`,
+  );
 }
