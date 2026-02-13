@@ -26,6 +26,8 @@ import { GitHubPage } from '@/pages/GitHubPage';
 import { ScanResultPage } from '@/pages/ScanResultPage';
 import CreateTriggerRulePage from '@/pages/CreateTriggerRulePage';
 import EditTriggerRulePage from '@/pages/EditTriggerRulePage';
+import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
+import { AwsSecurityDashboard } from '@/pages/AwsSecurityDashboard';
 import { ToastProvider } from '@/components/ui/toast-provider';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthProvider } from '@/auth/auth-context';
@@ -281,6 +283,7 @@ function App() {
                     <Route path="/schedules" element={<SchedulesPage />} />
                     <Route path="/action-center" element={<ActionCenterPage />} />
                     <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
+                    <Route path="/dashboards/aws-security" element={<AwsSecurityDashboard />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
                     <Route path="/mcp-library" element={<McpLibraryPage />} />
                     <Route path="/github" element={<GitHubPage />} />
