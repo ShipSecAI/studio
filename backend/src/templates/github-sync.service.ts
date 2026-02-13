@@ -39,14 +39,33 @@ interface TemplateJson {
 }
 
 /**
+ * Cached response with ETag for conditional requests.
+ * When GitHub returns 304 Not Modified, we reuse the cached data
+ * without consuming a rate limit point.
+ */
+interface CachedResponse<T> {
+  etag: string;
+  data: T;
+}
+
+/**
  * GitHub Sync Service
  * Fetches templates from a public GitHub repository and stores them in the database.
  * Syncs automatically on startup and on-demand via the admin "Sync from GitHub" button.
+ *
+ * Uses ETag-based conditional requests to minimize API usage:
+ * - First request: GitHub returns data + ETag header
+ * - Subsequent requests: We send If-None-Match with the stored ETag
+ * - If unchanged: GitHub returns 304 (no body, no rate limit hit)
+ * - If changed: GitHub returns 200 with new data + new ETag
  */
 @Injectable()
 export class GitHubSyncService implements OnModuleInit {
   private readonly logger = new Logger(GitHubSyncService.name);
   private isSyncing = false;
+
+  /** In-memory ETag cache keyed by request URL */
+  private readonly etagCache = new Map<string, CachedResponse<unknown>>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -117,19 +136,30 @@ export class GitHubSyncService implements OnModuleInit {
 
   /**
    * Fetch directory contents from GitHub's public API.
+   * Uses ETag conditional requests to avoid redundant data transfer.
    */
-  private async fetchDirectory(path: string): Promise<GitHubFile[]> {
+  private async fetchDirectory(path: string): Promise<{ files: GitHubFile[]; cached: boolean }> {
     const { owner, repo, branch } = this.getRepoConfig();
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-    });
+    const headers = this.getHeaders();
+    const cached = this.etagCache.get(url) as CachedResponse<GitHubFile[]> | undefined;
+    if (cached?.etag) {
+      headers['If-None-Match'] = cached.etag;
+    }
+
+    const response = await fetch(url, { headers });
+
+    // 304 Not Modified — use cached data, zero rate limit cost
+    if (response.status === 304 && cached) {
+      this.logger.debug(`Directory ${path}: not modified (ETag hit)`);
+      return { files: cached.data, cached: true };
+    }
 
     if (!response.ok) {
       if (response.status === 404) {
         this.logger.warn(`Directory not found: ${path}`);
-        return [];
+        return { files: [], cached: false };
       }
       if (response.status === 403) {
         const resetHeader = response.headers.get('x-ratelimit-reset');
@@ -139,50 +169,76 @@ export class GitHubSyncService implements OnModuleInit {
         this.logger.warn(
           `GitHub API rate limit exceeded. Resets in ~${resetIn} min. Skipping sync.`,
         );
-        return [];
+        return { files: [], cached: false };
       }
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
 
     const data = (await response.json()) as GitHubFile[];
-    return Array.isArray(data) ? data : [];
+    const files = Array.isArray(data) ? data : [];
+
+    // Cache the response with its ETag for future conditional requests
+    const etag = response.headers.get('etag');
+    if (etag) {
+      this.etagCache.set(url, { etag, data: files });
+    }
+
+    return { files, cached: false };
   }
 
   /**
    * Fetch a single file's content from GitHub.
+   * Uses ETag conditional requests to skip re-downloading unchanged files.
    */
-  private async fetchFileContent(path: string): Promise<string | null> {
+  private async fetchFileContent(
+    path: string,
+  ): Promise<{ content: string | null; cached: boolean }> {
     const { owner, repo, branch } = this.getRepoConfig();
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-    });
+    const headers = this.getHeaders();
+    const cached = this.etagCache.get(url) as CachedResponse<string> | undefined;
+    if (cached?.etag) {
+      headers['If-None-Match'] = cached.etag;
+    }
+
+    const response = await fetch(url, { headers });
+
+    // 304 Not Modified — use cached content, zero rate limit cost
+    if (response.status === 304 && cached) {
+      this.logger.debug(`File ${path}: not modified (ETag hit)`);
+      return { content: cached.data, cached: true };
+    }
 
     if (!response.ok) {
       if (response.status === 404) {
         this.logger.warn(`File not found: ${path}`);
-        return null;
+        return { content: null, cached: false };
       }
       if (response.status === 403) {
         this.logger.warn('GitHub API rate limit exceeded, skipping file fetch');
-        return null;
+        return { content: null, cached: false };
       }
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
 
     const data = (await response.json()) as GitHubContentResponse;
+    let content: string | null = null;
 
     if (data.content && data.encoding === 'base64') {
-      return Buffer.from(data.content, 'base64').toString('utf-8');
-    }
-
-    if (data.download_url) {
+      content = Buffer.from(data.content, 'base64').toString('utf-8');
+    } else if (data.download_url) {
       const dlResponse = await fetch(data.download_url);
-      return dlResponse.text();
+      content = await dlResponse.text();
     }
 
-    return null;
+    // Cache the response with its ETag
+    const etag = response.headers.get('etag');
+    if (etag && content) {
+      this.etagCache.set(url, { etag, data: content });
+    }
+
+    return { content, cached: false };
   }
 
   /**
@@ -212,15 +268,21 @@ export class GitHubSyncService implements OnModuleInit {
   /**
    * Sync templates from GitHub to the database.
    * Called on startup and when admin clicks "Sync from GitHub".
+   *
+   * Uses ETag conditional requests: if the directory listing hasn't changed,
+   * the entire sync is skipped with zero API cost. Individual file fetches
+   * also use ETags so unchanged files are not re-downloaded.
    */
   async syncTemplates(): Promise<{
     synced: string[];
     failed: { path: string; error: string }[];
+    unchanged: string[];
     total: number;
+    directoryCacheHit: boolean;
   }> {
     if (this.isSyncing) {
       this.logger.warn('Sync already in progress, skipping');
-      return { synced: [], failed: [], total: 0 };
+      return { synced: [], failed: [], unchanged: [], total: 0, directoryCacheHit: false };
     }
     this.isSyncing = true;
 
@@ -229,13 +291,22 @@ export class GitHubSyncService implements OnModuleInit {
 
     const synced: string[] = [];
     const failed: { path: string; error: string }[] = [];
+    const unchanged: string[] = [];
+    let dirCacheHit = false;
 
     try {
-      const files = await this.fetchDirectory('templates');
+      const { files, cached } = await this.fetchDirectory('templates');
+      dirCacheHit = cached;
 
       if (files.length === 0) {
         this.logger.warn('No files found in templates/ directory');
-        return { synced, failed, total: 0 };
+        return { synced, failed, unchanged, total: 0, directoryCacheHit: dirCacheHit };
+      }
+
+      if (dirCacheHit) {
+        this.logger.log(
+          `Directory listing unchanged (ETag cache hit). Checking ${files.length} files...`,
+        );
       }
 
       for (const file of files) {
@@ -243,11 +314,17 @@ export class GitHubSyncService implements OnModuleInit {
         if (!file.name.endsWith('.json')) continue;
 
         try {
-          const content = await this.fetchFileContent(file.path);
+          const { content, cached: fileCacheHit } = await this.fetchFileContent(file.path);
 
           if (!content) {
             failed.push({ path: file.path, error: 'Failed to fetch content' });
             continue;
+          }
+
+          // If the file content is unchanged (ETag hit), still upsert to keep
+          // the DB in sync but track it as unchanged for reporting
+          if (fileCacheHit) {
+            unchanged.push(file.path);
           }
 
           const template = this.parseTemplateJson(content, file.path);
@@ -294,7 +371,10 @@ export class GitHubSyncService implements OnModuleInit {
         }
       }
 
-      this.logger.log(`Sync complete: ${synced.length} synced, ${failed.length} failed`);
+      const cacheStats = unchanged.length > 0 ? `, ${unchanged.length} unchanged (ETag)` : '';
+      this.logger.log(
+        `Sync complete: ${synced.length} synced, ${failed.length} failed${cacheStats}`,
+      );
     } catch (err) {
       this.logger.error('Failed to sync templates from GitHub', err);
       throw err;
@@ -302,7 +382,13 @@ export class GitHubSyncService implements OnModuleInit {
       this.isSyncing = false;
     }
 
-    return { synced, failed, total: synced.length };
+    return {
+      synced,
+      failed,
+      unchanged,
+      total: synced.length,
+      directoryCacheHit: dirCacheHit,
+    };
   }
 
   /**

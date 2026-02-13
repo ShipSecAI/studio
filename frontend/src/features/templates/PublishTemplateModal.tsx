@@ -181,20 +181,13 @@ function extractRequiredSecrets(
 }
 
 /**
- * Strip viewport and node positions from graph to reduce JSON size.
- * These are UI layout hints and not needed for the template's functionality.
+ * Strip viewport from graph to reduce JSON size.
+ * Viewport is a UI layout hint and not needed for the template's functionality.
+ * Note: Node positions are preserved because WorkflowGraphSchema requires them.
  */
 function stripLayoutData(graph: Record<string, unknown>): Record<string, unknown> {
   const stripped = { ...graph };
   delete stripped.viewport;
-
-  if (Array.isArray(stripped.nodes)) {
-    stripped.nodes = (stripped.nodes as Record<string, unknown>[]).map((node) => {
-      const { position, ...rest } = node;
-      return rest;
-    });
-  }
-
   return stripped;
 }
 

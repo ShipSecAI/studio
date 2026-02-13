@@ -111,10 +111,21 @@ export class TemplateService {
     }
 
     // 3. Build the workflow graph from the template, overriding the name
-    const graphData = {
+    //    Templates may lack node positions (stripped during publish to reduce size)
+    //    so we add default positions in a grid layout before schema validation.
+    const graphData: Record<string, unknown> = {
       ...template.graph,
       name: params.workflowName,
     };
+
+    if (Array.isArray(graphData.nodes)) {
+      graphData.nodes = (graphData.nodes as Record<string, unknown>[]).map((node, idx) => {
+        if (!node.position || typeof node.position !== 'object') {
+          return { ...node, position: { x: 250, y: idx * 150 } };
+        }
+        return node;
+      });
+    }
 
     // Parse through the WorkflowGraphSchema to ensure it conforms to the
     // expected shape (adds defaults for viewport, config, etc.)
