@@ -15,7 +15,7 @@ import {
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const NOTIFY_IMAGE = 'ghcr.io/shipsecai/notify:v1.0.7';
+const NOTIFY_IMAGE = 'ghcr.io/shipsecai/notify:latest';
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;
 const MESSAGES_FILE_NAME = 'messages.txt';

@@ -17,7 +17,7 @@ import {
 } from '@shipsec/component-sdk';
 import { IsolatedContainerVolume } from '../../utils/isolated-volume';
 
-const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:v2.12.0';
+const SUBFINDER_IMAGE = 'ghcr.io/shipsecai/subfinder:latest';
 const SUBFINDER_TIMEOUT_SECONDS = 1800; // 30 minutes
 const INPUT_MOUNT_NAME = 'inputs';
 const CONTAINER_INPUT_DIR = `/${INPUT_MOUNT_NAME}`;

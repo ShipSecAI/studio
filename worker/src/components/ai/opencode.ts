@@ -99,7 +99,7 @@ const definition = defineComponent({
   category: 'ai',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/opencode:1.1.53',
+    image: 'ghcr.io/shipsecai/opencode:latest',
     entrypoint: 'opencode', // We will override this in execution
     network: 'host' as const, // Required to access localhost gateway
     command: ['help'],

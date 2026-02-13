@@ -628,7 +628,7 @@ Many ProjectDiscovery images (subfinder, dnsx, naabu, amass, notify) are **distr
 // ✅ CORRECT - Distroless image (no shell available)
 runner: {
   kind: 'docker',
-  image: 'ghcr.io/shipsecai/subfinder:v2.12.0',
+  image: 'ghcr.io/shipsecai/subfinder:latest',
   // No entrypoint — uses image default (/usr/local/bin/subfinder)
   command: [],
   network: 'bridge',
@@ -639,7 +639,7 @@ runner: {
 // ❌ WRONG - Distroless image with shell wrapper (exit code 127)
 runner: {
   kind: 'docker',
-  image: 'ghcr.io/shipsecai/subfinder:v2.12.0',
+  image: 'ghcr.io/shipsecai/subfinder:latest',
   entrypoint: 'sh',  // sh does not exist in distroless images!
   command: ['-c', 'subfinder "$@"', '--'],
 }
