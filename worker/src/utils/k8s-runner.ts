@@ -413,17 +413,21 @@ async function streamPodLogs(
   }
 
   let chunkIndex = 0;
+  let lastTimestamp = Date.now();
   const emitToCollectors = (text: string) => {
     if (context.terminalCollector) {
       chunkIndex += 1;
+      const now = Date.now();
+      const deltaMs = chunkIndex === 1 ? 0 : Math.max(0, now - lastTimestamp);
+      lastTimestamp = now;
       context.terminalCollector({
         runId: context.runId,
         nodeRef: context.componentRef,
         stream: 'pty',
         chunkIndex,
         payload: Buffer.from(text).toString('base64'),
-        recordedAt: new Date().toISOString(),
-        deltaMs: 0,
+        recordedAt: new Date(now).toISOString(),
+        deltaMs,
         origin: 'k8s-job',
         runnerKind: 'k8s',
       });
