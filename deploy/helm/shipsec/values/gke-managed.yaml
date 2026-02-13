@@ -44,7 +44,7 @@ backend:
 worker:
   image:
     repository: us-central1-docker.pkg.dev/shipsec/shipsec-studio/worker
-    tag: e2b51131-wk-20260212130102
+    tag: 8baf8519-wk-20260213054752
   env:
     NODE_ENV: production
     SHIPSEC_ENV: local
