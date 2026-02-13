@@ -1087,6 +1087,29 @@ export const api = {
       return (response.data || []) as WebhookDelivery[];
     },
   },
+
+  analytics: {
+    query: async (body: {
+      query?: Record<string, any>;
+      size?: number;
+      from?: number;
+      aggs?: Record<string, any>;
+      sort?: Record<string, any>[];
+    }) => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/analytics/query`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`Analytics query failed: ${response.status}`);
+      return response.json() as Promise<{
+        total: number;
+        hits: { _id: string; _source: Record<string, any>; _score?: number }[];
+        aggregations?: Record<string, any>;
+      }>;
+    },
+  },
 };
 
 export async function getApiAuthHeaders(): Promise<Record<string, string>> {

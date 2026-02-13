@@ -19,14 +19,15 @@ import {
   Sun,
   Moon,
   Shield,
+  ShieldCheck,
   Search,
   Command,
   Zap,
   Webhook,
   ServerCog,
+  BarChart3,
   Settings,
   ChevronDown,
-  Github,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -280,6 +281,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/action-center',
       icon: Zap,
     },
+    {
+      name: 'Security',
+      href: '/dashboards/aws-security',
+      icon: ShieldCheck,
+    },
     ...(env.VITE_ENABLE_CONNECTIONS
       ? [
           {
@@ -294,11 +300,16 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/artifacts',
       icon: Archive,
     },
-    {
-      name: 'GitHub',
-      href: '/github',
-      icon: Github,
-    },
+    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
+      ? [
+          {
+            name: 'Dashboards',
+            href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
+            icon: BarChart3,
+            external: true,
+          },
+        ]
+      : []),
   ];
 
   const settingsItems = [

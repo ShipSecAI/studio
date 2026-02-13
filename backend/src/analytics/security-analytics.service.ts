@@ -156,6 +156,7 @@ export class SecurityAnalyticsService {
       size?: number;
       from?: number;
       aggs?: Record<string, any>;
+      sort?: Record<string, any>[];
     },
   ): Promise<{
     total: number;
@@ -185,6 +186,7 @@ export class SecurityAnalyticsService {
           size: options.size ?? 10,
           from: options.from ?? 0,
           ...(options.aggs && { aggs: options.aggs }),
+          ...(options.sort && { sort: options.sort }),
         },
       });
 
