@@ -1,144 +1,36 @@
+import {
+  type ComponentCategory,
+  DEFAULT_COMPONENT_CATEGORY,
+  getComponentCategoryDescriptor,
+  normalizeComponentCategory,
+} from '@shipsec/shared';
 import { useThemeStore } from '@/store/themeStore';
 
-// Component category type
-export type ComponentCategory =
-  | 'input'
-  | 'transform'
-  | 'ai'
-  | 'mcp'
-  | 'security'
-  | 'it_ops'
-  | 'notification'
-  | 'manual_action'
-  | 'output';
+function resolveCategory(category: string): ComponentCategory {
+  return normalizeComponentCategory(category) ?? DEFAULT_COMPONENT_CATEGORY;
+}
 
-/**
- * Category-based separator colors (2 shades lighter than normal)
- * Only used for the header separator line
- */
-export const CATEGORY_SEPARATOR_COLORS: Record<ComponentCategory, { light: string; dark: string }> =
-  {
-    input: {
-      light: 'rgb(147 197 253)', // blue-300 (2 shades lighter than blue-500)
-      dark: 'rgb(147 197 253)', // blue-300 (2 shades lighter than blue-400)
-    },
-    transform: {
-      light: 'rgb(253 186 116)', // orange-300 (2 shades lighter than orange-500)
-      dark: 'rgb(253 186 116)', // orange-300 (2 shades lighter than orange-400)
-    },
-    ai: {
-      light: 'rgb(196 181 253)', // violet-300 (2 shades lighter than violet-500)
-      dark: 'rgb(196 181 253)', // violet-300 (2 shades lighter than violet-400)
-    },
-    mcp: {
-      light: 'rgb(153 246 228)', // teal-200
-      dark: 'rgb(94 234 212)', // teal-300
-    },
-    security: {
-      light: 'rgb(252 165 165)', // red-300 (2 shades lighter than red-500)
-      dark: 'rgb(252 165 165)', // red-300 (2 shades lighter than red-400)
-    },
-    it_ops: {
-      light: 'rgb(103 232 249)', // cyan-300 (2 shades lighter than cyan-500)
-      dark: 'rgb(103 232 249)', // cyan-300 (2 shades lighter than cyan-400)
-    },
-    notification: {
-      light: 'rgb(249 168 212)', // pink-300
-      dark: 'rgb(249 168 212)', // pink-300
-    },
-    manual_action: {
-      light: 'rgb(252 211 77)', // amber-300 (2 shades lighter than amber-500)
-      dark: 'rgb(252 211 77)', // amber-300 (2 shades lighter than amber-400)
-    },
-    output: {
-      light: 'rgb(134 239 172)', // green-300 (2 shades lighter than green-500)
-      dark: 'rgb(134 239 172)', // green-300 (2 shades lighter than green-400)
-    },
-  };
+export function getCategoryTextColorClass(category: string): string {
+  return getComponentCategoryDescriptor(resolveCategory(category)).textColorClass;
+}
 
-/**
- * Category-based header background colors (very light shades)
- * Used for node headers and sidebar accordions
- */
-export const CATEGORY_HEADER_BG_COLORS: Record<ComponentCategory, { light: string; dark: string }> =
-  {
-    input: {
-      light: 'rgb(250 252 255)', // custom blue-25
-      dark: 'rgb(23 37 84 / 0.15)', // blue-950/15
-    },
-    transform: {
-      light: 'rgb(255 251 250)', // custom orange-25
-      dark: 'rgb(69 10 10 / 0.15)', // orange-950/15
-    },
-    ai: {
-      light: 'rgb(253 250 255)', // custom violet-25
-      dark: 'rgb(36 25 50 / 0.15)', // violet-950/15
-    },
-    mcp: {
-      light: 'rgb(247 254 253)', // teal-25
-      dark: 'rgb(19 78 74 / 0.15)', // teal-950/15
-    },
-    security: {
-      light: 'rgb(255 250 250)', // custom red-25
-      dark: 'rgb(69 10 10 / 0.15)', // red-950/15
-    },
-    it_ops: {
-      light: 'rgb(250 254 255)', // custom cyan-25
-      dark: 'rgb(22 78 99 / 0.15)', // cyan-950/15
-    },
-    notification: {
-      light: 'rgb(255 250 253)', // pink-25
-      dark: 'rgb(80 7 36 / 0.15)', // pink-950/15
-    },
-    manual_action: {
-      light: 'rgb(255 254 250)', // custom amber-25
-      dark: 'rgb(120 53 15 / 0.15)', // amber-950/15
-    },
-    output: {
-      light: 'rgb(250 255 250)', // custom green-25
-      dark: 'rgb(20 83 45 / 0.15)', // green-950/15
-    },
-  };
-
-/**
- * Get category separator color (for header separator lines)
- * @param category - Component category
- * @param isDarkMode - Whether dark mode is active
- * @returns RGB color string or undefined
- */
-export function getCategorySeparatorColor(
-  category: ComponentCategory,
-  isDarkMode: boolean,
-): string | undefined {
-  const colors = CATEGORY_SEPARATOR_COLORS[category];
+export function getCategorySeparatorColor(category: string, isDarkMode: boolean): string {
+  const colors = getComponentCategoryDescriptor(resolveCategory(category)).separatorColor;
   return isDarkMode ? colors.dark : colors.light;
 }
 
-/**
- * Get category header background color
- * @param category - Component category
- * @param isDarkMode - Whether dark mode is active
- * @returns RGB color string or undefined
- */
-export function getCategoryHeaderBackgroundColor(
-  category: ComponentCategory,
-  isDarkMode: boolean,
-): string | undefined {
-  const colors = CATEGORY_HEADER_BG_COLORS[category];
+export function getCategoryHeaderBackgroundColor(category: string, isDarkMode: boolean): string {
+  const colors = getComponentCategoryDescriptor(resolveCategory(category)).headerBackgroundColor;
   return isDarkMode ? colors.dark : colors.light;
 }
 
-/**
- * Hook to get category colors based on current theme
- * @param category - Component category
- * @returns Object with separatorColor and headerBackgroundColor
- */
-export function useCategoryColors(category: ComponentCategory) {
+export function useCategoryColors(category: string) {
   const theme = useThemeStore((state) => state.theme);
   const isDarkMode = theme === 'dark';
 
   return {
     separatorColor: getCategorySeparatorColor(category, isDarkMode),
     headerBackgroundColor: getCategoryHeaderBackgroundColor(category, isDarkMode),
+    textColorClass: getCategoryTextColorClass(category),
   };
 }

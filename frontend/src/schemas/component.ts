@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { COMPONENT_CATEGORIES } from '@shipsec/shared';
 
 export const ComponentRunnerSchema = z
   .object({
@@ -175,17 +176,7 @@ export const ComponentMetadataSchema = z.object({
   name: z.string().min(1),
   version: z.string().default('1.0.0'),
   type: z.enum(['trigger', 'input', 'scan', 'process', 'output']),
-  category: z.enum([
-    'input',
-    'transform',
-    'ai',
-    'mcp',
-    'security',
-    'it_ops',
-    'notification',
-    'manual_action',
-    'output',
-  ]),
+  category: z.enum(COMPONENT_CATEGORIES),
   categoryConfig: ComponentCategoryConfigSchema.optional().default({
     label: 'Uncategorized',
     color: 'text-muted-foreground',
