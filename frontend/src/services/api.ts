@@ -374,15 +374,7 @@ export const api = {
       return (response.data ?? []) as IntegrationProvider[];
     },
 
-    // D16: userId is now derived from auth context server-side
-    listConnections: async (): Promise<IntegrationConnection[]> => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_V1_URL}/integrations/connections`, { headers });
-      if (!res.ok) throw new Error('Failed to load integrations');
-      return res.json();
-    },
-
-    // D6/D17: org-scoped connection listing
+    // D6: org-scoped connection listing (primary source of truth)
     listOrgConnections: async (provider?: string): Promise<IntegrationConnection[]> => {
       const headers = await getAuthHeaders();
       const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
@@ -1085,29 +1077,6 @@ export const api = {
       const response = await apiClient.listDeliveries(id);
       if (response.error) throw new Error('Failed to fetch webhook deliveries');
       return (response.data || []) as WebhookDelivery[];
-    },
-  },
-
-  analytics: {
-    query: async (body: {
-      query?: Record<string, any>;
-      size?: number;
-      from?: number;
-      aggs?: Record<string, any>;
-      sort?: Record<string, any>[];
-    }) => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/analytics/query`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) throw new Error(`Analytics query failed: ${response.status}`);
-      return response.json() as Promise<{
-        total: number;
-        hits: { _id: string; _source: Record<string, any>; _score?: number }[];
-        aggregations?: Record<string, any>;
-      }>;
     },
   },
 };

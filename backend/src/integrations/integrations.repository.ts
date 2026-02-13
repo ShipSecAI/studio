@@ -51,11 +51,18 @@ export class IntegrationsRepository {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async listConnections(userId: string): Promise<IntegrationTokenRecord[]> {
+  async listConnections(
+    userId: string,
+    organizationId?: string,
+  ): Promise<IntegrationTokenRecord[]> {
+    const conditions = [eq(integrationTokens.userId, userId)];
+    if (organizationId) {
+      conditions.push(eq(integrationTokens.organizationId, organizationId));
+    }
     return await this.db
       .select()
       .from(integrationTokens)
-      .where(eq(integrationTokens.userId, userId))
+      .where(and(...conditions))
       .orderBy(integrationTokens.provider);
   }
 

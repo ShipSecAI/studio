@@ -108,7 +108,9 @@ export class CreateSlackWebhookConnectionDto {
 
   @ApiProperty({ description: 'Slack incoming webhook URL' })
   @IsString()
-  @IsUrl()
+  @Matches(/^https:\/\/hooks\.slack\.com\//, {
+    message: 'webhookUrl must be a valid Slack webhook URL (https://hooks.slack.com/...)',
+  })
   webhookUrl!: string;
 }
 

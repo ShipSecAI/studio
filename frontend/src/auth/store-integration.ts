@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAuth, useAuthProvider } from './auth-context';
 import { useAuthStore } from '../store/authStore';
-import { queryClient } from '@/lib/queryClient';
+import { useIntegrationStore } from '../store/integrationStore';
 
 /**
  * Hook to integrate the new auth system with the existing Zustand store
@@ -11,25 +11,16 @@ export function useAuthStoreIntegration() {
   const { user, token, isAuthenticated, isLoading, error } = useAuth();
   const authProvider = useAuthProvider();
   const { setAuthContext, clear: clearStore } = useAuthStore();
-  const organizationId = useAuthStore((s) => s.organizationId);
-  const prevOrgRef = useRef(organizationId);
+  const prevOrgIdRef = useRef<string | undefined>(undefined);
 
-  // Clear query cache on logout
+  // Reset integration store when org changes
   useEffect(() => {
-    if (!isAuthenticated) {
-      queryClient.cancelQueries();
-      queryClient.clear();
+    const currentOrgId = user?.organizationId;
+    if (prevOrgIdRef.current !== undefined && currentOrgId !== prevOrgIdRef.current) {
+      useIntegrationStore.getState().resetForOrgSwitch();
     }
-  }, [isAuthenticated]);
-
-  // Clear query cache on org change
-  useEffect(() => {
-    if (prevOrgRef.current !== organizationId) {
-      queryClient.cancelQueries();
-      queryClient.clear();
-      prevOrgRef.current = organizationId;
-    }
-  }, [organizationId]);
+    prevOrgIdRef.current = currentOrgId;
+  }, [user?.organizationId]);
 
   useEffect(() => {
     if (isLoading) {

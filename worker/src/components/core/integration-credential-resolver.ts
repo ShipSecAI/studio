@@ -118,7 +118,8 @@ const definition = defineComponent({
 
     context.emitProgress(`Resolving credentials for connection ${connectionId}...`);
 
-    const payload = await fetchConnectionCredentials(connectionId, context);
+    const organizationId = context.metadata.organizationId ?? null;
+    const payload = await fetchConnectionCredentials(connectionId, organizationId, context);
 
     context.logger.info(
       `[IntegrationCredentialResolver] Resolved credentials for connection ${connectionId} (provider=${payload.provider}, type=${payload.credentialType}).`,
@@ -139,6 +140,7 @@ const definition = defineComponent({
 
 async function fetchConnectionCredentials(
   connectionId: string,
+  organizationId: string | null,
   context: ExecutionContext,
 ): Promise<{
   credentialType: string;
@@ -166,21 +168,24 @@ async function fetchConnectionCredentials(
   }
 
   const sensitiveHeaders = internalToken
-    ? Array.from(new Set([...DEFAULT_SENSITIVE_HEADERS, 'x-internal-token']))
+    ? Array.from(new Set([...DEFAULT_SENSITIVE_HEADERS, 'x-internal-token', 'x-organization-id']))
     : DEFAULT_SENSITIVE_HEADERS;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (internalToken) {
+    headers['X-Internal-Token'] = internalToken;
+  }
+  if (organizationId) {
+    headers['X-Organization-Id'] = organizationId;
+  }
 
   const response = await context.http.fetch(
     `${normalizedBase}/integrations/connections/${encodeURIComponent(connectionId)}/credentials`,
     {
       method: 'POST',
-      headers: internalToken
-        ? {
-            'Content-Type': 'application/json',
-            'X-Internal-Token': internalToken,
-          }
-        : {
-            'Content-Type': 'application/json',
-          },
+      headers,
     },
     { sensitiveHeaders },
   );

@@ -15,25 +15,20 @@ interface AwsSetupInfoCache {
 const AWS_SETUP_INFO_TTL_MS = 25 * 60 * 1000;
 
 interface IntegrationStoreState {
-  connections: IntegrationConnection[];
   orgConnections: IntegrationConnection[];
   catalog: IntegrationCatalogEntry[];
-  loadingConnections: boolean;
   loadingOrgConnections: boolean;
   loadingCatalog: boolean;
   error: string | null;
-  initialized: boolean;
   orgInitialized: boolean;
+  /** Track which org the cache is for — invalidate on org switch */
+  _cachedOrgId: string | null;
   _awsSetupInfoCache: AwsSetupInfoCache | null;
 }
 
 interface IntegrationStoreActions {
-  // D16: userId removed — derived from auth context server-side
-  fetchConnections: (force?: boolean) => Promise<void>;
-  // D6: org-scoped connection listing
+  // D6: org-scoped connection listing (primary source of truth)
   fetchOrgConnections: (provider?: string, force?: boolean) => Promise<void>;
-  // D17: merge-and-dedup from both endpoints
-  fetchMergedConnections: () => Promise<IntegrationConnection[]>;
   refreshConnection: (id: string) => Promise<IntegrationConnection>;
   disconnect: (id: string) => Promise<void>;
   upsertConnection: (connection: IntegrationConnection) => void;
@@ -64,6 +59,8 @@ interface IntegrationStoreActions {
   ) => Promise<{ accounts: { id: string; name: string; status: string; email?: string }[] }>;
   fetchCatalog: () => Promise<void>;
   resetError: () => void;
+  /** Reset store when org changes */
+  resetForOrgSwitch: () => void;
 }
 
 type IntegrationStore = IntegrationStoreState & IntegrationStoreActions;
@@ -76,57 +73,15 @@ function sortConnections(connections: IntegrationConnection[]) {
   });
 }
 
-/**
- * D17: Merge connections from user-scoped and org-scoped endpoints, dedup by id.
- * Org-scoped takes precedence if the same id appears in both (shouldn't happen).
- */
-function mergeAndDedup(
-  userConnections: IntegrationConnection[],
-  orgConnections: IntegrationConnection[],
-): IntegrationConnection[] {
-  const byId = new Map<string, IntegrationConnection>();
-  for (const c of userConnections) {
-    byId.set(c.id, c);
-  }
-  for (const c of orgConnections) {
-    byId.set(c.id, c); // org-scoped takes precedence
-  }
-  return sortConnections(Array.from(byId.values()));
-}
-
 export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
-  connections: [],
   orgConnections: [],
   catalog: [],
-  loadingConnections: false,
   loadingOrgConnections: false,
   loadingCatalog: false,
   error: null,
-  initialized: false,
   orgInitialized: false,
+  _cachedOrgId: null,
   _awsSetupInfoCache: null,
-
-  fetchConnections: async (force = false) => {
-    const { loadingConnections, initialized } = get();
-    if (loadingConnections || (!force && initialized)) {
-      return;
-    }
-
-    set({ loadingConnections: true, error: null });
-    try {
-      const connections = await api.integrations.listConnections();
-      set({
-        connections: sortConnections(connections),
-        loadingConnections: false,
-        initialized: true,
-      });
-    } catch (error) {
-      set({
-        loadingConnections: false,
-        error: error instanceof Error ? error.message : 'Failed to load integrations',
-      });
-    }
-  },
 
   fetchOrgConnections: async (provider?: string, force = false) => {
     const { loadingOrgConnections, orgInitialized } = get();
@@ -150,32 +105,8 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
     }
   },
 
-  fetchMergedConnections: async () => {
-    // D17: call both endpoints, merge, dedup
-    const results = await Promise.allSettled([
-      api.integrations.listConnections(),
-      api.integrations.listOrgConnections(),
-    ]);
-
-    const userConns = results[0].status === 'fulfilled' ? results[0].value : [];
-    const orgConns = results[1].status === 'fulfilled' ? results[1].value : [];
-
-    if (results[0].status === 'rejected' && results[1].status === 'rejected') {
-      throw new Error('Failed to load connections from both endpoints');
-    }
-
-    const merged = mergeAndDedup(userConns, orgConns);
-    set({ connections: userConns, orgConnections: orgConns });
-    return merged;
-  },
-
   upsertConnection: (connection: IntegrationConnection) => {
     set((state) => ({
-      connections: sortConnections(
-        state.connections.some((item) => item.id === connection.id)
-          ? state.connections.map((item) => (item.id === connection.id ? connection : item))
-          : [...state.connections, connection],
-      ),
       orgConnections: sortConnections(
         state.orgConnections.some((item) => item.id === connection.id)
           ? state.orgConnections.map((item) => (item.id === connection.id ? connection : item))
@@ -188,7 +119,6 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
     try {
       const refreshed = await api.integrations.refreshConnection(id);
       set((state) => ({
-        connections: sortConnections(state.connections.map((c) => (c.id === id ? refreshed : c))),
         orgConnections: sortConnections(
           state.orgConnections.map((c) => (c.id === id ? refreshed : c)),
         ),
@@ -206,7 +136,6 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
     try {
       await api.integrations.disconnect(id);
       set((state) => ({
-        connections: state.connections.filter((c) => c.id !== id),
         orgConnections: state.orgConnections.filter((c) => c.id !== id),
       }));
     } catch (error) {
@@ -280,5 +209,15 @@ export const useIntegrationStore = create<IntegrationStore>((set, get) => ({
 
   resetError: () => {
     set({ error: null });
+  },
+
+  resetForOrgSwitch: () => {
+    set({
+      orgConnections: [],
+      orgInitialized: false,
+      _cachedOrgId: null,
+      _awsSetupInfoCache: null,
+      error: null,
+    });
   },
 }));

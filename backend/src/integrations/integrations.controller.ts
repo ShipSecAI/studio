@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Logger,
@@ -130,7 +131,10 @@ export class IntegrationsController {
       throw new BadRequestException('Authentication required');
     }
 
-    const connections = await this.integrations.listConnections(userId);
+    const connections = await this.integrations.listConnections(
+      userId,
+      auth.organizationId ?? undefined,
+    );
     return connections.map((c) => this.toConnectionResponse(c));
   }
 
@@ -243,7 +247,13 @@ export class IntegrationsController {
   @Post('connections/:id/token')
   @InternalOnly()
   @ApiOkResponse({ type: ConnectionTokenResponseDto })
-  async issueConnectionToken(@Param('id') id: string): Promise<ConnectionTokenResponseDto> {
+  async issueConnectionToken(
+    @Param('id') id: string,
+    @Headers('x-organization-id') orgId?: string,
+  ): Promise<ConnectionTokenResponseDto> {
+    if (orgId) {
+      await this.integrations.assertConnectionBelongsToOrg(id, orgId);
+    }
     const token = await this.integrations.getConnectionToken(id);
     return {
       provider: token.provider,
@@ -262,7 +272,13 @@ export class IntegrationsController {
   @Post('connections/:id/credentials')
   @InternalOnly()
   @ApiOkResponse({ type: ConnectionCredentialsResponseDto })
-  async resolveCredentials(@Param('id') id: string): Promise<ConnectionCredentialsResponseDto> {
+  async resolveCredentials(
+    @Param('id') id: string,
+    @Headers('x-organization-id') orgId?: string,
+  ): Promise<ConnectionCredentialsResponseDto> {
+    if (orgId) {
+      await this.integrations.assertConnectionBelongsToOrg(id, orgId);
+    }
     const result = await this.integrations.resolveConnectionCredentials(id);
     return {
       credentialType: result.credentialType,

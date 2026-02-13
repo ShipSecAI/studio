@@ -1,19 +1,47 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+/** Allowed webhook URL hostnames to prevent SSRF. */
+const ALLOWED_WEBHOOK_HOSTS = new Set(['hooks.slack.com', 'hooks.slack-gov.com']);
+
 @Injectable()
 export class SlackService {
   private readonly logger = new Logger(SlackService.name);
+
+  /**
+   * Validate that a webhook URL points to an allowed Slack domain.
+   */
+  assertSafeWebhookUrl(webhookUrl: string): void {
+    let parsed: URL;
+    try {
+      parsed = new URL(webhookUrl);
+    } catch {
+      throw new Error('Invalid webhook URL');
+    }
+
+    if (parsed.protocol !== 'https:') {
+      throw new Error('Webhook URL must use HTTPS');
+    }
+
+    if (!ALLOWED_WEBHOOK_HOSTS.has(parsed.hostname)) {
+      throw new Error(
+        `Webhook URL hostname "${parsed.hostname}" is not allowed. Must be one of: ${[...ALLOWED_WEBHOOK_HOSTS].join(', ')}`,
+      );
+    }
+  }
 
   /**
    * Test a Slack webhook URL by sending a test message
    */
   async testWebhook(webhookUrl: string): Promise<{ ok: boolean; error?: string }> {
     try {
+      this.assertSafeWebhookUrl(webhookUrl);
+
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: AbortSignal.timeout(10_000),
         body: JSON.stringify({
           text: 'ShipSec test message — your Slack webhook is configured correctly.',
         }),

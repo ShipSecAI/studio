@@ -22,7 +22,6 @@ import { useIntegrationStore } from '@/store/integrationStore';
 import { useArtifactStore } from '@/store/artifactStore';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
-import type { IntegrationConnection } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import {
   Dialog,
@@ -68,12 +67,10 @@ export function ParameterField({
   const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
   const refreshSecrets = useSecretStore((state) => state.refresh);
 
-  const fetchMergedConnections = useIntegrationStore((state) => state.fetchMergedConnections);
-  const integrationLoading = useIntegrationStore((state) => state.loadingConnections);
+  const fetchOrgConnections = useIntegrationStore((state) => state.fetchOrgConnections);
+  const orgConnections = useIntegrationStore((state) => state.orgConnections);
+  const integrationLoading = useIntegrationStore((state) => state.loadingOrgConnections);
   const integrationError = useIntegrationStore((state) => state.error);
-
-  // D17: merged connections from both user-scoped and org-scoped endpoints
-  const [mergedConnections, setMergedConnections] = useState<IntegrationConnection[]>([]);
   const hasFetchedConnectionsRef = useRef(false);
   const autoSelectedConnectionRef = useRef(false);
 
@@ -103,8 +100,8 @@ export function ParameterField({
 
   // D17: use merged connections (combines user-scoped and org-scoped)
   const githubConnections = useMemo(
-    () => mergedConnections.filter((connection) => connection.provider === 'github'),
-    [mergedConnections],
+    () => orgConnections.filter((connection) => connection.provider === 'github'),
+    [orgConnections],
   );
 
   // For the generic credential resolver, filter by explicit `provider` param or infer from node label
@@ -123,9 +120,9 @@ export function ParameterField({
   const filteredConnections = useMemo(
     () =>
       credResolverProviderFilter
-        ? mergedConnections.filter((c) => c.provider === credResolverProviderFilter)
-        : mergedConnections,
-    [mergedConnections, credResolverProviderFilter],
+        ? orgConnections.filter((c) => c.provider === credResolverProviderFilter)
+        : orgConnections,
+    [orgConnections, credResolverProviderFilter],
   );
 
   // Pick the right list depending on the component
@@ -212,13 +209,9 @@ export function ParameterField({
       return;
     }
     hasFetchedConnectionsRef.current = true;
-    // D17: fetch merged connections (user-scoped + org-scoped, deduped)
-    fetchMergedConnections()
-      .then((merged) => setMergedConnections(merged))
-      .catch((error) => {
-        console.error('Failed to load integration connections', error);
-      });
-  }, [isConnectionSelector, fetchMergedConnections]);
+    // Fetch org-scoped connections only (user-scoped is redundant and risks cross-org leak)
+    fetchOrgConnections(undefined, true);
+  }, [isConnectionSelector, fetchOrgConnections]);
 
   useEffect(() => {
     if (!isConnectionSelector || integrationLoading) {
@@ -257,8 +250,7 @@ export function ParameterField({
 
   const handleRefreshConnections = async () => {
     try {
-      const merged = await fetchMergedConnections();
-      setMergedConnections(merged);
+      await fetchOrgConnections(undefined, true);
     } catch (error) {
       console.error('Failed to refresh integration connections', error);
     }

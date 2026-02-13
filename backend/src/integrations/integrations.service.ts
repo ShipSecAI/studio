@@ -241,8 +241,8 @@ export class IntegrationsService implements OnModuleInit {
   /*  Connection listing                                                */
   /* ------------------------------------------------------------------ */
 
-  async listConnections(userId: string): Promise<IntegrationConnection[]> {
-    const records = await this.repository.listConnections(userId);
+  async listConnections(userId: string, organizationId?: string): Promise<IntegrationConnection[]> {
+    const records = await this.repository.listConnections(userId, organizationId);
     return records.map((record) => this.toConnection(record));
   }
 
@@ -557,6 +557,9 @@ export class IntegrationsService implements OnModuleInit {
     const userId = auth.userId!;
     const organizationId = auth.organizationId!;
 
+    // Defense-in-depth: validate webhook URL domain even though DTO already validates
+    this.slackService.assertSafeWebhookUrl(input.webhookUrl);
+
     // Encrypt the webhook URL as a JSON payload
     const encryptedCreds = await this.encryption.encrypt(
       JSON.stringify({ webhookUrl: input.webhookUrl }),
@@ -780,6 +783,23 @@ export class IntegrationsService implements OnModuleInit {
     }
 
     return record;
+  }
+
+  /**
+   * Lightweight org check for internal (worker) endpoints.
+   * If the caller provides an org ID, verify the connection belongs to that org.
+   */
+  async assertConnectionBelongsToOrg(connectionId: string, organizationId: string): Promise<void> {
+    const record = await this.repository.findById(connectionId);
+    if (!record) {
+      throw new NotFoundException(`Connection ${connectionId} was not found`);
+    }
+
+    if (record.organizationId !== organizationId) {
+      throw new ForbiddenException(
+        `Connection ${connectionId} does not belong to organization ${organizationId}`,
+      );
+    }
   }
 
   /* ------------------------------------------------------------------ */
