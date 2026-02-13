@@ -55,9 +55,12 @@ const SEVERITY_CONFIG = [
 ] as const;
 
 const TIME_RANGES = [
-  { key: '7d', label: '7d', days: 7 },
-  { key: '30d', label: '30d', days: 30 },
-  { key: '90d', label: '90d', days: 90 },
+  { key: '1h', label: '1h', days: 1 / 24, interval: 'minute' },
+  { key: '6h', label: '6h', days: 0.25, interval: 'minute' },
+  { key: '1d', label: '1d', days: 1, interval: 'hour' },
+  { key: '7d', label: '7d', days: 7, interval: 'hour' },
+  { key: '30d', label: '30d', days: 30, interval: 'day' },
+  { key: '90d', label: '90d', days: 90, interval: 'day' },
 ] as const;
 
 // --- Helpers ---
@@ -150,15 +153,23 @@ function TimeSeriesChart({
 }) {
   const chartData = useMemo(() => {
     const now = new Date();
-    const days = TIME_RANGES.find((t) => t.key === timeRange)?.days ?? 30;
+    const range = TIME_RANGES.find((t) => t.key === timeRange);
+    const days = range?.days ?? 30;
     const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // Use time-aware formatting for short ranges
+    const formatOpts: Intl.DateTimeFormatOptions =
+      days <= 1
+        ? { hour: 'numeric', minute: '2-digit' }
+        : days <= 7
+          ? { month: 'short', day: 'numeric', hour: 'numeric' }
+          : { month: 'short', day: 'numeric' };
+
     return data
       .filter((d) => new Date(d.date) >= cutoff)
       .map((d) => ({
         ...d,
-        date: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(
-          new Date(d.date),
-        ),
+        date: new Intl.DateTimeFormat('en-US', formatOpts).format(new Date(d.date)),
       }));
   }, [data, timeRange]);
 
@@ -217,7 +228,7 @@ function TimeSeriesChart({
 export function AwsSecurityDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState('');
-  const [timeRange, setTimeRange] = useState('30d');
+  const [timeRange, setTimeRange] = useState('7d');
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -228,6 +239,9 @@ export function AwsSecurityDashboard() {
   const severityCounts = useSecurityDashboardStore((s) => s.severityCounts);
   const accounts = useSecurityDashboardStore((s) => s.accounts);
   const regions = useSecurityDashboardStore((s) => s.regions);
+  const services = useSecurityDashboardStore((s) => s.services);
+  const complianceFrameworks = useSecurityDashboardStore((s) => s.complianceFrameworks);
+  const checkNames = useSecurityDashboardStore((s) => s.checkNames);
   const statusCounts = useSecurityDashboardStore((s) => s.statusCounts);
   const timeSeries = useSecurityDashboardStore((s) => s.timeSeries);
   const findingsLoading = useSecurityDashboardStore((s) => s.findingsLoading);
@@ -237,8 +251,16 @@ export function AwsSecurityDashboard() {
   const setFilters = useSecurityDashboardStore((s) => s.setFilters);
   const resetFilters = useSecurityDashboardStore((s) => s.resetFilters);
   const fetchAll = useSecurityDashboardStore((s) => s.fetchAll);
+  const fetchTimeSeries = useSecurityDashboardStore((s) => s.fetchTimeSeries);
   const fetchFindingById = useSecurityDashboardStore((s) => s.fetchFindingById);
   const setSelectedFinding = useSecurityDashboardStore((s) => s.setSelectedFinding);
+  const findingLifecycles = useSecurityDashboardStore((s) => s.findingLifecycles);
+  const findingLifecyclesLoading = useSecurityDashboardStore((s) => s.findingLifecyclesLoading);
+  const selectedFindingLifecycle = useSecurityDashboardStore((s) => s.selectedFindingLifecycle);
+  const selectedFindingLifecycleLoading = useSecurityDashboardStore(
+    (s) => s.selectedFindingLifecycleLoading,
+  );
+  const fetchFindingLifecycle = useSecurityDashboardStore((s) => s.fetchFindingLifecycle);
 
   // Parse URL params on mount
   useEffect(() => {
@@ -247,6 +269,10 @@ export function AwsSecurityDashboard() {
     const severity = searchParams.get('severity');
     const status = searchParams.get('status');
     const region = searchParams.get('region');
+    const service = searchParams.get('service');
+    const tags = searchParams.get('tags');
+    const compliance = searchParams.get('compliance');
+    const checkName = searchParams.get('checkName');
     const q = searchParams.get('q');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
@@ -259,6 +285,10 @@ export function AwsSecurityDashboard() {
     if (severity) initial.severity = severity.split(',');
     if (status) initial.status = status.split(',');
     if (region) initial.region = region.split(',');
+    if (service) initial.service = service.split(',');
+    if (tags) initial.tags = tags.split(',');
+    if (compliance) initial.compliance = compliance.split(',');
+    if (checkName) initial.checkName = checkName.split(',');
     if (q) {
       initial.search = q;
       setSearchInput(q);
@@ -286,6 +316,10 @@ export function AwsSecurityDashboard() {
     if (filters.severity.length) params.set('severity', filters.severity.join(','));
     if (filters.status.length) params.set('status', filters.status.join(','));
     if (filters.region.length) params.set('region', filters.region.join(','));
+    if (filters.service.length) params.set('service', filters.service.join(','));
+    if (filters.tags.length) params.set('tags', filters.tags.join(','));
+    if (filters.compliance.length) params.set('compliance', filters.compliance.join(','));
+    if (filters.checkName.length) params.set('checkName', filters.checkName.join(','));
     if (filters.search) params.set('q', filters.search);
     if (filters.from) params.set('from', filters.from);
     if (filters.to) params.set('to', filters.to);
@@ -316,6 +350,10 @@ export function AwsSecurityDashboard() {
     filters.severity,
     filters.status,
     filters.region,
+    filters.service,
+    filters.tags,
+    filters.compliance,
+    filters.checkName,
     filters.search,
     filters.from,
     filters.to,
@@ -348,6 +386,16 @@ export function AwsSecurityDashboard() {
     [filters.severity, setFilters],
   );
 
+  // Time range change — re-fetch time series with the right interval
+  const handleTimeRangeChange = useCallback(
+    (range: string) => {
+      setTimeRange(range);
+      const interval = TIME_RANGES.find((t) => t.key === range)?.interval ?? 'day';
+      fetchTimeSeries(undefined, interval);
+    },
+    [fetchTimeSeries],
+  );
+
   // Multi-select toggles
   const toggleStatusFilter = useCallback(
     (value: string) => {
@@ -369,6 +417,50 @@ export function AwsSecurityDashboard() {
       setFilters({ region: next, page: 1 });
     },
     [filters.region, setFilters],
+  );
+
+  const toggleServiceFilter = useCallback(
+    (value: string) => {
+      const current = filters.service;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ service: next, page: 1 });
+    },
+    [filters.service, setFilters],
+  );
+
+  const toggleTagFilter = useCallback(
+    (value: string) => {
+      const current = filters.tags;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ tags: next, page: 1 });
+    },
+    [filters.tags, setFilters],
+  );
+
+  const toggleComplianceFilter = useCallback(
+    (value: string) => {
+      const current = filters.compliance;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ compliance: next, page: 1 });
+    },
+    [filters.compliance, setFilters],
+  );
+
+  const toggleCheckNameFilter = useCallback(
+    (value: string) => {
+      const current = filters.checkName;
+      const next = current.includes(value)
+        ? current.filter((s) => s !== value)
+        : [...current, value];
+      setFilters({ checkName: next, page: 1 });
+    },
+    [filters.checkName, setFilters],
   );
 
   // Sort
@@ -394,13 +486,35 @@ export function AwsSecurityDashboard() {
   // Available filter options from aggregations
   const statusOptions = useMemo(() => statusCounts.map((s) => s.key), [statusCounts]);
   const regionOptions = useMemo(() => regions.map((r) => r.key), [regions]);
+  const serviceOptions = useMemo(() => services.map((s) => s.key), [services]);
+  const complianceOptions = useMemo(
+    () => complianceFrameworks.map((c) => c.key),
+    [complianceFrameworks],
+  );
+  const checkNameOptions = useMemo(() => checkNames.map((c) => c.key), [checkNames]);
+
+  // Collect unique tag keys from current findings for tag filter options
+  const tagKeyOptions = useMemo(() => {
+    const keys = new Set<string>();
+    for (const f of findings) {
+      if (f.resource_tags) {
+        for (const k of Object.keys(f.resource_tags)) {
+          keys.add(k);
+        }
+      }
+    }
+    return Array.from(keys).sort();
+  }, [findings]);
 
   // Finding sheet
   const handleFindingClick = useCallback(
     (finding: SecurityFinding) => {
       setSelectedFinding(finding);
+      if (finding.finding_hash) {
+        fetchFindingLifecycle(finding.finding_hash);
+      }
     },
-    [setSelectedFinding],
+    [setSelectedFinding, fetchFindingLifecycle],
   );
 
   const handleSheetClose = useCallback(
@@ -417,6 +531,14 @@ export function AwsSecurityDashboard() {
 
   const totalFindings =
     severityCounts.critical + severityCounts.high + severityCounts.medium + severityCounts.low;
+
+  // Format AWS account ID: "006514117437" → "0065-1411-7437"
+  const formatAccountId = useCallback((id: string) => {
+    if (/^\d{12}$/.test(id)) {
+      return `${id.slice(0, 4)}-${id.slice(4, 8)}-${id.slice(8)}`;
+    }
+    return id;
+  }, []);
 
   return (
     <div className="flex-1 bg-background">
@@ -449,8 +571,8 @@ export function AwsSecurityDashboard() {
                 )}
               </TabsTrigger>
               {accounts.map((acct) => (
-                <TabsTrigger key={acct.key} value={acct.key} className="text-xs">
-                  {acct.key}
+                <TabsTrigger key={acct.key} value={acct.key} className="text-xs font-mono">
+                  {formatAccountId(acct.key)}
                   <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
                     {acct.doc_count}
                   </Badge>
@@ -495,7 +617,7 @@ export function AwsSecurityDashboard() {
           data={timeSeries}
           loading={timeSeriesLoading}
           timeRange={timeRange}
-          onTimeRangeChange={setTimeRange}
+          onTimeRangeChange={handleTimeRangeChange}
         />
 
         {/* Filter Bar */}
@@ -527,6 +649,36 @@ export function AwsSecurityDashboard() {
             selected={filters.region}
             onToggle={toggleRegionFilter}
           />
+          <FilterPopover
+            label="Service"
+            options={serviceOptions}
+            selected={filters.service}
+            onToggle={toggleServiceFilter}
+          />
+          {complianceOptions.length > 0 && (
+            <FilterPopover
+              label="Compliance"
+              options={complianceOptions}
+              selected={filters.compliance}
+              onToggle={toggleComplianceFilter}
+            />
+          )}
+          {checkNameOptions.length > 0 && (
+            <FilterPopover
+              label="Check"
+              options={checkNameOptions}
+              selected={filters.checkName}
+              onToggle={toggleCheckNameFilter}
+            />
+          )}
+          {tagKeyOptions.length > 0 && (
+            <FilterPopover
+              label="Tags"
+              options={tagKeyOptions}
+              selected={filters.tags}
+              onToggle={toggleTagFilter}
+            />
+          )}
         </div>
 
         {/* Data Table */}
@@ -553,14 +705,16 @@ export function AwsSecurityDashboard() {
                   </button>
                 </TableHead>
                 <TableHead className="w-[80px]">Status</TableHead>
+                <TableHead className="hidden lg:table-cell w-[100px]">Service</TableHead>
                 <TableHead className="hidden md:table-cell w-[120px]">Region</TableHead>
                 <TableHead className="hidden md:table-cell w-[130px]">Account</TableHead>
+                <TableHead className="hidden xl:table-cell w-[100px]">First Seen</TableHead>
                 <TableHead className="w-[120px]">
                   <button
                     className="inline-flex items-center gap-1 hover:text-foreground"
                     onClick={() => handleSort('@timestamp')}
                   >
-                    Time
+                    Last Seen
                     {filters.sort === '@timestamp' ? (
                       filters.order === 'asc' ? (
                         <ArrowUp className="h-3 w-3" />
@@ -587,11 +741,17 @@ export function AwsSecurityDashboard() {
                       <TableCell>
                         <Skeleton className="h-4 w-14" />
                       </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell">
+                        <Skeleton className="h-4 w-16" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-20" />
@@ -601,7 +761,7 @@ export function AwsSecurityDashboard() {
                 : null}
               {!findingsLoading && findings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
+                  <TableCell colSpan={8} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <ShieldCheck className="h-10 w-10" />
                       <p className="text-sm font-medium">No findings found</p>
@@ -619,7 +779,7 @@ export function AwsSecurityDashboard() {
                   onClick={() => handleFindingClick(finding)}
                 >
                   <TableCell>
-                    <div className="flex flex-col">
+                    <div className="flex flex-col gap-0.5">
                       <span className="text-sm font-medium line-clamp-1">
                         {finding.title ?? 'Untitled'}
                       </span>
@@ -628,6 +788,23 @@ export function AwsSecurityDashboard() {
                           {finding.asset_key}
                         </span>
                       )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {finding.check_name && (
+                          <span className="text-[11px] text-muted-foreground font-mono">
+                            {finding.check_name}
+                          </span>
+                        )}
+                        {finding.compliance &&
+                          finding.compliance.map((fw) => (
+                            <Badge
+                              key={fw}
+                              variant="outline"
+                              className="h-4 px-1 text-[10px] font-normal"
+                            >
+                              {fw}
+                            </Badge>
+                          ))}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -636,11 +813,23 @@ export function AwsSecurityDashboard() {
                   <TableCell>
                     <StatusBadge status={finding.status} />
                   </TableCell>
+                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                    {finding.service_name ?? '--'}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                     {finding.region ?? '--'}
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-sm text-muted-foreground font-mono">
-                    {finding.account_id ?? '--'}
+                    {finding.account_id ? formatAccountId(finding.account_id) : '--'}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                    {findingLifecycles[finding.finding_hash] ? (
+                      formatTimestamp(findingLifecycles[finding.finding_hash].firstSeen)
+                    ) : findingLifecyclesLoading ? (
+                      <Skeleton className="h-4 w-16" />
+                    ) : (
+                      '--'
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatTimestamp(finding['@timestamp'])}
@@ -709,6 +898,8 @@ export function AwsSecurityDashboard() {
         finding={selectedFinding}
         open={selectedFinding !== null}
         onOpenChange={handleSheetClose}
+        lifecycle={selectedFindingLifecycle}
+        lifecycleLoading={selectedFindingLifecycleLoading}
       />
     </div>
   );
