@@ -337,6 +337,8 @@ module.exports = {
       env: {
         ...loadFrontendEnv(resolveEnvFile('frontend', instanceNum)),
         ...currentEnvConfig,
+        // Ensure Vite proxy targets the correct instance backend
+        VITE_API_URL: `http://localhost:${getInstancePort(3211, instanceNum)}`,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],

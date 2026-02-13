@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "bun@1.1.20",
   "scripts": {
-    "dev": "bun run migration:push && bun --watch src/main.ts",
+    "dev": "bun run migration:push --force && bun --watch src/main.ts",
     "start": "bun run migration:push && bun run src/main.ts",
     "start:prod": "bun run build/main.js",
     "build": "bun build src/main.ts --outdir build --target bun",

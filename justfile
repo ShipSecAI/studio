@@ -40,9 +40,26 @@ init:
 # Start development environment with hot-reload
 # Auto-detects auth mode: if CLERK_SECRET_KEY is set in backend/.env → secure mode (Clerk + OpenSearch Security)
 # Otherwise → local auth mode (faster startup, no multi-tenant isolation)
+# Supports multi-instance: set SHIPSEC_INSTANCE=N (or .shipsec-instance file) to run on offset ports
 dev action="start":
     #!/usr/bin/env bash
     set -euo pipefail
+
+    # Resolve active instance: env var → .shipsec-instance file → default 0
+    if [ -n "${SHIPSEC_INSTANCE:-}" ]; then
+        INST="${SHIPSEC_INSTANCE}"
+    elif [ -f ".shipsec-instance" ]; then
+        INST="$(tr -d '[:space:]' < .shipsec-instance || true)"
+        INST="${INST:-0}"
+    else
+        INST="0"
+    fi
+    export SHIPSEC_INSTANCE="$INST"
+
+    # Instance-aware PM2 app names and ports
+    PM2_APPS="shipsec-frontend-${INST},shipsec-backend-${INST},shipsec-worker-${INST}"
+    FRONTEND_PORT=$(( 5173 + INST * 100 ))
+    BACKEND_PORT=$(( 3211 + INST * 100 ))
 
     # Auto-detect auth mode from backend/.env
     CLERK_KEY=""
@@ -69,7 +86,7 @@ dev action="start":
             fi
 
             if [ "$SECURE_MODE" = "true" ]; then
-                echo "🔐 Starting development environment (Clerk auth detected)..."
+                echo "🔐 Starting development environment (Clerk auth, instance ${INST})..."
 
                 # Auto-generate certificates if they don't exist
                 if [ ! -f "docker/certs/root-ca.pem" ]; then
@@ -94,23 +111,24 @@ dev action="start":
 
                 # Update git SHA and start PM2 with security enabled
                 ./scripts/set-git-sha.sh || true
-                SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=true NODE_TLS_REJECT_UNAUTHORIZED=0 \
-                    pm2 startOrReload pm2.config.cjs --only shipsec-frontend-0,shipsec-backend-0,shipsec-worker-0 --update-env
+                SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=true NODE_TLS_REJECT_UNAUTHORIZED=0 \
+                    pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
 
                 echo ""
-                echo "✅ Development environment ready (secure mode)"
-                echo "   App:         http://localhost (via nginx)"
-                echo "   API:         http://localhost/api"
+                echo "✅ Development environment ready (secure mode, instance ${INST})"
+                if [ "$INST" = "0" ]; then
+                    echo "   App:         http://localhost (via nginx)"
+                    echo "   API:         http://localhost/api"
+                fi
+                echo "   Frontend:    http://localhost:${FRONTEND_PORT}"
+                echo "   Backend:     http://localhost:${BACKEND_PORT}"
                 echo "   Analytics:   http://localhost/analytics (requires login)"
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
                 echo "🔐 OpenSearch Security: ENABLED (multi-tenant isolation active)"
                 echo "   OpenSearch admin: admin / ${OPENSEARCH_ADMIN_PASSWORD:-admin}"
-                echo ""
-                echo "💡 Direct ports (debugging only, use nginx in normal development):"
-                echo "   Frontend :5173, Backend :3211, Analytics :5601"
             else
-                echo "🚀 Starting development environment (local auth)..."
+                echo "🚀 Starting development environment (local auth, instance ${INST})..."
 
                 # Start infrastructure (no security, with dev ports for analytics)
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
@@ -121,19 +139,25 @@ dev action="start":
 
                 # Update git SHA and start PM2
                 ./scripts/set-git-sha.sh || true
-                SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=false \
+                SHIPSEC_INSTANCE="$INST" SHIPSEC_ENV=development NODE_ENV=development OPENSEARCH_SECURITY_ENABLED=false \
                     OPENSEARCH_URL=http://localhost:9200 \
-                    pm2 startOrReload pm2.config.cjs --only shipsec-frontend-0,shipsec-backend-0,shipsec-worker-0 --update-env
+                    pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
 
                 echo ""
-                echo "✅ Development environment ready (local auth)"
-                echo "   App:         http://localhost (via nginx)"
+                echo "✅ Development environment ready (local auth, instance ${INST})"
+                if [ "$INST" = "0" ]; then
+                    echo "   App:         http://localhost (via nginx)"
+                fi
+                echo "   Frontend:    http://localhost:${FRONTEND_PORT}"
+                echo "   Backend:     http://localhost:${BACKEND_PORT}"
                 echo "   Analytics:   http://localhost/analytics"
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
-                echo "💡 Direct ports (debugging only, use nginx in normal development):"
-                echo "   Frontend :5173, Backend :3211, OpenSearch :9200, Analytics :5601"
-                echo ""
+                if [ "$INST" != "0" ]; then
+                    echo "💡 Instance ${INST}: access your app directly at http://localhost:${FRONTEND_PORT}"
+                    echo "   (nginx always routes to instance 0)"
+                    echo ""
+                fi
                 echo "💡 To enable Clerk auth + OpenSearch Security:"
                 echo "   Set CLERK_SECRET_KEY in backend/.env, then restart"
             fi
@@ -148,17 +172,20 @@ dev action="start":
             bun backend/scripts/version-check-summary.ts 2>/dev/null || true
             ;;
         stop)
-            echo "🛑 Stopping development environment..."
-            pm2 delete shipsec-frontend-0 shipsec-backend-0 shipsec-worker-0 shipsec-test-worker 2>/dev/null || true
-            if [ "$SECURE_MODE" = "true" ]; then
-                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down
-            else
-                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down
+            echo "🛑 Stopping development environment (instance ${INST})..."
+            pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
+            # Only stop infra if instance 0 (shared infra serves all instances)
+            if [ "$INST" = "0" ]; then
+                if [ "$SECURE_MODE" = "true" ]; then
+                    docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down
+                else
+                    docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down
+                fi
             fi
-            echo "✅ Stopped"
+            echo "✅ Stopped instance ${INST}"
             ;;
         logs)
-            pm2 logs
+            pm2 logs shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST}
             ;;
         status)
             pm2 status
@@ -169,14 +196,19 @@ dev action="start":
             fi
             ;;
         clean)
-            echo "🧹 Cleaning development environment..."
-            pm2 delete shipsec-frontend-0 shipsec-backend-0 shipsec-worker-0 shipsec-test-worker 2>/dev/null || true
-            if [ "$SECURE_MODE" = "true" ]; then
-                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down -v
+            echo "🧹 Cleaning development environment (instance ${INST})..."
+            pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
+            # Only tear down infra if instance 0
+            if [ "$INST" = "0" ]; then
+                if [ "$SECURE_MODE" = "true" ]; then
+                    docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml down -v
+                else
+                    docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down -v
+                fi
+                echo "✅ Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
             else
-                docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down -v
+                echo "✅ Instance ${INST} PM2 apps stopped (shared infra left running)"
             fi
-            echo "✅ Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
             ;;
         *)
             echo "Usage: just dev [start|stop|logs|status|clean]"
