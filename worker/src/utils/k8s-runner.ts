@@ -304,6 +304,7 @@ function buildJobSpec(
               command: command.length > 0 ? command : undefined,
               args: args.length > 0 ? args : undefined,
               env: envVars,
+              tty: true,
               volumeMounts,
               resources: {
                 requests: { cpu: '100m', memory: '128Mi' },
