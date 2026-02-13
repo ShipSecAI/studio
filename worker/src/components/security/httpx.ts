@@ -210,7 +210,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/httpx:v1.7.4',
+    image: 'ghcr.io/shipsecai/httpx:latest',
     entrypoint: 'httpx',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,

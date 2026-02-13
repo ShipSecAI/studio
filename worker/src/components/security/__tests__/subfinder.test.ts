@@ -166,7 +166,7 @@ describe.skip('subfinder component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('ghcr.io/shipsecai/subfinder:v2.12.0');
+      expect(component.runner.image).toBe('ghcr.io/shipsecai/subfinder:latest');
     }
   });
 });

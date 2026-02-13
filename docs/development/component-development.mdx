@@ -615,13 +615,48 @@ Does your Docker image have a shell (/bin/sh)?
 ├─ YES → Use Shell Wrapper Pattern
 │         entrypoint: 'sh', command: ['-c', 'tool "$@"', '--']
 │
-└─ NO (Distroless) → Does your tool have a -stream flag?
-   ├─ YES → Use Direct Binary + Stream
-   │         entrypoint: 'tool', command: ['-stream', ...]
-   │
-   └─ NO → Rely on SDK stdin handling
-            Note: May have buffering issues
+└─ NO (Distroless) → Use Default Entrypoint Pattern
+          Omit entrypoint, pass args via command: []
+          The image's built-in ENTRYPOINT handles execution.
 ```
+
+### Distroless Images (Default Entrypoint Pattern)
+
+Many ProjectDiscovery images (subfinder, dnsx, naabu, amass, notify) are **distroless** and do not contain `/bin/sh`. For these images, omit the `entrypoint` field entirely and let Docker use the image's default entrypoint:
+
+```typescript
+// ✅ CORRECT - Distroless image (no shell available)
+runner: {
+  kind: 'docker',
+  image: 'ghcr.io/shipsecai/subfinder:latest',
+  // No entrypoint — uses image default (/usr/local/bin/subfinder)
+  command: [],
+  network: 'bridge',
+}
+```
+
+```typescript
+// ❌ WRONG - Distroless image with shell wrapper (exit code 127)
+runner: {
+  kind: 'docker',
+  image: 'ghcr.io/shipsecai/subfinder:latest',
+  entrypoint: 'sh',  // sh does not exist in distroless images!
+  command: ['-c', 'subfinder "$@"', '--'],
+}
+```
+
+In the `execute()` function, append tool arguments directly to `command`:
+```typescript
+const runnerConfig: DockerRunnerConfig = {
+  ...baseRunner,
+  command: [...(baseRunner.command ?? []), ...toolArgs],
+};
+```
+
+<Note>
+  Distroless Go binaries (like ProjectDiscovery tools) handle PTY signals correctly.
+  Verified with `docker run --rm -t image args...` — output streams and exits cleanly.
+</Note>
 
 ---
 

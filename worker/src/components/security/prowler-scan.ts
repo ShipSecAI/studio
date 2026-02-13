@@ -407,7 +407,7 @@ const definition = defineComponent({
   retryPolicy: prowlerRetryPolicy,
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/prowler:5.14.2',
+    image: 'ghcr.io/shipsecai/prowler:latest',
     platform: 'linux/amd64',
     command: [], // Placeholder - actual command built dynamically in execute()
   },
@@ -575,7 +575,7 @@ const definition = defineComponent({
     // Prepare a one-off runner with dynamic command and volume
     const dockerRunner: DockerRunnerConfig = {
       kind: 'docker',
-      image: 'ghcr.io/shipsecai/prowler:5.14.2',
+      image: 'ghcr.io/shipsecai/prowler:latest',
       platform: 'linux/amd64',
       network: 'bridge',
       timeoutSeconds: 900,
