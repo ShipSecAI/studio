@@ -173,6 +173,29 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
           ],
         });
 
+        // DEBUG: show agent behavior
+        console.log('\n=== TEST 2: list_components agent ===');
+        console.log(`Steps: ${response.steps.length}`);
+        for (const [i, step] of response.steps.entries()) {
+          console.log(`\n--- Step ${i + 1} ---`);
+          if (step.toolCalls?.length) {
+            for (const tc of step.toolCalls) {
+              console.log(`  Tool call: ${tc.toolName}(${JSON.stringify((tc as Record<string, unknown>).input ?? {})})`);
+            }
+          }
+          if (step.toolResults?.length) {
+            for (const tr of step.toolResults) {
+              const raw = JSON.stringify((tr as Record<string, unknown>).output ?? tr) ?? '';
+              console.log(`  Tool result: ${raw.slice(0, 500)}`);
+            }
+          }
+          if (step.text) {
+            console.log(`  Text: ${step.text.slice(0, 500)}`);
+          }
+        }
+        console.log(`\nFinal response: ${response.text.slice(0, 1000)}`);
+        console.log('=== END TEST 2 ===\n');
+
         expect(response.steps).toBeDefined();
         expect(response.steps.length).toBeGreaterThan(0);
 
@@ -262,6 +285,29 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
           },
         ],
       });
+
+      // DEBUG: show agent behavior
+      console.log('\n=== TEST 3: workflow operations agent ===');
+      console.log(`Steps: ${response.steps.length}`);
+      for (const [i, step] of response.steps.entries()) {
+        console.log(`\n--- Step ${i + 1} ---`);
+        if (step.toolCalls?.length) {
+          for (const tc of step.toolCalls) {
+            console.log(`  Tool call: ${tc.toolName}(${JSON.stringify((tc as Record<string, unknown>).input ?? {})})`);
+          }
+        }
+        if (step.toolResults?.length) {
+          for (const tr of step.toolResults) {
+            const raw = JSON.stringify((tr as Record<string, unknown>).output ?? tr) ?? '';
+            console.log(`  Tool result: ${raw.slice(0, 500)}`);
+          }
+        }
+        if (step.text) {
+          console.log(`  Text: ${step.text.slice(0, 500)}`);
+        }
+      }
+      console.log(`\nFinal response: ${response.text.slice(0, 1000)}`);
+      console.log('=== END TEST 3 ===\n');
 
       expect(response.steps).toBeDefined();
       expect(response.steps.length).toBeGreaterThan(0);
