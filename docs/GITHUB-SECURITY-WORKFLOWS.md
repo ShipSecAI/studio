@@ -9,19 +9,18 @@ This guide explains how to build security scanning workflows using the ShipSec G
 
 ## Components Overview
 
-| Category    | Component                     | Purpose                                                        |
-| ----------- | ----------------------------- | -------------------------------------------------------------- |
-| **Context** | `github.pr.context`           | Fetches PR metadata and changed files for targeted scanning.   |
-| **Setup**   | `github.repo.clone`           | Clones a repository into an isolated Docker volume.            |
-| **Scan**    | `scanner.opengrep`            | Performs SAST analysis (2000+ rules).                          |
-| **Scan**    | `scanner.trufflehog`          | Scans for secrets and credentials (800+ detectors).            |
-| **Scan**    | `scanner.trivy`               | Vulnerability, misconfiguration, and IaC scanning.             |
-| **Scan**    | `scanner.dependency`          | Dependency vulnerability scanning.                             |
-| **Process** | `security.findings.normalize` | Standardizes findings from any scanner.                        |
-| **Report**  | `security.findings.markdown`  | Formats findings into a GitHub Markdown report.                |
-| **Notify**  | `github.pr.comment`           | Posts the report as a PR comment.                              |
-| **Status**  | `github.check.create/update`  | Reports status via GitHub Check Runs.                          |
-| **Cleanup** | `github.repo.volume.cleanup`  | **CRITICAL:** Removes the Docker volume to prevent disk leaks. |
+| Category    | Component                     | Purpose                                                      |
+| ----------- | ----------------------------- | ------------------------------------------------------------ |
+| **Context** | `github.pr.context`           | Fetches PR metadata and changed files for targeted scanning. |
+| **Setup**   | `github.repo.clone`           | Clones a repository into an isolated Docker volume.          |
+| **Scan**    | `scanner.opengrep`            | Performs SAST analysis (2000+ rules).                        |
+| **Scan**    | `scanner.trufflehog`          | Scans for secrets and credentials (800+ detectors).          |
+| **Scan**    | `scanner.trivy`               | Vulnerability, misconfiguration, and IaC scanning.           |
+| **Scan**    | `scanner.dependency`          | Dependency vulnerability scanning.                           |
+| **Process** | `security.findings.normalize` | Standardizes findings from any scanner.                      |
+| **Report**  | `security.findings.markdown`  | Formats findings into a GitHub Markdown report.              |
+| **Notify**  | `github.pr.comment`           | Posts the report as a PR comment.                            |
+| **Status**  | `github.check.create/update`  | Reports status via GitHub Check Runs.                        |
 
 ---
 
@@ -251,7 +250,6 @@ The most common pattern: scan a PR and post findings as comments.
 6. **Format** → standard format → Markdown.
 7. **Comment** → post to PR.
 8. **Update Check Run** → "completed" with conclusion.
-9. **Cleanup** → remove the volume.
 
 ### Pattern 2: Check Run Lifecycle
 
@@ -274,12 +272,9 @@ Feed scanner output to an AI agent for intelligent analysis.
 
 ## Best Practices
 
-### 1. Always Clean Up Volumes
+### 1. Volume Cleanup Is Automatic
 
-The `github.repo.clone` component creates Docker volumes. If you skip `github.repo.volume.cleanup`, the worker's disk will fill up.
-
-- Place cleanup at the end of every workflow that clones.
-- Ensure it runs even if previous steps fail.
+Docker volumes created by `github.repo.clone` are **automatically cleaned up** when the workflow finishes (success or failure). The workflow engine removes all managed volumes labeled for the run during its finalization step. No manual cleanup component is needed.
 
 ### 2. Filter to Changed Files
 

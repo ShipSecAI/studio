@@ -37,7 +37,7 @@ Clones a GitHub repository into an isolated Docker volume for scanning.
 | Port             | Type   | Description                               |
 | ---------------- | ------ | ----------------------------------------- |
 | `volumePath`     | string | Path inside container (`/workspace/repo`) |
-| `volumeName`     | string | Docker volume name (pass to cleanup)      |
+| `volumeName`     | string | Docker volume name (pass to scanners)     |
 | `repository`     | string | Cloned repository name                    |
 | `branch`         | string | Branch that was cloned                    |
 | `commitSha`      | string | Checked-out commit SHA                    |
@@ -48,7 +48,7 @@ Clones a GitHub repository into an isolated Docker volume for scanning.
 
 - Public repos clone without authentication.
 - Private repos require `installationId` to fetch a GitHub App installation token.
-- Always pair with `github.repo.volume.cleanup` to prevent disk leaks.
+- Volumes are automatically cleaned up when the workflow finishes (success or failure).
 
 ---
 
@@ -188,36 +188,6 @@ Updates an existing GitHub Check Run.
 | Port         | Type   | Description          |
 | ------------ | ------ | -------------------- |
 | `checkRunId` | number | Updated check run ID |
-
----
-
-### `github.repo.volume.cleanup` — Cleanup Repository Volume
-
-Removes Docker volumes created by `github.repo.clone`.
-
-|          |                         |
-| -------- | ----------------------- |
-| **Slug** | `github-volume-cleanup` |
-
-**Inputs:**
-
-| Port         | Type   | Required | Description                        |
-| ------------ | ------ | -------- | ---------------------------------- |
-| `volumeName` | string | Yes      | Docker volume name from clone step |
-
-**Outputs:**
-
-| Port         | Type    | Description                     |
-| ------------ | ------- | ------------------------------- |
-| `deleted`    | boolean | Whether the volume was deleted  |
-| `volumeName` | string  | Volume name that was cleaned up |
-| `message`    | string  | Status message                  |
-
-**Notes:**
-
-- **Always include this component** in workflows that clone repositories.
-- Safe to call even if the volume was already deleted.
-- Place at the end of the workflow. Ensure it runs even if previous steps fail.
 
 ---
 

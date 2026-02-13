@@ -124,7 +124,7 @@ const outputSchema = outputs({
   volumeName: port(z.string(), {
     label: 'Volume Name',
     description:
-      'Docker volume name containing the cloned repository. Connect this to downstream scanners and to volume-cleanup. The repository is stored at /repo inside the volume.',
+      'Docker volume name containing the cloned repository. Connect this to downstream scanners. Volumes are automatically cleaned up when the workflow finishes.',
     connectionType: { kind: 'primitive', name: 'text' },
   }),
 });
