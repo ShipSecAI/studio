@@ -16,6 +16,13 @@ import { StudioMcpService } from './studio-mcp.service';
  *
  * Endpoint: /api/v1/studio-mcp
  */
+interface McpSession {
+  transport: StreamableHTTPServerTransport;
+  /** Identity of the caller who created this session — used to reject hijacking. */
+  userId: string | null;
+  organizationId: string | null;
+}
+
 @ApiTags('studio-mcp')
 @Controller('studio-mcp')
 export class StudioMcpController {
@@ -23,7 +30,7 @@ export class StudioMcpController {
 
   // Active session transports keyed by MCP session ID.
   // NOTE: In-memory — single-instance design. For horizontal scaling, use sticky sessions.
-  private readonly transports = new Map<string, StreamableHTTPServerTransport>();
+  private readonly sessions = new Map<string, McpSession>();
 
   constructor(private readonly studioMcpService: StudioMcpService) {}
 
@@ -49,22 +56,34 @@ export class StudioMcpController {
 
     // ---- Existing session ----
     if (sessionId) {
-      const transport = this.transports.get(sessionId);
-      if (!transport) {
+      const session = this.sessions.get(sessionId);
+      if (!session) {
         return res.status(404).json({ error: 'Session not found or expired' });
       }
+
+      // Verify the caller matches the session creator (prevent session hijacking)
+      if (session.userId !== auth.userId || session.organizationId !== auth.organizationId) {
+        this.logger.warn(
+          `Session identity mismatch for ${sessionId}: ` +
+            `expected user=${session.userId} org=${session.organizationId}, ` +
+            `got user=${auth.userId} org=${auth.organizationId}`,
+        );
+        return res.status(403).json({ error: 'Session belongs to a different principal' });
+      }
+
+      const { transport } = session;
 
       if (isGet) {
         res.on('close', () => {
           this.logger.log(`Studio MCP SSE closed for session ${sessionId}`);
-          this.transports.delete(sessionId);
+          this.sessions.delete(sessionId);
         });
         // Cast: Express Request extends IncomingMessage; handleRequest accepts it at runtime
         void transport.handleRequest(req as any, res as any);
       } else if (isDelete) {
         this.logger.log(`Studio MCP session terminated: ${sessionId}`);
         await transport.handleRequest(req as any, res as any, body);
-        this.transports.delete(sessionId);
+        this.sessions.delete(sessionId);
       } else {
         await transport.handleRequest(req as any, res as any, body);
       }
@@ -93,9 +112,13 @@ export class StudioMcpController {
     // Handle the initialize request (sends response with Mcp-Session-Id header)
     await transport.handleRequest(req as any, res as any, body);
 
-    // Store transport by the session ID generated during initialize
+    // Store transport + identity by the session ID generated during initialize
     if (transport.sessionId) {
-      this.transports.set(transport.sessionId, transport);
+      this.sessions.set(transport.sessionId, {
+        transport,
+        userId: auth.userId,
+        organizationId: auth.organizationId,
+      });
       this.logger.log(`Studio MCP session created: ${transport.sessionId}`);
     }
   }

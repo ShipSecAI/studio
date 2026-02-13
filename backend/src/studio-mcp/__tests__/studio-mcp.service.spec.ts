@@ -207,6 +207,125 @@ describe('StudioMcpService Unit Tests', () => {
       expect(getResult).toBeDefined();
     });
 
+    describe('API key permission gating', () => {
+      const restrictedAuth: AuthContext = {
+        userId: 'api-key-id',
+        organizationId: 'test-org-id',
+        roles: ['MEMBER'],
+        isAuthenticated: true,
+        provider: 'api-key',
+        apiKeyPermissions: {
+          workflows: { run: false, list: true, read: true },
+          runs: { read: true, cancel: false },
+        },
+      };
+
+      it('allows list_workflows when workflows.list is true', async () => {
+        const server = service.createServer(restrictedAuth);
+        const tools = getRegisteredTools(server);
+        const result = (await tools['list_workflows'].handler({})) as { isError?: boolean };
+        expect(result.isError).toBeUndefined();
+      });
+
+      it('denies run_workflow when workflows.run is false', async () => {
+        const server = service.createServer(restrictedAuth);
+        const tools = getRegisteredTools(server);
+        const result = (await tools['run_workflow'].handler({
+          workflowId: '11111111-1111-4111-8111-111111111111',
+        })) as { isError?: boolean; content: { text: string }[] };
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('workflows.run');
+      });
+
+      it('denies cancel_run when runs.cancel is false', async () => {
+        const server = service.createServer(restrictedAuth);
+        const tools = getRegisteredTools(server);
+        const result = (await tools['cancel_run'].handler({
+          runId: 'test-run-id',
+        })) as { isError?: boolean; content: { text: string }[] };
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('runs.cancel');
+      });
+
+      it('allows get_run_status when runs.read is true', async () => {
+        const server = service.createServer(restrictedAuth);
+        const tools = getRegisteredTools(server);
+        const result = (await tools['get_run_status'].handler({
+          runId: 'test-run-id',
+        })) as { isError?: boolean };
+        expect(result.isError).toBeUndefined();
+      });
+
+      it('allows all tools when no apiKeyPermissions (non-API-key auth)', async () => {
+        const server = service.createServer(mockAuthContext); // no apiKeyPermissions
+        const tools = getRegisteredTools(server);
+
+        // All workflow/run tools should work without permission errors
+        const listResult = (await tools['list_workflows'].handler({})) as { isError?: boolean };
+        expect(listResult.isError).toBeUndefined();
+
+        const runResult = (await tools['run_workflow'].handler({
+          workflowId: '11111111-1111-4111-8111-111111111111',
+        })) as { isError?: boolean };
+        expect(runResult.isError).toBeUndefined();
+
+        const cancelResult = (await tools['cancel_run'].handler({
+          runId: 'test-run-id',
+        })) as { isError?: boolean };
+        expect(cancelResult.isError).toBeUndefined();
+      });
+
+      it('component tools are always allowed regardless of permissions', async () => {
+        const noPermsAuth: AuthContext = {
+          ...restrictedAuth,
+          apiKeyPermissions: {
+            workflows: { run: false, list: false, read: false },
+            runs: { read: false, cancel: false },
+          },
+        };
+        const server = service.createServer(noPermsAuth);
+        const tools = getRegisteredTools(server);
+
+        const listResult = (await tools['list_components'].handler({})) as { isError?: boolean };
+        expect(listResult.isError).toBeUndefined();
+
+        const getResult = (await tools['get_component'].handler({
+          componentId: 'core.workflow.entrypoint',
+        })) as { isError?: boolean };
+        expect(getResult.isError).toBeUndefined();
+      });
+
+      it('denies all 7 gated tools when all permissions are false', async () => {
+        const noPermsAuth: AuthContext = {
+          ...restrictedAuth,
+          apiKeyPermissions: {
+            workflows: { run: false, list: false, read: false },
+            runs: { read: false, cancel: false },
+          },
+        };
+        const server = service.createServer(noPermsAuth);
+        const tools = getRegisteredTools(server);
+
+        const gatedTools = [
+          'list_workflows',
+          'get_workflow',
+          'run_workflow',
+          'list_runs',
+          'get_run_status',
+          'get_run_result',
+          'cancel_run',
+        ];
+
+        for (const toolName of gatedTools) {
+          const result = (await tools[toolName].handler({
+            workflowId: '11111111-1111-4111-8111-111111111111',
+            runId: 'test-run-id',
+          })) as { isError?: boolean };
+          expect(result.isError).toBe(true);
+        }
+      });
+    });
+
     it('each server instance has isolated auth context', async () => {
       const authContext1: AuthContext = {
         userId: 'user-1',

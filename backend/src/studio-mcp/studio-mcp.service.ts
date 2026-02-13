@@ -15,13 +15,52 @@ import type { ExecutionStatus } from '@shipsec/shared';
 import { categorizeComponent } from '../components/utils/categorization';
 import { WorkflowsService, type WorkflowRunSummary } from '../workflows/workflows.service';
 import type { ServiceWorkflowResponse } from '../workflows/dto/workflow-graph.dto';
-import type { AuthContext } from '../auth/types';
+import type { AuthContext, ApiKeyPermissions } from '../auth/types';
+
+type PermissionPath =
+  | 'workflows.list'
+  | 'workflows.read'
+  | 'workflows.run'
+  | 'runs.read'
+  | 'runs.cancel';
 
 @Injectable()
 export class StudioMcpService {
   private readonly logger = new Logger(StudioMcpService.name);
 
   constructor(private readonly workflowsService: WorkflowsService) {}
+
+  /**
+   * Check whether the caller's API key permits the given action.
+   * Non-API-key callers (e.g. internal service tokens) are always allowed.
+   */
+  private checkPermission(
+    auth: AuthContext,
+    permission: PermissionPath,
+  ):
+    | { allowed: true }
+    | { allowed: false; error: { content: { type: 'text'; text: string }[]; isError: true } } {
+    const perms = auth.apiKeyPermissions;
+    if (!perms) return { allowed: true }; // non-API-key auth → unrestricted
+
+    const [scope, action] = permission.split('.') as [keyof ApiKeyPermissions, string];
+    const scopePerms = perms[scope] as Record<string, boolean> | undefined;
+    if (!scopePerms || !scopePerms[action]) {
+      return {
+        allowed: false,
+        error: {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Permission denied: API key lacks '${permission}' permission.`,
+            },
+          ],
+          isError: true,
+        },
+      };
+    }
+    return { allowed: true };
+  }
 
   /**
    * Create an MCP server with all Studio tools registered, scoped to the given auth context.
@@ -56,6 +95,8 @@ export class StudioMcpService {
           'List all workflows in the organization. Returns id, name, description, and version info.',
       },
       async () => {
+        const gate = this.checkPermission(auth, 'workflows.list');
+        if (!gate.allowed) return gate.error;
         try {
           const workflows = await this.workflowsService.list(auth);
           const summary = workflows.map((w: ServiceWorkflowResponse) => ({
@@ -84,6 +125,8 @@ export class StudioMcpService {
         inputSchema: { workflowId: z.string().uuid() },
       },
       async (args: { workflowId: string }) => {
+        const gate = this.checkPermission(auth, 'workflows.read');
+        if (!gate.allowed) return gate.error;
         try {
           const workflow = await this.workflowsService.findById(args.workflowId, auth);
           return {
@@ -111,6 +154,8 @@ export class StudioMcpService {
         inputs?: Record<string, unknown>;
         versionId?: string;
       }) => {
+        const gate = this.checkPermission(auth, 'workflows.run');
+        if (!gate.allowed) return gate.error;
         try {
           const handle = await this.workflowsService.run(
             args.workflowId,
@@ -258,6 +303,8 @@ export class StudioMcpService {
         },
       },
       async (args: { workflowId?: string; status?: ExecutionStatus; limit?: number }) => {
+        const gate = this.checkPermission(auth, 'runs.read');
+        if (!gate.allowed) return gate.error;
         try {
           const result = await this.workflowsService.listRuns(auth, {
             workflowId: args.workflowId,
@@ -291,6 +338,8 @@ export class StudioMcpService {
         inputSchema: { runId: z.string() },
       },
       async (args: { runId: string }) => {
+        const gate = this.checkPermission(auth, 'runs.read');
+        if (!gate.allowed) return gate.error;
         try {
           const status = await this.workflowsService.getRunStatus(args.runId, undefined, auth);
           return {
@@ -309,6 +358,8 @@ export class StudioMcpService {
         inputSchema: { runId: z.string() },
       },
       async (args: { runId: string }) => {
+        const gate = this.checkPermission(auth, 'runs.read');
+        if (!gate.allowed) return gate.error;
         try {
           const result = await this.workflowsService.getRunResult(args.runId, undefined, auth);
           return {
@@ -327,6 +378,8 @@ export class StudioMcpService {
         inputSchema: { runId: z.string() },
       },
       async (args: { runId: string }) => {
+        const gate = this.checkPermission(auth, 'runs.cancel');
+        if (!gate.allowed) return gate.error;
         try {
           await this.workflowsService.cancelRun(args.runId, undefined, auth);
           return {
