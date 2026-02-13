@@ -274,10 +274,6 @@ Please investigate the issue and generate a detailed report.
 
     try {
       // 5. Execute Docker Container
-      // HACK: Fail fast after listing tools for faster iteration on MCP tool registration
-      // TODO: Remove this hack once MCP tool registration is working correctly
-      const HACK_FAIL_FAST_AFTER_TOOL_LIST = 'false';
-
       // Write a wrapper script to properly execute opencode with file reading
       // The script runs inside the container, so $(cat /workspace/prompt.txt) works correctly
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
