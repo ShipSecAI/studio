@@ -464,22 +464,59 @@ async function streamPodLogs(
     return;
   }
 
-  // Container is running — stream logs in real-time
-  const { PassThrough } = await import('stream');
-  const logStream = new PassThrough();
+  // Container is running — attach to PTY for real-time streaming
+  const { Writable } = await import('stream');
 
-  logStream.on('data', (chunk: Buffer) => {
-    emitToCollectors(chunk.toString());
+  const stdoutSink = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      emitToCollectors(chunk.toString());
+      callback();
+    },
   });
 
   try {
-    await log.log(namespace, podName, 'component', logStream, {
-      follow: true,
-      pretty: false,
-      timestamps: false,
+    context.logger.info(`[K8sRunner] Attaching to pod ${podName} with TTY for live PTY stream`);
+    const attach = new k8s.Attach(kc);
+    const ws = await attach.attach(
+      namespace,
+      podName,
+      'component',
+      stdoutSink,
+      stdoutSink,
+      null,
+      true,
+    );
+
+    // Wait for the WebSocket to close (container exits → WS closes)
+    await new Promise<void>((resolve, reject) => {
+      ws.onclose = () => {
+        context.logger.info(`[K8sRunner] Attach WebSocket closed for pod ${podName}`);
+        resolve();
+      };
+      ws.onerror = (event) => {
+        context.logger.warn(`[K8sRunner] Attach WebSocket error: ${String(event)}`);
+        reject(new Error('Attach WebSocket error'));
+      };
     });
   } catch (err) {
-    context.logger.warn(`[K8sRunner] Log streaming failed: ${(err as Error).message}`);
+    context.logger.warn(
+      `[K8sRunner] Attach failed, falling back to log stream: ${(err as Error).message}`,
+    );
+    // Fallback to log API if attach fails
+    const { PassThrough } = await import('stream');
+    const logStream = new PassThrough();
+    logStream.on('data', (chunk: Buffer) => {
+      emitToCollectors(chunk.toString());
+    });
+    try {
+      await log.log(namespace, podName, 'component', logStream, {
+        follow: true,
+        pretty: false,
+        timestamps: false,
+      });
+    } catch (logErr) {
+      context.logger.warn(`[K8sRunner] Log streaming also failed: ${(logErr as Error).message}`);
+    }
   }
 }
 
