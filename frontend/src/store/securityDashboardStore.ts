@@ -228,7 +228,7 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
       set({ findings, total: result.total, findingsLoading: false });
     } catch (_err) {
       if (signal?.aborted) return;
-      const message = err instanceof Error ? err.message : 'Failed to fetch findings';
+      const message = _err instanceof Error ? _err.message : 'Failed to fetch findings';
       set({ findingsLoading: false, error: message });
     }
   },
