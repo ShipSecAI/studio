@@ -331,14 +331,12 @@ module.exports = {
       name: `shipsec-frontend-${instanceNum}`,
       cwd: __dirname + '/frontend',
       script: 'bun',
-      // Ensure each instance binds to its own Vite port (default is 5173).
-      args: ['run', 'dev', '--', '--port', String(getInstancePort(5173, instanceNum)), '--strictPort'],
+      args: 'run dev',
       env_file: resolveEnvFile('frontend', instanceNum),
       env: {
         ...loadFrontendEnv(resolveEnvFile('frontend', instanceNum)),
         ...currentEnvConfig,
-        // Ensure Vite proxy targets the correct instance backend
-        VITE_API_URL: `http://localhost:${getInstancePort(3211, instanceNum)}`,
+        SHIPSEC_INSTANCE: instanceNum,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
