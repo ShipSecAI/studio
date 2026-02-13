@@ -21,7 +21,7 @@ describe('github.pr.comment component', () => {
 
   beforeEach(() => {
     mockFetch = vi.fn();
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -63,7 +63,7 @@ describe('github.pr.comment component', () => {
       }),
     });
 
-    const result = await component.execute({ inputs: baseInputs }, context);
+    const result = await component.execute({ inputs: baseInputs, params: {} }, context);
 
     expect(result.commentId).toBe(99001);
     expect(result.commentUrl).toBe('https://github.com/myorg/myrepo/pull/42#issuecomment-99001');
@@ -89,7 +89,7 @@ describe('github.pr.comment component', () => {
     });
 
     const result = await component.execute(
-      { inputs: { ...baseInputs, existingCommentId: 88001 } },
+      { inputs: { ...baseInputs, existingCommentId: 88001 }, params: {} },
       context,
     );
 
@@ -123,7 +123,7 @@ describe('github.pr.comment component', () => {
     });
 
     const result = await component.execute(
-      { inputs: { ...baseInputs, existingCommentId: 77001 } },
+      { inputs: { ...baseInputs, existingCommentId: 77001 }, params: {} },
       context,
     );
 
@@ -161,7 +161,7 @@ describe('github.pr.comment component', () => {
     });
 
     const result = await component.execute(
-      { inputs: { ...baseInputs, existingCommentId: 77002 } },
+      { inputs: { ...baseInputs, existingCommentId: 77002 }, params: {} },
       context,
     );
 
@@ -192,7 +192,7 @@ describe('github.pr.comment component', () => {
     });
 
     const result = await component.execute(
-      { inputs: { ...baseInputs, existingCommentId: 77003 } },
+      { inputs: { ...baseInputs, existingCommentId: 77003 }, params: {} },
       context,
     );
 
@@ -210,7 +210,7 @@ describe('github.pr.comment component', () => {
       text: async () => 'Forbidden',
     });
 
-    await expect(component.execute({ inputs: baseInputs }, context)).rejects.toThrow(
+    await expect(component.execute({ inputs: baseInputs, params: {} }, context)).rejects.toThrow(
       'Failed to create PR comment',
     );
   });
@@ -220,7 +220,10 @@ describe('github.pr.comment component', () => {
     const context = createContext();
 
     await expect(
-      component.execute({ inputs: { ...baseInputs, installationId: undefined } }, context),
+      component.execute(
+        { inputs: { ...baseInputs, installationId: undefined }, params: {} },
+        context,
+      ),
     ).rejects.toThrow('Installation ID is required');
   });
 });
