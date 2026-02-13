@@ -1,5 +1,5 @@
 import { expect, beforeAll, afterAll } from 'bun:test';
-import { createMCPClient } from '@ai-sdk/mcp';
+import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
 import { generateText, stepCountIs } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 
@@ -15,21 +15,10 @@ interface ApiKeyResponse {
   id: string;
   plainKey: string;
   name: string;
-  scopes: string[];
-}
-
-interface MCPTool {
-  type: 'function';
-  function: {
-    name: string;
-    description?: string;
-    parameters: unknown;
+  permissions: {
+    workflows: { run: boolean; list: boolean; read: boolean };
+    runs: { read: boolean; cancel: boolean };
   };
-}
-
-interface MCPClient {
-  tools: () => Promise<Record<string, MCPTool>>;
-  close: () => Promise<void>;
 }
 
 e2eDescribe('Studio MCP: AI SDK Integration', () => {
@@ -45,7 +34,10 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
       headers: HEADERS,
       body: JSON.stringify({
         name: `e2e-studio-mcp-ai-sdk-${Date.now()}`,
-        scopes: ['*'],
+        permissions: {
+          workflows: { run: true, list: true, read: true },
+          runs: { read: true, cancel: true },
+        },
       }),
     });
 
@@ -62,7 +54,6 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
   });
 
   afterAll(async () => {
-    // Cleanup: close MCP client
     if (mcpClient) {
       try {
         await mcpClient.close();
@@ -71,7 +62,6 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
       }
     }
 
-    // Cleanup: delete workflow
     if (workflowId) {
       try {
         await fetch(`${API_BASE}/workflows/${workflowId}`, {
@@ -83,7 +73,6 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
       }
     }
 
-    // Cleanup: delete API key
     if (apiKeyId) {
       try {
         await fetch(`${API_BASE}/api-keys/${apiKeyId}`, {
@@ -111,7 +100,7 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
 
     expect(mcpClient).toBeDefined();
 
-    const tools = await mcpClient.tools();
+    const tools = await mcpClient!.tools();
     expect(tools).toBeDefined();
 
     const toolNames = Object.keys(tools);
@@ -147,7 +136,6 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
 
       expect(plainKey).toBeDefined();
 
-      // Create MCP client
       const client = await createMCPClient({
         transport: {
           type: 'http',
@@ -161,16 +149,13 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
       try {
         const tools = await client.tools();
 
-        // Create OpenAI-compatible provider for ZAI
         const openai = createOpenAI({
-          baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+          baseURL: 'https://api.z.ai/api/coding/paas/v4',
           apiKey: ZAI_API_KEY,
         });
 
-        // Use a fast, cheap model for testing
-        const model = openai('glm-4-flash-250414');
+        const model = openai.chat('glm-4.7');
 
-        // Run the agent with a simple task
         const response = await generateText({
           model,
           tools,
@@ -188,19 +173,17 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
           ],
         });
 
-        // Verify the agent made tool calls
         expect(response.steps).toBeDefined();
         expect(response.steps.length).toBeGreaterThan(0);
 
-        // Check that at least one step has tool calls
-        const hasToolCalls = response.steps.some((step) => step.toolCalls && step.toolCalls.length > 0);
+        const hasToolCalls = response.steps.some(
+          (step) => step.toolCalls && step.toolCalls.length > 0,
+        );
         expect(hasToolCalls).toBe(true);
 
-        // Verify the response mentions components
         expect(response.text).toBeDefined();
         expect(response.text.length).toBeGreaterThan(0);
 
-        // The response should mention components or a number
         const lowerText = response.text.toLowerCase();
         const mentionsComponents = lowerText.includes('component') || /\d+/.test(response.text);
         expect(mentionsComponents).toBe(true);
@@ -220,7 +203,6 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
 
     expect(plainKey).toBeDefined();
 
-    // Create a simple test workflow via REST API
     const workflow = {
       name: `E2E AI SDK MCP Test ${Date.now()}`,
       nodes: [
@@ -244,7 +226,6 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
     workflowId = await createWorkflow(workflow);
     expect(workflowId).toBeDefined();
 
-    // Create MCP client
     const client = await createMCPClient({
       transport: {
         type: 'http',
@@ -258,15 +239,13 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
     try {
       const tools = await client.tools();
 
-      // Create OpenAI-compatible provider for ZAI
       const openai = createOpenAI({
-        baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+        baseURL: 'https://api.z.ai/api/coding/paas/v4',
         apiKey: ZAI_API_KEY,
       });
 
-      const model = openai('glm-4-flash-250414');
+      const model = openai.chat('glm-4.7');
 
-      // Ask the agent to run the workflow
       const response = await generateText({
         model,
         tools,
@@ -284,17 +263,14 @@ e2eDescribe('Studio MCP: AI SDK Integration', () => {
         ],
       });
 
-      // Verify the agent made tool calls
       expect(response.steps).toBeDefined();
       expect(response.steps.length).toBeGreaterThan(0);
 
-      // Check for run_workflow and get_run_status tool calls
       const allToolCalls = response.steps.flatMap((step) => step.toolCalls || []);
       const toolCallNames = allToolCalls.map((call) => call.toolName);
 
       expect(toolCallNames).toContain('run_workflow');
 
-      // Verify response text
       expect(response.text).toBeDefined();
       expect(response.text.length).toBeGreaterThan(0);
     } finally {
