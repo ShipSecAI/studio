@@ -1,7 +1,9 @@
-import type { ApiKeyPermissions } from '../database/schema/api-keys';
-export type { ApiKeyPermissions };
-
 export type AuthRole = 'ADMIN' | 'MEMBER';
+
+export interface ApiKeyPermissions {
+  workflows: { run: boolean; list: boolean; read: boolean };
+  runs: { read: boolean; cancel: boolean };
+}
 
 export interface AuthContext {
   userId: string | null;

@@ -25,6 +25,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { McpModule } from './mcp/mcp.module';
+import { StudioMcpModule } from './studio-mcp/studio-mcp.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -51,6 +52,7 @@ const coreModules = [
   McpGroupsModule,
   McpModule,
   GitHubAppModule,
+  StudioMcpModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];

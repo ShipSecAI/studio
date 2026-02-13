@@ -6,4 +6,3 @@ export * from './destinations.js';
 export * from './schedules.js';
 export * from './webhooks.js';
 export * from './mcp.js';
-export * from './env.js';

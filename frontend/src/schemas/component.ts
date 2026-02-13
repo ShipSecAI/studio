@@ -101,7 +101,6 @@ export const ParameterSchema = z.object({
     'textarea',
     'number',
     'boolean',
-    'toggle',
     'select',
     'multi-select',
     'file',

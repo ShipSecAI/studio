@@ -324,7 +324,6 @@ export type ComponentParameterType =
   | 'textarea'
   | 'number'
   | 'boolean'
-  | 'toggle'
   | 'select'
   | 'multi-select'
   | 'json'
@@ -333,7 +332,8 @@ export type ComponentParameterType =
   | 'variable-list'
   | 'form-fields'
   | 'selection-options'
-  | 'analytics-inputs';
+  | 'analytics-inputs'
+  | 'tags';
 
 export interface ComponentParameterOption {
   label: string;

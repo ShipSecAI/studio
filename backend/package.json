@@ -15,12 +15,9 @@
     "migration:push": "bun x drizzle-kit push",
     "migration:smoke": "bun scripts/migration-smoke.ts",
     "delete:runs": "bun scripts/delete-all-workflow-runs.ts",
-    "setup:opensearch": "bun scripts/setup-opensearch.ts",
-    "seed:aws-workflow": "bun scripts/seed-aws-cspm-workflow.ts"
+    "setup:opensearch": "bun scripts/setup-opensearch.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-organizations": "^3.750.0",
-    "@aws-sdk/client-sts": "^3.750.0",
     "@clerk/backend": "^2.29.5",
     "@clerk/types": "^4.101.13",
     "@grpc/grpc-js": "^1.14.3",
@@ -48,7 +45,6 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
-    "cookie-parser": "^1.4.7",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",
