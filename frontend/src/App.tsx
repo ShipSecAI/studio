@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { WorkflowList } from '@/pages/WorkflowList';
+import { TemplateLibraryPage } from '@/pages/TemplateLibraryPage';
 import { WorkflowBuilder } from '@/features/workflow-builder/WorkflowBuilder';
 import { SecretsManager } from '@/pages/SecretsManager';
 import { ApiKeysManager } from '@/pages/ApiKeysManager';
@@ -52,6 +53,7 @@ function App() {
                 <ProtectedRoute>
                   <Routes>
                     <Route path="/" element={<WorkflowList />} />
+                    <Route path="/templates" element={<TemplateLibraryPage />} />
                     <Route
                       path="/workflows/:id"
                       element={

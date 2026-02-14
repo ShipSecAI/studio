@@ -27,6 +27,7 @@ import {
   BarChart3,
   Settings,
   ChevronDown,
+  Package,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -264,6 +265,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Workflow Builder',
       href: '/',
       icon: Workflow,
+    },
+    {
+      name: 'Template Library',
+      href: '/templates',
+      icon: Package,
     },
     {
       name: 'Schedules',

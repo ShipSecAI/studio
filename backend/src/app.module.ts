@@ -32,6 +32,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
+import { TemplatesModule } from './templates/templates.module';
 
 const coreModules = [
   AgentsModule,
@@ -51,6 +52,7 @@ const coreModules = [
   McpGroupsModule,
   McpModule,
   StudioMcpModule,
+  TemplatesModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
