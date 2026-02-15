@@ -1,34 +1,39 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import {
-  Plus,
-  Sparkles,
-  Paperclip,
-  ArrowUp,
-  Command,
-  Bot,
-  User,
-  ChevronDown,
-  Loader2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Square,
-  Wrench,
-  ChevronRight,
-  Brain,
-} from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { MarkdownView as Markdown } from '@/components/ui/markdown';
 import { ChatCommandPalette, WorkflowPreviewPanel, SuggestedPrompts } from '@/components/chat';
 import { useChatStore } from '@/store/chatStore';
 import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, isToolOrDynamicToolUIPart, getToolOrDynamicToolName } from 'ai';
+import { DefaultChatTransport, isToolOrDynamicToolUIPart } from 'ai';
 import type { UIMessage } from 'ai';
 import { getApiAuthHeaders } from '@/services/api';
+
+// AI Elements
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
+import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
+import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool';
+import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputButton,
+  type PromptInputMessage,
+} from '@/components/ai-elements/prompt-input';
 
 // Get time-based greeting
 function getGreeting(): string {
@@ -68,7 +73,7 @@ function headersInitToRecord(headers?: HeadersInit): Record<string, string> {
   return headers as Record<string, string>;
 }
 
-// Message component
+// Message component using AI Elements
 interface ChatMessageProps {
   message: UIMessage;
   isStreaming: boolean;
@@ -81,194 +86,72 @@ function ChatMessageItem({ message, isStreaming }: ChatMessageProps) {
   );
   const isEmptyAssistant = isAssistant && !hasContent;
 
-  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
-
-  const toggleToolExpand = (id: string) => {
-    setExpandedTools((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   return (
-    <div
-      className={cn(
-        'group flex gap-3 md:gap-4 py-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-300',
-        isAssistant ? 'bg-muted/30 rounded-lg px-4 -mx-4 py-2' : '',
-      )}
-    >
-      {/* Avatar */}
-      <Avatar
-        className={cn(
-          'h-8 w-8 shrink-0 ring-1 ring-border/30',
-          isAssistant
-            ? 'bg-gradient-to-br from-orange-500/20 to-orange-600/10'
-            : 'bg-gradient-to-br from-primary/20 to-primary/5',
-        )}
-      >
-        {isAssistant ? (
-          <AvatarFallback className="bg-transparent">
-            <Sparkles className="h-4 w-4 text-orange-500" />
-          </AvatarFallback>
+    <Message from={message.role} className="max-w-full">
+      <MessageContent>
+        {isEmptyAssistant && isStreaming ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+            <span>Thinking...</span>
+          </div>
         ) : (
-          <AvatarFallback className="bg-transparent text-primary">
-            <User className="h-4 w-4" />
-          </AvatarFallback>
-        )}
-      </Avatar>
+          <>
+            {message.parts.map((part, idx) => {
+              if (part.type === 'text') {
+                if (!part.text) return null;
+                return <MessageResponse key={`text-${idx}`}>{part.text}</MessageResponse>;
+              }
 
-      {/* Message Content */}
-      <div className="flex-1 space-y-1.5 min-w-0 overflow-hidden">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'font-medium text-sm',
-              isAssistant ? 'text-orange-600 dark:text-orange-400' : 'text-primary',
-            )}
-          >
-            {isAssistant ? 'ShipSec AI' : 'You'}
-          </span>
-        </div>
+              if (part.type === 'reasoning') {
+                if (!part.text) return null;
+                return (
+                  <Reasoning key={`reasoning-${idx}`} isStreaming={part.state === 'streaming'}>
+                    <ReasoningTrigger />
+                    <ReasoningContent>{part.text}</ReasoningContent>
+                  </Reasoning>
+                );
+              }
 
-        <div className="text-[15px] leading-relaxed text-foreground">
-          {isEmptyAssistant && isStreaming ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Thinking...</span>
-            </div>
-          ) : (
-            <>
-              {/* Render parts in order to preserve interleaved text/tool flow */}
-              {message.parts.map((part, idx) => {
-                if (part.type === 'text') {
-                  if (!part.text) return null;
-                  return (
-                    <Markdown
-                      key={`text-${idx}`}
-                      content={part.text}
-                      className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border/50 prose-pre:rounded-md prose-pre:p-3 prose-code:text-primary prose-headings:text-foreground prose-a:text-primary prose-strong:text-foreground"
+              if (isToolOrDynamicToolUIPart(part)) {
+                const toolId = part.toolCallId ?? `tool-${idx}`;
+                return (
+                  <Tool key={toolId}>
+                    <ToolHeader
+                      type={part.type as 'tool-invocation'}
+                      state={part.state}
+                      title={
+                        'toolName' in part
+                          ? (part.toolName as string)
+                          : part.type.split('-').slice(1).join('-')
+                      }
                     />
-                  );
-                }
-
-                if (part.type === 'reasoning') {
-                  if (!part.text) return null;
-                  return (
-                    <div
-                      key={`reasoning-${idx}`}
-                      className="my-2 bg-purple-50 dark:bg-purple-950/30 border border-purple-200/50 dark:border-purple-800/50 rounded-md text-sm overflow-hidden"
-                    >
-                      <div className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400">
-                        <Brain className="h-3.5 w-3.5" />
-                        <span className="font-medium text-xs">Thinking</span>
-                        {part.state === 'streaming' && (
-                          <Loader2 className="h-3 w-3 animate-spin ml-auto" />
-                        )}
-                      </div>
-                      <div className="px-3 pb-2 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                        {part.text}
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (isToolOrDynamicToolUIPart(part)) {
-                  const toolName = getToolOrDynamicToolName(part);
-                  const isInProgress =
-                    part.state === 'input-streaming' || part.state === 'input-available';
-                  const isDone = part.state === 'output-available';
-                  const isError = part.state === 'output-error';
-                  const toolId = part.toolCallId ?? `tool-${idx}`;
-                  const isExpanded = expandedTools.has(toolId);
-
-                  const toolInput = 'input' in part ? part.input : undefined;
-                  const toolOutput = 'output' in part ? part.output : undefined;
-                  const hasDetails = toolInput !== undefined || toolOutput !== undefined;
-
-                  return (
-                    <div
-                      key={toolId}
-                      className="my-2 bg-muted/50 border border-border/50 rounded-md text-sm overflow-hidden"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => hasDetails && toggleToolExpand(toolId)}
-                        className={cn(
-                          'w-full flex items-center gap-2 px-3 py-2 text-muted-foreground',
-                          hasDetails && 'cursor-pointer hover:bg-muted/80 transition-colors',
-                        )}
-                      >
-                        <Wrench className="h-3.5 w-3.5" />
-                        <span className="font-medium flex-1 text-left">{toolName}</span>
-                        {isInProgress ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                        {isDone ? (
-                          <span className="text-xs text-green-600 dark:text-green-400">Done</span>
-                        ) : null}
-                        {isError ? <span className="text-xs text-destructive">Error</span> : null}
-                        {hasDetails ? (
-                          <ChevronRight
-                            className={cn(
-                              'h-3 w-3 transition-transform',
-                              isExpanded && 'rotate-90',
-                            )}
-                          />
-                        ) : null}
-                      </button>
-
-                      {isExpanded && hasDetails && (
-                        <div className="border-t border-border/50 px-3 py-2 space-y-2">
-                          {toolInput !== undefined && (
-                            <div>
-                              <div className="text-xs font-medium text-muted-foreground mb-1">
-                                Arguments
-                              </div>
-                              <pre className="text-xs bg-background/50 rounded p-2 overflow-x-auto max-h-40 overflow-y-auto">
-                                {typeof toolInput === 'string'
-                                  ? toolInput
-                                  : JSON.stringify(toolInput, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                          {toolOutput !== undefined && (
-                            <div>
-                              <div className="text-xs font-medium text-muted-foreground mb-1">
-                                {isError ? 'Error' : 'Result'}
-                              </div>
-                              <pre
-                                className={cn(
-                                  'text-xs rounded p-2 overflow-x-auto max-h-40 overflow-y-auto',
-                                  isError
-                                    ? 'bg-destructive/10 text-destructive'
-                                    : 'bg-background/50',
-                                )}
-                              >
-                                {typeof toolOutput === 'string'
-                                  ? toolOutput
-                                  : JSON.stringify(toolOutput, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                        </div>
+                    <ToolContent>
+                      {'input' in part && part.input !== undefined && (
+                        <ToolInput input={part.input} />
                       )}
-                    </div>
-                  );
-                }
+                      {(part.state === 'output-available' || part.state === 'output-error') &&
+                        'output' in part && (
+                          <ToolOutput
+                            output={part.output}
+                            errorText={'errorText' in part ? (part.errorText as string) : undefined}
+                          />
+                        )}
+                    </ToolContent>
+                  </Tool>
+                );
+              }
 
-                // Skip other part types (e.g. 'source', 'reasoning', etc.)
-                return null;
-              })}
+              return null;
+            })}
 
-              {/* Streaming cursor for assistant */}
-              {isAssistant && isStreaming && getMessageText(message) && (
-                <span className="inline-block w-1.5 h-4 bg-orange-500 animate-pulse ml-0.5 align-text-bottom" />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+            {/* Streaming cursor for assistant */}
+            {isAssistant && isStreaming && getMessageText(message) && (
+              <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+            )}
+          </>
+        )}
+      </MessageContent>
+    </Message>
   );
 }
 
@@ -284,7 +167,7 @@ function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
       {/* Plan Badge */}
       <div className="mb-8 animate-in fade-in-0 slide-in-from-top-4 duration-500">
         <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-4 py-1.5 text-xs font-medium text-muted-foreground">
-          Free plan ·{' '}
+          Free plan &middot;{' '}
           <Link to="/upgrade" className="ml-1 text-primary hover:text-primary/80 transition-colors">
             Upgrade
           </Link>
@@ -315,10 +198,6 @@ function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
 
 // Main Chat Interface
 export function ChatInterface() {
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
   const { user } = useAuth();
   const {
     sessions,
@@ -353,8 +232,6 @@ export function ChatInterface() {
     id: currentSessionId ?? undefined,
   });
 
-  const isLoading = status === 'submitted' || status === 'streaming';
-
   // Auto-create session if none exists
   useEffect(() => {
     if (sessions.length === 0) {
@@ -381,62 +258,20 @@ export function ChatInterface() {
     }
   }, [messages, currentSession, currentSessionId, updateSessionTitle]);
 
-  // Scroll to bottom on new messages
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  // Auto-resize textarea
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    // Auto-resize
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
-  };
-
-  // Handle prompt selection
+  // Handle prompt selection — set the textarea value via ref
+  const [pendingPrompt, setPendingPrompt] = useState('');
   const handleSelectPrompt = useCallback((prompt: string) => {
-    setInput(prompt + ' ');
-    inputRef.current?.focus();
+    setPendingPrompt(prompt + ' ');
   }, []);
 
-  // Send message
-  const handleSendMessage = useCallback(
-    (e?: { preventDefault(): void }) => {
-      e?.preventDefault();
-
-      const trimmedInput = input.trim();
-      if (!trimmedInput || isLoading) return;
-
-      sendMessage({ text: trimmedInput });
-      setInput('');
-      if (inputRef.current) {
-        inputRef.current.style.height = 'auto';
-      }
+  // Handle submit from PromptInput
+  const handleSubmit = useCallback(
+    (message: PromptInputMessage) => {
+      const text = message.text?.trim();
+      if (!text) return;
+      sendMessage({ text });
     },
-    [input, isLoading, sendMessage],
-  );
-
-  // Handle keyboard shortcuts
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Send on Enter (without Shift)
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSendMessage();
-      }
-
-      // Open command palette on /
-      if (e.key === '/' && input === '') {
-        e.preventDefault();
-        setCommandPaletteOpen(true);
-      }
-    },
-    [handleSendMessage, input, setCommandPaletteOpen],
+    [sendMessage],
   );
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
@@ -466,8 +301,8 @@ export function ChatInterface() {
         {messages.length === 0 ? (
           <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
         ) : (
-          <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6 scrollbar-thin scrollbar-thumb-border">
-            <div className="max-w-3xl mx-auto divide-y divide-border/30">
+          <Conversation className="flex-1">
+            <ConversationContent className="max-w-3xl mx-auto gap-6 px-4 py-6 md:px-6">
               {messages.map((msg, idx) => (
                 <ChatMessageItem
                   key={msg.id}
@@ -479,9 +314,9 @@ export function ChatInterface() {
                   }
                 />
               ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
+            </ConversationContent>
+            <ConversationScrollButton />
+          </Conversation>
         )}
 
         {/* Error display */}
@@ -495,88 +330,46 @@ export function ChatInterface() {
 
         {/* Input Area */}
         <div className="shrink-0 p-4 md:pb-6 border-t bg-background">
-          <div className="max-w-3xl mx-auto space-y-4">
-            {/* Input Container */}
-            <div className="relative rounded-xl bg-muted/50 border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200">
-              <form onSubmit={handleSendMessage} className="flex flex-col">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Message ShipSec... (Type / for commands)"
-                  rows={1}
-                  className="w-full bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 min-h-[56px] max-h-[200px] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground resize-none scrollbar-thin scrollbar-thumb-border/50"
-                  autoFocus
-                />
-
-                {/* Bottom toolbar */}
-                <div className="flex items-center justify-between px-3 pb-3">
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
+          <div className="max-w-3xl mx-auto space-y-3">
+            <PromptInput
+              onSubmit={handleSubmit}
+              className="rounded-xl border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200"
+            >
+              <PromptInputTextarea
+                placeholder="Message ShipSec... (Type / for commands)"
+                autoFocus
+                value={pendingPrompt || undefined}
+                onChange={() => {
+                  if (pendingPrompt) setPendingPrompt('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === '/' && e.currentTarget.value === '') {
+                    e.preventDefault();
+                    setCommandPaletteOpen(true);
+                  }
+                }}
+              />
+              <PromptInputFooter>
+                <div className="flex items-center gap-1">
+                  <PromptInputButton tooltip="Commands" onClick={() => setCommandPaletteOpen(true)}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
-                    >
-                      <Paperclip className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setCommandPaletteOpen(true)}
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
-                    >
-                      <Command className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Model selector */}
-                    <button className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-accent hover:bg-accent/80 px-2.5 py-1.5 rounded-lg transition-colors">
-                      <Bot className="h-3.5 w-3.5" />
-                      <span>ShipSec AI</span>
-                      <ChevronDown className="h-3 w-3 opacity-50" />
-                    </button>
-
-                    {/* Stop / Send button */}
-                    {isLoading ? (
-                      <Button
-                        type="button"
-                        size="icon"
-                        onClick={stop}
-                        className="h-9 w-9 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm transition-all duration-200"
-                      >
-                        <Square className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      <Button
-                        type="submit"
-                        size="icon"
-                        disabled={!input.trim()}
-                        className={cn(
-                          'h-9 w-9 rounded-lg transition-all duration-200',
-                          input.trim()
-                            ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm'
-                            : 'bg-muted text-muted-foreground cursor-not-allowed',
-                        )}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                      <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z" />
+                    </svg>
+                  </PromptInputButton>
                 </div>
-              </form>
-            </div>
+                <PromptInputSubmit status={status} onStop={stop} />
+              </PromptInputFooter>
+            </PromptInput>
 
             {/* Disclaimer */}
             <p className="text-center text-xs text-muted-foreground/70">

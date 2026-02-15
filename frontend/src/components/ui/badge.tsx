@@ -13,9 +13,11 @@ const badgeVariants = cva(
           'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive:
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        success: 'border-transparent bg-green-500 text-white hover:bg-green-600',
-        warning: 'border-transparent bg-amber-500 text-white hover:bg-amber-600',
         outline: 'text-foreground',
+        warning:
+          'border-transparent bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+        success:
+          'border-transparent bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
       },
     },
     defaultVariants: {
@@ -31,4 +33,4 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 
-export { Badge };
+export { Badge, badgeVariants };

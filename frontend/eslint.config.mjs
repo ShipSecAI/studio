@@ -59,6 +59,7 @@ export default tseslint.config(
       'react/prop-types': 'off',
       'react/display-name': 'off',
       'react/no-unescaped-entities': 'error',
+      'react/no-unknown-property': ['error', { ignore: ['cmdk-input-wrapper'] }],
 
       // Refresh
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
