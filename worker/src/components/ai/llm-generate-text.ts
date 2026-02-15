@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { generateText as generateTextImpl } from 'ai';
 import { createOpenAI as createOpenAIImpl } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI as createGoogleGenerativeAIImpl } from '@ai-sdk/google';
@@ -14,6 +15,13 @@ import {
   param,
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, type LlmProviderConfig } from '@shipsec/contracts';
+import {
+  shouldRouteViaLiteLLM,
+  getLiteLLMBaseUrl,
+  getLiteLLMApiKey,
+  normalizeLiteLLMModel,
+  combineHeaders,
+} from './utils';
 
 const inputSchema = inputs({
   userPrompt: port(
@@ -150,13 +158,22 @@ const definition = defineComponent({
   async execute({ inputs, params }, context, dependencies?: Dependencies) {
     const { systemPrompt, temperature, maxTokens } = params;
     const { userPrompt, chatModel, modelApiKey } = inputs;
+    const requestKey = randomUUID();
+    const liteLLMEnabled = shouldRouteViaLiteLLM();
+    const liteLLMBaseUrl = getLiteLLMBaseUrl();
+    const liteLLMApiKey = getLiteLLMApiKey();
+    const routedModel = liteLLMEnabled
+      ? normalizeLiteLLMModel(chatModel.provider, chatModel.modelId)
+      : chatModel.modelId;
 
     const generateText = dependencies?.generateText ?? generateTextImpl;
     const createOpenAI = dependencies?.createOpenAI ?? createOpenAIImpl;
     const createGoogleGenerativeAI =
       dependencies?.createGoogleGenerativeAI ?? createGoogleGenerativeAIImpl;
 
-    const resolvedApiKey = modelApiKey?.trim() || chatModel.apiKey?.trim();
+    const resolvedApiKey = liteLLMEnabled
+      ? liteLLMApiKey || modelApiKey?.trim() || chatModel.apiKey?.trim()
+      : modelApiKey?.trim() || chatModel.apiKey?.trim();
     if (!resolvedApiKey) {
       throw new ConfigurationError(
         'No API key available. Provide a key via the provider component or connect an override.',
@@ -164,15 +181,36 @@ const definition = defineComponent({
       );
     }
 
-    const trimmedSystemPrompt = systemPrompt?.trim();
-    const model = buildModelFactory(chatModel, resolvedApiKey, {
-      createOpenAI,
-      createGoogleGenerativeAI,
+    const organizationId =
+      typeof context.metadata.organizationId === 'string' ? context.metadata.organizationId : null;
+    const modelHeaders = 'headers' in chatModel ? chatModel.headers : undefined;
+    const requestHeaders = combineHeaders(modelHeaders, {
+      'x-shipsec-org-id': String(organizationId ?? ''),
+      'x-shipsec-run-id': String(context.runId ?? ''),
+      'x-shipsec-node-ref': String(context.componentRef ?? ''),
+      'x-shipsec-request-id': requestKey,
+      'x-shipsec-channel': 'workflow_agent',
+      'x-shipsec-provider': chatModel.provider,
+      'x-shipsec-model': routedModel,
     });
 
-    context.logger.info(
-      `[AIGenerateText] Calling ${chatModel.provider} model ${chatModel.modelId}`,
+    const trimmedSystemPrompt = systemPrompt?.trim();
+    const model = buildModelFactory(
+      {
+        config: chatModel,
+        apiKey: resolvedApiKey,
+        routeViaLiteLLM: liteLLMEnabled,
+        routedModel,
+        baseUrl: liteLLMEnabled ? liteLLMBaseUrl : chatModel.baseUrl,
+        headers: requestHeaders,
+      },
+      {
+        createOpenAI,
+        createGoogleGenerativeAI,
+      },
     );
+
+    context.logger.info(`[AIGenerateText] Calling ${chatModel.provider} model ${routedModel}`);
 
     const result = await generateText({
       model,
@@ -181,6 +219,26 @@ const definition = defineComponent({
       temperature,
       maxOutputTokens: maxTokens,
     });
+
+    if (result.usage && context.agentTracePublisher) {
+      await context.agentTracePublisher.publish({
+        agentRunId: `${context.runId}:${context.componentRef}:${requestKey}`,
+        workflowRunId: context.runId,
+        nodeRef: context.componentRef,
+        sequence: 1,
+        timestamp: new Date().toISOString(),
+        part: {
+          type: 'data-usage',
+          data: {
+            usage: result.usage,
+            requestId: requestKey,
+            channel: 'workflow_agent',
+            provider: chatModel.provider,
+            model: routedModel,
+          },
+        },
+      });
+    }
 
     return {
       responseText: result.text,
@@ -192,29 +250,37 @@ const definition = defineComponent({
 });
 
 function buildModelFactory(
-  config: LlmProviderConfig,
-  apiKey: string,
+  params: {
+    config: LlmProviderConfig;
+    apiKey: string;
+    routeViaLiteLLM: boolean;
+    routedModel: string;
+    baseUrl?: string;
+    headers?: Record<string, string>;
+  },
   factories: {
     createOpenAI: typeof createOpenAIImpl;
     createGoogleGenerativeAI: typeof createGoogleGenerativeAIImpl;
   },
 ) {
-  if (config.provider === 'gemini') {
+  const { config, apiKey, routeViaLiteLLM, routedModel, baseUrl, headers } = params;
+
+  if (!routeViaLiteLLM && config.provider === 'gemini') {
     const client = factories.createGoogleGenerativeAI({
       apiKey,
-      ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
+      ...(baseUrl ? { baseURL: baseUrl } : {}),
       ...(config.projectId ? { projectId: config.projectId } : {}),
     });
-    return client(config.modelId);
+    return client(routedModel);
   }
 
   const client = factories.createOpenAI({
     apiKey,
-    ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
-    ...(config.headers ? { headers: config.headers } : {}),
+    ...(baseUrl ? { baseURL: baseUrl } : {}),
+    ...(headers ? { headers } : {}),
   });
 
-  return client(config.modelId);
+  return client(routedModel);
 }
 
 componentRegistry.register(definition);

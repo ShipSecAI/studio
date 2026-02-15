@@ -3127,6 +3127,51 @@
         ]
       }
     },
+    "/api/v1/billing/usage": {
+      "get": {
+        "operationId": "BillingController_usage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingUsageResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/plans": {
+      "get": {
+        "operationId": "BillingController_plans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubscriptionPlanDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/components": {
       "get": {
         "operationId": "ComponentsController_listComponents",
@@ -11136,6 +11181,7 @@
             "enum": [
               "free",
               "pro",
+              "team",
               "enterprise"
             ],
             "example": "free"
@@ -11188,6 +11234,7 @@
             "enum": [
               "free",
               "pro",
+              "team",
               "enterprise"
             ]
           }
@@ -11998,6 +12045,220 @@
         },
         "required": [
           "success"
+        ]
+      },
+      "BillingPlanSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "pro"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Pro"
+          },
+          "priceUsdCents": {
+            "type": "number",
+            "example": 4900,
+            "description": "Monthly price in USD cents"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "priceUsdCents"
+        ]
+      },
+      "BillingPeriodDto": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "example": "2026-02-01T00:00:00.000Z"
+          },
+          "end": {
+            "type": "string",
+            "example": "2026-03-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "BillingMeterDto": {
+        "type": "object",
+        "properties": {
+          "used": {
+            "type": "number",
+            "example": 42
+          },
+          "limit": {
+            "type": "number",
+            "example": 500,
+            "description": "-1 means unlimited"
+          },
+          "remaining": {
+            "type": "number",
+            "example": 458,
+            "description": "-1 means unlimited"
+          }
+        },
+        "required": [
+          "used",
+          "limit",
+          "remaining"
+        ]
+      },
+      "BillingAiUsageDto": {
+        "type": "object",
+        "properties": {
+          "spentUsd": {
+            "type": "number",
+            "example": 12.5,
+            "description": "USD spent via LiteLLM this period"
+          },
+          "budgetUsd": {
+            "type": "number",
+            "example": 50,
+            "description": "Budget in USD (-1 = unlimited)"
+          },
+          "remainingUsd": {
+            "type": "number",
+            "example": 37.5,
+            "description": "Remaining budget (-1 = unlimited)"
+          },
+          "totalTokensUsed": {
+            "type": "number",
+            "example": 125000,
+            "description": "Total tokens consumed (informational)"
+          }
+        },
+        "required": [
+          "spentUsd",
+          "budgetUsd",
+          "remainingUsd",
+          "totalTokensUsed"
+        ]
+      },
+      "BillingLimitsDto": {
+        "type": "object",
+        "properties": {
+          "maxConcurrentRuns": {
+            "type": "number",
+            "example": 3,
+            "description": "-1 means unlimited"
+          },
+          "maxWorkflows": {
+            "type": "number",
+            "example": -1,
+            "description": "-1 means unlimited"
+          },
+          "analyticsRetentionDays": {
+            "type": "number",
+            "example": 30
+          }
+        },
+        "required": [
+          "maxConcurrentRuns",
+          "maxWorkflows",
+          "analyticsRetentionDays"
+        ]
+      },
+      "BillingUsageResponseDto": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "example": "org_abc123"
+          },
+          "subscriptionTier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro",
+              "team",
+              "enterprise"
+            ],
+            "example": "pro"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/BillingPlanSummaryDto"
+          },
+          "period": {
+            "$ref": "#/components/schemas/BillingPeriodDto"
+          },
+          "workflowRuns": {
+            "$ref": "#/components/schemas/BillingMeterDto"
+          },
+          "ai": {
+            "$ref": "#/components/schemas/BillingAiUsageDto"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/BillingLimitsDto"
+          }
+        },
+        "required": [
+          "organizationId",
+          "subscriptionTier",
+          "plan",
+          "period",
+          "workflowRuns",
+          "ai",
+          "limits"
+        ]
+      },
+      "SubscriptionPlanDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "pro"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Pro"
+          },
+          "priceUsdCents": {
+            "type": "number",
+            "example": 4900,
+            "description": "Monthly price in USD cents (0 = free or custom)"
+          },
+          "workflowRunsPerMonth": {
+            "type": "number",
+            "example": 500,
+            "description": "-1 means unlimited"
+          },
+          "aiBudgetUsdCents": {
+            "type": "number",
+            "example": 5000,
+            "description": "AI budget in USD cents (-1 = unlimited)"
+          },
+          "maxConcurrentRuns": {
+            "type": "number",
+            "example": 3,
+            "description": "-1 means unlimited"
+          },
+          "analyticsRetentionDays": {
+            "type": "number",
+            "example": 30
+          },
+          "maxWorkflows": {
+            "type": "number",
+            "example": -1,
+            "description": "-1 means unlimited"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "priceUsdCents",
+          "workflowRunsPerMonth",
+          "aiBudgetUsdCents",
+          "maxConcurrentRuns",
+          "analyticsRetentionDays",
+          "maxWorkflows"
         ]
       },
       "SecretVersionResponse": {

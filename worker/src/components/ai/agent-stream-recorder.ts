@@ -99,6 +99,25 @@ export class AgentStreamRecorder {
     });
   }
 
+  emitUsage(
+    usage: unknown,
+    metadata?: {
+      requestId?: string;
+      channel?: string;
+      provider?: string;
+      model?: string;
+    },
+  ): void {
+    // Usage payloads vary by provider/model; we record them for metering.
+    this.emitPart({
+      type: 'data-usage',
+      data: {
+        usage,
+        ...(metadata ?? {}),
+      },
+    });
+  }
+
   private emitPart(part: AgentStreamPart): void {
     const timestamp = new Date().toISOString();
     const sequence = ++this.sequence;

@@ -10,7 +10,6 @@ import { EventIngestService } from '../events/event-ingest.service';
 import { AgentTraceIngestService } from '../agent-trace/agent-trace-ingest.service';
 import { AgentTraceRepository } from '../agent-trace/agent-trace.repository';
 import { AgentTraceService } from '../agent-trace/agent-trace.service';
-
 const ingestServicesEnabled =
   (process.env.ENABLE_INGEST_SERVICES ?? 'true') === 'true' &&
   process.env.SKIP_INGEST_SERVICES !== 'true';

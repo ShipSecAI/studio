@@ -44,7 +44,15 @@ const DEFAULT_MEMORY_SIZE = 8;
 const DEFAULT_STEP_LIMIT = 4;
 const LOG_TRUNCATE_LIMIT = 2000;
 
-import { DEFAULT_GATEWAY_URL, getGatewaySessionToken } from './utils';
+import {
+  DEFAULT_GATEWAY_URL,
+  getGatewaySessionToken,
+  shouldRouteViaLiteLLM,
+  getLiteLLMBaseUrl,
+  getLiteLLMApiKey,
+  normalizeLiteLLMModel,
+  combineHeaders,
+} from './utils';
 
 const agentMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant', 'tool']),
@@ -601,27 +609,48 @@ Loop the Conversation State output back into the next agent invocation to keep m
 
       const effectiveProvider: ModelProvider = chatModel?.provider ?? 'openai';
       const effectiveModel = ensureModelName(effectiveProvider, chatModel?.modelId ?? null);
+      const requestKey = randomUUID();
+      const liteLLMEnabled = shouldRouteViaLiteLLM();
+      const liteLLMBaseUrl = getLiteLLMBaseUrl();
+      const liteLLMApiKey = getLiteLLMApiKey();
+      const routedModel = liteLLMEnabled
+        ? normalizeLiteLLMModel(effectiveProvider, effectiveModel)
+        : effectiveModel;
 
       let overrideApiKey = chatModel?.apiKey ?? null;
       if (modelApiKey && modelApiKey.trim().length > 0) {
         overrideApiKey = modelApiKey.trim();
       }
 
-      const effectiveApiKey = resolveApiKey(effectiveProvider, overrideApiKey);
+      const effectiveApiKey = liteLLMEnabled
+        ? resolveApiKey(effectiveProvider, liteLLMApiKey || overrideApiKey)
+        : resolveApiKey(effectiveProvider, overrideApiKey);
       const explicitBaseUrl = chatModel?.baseUrl?.trim();
       const baseUrl =
-        explicitBaseUrl && explicitBaseUrl.length > 0
-          ? explicitBaseUrl
-          : effectiveProvider === 'gemini'
-            ? GEMINI_BASE_URL
-            : effectiveProvider === 'openrouter'
-              ? OPENROUTER_BASE_URL
-              : OPENAI_BASE_URL;
+        liteLLMEnabled && liteLLMBaseUrl
+          ? liteLLMBaseUrl
+          : explicitBaseUrl && explicitBaseUrl.length > 0
+            ? explicitBaseUrl
+            : effectiveProvider === 'gemini'
+              ? GEMINI_BASE_URL
+              : effectiveProvider === 'openrouter'
+                ? OPENROUTER_BASE_URL
+                : OPENAI_BASE_URL;
 
       const sanitizedHeaders =
         chatModel && (chatModel.provider === 'openai' || chatModel.provider === 'openrouter')
           ? sanitizeHeaders(chatModel.headers)
           : undefined;
+      const billingHeaders = combineHeaders(sanitizedHeaders, {
+        'x-shipsec-org-id': String(organizationId ?? ''),
+        'x-shipsec-run-id': String(context.runId ?? ''),
+        'x-shipsec-node-ref': String(context.componentRef ?? ''),
+        'x-shipsec-agent-run-id': agentRunId,
+        'x-shipsec-request-id': requestKey,
+        'x-shipsec-channel': 'workflow_agent',
+        'x-shipsec-provider': effectiveProvider,
+        'x-shipsec-model': routedModel,
+      });
 
       const incomingState = conversationState;
 
@@ -650,26 +679,26 @@ Loop the Conversation State output back into the next agent invocation to keep m
       const openAIOptions = {
         apiKey: effectiveApiKey,
         ...(baseUrl ? { baseURL: baseUrl } : {}),
-        ...(sanitizedHeaders && Object.keys(sanitizedHeaders).length > 0
-          ? { headers: sanitizedHeaders }
-          : {}),
+        ...(Object.keys(billingHeaders).length > 0 ? { headers: billingHeaders } : {}),
       };
       const isOpenRouter =
-        effectiveProvider === 'openrouter' ||
-        (typeof baseUrl === 'string' && baseUrl.includes('openrouter.ai'));
+        !liteLLMEnabled &&
+        (effectiveProvider === 'openrouter' ||
+          (typeof baseUrl === 'string' && baseUrl.includes('openrouter.ai')));
       const openAIProvider = createOpenAIImpl({
         ...openAIOptions,
         ...(isOpenRouter ? { name: 'openrouter' } : {}),
       });
       const model =
-        effectiveProvider === 'gemini'
+        !liteLLMEnabled && effectiveProvider === 'gemini'
           ? createGoogleGenerativeAIImpl({
               apiKey: effectiveApiKey,
               ...(baseUrl ? { baseURL: baseUrl } : {}),
-            })(effectiveModel)
+            })(routedModel)
           : isOpenRouter
-            ? openAIProvider.chat(effectiveModel)
-            : openAIProvider(effectiveModel);
+            ? openAIProvider.chat(routedModel)
+            : openAIProvider(routedModel);
+
       const agentSettings: ToolLoopAgentSettings<never, AgentTools> = {
         id: `${sessionId}-agent`,
         model,
@@ -746,7 +775,16 @@ Loop the Conversation State output back into the next agent invocation to keep m
         messages: updatedMessages,
       };
 
+      const usagePayload = generationResult.totalUsage ?? generationResult.usage ?? null;
       agentStream.emitTextDelta(responseText);
+      if (usagePayload) {
+        agentStream.emitUsage(usagePayload, {
+          requestId: requestKey,
+          channel: 'workflow_agent',
+          provider: effectiveProvider,
+          model: routedModel,
+        });
+      }
       agentStream.emitFinish(generationResult?.finishReason ?? 'stop', responseText);
       context.emitProgress({
         level: 'info',

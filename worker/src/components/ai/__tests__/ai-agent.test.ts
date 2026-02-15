@@ -133,6 +133,8 @@ beforeEach(() => {
   createMCPClientMock.mockClear();
   vi.restoreAllMocks();
   process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
+  delete process.env.LITELLM_BASE_URL;
+  delete process.env.LITELLM_API_KEY;
 });
 
 beforeAll(async () => {
@@ -328,5 +330,51 @@ describe('core.ai.agent (refactor)', () => {
       toolName: 'ping',
       output: { type: 'json', value: { ok: true } },
     });
+  });
+
+  test('routes gemini provider through LiteLLM OpenAI-compatible path when enabled', async () => {
+    process.env.LITELLM_BASE_URL = 'http://litellm.local:4000/v1';
+    process.env.LITELLM_API_KEY = 'litellm-master-key';
+
+    const component = componentRegistry.get<AiAgentInput, AiAgentOutput>('core.ai.agent');
+    expect(component).toBeDefined();
+
+    vi.spyOn(MockToolLoopAgent.prototype, 'generate').mockResolvedValue(
+      createGenerationResult({ text: 'LiteLLM route ok' }),
+    );
+
+    const result = await runComponentWithRunner(
+      component!.runner,
+      component!.execute,
+      {
+        inputs: {
+          userInput: 'Use gemini via gateway',
+          conversationState: undefined,
+          chatModel: {
+            provider: 'gemini',
+            modelId: 'gemini-2.5-flash',
+          },
+          modelApiKey: 'provider-key-ignored-when-litellm-set',
+        },
+        params: {
+          systemPrompt: '',
+          temperature: 0.2,
+          maxTokens: 128,
+          memorySize: 5,
+          stepLimit: 2,
+        },
+      },
+      createTestContext(),
+    );
+
+    expect(result.responseText).toBe('LiteLLM route ok');
+    expect(createGoogleGenerativeAIMock).not.toHaveBeenCalled();
+    expect(createOpenAIMock).toHaveBeenCalled();
+    expect(createOpenAIMock.mock.calls.length).toBeGreaterThan(0);
+
+    const openAiCall = (createOpenAIMock as any).mock.calls[0][0] as Record<string, unknown>;
+    expect(openAiCall.baseURL).toBe('http://litellm.local:4000/v1');
+    expect(openAiCall.apiKey).toBe('litellm-master-key');
+    expect(openAiCall.headers).toBeDefined();
   });
 });

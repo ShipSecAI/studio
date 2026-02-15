@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, INestApplication } from '@nestjs/common';
+import { ForbiddenException, INestApplication, Module } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
@@ -22,6 +22,44 @@ import { McpGatewayService } from '../mcp-gateway.service';
 import { ToolRegistryService, TOOL_REGISTRY_REDIS } from '../tool-registry.service';
 import { WorkflowsService } from '../../workflows/workflows.service';
 import { Pool } from 'pg';
+
+@Module({
+  providers: [
+    {
+      provide: AnalyticsService,
+      useValue: {
+        isEnabled: () => false,
+        track: () => {},
+        trackWorkflowStarted: () => {},
+        trackWorkflowCompleted: () => {},
+        trackApiCall: () => {},
+        trackComponentExecuted: () => {},
+      },
+    },
+    {
+      provide: OpenSearchTenantService,
+      useValue: { provisionTenant: async () => true },
+    },
+    {
+      provide: SecurityAnalyticsService,
+      useValue: { indexDocument: async () => {}, bulkIndexDocuments: async () => {} },
+    },
+    {
+      provide: OrganizationSettingsService,
+      useValue: {
+        getOrganizationSettings: async () => ({}),
+        updateOrganizationSettings: async () => ({}),
+      },
+    },
+  ],
+  exports: [
+    AnalyticsService,
+    OpenSearchTenantService,
+    SecurityAnalyticsService,
+    OrganizationSettingsService,
+  ],
+})
+class MockAnalyticsModule {}
 
 // Simple Mock Redis
 class MockRedis {
@@ -74,38 +112,7 @@ describe('MCP Internal API (Integration)', () => {
       imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }), McpModule],
     })
       .overrideModule(AnalyticsModule)
-      .useModule(
-        class MockAnalyticsModule {
-          static providers = [
-            {
-              provide: AnalyticsService,
-              useValue: {
-                isEnabled: () => false,
-                track: () => {},
-                trackWorkflowStarted: () => {},
-                trackWorkflowCompleted: () => {},
-                trackApiCall: () => {},
-                trackComponentExecuted: () => {},
-              },
-            },
-            {
-              provide: OpenSearchTenantService,
-              useValue: { provisionTenant: async () => true },
-            },
-            {
-              provide: SecurityAnalyticsService,
-              useValue: { indexDocument: async () => {}, bulkIndexDocuments: async () => {} },
-            },
-            {
-              provide: OrganizationSettingsService,
-              useValue: {
-                getOrganizationSettings: async () => ({}),
-                updateOrganizationSettings: async () => ({}),
-              },
-            },
-          ];
-        },
-      )
+      .useModule(MockAnalyticsModule)
       .overrideProvider(NodeIOIngestService)
       .useValue({
         onModuleInit: async () => {},

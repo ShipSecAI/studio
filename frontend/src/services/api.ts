@@ -1374,6 +1374,22 @@ export const api = {
       }>;
     },
   },
+
+  billing: {
+    getUsage: async () => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_BASE_URL}/api/v1/billing/usage`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch billing usage');
+      return res.json();
+    },
+
+    getPlans: async () => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_BASE_URL}/api/v1/billing/plans`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch subscription plans');
+      return res.json();
+    },
+  },
 };
 
 export async function getApiAuthHeaders(): Promise<Record<string, string>> {

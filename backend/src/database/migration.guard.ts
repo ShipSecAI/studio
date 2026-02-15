@@ -8,7 +8,10 @@ const REQUIRED_TABLES = [
   'artifacts',
   'workflow_log_streams',
   'workflow_traces',
+  'agent_trace_events',
   'organization_settings',
+  'billing_usage_events',
+  'subscription_plans',
 ];
 
 @Injectable()

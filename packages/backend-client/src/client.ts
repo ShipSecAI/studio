@@ -852,6 +852,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["BillingController_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["BillingController_plans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/components": {
         parameters: {
             query?: never;
@@ -1991,7 +2023,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/internal/mcp/register-mcp-server": {
+    "/api/v1/internal/mcp/register-remote": {
         parameters: {
             query?: never;
             header?: never;
@@ -2000,7 +2032,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["InternalMcpController_registerMcpServer"];
+        post: operations["InternalMcpController_registerRemote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/register-local": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_registerLocal"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3422,7 +3470,7 @@ export interface components {
              * @example free
              * @enum {string}
              */
-            subscriptionTier: "free" | "pro" | "enterprise";
+            subscriptionTier: "free" | "pro" | "team" | "enterprise";
             /**
              * @description Data retention period in days
              * @example 30
@@ -3456,7 +3504,7 @@ export interface components {
              * @description Subscription tier (optional - usually set by billing system)
              * @enum {string}
              */
-            subscriptionTier?: "free" | "pro" | "enterprise";
+            subscriptionTier?: "free" | "pro" | "team" | "enterprise";
         };
         ListAuditLogsResponseDto: {
             items: {
@@ -3690,6 +3738,120 @@ export interface components {
         };
         DeleteApiKeyResponseDto: {
             success: boolean;
+        };
+        BillingPlanSummaryDto: {
+            /** @example pro */
+            id: string;
+            /** @example Pro */
+            displayName: string;
+            /**
+             * @description Monthly price in USD cents
+             * @example 4900
+             */
+            priceUsdCents: number;
+        };
+        BillingPeriodDto: {
+            /** @example 2026-02-01T00:00:00.000Z */
+            start: string;
+            /** @example 2026-03-01T00:00:00.000Z */
+            end: string;
+        };
+        BillingMeterDto: {
+            /** @example 42 */
+            used: number;
+            /**
+             * @description -1 means unlimited
+             * @example 500
+             */
+            limit: number;
+            /**
+             * @description -1 means unlimited
+             * @example 458
+             */
+            remaining: number;
+        };
+        BillingAiUsageDto: {
+            /**
+             * @description USD spent via LiteLLM this period
+             * @example 12.5
+             */
+            spentUsd: number;
+            /**
+             * @description Budget in USD (-1 = unlimited)
+             * @example 50
+             */
+            budgetUsd: number;
+            /**
+             * @description Remaining budget (-1 = unlimited)
+             * @example 37.5
+             */
+            remainingUsd: number;
+            /**
+             * @description Total tokens consumed (informational)
+             * @example 125000
+             */
+            totalTokensUsed: number;
+        };
+        BillingLimitsDto: {
+            /**
+             * @description -1 means unlimited
+             * @example 3
+             */
+            maxConcurrentRuns: number;
+            /**
+             * @description -1 means unlimited
+             * @example -1
+             */
+            maxWorkflows: number;
+            /** @example 30 */
+            analyticsRetentionDays: number;
+        };
+        BillingUsageResponseDto: {
+            /** @example org_abc123 */
+            organizationId: string;
+            /**
+             * @example pro
+             * @enum {string}
+             */
+            subscriptionTier: "free" | "pro" | "team" | "enterprise";
+            plan: components["schemas"]["BillingPlanSummaryDto"];
+            period: components["schemas"]["BillingPeriodDto"];
+            workflowRuns: components["schemas"]["BillingMeterDto"];
+            ai: components["schemas"]["BillingAiUsageDto"];
+            limits: components["schemas"]["BillingLimitsDto"];
+        };
+        SubscriptionPlanDto: {
+            /** @example pro */
+            id: string;
+            /** @example Pro */
+            displayName: string;
+            /**
+             * @description Monthly price in USD cents (0 = free or custom)
+             * @example 4900
+             */
+            priceUsdCents: number;
+            /**
+             * @description -1 means unlimited
+             * @example 500
+             */
+            workflowRunsPerMonth: number;
+            /**
+             * @description AI budget in USD cents (-1 = unlimited)
+             * @example 5000
+             */
+            aiBudgetUsdCents: number;
+            /**
+             * @description -1 means unlimited
+             * @example 3
+             */
+            maxConcurrentRuns: number;
+            /** @example 30 */
+            analyticsRetentionDays: number;
+            /**
+             * @description -1 means unlimited
+             * @example -1
+             */
+            maxWorkflows: number;
         };
         SecretVersionResponse: {
             id: string;
@@ -4247,7 +4409,7 @@ export interface components {
             description: string | null;
             credentialContractName: string;
             credentialMapping: {
-                [key: string]: string;
+                [key: string]: unknown;
             } | null;
             defaultDockerImage: string | null;
             enabled: boolean;
@@ -4257,40 +4419,13 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        GroupTemplateDto: {
-            slug: string;
-            name: string;
-            description?: string;
-            credentialContractName: string;
-            credentialMapping?: {
-                [key: string]: string;
-            };
-            defaultDockerImage: string;
-            version: {
-                major: number;
-                minor: number;
-                patch: number;
-            };
-            servers: {
-                name: string;
-                description?: string;
-                /** @enum {string} */
-                transportType: "http" | "stdio" | "sse" | "websocket";
-                endpoint?: string;
-                command?: string;
-                args?: string[];
-                recommended: boolean;
-                defaultSelected: boolean;
-            }[];
-            templateHash: string;
-        };
         CreateMcpGroupDto: {
             slug: string;
             name: string;
             description?: string | null;
             credentialContractName: string;
             credentialMapping?: {
-                [key: string]: string;
+                [key: string]: unknown;
             } | null;
             defaultDockerImage?: string | null;
             enabled?: boolean;
@@ -4300,7 +4435,7 @@ export interface components {
             description?: string | null;
             credentialContractName?: string;
             credentialMapping?: {
-                [key: string]: string;
+                [key: string]: unknown;
             } | null;
             defaultDockerImage?: string | null;
             enabled?: boolean;
@@ -4353,7 +4488,7 @@ export interface components {
                 description: string | null;
                 credentialContractName: string;
                 credentialMapping: {
-                    [key: string]: string;
+                    [key: string]: unknown;
                 } | null;
                 defaultDockerImage: string | null;
                 enabled: boolean;
@@ -4365,7 +4500,8 @@ export interface components {
             };
         };
         RegisterComponentToolInput: Record<string, never>;
-        RegisterMcpServerInput: Record<string, never>;
+        RegisterRemoteMcpInput: Record<string, never>;
+        RegisterLocalMcpInput: Record<string, never>;
         DiscoveryInputDto: {
             /**
              * @description Transport type for MCP server
@@ -6275,6 +6411,44 @@ export interface operations {
             };
         };
     };
+    BillingController_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingUsageResponseDto"];
+                };
+            };
+        };
+    };
+    BillingController_plans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionPlanDto"][];
+                };
+            };
+        };
+    };
     ComponentsController_listComponents: {
         parameters: {
             query?: never;
@@ -6392,11 +6566,10 @@ export interface operations {
                             rows?: number | null;
                         }[];
                         examples?: string[];
-                        toolProvider?: {
-                            /** @enum {string} */
-                            kind?: "component" | "mcp-server" | "mcp-group";
-                            name?: string;
-                            description?: string;
+                        agentTool?: {
+                            enabled?: boolean;
+                            toolName?: string | null;
+                            toolDescription?: string | null;
                         } | null;
                     }[];
                 };
@@ -8031,9 +8204,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["GroupTemplateDto"][];
-                };
+                content?: never;
             };
         };
     };
@@ -8416,7 +8587,7 @@ export interface operations {
             };
         };
     };
-    InternalMcpController_registerMcpServer: {
+    InternalMcpController_registerRemote: {
         parameters: {
             query?: never;
             header?: never;
@@ -8425,7 +8596,28 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RegisterMcpServerInput"];
+                "application/json": components["schemas"]["RegisterRemoteMcpInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_registerLocal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterLocalMcpInput"];
             };
         };
         responses: {

@@ -50,3 +50,53 @@ export async function getGatewaySessionToken(
   }
   return token;
 }
+
+// ---------------------------------------------------------------------------
+// Shared LiteLLM helpers (used by ai-agent.ts and llm-generate-text.ts)
+// ---------------------------------------------------------------------------
+
+export function shouldRouteViaLiteLLM(): boolean {
+  return (process.env.LITELLM_BASE_URL?.trim() ?? '').length > 0;
+}
+
+export function getLiteLLMBaseUrl(): string {
+  return process.env.LITELLM_BASE_URL?.trim() ?? '';
+}
+
+export function getLiteLLMApiKey(): string {
+  return process.env.LITELLM_API_KEY?.trim() ?? '';
+}
+
+export function normalizeLiteLLMModel(provider: string, model: string): string {
+  if (model.includes('/')) {
+    return model;
+  }
+  if (provider === 'gemini') {
+    return `gemini/${model}`;
+  }
+  if (provider === 'openrouter') {
+    return `openrouter/${model}`;
+  }
+  if (provider === 'zai-coding-plan') {
+    return `openai/${model}`;
+  }
+  return model;
+}
+
+export function combineHeaders(
+  ...sources: (Record<string, string> | undefined)[]
+): Record<string, string> {
+  return sources.reduce<Record<string, string>>((acc, source) => {
+    if (!source) {
+      return acc;
+    }
+    for (const [key, value] of Object.entries(source)) {
+      const trimmedKey = key.trim();
+      const trimmedValue = value.trim();
+      if (trimmedKey.length > 0 && trimmedValue.length > 0) {
+        acc[trimmedKey] = trimmedValue;
+      }
+    }
+    return acc;
+  }, {});
+}

@@ -40,11 +40,13 @@ import { GitHubAppModule } from './github-app/github-app.module';
 import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
 import { AsmModule } from './asm/asm.module';
 import { AssetDiscoveryModule } from './asset-discovery/asset-discovery.module';
+import { BillingModule } from './billing/billing.module';
 
 const coreModules = [
   AgentsModule,
   AnalyticsModule,
   AuthModule,
+  BillingModule,
   WorkflowsModule,
   TraceModule,
   ComponentsModule,

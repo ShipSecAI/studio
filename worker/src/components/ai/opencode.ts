@@ -427,6 +427,18 @@ function cleanReport(raw: string): string {
 }
 
 function buildProviderEnv(model?: { provider: string; apiKey?: string }): Record<string, string> {
+  const liteLLMBaseUrl = process.env.LITELLM_BASE_URL?.trim();
+  const liteLLMApiKey = process.env.LITELLM_API_KEY?.trim();
+  if (liteLLMBaseUrl) {
+    const key = liteLLMApiKey || model?.apiKey;
+    return key
+      ? {
+          OPENAI_API_KEY: key,
+          OPENAI_BASE_URL: liteLLMBaseUrl,
+        }
+      : {};
+  }
+
   if (!model?.apiKey) {
     return {};
   }

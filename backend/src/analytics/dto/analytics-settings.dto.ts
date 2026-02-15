@@ -7,6 +7,7 @@ export type { SubscriptionTier };
 export const TIER_LIMITS: Record<SubscriptionTier, { name: string; maxRetentionDays: number }> = {
   free: { name: 'Free', maxRetentionDays: 30 },
   pro: { name: 'Pro', maxRetentionDays: 90 },
+  team: { name: 'Team', maxRetentionDays: 180 },
   enterprise: { name: 'Enterprise', maxRetentionDays: 365 },
 };
 
@@ -19,7 +20,7 @@ export class AnalyticsSettingsResponseDto {
 
   @ApiProperty({
     description: 'Subscription tier',
-    enum: ['free', 'pro', 'enterprise'],
+    enum: ['free', 'pro', 'team', 'enterprise'],
     example: 'free',
   })
   subscriptionTier!: SubscriptionTier;
@@ -66,10 +67,10 @@ export class UpdateAnalyticsSettingsDto {
   // Optional: allow updating subscription tier (if needed in the future)
   @ApiProperty({
     description: 'Subscription tier (optional - usually set by billing system)',
-    enum: ['free', 'pro', 'enterprise'],
+    enum: ['free', 'pro', 'team', 'enterprise'],
     required: false,
   })
   @IsOptional()
-  @IsEnum(['free', 'pro', 'enterprise'])
+  @IsEnum(['free', 'pro', 'team', 'enterprise'])
   subscriptionTier?: SubscriptionTier;
 }

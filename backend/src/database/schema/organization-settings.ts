@@ -1,6 +1,6 @@
 import { integer, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
 
-export type SubscriptionTier = 'free' | 'pro' | 'enterprise';
+export type SubscriptionTier = 'free' | 'pro' | 'team' | 'enterprise';
 
 export const organizationSettingsTable = pgTable('organization_settings', {
   organizationId: varchar('organization_id', { length: 191 }).primaryKey(),

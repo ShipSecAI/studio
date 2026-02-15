@@ -37,6 +37,7 @@ import {
   LayoutTemplate,
   Cloud,
   MessageSquare,
+  CreditCard,
   type LucideIcon,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -54,7 +55,6 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
 import { SecurityTabBar } from '@/components/security/SecurityTabBar';
-import { SpotlightTour, useAppTour } from '@/features/onboarding';
 
 // Thin loading bar shown during lazy-loaded route transitions.
 // React Router v7 wraps navigations in startTransition, so React 19
@@ -108,7 +108,6 @@ function useIsMobile(breakpoint = 768) {
 
 export function AppLayout({ children }: AppLayoutProps) {
   usePrefetchOnIdle();
-  useAppTour();
 
   // Prefetch all route chunks during idle time
   useEffect(() => {
@@ -428,6 +427,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/mcp-library',
       icon: ServerCog,
     },
+    {
+      name: 'Billing & Usage',
+      href: '/billing',
+      icon: CreditCard,
+    },
     ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
       ? [
           {
@@ -544,7 +548,6 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Sidebar */}
         <Sidebar
-          data-tour="nav-sidebar"
           className={cn(
             'h-full transition-all duration-300 z-[110]',
             // Mobile: Fixed position, slide in/out
@@ -592,7 +595,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarHeader>
 
           {/* Search - pinned to top */}
-          <div className="px-2 py-2 border-b border-border/40" data-tour="nav-search">
+          <div className="px-2 py-2 border-b border-border/40">
             <button
               onClick={openCommandPalette}
               className={cn(
@@ -699,7 +702,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </SidebarItem>
               </Link>
               {/* ShipSec AI with collapsible chat history */}
-              <div data-tour="nav-shipsec-ai">
+              <div>
                 <div className="flex items-center">
                   <Link
                     to={chatItem.href}
@@ -778,19 +781,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
             {/* Grouped navigation */}
             {navigationGroups.map((group) => (
-              <div
-                key={group.label ?? 'ungrouped'}
-                className="px-2 mt-1"
-                {...(group.label === 'CODE SECURITY'
-                  ? { 'data-tour': 'nav-code-security' }
-                  : group.label === 'CLOUD SECURITY'
-                    ? { 'data-tour': 'nav-cloud-security' }
-                    : group.label === 'ATTACK SURFACE'
-                      ? { 'data-tour': 'nav-attack-surface' }
-                      : group.label === 'WORKFLOWS'
-                        ? { 'data-tour': 'nav-workflows' }
-                        : {})}
-              >
+              <div key={group.label ?? 'ungrouped'} className="px-2 mt-1">
                 {group.label && sidebarOpen && (
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-3 pt-4 pb-1">
                     {group.label}
@@ -889,7 +880,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarContent>
 
           {/* Manage - pinned to bottom */}
-          <div className="border-t border-border/40 px-2 py-1" data-tour="nav-manage">
+          <div className="border-t border-border/40 px-2 py-1">
             <button
               onClick={() => setSettingsOpen(!settingsOpen)}
               className={cn(
@@ -1073,7 +1064,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex-1 overflow-auto">{children}</div>
         </main>
       </div>
-      <SpotlightTour />
     </SidebarContext.Provider>
   );
 }
