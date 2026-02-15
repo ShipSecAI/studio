@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Plus,
   Sparkles,
@@ -26,6 +26,7 @@ import { useSidebar } from '@/components/layout/sidebar-context';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isToolOrDynamicToolUIPart, getToolOrDynamicToolName } from 'ai';
 import type { UIMessage } from 'ai';
+import { getApiAuthHeaders, API_V1_URL } from '@/services/api';
 
 // Get time-based greeting
 function getGreeting(): string {
@@ -49,6 +50,20 @@ function getMessageText(message: UIMessage): string {
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map((p) => p.text)
     .join('');
+}
+
+// Helper to convert HeadersInit to Record<string, string>
+function headersInitToRecord(headers?: HeadersInit): Record<string, string> {
+  if (!headers) return {};
+  if (headers instanceof Headers) {
+    const record: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      record[key] = value;
+    });
+    return record;
+  }
+  if (Array.isArray(headers)) return Object.fromEntries(headers);
+  return headers as Record<string, string>;
 }
 
 // Message component
@@ -202,9 +217,6 @@ function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
   );
 }
 
-// Stable transport instance (created once outside component to avoid re-renders)
-const chatTransport = new DefaultChatTransport({ api: '/api/v1/chat' });
-
 // Main Chat Interface
 export function ChatInterface() {
   const [input, setInput] = useState('');
@@ -223,9 +235,26 @@ export function ChatInterface() {
 
   const currentSession = getCurrentSession();
 
+  // Create transport with auth headers
+  const chatTransport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        prepareSendMessagesRequest: async ({ body, headers }) => {
+          const authHeaders = await getApiAuthHeaders();
+          return {
+            api: `${API_V1_URL}/chat`,
+            body: body ?? {},
+            headers: { ...headersInitToRecord(headers), ...authHeaders },
+          };
+        },
+      }),
+    [],
+  );
+
   // useChat hook — connected to the backend streaming endpoint
   const { messages, sendMessage, status, error, stop } = useChat({
     transport: chatTransport,
+    id: currentSessionId ?? undefined,
   });
 
   const isLoading = status === 'submitted' || status === 'streaming';
