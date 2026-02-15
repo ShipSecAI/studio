@@ -262,11 +262,41 @@ jobs:
             echo "   This might be expected if GitHub release fetching is enabled"
           fi
 
+      - name: Bump package.json version on main
+        if: steps.is_latest.outputs.is_latest == 'true'
+        run: |
+          VERSION_CLEAN="${{ steps.version.outputs.version_clean }}"
+          echo "Bumping root package.json version to ${VERSION_CLEAN}..."
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git checkout main
+
+          # Update the root package.json version
+          jq --arg v "$VERSION_CLEAN" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
+
+          # Only commit if there's actually a change
+          if git diff --quiet package.json; then
+            echo "package.json already at version ${VERSION_CLEAN}, skipping commit."
+          else
+            git add package.json
+            git commit -m "chore: bump version to ${VERSION_CLEAN} [skip ci]"
+            git push origin main
+            echo "✅ package.json version bumped to ${VERSION_CLEAN} on main"
+          fi
+
       - name: Release summary
         run: |
           echo "📋 Release Summary:"
           echo "   ✅ Docker images built and pushed"
           echo "   ✅ GitHub Release created: ${{ steps.version.outputs.version }}"
           echo "   ✅ Version check service updated"
+          if [ "${{ steps.is_latest.outputs.is_latest }}" = "true" ]; then
+            echo "   ✅ package.json version synced on main"
+          else
+            echo "   ⏭️  package.json NOT updated (not the latest version)"
+          fi
           echo ""
           echo "🎉 Users will now receive update notifications for version ${{ steps.version.outputs.version_clean }}"
