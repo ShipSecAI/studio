@@ -8,6 +8,7 @@ export const chatSessionsTable = pgTable(
     organizationId: varchar('organization_id', { length: 191 }),
     title: text('title').notNull().default('New Conversation'),
     status: text('status').notNull().default('active'), // active | archived
+    temporalWorkflowId: text('temporal_workflow_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

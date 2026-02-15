@@ -119,6 +119,13 @@ export class ChatSessionRepository {
     }
   }
 
+  async setTemporalWorkflowId(id: string, workflowId: string): Promise<void> {
+    await this.db
+      .update(chatSessionsTable)
+      .set({ temporalWorkflowId: workflowId })
+      .where(eq(chatSessionsTable.id, id));
+  }
+
   async touchSession(id: string): Promise<void> {
     await this.db
       .update(chatSessionsTable)

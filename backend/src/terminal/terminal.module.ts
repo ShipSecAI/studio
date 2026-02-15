@@ -17,6 +17,6 @@ import { TerminalStreamService, TERMINAL_REDIS } from './terminal-stream.service
     },
     TerminalStreamService,
   ],
-  exports: [TerminalStreamService],
+  exports: [TERMINAL_REDIS, TerminalStreamService],
 })
 export class TerminalModule {}

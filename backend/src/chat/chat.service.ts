@@ -1,11 +1,11 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { createOpenAI } from '@ai-sdk/openai';
-import { tool, ToolLoopAgent, pipeAgentUIStreamToResponse, stepCountIs, type UIMessage } from 'ai';
-import { z } from 'zod';
+import type { UIMessage } from 'ai';
 import type { ServerResponse } from 'node:http';
 
 import { StudioMcpService } from '../studio-mcp/studio-mcp.service';
 import { ChatSessionRepository } from './chat-session.repository';
+import { ChatStreamService } from './chat-stream.service';
+import { TemporalService } from '../temporal/temporal.service';
 import type { AuthContext } from '../auth/types';
 
 const SYSTEM_PROMPT = `You are ShipSec AI, an intelligent assistant embedded in ShipSec Studio.
@@ -24,51 +24,12 @@ export class ChatService implements OnModuleInit {
   constructor(
     private readonly studioMcpService: StudioMcpService,
     private readonly sessionRepository: ChatSessionRepository,
+    private readonly chatStreamService: ChatStreamService,
+    private readonly temporalService: TemporalService,
   ) {}
 
   onModuleInit() {
-    const baseURL = process.env.CHAT_AI_BASE_URL;
-    const apiKey = process.env.CHAT_AI_API_KEY;
-    const modelId = process.env.CHAT_AI_MODEL_ID;
-    const providerName = process.env.CHAT_AI_PROVIDER ?? 'chat-provider';
-
-    const missing: string[] = [];
-    if (!baseURL) missing.push('CHAT_AI_BASE_URL');
-    if (!apiKey) missing.push('CHAT_AI_API_KEY');
-    if (!modelId) missing.push('CHAT_AI_MODEL_ID');
-
-    if (missing.length === 3) {
-      this.logger.warn(
-        'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID to enable the chat agent.',
-      );
-    } else if (missing.length > 0) {
-      this.logger.warn(
-        `Chat AI partially configured. Missing: ${missing.join(', ')}. Chat agent will not work until all variables are set.`,
-      );
-    } else {
-      this.logger.log(`Chat AI configured with provider: ${providerName}, model: ${modelId}`);
-    }
-  }
-
-  private getModel() {
-    const baseURL = process.env.CHAT_AI_BASE_URL;
-    const apiKey = process.env.CHAT_AI_API_KEY;
-    const modelId = process.env.CHAT_AI_MODEL_ID;
-    const providerName = process.env.CHAT_AI_PROVIDER ?? 'chat-provider';
-
-    if (!baseURL || !apiKey || !modelId) {
-      throw new Error(
-        'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID environment variables.',
-      );
-    }
-
-    const provider = createOpenAI({
-      baseURL,
-      apiKey,
-      name: providerName,
-    });
-
-    return provider.chat(modelId);
+    this.logger.log('Chat agent mode: Temporal (durable workflows)');
   }
 
   // --- Session CRUD ---
@@ -79,6 +40,22 @@ export class ChatService implements OnModuleInit {
       auth.organizationId,
       title,
     );
+
+    try {
+      const result = await this.temporalService.startChatWorkflow({
+        sessionId: session.id,
+        organizationId: auth.organizationId,
+        systemPrompt: SYSTEM_PROMPT,
+      });
+      await this.sessionRepository.setTemporalWorkflowId(session.id, result.workflowId);
+      this.logger.log(
+        `Started Temporal chat workflow ${result.workflowId} for session ${session.id}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to start Temporal chat workflow for session ${session.id}`, error);
+      throw error;
+    }
+
     return {
       id: session.id,
       title: session.title,
@@ -131,6 +108,12 @@ export class ChatService implements OnModuleInit {
   }
 
   async deleteSession(id: string, auth: AuthContext) {
+    try {
+      await this.temporalService.terminateChatWorkflow(id);
+    } catch {
+      // Workflow may not exist or already be terminated
+    }
+
     await this.sessionRepository.deleteSession(id, {
       userId: auth.userId ?? 'anonymous',
       organizationId: auth.organizationId,
@@ -153,7 +136,38 @@ export class ChatService implements OnModuleInit {
     }));
   }
 
-  // --- Streaming chat ---
+  // --- Tool definitions endpoint (for Temporal worker) ---
+
+  getToolDefinitionsForWorker(auth: AuthContext) {
+    const toolDefs = this.studioMcpService.getToolDefinitions(auth);
+    return toolDefs.map((def) => ({
+      name: def.name,
+      description: def.description,
+      inputSchema: Object.fromEntries(
+        Object.entries(def.inputSchema).map(([key, zodType]) => [
+          key,
+          { type: 'string', description: (zodType as any)?.description ?? key },
+        ]),
+      ),
+    }));
+  }
+
+  async executeToolForWorker(toolName: string, args: Record<string, unknown>, auth: AuthContext) {
+    const toolDefs = this.studioMcpService.getToolDefinitions(auth);
+    const def = toolDefs.find((t) => t.name === toolName);
+    if (!def) {
+      throw new Error(`Tool "${toolName}" not found`);
+    }
+    return def.execute(args);
+  }
+
+  // --- Streaming chat (Temporal-backed) ---
+  //
+  // The AI SDK useChat hook with DefaultChatTransport expects the AI SDK
+  // data stream protocol.  Each line is `{typeId}:{jsonValue}\n`:
+  //   0 = text part, 9 = tool call, a = tool result,
+  //   e = step finish, d = finish message.
+  // Content-Type must be `text/plain; charset=utf-8`.
 
   async streamChatToResponse(
     sessionId: string,
@@ -167,10 +181,7 @@ export class ChatService implements OnModuleInit {
       organizationId: auth.organizationId,
     });
 
-    const maxSteps = parseInt(process.env.CHAT_AI_MAX_STEPS ?? '60', 10);
-    const timeoutMs = parseInt(process.env.CHAT_AI_TIMEOUT_MS ?? '120000', 10);
-
-    // Save the latest user message to DB
+    // Save the user message to DB
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.role === 'user') {
       await this.sessionRepository.saveMessage(sessionId, {
@@ -179,54 +190,110 @@ export class ChatService implements OnModuleInit {
       });
     }
 
-    const toolDefs = this.studioMcpService.getToolDefinitions(auth);
-
-    const tools: Record<string, any> = {};
-    for (const def of toolDefs) {
-      tools[def.name] = tool({
-        description: def.description,
-        inputSchema: z.object(def.inputSchema),
-        execute: async (args: Record<string, unknown>) => {
-          try {
-            return await def.execute(args);
-          } catch (error) {
-            return { error: error instanceof Error ? error.message : String(error) };
-          }
-        },
-      });
-    }
-
-    const agent = new ToolLoopAgent({
-      model: this.getModel(),
-      instructions: SYSTEM_PROMPT,
-      tools,
-      stopWhen: stepCountIs(maxSteps),
+    // Signal the Temporal workflow with the new message
+    await this.temporalService.signalChatWorkflow(sessionId, {
+      role: lastMessage.role,
+      parts: lastMessage.parts,
     });
 
-    await pipeAgentUIStreamToResponse({
-      agent,
-      uiMessages: messages,
-      response: res,
-      abortSignal: AbortSignal.timeout(timeoutMs),
-      onFinish: async (result) => {
+    // Set up AI SDK data stream protocol headers
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Vercel-AI-Data-Stream': 'v1',
+    });
+
+    // Subscribe to Redis pub/sub for real-time streaming
+    const timer = { id: undefined as ReturnType<typeof setTimeout> | undefined };
+
+    const subscription = this.chatStreamService.subscribe(sessionId, {
+      onEvent: (event) => {
         try {
-          // Save assistant messages to DB
-          if (result.messages) {
-            for (const msg of result.messages) {
-              if (msg.role === 'assistant' && 'parts' in msg && Array.isArray(msg.parts)) {
-                await this.sessionRepository.saveMessage(sessionId, {
-                  role: msg.role,
-                  parts: msg.parts,
-                });
-              }
-            }
+          if (event.type === 'text-delta' && typeof event.text === 'string') {
+            res.write(`0:${JSON.stringify(event.text)}\n`);
+          } else if (event.type === 'tool-call') {
+            res.write(
+              `9:${JSON.stringify({
+                toolCallId: `call-${Date.now()}`,
+                toolName: event.toolName,
+                args: event.args ?? {},
+              })}\n`,
+            );
+          } else if (event.type === 'tool-result') {
+            res.write(
+              `a:${JSON.stringify({
+                toolCallId: `call-${Date.now()}`,
+                toolName: event.toolName,
+                result: event.result ?? {},
+              })}\n`,
+            );
           }
-          // Touch session to update its updatedAt
-          await this.sessionRepository.touchSession(sessionId);
-        } catch (error) {
-          this.logger.error('Failed to save assistant message', error);
+        } catch {
+          // Best-effort streaming
         }
       },
+      onComplete: () => {
+        if (timer.id) clearTimeout(timer.id);
+        const finishPayload = {
+          finishReason: 'stop',
+          usage: { promptTokens: 0, completionTokens: 0 },
+          isContinued: false,
+        };
+        res.write(`e:${JSON.stringify(finishPayload)}\n`);
+        res.write(
+          `d:${JSON.stringify({
+            finishReason: 'stop',
+            usage: { promptTokens: 0, completionTokens: 0 },
+          })}\n`,
+        );
+        res.end();
+      },
+      onError: (err) => {
+        if (timer.id) clearTimeout(timer.id);
+        this.logger.error(`Stream error for session ${sessionId}:`, err);
+        res.write(`0:${JSON.stringify(`Error: ${String(err)}`)}\n`);
+        res.write(
+          `e:${JSON.stringify({
+            finishReason: 'error',
+            usage: { promptTokens: 0, completionTokens: 0 },
+            isContinued: false,
+          })}\n`,
+        );
+        res.write(
+          `d:${JSON.stringify({
+            finishReason: 'error',
+            usage: { promptTokens: 0, completionTokens: 0 },
+          })}\n`,
+        );
+        res.end();
+      },
+    });
+
+    // Timeout: if no completion in 2 minutes, end the stream
+    timer.id = setTimeout(() => {
+      subscription.unsubscribe();
+      res.write(`0:${JSON.stringify('[Response timed out]')}\n`);
+      res.write(
+        `e:${JSON.stringify({
+          finishReason: 'stop',
+          usage: { promptTokens: 0, completionTokens: 0 },
+          isContinued: false,
+        })}\n`,
+      );
+      res.write(
+        `d:${JSON.stringify({
+          finishReason: 'stop',
+          usage: { promptTokens: 0, completionTokens: 0 },
+        })}\n`,
+      );
+      res.end();
+    }, 120_000);
+
+    // Handle client disconnect
+    res.on('close', () => {
+      if (timer.id) clearTimeout(timer.id);
+      subscription.unsubscribe();
     });
   }
 }

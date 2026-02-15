@@ -1,15 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, jest } from 'bun:test';
 import { ChatService } from '../chat.service';
 import type { StudioMcpService } from '../../studio-mcp/studio-mcp.service';
 import type { ChatSessionRepository } from '../chat-session.repository';
+import type { ChatStreamService } from '../chat-stream.service';
+import type { TemporalService } from '../../temporal/temporal.service';
 import type { AuthContext } from '../../auth/types';
-import type { StudioToolDefinition } from '../../studio-mcp/studio-mcp.service';
-import { z } from 'zod';
 
 describe('ChatService Unit Tests', () => {
   let service: ChatService;
   let studioMcpService: StudioMcpService;
   let sessionRepository: ChatSessionRepository;
+  let chatStreamService: ChatStreamService;
+  let temporalService: TemporalService;
 
   const mockAuthContext: AuthContext = {
     userId: 'test-user-id',
@@ -19,21 +21,7 @@ describe('ChatService Unit Tests', () => {
     provider: 'test',
   };
 
-  // Store original env vars
-  const originalEnv = {
-    CHAT_AI_BASE_URL: process.env.CHAT_AI_BASE_URL,
-    CHAT_AI_API_KEY: process.env.CHAT_AI_API_KEY,
-    CHAT_AI_MODEL_ID: process.env.CHAT_AI_MODEL_ID,
-    CHAT_AI_PROVIDER: process.env.CHAT_AI_PROVIDER,
-  };
-
   beforeEach(() => {
-    // Reset env vars before each test
-    delete process.env.CHAT_AI_BASE_URL;
-    delete process.env.CHAT_AI_API_KEY;
-    delete process.env.CHAT_AI_MODEL_ID;
-    delete process.env.CHAT_AI_PROVIDER;
-
     studioMcpService = {
       getToolDefinitions: jest.fn().mockReturnValue([]),
     } as unknown as StudioMcpService;
@@ -51,6 +39,7 @@ describe('ChatService Unit Tests', () => {
         id: 'session-1',
         title: 'Test',
         status: 'active',
+        temporalWorkflowId: 'chat-session-1',
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -71,308 +60,182 @@ describe('ChatService Unit Tests', () => {
         createdAt: new Date(),
       }),
       getMessages: jest.fn().mockResolvedValue([]),
+      setTemporalWorkflowId: jest.fn().mockResolvedValue(undefined),
     } as unknown as ChatSessionRepository;
 
-    service = new ChatService(studioMcpService, sessionRepository);
-  });
+    chatStreamService = {
+      subscribe: jest.fn().mockReturnValue({ unsubscribe: jest.fn() }),
+    } as unknown as ChatStreamService;
 
-  afterEach(() => {
-    // Restore original env vars after each test
-    process.env.CHAT_AI_BASE_URL = originalEnv.CHAT_AI_BASE_URL;
-    process.env.CHAT_AI_API_KEY = originalEnv.CHAT_AI_API_KEY;
-    process.env.CHAT_AI_MODEL_ID = originalEnv.CHAT_AI_MODEL_ID;
-    process.env.CHAT_AI_PROVIDER = originalEnv.CHAT_AI_PROVIDER;
+    temporalService = {
+      startChatWorkflow: jest.fn().mockResolvedValue({
+        workflowId: 'chat-session-1',
+        runId: 'run-1',
+      }),
+      signalChatWorkflow: jest.fn().mockResolvedValue(undefined),
+      terminateChatWorkflow: jest.fn().mockResolvedValue(undefined),
+    } as unknown as TemporalService;
+
+    service = new ChatService(
+      studioMcpService,
+      sessionRepository,
+      chatStreamService,
+      temporalService,
+    );
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('getModel', () => {
-    it('throws when CHAT_AI_BASE_URL is missing', () => {
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
+  describe('createSession', () => {
+    it('creates session and starts Temporal workflow', async () => {
+      const result = await service.createSession(mockAuthContext, 'Test Session');
 
-      expect(() => {
-        (service as any).getModel();
-      }).toThrow(
-        'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID environment variables.',
+      expect(sessionRepository.createSession).toHaveBeenCalledWith(
+        'test-user-id',
+        'test-org-id',
+        'Test Session',
       );
-    });
-
-    it('throws when CHAT_AI_API_KEY is missing', () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-
-      expect(() => {
-        (service as any).getModel();
-      }).toThrow(
-        'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID environment variables.',
+      expect(temporalService.startChatWorkflow).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        organizationId: 'test-org-id',
+        systemPrompt: expect.any(String),
+      });
+      expect(sessionRepository.setTemporalWorkflowId).toHaveBeenCalledWith(
+        'session-1',
+        'chat-session-1',
       );
+      expect(result.id).toBe('session-1');
     });
 
-    it('throws when CHAT_AI_MODEL_ID is missing', () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-
-      expect(() => {
-        (service as any).getModel();
-      }).toThrow(
-        'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID environment variables.',
+    it('throws when Temporal workflow fails to start', async () => {
+      (temporalService.startChatWorkflow as jest.Mock).mockRejectedValue(
+        new Error('Temporal unavailable'),
       );
-    });
 
-    it('throws when all env vars are missing', () => {
-      expect(() => {
-        (service as any).getModel();
-      }).toThrow(
-        'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID environment variables.',
-      );
-    });
-
-    it('returns model when all required env vars are set', () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-
-      const model = (service as any).getModel();
-
-      expect(model).toBeDefined();
-      expect(model.modelId).toBe('test-model');
-      expect(model.provider).toBeDefined();
-    });
-
-    it('uses default provider name when CHAT_AI_PROVIDER is not set', () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-
-      const model = (service as any).getModel();
-
-      expect(model).toBeDefined();
-      expect(model.provider).toBe('chat-provider.chat');
-    });
-
-    it('uses custom provider name when CHAT_AI_PROVIDER is set', () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-      process.env.CHAT_AI_PROVIDER = 'custom-provider';
-
-      const model = (service as any).getModel();
-
-      expect(model).toBeDefined();
-      expect(model.provider).toBe('custom-provider.chat');
+      await expect(service.createSession(mockAuthContext)).rejects.toThrow('Temporal unavailable');
     });
   });
 
-  describe('streamChatToResponse - tool building', () => {
-    it('calls getToolDefinitions with the correct auth context', async () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
+  describe('listSessions', () => {
+    it('lists sessions for user', async () => {
+      await service.listSessions(mockAuthContext);
+      expect(sessionRepository.listSessions).toHaveBeenCalledWith({
+        userId: 'test-user-id',
+        organizationId: 'test-org-id',
+      });
+    });
+  });
 
-      const mockToolDefs: StudioToolDefinition[] = [
-        {
-          name: 'test_tool',
-          description: 'A test tool',
-          inputSchema: { input: z.string() },
-          execute: jest.fn().mockResolvedValue({ success: true }),
-        },
-      ];
+  describe('deleteSession', () => {
+    it('terminates Temporal workflow and deletes session', async () => {
+      await service.deleteSession('session-1', mockAuthContext);
 
-      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue(mockToolDefs);
-
-      const mockResponse = {
-        setHeader: jest.fn(),
-        write: jest.fn(),
-        end: jest.fn(),
-      } as any;
-
-      try {
-        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
-      } catch (_error) {
-        // Expected to fail due to unmocked AI SDK, but getToolDefinitions should have been called
-      }
-
-      expect(studioMcpService.getToolDefinitions).toHaveBeenCalledWith(mockAuthContext);
+      expect(temporalService.terminateChatWorkflow).toHaveBeenCalledWith('session-1');
+      expect(sessionRepository.deleteSession).toHaveBeenCalledWith('session-1', {
+        userId: 'test-user-id',
+        organizationId: 'test-org-id',
+      });
     });
 
-    it('builds tools from getToolDefinitions return value', async () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
+    it('still deletes session if Temporal termination fails', async () => {
+      (temporalService.terminateChatWorkflow as jest.Mock).mockRejectedValue(
+        new Error('not found'),
+      );
 
-      const executeFn = jest.fn().mockResolvedValue({ result: 'test-result' });
-      const mockToolDefs: StudioToolDefinition[] = [
+      await service.deleteSession('session-1', mockAuthContext);
+
+      expect(sessionRepository.deleteSession).toHaveBeenCalled();
+    });
+  });
+
+  describe('getToolDefinitionsForWorker', () => {
+    it('returns tool definitions from StudioMcpService', () => {
+      const mockDefs = [
         {
           name: 'list_workflows',
-          description: 'List all workflows',
+          description: 'List workflows',
           inputSchema: {},
-          execute: executeFn,
-        },
-        {
-          name: 'get_workflow',
-          description: 'Get workflow details',
-          inputSchema: { workflowId: z.string().uuid() },
-          execute: executeFn,
+          execute: jest.fn(),
         },
       ];
+      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue(mockDefs);
 
-      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue(mockToolDefs);
+      const result = service.getToolDefinitionsForWorker(mockAuthContext);
 
-      const mockResponse = {
-        setHeader: jest.fn(),
-        write: jest.fn(),
-        end: jest.fn(),
-      } as any;
-
-      try {
-        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
-      } catch (_error) {
-        // Expected to fail due to unmocked AI SDK
-      }
-
-      expect(studioMcpService.getToolDefinitions).toHaveBeenCalledTimes(1);
-    });
-
-    it('handles empty tool definitions array', async () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-
-      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue([]);
-
-      const mockResponse = {
-        setHeader: jest.fn(),
-        write: jest.fn(),
-        end: jest.fn(),
-      } as any;
-
-      try {
-        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
-      } catch (_error) {
-        // Expected to fail due to unmocked AI SDK
-      }
-
-      expect(studioMcpService.getToolDefinitions).toHaveBeenCalledWith(mockAuthContext);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('list_workflows');
+      expect(result[0].description).toBe('List workflows');
     });
   });
 
-  describe('tool error handling', () => {
-    it('wraps tool execution errors in error object', async () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-
-      const errorMessage = 'Tool execution failed';
-      const executeFn = jest.fn().mockRejectedValue(new Error(errorMessage));
-
-      const mockToolDefs: StudioToolDefinition[] = [
+  describe('executeToolForWorker', () => {
+    it('executes the named tool', async () => {
+      const executeFn = jest.fn().mockResolvedValue({ success: true });
+      const mockDefs = [
         {
-          name: 'failing_tool',
-          description: 'A tool that fails',
-          inputSchema: { input: z.string() },
-          execute: executeFn,
-        },
-      ];
-
-      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue(mockToolDefs);
-
-      const mockResponse = {
-        setHeader: jest.fn(),
-        write: jest.fn(),
-        end: jest.fn(),
-      } as any;
-
-      try {
-        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
-      } catch (_error) {
-        // Expected to fail due to unmocked AI SDK
-      }
-
-      expect(studioMcpService.getToolDefinitions).toHaveBeenCalledWith(mockAuthContext);
-    });
-
-    it('converts non-Error objects to strings in error handler', async () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-
-      const executeFn = jest.fn().mockRejectedValue('string error');
-
-      const mockToolDefs: StudioToolDefinition[] = [
-        {
-          name: 'failing_tool',
-          description: 'A tool that fails with string',
+          name: 'list_workflows',
+          description: 'List workflows',
           inputSchema: {},
           execute: executeFn,
         },
       ];
+      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue(mockDefs);
 
-      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue(mockToolDefs);
+      const result = await service.executeToolForWorker('list_workflows', {}, mockAuthContext);
 
-      const mockResponse = {
-        setHeader: jest.fn(),
-        write: jest.fn(),
-        end: jest.fn(),
-      } as any;
+      expect(executeFn).toHaveBeenCalledWith({});
+      expect(result).toEqual({ success: true });
+    });
 
-      try {
-        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
-      } catch (_error) {
-        // Expected to fail due to unmocked AI SDK
-      }
+    it('throws when tool not found', async () => {
+      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue([]);
 
-      expect(studioMcpService.getToolDefinitions).toHaveBeenCalledWith(mockAuthContext);
+      await expect(
+        service.executeToolForWorker('nonexistent', {}, mockAuthContext),
+      ).rejects.toThrow('Tool "nonexistent" not found');
     });
   });
 
-  describe('auth context isolation', () => {
-    it('uses different auth contexts for different calls', async () => {
-      process.env.CHAT_AI_BASE_URL = 'https://api.example.com/v1';
-      process.env.CHAT_AI_API_KEY = 'test-key';
-      process.env.CHAT_AI_MODEL_ID = 'test-model';
-
-      const authContext1: AuthContext = {
-        userId: 'user-1',
-        organizationId: 'org-1',
-        roles: ['ADMIN'],
-        isAuthenticated: true,
-        provider: 'test',
-      };
-
-      const authContext2: AuthContext = {
-        userId: 'user-2',
-        organizationId: 'org-2',
-        roles: ['MEMBER'],
-        isAuthenticated: true,
-        provider: 'test',
-      };
-
-      (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue([]);
+  describe('streamChatToResponse', () => {
+    it('saves user message and signals Temporal workflow', async () => {
+      const messages = [
+        {
+          id: 'msg-1',
+          role: 'user' as const,
+          parts: [{ type: 'text', text: 'Hello' }],
+        },
+      ];
 
       const mockResponse = {
-        setHeader: jest.fn(),
+        writeHead: jest.fn(),
         write: jest.fn(),
         end: jest.fn(),
+        on: jest.fn(),
       } as any;
 
-      try {
-        await service.streamChatToResponse('session-1', [], authContext1, mockResponse);
-      } catch (_error) {
-        // Expected
-      }
+      // Don't await - the stream stays open waiting for Redis events
+      service.streamChatToResponse('session-1', messages as any, mockAuthContext, mockResponse);
 
-      try {
-        await service.streamChatToResponse('session-1', [], authContext2, mockResponse);
-      } catch (_error) {
-        // Expected
-      }
+      // Give it a tick to process
+      await new Promise((r) => setTimeout(r, 50));
 
-      expect(studioMcpService.getToolDefinitions).toHaveBeenCalledTimes(2);
-      expect(studioMcpService.getToolDefinitions).toHaveBeenNthCalledWith(1, authContext1);
-      expect(studioMcpService.getToolDefinitions).toHaveBeenNthCalledWith(2, authContext2);
+      expect(sessionRepository.saveMessage).toHaveBeenCalledWith('session-1', {
+        role: 'user',
+        parts: [{ type: 'text', text: 'Hello' }],
+      });
+      expect(temporalService.signalChatWorkflow).toHaveBeenCalledWith('session-1', {
+        role: 'user',
+        parts: [{ type: 'text', text: 'Hello' }],
+      });
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(
+        200,
+        expect.objectContaining({
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Vercel-AI-Data-Stream': 'v1',
+        }),
+      );
     });
   });
 });
