@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ChatInterface } from '@/pages/ChatInterface';
 import { WorkflowList } from '@/pages/WorkflowList';
 import { WorkflowBuilder } from '@/features/workflow-builder/WorkflowBuilder';
 import { SecretsManager } from '@/pages/SecretsManager';
 import { ApiKeysManager } from '@/pages/ApiKeysManager';
 import { IntegrationsManager } from '@/pages/IntegrationsManager';
-import { IntegrationDetailPage } from '@/pages/IntegrationDetailPage';
 import { ArtifactLibrary } from '@/pages/ArtifactLibrary';
 import { McpLibraryPage } from '@/pages/McpLibraryPage';
 import { IntegrationCallback } from '@/pages/IntegrationCallback';
@@ -15,7 +15,6 @@ import { SchedulesPage } from '@/pages/SchedulesPage';
 import { ActionCenterPage } from '@/pages/ActionCenterPage';
 import { RunRedirect } from '@/pages/RunRedirect';
 import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
-import { AwsSecurityDashboard } from '@/pages/AwsSecurityDashboard';
 import { ToastProvider } from '@/components/ui/toast-provider';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthProvider } from '@/auth/auth-context';
@@ -53,7 +52,8 @@ function App() {
               <AppLayout>
                 <ProtectedRoute>
                   <Routes>
-                    <Route path="/" element={<WorkflowList />} />
+                    <Route path="/" element={<ChatInterface />} />
+                    <Route path="/workflows" element={<WorkflowList />} />
                     <Route
                       path="/workflows/:id"
                       element={
@@ -81,7 +81,6 @@ function App() {
                     <Route path="/secrets" element={<SecretsManager />} />
                     <Route path="/api-keys" element={<ApiKeysManager />} />
                     <Route path="/integrations" element={<IntegrationsManager />} />
-                    <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
                     <Route path="/webhooks" element={<WebhooksPage />} />
                     <Route path="/webhooks/new" element={<WebhookEditorPage />} />
                     <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
@@ -90,7 +89,6 @@ function App() {
                     <Route path="/schedules" element={<SchedulesPage />} />
                     <Route path="/action-center" element={<ActionCenterPage />} />
                     <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
-                    <Route path="/dashboards/aws-security" element={<AwsSecurityDashboard />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
                     <Route path="/mcp-library" element={<McpLibraryPage />} />
                     <Route path="/runs/:runId" element={<RunRedirect />} />

@@ -26,13 +26,13 @@ import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { McpModule } from './mcp/mcp.module';
 import { StudioMcpModule } from './studio-mcp/studio-mcp.module';
+import { ChatModule } from './chat/chat.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
-import { GitHubAppModule } from './github-app/github-app.module';
 
 const coreModules = [
   AgentsModule,
@@ -51,8 +51,8 @@ const coreModules = [
   McpServersModule,
   McpGroupsModule,
   McpModule,
-  GitHubAppModule,
   StudioMcpModule,
+  ChatModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];

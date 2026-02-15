@@ -24,6 +24,13 @@ type PermissionPath =
   | 'runs.read'
   | 'runs.cancel';
 
+export interface StudioToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, z.ZodType>;
+  execute: (args: Record<string, any>) => Promise<unknown>;
+}
+
 @Injectable()
 export class StudioMcpService {
   private readonly logger = new Logger(StudioMcpService.name);
@@ -31,35 +38,211 @@ export class StudioMcpService {
   constructor(private readonly workflowsService: WorkflowsService) {}
 
   /**
-   * Check whether the caller's API key permits the given action.
-   * Non-API-key callers (e.g. internal service tokens) are always allowed.
+   * Require that the caller's API key permits the given action.
+   * Throws if the permission is denied.
    */
-  private checkPermission(
-    auth: AuthContext,
-    permission: PermissionPath,
-  ):
-    | { allowed: true }
-    | { allowed: false; error: { content: { type: 'text'; text: string }[]; isError: true } } {
+  private requirePermission(auth: AuthContext, permission: PermissionPath): void {
     const perms = auth.apiKeyPermissions;
-    if (!perms) return { allowed: true }; // non-API-key auth → unrestricted
+    if (!perms) return; // non-API-key auth → unrestricted
 
     const [scope, action] = permission.split('.') as [keyof ApiKeyPermissions, string];
     const scopePerms = perms[scope] as Record<string, boolean> | undefined;
     if (!scopePerms || !scopePerms[action]) {
-      return {
-        allowed: false,
-        error: {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Permission denied: API key lacks '${permission}' permission.`,
-            },
-          ],
-          isError: true,
-        },
-      };
+      throw new Error(`Permission denied: API key lacks '${permission}' permission.`);
     }
-    return { allowed: true };
+  }
+
+  /**
+   * Returns the canonical set of Studio tool definitions, scoped to the given auth context.
+   * Used by both the MCP server (for external agents) and the chat agent (for internal use).
+   */
+  getToolDefinitions(auth: AuthContext): StudioToolDefinition[] {
+    return [
+      // -- Workflow tools --
+      {
+        name: 'list_workflows',
+        description:
+          'List all workflows in the organization. Returns id, name, description, and version info.',
+        inputSchema: {},
+        execute: async () => {
+          this.requirePermission(auth, 'workflows.list');
+          const workflows = await this.workflowsService.list(auth);
+          return workflows.map((w: ServiceWorkflowResponse) => ({
+            id: w.id,
+            name: w.name,
+            description: w.description ?? null,
+            currentVersion: w.currentVersion,
+            currentVersionId: w.currentVersionId,
+            createdAt: w.createdAt,
+            updatedAt: w.updatedAt,
+          }));
+        },
+      },
+      {
+        name: 'get_workflow',
+        description:
+          'Get detailed information about a specific workflow, including its graph (nodes, edges) and runtime input definitions.',
+        inputSchema: { workflowId: z.string().uuid() },
+        execute: async (args) => {
+          this.requirePermission(auth, 'workflows.read');
+          return await this.workflowsService.findById(args.workflowId as string, auth);
+        },
+      },
+      {
+        name: 'run_workflow',
+        description:
+          'Start a workflow execution. Returns the run ID and initial status. Use get_run_status to poll for completion.',
+        inputSchema: {
+          workflowId: z.string().uuid(),
+          inputs: z.record(z.string(), z.unknown()).optional(),
+          versionId: z.string().uuid().optional(),
+        },
+        execute: async (args) => {
+          this.requirePermission(auth, 'workflows.run');
+          const handle = await this.workflowsService.run(
+            args.workflowId as string,
+            {
+              inputs: (args.inputs as Record<string, unknown>) ?? {},
+              versionId: args.versionId as string | undefined,
+            },
+            auth,
+            {
+              trigger: {
+                type: 'api',
+                sourceId: auth.userId ?? 'api-key',
+                label: 'Studio',
+              },
+            },
+          );
+          return {
+            runId: handle.runId,
+            workflowId: handle.workflowId,
+            status: handle.status,
+            workflowVersion: handle.workflowVersion,
+          };
+        },
+      },
+
+      // -- Run tools --
+      {
+        name: 'list_runs',
+        description: 'List recent workflow runs. Optionally filter by workflow or status.',
+        inputSchema: {
+          workflowId: z.string().uuid().optional(),
+          status: z
+            .enum([
+              'RUNNING',
+              'COMPLETED',
+              'FAILED',
+              'CANCELLED',
+              'TERMINATED',
+              'TIMED_OUT',
+              'AWAITING_INPUT',
+            ])
+            .optional(),
+          limit: z.number().int().positive().max(100).optional(),
+        },
+        execute: async (args) => {
+          this.requirePermission(auth, 'runs.read');
+          const result = await this.workflowsService.listRuns(auth, {
+            workflowId: args.workflowId as string | undefined,
+            status: args.status as ExecutionStatus | undefined,
+            limit: (args.limit as number) ?? 20,
+          });
+          return result.runs.map((r: WorkflowRunSummary) => ({
+            id: r.id,
+            workflowId: r.workflowId,
+            workflowName: r.workflowName,
+            status: r.status,
+            startTime: r.startTime,
+            endTime: r.endTime,
+            duration: r.duration,
+            triggerType: r.triggerType,
+          }));
+        },
+      },
+      {
+        name: 'get_run_status',
+        description:
+          'Get the current status of a workflow run including progress, failures, and timing.',
+        inputSchema: { runId: z.string() },
+        execute: async (args) => {
+          this.requirePermission(auth, 'runs.read');
+          return await this.workflowsService.getRunStatus(args.runId as string, undefined, auth);
+        },
+      },
+      {
+        name: 'get_run_result',
+        description: 'Get the final result/output of a completed workflow run.',
+        inputSchema: { runId: z.string() },
+        execute: async (args) => {
+          this.requirePermission(auth, 'runs.read');
+          return await this.workflowsService.getRunResult(args.runId as string, undefined, auth);
+        },
+      },
+      {
+        name: 'cancel_run',
+        description: 'Cancel a running workflow execution.',
+        inputSchema: { runId: z.string() },
+        execute: async (args) => {
+          this.requirePermission(auth, 'runs.cancel');
+          await this.workflowsService.cancelRun(args.runId as string, undefined, auth);
+          return { cancelled: true, runId: args.runId };
+        },
+      },
+
+      // -- Component tools --
+      {
+        name: 'list_components',
+        description:
+          'List all available workflow components (nodes) with their category, description, and whether they are agent-callable.',
+        inputSchema: {},
+        execute: async () => {
+          const entries = componentRegistry.listMetadata();
+          return entries.map((entry: CachedComponentMetadata) => {
+            const def = entry.definition;
+            const category = categorizeComponent(def);
+            return {
+              id: def.id,
+              name: def.label,
+              category,
+              description: def.ui?.description ?? def.docs ?? '',
+              runner: def.runner?.kind ?? 'inline',
+              agentCallable: isAgentCallable(def),
+              inputCount: (entry.inputs ?? []).length,
+              outputCount: (entry.outputs ?? []).length,
+            };
+          });
+        },
+      },
+      {
+        name: 'get_component',
+        description:
+          'Get detailed information about a specific component, including its full input/output/parameter schemas.',
+        inputSchema: { componentId: z.string() },
+        execute: async (args) => {
+          const entry = componentRegistry.getMetadata(args.componentId as string);
+          if (!entry) {
+            throw new Error(`Component "${args.componentId}" not found`);
+          }
+          const def = entry.definition;
+          const category = categorizeComponent(def);
+          return {
+            id: def.id,
+            name: def.label,
+            category,
+            description: def.ui?.description ?? def.docs ?? '',
+            documentation: def.docs ?? null,
+            runner: def.runner,
+            inputs: entry.inputs ?? extractPorts(def.inputs),
+            outputs: entry.outputs ?? extractPorts(def.outputs),
+            parameters: entry.parameters ?? [],
+            agentCallable: isAgentCallable(def),
+            toolSchema: isAgentCallable(def) ? getToolSchema(def) : null,
+          };
+        },
+      },
+    ];
   }
 
   /**
@@ -78,323 +261,24 @@ export class StudioMcpService {
   }
 
   private registerTools(server: McpServer, auth: AuthContext): void {
-    this.registerWorkflowTools(server, auth);
-    this.registerComponentTools(server);
-    this.registerRunTools(server, auth);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Workflow tools
-  // ---------------------------------------------------------------------------
-
-  private registerWorkflowTools(server: McpServer, auth: AuthContext): void {
-    server.registerTool(
-      'list_workflows',
-      {
-        description:
-          'List all workflows in the organization. Returns id, name, description, and version info.',
-      },
-      async () => {
-        const gate = this.checkPermission(auth, 'workflows.list');
-        if (!gate.allowed) return gate.error;
-        try {
-          const workflows = await this.workflowsService.list(auth);
-          const summary = workflows.map((w: ServiceWorkflowResponse) => ({
-            id: w.id,
-            name: w.name,
-            description: w.description ?? null,
-            currentVersion: w.currentVersion,
-            currentVersionId: w.currentVersionId,
-            createdAt: w.createdAt,
-            updatedAt: w.updatedAt,
-          }));
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(summary, null, 2) }],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-
-    server.registerTool(
-      'get_workflow',
-      {
-        description:
-          'Get detailed information about a specific workflow, including its graph (nodes, edges) and runtime input definitions.',
-        inputSchema: { workflowId: z.string().uuid() },
-      },
-      async (args: { workflowId: string }) => {
-        const gate = this.checkPermission(auth, 'workflows.read');
-        if (!gate.allowed) return gate.error;
-        try {
-          const workflow = await this.workflowsService.findById(args.workflowId, auth);
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(workflow, null, 2) }],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-
-    server.registerTool(
-      'run_workflow',
-      {
-        description:
-          'Start a workflow execution. Returns the run ID and initial status. Use get_run_status to poll for completion.',
-        inputSchema: {
-          workflowId: z.string().uuid(),
-          inputs: z.record(z.string(), z.unknown()).optional(),
-          versionId: z.string().uuid().optional(),
+    for (const def of this.getToolDefinitions(auth)) {
+      const hasInputs = Object.keys(def.inputSchema).length > 0;
+      server.registerTool(
+        def.name,
+        {
+          description: def.description,
+          ...(hasInputs ? { inputSchema: def.inputSchema } : {}),
         },
-      },
-      async (args: {
-        workflowId: string;
-        inputs?: Record<string, unknown>;
-        versionId?: string;
-      }) => {
-        const gate = this.checkPermission(auth, 'workflows.run');
-        if (!gate.allowed) return gate.error;
-        try {
-          const handle = await this.workflowsService.run(
-            args.workflowId,
-            { inputs: args.inputs ?? {}, versionId: args.versionId },
-            auth,
-            {
-              trigger: {
-                type: 'api',
-                sourceId: auth.userId ?? 'api-key',
-                label: 'Studio MCP',
-              },
-            },
-          );
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify(
-                  {
-                    runId: handle.runId,
-                    workflowId: handle.workflowId,
-                    status: handle.status,
-                    workflowVersion: handle.workflowVersion,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Component tools
-  // ---------------------------------------------------------------------------
-
-  private registerComponentTools(server: McpServer): void {
-    server.registerTool(
-      'list_components',
-      {
-        description:
-          'List all available workflow components (nodes) with their category, description, and whether they are agent-callable.',
-      },
-      async () => {
-        try {
-          const entries = componentRegistry.listMetadata();
-          const components = entries.map((entry: CachedComponentMetadata) => {
-            const def = entry.definition;
-            const category = categorizeComponent(def);
-            return {
-              id: def.id,
-              name: def.label,
-              category,
-              description: def.ui?.description ?? def.docs ?? '',
-              runner: def.runner?.kind ?? 'inline',
-              agentCallable: isAgentCallable(def),
-              inputCount: (entry.inputs ?? []).length,
-              outputCount: (entry.outputs ?? []).length,
-            };
-          });
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(components, null, 2) }],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-
-    server.registerTool(
-      'get_component',
-      {
-        description:
-          'Get detailed information about a specific component, including its full input/output/parameter schemas.',
-        inputSchema: { componentId: z.string() },
-      },
-      async (args: { componentId: string }) => {
-        try {
-          const entry = componentRegistry.getMetadata(args.componentId);
-          if (!entry) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: `Component "${args.componentId}" not found`,
-                },
-              ],
-              isError: true,
-            };
+        async (args: Record<string, unknown>) => {
+          try {
+            const result = await def.execute(args);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            return this.errorResult(error);
           }
-          const def = entry.definition;
-          const category = categorizeComponent(def);
-          const result = {
-            id: def.id,
-            name: def.label,
-            category,
-            description: def.ui?.description ?? def.docs ?? '',
-            documentation: def.docs ?? null,
-            runner: def.runner,
-            inputs: entry.inputs ?? extractPorts(def.inputs),
-            outputs: entry.outputs ?? extractPorts(def.outputs),
-            parameters: entry.parameters ?? [],
-            agentCallable: isAgentCallable(def),
-            toolSchema: isAgentCallable(def) ? getToolSchema(def) : null,
-            examples: def.ui?.examples ?? [],
-          };
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Run tools
-  // ---------------------------------------------------------------------------
-
-  private registerRunTools(server: McpServer, auth: AuthContext): void {
-    server.registerTool(
-      'list_runs',
-      {
-        description: 'List recent workflow runs. Optionally filter by workflow or status.',
-        inputSchema: {
-          workflowId: z.string().uuid().optional(),
-          status: z
-            .enum([
-              'RUNNING',
-              'COMPLETED',
-              'FAILED',
-              'CANCELLED',
-              'TERMINATED',
-              'TIMED_OUT',
-              'AWAITING_INPUT',
-            ])
-            .optional(),
-          limit: z.number().int().positive().max(100).optional(),
         },
-      },
-      async (args: { workflowId?: string; status?: ExecutionStatus; limit?: number }) => {
-        const gate = this.checkPermission(auth, 'runs.read');
-        if (!gate.allowed) return gate.error;
-        try {
-          const result = await this.workflowsService.listRuns(auth, {
-            workflowId: args.workflowId,
-            status: args.status,
-            limit: args.limit ?? 20,
-          });
-          const runs = result.runs.map((r: WorkflowRunSummary) => ({
-            id: r.id,
-            workflowId: r.workflowId,
-            workflowName: r.workflowName,
-            status: r.status,
-            startTime: r.startTime,
-            endTime: r.endTime,
-            duration: r.duration,
-            triggerType: r.triggerType,
-          }));
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(runs, null, 2) }],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-
-    server.registerTool(
-      'get_run_status',
-      {
-        description:
-          'Get the current status of a workflow run including progress, failures, and timing.',
-        inputSchema: { runId: z.string() },
-      },
-      async (args: { runId: string }) => {
-        const gate = this.checkPermission(auth, 'runs.read');
-        if (!gate.allowed) return gate.error;
-        try {
-          const status = await this.workflowsService.getRunStatus(args.runId, undefined, auth);
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(status, null, 2) }],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-
-    server.registerTool(
-      'get_run_result',
-      {
-        description: 'Get the final result/output of a completed workflow run.',
-        inputSchema: { runId: z.string() },
-      },
-      async (args: { runId: string }) => {
-        const gate = this.checkPermission(auth, 'runs.read');
-        if (!gate.allowed) return gate.error;
-        try {
-          const result = await this.workflowsService.getRunResult(args.runId, undefined, auth);
-          return {
-            content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
-
-    server.registerTool(
-      'cancel_run',
-      {
-        description: 'Cancel a running workflow execution.',
-        inputSchema: { runId: z.string() },
-      },
-      async (args: { runId: string }) => {
-        const gate = this.checkPermission(auth, 'runs.cancel');
-        if (!gate.allowed) return gate.error;
-        try {
-          await this.workflowsService.cancelRun(args.runId, undefined, auth);
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify({ cancelled: true, runId: args.runId }, null, 2),
-              },
-            ],
-          };
-        } catch (error) {
-          return this.errorResult(error);
-        }
-      },
-    );
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
