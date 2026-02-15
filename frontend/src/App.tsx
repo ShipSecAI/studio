@@ -274,6 +274,16 @@ function App() {
                     <Route path="/secrets" element={<SecretsManager />} />
                     <Route path="/api-keys" element={<ApiKeysManager />} />
                     <Route path="/integrations" element={<IntegrationsManager />} />
+                    <Route path="/integrations/github" element={<GitHubPage />} />
+                    <Route
+                      path="/integrations/github/triggers/new"
+                      element={<CreateTriggerRulePage />}
+                    />
+                    <Route
+                      path="/integrations/github/triggers/:id"
+                      element={<EditTriggerRulePage />}
+                    />
+                    <Route path="/integrations/github/scans/:id" element={<ScanResultPage />} />
                     <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
                     <Route path="/webhooks" element={<WebhooksPage />} />
                     <Route path="/webhooks/new" element={<WebhookEditorPage />} />
@@ -286,10 +296,6 @@ function App() {
                     <Route path="/dashboards/aws-security" element={<AwsSecurityDashboard />} />
                     <Route path="/artifacts" element={<ArtifactLibrary />} />
                     <Route path="/mcp-library" element={<McpLibraryPage />} />
-                    <Route path="/github" element={<GitHubPage />} />
-                    <Route path="/github/triggers/new" element={<CreateTriggerRulePage />} />
-                    <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
-                    <Route path="/github/scans/:id" element={<ScanResultPage />} />
                     <Route path="/runs/:runId" element={<RunRedirect />} />
                     <Route
                       path="/integrations/callback/:provider"

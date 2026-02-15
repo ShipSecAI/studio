@@ -121,9 +121,10 @@ export function AppTopBar({
 
     if (env.VITE_ENABLE_CONNECTIONS && location.pathname === '/integrations') {
       return {
-        title: 'Connections',
-        shortTitle: 'Connections',
-        subtitle: 'Manage OAuth tokens for external providers',
+        title: 'Integrations',
+        shortTitle: 'Integrations',
+        subtitle:
+          'Connect external services to enable cloud security scanning, notifications, and more',
       };
     }
 
@@ -135,19 +136,36 @@ export function AppTopBar({
       };
     }
 
-    if (location.pathname.startsWith('/github')) {
+    if (location.pathname.startsWith('/dashboards/aws-security')) {
       return {
-        title: 'GitHub Integration',
-        shortTitle: 'GitHub',
-        subtitle: 'Manage repositories, trigger rules, and scan results',
+        title: 'Security Dashboard',
+        shortTitle: 'Security',
+        subtitle: 'AWS Security Findings from Prowler',
       };
     }
 
-    if (location.pathname.startsWith('/github')) {
+    if (location.pathname.startsWith('/integrations/github')) {
       return {
-        title: 'GitHub Integration',
+        title: 'Integrations / GitHub Integration',
         shortTitle: 'GitHub',
         subtitle: 'Manage repositories, trigger rules, and scan results',
+        breadcrumb: { label: 'Integrations', href: '/integrations' },
+      };
+    }
+
+    if (location.pathname.startsWith('/integrations/')) {
+      const providerSlug = location.pathname.split('/')[2] ?? '';
+      const providerNames: Record<string, string> = {
+        aws: 'Amazon Web Services',
+        slack: 'Slack',
+      };
+      const providerName =
+        providerNames[providerSlug] ?? providerSlug.charAt(0).toUpperCase() + providerSlug.slice(1);
+      return {
+        title: `Integrations / ${providerName}`,
+        shortTitle: providerName,
+        subtitle: `Manage ${providerName} connections`,
+        breadcrumb: { label: 'Integrations', href: '/integrations' },
       };
     }
 
@@ -158,7 +176,12 @@ export function AppTopBar({
     };
   };
 
-  const pageInfo = getPageInfo();
+  const pageInfo = getPageInfo() as {
+    title: string;
+    shortTitle?: string;
+    subtitle?: string;
+    breadcrumb?: { label: string; href: string };
+  };
 
   return (
     <div
@@ -214,8 +237,23 @@ export function AppTopBar({
             )}
           </div>
         ) : (
-          /* Desktop: Full page title */
-          <h1 className="text-xl font-semibold truncate">{pageInfo.title}</h1>
+          /* Desktop: Full page title with optional clickable breadcrumb */
+          <h1 className="text-xl font-semibold truncate">
+            {pageInfo.breadcrumb ? (
+              <>
+                <Link
+                  to={pageInfo.breadcrumb.href}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {pageInfo.breadcrumb.label}
+                </Link>
+                <span className="text-muted-foreground mx-1">/</span>
+                {pageInfo.title.split(' / ').slice(1).join(' / ')}
+              </>
+            ) : (
+              pageInfo.title
+            )}
+          </h1>
         )}
       </div>
 
@@ -223,7 +261,7 @@ export function AppTopBar({
       <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
         {hasActiveScans && (
           <Button variant="outline" size={isMobile ? 'sm' : 'default'} asChild>
-            <Link to="/github?tab=scans&status=running,pending">
+            <Link to="/integrations/github?tab=scans&status=running,pending">
               {loadingActiveScans ? (
                 <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
               ) : (

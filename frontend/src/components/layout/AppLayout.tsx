@@ -27,7 +27,6 @@ import {
   ServerCog,
   Settings,
   ChevronDown,
-  Github,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -297,7 +296,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     ...(env.VITE_ENABLE_CONNECTIONS
       ? [
           {
-            name: 'Connections',
+            name: 'Integrations',
             href: '/integrations',
             icon: Plug,
           },
@@ -318,11 +317,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           },
         ]
       : []),
-    {
-      name: 'GitHub',
-      href: '/github',
-      icon: Github,
-    },
   ];
 
   const settingsItems = [

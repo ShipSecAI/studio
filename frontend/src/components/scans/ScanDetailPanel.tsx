@@ -565,7 +565,7 @@ export function ScanDetailPanel({
   if (sourceMeta.scheduleId) {
     scheduleScanParams.set('scheduleId', sourceMeta.scheduleId);
   }
-  const scheduleScanLink = `/github?${scheduleScanParams.toString()}`;
+  const scheduleScanLink = `/integrations/github?${scheduleScanParams.toString()}`;
   const failureGuidance = getScanFailureGuidance(scan);
   const exactCreatedAtLocal = new Date(scan.createdAt).toLocaleString(undefined, {
     year: 'numeric',

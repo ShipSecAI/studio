@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   Plus,
   Trash2,
   RefreshCcw,
@@ -897,7 +896,6 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
 
 export function IntegrationDetailPage() {
   const { provider } = useParams<{ provider: string }>();
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   const store = useIntegrationStore();
@@ -1053,10 +1051,6 @@ export function IntegrationDetailPage() {
     return (
       <div className="flex-1 bg-background">
         <div className="container mx-auto py-8 px-4">
-          <Button variant="ghost" className="gap-2 mb-6" onClick={() => navigate('/integrations')}>
-            <ArrowLeft className="h-4 w-4" />
-            Back to Integrations
-          </Button>
           <Card>
             <CardContent className="py-12 text-center">
               <XCircle className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
@@ -1079,12 +1073,6 @@ export function IntegrationDetailPage() {
   return (
     <div className="flex-1 bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl space-y-8">
-        {/* Navigation */}
-        <Button variant="ghost" className="gap-2" onClick={() => navigate('/integrations')}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to Integrations
-        </Button>
-
         {/* ── Provider Header ── */}
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-4">

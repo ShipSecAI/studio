@@ -1184,7 +1184,7 @@ function TriggerRulesTab() {
         title="No trigger rules"
         description="Create trigger rules to automatically run security scans when pull requests are opened, code is pushed, or new repositories are added."
         action={
-          <Button onClick={() => navigate('/github/triggers/new')}>
+          <Button onClick={() => navigate('/integrations/github/triggers/new')}>
             <Plus className="h-4 w-4 mr-2" />
             Create Trigger Rule
           </Button>
@@ -1204,7 +1204,7 @@ function TriggerRulesTab() {
             Select a rule to inspect recent trigger executions.
           </p>
         </div>
-        <Button onClick={() => navigate('/github/triggers/new')}>
+        <Button onClick={() => navigate('/integrations/github/triggers/new')}>
           <Plus className="h-4 w-4 mr-2" />
           New Rule
         </Button>
@@ -1318,7 +1318,7 @@ function TriggerRulesTab() {
                         className="h-7 w-7 p-0"
                         onClick={(event) => {
                           event.stopPropagation();
-                          navigate(`/github/triggers/${rule.id}`);
+                          navigate(`/integrations/github/triggers/${rule.id}`);
                         }}
                       >
                         <Settings className="h-3.5 w-3.5" />
@@ -1378,7 +1378,7 @@ function TriggerRulesTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/github/triggers/${selectedRule.id}`)}
+                      onClick={() => navigate(`/integrations/github/triggers/${selectedRule.id}`)}
                     >
                       <Settings className="h-4 w-4 mr-1.5" />
                       Edit
@@ -1458,7 +1458,9 @@ function TriggerRulesTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/github?tab=scans&triggerRuleId=${selectedRule.id}`)}
+                      onClick={() =>
+                        navigate(`/integrations/github?tab=scans&triggerRuleId=${selectedRule.id}`)
+                      }
                     >
                       View all in Scans
                     </Button>
@@ -1537,7 +1539,9 @@ function TriggerRulesTab() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => navigate(`/github?tab=scans&scan=${scan.id}`)}
+                                  onClick={() =>
+                                    navigate(`/integrations/github?tab=scans&scan=${scan.id}`)
+                                  }
                                 >
                                   Scan
                                 </Button>
@@ -2366,7 +2370,7 @@ function ScansTab() {
                         if (source.scheduleId) {
                           sourceFilterParams.set('scheduleId', source.scheduleId);
                         }
-                        const scheduleScanLink = `/github?${sourceFilterParams.toString()}`;
+                        const scheduleScanLink = `/integrations/github?${sourceFilterParams.toString()}`;
                         return (
                           <TableRow
                             key={scan.id}

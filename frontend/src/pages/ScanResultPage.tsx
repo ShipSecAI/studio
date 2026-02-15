@@ -404,7 +404,7 @@ function ScanDetailHeader({
     <div className="border-b pb-6">
       <div className="mb-4">
         <Link
-          to="/github?tab=scans"
+          to="/integrations/github?tab=scans"
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -679,7 +679,7 @@ export function ScanResultPage() {
   const [showRerunModal, setShowRerunModal] = useState(false);
 
   const handleRerunSuccess = () => {
-    navigate('/github?tab=scans');
+    navigate('/integrations/github?tab=scans');
   };
 
   const handleExportJson = () => {
@@ -706,7 +706,7 @@ export function ScanResultPage() {
             {error || 'The scan result could not be loaded.'}
           </p>
           <Button asChild variant="outline">
-            <Link to="/github?tab=scans">
+            <Link to="/integrations/github?tab=scans">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Scans
             </Link>
