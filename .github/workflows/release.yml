@@ -263,6 +263,7 @@ jobs:
           fi
 
       - name: Bump package.json version on main
+        if: steps.is_latest.outputs.is_latest == 'true'
         run: |
           VERSION_CLEAN="${{ steps.version.outputs.version_clean }}"
           echo "Bumping root package.json version to ${VERSION_CLEAN}..."
@@ -292,6 +293,10 @@ jobs:
           echo "   ✅ Docker images built and pushed"
           echo "   ✅ GitHub Release created: ${{ steps.version.outputs.version }}"
           echo "   ✅ Version check service updated"
-          echo "   ✅ package.json version synced on main"
+          if [ "${{ steps.is_latest.outputs.is_latest }}" = "true" ]; then
+            echo "   ✅ package.json version synced on main"
+          else
+            echo "   ⏭️  package.json NOT updated (not the latest version)"
+          fi
           echo ""
           echo "🎉 Users will now receive update notifications for version ${{ steps.version.outputs.version_clean }}"
