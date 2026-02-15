@@ -14,6 +14,7 @@ import {
   Square,
   Wrench,
   ChevronRight,
+  Brain,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -149,6 +150,27 @@ function ChatMessageItem({ message, isStreaming }: ChatMessageProps) {
                       content={part.text}
                       className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border/50 prose-pre:rounded-md prose-pre:p-3 prose-code:text-primary prose-headings:text-foreground prose-a:text-primary prose-strong:text-foreground"
                     />
+                  );
+                }
+
+                if (part.type === 'reasoning') {
+                  if (!part.text) return null;
+                  return (
+                    <div
+                      key={`reasoning-${idx}`}
+                      className="my-2 bg-purple-50 dark:bg-purple-950/30 border border-purple-200/50 dark:border-purple-800/50 rounded-md text-sm overflow-hidden"
+                    >
+                      <div className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400">
+                        <Brain className="h-3.5 w-3.5" />
+                        <span className="font-medium text-xs">Thinking</span>
+                        {part.state === 'streaming' && (
+                          <Loader2 className="h-3 w-3 animate-spin ml-auto" />
+                        )}
+                      </div>
+                      <div className="px-3 pb-2 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                        {part.text}
+                      </div>
+                    </div>
                   );
                 }
 
