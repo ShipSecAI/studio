@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { ServerResponse } from 'node:http';
 
 import { StudioMcpService } from '../studio-mcp/studio-mcp.service';
+import { ChatSessionRepository } from './chat-session.repository';
 import type { AuthContext } from '../auth/types';
 
 const SYSTEM_PROMPT = `You are ShipSec AI, an intelligent assistant embedded in ShipSec Studio.
@@ -16,44 +17,14 @@ You help users manage their automation workflows. You can:
 Be concise and helpful. When a user asks to run a workflow, confirm the workflow name
 and any required inputs before executing. Always show run IDs so users can track progress.`;
 
-/**
- * Resolves the LLM provider configuration from environment variables.
- *
- * Uses `createOpenAI` from @ai-sdk/openai which is compatible with any
- * OpenAI-compatible API (OpenAI, OpenRouter, z.ai, Ollama, vLLM, etc.).
- *
- * Environment variables:
- *   CHAT_AI_API_KEY     — API key for the provider (required)
- *   CHAT_AI_BASE_URL    — Base URL of the provider's API (required)
- *   CHAT_AI_MODEL_ID    — Model identifier (required)
- *   CHAT_AI_PROVIDER    — Friendly name for logging (default: 'chat-provider')
- *
- * Examples:
- *   # OpenRouter
- *   CHAT_AI_BASE_URL=https://openrouter.ai/api/v1
- *   CHAT_AI_API_KEY=sk-or-...
- *   CHAT_AI_MODEL_ID=anthropic/claude-sonnet-4
- *
- *   # z.ai (used in e2e tests)
- *   CHAT_AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
- *   CHAT_AI_API_KEY=...
- *   CHAT_AI_MODEL_ID=glm-4.7
- *
- *   # OpenAI direct
- *   CHAT_AI_BASE_URL=https://api.openai.com/v1
- *   CHAT_AI_API_KEY=sk-...
- *   CHAT_AI_MODEL_ID=gpt-4o
- *
- *   # Local Ollama
- *   CHAT_AI_BASE_URL=http://localhost:11434/v1
- *   CHAT_AI_MODEL_ID=llama3
- */
-
 @Injectable()
 export class ChatService implements OnModuleInit {
   private readonly logger = new Logger(ChatService.name);
 
-  constructor(private readonly studioMcpService: StudioMcpService) {}
+  constructor(
+    private readonly studioMcpService: StudioMcpService,
+    private readonly sessionRepository: ChatSessionRepository,
+  ) {}
 
   onModuleInit() {
     const baseURL = process.env.CHAT_AI_BASE_URL;
@@ -100,18 +71,115 @@ export class ChatService implements OnModuleInit {
     return provider.chat(modelId);
   }
 
+  // --- Session CRUD ---
+
+  async createSession(auth: AuthContext, title?: string) {
+    const session = await this.sessionRepository.createSession(
+      auth.userId ?? 'anonymous',
+      auth.organizationId,
+      title,
+    );
+    return {
+      id: session.id,
+      title: session.title,
+      status: session.status,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    };
+  }
+
+  async listSessions(auth: AuthContext) {
+    const sessions = await this.sessionRepository.listSessions({
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+    return sessions.map((s) => ({
+      id: s.id,
+      title: s.title,
+      status: s.status,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+    }));
+  }
+
+  async getSession(id: string, auth: AuthContext) {
+    const session = await this.sessionRepository.getSession(id, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+    return {
+      id: session.id,
+      title: session.title,
+      status: session.status,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    };
+  }
+
+  async updateSessionTitle(id: string, title: string, auth: AuthContext) {
+    const session = await this.sessionRepository.updateSessionTitle(id, title, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+    return {
+      id: session.id,
+      title: session.title,
+      status: session.status,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    };
+  }
+
+  async deleteSession(id: string, auth: AuthContext) {
+    await this.sessionRepository.deleteSession(id, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+  }
+
+  async getMessages(sessionId: string, auth: AuthContext) {
+    // Verify ownership
+    await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+
+    const messages = await this.sessionRepository.getMessages(sessionId);
+    return messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      parts: m.parts,
+      createdAt: m.createdAt,
+    }));
+  }
+
+  // --- Streaming chat ---
+
   async streamChatToResponse(
+    sessionId: string,
     messages: UIMessage[],
     auth: AuthContext,
     res: ServerResponse,
   ): Promise<void> {
-    const maxSteps = parseInt(process.env.CHAT_AI_MAX_STEPS ?? '10', 10);
+    // Verify session ownership
+    await this.sessionRepository.getSession(sessionId, {
+      userId: auth.userId ?? 'anonymous',
+      organizationId: auth.organizationId,
+    });
+
+    const maxSteps = parseInt(process.env.CHAT_AI_MAX_STEPS ?? '60', 10);
     const timeoutMs = parseInt(process.env.CHAT_AI_TIMEOUT_MS ?? '120000', 10);
 
-    const toolDefs = this.studioMcpService.getToolDefinitions(auth);
+    // Save the latest user message to DB
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === 'user') {
+      await this.sessionRepository.saveMessage(sessionId, {
+        role: lastMessage.role,
+        parts: lastMessage.parts,
+      });
+    }
 
-    // Tools are built dynamically from shared definitions — use `any` for the
-    // record value because the AI SDK generic can't infer types from a dynamic shape.
+    const toolDefs = this.studioMcpService.getToolDefinitions(auth);
 
     const tools: Record<string, any> = {};
     for (const def of toolDefs) {
@@ -140,6 +208,25 @@ export class ChatService implements OnModuleInit {
       uiMessages: messages,
       response: res,
       abortSignal: AbortSignal.timeout(timeoutMs),
+      onFinish: async (result) => {
+        try {
+          // Save assistant messages to DB
+          if (result.messages) {
+            for (const msg of result.messages) {
+              if (msg.role === 'assistant' && 'parts' in msg && Array.isArray(msg.parts)) {
+                await this.sessionRepository.saveMessage(sessionId, {
+                  role: msg.role,
+                  parts: msg.parts,
+                });
+              }
+            }
+          }
+          // Touch session to update its updatedAt
+          await this.sessionRepository.touchSession(sessionId);
+        } catch (error) {
+          this.logger.error('Failed to save assistant message', error);
+        }
+      },
     });
   }
 }

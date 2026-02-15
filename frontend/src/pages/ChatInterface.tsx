@@ -1,15 +1,24 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import {
+  PanelLeftClose,
+  PanelLeftOpen,
+  Shield,
+  Search,
+  AlertTriangle,
+  Play,
+  User,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
-import { ChatCommandPalette, WorkflowPreviewPanel, SuggestedPrompts } from '@/components/chat';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { ChatCommandPalette, WorkflowPreviewPanel } from '@/components/chat';
 import { useChatStore } from '@/store/chatStore';
 import { useAuth } from '@/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isToolOrDynamicToolUIPart } from 'ai';
 import type { UIMessage } from 'ai';
-import { getApiAuthHeaders } from '@/services/api';
+import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
+import { StatusBar } from '@/components/agent/StatusBar';
 
 // AI Elements
 import {
@@ -34,14 +43,6 @@ import {
   PromptInputButton,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input';
-
-// Get time-based greeting
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-}
 
 // Get user's first name or fallback
 function getUserName(user: { email?: string; firstName?: string | null } | null): string {
@@ -77,9 +78,10 @@ function headersInitToRecord(headers?: HeadersInit): Record<string, string> {
 interface ChatMessageProps {
   message: UIMessage;
   isStreaming: boolean;
+  userImageUrl?: string;
 }
 
-function ChatMessageItem({ message, isStreaming }: ChatMessageProps) {
+function ChatMessageItem({ message, isStreaming, userImageUrl }: ChatMessageProps) {
   const isAssistant = message.role === 'assistant';
   const hasContent = message.parts.some(
     (p) => (p.type === 'text' && p.text) || isToolOrDynamicToolUIPart(p),
@@ -87,73 +89,131 @@ function ChatMessageItem({ message, isStreaming }: ChatMessageProps) {
   const isEmptyAssistant = isAssistant && !hasContent;
 
   return (
-    <Message from={message.role} className="max-w-full">
-      <MessageContent>
-        {isEmptyAssistant && isStreaming ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-            <span>Thinking...</span>
-          </div>
-        ) : (
-          <>
-            {message.parts.map((part, idx) => {
-              if (part.type === 'text') {
-                if (!part.text) return null;
-                return <MessageResponse key={`text-${idx}`}>{part.text}</MessageResponse>;
-              }
+    <div className={`flex gap-3 ${isAssistant ? 'justify-start' : 'justify-end'}`}>
+      {/* AI avatar on left */}
+      {isAssistant && (
+        <Avatar className="h-8 w-8 mt-1 shrink-0">
+          <AvatarImage src="/favicon.ico" alt="ShipSec AI" />
+          <AvatarFallback className="bg-primary/10 text-primary text-xs">AI</AvatarFallback>
+        </Avatar>
+      )}
 
-              if (part.type === 'reasoning') {
-                if (!part.text) return null;
-                return (
-                  <Reasoning key={`reasoning-${idx}`} isStreaming={part.state === 'streaming'}>
-                    <ReasoningTrigger />
-                    <ReasoningContent>{part.text}</ReasoningContent>
-                  </Reasoning>
-                );
-              }
+      <div className={isAssistant ? 'max-w-[85%] min-w-0' : 'max-w-[70%] min-w-0'}>
+        <Message from={message.role} className="max-w-full">
+          <MessageContent
+            className={
+              isAssistant
+                ? ''
+                : 'group-[.is-user]:rounded-2xl group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground [&_*]:text-primary-foreground'
+            }
+          >
+            {isEmptyAssistant && isStreaming ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                <span>Thinking...</span>
+              </div>
+            ) : (
+              <>
+                {message.parts.map((part, idx) => {
+                  if (part.type === 'text') {
+                    if (!part.text) return null;
+                    return <MessageResponse key={`text-${idx}`}>{part.text}</MessageResponse>;
+                  }
 
-              if (isToolOrDynamicToolUIPart(part)) {
-                const toolId = part.toolCallId ?? `tool-${idx}`;
-                return (
-                  <Tool key={toolId}>
-                    <ToolHeader
-                      type={part.type as 'tool-invocation'}
-                      state={part.state}
-                      title={
-                        'toolName' in part
-                          ? (part.toolName as string)
-                          : part.type.split('-').slice(1).join('-')
-                      }
-                    />
-                    <ToolContent>
-                      {'input' in part && part.input !== undefined && (
-                        <ToolInput input={part.input} />
-                      )}
-                      {(part.state === 'output-available' || part.state === 'output-error') &&
-                        'output' in part && (
-                          <ToolOutput
-                            output={part.output}
-                            errorText={'errorText' in part ? (part.errorText as string) : undefined}
-                          />
-                        )}
-                    </ToolContent>
-                  </Tool>
-                );
-              }
+                  if (part.type === 'reasoning') {
+                    if (!part.text) return null;
+                    return (
+                      <Reasoning key={`reasoning-${idx}`} isStreaming={part.state === 'streaming'}>
+                        <ReasoningTrigger />
+                        <ReasoningContent>{part.text}</ReasoningContent>
+                      </Reasoning>
+                    );
+                  }
 
-              return null;
-            })}
+                  if (isToolOrDynamicToolUIPart(part)) {
+                    const toolId = part.toolCallId ?? `tool-${idx}`;
+                    return (
+                      <Tool key={toolId}>
+                        <ToolHeader
+                          type={part.type as 'tool-invocation'}
+                          state={part.state}
+                          title={
+                            'toolName' in part
+                              ? (part.toolName as string)
+                              : part.type.split('-').slice(1).join('-')
+                          }
+                        />
+                        <ToolContent>
+                          {'input' in part && part.input !== undefined && (
+                            <ToolInput input={part.input} />
+                          )}
+                          {(part.state === 'output-available' || part.state === 'output-error') &&
+                            'output' in part && (
+                              <ToolOutput
+                                output={part.output}
+                                errorText={
+                                  'errorText' in part ? (part.errorText as string) : undefined
+                                }
+                              />
+                            )}
+                        </ToolContent>
+                      </Tool>
+                    );
+                  }
 
-            {/* Streaming cursor for assistant */}
-            {isAssistant && isStreaming && getMessageText(message) && (
-              <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+                  return null;
+                })}
+
+                {/* Streaming cursor for assistant */}
+                {isAssistant && isStreaming && getMessageText(message) && (
+                  <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+                )}
+              </>
             )}
-          </>
-        )}
-      </MessageContent>
-    </Message>
+          </MessageContent>
+        </Message>
+      </div>
+
+      {/* User avatar on right */}
+      {!isAssistant && (
+        <Avatar className="h-8 w-8 mt-1 shrink-0">
+          {userImageUrl && <AvatarImage src={userImageUrl} alt="You" />}
+          <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+            <User className="h-4 w-4" />
+          </AvatarFallback>
+        </Avatar>
+      )}
+    </div>
   );
 }
+
+// Welcome screen action cards
+const welcomeActions = [
+  {
+    icon: Search,
+    title: 'Scan Repository',
+    description: 'Run security scanners on your codebase',
+    prompt: 'Scan my repository for security vulnerabilities',
+  },
+  {
+    icon: Shield,
+    title: 'Review Findings',
+    description: 'Analyze and triage open findings',
+    prompt: 'Show me the most critical security findings',
+  },
+  {
+    icon: AlertTriangle,
+    title: 'Investigate Alert',
+    description: 'Deep-dive into a security alert',
+    prompt: 'Help me investigate the latest security alert',
+  },
+  {
+    icon: Play,
+    title: 'Run Workflow',
+    description: 'Execute a security automation workflow',
+    prompt: 'Show me available security workflows',
+  },
+];
 
 // Empty state component
 interface EmptyStateProps {
@@ -164,33 +224,43 @@ interface EmptyStateProps {
 function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0">
-      {/* Plan Badge */}
-      <div className="mb-8 animate-in fade-in-0 slide-in-from-top-4 duration-500">
-        <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-4 py-1.5 text-xs font-medium text-muted-foreground">
-          Free plan &middot;{' '}
-          <Link to="/upgrade" className="ml-1 text-primary hover:text-primary/80 transition-colors">
-            Upgrade
-          </Link>
-        </span>
+      {/* Logo + Title */}
+      <div className="mb-8 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/favicon.ico" alt="ShipSec" className="w-12 h-12 rounded-xl" />
+          <div className="text-center">
+            <h1 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">
+              ShipSec AI Agent
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Hi {userName}, how can I help secure your infrastructure?
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Greeting */}
-      <h1 className="text-3xl md:text-4xl font-serif text-center mb-3 text-foreground font-medium tracking-tight animate-in fade-in-0 slide-in-from-bottom-4 duration-500 delay-100">
-        <span className="inline-flex items-center gap-2.5">
-          <Sparkles className="w-8 h-8 md:w-10 md:h-10 text-orange-500" />
-          <span>
-            {getGreeting()}, {userName}
-          </span>
-        </span>
-      </h1>
-
-      <p className="text-base text-muted-foreground mb-8 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 delay-200">
-        How can I help you today?
-      </p>
-
-      {/* Suggested Prompts */}
-      <div className="w-full max-w-2xl animate-in fade-in-0 slide-in-from-bottom-4 duration-500 delay-300">
-        <SuggestedPrompts onSelectPrompt={onSelectPrompt} variant="pills" />
+      {/* 2x2 Action Card Grid */}
+      <div className="w-full max-w-lg grid grid-cols-2 gap-3 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 delay-200">
+        {welcomeActions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <button
+              key={action.title}
+              onClick={() => onSelectPrompt(action.prompt)}
+              className="group relative flex flex-col items-start gap-2 rounded-xl border border-border/60 bg-card p-4 text-left transition-all duration-200 hover:border-primary/30 hover:shadow-md"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors duration-200 group-hover:bg-primary group-hover:text-primary-foreground">
+                <Icon className="h-4.5 w-4.5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-foreground">{action.title}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                  {action.description}
+                </p>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -206,38 +276,88 @@ export function ChatInterface() {
     updateSessionTitle,
     getCurrentSession,
     setCommandPaletteOpen,
+    loadSessions,
   } = useChatStore();
 
   const currentSession = getCurrentSession();
 
-  // Create transport with auth headers
+  // Load sessions from server on mount
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  // Create transport with auth headers — scoped to current session
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
         prepareSendMessagesRequest: async ({ body, headers, messages: msgs, id }) => {
           const authHeaders = await getApiAuthHeaders();
           return {
-            api: '/api/v1/chat',
+            api: `${API_V1_URL}/chat/sessions/${currentSessionId}/messages`,
             body: { ...body, id, messages: msgs },
             headers: { ...headersInitToRecord(headers), ...authHeaders },
           };
         },
       }),
-    [],
+    [currentSessionId],
   );
 
+  // Load messages for current session
+  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
+  const [messagesKey, setMessagesKey] = useState(0);
+
+  useEffect(() => {
+    if (!currentSessionId) {
+      setInitialMessages([]);
+      return;
+    }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const authHeaders = await getApiAuthHeaders();
+        const res = await fetch(`${API_V1_URL}/chat/sessions/${currentSessionId}/messages`, {
+          headers: { ...authHeaders },
+        });
+        if (!res.ok || cancelled) return;
+        const msgs = await res.json();
+        if (!cancelled) {
+          setInitialMessages(
+            msgs.map((m: any) => ({
+              id: m.id,
+              role: m.role,
+              parts: m.parts,
+              createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+            })),
+          );
+          setMessagesKey((k) => k + 1);
+        }
+      } catch {
+        // ignore fetch errors
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSessionId]);
+
   // useChat hook — connected to the backend streaming endpoint
+  // We use `chatId` combining sessionId + messagesKey so useChat resets when session changes
+  const chatId = currentSessionId ? `${currentSessionId}-${messagesKey}` : undefined;
   const { messages, sendMessage, status, error, stop } = useChat({
     transport: chatTransport,
-    id: currentSessionId ?? undefined,
+    id: chatId,
+    messages: initialMessages,
   });
 
-  // Auto-create session if none exists
+  // Auto-create session if none exists after loading completes
+  const isLoadingSessions = useChatStore((s) => s.isLoadingSessions);
   useEffect(() => {
-    if (sessions.length === 0) {
+    if (sessions.length === 0 && !isLoadingSessions) {
       createSession();
     }
-  }, [sessions.length, createSession]);
+  }, [sessions.length, isLoadingSessions, createSession]);
 
   // Auto-update session title from first user message
   useEffect(() => {
@@ -275,17 +395,18 @@ export function ChatInterface() {
   );
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
+  const userImageUrl = (user as { imageUrl?: string } | null)?.imageUrl;
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Header with sidebar toggle */}
-      <div className="h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center px-4 gap-2">
+      {/* Header: sidebar toggle + StatusBar */}
+      <div className="flex items-center h-11 border-b bg-background/60 backdrop-blur-sm">
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
           aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-          className="h-9 w-9 flex-shrink-0"
+          className="h-9 w-9 ml-2 shrink-0"
         >
           {sidebarOpen ? (
             <PanelLeftClose className="h-5 w-5" />
@@ -293,7 +414,7 @@ export function ChatInterface() {
             <PanelLeftOpen className="h-5 w-5" />
           )}
         </Button>
-        <h1 className="text-lg font-semibold flex-1">ShipSec AI</h1>
+        <StatusBar className="flex-1 border-b-0" />
       </div>
 
       {/* Content Area */}
@@ -302,7 +423,7 @@ export function ChatInterface() {
           <EmptyState userName={getUserName(user)} onSelectPrompt={handleSelectPrompt} />
         ) : (
           <Conversation className="flex-1">
-            <ConversationContent className="max-w-3xl mx-auto gap-6 px-4 py-6 md:px-6">
+            <ConversationContent className="max-w-5xl mx-auto gap-6 px-4 py-6 md:px-8">
               {messages.map((msg, idx) => (
                 <ChatMessageItem
                   key={msg.id}
@@ -312,6 +433,7 @@ export function ChatInterface() {
                     msg.role === 'assistant' &&
                     idx === messages.length - 1
                   }
+                  userImageUrl={userImageUrl}
                 />
               ))}
             </ConversationContent>
@@ -322,15 +444,15 @@ export function ChatInterface() {
         {/* Error display */}
         {error && (
           <div className="shrink-0 px-4">
-            <div className="max-w-3xl mx-auto mb-2 px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+            <div className="max-w-5xl mx-auto mb-2 px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
               {error.message || 'An error occurred while generating a response.'}
             </div>
           </div>
         )}
 
         {/* Input Area */}
-        <div className="shrink-0 p-4 md:pb-6 border-t bg-background">
-          <div className="max-w-3xl mx-auto space-y-3">
+        <div className="shrink-0 p-4 md:pb-6 border-t bg-background/80 backdrop-blur-sm">
+          <div className="max-w-5xl mx-auto space-y-3">
             <PromptInput
               onSubmit={handleSubmit}
               className="rounded-xl border border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 shadow-sm transition-all duration-200"
@@ -367,7 +489,9 @@ export function ChatInterface() {
                     </svg>
                   </PromptInputButton>
                 </div>
-                <PromptInputSubmit status={status} onStop={stop} />
+                <div className="flex items-center gap-1">
+                  <PromptInputSubmit status={status} onStop={stop} />
+                </div>
               </PromptInputFooter>
             </PromptInput>
 

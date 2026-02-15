@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, MessageSquare, Search, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, MessageSquare, Search, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore, type ChatSession } from '@/store/chatStore';
 import { UserButton } from '@/components/auth/UserButton';
@@ -104,11 +104,18 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
   const {
     sessions,
     currentSessionId,
+    isLoadingSessions,
     createSession,
     deleteSession,
     setCurrentSession,
     updateSessionTitle,
+    loadSessions,
   } = useChatStore();
+
+  // Load sessions from server on mount
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
 
   const filteredSessions = sessions.filter((session) =>
     session.title.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -154,7 +161,7 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
             </div>
             <span className="font-medium">New Conversation</span>
           </div>
-          <span className="text-xs text-[#666] group-hover:text-[#888] font-mono">⌘N</span>
+          <span className="text-xs text-[#666] group-hover:text-[#888] font-mono">&#x2318;N</span>
         </button>
 
         {/* Search */}
@@ -172,7 +179,12 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
 
       {/* Chat History */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-        {Object.entries(groupedSessions).length === 0 ? (
+        {isLoadingSessions ? (
+          <div className="px-3 py-8 flex flex-col items-center gap-2">
+            <Loader2 className="h-6 w-6 animate-spin text-[#555]" />
+            <p className="text-sm text-[#666]">Loading chats...</p>
+          </div>
+        ) : Object.entries(groupedSessions).length === 0 ? (
           <div className="px-3 py-8 text-center">
             <MessageSquare className="h-8 w-8 mx-auto mb-2 text-[#444]" />
             <p className="text-sm text-[#666]">No chats yet</p>

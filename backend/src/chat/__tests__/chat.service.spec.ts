@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from 'bun:test';
 import { ChatService } from '../chat.service';
 import type { StudioMcpService } from '../../studio-mcp/studio-mcp.service';
+import type { ChatSessionRepository } from '../chat-session.repository';
 import type { AuthContext } from '../../auth/types';
 import type { StudioToolDefinition } from '../../studio-mcp/studio-mcp.service';
 import { z } from 'zod';
@@ -8,6 +9,7 @@ import { z } from 'zod';
 describe('ChatService Unit Tests', () => {
   let service: ChatService;
   let studioMcpService: StudioMcpService;
+  let sessionRepository: ChatSessionRepository;
 
   const mockAuthContext: AuthContext = {
     userId: 'test-user-id',
@@ -36,7 +38,42 @@ describe('ChatService Unit Tests', () => {
       getToolDefinitions: jest.fn().mockReturnValue([]),
     } as unknown as StudioMcpService;
 
-    service = new ChatService(studioMcpService);
+    sessionRepository = {
+      createSession: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'New Conversation',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+      listSessions: jest.fn().mockResolvedValue([]),
+      getSession: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Test',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+      updateSessionTitle: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Updated',
+        status: 'active',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+      deleteSession: jest.fn().mockResolvedValue(undefined),
+      touchSession: jest.fn().mockResolvedValue(undefined),
+      saveMessage: jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        sessionId: 'session-1',
+        role: 'user',
+        parts: [],
+        createdAt: new Date(),
+      }),
+      getMessages: jest.fn().mockResolvedValue([]),
+    } as unknown as ChatSessionRepository;
+
+    service = new ChatService(studioMcpService, sessionRepository);
   });
 
   afterEach(() => {
@@ -146,9 +183,6 @@ describe('ChatService Unit Tests', () => {
 
       (studioMcpService.getToolDefinitions as jest.Mock).mockReturnValue(mockToolDefs);
 
-      // We can't fully test streamChatToResponse without mocking the AI SDK,
-      // but we can verify that getToolDefinitions is called with the correct auth
-      // by invoking the method and catching the error from the unmocked AI SDK
       const mockResponse = {
         setHeader: jest.fn(),
         write: jest.fn(),
@@ -156,7 +190,7 @@ describe('ChatService Unit Tests', () => {
       } as any;
 
       try {
-        await service.streamChatToResponse([], mockAuthContext, mockResponse);
+        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
       } catch (_error) {
         // Expected to fail due to unmocked AI SDK, but getToolDefinitions should have been called
       }
@@ -194,7 +228,7 @@ describe('ChatService Unit Tests', () => {
       } as any;
 
       try {
-        await service.streamChatToResponse([], mockAuthContext, mockResponse);
+        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
       } catch (_error) {
         // Expected to fail due to unmocked AI SDK
       }
@@ -216,7 +250,7 @@ describe('ChatService Unit Tests', () => {
       } as any;
 
       try {
-        await service.streamChatToResponse([], mockAuthContext, mockResponse);
+        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
       } catch (_error) {
         // Expected to fail due to unmocked AI SDK
       }
@@ -252,13 +286,11 @@ describe('ChatService Unit Tests', () => {
       } as any;
 
       try {
-        await service.streamChatToResponse([], mockAuthContext, mockResponse);
+        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
       } catch (_error) {
-        // Expected to fail due to unmocked AI SDK, but we can verify the tool wrapper logic
-        // by checking that the execute function would be wrapped
+        // Expected to fail due to unmocked AI SDK
       }
 
-      // Verify the tool was registered
       expect(studioMcpService.getToolDefinitions).toHaveBeenCalledWith(mockAuthContext);
     });
 
@@ -287,7 +319,7 @@ describe('ChatService Unit Tests', () => {
       } as any;
 
       try {
-        await service.streamChatToResponse([], mockAuthContext, mockResponse);
+        await service.streamChatToResponse('session-1', [], mockAuthContext, mockResponse);
       } catch (_error) {
         // Expected to fail due to unmocked AI SDK
       }
@@ -327,13 +359,13 @@ describe('ChatService Unit Tests', () => {
       } as any;
 
       try {
-        await service.streamChatToResponse([], authContext1, mockResponse);
+        await service.streamChatToResponse('session-1', [], authContext1, mockResponse);
       } catch (_error) {
         // Expected
       }
 
       try {
-        await service.streamChatToResponse([], authContext2, mockResponse);
+        await service.streamChatToResponse('session-1', [], authContext2, mockResponse);
       } catch (_error) {
         // Expected
       }

@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 
 export interface ChatSession {
   id: string;
   title: string;
-  createdAt: Date;
-  updatedAt: Date;
-  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
 }
 
 export interface SuggestedPrompt {
@@ -27,9 +28,10 @@ export interface QuickAction {
 }
 
 interface ChatState {
-  // Sessions
+  // Sessions (from server)
   sessions: ChatSession[];
   currentSessionId: string | null;
+  isLoadingSessions: boolean;
 
   // UI State
   isCommandPaletteOpen: boolean;
@@ -37,11 +39,12 @@ interface ChatState {
   selectedWorkflowId: string | null;
   isSidebarOpen: boolean;
 
-  // Actions
-  createSession: () => string;
-  deleteSession: (id: string) => void;
+  // Server-backed actions (async)
+  loadSessions: () => Promise<void>;
+  createSession: (title?: string) => Promise<string>;
+  deleteSession: (id: string) => Promise<void>;
   setCurrentSession: (id: string) => void;
-  updateSessionTitle: (sessionId: string, title: string) => void;
+  updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
 
   // UI Actions
   toggleCommandPalette: () => void;
@@ -56,36 +59,59 @@ interface ChatState {
   getCurrentSession: () => ChatSession | null;
 }
 
-const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-const createNewSession = (): ChatSession => ({
-  id: generateId(),
-  title: 'New Conversation',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  isActive: true,
-});
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers = await getApiAuthHeaders();
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status}`);
+  }
+  // DELETE returns 200 with { success: true }, handle empty/non-JSON
+  const text = await res.text();
+  return text ? JSON.parse(text) : ({} as T);
+}
 
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
       sessions: [],
       currentSessionId: null,
+      isLoadingSessions: false,
       isCommandPaletteOpen: false,
       isWorkflowPreviewOpen: false,
       selectedWorkflowId: null,
       isSidebarOpen: true,
 
-      createSession: () => {
-        const newSession = createNewSession();
-        set((state) => ({
-          sessions: [newSession, ...state.sessions.map((s) => ({ ...s, isActive: false }))],
-          currentSessionId: newSession.id,
-        }));
-        return newSession.id;
+      loadSessions: async () => {
+        set({ isLoadingSessions: true });
+        try {
+          const sessions = await fetchJson<ChatSession[]>(`${API_V1_URL}/chat/sessions`);
+          set({ sessions, isLoadingSessions: false });
+        } catch {
+          set({ isLoadingSessions: false });
+        }
       },
 
-      deleteSession: (id) => {
+      createSession: async (title?: string) => {
+        const session = await fetchJson<ChatSession>(`${API_V1_URL}/chat/sessions`, {
+          method: 'POST',
+          body: JSON.stringify(title ? { title } : {}),
+        });
+        set((state) => ({
+          sessions: [session, ...state.sessions],
+          currentSessionId: session.id,
+        }));
+        return session.id;
+      },
+
+      deleteSession: async (id) => {
+        await fetchJson(`${API_V1_URL}/chat/sessions/${id}`, { method: 'DELETE' });
         set((state) => {
           const filteredSessions = state.sessions.filter((s) => s.id !== id);
           const newCurrentId =
@@ -100,19 +126,17 @@ export const useChatStore = create<ChatState>()(
       },
 
       setCurrentSession: (id) => {
-        set((state) => ({
-          currentSessionId: id,
-          sessions: state.sessions.map((s) => ({
-            ...s,
-            isActive: s.id === id,
-          })),
-        }));
+        set({ currentSessionId: id });
       },
 
-      updateSessionTitle: (sessionId, title) => {
+      updateSessionTitle: async (sessionId, title) => {
+        const updated = await fetchJson<ChatSession>(`${API_V1_URL}/chat/sessions/${sessionId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ title }),
+        });
         set((state) => ({
-          sessions: state.sessions.map((session) =>
-            session.id === sessionId ? { ...session, title, updatedAt: new Date() } : session,
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId ? { ...s, title: updated.title, updatedAt: updated.updatedAt } : s,
           ),
         }));
       },
@@ -154,7 +178,6 @@ export const useChatStore = create<ChatState>()(
       name: 'shipsec-chat-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        sessions: state.sessions,
         currentSessionId: state.currentSessionId,
         isSidebarOpen: state.isSidebarOpen,
       }),
