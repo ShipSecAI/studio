@@ -262,29 +262,45 @@ jobs:
             echo "   This might be expected if GitHub release fetching is enabled"
           fi
 
-      - name: Bump package.json version on main
+      - name: Bump package.json version via PR
         if: steps.is_latest.outputs.is_latest == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION_CLEAN="${{ steps.version.outputs.version_clean }}"
+          BRANCH="chore/bump-version-${VERSION_CLEAN}"
           echo "Bumping root package.json version to ${VERSION_CLEAN}..."
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git fetch origin main
-          git checkout main
+          git checkout -b "$BRANCH" origin/main
 
           # Update the root package.json version
           jq --arg v "$VERSION_CLEAN" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
 
-          # Only commit if there's actually a change
+          # Only create PR if there's actually a change
           if git diff --quiet package.json; then
-            echo "package.json already at version ${VERSION_CLEAN}, skipping commit."
+            echo "package.json already at version ${VERSION_CLEAN}, skipping."
           else
             git add package.json
             git commit -m "chore: bump version to ${VERSION_CLEAN} [skip ci]"
-            git push origin main
-            echo "✅ package.json version bumped to ${VERSION_CLEAN} on main"
+            git push origin "$BRANCH"
+
+            # Create PR and enable auto-merge
+            PR_URL=$(gh pr create \
+              --title "chore: bump version to ${VERSION_CLEAN}" \
+              --body "Automated version bump from release workflow (${VERSION_CLEAN})." \
+              --base main \
+              --head "$BRANCH")
+
+            echo "✅ Created PR: $PR_URL"
+
+            # Attempt to enable auto-merge (requires repo setting enabled)
+            gh pr merge "$PR_URL" --auto --squash 2>/dev/null \
+              && echo "✅ Auto-merge enabled" \
+              || echo "⚠️  Auto-merge not available — merge the PR manually"
           fi
 
       - name: Release summary
@@ -294,7 +310,7 @@ jobs:
           echo "   ✅ GitHub Release created: ${{ steps.version.outputs.version }}"
           echo "   ✅ Version check service updated"
           if [ "${{ steps.is_latest.outputs.is_latest }}" = "true" ]; then
-            echo "   ✅ package.json version synced on main"
+            echo "   ✅ package.json version bump PR created"
           else
             echo "   ⏭️  package.json NOT updated (not the latest version)"
           fi
