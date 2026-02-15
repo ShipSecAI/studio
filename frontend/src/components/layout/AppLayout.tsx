@@ -29,7 +29,6 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronRight,
-  Trash2,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -42,6 +41,7 @@ import { cn } from '@/lib/utils';
 import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-state';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useChatStore } from '@/store/chatStore';
+import { ChatHistoryList } from '@/components/chat';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -632,47 +632,32 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </button>
 
                 {isChatHistoryExpanded && (
-                  <div className="flex-1 overflow-y-auto mt-1 space-y-0.5 scrollbar-thin scrollbar-thumb-border">
-                    {sessions.slice(0, 20).map((session) => (
-                      <div key={session.id} className="flex items-center gap-1 group">
-                        <button
-                          onClick={() => {
-                            setCurrentSession(session.id);
-                            if (!isChatInterface) {
-                              navigate('/');
-                            }
-                            if (isMobile) {
-                              setSidebarOpen(false);
-                            }
-                          }}
-                          className={cn(
-                            'flex-1 flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors text-left truncate',
-                            session.id === currentSessionId
-                              ? 'bg-accent text-accent-foreground font-medium'
-                              : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                          )}
-                        >
-                          <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                          <span className="truncate">{session.title}</span>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (
-                              confirm(
-                                `Are you sure you want to delete "${session.title}"? This action cannot be undone.`,
-                              )
-                            ) {
-                              deleteSession(session.id);
-                            }
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                          aria-label="Delete chat"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="flex-1 overflow-y-auto mt-1 scrollbar-thin scrollbar-thumb-border">
+                    <ChatHistoryList
+                      sessions={sessions}
+                      currentSessionId={currentSessionId}
+                      maxItems={20}
+                      onSelectSession={(id) => {
+                        setCurrentSession(id);
+                        if (!isChatInterface) {
+                          navigate('/');
+                        }
+                        if (isMobile) {
+                          setSidebarOpen(false);
+                        }
+                      }}
+                      onDeleteSession={(id) => {
+                        const session = sessions.find((s) => s.id === id);
+                        if (
+                          session &&
+                          confirm(
+                            `Are you sure you want to delete "${session.title}"? This action cannot be undone.`,
+                          )
+                        ) {
+                          deleteSession(id);
+                        }
+                      }}
+                    />
                   </div>
                 )}
               </div>

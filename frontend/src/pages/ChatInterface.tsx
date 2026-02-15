@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   Square,
   Wrench,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -26,7 +27,7 @@ import { useSidebar } from '@/components/layout/sidebar-context';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isToolOrDynamicToolUIPart, getToolOrDynamicToolName } from 'ai';
 import type { UIMessage } from 'ai';
-import { getApiAuthHeaders, API_V1_URL } from '@/services/api';
+import { getApiAuthHeaders } from '@/services/api';
 
 // Get time-based greeting
 function getGreeting(): string {
@@ -74,9 +75,21 @@ interface ChatMessageProps {
 
 function ChatMessageItem({ message, isStreaming }: ChatMessageProps) {
   const isAssistant = message.role === 'assistant';
-  const text = getMessageText(message);
-  const toolParts = message.parts.filter(isToolOrDynamicToolUIPart);
-  const isEmptyAssistant = isAssistant && !text && toolParts.length === 0;
+  const hasContent = message.parts.some(
+    (p) => (p.type === 'text' && p.text) || isToolOrDynamicToolUIPart(p),
+  );
+  const isEmptyAssistant = isAssistant && !hasContent;
+
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+
+  const toggleToolExpand = (id: string) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <div
@@ -126,46 +139,107 @@ function ChatMessageItem({ message, isStreaming }: ChatMessageProps) {
             </div>
           ) : (
             <>
-              {/* Tool invocation parts */}
-              {toolParts.map((part, idx) => {
-                const toolName = getToolOrDynamicToolName(part);
-                const isInProgress =
-                  part.state === 'input-streaming' || part.state === 'input-available';
-                const isDone = part.state === 'output-available';
-                const isError = part.state === 'output-error';
+              {/* Render parts in order to preserve interleaved text/tool flow */}
+              {message.parts.map((part, idx) => {
+                if (part.type === 'text') {
+                  if (!part.text) return null;
+                  return (
+                    <Markdown
+                      key={`text-${idx}`}
+                      content={part.text}
+                      className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border/50 prose-pre:rounded-md prose-pre:p-3 prose-code:text-primary prose-headings:text-foreground prose-a:text-primary prose-strong:text-foreground"
+                    />
+                  );
+                }
 
-                return (
-                  <div
-                    key={part.toolCallId ?? idx}
-                    className="my-2 px-3 py-2 bg-muted/50 border border-border/50 rounded-md text-sm"
-                  >
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Wrench className="h-3.5 w-3.5" />
-                      <span className="font-medium">{toolName}</span>
-                      {isInProgress ? <Loader2 className="h-3 w-3 animate-spin ml-auto" /> : null}
-                      {isDone ? (
-                        <span className="ml-auto text-xs text-green-600 dark:text-green-400">
-                          Done
-                        </span>
-                      ) : null}
-                      {isError ? (
-                        <span className="ml-auto text-xs text-destructive">Error</span>
-                      ) : null}
+                if (isToolOrDynamicToolUIPart(part)) {
+                  const toolName = getToolOrDynamicToolName(part);
+                  const isInProgress =
+                    part.state === 'input-streaming' || part.state === 'input-available';
+                  const isDone = part.state === 'output-available';
+                  const isError = part.state === 'output-error';
+                  const toolId = part.toolCallId ?? `tool-${idx}`;
+                  const isExpanded = expandedTools.has(toolId);
+
+                  const toolInput = 'input' in part ? part.input : undefined;
+                  const toolOutput = 'output' in part ? part.output : undefined;
+                  const hasDetails = toolInput !== undefined || toolOutput !== undefined;
+
+                  return (
+                    <div
+                      key={toolId}
+                      className="my-2 bg-muted/50 border border-border/50 rounded-md text-sm overflow-hidden"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => hasDetails && toggleToolExpand(toolId)}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-3 py-2 text-muted-foreground',
+                          hasDetails && 'cursor-pointer hover:bg-muted/80 transition-colors',
+                        )}
+                      >
+                        <Wrench className="h-3.5 w-3.5" />
+                        <span className="font-medium flex-1 text-left">{toolName}</span>
+                        {isInProgress ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                        {isDone ? (
+                          <span className="text-xs text-green-600 dark:text-green-400">Done</span>
+                        ) : null}
+                        {isError ? <span className="text-xs text-destructive">Error</span> : null}
+                        {hasDetails ? (
+                          <ChevronRight
+                            className={cn(
+                              'h-3 w-3 transition-transform',
+                              isExpanded && 'rotate-90',
+                            )}
+                          />
+                        ) : null}
+                      </button>
+
+                      {isExpanded && hasDetails && (
+                        <div className="border-t border-border/50 px-3 py-2 space-y-2">
+                          {toolInput !== undefined && (
+                            <div>
+                              <div className="text-xs font-medium text-muted-foreground mb-1">
+                                Arguments
+                              </div>
+                              <pre className="text-xs bg-background/50 rounded p-2 overflow-x-auto max-h-40 overflow-y-auto">
+                                {typeof toolInput === 'string'
+                                  ? toolInput
+                                  : JSON.stringify(toolInput, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {toolOutput !== undefined && (
+                            <div>
+                              <div className="text-xs font-medium text-muted-foreground mb-1">
+                                {isError ? 'Error' : 'Result'}
+                              </div>
+                              <pre
+                                className={cn(
+                                  'text-xs rounded p-2 overflow-x-auto max-h-40 overflow-y-auto',
+                                  isError
+                                    ? 'bg-destructive/10 text-destructive'
+                                    : 'bg-background/50',
+                                )}
+                              >
+                                {typeof toolOutput === 'string'
+                                  ? toolOutput
+                                  : JSON.stringify(toolOutput, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
+                  );
+                }
+
+                // Skip other part types (e.g. 'source', 'reasoning', etc.)
+                return null;
               })}
 
-              {/* Text content */}
-              {text && (
-                <Markdown
-                  content={text}
-                  className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border/50 prose-pre:rounded-md prose-pre:p-3 prose-code:text-primary prose-headings:text-foreground prose-a:text-primary prose-strong:text-foreground"
-                />
-              )}
-
               {/* Streaming cursor for assistant */}
-              {isAssistant && isStreaming && text && (
+              {isAssistant && isStreaming && getMessageText(message) && (
                 <span className="inline-block w-1.5 h-4 bg-orange-500 animate-pulse ml-0.5 align-text-bottom" />
               )}
             </>
@@ -239,11 +313,11 @@ export function ChatInterface() {
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
-        prepareSendMessagesRequest: async ({ body, headers }) => {
+        prepareSendMessagesRequest: async ({ body, headers, messages: msgs, id }) => {
           const authHeaders = await getApiAuthHeaders();
           return {
-            api: `${API_V1_URL}/chat`,
-            body: body ?? {},
+            api: '/api/v1/chat',
+            body: { ...body, id, messages: msgs },
             headers: { ...headersInitToRecord(headers), ...authHeaders },
           };
         },

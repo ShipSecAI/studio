@@ -1,52 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import {
-  Plus,
-  MessageSquare,
-  Folder,
-  Box,
-  Code,
-  Workflow,
-  Search,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  Settings,
-  HelpCircle,
-} from 'lucide-react';
+import { Plus, MessageSquare, Search, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore, type ChatSession } from '@/store/chatStore';
 import { UserButton } from '@/components/auth/UserButton';
-
-interface NavItemProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  to: string;
-  active?: boolean;
-  badge?: string | number;
-}
-
-const NavItem = ({ icon: Icon, label, to, active, badge }: NavItemProps) => (
-  <Link
-    to={to}
-    className={cn(
-      'flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-all duration-200 group',
-      active
-        ? 'bg-white/10 text-white font-medium'
-        : 'text-[#a3a3a3] hover:bg-white/5 hover:text-white',
-    )}
-  >
-    <div className="flex items-center gap-3">
-      <Icon className="h-4 w-4 opacity-70 group-hover:opacity-100 transition-opacity" />
-      <span>{label}</span>
-    </div>
-    {badge && (
-      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary font-medium">
-        {badge}
-      </span>
-    )}
-  </Link>
-);
 
 interface ChatHistoryItemProps {
   session: ChatSession;
@@ -143,10 +99,7 @@ interface ChatSidebarProps {
 }
 
 export function ChatSidebar({ className }: ChatSidebarProps) {
-  const navigate = useNavigate();
-  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
 
   const {
     sessions,
@@ -185,7 +138,6 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
 
   const handleNewChat = () => {
     createSession();
-    navigate('/');
   };
 
   return (
@@ -218,73 +170,43 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="px-3 py-2 border-b border-white/5">
-        <NavItem icon={MessageSquare} label="Chats" to="/" active={location.pathname === '/'} />
-        <NavItem icon={Workflow} label="Workflows" to="/workflows" />
-        <NavItem icon={Folder} label="Projects" to="/projects" />
-        <NavItem icon={Box} label="Artifacts" to="/artifacts" />
-        <NavItem icon={Code} label="Components" to="/components" />
-      </div>
-
       {/* Chat History */}
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-        <button
-          onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-[#666] hover:text-[#888] transition-colors"
-        >
-          {isHistoryExpanded ? (
-            <ChevronDown className="h-3 w-3" />
-          ) : (
-            <ChevronRight className="h-3 w-3" />
-          )}
-          RECENT CHATS
-        </button>
-
-        {isHistoryExpanded && (
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-            {Object.entries(groupedSessions).length === 0 ? (
-              <div className="px-3 py-8 text-center">
-                <MessageSquare className="h-8 w-8 mx-auto mb-2 text-[#444]" />
-                <p className="text-sm text-[#666]">No chats yet</p>
-                <p className="text-xs text-[#555] mt-1">Start a new conversation</p>
-              </div>
-            ) : (
-              Object.entries(groupedSessions).map(([group, groupSessions]) => (
-                <div key={group} className="mb-3">
-                  <div className="px-3 py-1.5 text-[10px] font-medium text-[#555] uppercase tracking-wider">
-                    {group}
-                  </div>
-                  <div className="space-y-0.5">
-                    {groupSessions.map((session) => (
-                      <ChatHistoryItem
-                        key={session.id}
-                        session={session}
-                        isActive={session.id === currentSessionId}
-                        onSelect={() => setCurrentSession(session.id)}
-                        onDelete={() => deleteSession(session.id)}
-                        onRename={(title) => updateSessionTitle(session.id, title)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+        {Object.entries(groupedSessions).length === 0 ? (
+          <div className="px-3 py-8 text-center">
+            <MessageSquare className="h-8 w-8 mx-auto mb-2 text-[#444]" />
+            <p className="text-sm text-[#666]">No chats yet</p>
+            <p className="text-xs text-[#555] mt-1">Start a new conversation</p>
           </div>
+        ) : (
+          Object.entries(groupedSessions).map(([group, groupSessions]) => (
+            <div key={group} className="mb-3">
+              <div className="px-3 py-1.5 text-[10px] font-medium text-[#555] uppercase tracking-wider">
+                {group}
+              </div>
+              <div className="space-y-0.5">
+                {groupSessions.map((session) => (
+                  <ChatHistoryItem
+                    key={session.id}
+                    session={session}
+                    isActive={session.id === currentSessionId}
+                    onSelect={() => setCurrentSession(session.id)}
+                    onDelete={() => deleteSession(session.id)}
+                    onRename={(title) => updateSessionTitle(session.id, title)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {/* Bottom Actions */}
-      <div className="p-3 border-t border-white/5 space-y-1">
-        <NavItem icon={Settings} label="Settings" to="/settings" />
-        <NavItem icon={HelpCircle} label="Help & Docs" to="/docs" />
-
-        <div className="pt-2">
-          <UserButton
-            className="w-full justify-start hover:bg-white/5 text-[#ececec] border-0"
-            showUserInfo={true}
-          />
-        </div>
+      {/* User Button */}
+      <div className="p-3 border-t border-white/5">
+        <UserButton
+          className="w-full justify-start hover:bg-white/5 text-[#ececec] border-0"
+          showUserInfo={true}
+        />
       </div>
     </div>
   );

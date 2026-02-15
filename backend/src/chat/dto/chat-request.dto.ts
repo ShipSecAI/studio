@@ -1,8 +1,7 @@
-import { IsArray, IsNotEmpty } from 'class-validator';
-import type { UIMessage } from 'ai';
+import { z } from 'zod';
 
-export class ChatRequestDto {
-  @IsArray()
-  @IsNotEmpty()
-  messages!: UIMessage[];
-}
+export const ChatRequestSchema = z.object({
+  messages: z.array(z.any()).min(1),
+});
+
+export type ChatRequestDto = z.infer<typeof ChatRequestSchema>;

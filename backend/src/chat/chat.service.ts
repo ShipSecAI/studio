@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { createOpenAI } from '@ai-sdk/openai';
 import { tool, ToolLoopAgent, pipeAgentUIStreamToResponse, stepCountIs, type UIMessage } from 'ai';
 import { z } from 'zod';
@@ -50,8 +50,34 @@ and any required inputs before executing. Always show run IDs so users can track
  */
 
 @Injectable()
-export class ChatService {
+export class ChatService implements OnModuleInit {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(private readonly studioMcpService: StudioMcpService) {}
+
+  onModuleInit() {
+    const baseURL = process.env.CHAT_AI_BASE_URL;
+    const apiKey = process.env.CHAT_AI_API_KEY;
+    const modelId = process.env.CHAT_AI_MODEL_ID;
+    const providerName = process.env.CHAT_AI_PROVIDER ?? 'chat-provider';
+
+    const missing: string[] = [];
+    if (!baseURL) missing.push('CHAT_AI_BASE_URL');
+    if (!apiKey) missing.push('CHAT_AI_API_KEY');
+    if (!modelId) missing.push('CHAT_AI_MODEL_ID');
+
+    if (missing.length === 3) {
+      this.logger.warn(
+        'Chat AI not configured. Set CHAT_AI_BASE_URL, CHAT_AI_API_KEY, and CHAT_AI_MODEL_ID to enable the chat agent.',
+      );
+    } else if (missing.length > 0) {
+      this.logger.warn(
+        `Chat AI partially configured. Missing: ${missing.join(', ')}. Chat agent will not work until all variables are set.`,
+      );
+    } else {
+      this.logger.log(`Chat AI configured with provider: ${providerName}, model: ${modelId}`);
+    }
+  }
 
   private getModel() {
     const baseURL = process.env.CHAT_AI_BASE_URL;
@@ -79,6 +105,9 @@ export class ChatService {
     auth: AuthContext,
     res: ServerResponse,
   ): Promise<void> {
+    const maxSteps = parseInt(process.env.CHAT_AI_MAX_STEPS ?? '10', 10);
+    const timeoutMs = parseInt(process.env.CHAT_AI_TIMEOUT_MS ?? '120000', 10);
+
     const toolDefs = this.studioMcpService.getToolDefinitions(auth);
 
     // Tools are built dynamically from shared definitions — use `any` for the
@@ -103,13 +132,14 @@ export class ChatService {
       model: this.getModel(),
       instructions: SYSTEM_PROMPT,
       tools,
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(maxSteps),
     });
 
     await pipeAgentUIStreamToResponse({
       agent,
       uiMessages: messages,
       response: res,
+      abortSignal: AbortSignal.timeout(timeoutMs),
     });
   }
 }
