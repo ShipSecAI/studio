@@ -285,13 +285,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION_CLEAN="${{ steps.version.outputs.version_clean }}"
-          BRANCH="chore/bump-version-${VERSION_CLEAN}"
+          RUN_ID="${{ github.run_id }}"
+          BRANCH="chore/bump-version-${VERSION_CLEAN}-${RUN_ID}"
           echo "Bumping root package.json version to ${VERSION_CLEAN}..."
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git fetch origin main
+
+          # Clean up any existing bump branch for this version
+          git push origin --delete "chore/bump-version-${VERSION_CLEAN}" 2>/dev/null || true
+
           git checkout -b "$BRANCH" origin/main
 
           # Update the root package.json version
