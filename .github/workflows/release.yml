@@ -200,16 +200,32 @@ jobs:
           cat CHANGELOG.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+      - name: Create or update GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IS_PRERELEASE="${{ contains(steps.version.outputs.version, '-') }}"
+          PRERELEASE_FLAG=""
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # Check if release already exists
+          if gh release view "$VERSION" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "Release $VERSION already exists, updating..."
+            gh release edit "$VERSION" \
+              --repo "${{ github.repository }}" \
+              --notes-file CHANGELOG.md \
+              $PRERELEASE_FLAG
+          else
+            echo "Creating new release $VERSION..."
+            gh release create "$VERSION" \
+              --repo "${{ github.repository }}" \
+              --title "Release $VERSION" \
+              --notes-file CHANGELOG.md \
+              $PRERELEASE_FLAG
+          fi
 
       - name: Update version check service
         env:
@@ -264,17 +280,23 @@ jobs:
 
       - name: Bump package.json version via PR
         if: steps.is_latest.outputs.is_latest == 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION_CLEAN="${{ steps.version.outputs.version_clean }}"
-          BRANCH="chore/bump-version-${VERSION_CLEAN}"
+          RUN_ID="${{ github.run_id }}"
+          BRANCH="chore/bump-version-${VERSION_CLEAN}-${RUN_ID}"
           echo "Bumping root package.json version to ${VERSION_CLEAN}..."
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git fetch origin main
+
+          # Clean up any existing bump branch for this version
+          git push origin --delete "chore/bump-version-${VERSION_CLEAN}" 2>/dev/null || true
+
           git checkout -b "$BRANCH" origin/main
 
           # Update the root package.json version
