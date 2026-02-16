@@ -1,7 +1,7 @@
 import { Context } from '@temporalio/activity';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createMCPClient } from '@ai-sdk/mcp';
-import { streamText, generateText, stepCountIs, convertToModelMessages } from 'ai';
+import { streamText, generateText, stepCountIs, convertToModelMessages, smoothStream } from 'ai';
 import type { UIMessage } from 'ai';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -171,6 +171,7 @@ export async function runChatAgentStepActivity(
         messages: aiMessages as any,
         tools: tools as any,
         stopWhen: stepCountIs(maxSteps),
+        experimental_transform: smoothStream(),
         onStepFinish: () => {
           Context.current().heartbeat('step-complete');
         },
