@@ -143,8 +143,22 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
 
   return (
     <div className={cn('flex flex-col h-full bg-[#171717]', className)}>
-      {/* Header with New Chat */}
-      <div className="p-3 space-y-3">
+      {/* Search */}
+      <div className="p-3 pb-0">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search chats..."
+            className="w-full pl-9 pr-3 py-2 text-sm bg-white/5 border border-white/5 rounded-lg text-white placeholder:text-[#666] focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+          />
+        </div>
+      </div>
+
+      {/* New Conversation button — right above the list */}
+      <div className="px-3 pt-3 pb-1">
         <button
           onClick={handleNewChat}
           className="flex items-center justify-between w-full px-3 py-2.5 text-sm text-white bg-gradient-to-r from-primary/20 to-transparent hover:from-primary/30 rounded-xl transition-all duration-200 group border border-white/5 hover:border-primary/30"
@@ -157,18 +171,6 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
           </div>
           <span className="text-xs text-[#666] group-hover:text-[#888] font-mono">&#x2318;N</span>
         </button>
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search chats..."
-            className="w-full pl-9 pr-3 py-2 text-sm bg-white/5 border border-white/5 rounded-lg text-white placeholder:text-[#666] focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
-          />
-        </div>
       </div>
 
       {/* Chat History */}

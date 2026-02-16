@@ -7,6 +7,8 @@ import {
   AlertTriangle,
   Play,
   User,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -269,7 +271,16 @@ function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
 // Main Chat Interface
 export function ChatInterface() {
   const { user } = useAuth();
-  const { currentSessionId, createSession, setCommandPaletteOpen, loadSessions } = useChatStore();
+  const {
+    currentSessionId,
+    createSession,
+    updateSessionTitle,
+    getCurrentSession,
+    setCommandPaletteOpen,
+    loadSessions,
+  } = useChatStore();
+
+  const currentSession = getCurrentSession();
 
   // Ref to always have the latest sessionId available in the transport callback
   const sessionIdRef = useRef(currentSessionId);
@@ -387,9 +398,28 @@ export function ChatInterface() {
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
   const userImageUrl = (user as { imageUrl?: string } | null)?.imageUrl;
 
+  // Editable title state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState('');
+
+  const handleStartEditTitle = useCallback(() => {
+    if (currentSession) {
+      setEditTitleValue(currentSession.title);
+      setIsEditingTitle(true);
+    }
+  }, [currentSession]);
+
+  const handleSaveTitle = useCallback(() => {
+    const trimmed = editTitleValue.trim();
+    if (trimmed && currentSessionId && trimmed !== currentSession?.title) {
+      updateSessionTitle(currentSessionId, trimmed);
+    }
+    setIsEditingTitle(false);
+  }, [editTitleValue, currentSessionId, currentSession?.title, updateSessionTitle]);
+
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Header: sidebar toggle + StatusBar */}
+      {/* Header: sidebar toggle + title + StatusBar */}
       <div className="flex items-center h-11 border-b bg-background/60 backdrop-blur-sm">
         <Button
           variant="ghost"
@@ -404,6 +434,46 @@ export function ChatInterface() {
             <PanelLeftOpen className="h-5 w-5" />
           )}
         </Button>
+
+        {/* Editable conversation title */}
+        {currentSession ? (
+          <div className="flex items-center gap-1 ml-2 min-w-0 max-w-[240px]">
+            {isEditingTitle ? (
+              <div className="flex items-center gap-1 min-w-0">
+                <input
+                  type="text"
+                  value={editTitleValue}
+                  onChange={(e) => setEditTitleValue(e.target.value)}
+                  onBlur={handleSaveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTitle();
+                    if (e.key === 'Escape') setIsEditingTitle(false);
+                  }}
+                  className="text-sm font-medium bg-muted px-2 py-0.5 rounded border border-border focus:outline-none focus:border-primary/50 min-w-0 w-full"
+                  autoFocus
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleSaveTitle}
+                  className="h-6 w-6 shrink-0"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                onClick={handleStartEditTitle}
+                className="group flex items-center gap-1.5 min-w-0 px-1.5 py-0.5 rounded hover:bg-muted transition-colors"
+                title="Click to rename"
+              >
+                <span className="text-sm font-medium truncate">{currentSession.title}</span>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </button>
+            )}
+          </div>
+        ) : null}
+
         <StatusBar className="flex-1 border-b-0" />
       </div>
 
