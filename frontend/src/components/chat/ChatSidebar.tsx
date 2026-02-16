@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, MessageSquare, Search, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore, type ChatSession } from '@/store/chatStore';
@@ -109,13 +109,7 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
     deleteSession,
     setCurrentSession,
     updateSessionTitle,
-    loadSessions,
   } = useChatStore();
-
-  // Load sessions from server on mount
-  useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
 
   const filteredSessions = sessions.filter((session) =>
     session.title.toLowerCase().includes(searchQuery.toLowerCase()),

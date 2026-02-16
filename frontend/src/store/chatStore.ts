@@ -104,7 +104,7 @@ export const useChatStore = create<ChatState>()(
           body: JSON.stringify(title ? { title } : {}),
         });
         set((state) => ({
-          sessions: [session, ...state.sessions],
+          sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)],
           currentSessionId: session.id,
         }));
         return session.id;
