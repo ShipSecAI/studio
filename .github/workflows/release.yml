@@ -200,16 +200,32 @@ jobs:
           cat CHANGELOG.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+      - name: Create or update GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IS_PRERELEASE="${{ contains(steps.version.outputs.version, '-') }}"
+          PRERELEASE_FLAG=""
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # Check if release already exists
+          if gh release view "$VERSION" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "Release $VERSION already exists, updating..."
+            gh release edit "$VERSION" \
+              --repo "${{ github.repository }}" \
+              --notes-file CHANGELOG.md \
+              $PRERELEASE_FLAG
+          else
+            echo "Creating new release $VERSION..."
+            gh release create "$VERSION" \
+              --repo "${{ github.repository }}" \
+              --title "Release $VERSION" \
+              --notes-file CHANGELOG.md \
+              $PRERELEASE_FLAG
+          fi
 
       - name: Update version check service
         env:
@@ -264,6 +280,7 @@ jobs:
 
       - name: Bump package.json version via PR
         if: steps.is_latest.outputs.is_latest == 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
