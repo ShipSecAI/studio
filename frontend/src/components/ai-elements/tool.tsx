@@ -125,31 +125,79 @@ export type ToolOutputProps = ComponentProps<'div'> & {
   errorText: ToolPart['errorText'];
 };
 
+/**
+ * Unwrap MCP protocol wrapper from tool output.
+ * MCP returns: { content: [{ type: "text", text: "..." }, ...], isError?: boolean }
+ * We extract the inner content for cleaner display.
+ */
+function unwrapMcpOutput(output: unknown): { data: unknown; isError?: boolean } {
+  if (
+    output &&
+    typeof output === 'object' &&
+    'content' in output &&
+    Array.isArray((output as any).content)
+  ) {
+    const mcpResult = output as {
+      content: { type: string; text?: string; data?: string; mimeType?: string }[];
+      isError?: boolean;
+    };
+    const parts = mcpResult.content;
+
+    // Single text part — extract and try to parse as JSON
+    if (parts.length === 1 && parts[0].type === 'text' && parts[0].text != null) {
+      try {
+        return { data: JSON.parse(parts[0].text), isError: mcpResult.isError };
+      } catch {
+        return { data: parts[0].text, isError: mcpResult.isError };
+      }
+    }
+
+    // Multiple parts — extract text content joined
+    if (parts.length > 0) {
+      const textParts = parts.filter((p) => p.type === 'text' && p.text != null);
+      if (textParts.length > 0) {
+        const combined = textParts.map((p) => p.text).join('\n');
+        try {
+          return { data: JSON.parse(combined), isError: mcpResult.isError };
+        } catch {
+          return { data: combined, isError: mcpResult.isError };
+        }
+      }
+    }
+  }
+  return { data: output };
+}
+
 export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutputProps) => {
   if (!(output || errorText)) {
     return null;
   }
 
-  let Output = <div>{output as ReactNode}</div>;
+  // Unwrap MCP protocol wrapper for cleaner display
+  const { data: unwrapped, isError: mcpError } = unwrapMcpOutput(output);
+  const displayError = errorText || (mcpError ? 'Tool execution failed' : undefined);
+  const displayOutput = unwrapped;
 
-  if (typeof output === 'object' && !isValidElement(output)) {
-    Output = <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />;
-  } else if (typeof output === 'string') {
-    Output = <CodeBlock code={output} language="json" />;
+  let Output = <div>{displayOutput as ReactNode}</div>;
+
+  if (typeof displayOutput === 'object' && !isValidElement(displayOutput)) {
+    Output = <CodeBlock code={JSON.stringify(displayOutput, null, 2)} language="json" />;
+  } else if (typeof displayOutput === 'string') {
+    Output = <CodeBlock code={displayOutput} language="json" />;
   }
 
   return (
     <div className={cn('space-y-2', className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? 'Error' : 'Result'}
+        {displayError ? 'Error' : 'Result'}
       </h4>
       <div
         className={cn(
           'max-h-80 overflow-auto rounded-md text-xs [&_table]:w-full',
-          errorText ? 'bg-destructive/10 text-destructive' : 'bg-muted/50 text-foreground',
+          displayError ? 'bg-destructive/10 text-destructive' : 'bg-muted/50 text-foreground',
         )}
       >
-        {errorText && <div>{errorText}</div>}
+        {displayError && <div>{displayError}</div>}
         {Output}
       </div>
     </div>
