@@ -1,6 +1,6 @@
 import { Context } from '@temporalio/activity';
 import { createOpenAI } from '@ai-sdk/openai';
-import { generateText, stepCountIs } from 'ai';
+import { streamText, stepCountIs } from 'ai';
 import { z } from 'zod';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -260,35 +260,43 @@ export async function runChatAgentStepActivity(
   // Convert messages for AI SDK
   const aiMessages = toAISDKMessages(messages);
 
-  // Run generateText with tool loop (AI SDK v6 uses stopWhen + stepCountIs)
-  const result = await generateText({
+  // Run streamText for real-time token streaming via Redis pub/sub
+  const result = streamText({
     model: getModel(),
     system: systemPrompt,
     messages: aiMessages as any,
     tools,
     stopWhen: stepCountIs(maxSteps),
-    onStepFinish: ({ text }) => {
+    onStepFinish: () => {
       // Heartbeat on each step
       Context.current().heartbeat('step-complete');
-
-      // Stream text chunks
-      if (text) {
-        publishStreamChunk(sessionId, JSON.stringify({ type: 'text-delta', text }));
-      }
     },
   });
+
+  // Stream text deltas to Redis in real-time
+  for await (const part of result.fullStream) {
+    Context.current().heartbeat('stream-chunk');
+
+    if (part.type === 'text-delta') {
+      publishStreamChunk(sessionId, JSON.stringify({ type: 'text-delta', text: part.text }));
+    }
+  }
+
+  // Get the final response metadata
+  const response = await result.response;
 
   // Publish completion
   publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
 
   // Convert result to UIMessages
-  const assistantMessages = convertToUIMessages(result.response.messages as any);
+  const assistantMessages = convertToUIMessages(response.messages as any);
 
   // If no structured messages but we have text, create a simple message
-  if (assistantMessages.length === 0 && result.text) {
+  const fullText = await result.text;
+  if (assistantMessages.length === 0 && fullText) {
     assistantMessages.push({
       role: 'assistant',
-      parts: [{ type: 'text', text: result.text }],
+      parts: [{ type: 'text', text: fullText }],
     });
   }
 
