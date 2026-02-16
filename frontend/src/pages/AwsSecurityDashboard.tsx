@@ -1,8 +1,15 @@
 import { useEffect, useCallback, useRef, useMemo, useState, lazy, Suspense } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -28,10 +35,20 @@ import {
   ShieldCheck,
   ShieldX,
   Shield,
+  Scan,
+  ArrowRight,
+  Package,
+  Loader2,
+  PlayCircle,
+  FolderGit,
 } from 'lucide-react';
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
 import type { SecurityFinding } from '@/store/securityDashboardStore';
+import { useSecurityViewStore } from '@/store/securityViewStore';
+import { useGitHubStore, type GitHubRepo } from '@/store/githubStore';
+import { useToast } from '@/components/ui/use-toast';
 import { FindingDetailSheet } from '@/components/aws-security/FindingDetailSheet';
+import { cn } from '@/lib/utils';
 
 // Lazy-load Recharts
 const LazyAreaChart = lazy(() => import('recharts').then((m) => ({ default: m.AreaChart })));
@@ -223,9 +240,188 @@ function TimeSeriesChart({
   );
 }
 
+// --- Quick scan presets ---
+
+const QUICK_SCANS = [
+  {
+    id: 'secret-detection',
+    name: 'Secret Detection',
+    description: 'Scan for exposed secrets, API keys, and credentials',
+    icon: Shield,
+  },
+  {
+    id: 'sast-semgrep',
+    name: 'SAST',
+    description: 'Static Application Security Testing',
+    icon: Search,
+  },
+  {
+    id: 'dependency-audit',
+    name: 'Dependency Audit',
+    description: 'Check dependencies for known vulnerabilities',
+    icon: Package,
+  },
+] as const;
+
+// --- First Scan Modal (repo picker + scan type) ---
+
+function FirstScanModal({
+  open,
+  onClose,
+  scanCategory,
+}: {
+  open: boolean;
+  onClose: () => void;
+  scanCategory: 'code' | 'dependency';
+}) {
+  const { toast } = useToast();
+  const repositories = useGitHubStore((s) => s.repositories);
+  const repositoriesLoading = useGitHubStore((s) => s.repositoriesLoading);
+  const fetchRepositories = useGitHubStore((s) => s.fetchRepositories);
+  const triggerScan = useGitHubStore((s) => s.triggerScan);
+
+  const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [repoSearch, setRepoSearch] = useState('');
+  const [triggering, setTriggering] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      fetchRepositories();
+      setSelectedRepo(null);
+      setRepoSearch('');
+      setTriggering(null);
+    }
+  }, [open, fetchRepositories]);
+
+  const filteredRepos = useMemo(() => {
+    if (!repoSearch.trim()) return repositories;
+    const q = repoSearch.toLowerCase();
+    return repositories.filter((r) => r.fullName.toLowerCase().includes(q));
+  }, [repositories, repoSearch]);
+
+  const scansForCategory =
+    scanCategory === 'code'
+      ? QUICK_SCANS.filter((s) => s.id !== 'dependency-audit')
+      : QUICK_SCANS.filter((s) => s.id === 'dependency-audit');
+
+  const handleTrigger = async (workflowId: string) => {
+    if (!selectedRepo) return;
+    setTriggering(workflowId);
+    try {
+      await triggerScan(selectedRepo.id, workflowId, selectedRepo.defaultBranch ?? undefined);
+      toast({
+        title: 'Scan started',
+        description: `Security scan started for ${selectedRepo.fullName}`,
+      });
+      onClose();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to start scan',
+        variant: 'destructive',
+      });
+    } finally {
+      setTriggering(null);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{selectedRepo ? 'Select Scan Type' : 'Select Repository'}</DialogTitle>
+          <DialogDescription>
+            {selectedRepo
+              ? `Choose a scan to run on ${selectedRepo.fullName}`
+              : 'Pick a repository to run your first scan on'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!selectedRepo ? (
+          <div className="space-y-3 py-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search repositories..."
+                value={repoSearch}
+                onChange={(e) => setRepoSearch(e.target.value)}
+                className="h-8 pl-8 text-sm"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {repositoriesLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))
+              ) : filteredRepos.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No repositories found
+                </p>
+              ) : (
+                filteredRepos.map((repo) => (
+                  <button
+                    key={repo.id}
+                    onClick={() => setSelectedRepo(repo)}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-left hover:bg-accent transition-colors"
+                  >
+                    <FolderGit className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{repo.fullName}</div>
+                      {repo.description && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {repo.description}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setSelectedRepo(null)}
+            >
+              &larr; Back to repos
+            </Button>
+            <div className="grid gap-2">
+              {scansForCategory.map((scan) => {
+                const Icon = scan.icon;
+                return (
+                  <Button
+                    key={scan.id}
+                    variant="outline"
+                    className="justify-start h-auto py-3 px-4"
+                    onClick={() => handleTrigger(scan.id)}
+                    disabled={triggering !== null}
+                  >
+                    {triggering === scan.id ? (
+                      <Loader2 className="h-5 w-5 mr-3 animate-spin" />
+                    ) : (
+                      <Icon className="h-5 w-5 mr-3 text-muted-foreground" />
+                    )}
+                    <div className="text-left">
+                      <div className="font-medium">{scan.name}</div>
+                      <div className="text-xs text-muted-foreground">{scan.description}</div>
+                    </div>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // --- Main Page ---
 
-export function AwsSecurityDashboard() {
+export function SecurityDashboardContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState('');
   const [timeRange, setTimeRange] = useState('7d');
@@ -254,6 +450,8 @@ export function AwsSecurityDashboard() {
   const fetchTimeSeries = useSecurityDashboardStore((s) => s.fetchTimeSeries);
   const fetchFindingById = useSecurityDashboardStore((s) => s.fetchFindingById);
   const setSelectedFinding = useSecurityDashboardStore((s) => s.setSelectedFinding);
+  const viewFilter = useSecurityDashboardStore((s) => s.viewFilter);
+  const newFindingIds = useSecurityDashboardStore((s) => s.newFindingIds);
   const findingLifecycles = useSecurityDashboardStore((s) => s.findingLifecycles);
   const findingLifecyclesLoading = useSecurityDashboardStore((s) => s.findingLifecyclesLoading);
   const selectedFindingLifecycle = useSecurityDashboardStore((s) => s.selectedFindingLifecycle);
@@ -261,6 +459,15 @@ export function AwsSecurityDashboard() {
     (s) => s.selectedFindingLifecycleLoading,
   );
   const fetchFindingLifecycle = useSecurityDashboardStore((s) => s.fetchFindingLifecycle);
+  const error = useSecurityDashboardStore((s) => s.error);
+  const startPolling = useSecurityDashboardStore((s) => s.startPolling);
+  const stopPolling = useSecurityDashboardStore((s) => s.stopPolling);
+
+  // Start/stop polling on mount/unmount
+  useEffect(() => {
+    startPolling();
+    return () => stopPolling();
+  }, [startPolling, stopPolling]);
 
   // Parse URL params on mount
   useEffect(() => {
@@ -309,26 +516,34 @@ export function AwsSecurityDashboard() {
     }
   }, []);
 
-  // Sync filters → URL
+  // Sync filters → URL (preserve view param managed by wrapper)
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (filters.account) params.set('account', filters.account);
-    if (filters.severity.length) params.set('severity', filters.severity.join(','));
-    if (filters.status.length) params.set('status', filters.status.join(','));
-    if (filters.region.length) params.set('region', filters.region.join(','));
-    if (filters.service.length) params.set('service', filters.service.join(','));
-    if (filters.tags.length) params.set('tags', filters.tags.join(','));
-    if (filters.compliance.length) params.set('compliance', filters.compliance.join(','));
-    if (filters.checkName.length) params.set('checkName', filters.checkName.join(','));
-    if (filters.search) params.set('q', filters.search);
-    if (filters.from) params.set('from', filters.from);
-    if (filters.to) params.set('to', filters.to);
-    if (filters.page > 1) params.set('page', String(filters.page));
-    if (filters.sort !== '@timestamp') params.set('sort', filters.sort);
-    if (filters.order !== 'desc') params.set('order', filters.order);
-    if (selectedFinding) params.set('finding', selectedFinding._id);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams();
+        // Preserve view param from wrapper
+        const viewParam = prev.get('view');
+        if (viewParam) params.set('view', viewParam);
 
-    setSearchParams(params, { replace: true });
+        if (filters.account) params.set('account', filters.account);
+        if (filters.severity.length) params.set('severity', filters.severity.join(','));
+        if (filters.status.length) params.set('status', filters.status.join(','));
+        if (filters.region.length) params.set('region', filters.region.join(','));
+        if (filters.service.length) params.set('service', filters.service.join(','));
+        if (filters.tags.length) params.set('tags', filters.tags.join(','));
+        if (filters.compliance.length) params.set('compliance', filters.compliance.join(','));
+        if (filters.checkName.length) params.set('checkName', filters.checkName.join(','));
+        if (filters.search) params.set('q', filters.search);
+        if (filters.from) params.set('from', filters.from);
+        if (filters.to) params.set('to', filters.to);
+        if (filters.page > 1) params.set('page', String(filters.page));
+        if (filters.sort !== '@timestamp') params.set('sort', filters.sort);
+        if (filters.order !== 'desc') params.set('order', filters.order);
+        if (selectedFinding) params.set('finding', selectedFinding._id);
+        return params;
+      },
+      { replace: true },
+    );
   }, [filters, selectedFinding, setSearchParams]);
 
   // Fetch data when filters change
@@ -346,6 +561,7 @@ export function AwsSecurityDashboard() {
       controller.abort();
     };
   }, [
+    viewFilter,
     filters.account,
     filters.severity,
     filters.status,
@@ -480,6 +696,10 @@ export function AwsSecurityDashboard() {
   const showFrom = total === 0 ? 0 : (filters.page - 1) * PAGE_SIZE + 1;
   const showTo = Math.min(filters.page * PAGE_SIZE, total);
 
+  // Active view for conditional rendering
+  const activeViewId = useSecurityViewStore((s) => s.activeViewId);
+  const showAccountTabs = activeViewId === 'cloud-security';
+
   // Account tab value
   const accountTab = filters.account ?? 'all';
 
@@ -532,6 +752,18 @@ export function AwsSecurityDashboard() {
   const totalFindings =
     severityCounts.critical + severityCounts.high + severityCounts.medium + severityCounts.low;
 
+  // Check if any filters are active (user-applied, not view-level)
+  const hasActiveFilters =
+    filters.severity.length > 0 ||
+    filters.status.length > 0 ||
+    filters.region.length > 0 ||
+    filters.service.length > 0 ||
+    filters.tags.length > 0 ||
+    filters.compliance.length > 0 ||
+    filters.checkName.length > 0 ||
+    !!filters.search ||
+    !!filters.account;
+
   // Format AWS account ID: "006514117437" → "0065-1411-7437"
   const formatAccountId = useCallback((id: string) => {
     if (/^\d{12}$/.test(id)) {
@@ -540,47 +772,171 @@ export function AwsSecurityDashboard() {
     return id;
   }, []);
 
+  // GitHub connection status (for code/dependency empty states)
+  const githubInstallations = useGitHubStore((s) => s.installations);
+  const fetchInstallations = useGitHubStore((s) => s.fetchInstallations);
+  const [firstScanModalOpen, setFirstScanModalOpen] = useState(false);
+
+  const hasGitHub = githubInstallations.length > 0;
+  const isGitHubView =
+    activeViewId === 'code-security' ||
+    activeViewId === 'dependency-security' ||
+    activeViewId === 'container-security';
+
+  // Fetch GitHub installations on mount so we know connection status
+  useEffect(() => {
+    if (isGitHubView) {
+      fetchInstallations();
+    }
+  }, [isGitHubView, fetchInstallations]);
+
+  // --- Empty state: no findings and no active filters → show CTA ---
+  // Also trigger when there's an error (e.g. no index exists for this scanner type)
+  if (totalFindings === 0 && !hasActiveFilters && (!summaryLoading || error)) {
+    // For code/dependency views when GitHub is already connected, show "Run First Scan"
+    if (isGitHubView && hasGitHub) {
+      const scanCategory =
+        activeViewId === 'code-security'
+          ? 'code'
+          : activeViewId === 'container-security'
+            ? 'container'
+            : 'dependency';
+      const title =
+        activeViewId === 'code-security'
+          ? 'No code findings yet'
+          : activeViewId === 'container-security'
+            ? 'No container findings yet'
+            : 'No dependency findings yet';
+      const description =
+        activeViewId === 'code-security'
+          ? 'GitHub is connected. Run your first code security scan to discover vulnerabilities.'
+          : activeViewId === 'container-security'
+            ? 'GitHub is connected. Run a container scan to discover image vulnerabilities.'
+            : 'GitHub is connected. Run a dependency scan to discover vulnerable packages.';
+
+      return (
+        <div className="flex-1 bg-background">
+          <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <Scan className="h-7 w-7 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold mb-1">{title}</h2>
+            <p className="text-sm text-muted-foreground max-w-md mb-6">{description}</p>
+            <button
+              onClick={() => setFirstScanModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <PlayCircle className="h-4 w-4" />
+              Run First Scan
+            </button>
+          </div>
+          <FirstScanModal
+            open={firstScanModalOpen}
+            onClose={() => setFirstScanModalOpen(false)}
+            scanCategory={scanCategory}
+          />
+        </div>
+      );
+    }
+
+    const viewCtas: Record<
+      string,
+      { title: string; description: string; href: string; linkLabel: string }
+    > = {
+      'cloud-security': {
+        title: 'No cloud findings yet',
+        description:
+          'Connect your AWS account and run a Prowler scan to discover cloud security findings.',
+        href: '/integrations/aws',
+        linkLabel: 'Connect AWS',
+      },
+      'code-security': {
+        title: 'No code findings yet',
+        description:
+          'Connect GitHub and run your first code security scan to discover vulnerabilities.',
+        href: '/integrations/github',
+        linkLabel: 'Connect GitHub',
+      },
+      'dependency-security': {
+        title: 'No dependency findings yet',
+        description: 'Connect GitHub and run a dependency scan to discover vulnerable packages.',
+        href: '/integrations/github',
+        linkLabel: 'Connect GitHub',
+      },
+      'container-security': {
+        title: 'No container findings yet',
+        description: 'Connect GitHub and run a container scan to discover image vulnerabilities.',
+        href: '/integrations/github',
+        linkLabel: 'Connect GitHub',
+      },
+    };
+
+    const cta = viewCtas[activeViewId] ?? {
+      title: 'No findings yet',
+      description:
+        'Run your first security scan to discover findings across your infrastructure and code.',
+      href: '/templates',
+      linkLabel: 'Browse templates',
+    };
+
+    return (
+      <div className="flex-1 bg-background">
+        <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+            <Scan className="h-7 w-7 text-primary" />
+          </div>
+          <h2 className="text-lg font-semibold mb-1">{cta.title}</h2>
+          <p className="text-sm text-muted-foreground max-w-md mb-6">{cta.description}</p>
+          <Link
+            to={cta.href}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            {cta.linkLabel}
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto px-3 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold">Security Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-1">AWS Security Findings from Prowler</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleReset}>
+      <div className="container mx-auto px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-8 space-y-4 md:space-y-6">
+        {/* Account Tabs (only on Cloud Security) + Reset button */}
+        <div className="flex items-center justify-between gap-2">
+          {showAccountTabs && accounts.length > 0 ? (
+            <Tabs
+              value={accountTab}
+              onValueChange={(v) => setFilters({ account: v === 'all' ? null : v, page: 1 })}
+              className="min-w-0"
+            >
+              <TabsList className="h-auto flex-wrap">
+                <TabsTrigger value="all" className="text-xs">
+                  All Accounts
+                  {!summaryLoading && (
+                    <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
+                      {totalFindings}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                {accounts.map((acct) => (
+                  <TabsTrigger key={acct.key} value={acct.key} className="text-xs font-mono">
+                    {formatAccountId(acct.key)}
+                    <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
+                      {acct.doc_count}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          ) : (
+            <div />
+          )}
+          <Button variant="outline" size="sm" className="flex-shrink-0" onClick={handleReset}>
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
             Reset
           </Button>
         </div>
-
-        {/* Account Tabs */}
-        {accounts.length > 0 && (
-          <Tabs
-            value={accountTab}
-            onValueChange={(v) => setFilters({ account: v === 'all' ? null : v, page: 1 })}
-          >
-            <TabsList className="h-auto flex-wrap">
-              <TabsTrigger value="all" className="text-xs">
-                All Accounts
-                {!summaryLoading && (
-                  <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
-                    {totalFindings}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              {accounts.map((acct) => (
-                <TabsTrigger key={acct.key} value={acct.key} className="text-xs font-mono">
-                  {formatAccountId(acct.key)}
-                  <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
-                    {acct.doc_count}
-                  </Badge>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        )}
 
         {/* Severity Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -729,7 +1085,7 @@ export function AwsSecurityDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {findingsLoading && findings.length === 0
+              {findingsLoading && !error && findings.length === 0
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={`skel-${i}`}>
                       <TableCell>
@@ -766,7 +1122,7 @@ export function AwsSecurityDashboard() {
                       <ShieldCheck className="h-10 w-10" />
                       <p className="text-sm font-medium">No findings found</p>
                       <p className="text-xs">
-                        Run a Prowler scan or adjust your filters to see security findings.
+                        Run a security scan or adjust your filters to see findings.
                       </p>
                     </div>
                   </TableCell>
@@ -775,7 +1131,10 @@ export function AwsSecurityDashboard() {
               {findings.map((finding) => (
                 <TableRow
                   key={finding._id}
-                  className="cursor-pointer"
+                  className={cn(
+                    'cursor-pointer',
+                    newFindingIds.has(finding._id) && 'animate-highlight-fade',
+                  )}
                   onClick={() => handleFindingClick(finding)}
                 >
                   <TableCell>
@@ -904,3 +1263,6 @@ export function AwsSecurityDashboard() {
     </div>
   );
 }
+
+/** @deprecated Use SecurityDashboardContent instead */
+export const AwsSecurityDashboard = SecurityDashboardContent;

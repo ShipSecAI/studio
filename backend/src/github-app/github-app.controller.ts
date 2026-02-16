@@ -123,6 +123,11 @@ export class GitHubAppController {
     return { token };
   }
 
+  @Get('quick-scan-workflows')
+  async getQuickScanWorkflows(@CurrentAuth() auth: AuthContext) {
+    return this.githubAppService.getQuickScanWorkflows(auth);
+  }
+
   @Post('repos/:id/scan')
   async triggerScan(
     @Param('id') id: string,

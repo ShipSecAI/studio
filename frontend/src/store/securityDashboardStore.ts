@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '@/services/api';
+import type { SecurityViewFilter } from '@/config/securityViews';
 
 // --- Types ---
 
@@ -70,6 +71,7 @@ interface TimeSeriesBucket {
 
 interface SecurityDashboardState {
   filters: SecurityDashboardFilters;
+  viewFilter: SecurityViewFilter;
   findings: SecurityFinding[];
   total: number;
   severityCounts: SeverityCounts;
@@ -91,19 +93,31 @@ interface SecurityDashboardState {
   findingLifecyclesLoading: boolean;
   selectedFindingLifecycle: FindingLifecycle | null;
   selectedFindingLifecycleLoading: boolean;
+  // Polling
+  pollingEnabled: boolean;
+  pollingIntervalId: ReturnType<typeof setInterval> | null;
+  isFetching: boolean;
+  // New finding highlights
+  newFindingIds: Set<string>;
+  lastPollTimestamp: string | null;
 }
 
 interface SecurityDashboardActions {
   setFilters: (filters: Partial<SecurityDashboardFilters>) => void;
   resetFilters: () => void;
-  fetchAll: (signal?: AbortSignal, interval?: string) => Promise<void>;
-  fetchFindings: (signal?: AbortSignal) => Promise<void>;
-  fetchSummary: (signal?: AbortSignal) => Promise<void>;
-  fetchTimeSeries: (signal?: AbortSignal, interval?: string) => Promise<void>;
+  setViewFilter: (viewFilter: SecurityViewFilter) => void;
+  fetchAll: (signal?: AbortSignal, interval?: string, silent?: boolean) => Promise<void>;
+  fetchFindings: (signal?: AbortSignal, silent?: boolean) => Promise<void>;
+  fetchSummary: (signal?: AbortSignal, silent?: boolean) => Promise<void>;
+  fetchTimeSeries: (signal?: AbortSignal, interval?: string, silent?: boolean) => Promise<void>;
   fetchFindingById: (docId: string) => Promise<void>;
   setSelectedFinding: (finding: SecurityFinding | null) => void;
   fetchFindingLifecycle: (findingHash: string) => Promise<void>;
   fetchBatchLifecycles: (findingHashes: string[]) => Promise<void>;
+  // Polling
+  startPolling: () => void;
+  stopPolling: () => void;
+  clearNewFindingIds: () => void;
 }
 
 export type SecurityDashboardStore = SecurityDashboardState & SecurityDashboardActions;
@@ -138,8 +152,17 @@ const INITIAL_SEVERITY_COUNTS: SeverityCounts = {
 
 // --- Helpers ---
 
-function buildBaseFilter(filters: SecurityDashboardFilters) {
-  const must: Record<string, any>[] = [{ term: { 'scanner.keyword': 'prowler' } }];
+function buildBaseFilter(filters: SecurityDashboardFilters, viewFilter?: SecurityViewFilter) {
+  const must: Record<string, any>[] = [];
+
+  // Apply scanner filter from the active view (instead of hardcoded scanner)
+  if (viewFilter?.scannerTerms && viewFilter.scannerTerms.length > 0) {
+    if (viewFilter.scannerTerms.length === 1) {
+      must.push({ term: { 'scanner.keyword': viewFilter.scannerTerms[0] } });
+    } else {
+      must.push({ terms: { 'scanner.keyword': viewFilter.scannerTerms } });
+    }
+  }
 
   if (filters.search.trim()) {
     must.push({
@@ -209,9 +232,12 @@ let detailLifecycleVersion = 0;
 
 // --- Store ---
 
+const POLL_INTERVAL_MS = 10_000;
+
 export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, get) => ({
   // State
   filters: { ...INITIAL_FILTERS },
+  viewFilter: {},
   findings: [],
   total: 0,
   severityCounts: { ...INITIAL_SEVERITY_COUNTS },
@@ -233,6 +259,11 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
   findingLifecyclesLoading: false,
   selectedFindingLifecycle: null,
   selectedFindingLifecycleLoading: false,
+  pollingEnabled: false,
+  pollingIntervalId: null,
+  isFetching: false,
+  newFindingIds: new Set<string>(),
+  lastPollTimestamp: null,
 
   // Actions
   setFilters: (partial) => {
@@ -245,32 +276,48 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
     set({ filters: { ...INITIAL_FILTERS } });
   },
 
-  fetchAll: async (signal?: AbortSignal, interval?: string) => {
-    const { fetchFindings, fetchSummary, fetchTimeSeries } = get();
-    await Promise.all([
-      fetchFindings(signal),
-      fetchSummary(signal),
-      fetchTimeSeries(signal, interval),
-    ]);
+  setViewFilter: (viewFilter: SecurityViewFilter) => {
+    set({ viewFilter, filters: { ...get().filters, page: 1 } });
   },
 
-  fetchFindings: async (signal?: AbortSignal) => {
-    const { filters } = get();
-    set({ findingsLoading: true, error: null, findingLifecycles: {} });
+  fetchAll: async (signal?: AbortSignal, interval?: string, silent?: boolean) => {
+    const { fetchFindings, fetchTimeSeries } = get();
+    set({ isFetching: true });
+    try {
+      await Promise.all([fetchFindings(signal, silent), fetchTimeSeries(signal, interval, silent)]);
+    } finally {
+      set({ isFetching: false, lastPollTimestamp: new Date().toISOString() });
+    }
+  },
+
+  fetchFindings: async (signal?: AbortSignal, silent?: boolean) => {
+    const { filters, viewFilter } = get();
+    if (!silent) {
+      set({ findingsLoading: true, summaryLoading: true, error: null, findingLifecycles: {} });
+    }
 
     try {
       const result = await api.analytics.query({
-        query: buildBaseFilter(filters),
+        query: buildBaseFilter(filters, viewFilter),
         size: PAGE_SIZE,
         from: (filters.page - 1) * PAGE_SIZE,
         sort: buildSort(filters),
+        aggs: {
+          severity_counts: { terms: { field: 'severity.keyword' } },
+          accounts: { terms: { field: 'account_id.keyword', size: 50 } },
+          regions: { terms: { field: 'region.keyword', size: 50 } },
+          services: { terms: { field: 'service_name.keyword', size: 100 } },
+          compliance_frameworks: { terms: { field: 'compliance.keyword', size: 50 } },
+          check_names: { terms: { field: 'check_name.keyword', size: 200 } },
+          status_counts: { terms: { field: 'status.keyword' } },
+        },
       });
 
       if (signal?.aborted) return;
 
       const findings: SecurityFinding[] = result.hits.map((hit) => ({
         _id: hit._id,
-        scanner: hit._source.scanner ?? 'prowler',
+        scanner: hit._source.scanner ?? 'unknown',
         finding_hash: hit._source.finding_hash ?? '',
         severity: hit._source.severity ?? 'unknown',
         status: hit._source.status ?? 'UNKNOWN',
@@ -295,7 +342,29 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
         '@timestamp': hit._source['@timestamp'] ?? '',
       }));
 
-      set({ findings, total: result.total, findingsLoading: false });
+      // Extract summary aggregations from the same response
+      const severityCounts = { ...INITIAL_SEVERITY_COUNTS };
+      const sevBuckets = result.aggregations?.severity_counts?.buckets ?? [];
+      for (const bucket of sevBuckets) {
+        const key = bucket.key?.toLowerCase();
+        if (key in severityCounts) {
+          severityCounts[key as keyof SeverityCounts] = bucket.doc_count;
+        }
+      }
+
+      set({
+        findings,
+        total: result.total,
+        findingsLoading: false,
+        severityCounts,
+        accounts: result.aggregations?.accounts?.buckets ?? [],
+        regions: result.aggregations?.regions?.buckets ?? [],
+        services: result.aggregations?.services?.buckets ?? [],
+        complianceFrameworks: result.aggregations?.compliance_frameworks?.buckets ?? [],
+        checkNames: result.aggregations?.check_names?.buckets ?? [],
+        statusCounts: result.aggregations?.status_counts?.buckets ?? [],
+        summaryLoading: false,
+      });
 
       // Fire batch lifecycle enrichment (non-blocking)
       const hashes = findings.map((f) => f.finding_hash).filter(Boolean);
@@ -305,17 +374,19 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
     } catch (_err) {
       if (signal?.aborted) return;
       const message = _err instanceof Error ? _err.message : 'Failed to fetch findings';
-      set({ findingsLoading: false, error: message });
+      set({ findingsLoading: false, summaryLoading: false, error: message });
     }
   },
 
-  fetchSummary: async (signal?: AbortSignal) => {
-    const { filters } = get();
-    set({ summaryLoading: true });
+  fetchSummary: async (signal?: AbortSignal, silent?: boolean) => {
+    const { filters, viewFilter } = get();
+    if (!silent) {
+      set({ summaryLoading: true });
+    }
 
     try {
       const result = await api.analytics.query({
-        query: buildBaseFilter(filters),
+        query: buildBaseFilter(filters, viewFilter),
         size: 0,
         aggs: {
           severity_counts: { terms: { field: 'severity.keyword' } },
@@ -355,15 +426,17 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
     }
   },
 
-  fetchTimeSeries: async (signal?: AbortSignal, interval?: string) => {
-    const { filters } = get();
-    set({ timeSeriesLoading: true });
+  fetchTimeSeries: async (signal?: AbortSignal, interval?: string, silent?: boolean) => {
+    const { filters, viewFilter } = get();
+    if (!silent) {
+      set({ timeSeriesLoading: true });
+    }
 
     const calendarInterval = interval ?? 'day';
 
     try {
       const result = await api.analytics.query({
-        query: buildBaseFilter(filters),
+        query: buildBaseFilter(filters, viewFilter),
         size: 0,
         aggs: {
           over_time: {
@@ -412,7 +485,7 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
         const hit = result.hits[0];
         const finding: SecurityFinding = {
           _id: hit._id,
-          scanner: hit._source.scanner ?? 'prowler',
+          scanner: hit._source.scanner ?? 'unknown',
           finding_hash: hit._source.finding_hash ?? '',
           severity: hit._source.severity ?? 'unknown',
           status: hit._source.status ?? 'UNKNOWN',
@@ -499,6 +572,71 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
     }
   },
 
+  startPolling: () => {
+    const { pollingIntervalId } = get();
+    if (pollingIntervalId) return;
+
+    const id = setInterval(() => {
+      const { isFetching } = get();
+      if (isFetching) return; // Skip if a user-triggered fetch is in progress
+
+      const controller = new AbortController();
+      get()
+        .fetchAll(controller.signal, undefined, true)
+        .then(() => {
+          // Check for new findings since last poll
+          const { lastPollTimestamp, filters, viewFilter } = get();
+          if (!lastPollTimestamp) return;
+
+          // Lightweight query: just get IDs of docs newer than lastPollTimestamp
+          api.analytics
+            .query({
+              query: {
+                bool: {
+                  ...buildBaseFilter(filters, viewFilter).bool,
+                  filter: [
+                    ...(buildBaseFilter(filters, viewFilter).bool.filter || []),
+                    { range: { '@timestamp': { gt: lastPollTimestamp } } },
+                  ],
+                },
+              },
+              size: PAGE_SIZE,
+              sort: [{ '@timestamp': 'desc' }],
+            })
+            .then((result) => {
+              if (result.hits.length > 0) {
+                const ids = new Set(result.hits.map((h) => h._id));
+                set({ newFindingIds: ids });
+                // Clear highlights after animation
+                setTimeout(() => {
+                  set({ newFindingIds: new Set() });
+                }, 2000);
+              }
+            })
+            .catch(() => {
+              // Silently ignore polling errors
+            });
+        })
+        .catch(() => {
+          // Silently ignore polling errors
+        });
+    }, POLL_INTERVAL_MS);
+
+    set({ pollingEnabled: true, pollingIntervalId: id });
+  },
+
+  stopPolling: () => {
+    const { pollingIntervalId } = get();
+    if (pollingIntervalId) {
+      clearInterval(pollingIntervalId);
+    }
+    set({ pollingEnabled: false, pollingIntervalId: null });
+  },
+
+  clearNewFindingIds: () => {
+    set({ newFindingIds: new Set() });
+  },
+
   fetchBatchLifecycles: async (findingHashes: string[]) => {
     if (findingHashes.length === 0) return;
 
@@ -550,8 +688,13 @@ export const useSecurityDashboardStore = create<SecurityDashboardStore>((set, ge
 }));
 
 export const resetSecurityDashboardState = () => {
+  // Stop any active polling before resetting
+  const { pollingIntervalId } = useSecurityDashboardStore.getState();
+  if (pollingIntervalId) clearInterval(pollingIntervalId);
+
   useSecurityDashboardStore.setState({
     filters: { ...INITIAL_FILTERS },
+    viewFilter: {},
     findings: [],
     total: 0,
     severityCounts: { ...INITIAL_SEVERITY_COUNTS },
@@ -573,5 +716,10 @@ export const resetSecurityDashboardState = () => {
     findingLifecyclesLoading: false,
     selectedFindingLifecycle: null,
     selectedFindingLifecycleLoading: false,
+    pollingEnabled: false,
+    pollingIntervalId: null,
+    isFetching: false,
+    newFindingIds: new Set(),
+    lastPollTimestamp: null,
   });
 };

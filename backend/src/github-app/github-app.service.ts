@@ -24,6 +24,10 @@ import type {
   GitHubPushEvent,
 } from './dto/github-app.dto';
 import { WorkflowsService } from '../workflows/workflows.service';
+import {
+  SystemWorkflowsService,
+  type SystemWorkflowDto,
+} from '../workflows/system-workflows.service';
 
 interface InstallationTokenCache {
   token: string;
@@ -41,6 +45,8 @@ export class GitHubAppService implements OnModuleInit {
     private readonly repository: GitHubAppRepository,
     @Inject(forwardRef(() => WorkflowsService))
     private readonly workflowsService: WorkflowsService,
+    @Inject(forwardRef(() => SystemWorkflowsService))
+    private readonly systemWorkflowsService: SystemWorkflowsService,
   ) {
     this.config = this.configService.get<GitHubAppConfig>('githubApp')!;
   }
@@ -1453,6 +1459,11 @@ export class GitHubAppService implements OnModuleInit {
       'github.check.create': inputs,
       'github.check.update': inputs,
     };
+  }
+
+  async getQuickScanWorkflows(auth: AuthContext): Promise<SystemWorkflowDto[]> {
+    const organizationId = this.requireOrganizationId(auth);
+    return this.systemWorkflowsService.ensureSystemWorkflows(organizationId);
   }
 
   private requireOrganizationId(auth: AuthContext | null): string {
