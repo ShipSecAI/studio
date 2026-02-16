@@ -269,16 +269,7 @@ function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
 // Main Chat Interface
 export function ChatInterface() {
   const { user } = useAuth();
-  const {
-    currentSessionId,
-    createSession,
-    updateSessionTitle,
-    getCurrentSession,
-    setCommandPaletteOpen,
-    loadSessions,
-  } = useChatStore();
-
-  const currentSession = getCurrentSession();
+  const { currentSessionId, createSession, setCommandPaletteOpen, loadSessions } = useChatStore();
 
   // Ref to always have the latest sessionId available in the transport callback
   const sessionIdRef = useRef(currentSessionId);
@@ -308,13 +299,28 @@ export function ChatInterface() {
 
   // Load messages for current session
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
-  const [messagesKey, setMessagesKey] = useState(0);
+  const [chatId, setChatId] = useState(() =>
+    currentSessionId ? `${currentSessionId}-0` : `chat-${Date.now()}`,
+  );
+
+  // Track which session was lazily created so we skip message-loading for it
+  const lazyCreatedSessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!currentSessionId) {
+      // User clicked "New Conversation" — reset chat to empty state
+      setChatId(`new-${Date.now()}`);
       setInitialMessages([]);
       return;
     }
+
+    // Skip loading messages for sessions we just created (they're empty)
+    if (lazyCreatedSessionRef.current === currentSessionId) {
+      lazyCreatedSessionRef.current = null;
+      return;
+    }
+
+    // Session switch — load messages from server and reset useChat
     let cancelled = false;
 
     (async () => {
@@ -334,7 +340,7 @@ export function ChatInterface() {
               createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
             })),
           );
-          setMessagesKey((k) => k + 1);
+          setChatId(`${currentSessionId}-${Date.now()}`);
         }
       } catch {
         // ignore fetch errors
@@ -346,51 +352,11 @@ export function ChatInterface() {
     };
   }, [currentSessionId]);
 
-  // useChat hook — connected to the backend streaming endpoint
-  // chatId changes on session switches but NOT during lazy creation within the same conversation
-  const isLazyCreationRef = useRef(false);
-  const [chatId, setChatId] = useState(() =>
-    currentSessionId ? `${currentSessionId}-0` : `chat-${Date.now()}`,
-  );
-
-  useEffect(() => {
-    if (!currentSessionId) {
-      // User clicked "New Conversation" — reset chat to empty state
-      setChatId(`new-${Date.now()}`);
-      setInitialMessages([]);
-    } else if (isLazyCreationRef.current) {
-      // Skip — lazy creation just happened, don't reset useChat
-      isLazyCreationRef.current = false;
-    } else {
-      // Session loaded from server or user switched sessions
-      setChatId(`${currentSessionId}-${messagesKey}`);
-    }
-  }, [currentSessionId, messagesKey]);
-
   const { messages, sendMessage, status, error, stop } = useChat({
     transport: chatTransport,
     id: chatId,
     messages: initialMessages,
   });
-
-  // Auto-update session title from first user message
-  useEffect(() => {
-    if (
-      currentSession &&
-      currentSession.title === 'New Conversation' &&
-      currentSessionId &&
-      messages.length > 0
-    ) {
-      const firstUserMsg = messages.find((m) => m.role === 'user');
-      if (firstUserMsg) {
-        const text = getMessageText(firstUserMsg);
-        if (text) {
-          const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
-          updateSessionTitle(currentSessionId, title);
-        }
-      }
-    }
-  }, [messages, currentSession, currentSessionId, updateSessionTitle]);
 
   // Handle prompt selection — set the textarea value via ref
   const [pendingPrompt, setPendingPrompt] = useState('');
@@ -407,8 +373,9 @@ export function ChatInterface() {
       // Create session on first message if none exists
       if (!sessionIdRef.current) {
         const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
-        isLazyCreationRef.current = true;
+        // Mark this session as lazily created so we skip loading empty messages for it
         const newSessionId = await createSession(title);
+        lazyCreatedSessionRef.current = newSessionId;
         sessionIdRef.current = newSessionId;
       }
 
