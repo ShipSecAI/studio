@@ -187,6 +187,7 @@ export class ShipSecApiClient {
     workflowId?: string;
     status?: string;
     limit?: number;
+    offset?: number;
   }) {
     return this.client.GET('/api/v1/workflows/runs', {
       params: {
@@ -194,6 +195,7 @@ export class ShipSecApiClient {
           workflowId: options?.workflowId,
           status: options?.status,
           limit: options?.limit,
+          offset: options?.offset,
         },
       },
     });

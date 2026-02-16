@@ -142,7 +142,7 @@ export function WebhookEditorPage() {
       try {
         if (!isNew) setIsLoading(true);
 
-        const workflowsList = await api.workflows.list();
+        const workflowsList = await api.workflows.listSummary();
         setWorkflows(workflowsList.map((w) => ({ id: w.id, name: w.name })));
 
         if (isNew) {

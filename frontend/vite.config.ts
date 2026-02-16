@@ -30,12 +30,12 @@ export default defineConfig({
     open: false,
     allowedHosts: ['studio.shipsec.ai', 'frontend'],
     proxy: {
-      '/api': {
+      '/api/': {
         target: `http://localhost:${backendPort}`,
         changeOrigin: true,
         secure: false,
       },
-      '/analytics': {
+      '/analytics/': {
         target: 'http://localhost:5601',
         changeOrigin: true,
         secure: false,

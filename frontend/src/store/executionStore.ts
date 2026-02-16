@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { TERMINAL_STATUSES } from '@shipsec/shared';
 import { api } from '@/services/api';
 import { useRunStore } from '@/store/runStore';
 import {
@@ -85,14 +86,6 @@ export interface TerminalStreamState {
 }
 
 const MAX_TERMINAL_CHUNKS = 500;
-
-const TERMINAL_STATUSES: ExecutionStatus[] = [
-  'COMPLETED',
-  'FAILED',
-  'CANCELLED',
-  'TERMINATED',
-  'TIMED_OUT',
-];
 
 const terminalKey = (nodeId: string, stream = 'pty') => `${nodeId}:${stream}`;
 

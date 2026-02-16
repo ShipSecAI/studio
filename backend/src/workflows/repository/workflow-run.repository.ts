@@ -114,6 +114,7 @@ export class WorkflowRunRepository {
       workflowId?: string;
       status?: string;
       limit?: number;
+      offset?: number;
       organizationId?: string | null;
     } = {},
   ): Promise<WorkflowRunRecord[]> {
@@ -133,7 +134,8 @@ export class WorkflowRunRepository {
 
     return await filteredQuery
       .orderBy(desc(workflowRunsTable.createdAt))
-      .limit(options.limit ?? 50);
+      .limit(options.limit ?? 50)
+      .offset(options.offset ?? 0);
   }
 
   async listChildren(
@@ -164,6 +166,17 @@ export class WorkflowRunRepository {
         ),
       );
     return Number(result.count) > 0;
+  }
+
+  /**
+   * Persist a Temporal-confirmed terminal status so future reads skip the Temporal RPC.
+   * Deliberately does NOT touch updatedAt — that reflects meaningful workflow changes, not cache writes.
+   */
+  async cacheTerminalStatus(runId: string, status: string, closeTime?: Date): Promise<void> {
+    await this.db
+      .update(workflowRunsTable)
+      .set({ status, closeTime: closeTime ?? null })
+      .where(eq(workflowRunsTable.runId, runId));
   }
 
   private buildRunFilter(runId: string, organizationId?: string | null) {

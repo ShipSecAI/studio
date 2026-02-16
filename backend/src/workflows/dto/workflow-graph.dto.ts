@@ -149,6 +149,7 @@ export const ListRunsQuerySchema = z.object({
     .pipe(ExecutionStatusSchema)
     .optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0).optional(),
 });
 
 export class ListRunsQueryDto extends createZodDto(ListRunsQuerySchema) {}

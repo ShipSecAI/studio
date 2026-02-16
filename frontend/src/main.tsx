@@ -38,14 +38,14 @@ if (hasPostHog) {
 initializeTimelineStore();
 initializeTheme();
 
+const appContent = hasPostHog ? (
+  <PostHogProvider client={posthog}>
+    <App />
+  </PostHogProvider>
+) : (
+  <App />
+);
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    {hasPostHog ? (
-      <PostHogProvider client={posthog}>
-        <App />
-      </PostHogProvider>
-    ) : (
-      <App />
-    )}
-  </React.StrictMode>,
+  import.meta.env.DEV ? <React.StrictMode>{appContent}</React.StrictMode> : appContent,
 );

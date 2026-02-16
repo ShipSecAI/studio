@@ -44,7 +44,7 @@ export function ArtifactLibrary() {
   useEffect(() => {
     const loadWorkflows = async () => {
       try {
-        const list = await api.workflows.list();
+        const list = await api.workflows.listSummary();
         const map: Record<string, string> = {};
         list.forEach((w) => {
           if (w.id) map[w.id] = w.name;

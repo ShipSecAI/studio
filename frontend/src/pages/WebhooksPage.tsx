@@ -100,7 +100,7 @@ export function WebhooksPage() {
     let cancelled = false;
     (async () => {
       try {
-        const workflowList = await api.workflows.list();
+        const workflowList = await api.workflows.listSummary();
         if (cancelled) return;
         const normalized = workflowList.map((workflow) => ({
           id: workflow.id,
