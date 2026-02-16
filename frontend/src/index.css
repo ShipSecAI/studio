@@ -4,6 +4,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -53,12 +63,12 @@
     /* BG Alt: #1F2023 */
     --secondary: 225 6% 13%;
     --secondary-foreground: 0 0% 100%;
-    /* Card: #232427 */
-    --muted: 225 8% 15%;
+    /* Muted: slightly lighter than card for subtle backgrounds */
+    --muted: 225 8% 19%;
     /* Text Secondary: #C6C7C8 */
     --muted-foreground: 210 2% 78%;
-    /* Slightly lighter than card for hover states */
-    --accent: 225 8% 18%;
+    /* Hover/active highlight - clearly visible against background */
+    --accent: 225 8% 24%;
     --accent-foreground: 0 0% 100%;
     /* Accent Error: #EF4444 */
     --destructive: 0 84% 60%;
@@ -554,4 +564,18 @@ table tbody tr:hover {
 .text-node-resize-line.react-flow__resize-control.line:active {
   border-color: hsl(var(--primary));
   opacity: 1;
+}
+
+/* Security Dashboard - new finding highlight */
+@keyframes highlight-fade {
+  0% {
+    background-color: hsl(var(--primary) / 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animate-highlight-fade {
+  animation: highlight-fade 2s ease-out;
 }
