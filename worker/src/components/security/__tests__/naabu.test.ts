@@ -3,6 +3,19 @@ import * as sdk from '@shipsec/component-sdk';
 import { componentRegistry } from '../../index';
 import type { NaabuInput, NaabuOutput } from '../naabu';
 
+// Mock IsolatedContainerVolume to avoid requiring Docker
+vi.mock('../../../utils/isolated-volume', () => ({
+  IsolatedContainerVolume: class {
+    async initialize() {
+      return 'mock-volume';
+    }
+    getVolumeConfig(containerPath = '/inputs', readOnly = true) {
+      return { name: 'mock-volume', containerPath, readOnly };
+    }
+    async cleanup() {}
+  },
+}));
+
 describe('naabu component', () => {
   beforeAll(async () => {
     await import('../../index');
