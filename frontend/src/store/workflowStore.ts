@@ -6,6 +6,7 @@ interface WorkflowMetadata {
   description: string;
   currentVersionId: string | null;
   currentVersion: number | null;
+  isSystem: boolean;
 }
 
 interface WorkflowStore {
@@ -29,6 +30,7 @@ const initialMetadata: WorkflowMetadata = {
   description: '',
   currentVersionId: null,
   currentVersion: null,
+  isSystem: false,
 };
 
 /**

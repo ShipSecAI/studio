@@ -200,6 +200,8 @@ export interface ServiceWorkflowResponse {
   description?: string | null;
   graph: z.infer<typeof WorkflowGraphSchema>; // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: any | null;
+  isSystem: boolean;
+  templateId: string | null;
   lastRun: Date | null;
   runCount: number;
   createdAt: Date;
@@ -215,6 +217,8 @@ export const WorkflowResponseSchema = z.object({
   description: z.string().optional().nullable(),
   graph: WorkflowGraphSchema, // The original stored graph (contains nodes, edges, viewport)
   compiledDefinition: z.unknown().nullable(),
+  isSystem: z.boolean(),
+  templateId: z.string().uuid().nullable(),
   lastRun: z.string().nullable(), // Date string from JSON serialization
   runCount: z.number().int().nonnegative(),
   createdAt: z.string(), // Date string from JSON serialization
