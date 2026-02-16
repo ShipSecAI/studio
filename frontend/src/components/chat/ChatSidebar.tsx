@@ -105,7 +105,7 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
     sessions,
     currentSessionId,
     isLoadingSessions,
-    createSession,
+    startNewConversation,
     deleteSession,
     setCurrentSession,
     updateSessionTitle,
@@ -138,7 +138,7 @@ export function ChatSidebar({ className }: ChatSidebarProps) {
   );
 
   const handleNewChat = () => {
-    createSession();
+    startNewConversation();
   };
 
   return (

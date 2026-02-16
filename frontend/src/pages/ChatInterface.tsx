@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -270,7 +270,6 @@ function EmptyState({ userName, onSelectPrompt }: EmptyStateProps) {
 export function ChatInterface() {
   const { user } = useAuth();
   const {
-    sessions,
     currentSessionId,
     createSession,
     updateSessionTitle,
@@ -281,25 +280,30 @@ export function ChatInterface() {
 
   const currentSession = getCurrentSession();
 
+  // Ref to always have the latest sessionId available in the transport callback
+  const sessionIdRef = useRef(currentSessionId);
+  sessionIdRef.current = currentSessionId;
+
   // Load sessions from server on mount
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
 
-  // Create transport with auth headers — scoped to current session
+  // Create transport with auth headers — uses ref so it always reads the latest session ID
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
         prepareSendMessagesRequest: async ({ body, headers, messages: msgs, id }) => {
           const authHeaders = await getApiAuthHeaders();
           return {
-            api: `${API_V1_URL}/chat/sessions/${currentSessionId}/messages`,
+            api: `${API_V1_URL}/chat/sessions/${sessionIdRef.current}/messages`,
             body: { ...body, id, messages: msgs },
             headers: { ...headersInitToRecord(headers), ...authHeaders },
           };
         },
       }),
-    [currentSessionId],
+
+    [],
   );
 
   // Load messages for current session
@@ -343,21 +347,31 @@ export function ChatInterface() {
   }, [currentSessionId]);
 
   // useChat hook — connected to the backend streaming endpoint
-  // We use `chatId` combining sessionId + messagesKey so useChat resets when session changes
-  const chatId = currentSessionId ? `${currentSessionId}-${messagesKey}` : undefined;
+  // chatId changes on session switches but NOT during lazy creation within the same conversation
+  const isLazyCreationRef = useRef(false);
+  const [chatId, setChatId] = useState(() =>
+    currentSessionId ? `${currentSessionId}-0` : `chat-${Date.now()}`,
+  );
+
+  useEffect(() => {
+    if (!currentSessionId) {
+      // User clicked "New Conversation" — reset chat to empty state
+      setChatId(`new-${Date.now()}`);
+      setInitialMessages([]);
+    } else if (isLazyCreationRef.current) {
+      // Skip — lazy creation just happened, don't reset useChat
+      isLazyCreationRef.current = false;
+    } else {
+      // Session loaded from server or user switched sessions
+      setChatId(`${currentSessionId}-${messagesKey}`);
+    }
+  }, [currentSessionId, messagesKey]);
+
   const { messages, sendMessage, status, error, stop } = useChat({
     transport: chatTransport,
     id: chatId,
     messages: initialMessages,
   });
-
-  // Auto-create session if none exists after loading completes
-  const isLoadingSessions = useChatStore((s) => s.isLoadingSessions);
-  useEffect(() => {
-    if (sessions.length === 0 && !isLoadingSessions) {
-      createSession();
-    }
-  }, [sessions.length, isLoadingSessions, createSession]);
 
   // Auto-update session title from first user message
   useEffect(() => {
@@ -384,14 +398,23 @@ export function ChatInterface() {
     setPendingPrompt(prompt + ' ');
   }, []);
 
-  // Handle submit from PromptInput
+  // Handle submit from PromptInput — lazily creates a session if needed
   const handleSubmit = useCallback(
-    (message: PromptInputMessage) => {
+    async (message: PromptInputMessage) => {
       const text = message.text?.trim();
       if (!text) return;
+
+      // Create session on first message if none exists
+      if (!sessionIdRef.current) {
+        const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
+        isLazyCreationRef.current = true;
+        const newSessionId = await createSession(title);
+        sessionIdRef.current = newSessionId;
+      }
+
       sendMessage({ text });
     },
-    [sendMessage],
+    [sendMessage, createSession],
   );
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();

@@ -44,6 +44,7 @@ interface ChatState {
   createSession: (title?: string) => Promise<string>;
   deleteSession: (id: string) => Promise<void>;
   setCurrentSession: (id: string) => void;
+  startNewConversation: () => void;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
 
   // UI Actions
@@ -92,7 +93,15 @@ export const useChatStore = create<ChatState>()(
         set({ isLoadingSessions: true });
         try {
           const sessions = await fetchJson<ChatSession[]>(`${API_V1_URL}/chat/sessions`);
-          set({ sessions, isLoadingSessions: false });
+          // Clear currentSessionId if it points to a deleted session
+          const { currentSessionId } = get();
+          const sessionExists =
+            !currentSessionId || sessions.some((s) => s.id === currentSessionId);
+          set({
+            sessions,
+            isLoadingSessions: false,
+            ...(sessionExists ? {} : { currentSessionId: null }),
+          });
         } catch {
           set({ isLoadingSessions: false });
         }
@@ -127,6 +136,10 @@ export const useChatStore = create<ChatState>()(
 
       setCurrentSession: (id) => {
         set({ currentSessionId: id });
+      },
+
+      startNewConversation: () => {
+        set({ currentSessionId: null });
       },
 
       updateSessionTitle: async (sessionId, title) => {
