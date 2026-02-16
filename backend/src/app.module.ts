@@ -10,6 +10,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { authConfig } from './config/auth.config';
 import { opensearchConfig } from './config/opensearch.config';
+import { validateBackendEnv } from './config/env.validate';
 import { OpenSearchModule } from './config/opensearch.module';
 import { AgentsModule } from './agents/agents.module';
 import { AuthModule } from './auth/auth.module';
@@ -76,6 +77,7 @@ function getEnvFilePaths(): string[] {
       isGlobal: true,
       envFilePath: getEnvFilePaths(),
       load: [authConfig, opensearchConfig],
+      validate: validateBackendEnv,
     }),
     ThrottlerModule.forRootAsync({
       useFactory: () => {
