@@ -43,7 +43,7 @@ The easiest way to run ShipSec Studio on your own infrastructure:
 #### One-Line Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | bash
+curl -fsSL https://get.shipsec.ai | bash
 ```
 
 This installer will:
