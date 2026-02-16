@@ -51,9 +51,9 @@
     "undici": "^7.19.0"
   },
   "lint-staged": {
-    "frontend/**/*.{ts,tsx,js,jsx}": "bunx eslint@9 --fix --config frontend/eslint.config.mjs",
-    "backend/**/*.{ts,js}": "bunx eslint@9 --fix --config backend/eslint.config.mjs",
-    "worker/**/*.{ts,js}": "bunx eslint@9 --fix --config worker/eslint.config.mjs",
+    "frontend/**/*.{ts,tsx,js,jsx}": "bun --cwd frontend eslint --fix --config eslint.config.mjs",
+    "backend/**/*.{ts,js}": "bun --cwd backend eslint --fix --config eslint.config.mjs",
+    "worker/**/*.{ts,js}": "bun --cwd worker eslint --fix --config eslint.config.mjs",
     "*.{json,md,yml,yaml}": "bunx prettier --write"
   },
   "dependencies": {

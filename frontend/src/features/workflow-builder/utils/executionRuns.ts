@@ -1,13 +1,9 @@
+import { TERMINAL_STATUSES } from '@shipsec/shared';
 import type { ExecutionStatus } from '@/schemas/execution';
 import type { ExecutionRun } from '@/store/runStore';
 
-export const TERMINAL_RUN_STATUSES: ExecutionStatus[] = [
-  'COMPLETED',
-  'FAILED',
-  'CANCELLED',
-  'TERMINATED',
-  'TIMED_OUT',
-];
+/** @deprecated Use TERMINAL_STATUSES from @shipsec/shared instead */
+export const TERMINAL_RUN_STATUSES = TERMINAL_STATUSES;
 
 export const normalizeRunSummary = (run: any): ExecutionRun => {
   const status = (

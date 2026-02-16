@@ -29,6 +29,18 @@ export const EXECUTION_STATUS = [
 
 export type ExecutionStatus = (typeof EXECUTION_STATUS)[number];
 
+/**
+ * Statuses that indicate a workflow run has permanently finished.
+ * Once a run reaches one of these, its status will never change again.
+ */
+export const TERMINAL_STATUSES: readonly ExecutionStatus[] = [
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+  'TERMINATED',
+  'TIMED_OUT',
+] as const;
+
 export const ExecutionStatusSchema = z.enum(EXECUTION_STATUS);
 
 export const EXECUTION_TRIGGER_TYPES = ['manual', 'schedule', 'api', 'webhook'] as const;

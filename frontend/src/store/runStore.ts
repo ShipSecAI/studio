@@ -2,7 +2,11 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { api } from '@/services/api';
 import type { ExecutionStatus } from '@/schemas/execution';
-import type { ExecutionTriggerType, ExecutionInputPreview } from '@shipsec/shared';
+import {
+  TERMINAL_STATUSES,
+  type ExecutionTriggerType,
+  type ExecutionInputPreview,
+} from '@shipsec/shared';
 
 export interface ExecutionRun {
   id: string;
@@ -32,6 +36,7 @@ interface RunCacheEntry {
   isLoading: boolean;
   error: string | null;
   lastFetched: number | null;
+  hasMore: boolean;
 }
 
 interface RunStoreState {
@@ -42,7 +47,9 @@ interface RunStoreActions {
   fetchRuns: (options?: {
     workflowId?: string | null;
     force?: boolean;
+    limit?: number;
   }) => Promise<ExecutionRun[] | undefined>;
+  fetchMoreRuns: (workflowId?: string | null) => Promise<void>;
   refreshRuns: (workflowId?: string | null) => Promise<ExecutionRun[] | undefined>;
   invalidate: (workflowId?: string | null) => void;
   upsertRun: (run: ExecutionRun) => void;
@@ -63,11 +70,15 @@ const GLOBAL_WORKFLOW_CACHE_KEY = '__global__';
 
 const getCacheKey = (workflowId?: string | null) => workflowId ?? GLOBAL_WORKFLOW_CACHE_KEY;
 
+const INITIAL_LIMIT = 5;
+const LOAD_MORE_LIMIT = 20;
+
 const createEmptyEntry = (): RunCacheEntry => ({
   runs: [],
   isLoading: false,
   error: null,
   lastFetched: null,
+  hasMore: true,
 });
 
 const getEntry = (cache: RunStoreState['cache'], key: string): RunCacheEntry => {
@@ -75,8 +86,6 @@ const getEntry = (cache: RunStoreState['cache'], key: string): RunCacheEntry => 
 };
 
 const inflightFetches = new Map<string, Promise<ExecutionRun[]>>();
-
-const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'];
 
 const TRIGGER_LABELS: Record<ExecutionTriggerType, string> = {
   manual: 'Manual run',
@@ -166,6 +175,7 @@ export const useRunStore = create<RunStore>()(
 
       const key = getCacheKey(workflowId);
       const force = options?.force ?? false;
+      const limit = options?.limit ?? INITIAL_LIMIT;
       const state = get();
       const entry = getEntry(state.cache, key);
       const now = Date.now();
@@ -196,10 +206,11 @@ export const useRunStore = create<RunStore>()(
       const fetchPromise = (async () => {
         try {
           const response = await api.executions.listRuns({
-            limit: 50,
+            limit,
             workflowId: workflowId ?? undefined,
           });
-          const normalized = sortRuns((response.runs ?? []).map(normalizeRun));
+          const rawRuns = response.runs ?? [];
+          const normalized = sortRuns(rawRuns.map(normalizeRun));
           set((state) => ({
             cache: {
               ...state.cache,
@@ -208,6 +219,7 @@ export const useRunStore = create<RunStore>()(
                 isLoading: false,
                 error: null,
                 lastFetched: Date.now(),
+                hasMore: rawRuns.length >= limit,
               },
             },
           }));
@@ -236,6 +248,60 @@ export const useRunStore = create<RunStore>()(
     },
 
     refreshRuns: (workflowId) => get().fetchRuns({ workflowId, force: true }),
+
+    fetchMoreRuns: async (workflowId) => {
+      const key = getCacheKey(workflowId);
+      const entry = getEntry(get().cache, key);
+
+      if (entry.isLoading || !entry.hasMore) {
+        return;
+      }
+
+      const offset = entry.runs.length;
+
+      set((state) => ({
+        cache: {
+          ...state.cache,
+          [key]: { ...getEntry(state.cache, key), isLoading: true, error: null },
+        },
+      }));
+
+      try {
+        const response = await api.executions.listRuns({
+          limit: LOAD_MORE_LIMIT,
+          offset,
+          workflowId: workflowId ?? undefined,
+        });
+        const rawRuns = response.runs ?? [];
+        const normalized = rawRuns.map(normalizeRun);
+
+        set((state) => {
+          const current = getEntry(state.cache, key);
+          // Deduplicate by id, then sort
+          const existingIds = new Set(current.runs.map((r) => r.id));
+          const newRuns = normalized.filter((r) => !existingIds.has(r.id));
+          return {
+            cache: {
+              ...state.cache,
+              [key]: {
+                ...current,
+                runs: sortRuns([...current.runs, ...newRuns]),
+                isLoading: false,
+                hasMore: rawRuns.length >= LOAD_MORE_LIMIT,
+              },
+            },
+          };
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch more runs';
+        set((state) => ({
+          cache: {
+            ...state.cache,
+            [key]: { ...getEntry(state.cache, key), isLoading: false, error: message },
+          },
+        }));
+      }
+    },
 
     invalidate: (workflowId) => {
       if (typeof workflowId === 'undefined') {
