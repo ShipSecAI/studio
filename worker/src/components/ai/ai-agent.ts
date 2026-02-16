@@ -492,7 +492,7 @@ async function registerGatewayTools({
     `[AGENT] Discovered ${Object.keys(tools).length} tools from gateway: ${Object.keys(tools).join(', ') || 'none'}`,
   );
   return {
-    tools,
+    tools: tools as ToolSet,
     close: async () => {
       await mcpClient.close();
     },
