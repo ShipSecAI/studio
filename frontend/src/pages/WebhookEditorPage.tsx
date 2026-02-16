@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -13,8 +13,6 @@ import {
   Code,
 } from 'lucide-react';
 import { api } from '@/services/api';
-import { useWebhook, useWebhookDeliveries } from '@/hooks/queries/useWebhookQueries';
-import { useWorkflowsSummary, useWorkflowRuntimeInputs } from '@/hooks/queries/useWorkflowQueries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +31,11 @@ import { useToast } from '@/components/ui/use-toast';
 import Editor, { loader } from '@monaco-editor/react';
 import { cn } from '@/lib/utils';
 import { SaveButton } from '@/components/ui/save-button';
-import type { WebhookConfiguration, WebhookInputDefinition } from '@shipsec/shared';
+import type {
+  WebhookConfiguration,
+  WebhookDelivery,
+  WebhookInputDefinition,
+} from '@shipsec/shared';
 
 // Configure Monaco
 loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs' } });
@@ -88,20 +90,9 @@ export function WebhookEditorPage() {
     }
   };
 
+  const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
-
-  // --- Query hooks for server data ---
-  const {
-    data: webhookData,
-    isLoading: isLoadingWebhook,
-    error: webhookError,
-  } = useWebhook(isNew ? undefined : id);
-  const webhook = (webhookData as WebhookConfiguration) ?? null;
-  const { data: rawWorkflows = [] } = useWorkflowsSummary();
-  const workflows = useMemo(
-    () => rawWorkflows.map((w) => ({ id: w.id, name: w.name })),
-    [rawWorkflows],
-  );
+  const [webhook, setWebhook] = useState<WebhookConfiguration | null>(null);
 
   // Form State
   const [form, setForm] = useState<WebhookFormState>({
@@ -124,36 +115,6 @@ export function WebhookEditorPage() {
       : null,
   );
 
-  // Sync webhook query data → form state (once, on initial load)
-  const formInitializedRef = useRef(false);
-  useEffect(() => {
-    if (isNew || formInitializedRef.current || !webhook) return;
-    formInitializedRef.current = true;
-    const loadedForm = {
-      workflowId: webhook.workflowId,
-      name: webhook.name,
-      description: webhook.description || '',
-      parsingScript: webhook.parsingScript,
-      expectedInputs: webhook.expectedInputs,
-    };
-    setForm(loadedForm);
-    setInitialForm(loadedForm);
-  }, [isNew, webhook]);
-
-  // Handle webhook load error — navigate away
-  useEffect(() => {
-    if (webhookError && !isNew) {
-      toast({
-        title: 'Error loading data',
-        description: String(webhookError),
-        variant: 'destructive',
-      });
-      navigate('/webhooks');
-    }
-  }, [webhookError, isNew, navigate, toast]);
-
-  const isLoading = !isNew && isLoadingWebhook;
-
   const isDirty = useMemo(() => {
     if (!initialForm) return false;
     try {
@@ -169,30 +130,92 @@ export function WebhookEditorPage() {
   const [testResult, setTestResult] = useState<any>(null);
   const [isTesting, setIsTesting] = useState(false);
 
-  // --- Runtime inputs query (reactive to form.workflowId) ---
-  const { data: runtimeInputsData } = useWorkflowRuntimeInputs(form.workflowId || undefined);
-  const workflowRuntimeInputs = useMemo(() => runtimeInputsData?.inputs || [], [runtimeInputsData]);
+  // Resources
+  const [workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
+  const [workflowRuntimeInputs, setWorkflowRuntimeInputs] = useState<any[]>([]);
+  const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
+  const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(false);
 
-  // Sync runtime inputs → expectedInputs in form
-  const lastSyncedWorkflowId = useRef('');
+  // Load Initial Data
   useEffect(() => {
-    if (!form.workflowId || form.workflowId === lastSyncedWorkflowId.current) return;
-    if (workflowRuntimeInputs.length === 0) return;
-    lastSyncedWorkflowId.current = form.workflowId;
-    const mappedInputs: WebhookInputDefinition[] = workflowRuntimeInputs.map((input: any) => ({
-      id: input.id,
-      label: input.label || input.id,
-      type: (input.type === 'string' ? 'text' : input.type) || 'text',
-      required: input.required !== false,
-      description: input.description || '',
-    }));
-    setForm((prev) => ({ ...prev, expectedInputs: mappedInputs }));
-  }, [form.workflowId, workflowRuntimeInputs]);
+    const loadResources = async () => {
+      try {
+        if (!isNew) setIsLoading(true);
 
-  // --- Deliveries query ---
-  const { data: deliveries = [], isLoading: isLoadingDeliveries } = useWebhookDeliveries(
-    isNew ? undefined : id,
-  );
+        const workflowsList = await api.workflows.list();
+        setWorkflows(workflowsList.map((w) => ({ id: w.id, name: w.name })));
+
+        if (isNew) {
+          const defaultState = {
+            workflowId: '',
+            name: 'New Webhook',
+            description: '',
+            parsingScript: DEFAULT_PARSING_SCRIPT,
+            expectedInputs: [],
+          };
+          setForm(defaultState);
+          setInitialForm(defaultState);
+        } else if (id) {
+          const loadedWebhook = (await api.webhooks.get(id)) as unknown as WebhookConfiguration;
+          setWebhook(loadedWebhook);
+          const loadedForm = {
+            workflowId: loadedWebhook.workflowId,
+            name: loadedWebhook.name,
+            description: loadedWebhook.description || '',
+            parsingScript: loadedWebhook.parsingScript,
+            expectedInputs: loadedWebhook.expectedInputs,
+          };
+          setForm(loadedForm);
+          setInitialForm(loadedForm);
+        }
+      } catch (error) {
+        toast({
+          title: 'Error loading data',
+          description: String(error),
+          variant: 'destructive',
+        });
+        if (!isNew) navigate('/webhooks');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadResources();
+  }, [id, isNew, navigate, toast]);
+
+  // Load Workflow Runtime Inputs and sync to expectedInputs
+  useEffect(() => {
+    if (!form.workflowId) return;
+
+    api.workflows
+      .getRuntimeInputs(form.workflowId)
+      .then((res) => {
+        const runtimeInputs = res.inputs || [];
+        setWorkflowRuntimeInputs(runtimeInputs);
+
+        // Automatically populate expectedInputs from workflow runtime inputs
+        // This ensures the backend validation passes
+        const mappedInputs: WebhookInputDefinition[] = runtimeInputs.map((input: any) => ({
+          id: input.id,
+          label: input.label || input.id,
+          type: (input.type === 'string' ? 'text' : input.type) || 'text',
+          required: input.required !== false,
+          description: input.description || '',
+        }));
+        setForm((prev) => ({ ...prev, expectedInputs: mappedInputs }));
+      })
+      .catch(console.error);
+  }, [form.workflowId]);
+
+  // Load Deliveries
+  useEffect(() => {
+    if (isNew || !id) return;
+    setIsLoadingDeliveries(true);
+    api.webhooks
+      .listDeliveries(id)
+      .then((data) => setDeliveries(data || []))
+      .catch(console.error)
+      .finally(() => setIsLoadingDeliveries(false));
+  }, [id, isNew]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -286,7 +309,7 @@ export function WebhookEditorPage() {
       {/* Header */}
       <div
         className={cn(
-          'h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
+          'h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
           'flex items-center justify-between px-3 md:px-4 gap-2 md:gap-4 shrink-0 z-10',
         )}
       >

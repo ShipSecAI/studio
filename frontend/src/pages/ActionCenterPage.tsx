@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, XCircle, RefreshCw, Search, Clock, Zap, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { useHumanInputs, useInvalidateHumanInputs } from '@/hooks/queries/useHumanInputQueries';
+import { api } from '@/services/api';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 const STATUS_OPTIONS = [
@@ -87,22 +87,37 @@ import {
 
 export function ActionCenterPage() {
   const { toast } = useToast();
+  const [approvals, setApprovals] = useState<HumanInputRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'resolved' | 'expired'>(
     'pending',
   );
   const [actionState] = useState<Record<string, 'approve' | 'reject' | 'view'>>({});
 
-  const status = statusFilter === 'all' ? undefined : statusFilter;
-  const { data: rawApprovals = [], isLoading, error: queryError } = useHumanInputs({ status });
-  const approvals = rawApprovals as HumanInputRequest[];
-  const invalidateHumanInputs = useInvalidateHumanInputs();
-  const error = queryError?.message ?? null;
-
   // Resolve dialog state
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
   const [resolveAction, setResolveAction] = useState<'approve' | 'reject' | 'view'>('approve');
   const [selectedApproval, setSelectedApproval] = useState<HumanInputRequest | null>(null);
+
+  const fetchApprovals = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const status = statusFilter === 'all' ? undefined : statusFilter;
+      const data = await api.humanInputs.list({ status });
+      setApprovals(data as HumanInputRequest[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load approvals');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchApprovals();
+  }, [statusFilter]);
 
   const filteredApprovals = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -128,7 +143,7 @@ export function ActionCenterPage() {
   };
 
   const handleRefresh = async () => {
-    await invalidateHumanInputs();
+    await fetchApprovals();
     toast({
       title: 'Requests refreshed',
       description: 'Latest status have been loaded.',
@@ -160,26 +175,6 @@ export function ActionCenterPage() {
     <TooltipProvider>
       <div className="flex-1 bg-background">
         <div className="container mx-auto px-3 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
-          {/* Header */}
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Zap className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">Action Center</h1>
-                <p className="text-sm text-muted-foreground">
-                  Review and respond to workflow requests
-                </p>
-              </div>
-            </div>
-            {pendingCount > 0 && (
-              <Badge variant="default" className="text-base px-3 py-1">
-                {pendingCount} pending
-              </Badge>
-            )}
-          </div>
-
           {/* Filters */}
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="flex-1 space-y-2">
@@ -193,7 +188,12 @@ export function ActionCenterPage() {
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {pendingCount > 0 && (
+                <Badge variant="default" className="px-2.5 py-0.5">
+                  {pendingCount} pending
+                </Badge>
+              )}
               <Select
                 value={statusFilter}
                 onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
@@ -398,7 +398,7 @@ export function ActionCenterPage() {
                 initialAction={resolveAction}
                 onResolved={() => {
                   setResolveDialogOpen(false);
-                  invalidateHumanInputs();
+                  fetchApprovals();
                 }}
                 onCancel={() => setResolveDialogOpen(false)}
               />

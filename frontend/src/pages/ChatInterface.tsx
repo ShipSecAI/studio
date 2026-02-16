@@ -429,7 +429,7 @@ export function ChatInterface() {
   return (
     <div className="flex flex-col h-full w-full bg-background">
       {/* Header: sidebar toggle + title + StatusBar */}
-      <div className="flex items-center h-11 border-b bg-background/60 backdrop-blur-sm">
+      <div className="flex items-center h-14 border-b bg-background/60 backdrop-blur-sm">
         <Button
           variant="ghost"
           size="icon"

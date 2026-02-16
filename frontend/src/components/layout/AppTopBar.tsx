@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { env } from '@/config/env';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
+import { resolvePageTitle } from '@/config/pageTitles';
 
 interface AppTopBarProps {
   title?: string;
@@ -26,136 +24,19 @@ export function AppTopBar({
   isMobile = false,
 }: AppTopBarProps) {
   const location = useLocation();
-  const [hasActiveScans, setHasActiveScans] = useState(false);
-  const [loadingActiveScans, setLoadingActiveScans] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Resolve page info from centralized config, with prop overrides
+  const resolved = resolvePageTitle(location.pathname);
+  const pageInfo = title
+    ? { title, shortTitle: title, subtitle: subtitle ?? '', icon: undefined }
+    : { ...resolved };
 
-    const loadActiveScans = async () => {
-      try {
-        const headers = await getApiAuthHeaders();
-        const response = await fetch(
-          `${API_BASE_URL}/api/v1/github/scans?status=running,pending&limit=1`,
-          { headers },
-        );
-        if (!response.ok) return;
-        const scans = (await response.json()) as unknown;
-        if (cancelled) return;
-        setHasActiveScans(Array.isArray(scans) && scans.length > 0);
-      } catch {
-        if (!cancelled) {
-          setHasActiveScans(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingActiveScans(false);
-        }
-      }
-    };
-
-    setLoadingActiveScans(true);
-    loadActiveScans().catch(() => {});
-
-    const timer = window.setInterval(() => {
-      loadActiveScans().catch(() => {});
-    }, 15000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  // Determine page title and navigation based on current route
-  const getPageInfo = () => {
-    if (title) return { title, subtitle };
-
-    if (location.pathname === '/') {
-      return {
-        title: 'Security Workflow Builder',
-        shortTitle: 'Workflows',
-        subtitle: 'Create and manage security automation workflows',
-      };
-    }
-
-    if (location.pathname.startsWith('/workflows')) {
-      return {
-        title: 'Workflow Builder',
-        shortTitle: 'Builder',
-        subtitle: 'Design and automate security workflows',
-      };
-    }
-
-    if (location.pathname.startsWith('/schedules')) {
-      return {
-        title: 'Workflow Schedules',
-        shortTitle: 'Schedules',
-        subtitle: 'Manage recurring workflow cadences',
-      };
-    }
-
-    if (location.pathname === '/secrets') {
-      return {
-        title: 'Secret Manager',
-        shortTitle: 'Secrets',
-        subtitle: 'Store and manage sensitive credentials',
-      };
-    }
-
-    if (location.pathname === '/webhooks') {
-      return {
-        title: 'Webhooks Manager',
-        shortTitle: 'Webhooks',
-        subtitle: 'Manage and debug incoming webhooks',
-      };
-    }
-
-    if (location.pathname === '/api-keys') {
-      return {
-        title: 'API Keys',
-        shortTitle: 'API Keys',
-        subtitle: 'Manage API keys for workflow triggers',
-      };
-    }
-
-    if (env.VITE_ENABLE_CONNECTIONS && location.pathname === '/integrations') {
-      return {
-        title: 'Connections',
-        shortTitle: 'Connections',
-        subtitle: 'Manage OAuth tokens for external providers',
-      };
-    }
-
-    if (location.pathname === '/artifacts') {
-      return {
-        title: 'Artifact Library',
-        shortTitle: 'Artifacts',
-        subtitle: 'Browse artifacts saved across workflow runs',
-      };
-    }
-
-    if (location.pathname.startsWith('/github')) {
-      return {
-        title: 'GitHub Integration',
-        shortTitle: 'GitHub',
-        subtitle: 'Manage repositories, trigger rules, and scan results',
-      };
-    }
-
-    return {
-      title: 'Security Workflow Builder',
-      shortTitle: 'Workflows',
-      subtitle: 'Create and manage security automation workflows',
-    };
-  };
-
-  const pageInfo = getPageInfo();
+  const PageIcon = pageInfo.icon;
 
   return (
     <div
       className={cn(
-        'h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
+        'h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
         'flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40',
       )}
     >
@@ -195,8 +76,8 @@ export function AppTopBar({
                 <span className="text-xs text-muted-foreground font-medium -mt-1.5">Studio</span>
               </div>
             </Link>
-            {/* Show page title on non-workflow pages */}
-            {location.pathname !== '/' && !location.pathname.startsWith('/workflows') && (
+            {/* Show page title on non-root pages */}
+            {location.pathname !== '/' && (
               <>
                 <span className="text-muted-foreground">|</span>
                 <span className="font-medium text-sm truncate">
@@ -206,27 +87,16 @@ export function AppTopBar({
             )}
           </div>
         ) : (
-          /* Desktop: Full page title */
-          <h1 className="text-xl font-semibold truncate">{pageInfo.title}</h1>
+          /* Desktop: Icon + Full page title */
+          <div className="flex items-center gap-2.5">
+            {PageIcon && <PageIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
+            <h1 className="text-xl font-semibold truncate">{pageInfo.title}</h1>
+          </div>
         )}
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-        {hasActiveScans && (
-          <Button variant="outline" size={isMobile ? 'sm' : 'default'} asChild>
-            <Link to="/github?tab=scans&status=running,pending">
-              {loadingActiveScans ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              )}
-              Live scans
-            </Link>
-          </Button>
-        )}
-        {actions}
-      </div>
+      <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">{actions}</div>
     </div>
   );
 }
