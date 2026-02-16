@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Zap } from 'lucide-react';
 import { env } from '@/config/env';
 import { cn } from '@/lib/utils';
-import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 
 interface AppTopBarProps {
   title?: string;
@@ -13,6 +11,7 @@ interface AppTopBarProps {
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
   actions?: React.ReactNode;
+  afterTitle?: React.ReactNode;
   isMobile?: boolean;
 }
 
@@ -23,49 +22,10 @@ export function AppTopBar({
   sidebarOpen,
   onSidebarToggle,
   actions,
+  afterTitle,
   isMobile = false,
 }: AppTopBarProps) {
   const location = useLocation();
-  const [hasActiveScans, setHasActiveScans] = useState(false);
-  const [loadingActiveScans, setLoadingActiveScans] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadActiveScans = async () => {
-      try {
-        const headers = await getApiAuthHeaders();
-        const response = await fetch(
-          `${API_BASE_URL}/api/v1/github/scans?status=running,pending&limit=1`,
-          { headers },
-        );
-        if (!response.ok) return;
-        const scans = (await response.json()) as unknown;
-        if (cancelled) return;
-        setHasActiveScans(Array.isArray(scans) && scans.length > 0);
-      } catch {
-        if (!cancelled) {
-          setHasActiveScans(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingActiveScans(false);
-        }
-      }
-    };
-
-    setLoadingActiveScans(true);
-    loadActiveScans().catch(() => {});
-
-    const timer = window.setInterval(() => {
-      loadActiveScans().catch(() => {});
-    }, 15000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
 
   // Determine page title and navigation based on current route
   const getPageInfo = () => {
@@ -73,8 +33,16 @@ export function AppTopBar({
 
     if (location.pathname === '/') {
       return {
-        title: 'Security Workflow Builder',
-        shortTitle: 'Workflows',
+        title: 'Home',
+        shortTitle: 'Home',
+        subtitle: 'Security posture overview and onboarding',
+      };
+    }
+
+    if (location.pathname === '/builder') {
+      return {
+        title: 'Workflow Builder',
+        shortTitle: 'Builder',
         subtitle: 'Create and manage security automation workflows',
       };
     }
@@ -136,11 +104,51 @@ export function AppTopBar({
       };
     }
 
-    if (location.pathname.startsWith('/dashboards/aws-security')) {
+    if (location.pathname === '/templates') {
       return {
-        title: 'Security Dashboard',
-        shortTitle: 'Security',
-        subtitle: 'AWS Security Findings from Prowler',
+        title: 'Workflow Templates',
+        shortTitle: 'Templates',
+        subtitle: 'Browse and use pre-built workflow templates',
+      };
+    }
+
+    if (location.pathname === '/recon') {
+      return {
+        title: 'Attack Surface Recon',
+        shortTitle: 'Recon',
+        subtitle: 'Discover subdomains, open ports, and vulnerabilities',
+      };
+    }
+
+    if (location.pathname === '/mcp-library') {
+      return {
+        title: 'MCP Servers',
+        shortTitle: 'MCP Servers',
+        subtitle: 'Manage Model Context Protocol server integrations',
+      };
+    }
+
+    if (location.pathname === '/analytics-settings') {
+      return {
+        title: 'Analytics Settings',
+        shortTitle: 'Analytics',
+        subtitle: 'Configure analytics and reporting preferences',
+      };
+    }
+
+    if (location.pathname === '/action-center') {
+      return {
+        title: 'Action Center',
+        shortTitle: 'Actions',
+        subtitle: 'Review and manage pending actions',
+      };
+    }
+
+    if (location.pathname.startsWith('/security')) {
+      return {
+        title: 'Cloud Findings',
+        shortTitle: 'Cloud Findings',
+        subtitle: 'Unified security findings across all scanners',
       };
     }
 
@@ -170,9 +178,9 @@ export function AppTopBar({
     }
 
     return {
-      title: 'Security Workflow Builder',
-      shortTitle: 'Workflows',
-      subtitle: 'Create and manage security automation workflows',
+      title: 'Home',
+      shortTitle: 'Home',
+      subtitle: 'Security posture overview and onboarding',
     };
   };
 
@@ -226,8 +234,8 @@ export function AppTopBar({
                 <span className="text-xs text-muted-foreground font-medium -mt-1.5">Studio</span>
               </div>
             </Link>
-            {/* Show page title on non-workflow pages */}
-            {location.pathname !== '/' && !location.pathname.startsWith('/workflows') && (
+            {/* Show page title on non-workflow-builder pages */}
+            {!location.pathname.startsWith('/workflows') && (
               <>
                 <span className="text-muted-foreground">|</span>
                 <span className="font-medium text-sm truncate">
@@ -238,7 +246,7 @@ export function AppTopBar({
           </div>
         ) : (
           /* Desktop: Full page title with optional clickable breadcrumb */
-          <h1 className="text-xl font-semibold truncate">
+          <h1 className={cn('text-xl font-semibold', afterTitle ? 'flex-shrink-0' : 'truncate')}>
             {pageInfo.breadcrumb ? (
               <>
                 <Link
@@ -255,24 +263,35 @@ export function AppTopBar({
             )}
           </h1>
         )}
+        {afterTitle && (
+          <>
+            <span className="text-border mx-1 hidden md:inline">|</span>
+            {afterTitle}
+          </>
+        )}
       </div>
 
       {/* Action buttons */}
       <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-        {hasActiveScans && (
-          <Button variant="outline" size={isMobile ? 'sm' : 'default'} asChild>
-            <Link to="/integrations/github?tab=scans&status=running,pending">
-              {loadingActiveScans ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              )}
-              Live scans
-            </Link>
-          </Button>
-        )}
+        <QuickScanButton isMobile={isMobile} />
         {actions}
       </div>
     </div>
+  );
+}
+
+function QuickScanButton({ isMobile }: { isMobile: boolean }) {
+  const navigate = useNavigate();
+
+  return (
+    <Button
+      variant="default"
+      size={isMobile ? 'sm' : 'default'}
+      className="gap-1.5"
+      onClick={() => navigate('/integrations/github')}
+    >
+      <Zap className="h-3.5 w-3.5" />
+      <span className="hidden sm:inline">Quick Scan</span>
+    </Button>
   );
 }

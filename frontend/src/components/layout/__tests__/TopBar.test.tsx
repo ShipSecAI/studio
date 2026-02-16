@@ -16,6 +16,7 @@ const resetStores = () => {
       description: '',
       currentVersionId: null,
       currentVersion: null,
+      isSystem: false,
     },
     isDirty: false,
   });
