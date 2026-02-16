@@ -163,11 +163,24 @@ export class ChatService implements OnModuleInit {
 
   // --- Streaming chat (Temporal-backed) ---
   //
-  // The AI SDK useChat hook with DefaultChatTransport expects the AI SDK
-  // data stream protocol.  Each line is `{typeId}:{jsonValue}\n`:
-  //   0 = text part, 9 = tool call, a = tool result,
-  //   e = step finish, d = finish message.
-  // Content-Type must be `text/plain; charset=utf-8`.
+  // AI SDK v6 DefaultChatTransport expects the UI Message Stream protocol:
+  //   Content-Type: text/event-stream
+  //   Header: x-vercel-ai-ui-message-stream: v1
+  //   Format: SSE lines — `data: {json}\n\n`
+  //   Events: text-start, text-delta, text-end, tool-input-start,
+  //           tool-input-available, tool-output-available, error
+  //   End marker: `data: [DONE]\n\n`
+
+  /** Write one SSE event */
+  private writeSseEvent(res: ServerResponse, data: Record<string, unknown>): void {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  }
+
+  /** End SSE stream with [DONE] marker */
+  private endSseStream(res: ServerResponse): void {
+    res.write('data: [DONE]\n\n');
+    res.end();
+  }
 
   async streamChatToResponse(
     sessionId: string,
@@ -196,13 +209,18 @@ export class ChatService implements OnModuleInit {
       parts: lastMessage.parts,
     });
 
-    // Set up AI SDK data stream protocol headers
+    // Set up AI SDK v6 UI Message Stream headers
     res.writeHead(200, {
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-      'X-Vercel-AI-Data-Stream': 'v1',
+      'X-Vercel-AI-UI-Message-Stream': 'v1',
+      'X-Accel-Buffering': 'no',
     });
+
+    // Track state for generating unique IDs
+    const textPartId = `text-${Date.now()}`;
+    let textStarted = false;
 
     // Subscribe to Redis pub/sub for real-time streaming
     const timer = { id: undefined as ReturnType<typeof setTimeout> | undefined };
@@ -211,23 +229,31 @@ export class ChatService implements OnModuleInit {
       onEvent: (event) => {
         try {
           if (event.type === 'text-delta' && typeof event.text === 'string') {
-            res.write(`0:${JSON.stringify(event.text)}\n`);
+            if (!textStarted) {
+              this.writeSseEvent(res, { type: 'text-start', id: textPartId });
+              textStarted = true;
+            }
+            this.writeSseEvent(res, { type: 'text-delta', id: textPartId, delta: event.text });
           } else if (event.type === 'tool-call') {
-            res.write(
-              `9:${JSON.stringify({
-                toolCallId: `call-${Date.now()}`,
-                toolName: event.toolName,
-                args: event.args ?? {},
-              })}\n`,
-            );
+            const toolCallId = `call-${Date.now()}`;
+            this.writeSseEvent(res, {
+              type: 'tool-input-start',
+              toolCallId,
+              toolName: event.toolName,
+            });
+            this.writeSseEvent(res, {
+              type: 'tool-input-available',
+              toolCallId,
+              toolName: event.toolName,
+              input: event.args ?? {},
+            });
           } else if (event.type === 'tool-result') {
-            res.write(
-              `a:${JSON.stringify({
-                toolCallId: `call-${Date.now()}`,
-                toolName: event.toolName,
-                result: event.result ?? {},
-              })}\n`,
-            );
+            const toolCallId = `call-${Date.now()}`;
+            this.writeSseEvent(res, {
+              type: 'tool-output-available',
+              toolCallId,
+              output: event.result ?? {},
+            });
           }
         } catch {
           // Best-effort streaming
@@ -235,59 +261,32 @@ export class ChatService implements OnModuleInit {
       },
       onComplete: () => {
         if (timer.id) clearTimeout(timer.id);
-        const finishPayload = {
-          finishReason: 'stop',
-          usage: { promptTokens: 0, completionTokens: 0 },
-          isContinued: false,
-        };
-        res.write(`e:${JSON.stringify(finishPayload)}\n`);
-        res.write(
-          `d:${JSON.stringify({
-            finishReason: 'stop',
-            usage: { promptTokens: 0, completionTokens: 0 },
-          })}\n`,
-        );
-        res.end();
+        if (textStarted) {
+          this.writeSseEvent(res, { type: 'text-end', id: textPartId });
+        }
+        this.endSseStream(res);
       },
       onError: (err) => {
         if (timer.id) clearTimeout(timer.id);
         this.logger.error(`Stream error for session ${sessionId}:`, err);
-        res.write(`0:${JSON.stringify(`Error: ${String(err)}`)}\n`);
-        res.write(
-          `e:${JSON.stringify({
-            finishReason: 'error',
-            usage: { promptTokens: 0, completionTokens: 0 },
-            isContinued: false,
-          })}\n`,
-        );
-        res.write(
-          `d:${JSON.stringify({
-            finishReason: 'error',
-            usage: { promptTokens: 0, completionTokens: 0 },
-          })}\n`,
-        );
-        res.end();
+        this.writeSseEvent(res, { type: 'error', errorText: String(err) });
+        this.endSseStream(res);
       },
     });
 
     // Timeout: if no completion in 2 minutes, end the stream
     timer.id = setTimeout(() => {
       subscription.unsubscribe();
-      res.write(`0:${JSON.stringify('[Response timed out]')}\n`);
-      res.write(
-        `e:${JSON.stringify({
-          finishReason: 'stop',
-          usage: { promptTokens: 0, completionTokens: 0 },
-          isContinued: false,
-        })}\n`,
-      );
-      res.write(
-        `d:${JSON.stringify({
-          finishReason: 'stop',
-          usage: { promptTokens: 0, completionTokens: 0 },
-        })}\n`,
-      );
-      res.end();
+      if (!textStarted) {
+        this.writeSseEvent(res, { type: 'text-start', id: textPartId });
+      }
+      this.writeSseEvent(res, {
+        type: 'text-delta',
+        id: textPartId,
+        delta: '[Response timed out]',
+      });
+      this.writeSseEvent(res, { type: 'text-end', id: textPartId });
+      this.endSseStream(res);
     }, 120_000);
 
     // Handle client disconnect
