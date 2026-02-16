@@ -56,6 +56,7 @@ import { ConfigurationError } from '@shipsec/component-sdk';
 import { getTopicResolver } from '../../common/kafka-topic-resolver';
 import * as schema from '../../adapters/schema';
 import { logHeartbeat } from '../../utils/debug-logger';
+import { validateWorkerEnv } from '../../config/env.validate';
 
 // Load environment variables from instance-specific env if set, otherwise fall back
 // to the worker's default `.env`.
@@ -66,6 +67,7 @@ const instanceEnvPath = instanceNum
   : undefined;
 
 config({ path: instanceEnvPath ?? join(workerRoot, '.env') });
+validateWorkerEnv(process.env);
 
 if (typeof globalThis.crypto === 'undefined') {
   Object.defineProperty(globalThis, 'crypto', {
