@@ -4,8 +4,11 @@ import { Module } from '@nestjs/common';
 import '@shipsec/studio-worker/components';
 
 import { ComponentsController } from './components.controller';
+import { ApiKeysModule } from '../api-keys/api-keys.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
+  imports: [ApiKeysModule, AuthModule],
   controllers: [ComponentsController],
   exports: [],
 })

@@ -34,6 +34,7 @@ import { HumanInputsModule } from './human-inputs/human-inputs.module';
 import { McpServersModule } from './mcp-servers/mcp-servers.module';
 import { McpGroupsModule } from './mcp-groups/mcp-groups.module';
 import { GitHubAppModule } from './github-app/github-app.module';
+import { WorkflowTemplatesModule } from './workflow-templates/workflow-templates.module';
 
 const coreModules = [
   AgentsModule,
@@ -55,6 +56,7 @@ const coreModules = [
   GitHubAppModule,
   StudioMcpModule,
   GitHubAppModule,
+  WorkflowTemplatesModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
