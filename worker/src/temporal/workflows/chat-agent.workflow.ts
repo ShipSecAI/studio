@@ -45,12 +45,24 @@ interface SaveChatMessagesInput {
 // Activities
 // ---------------------------------------------------------------------------
 
+interface GenerateSessionTitleInput {
+  sessionId: string;
+  userMessage: string;
+  assistantMessage: string;
+}
+
 const { runChatAgentStepActivity, saveChatMessagesActivity } = proxyActivities<{
   runChatAgentStepActivity(input: ChatAgentStepInput): Promise<ChatAgentStepOutput>;
   saveChatMessagesActivity(input: SaveChatMessagesInput): Promise<void>;
 }>({
   startToCloseTimeout: '5 minutes',
   heartbeatTimeout: '30 seconds',
+});
+
+const { generateSessionTitleActivity } = proxyActivities<{
+  generateSessionTitleActivity(input: GenerateSessionTitleInput): Promise<string>;
+}>({
+  startToCloseTimeout: '30 seconds',
 });
 
 // ---------------------------------------------------------------------------
@@ -87,6 +99,7 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   const messages: ChatUIMessage[] = input.initialMessages ?? [];
   let status: 'idle' | 'processing' | 'done' = 'idle';
   let chatEnded = false;
+  let titleGenerated = (input.initialMessages?.length ?? 0) > 0; // skip if continuing
   const pendingUserMessages: ChatUIMessage[] = [];
 
   // ---- Signal handlers ----
@@ -134,6 +147,31 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
         sessionId,
         messages: result.assistantMessages ?? [],
       });
+
+      // Generate AI title after the first exchange
+      if (!titleGenerated) {
+        titleGenerated = true;
+        const userText = userMsg.parts
+          .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+          .map((p) => p.text)
+          .join('\n');
+        const assistantText = (result.assistantMessages ?? [])
+          .flatMap((m) => m.parts)
+          .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+          .map((p) => p.text)
+          .join('\n');
+
+        if (userText && assistantText) {
+          // Fire-and-forget — don't block the chat on title generation
+          generateSessionTitleActivity({
+            sessionId,
+            userMessage: userText,
+            assistantMessage: assistantText,
+          }).catch(() => {
+            // Title generation failure is non-critical
+          });
+        }
+      }
     } catch (err) {
       // On error, add an error message so the user sees feedback
       messages.push({

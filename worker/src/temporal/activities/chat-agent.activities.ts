@@ -1,6 +1,6 @@
 import { Context } from '@temporalio/activity';
 import { createOpenAI } from '@ai-sdk/openai';
-import { streamText, stepCountIs } from 'ai';
+import { streamText, generateText, stepCountIs } from 'ai';
 import { z } from 'zod';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -343,4 +343,51 @@ export async function loadChatMessagesActivity(
     role: r.role as 'user' | 'assistant' | 'system',
     parts: r.parts as ChatMessagePart[],
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Title Generation
+// ---------------------------------------------------------------------------
+
+interface GenerateSessionTitleInput {
+  sessionId: string;
+  userMessage: string;
+  assistantMessage: string;
+}
+
+/**
+ * Generate a short conversation title using the LLM and update the session.
+ * Also publishes a title-update event via Redis so the frontend updates in real-time.
+ */
+export async function generateSessionTitleActivity(
+  input: GenerateSessionTitleInput,
+): Promise<string> {
+  if (!globalDb) throw new Error('Database not initialized for chat agent activities');
+
+  const result = await generateText({
+    model: getModel(),
+    system:
+      'Generate a very short title (3-6 words, no quotes) for this conversation based on the user message and assistant response. Just output the title, nothing else.',
+    messages: [
+      { role: 'user', content: input.userMessage },
+      { role: 'assistant', content: input.assistantMessage },
+      { role: 'user', content: 'Generate a short title for the conversation above.' },
+    ],
+  });
+
+  const title = result.text
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .slice(0, 100);
+
+  // Update session title in DB
+  await globalDb
+    .update(schema.chatSessions)
+    .set({ title })
+    .where(eq(schema.chatSessions.id, input.sessionId));
+
+  // Publish title update to Redis so frontend picks it up in real-time
+  publishStreamChunk(input.sessionId, JSON.stringify({ type: 'title-update', title }));
+
+  return title;
 }

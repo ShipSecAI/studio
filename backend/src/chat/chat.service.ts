@@ -254,6 +254,12 @@ export class ChatService implements OnModuleInit {
               toolCallId,
               output: event.result ?? {},
             });
+          } else if (event.type === 'title-update' && typeof event.title === 'string') {
+            // Custom event: AI-generated title — relay to frontend
+            this.writeSseEvent(res, {
+              type: 'metadata',
+              metadata: { title: event.title },
+            });
           }
         } catch {
           // Best-effort streaming

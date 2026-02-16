@@ -369,6 +369,15 @@ export function ChatInterface() {
     messages: initialMessages,
   });
 
+  // Reload sessions when streaming finishes to pick up AI-generated title
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    if (prevStatusRef.current === 'streaming' && status === 'ready') {
+      loadSessions();
+    }
+    prevStatusRef.current = status;
+  }, [status, loadSessions]);
+
   // Handle prompt selection — set the textarea value via ref
   const [pendingPrompt, setPendingPrompt] = useState('');
   const handleSelectPrompt = useCallback((prompt: string) => {
@@ -474,7 +483,9 @@ export function ChatInterface() {
           </div>
         ) : null}
 
-        <StatusBar className="flex-1 border-b-0" />
+        {/* Spacer pushes StatusBar to the right */}
+        <div className="flex-1" />
+        <StatusBar className="border-b-0" />
       </div>
 
       {/* Content Area */}
