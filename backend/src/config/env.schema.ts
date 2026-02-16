@@ -19,7 +19,7 @@ const authProviderSchema = z
 
 export const backendEnvSchema = z
   .object({
-    // --- Conditionally required (depend on SKIP_INGEST_SERVICES) ---
+    // --- Conditionally required (depend on ingest-services flags) ---
     DATABASE_URL: z.string().optional(),
     LOG_KAFKA_BROKERS: z.string().optional(),
 
@@ -80,13 +80,16 @@ export const backendEnvSchema = z
   })
   .merge(temporalConfigSchema)
   .superRefine((data, ctx) => {
-    // DATABASE_URL is required unless SKIP_INGEST_SERVICES is true
-    if (!data.SKIP_INGEST_SERVICES) {
+    // Match the runtime guard in node-io.module.ts / trace.module.ts:
+    //   ingestEnabled = ENABLE_INGEST_SERVICES !== false && SKIP_INGEST_SERVICES !== true
+    const ingestRequired = data.ENABLE_INGEST_SERVICES && !data.SKIP_INGEST_SERVICES;
+    if (ingestRequired) {
       if (!data.DATABASE_URL) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['DATABASE_URL'],
-          message: 'DATABASE_URL is required (set SKIP_INGEST_SERVICES=true to skip)',
+          message:
+            'DATABASE_URL is required (set SKIP_INGEST_SERVICES=true or ENABLE_INGEST_SERVICES=false to skip)',
         });
       } else {
         const parsed = databaseUrlSchema.safeParse(data.DATABASE_URL);
@@ -101,7 +104,8 @@ export const backendEnvSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['LOG_KAFKA_BROKERS'],
-          message: 'LOG_KAFKA_BROKERS is required (set SKIP_INGEST_SERVICES=true to skip)',
+          message:
+            'LOG_KAFKA_BROKERS is required (set SKIP_INGEST_SERVICES=true or ENABLE_INGEST_SERVICES=false to skip)',
         });
       }
     }

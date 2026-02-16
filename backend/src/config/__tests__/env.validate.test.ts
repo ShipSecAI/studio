@@ -35,6 +35,14 @@ describe('backendEnvSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('passes when ENABLE_INGEST_SERVICES=false without DATABASE_URL and LOG_KAFKA_BROKERS', () => {
+    const result = backendEnvSchema.safeParse({
+      SECRET_STORE_MASTER_KEY: 'a'.repeat(32),
+      ENABLE_INGEST_SERVICES: 'false',
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('fails when AUTH_PROVIDER=clerk without CLERK keys', () => {
     const result = backendEnvSchema.safeParse(validEnv({ AUTH_PROVIDER: 'clerk' }));
     expect(result.success).toBe(false);
