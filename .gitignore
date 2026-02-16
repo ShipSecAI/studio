@@ -73,6 +73,11 @@ vite.config.ts.timestamp-*
 .playground/
 .playground/
 .playground/
-.playwright-mcp/
 .omc/
 MCP_FLOW_TRACE.md
+
+# Playwright MCP
+.playwright-mcp/
+
+# Test screenshots
+chat-*.png
