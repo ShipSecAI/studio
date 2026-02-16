@@ -183,6 +183,8 @@ describe('WorkflowsController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         organizationId,
+        isSystem: false,
+        templateId: null,
       };
       repositoryStore.set(id, record);
       return record;
@@ -386,7 +388,6 @@ describe('WorkflowsController', () => {
       traceRepositoryStub as any,
       temporalStub as TemporalService,
       analyticsServiceMock as any,
-      { record: vi.fn() } as any,
     );
     const traceService = new TraceService({
       listByRunId: async () => [],

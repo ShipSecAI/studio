@@ -593,6 +593,7 @@ function WorkflowBuilderContent() {
           description: workflow.description ?? '',
           currentVersionId: workflow.currentVersionId ?? null,
           currentVersion: workflow.currentVersion ?? null,
+          isSystem: (workflow as Record<string, unknown>).isSystem === true,
         });
 
         const hasRunContext = Boolean(routeRunId || selectedRunId);

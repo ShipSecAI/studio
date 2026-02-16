@@ -443,6 +443,8 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
     });
 
     const run = await service.run('workflow-id', { inputs: { message: 'hi' } }, authContext);
@@ -496,6 +498,8 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
     });
 
     const run = await service.run('workflow-id', { inputs: { foo: 'bar' } }, authContext);
@@ -524,6 +528,8 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
     });
 
     const trigger = {
@@ -571,6 +577,8 @@ describe('WorkflowsService', () => {
       lastRun: null,
       runCount: 0,
       organizationId: TEST_ORG,
+      isSystem: false,
+      templateId: null,
     });
 
     const prepared = await service.prepareRunPayload(

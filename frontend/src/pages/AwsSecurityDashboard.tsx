@@ -272,7 +272,7 @@ function FirstScanModal({
 }: {
   open: boolean;
   onClose: () => void;
-  scanCategory: 'code' | 'dependency';
+  scanCategory: 'code' | 'dependency' | 'container';
 }) {
   const { toast } = useToast();
   const repositories = useGitHubStore((s) => s.repositories);
