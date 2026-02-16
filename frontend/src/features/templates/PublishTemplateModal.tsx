@@ -19,7 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, AlertCircle, CheckCircle2, GitPullRequest, X, ExternalLink } from 'lucide-react';
+import {
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  GitPullRequest,
+  X,
+  ExternalLink,
+  Copy,
+  ClipboardCheck,
+} from 'lucide-react';
 import { API_BASE_URL, getApiAuthHeaders } from '@/services/api';
 import { cn } from '@/lib/utils';
 
@@ -209,8 +218,9 @@ function generateTemplateJson(workflow: WorkflowResponse, metadata: TemplateMeta
 }
 
 /**
- * Generate GitHub URL for creating a new file with template content pre-filled.
- * Uses minified JSON to keep the URL short enough for GitHub.
+ * Generate GitHub URL for creating a new file.
+ * Content is NOT included in the URL to avoid browser URL length limits.
+ * Users will paste the template code (copied to clipboard) into the GitHub editor.
  */
 function generateGitHubUrl(
   owner: string,
@@ -218,12 +228,10 @@ function generateGitHubUrl(
   branch: string,
   filename: string,
   templateName: string,
-  content: string,
 ): string {
   const baseUrl = `https://github.com/${owner}/${repo}/new/${branch}`;
   const params = new URLSearchParams();
   params.set('filename', filename);
-  params.set('value', content);
   params.set('message', `Add template: ${templateName}`);
   params.set('quick_pull', '1');
 
@@ -258,6 +266,8 @@ export function PublishTemplateModal({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [generatedTemplateJson, setGeneratedTemplateJson] = useState<string>('');
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -308,18 +318,22 @@ export function PublishTemplateModal({
         const templateJson = generateTemplateJson(workflow, metadata);
         const filename = `templates/${sanitizeFilename(name.trim())}`;
 
+        // Copy template code to clipboard so user can paste it in GitHub
+        try {
+          await navigator.clipboard.writeText(templateJson);
+          setCopied(true);
+        } catch {
+          // Clipboard API may fail in some browsers — user can still copy manually
+        }
+
+        // Store the template JSON so user can re-copy from the success view
+        setGeneratedTemplateJson(templateJson);
+
         // Parse the GitHub repo config
         const [owner, repo] = GITHUB_TEMPLATE_REPO.split('/');
 
-        // Generate GitHub URL with template content pre-filled
-        const githubUrl = generateGitHubUrl(
-          owner,
-          repo,
-          GITHUB_BRANCH,
-          filename,
-          name.trim(),
-          templateJson,
-        );
+        // Generate GitHub URL without content (avoids long URL errors)
+        const githubUrl = generateGitHubUrl(owner, repo, GITHUB_BRANCH, filename, name.trim());
 
         // Open the GitHub URL in a new tab
         window.open(githubUrl, '_blank', 'noopener,noreferrer');
@@ -366,6 +380,8 @@ export function PublishTemplateModal({
         setAuthor('');
         setError(null);
         setSuccess(false);
+        setGeneratedTemplateJson('');
+        setCopied(false);
       }, 200);
     }
   };
@@ -393,16 +409,47 @@ export function PublishTemplateModal({
               <div>
                 <h3 className="text-lg font-semibold">Template Ready for Submission!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  A new tab has opened with your template pre-filled on GitHub.
+                  {copied
+                    ? 'Template code has been copied to your clipboard.'
+                    : 'Copy the template code below and paste it in the GitHub editor.'}
                 </p>
               </div>
+
+              {/* Copy Template Code Button */}
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(generatedTemplateJson);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 3000);
+                  } catch {
+                    // fallback handled by the code block below
+                  }
+                }}
+              >
+                {copied ? (
+                  <>
+                    <ClipboardCheck className="h-4 w-4 text-green-600" />
+                    Copied to Clipboard!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy Template Code
+                  </>
+                )}
+              </Button>
+
               <div className="w-full p-3 rounded-lg bg-muted/50 space-y-3 text-sm">
                 <p className="text-left">
                   <strong>Next steps:</strong>
                 </p>
                 <ol className="text-left list-decimal list-inside space-y-2 text-muted-foreground">
                   <li>
-                    <strong>Review</strong> the template content in the opened tab
+                    <strong>Paste</strong> the copied template code into the GitHub editor that
+                    opened
                   </li>
                   <li>
                     <strong>Important:</strong> Click &quot;Propose new file&quot; (NOT &quot;Commit
