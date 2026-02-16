@@ -704,7 +704,7 @@ function WorkflowBuilderContent() {
           });
         }
 
-        navigate('/builder');
+        navigate('/');
       } finally {
         setIsLoading(false);
       }

@@ -48,7 +48,7 @@ export function useWorkflowSchedules({
   const [schedulePanelExpanded, setSchedulePanelExpanded] = useState(false);
 
   const lastFetchRef = useRef<{ workflowId: string; time: number } | null>(null);
-  const inflightRef = useRef<Promise<void> | null>(null);
+  const inflightRef = useRef<{ workflowId: string; promise: Promise<void> } | null>(null);
 
   const refreshSchedules = useCallback(async () => {
     if (!workflowId) {
@@ -56,9 +56,9 @@ export function useWorkflowSchedules({
       setError(null);
       return;
     }
-    // Deduplicate: return inflight promise if same request is already in progress
-    if (inflightRef.current) {
-      return inflightRef.current;
+    // Deduplicate: return inflight promise only if it's for the same workflowId
+    if (inflightRef.current && inflightRef.current.workflowId === workflowId) {
+      return inflightRef.current.promise;
     }
     // Skip if same workflowId was fetched within 5 seconds
     const now = Date.now();
@@ -84,7 +84,7 @@ export function useWorkflowSchedules({
         inflightRef.current = null;
       }
     })();
-    inflightRef.current = promise;
+    inflightRef.current = { workflowId, promise };
     return promise;
   }, [workflowId]);
 
