@@ -235,7 +235,7 @@ export class ChatService implements OnModuleInit {
             }
             this.writeSseEvent(res, { type: 'text-delta', id: textPartId, delta: event.text });
           } else if (event.type === 'tool-call') {
-            const toolCallId = `call-${Date.now()}`;
+            const toolCallId = event.toolCallId ?? `call-${Date.now()}`;
             this.writeSseEvent(res, {
               type: 'tool-input-start',
               toolCallId,
@@ -248,7 +248,7 @@ export class ChatService implements OnModuleInit {
               input: event.args ?? {},
             });
           } else if (event.type === 'tool-result') {
-            const toolCallId = `call-${Date.now()}`;
+            const toolCallId = event.toolCallId ?? `call-${Date.now()}`;
             this.writeSseEvent(res, {
               type: 'tool-output-available',
               toolCallId,

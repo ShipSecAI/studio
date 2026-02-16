@@ -207,10 +207,13 @@ export async function runChatAgentStepActivity(
         // Heartbeat to keep the activity alive during tool execution
         Context.current().heartbeat(`tool:${def.name}`);
 
+        // Generate a stable toolCallId for matching call → result
+        const toolCallId = `call-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
         // Publish tool invocation event
         publishStreamChunk(
           sessionId,
-          JSON.stringify({ type: 'tool-call', toolName: def.name, args }),
+          JSON.stringify({ type: 'tool-call', toolCallId, toolName: def.name, args }),
         );
 
         // Execute tool via backend API
@@ -237,10 +240,10 @@ export async function runChatAgentStepActivity(
 
           const result = await res.json();
 
-          // Publish tool result
+          // Publish tool result with matching toolCallId
           publishStreamChunk(
             sessionId,
-            JSON.stringify({ type: 'tool-result', toolName: def.name, result }),
+            JSON.stringify({ type: 'tool-result', toolCallId, toolName: def.name, result }),
           );
 
           return result;
