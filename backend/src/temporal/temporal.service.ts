@@ -237,6 +237,7 @@ export class TemporalService implements OnModuleDestroy {
     sessionId: string;
     organizationId?: string | null;
     systemPrompt: string;
+    initialMessages?: unknown[];
   }): Promise<WorkflowStartResult> {
     const workflowId = `chat-${input.sessionId}`;
     return this.startWorkflow({
@@ -247,6 +248,7 @@ export class TemporalService implements OnModuleDestroy {
           sessionId: input.sessionId,
           organizationId: input.organizationId,
           systemPrompt: input.systemPrompt,
+          ...(input.initialMessages ? { initialMessages: input.initialMessages } : {}),
         },
       ],
     });

@@ -2,7 +2,6 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import type { UIMessage } from 'ai';
 import type { ServerResponse } from 'node:http';
 
-import { StudioMcpService } from '../studio-mcp/studio-mcp.service';
 import { ChatSessionRepository } from './chat-session.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { TemporalService } from '../temporal/temporal.service';
@@ -22,7 +21,6 @@ export class ChatService implements OnModuleInit {
   private readonly logger = new Logger(ChatService.name);
 
   constructor(
-    private readonly studioMcpService: StudioMcpService,
     private readonly sessionRepository: ChatSessionRepository,
     private readonly chatStreamService: ChatStreamService,
     private readonly temporalService: TemporalService,
@@ -136,31 +134,6 @@ export class ChatService implements OnModuleInit {
     }));
   }
 
-  // --- Tool definitions endpoint (for Temporal worker) ---
-
-  getToolDefinitionsForWorker(auth: AuthContext) {
-    const toolDefs = this.studioMcpService.getToolDefinitions(auth);
-    return toolDefs.map((def) => ({
-      name: def.name,
-      description: def.description,
-      inputSchema: Object.fromEntries(
-        Object.entries(def.inputSchema).map(([key, zodType]) => [
-          key,
-          { type: 'string', description: (zodType as any)?.description ?? key },
-        ]),
-      ),
-    }));
-  }
-
-  async executeToolForWorker(toolName: string, args: Record<string, unknown>, auth: AuthContext) {
-    const toolDefs = this.studioMcpService.getToolDefinitions(auth);
-    const def = toolDefs.find((t) => t.name === toolName);
-    if (!def) {
-      throw new Error(`Tool "${toolName}" not found`);
-    }
-    return def.execute(args);
-  }
-
   // --- Streaming chat (Temporal-backed) ---
   //
   // AI SDK v6 DefaultChatTransport expects the UI Message Stream protocol:
@@ -203,11 +176,44 @@ export class ChatService implements OnModuleInit {
       });
     }
 
-    // Signal the Temporal workflow with the new message
-    await this.temporalService.signalChatWorkflow(sessionId, {
-      role: lastMessage.role,
-      parts: lastMessage.parts,
-    });
+    // Signal the Temporal workflow with the new message.
+    // If the workflow timed out (idle 30 min), restart it with history from DB.
+    try {
+      await this.temporalService.signalChatWorkflow(sessionId, {
+        role: lastMessage.role,
+        parts: lastMessage.parts,
+      });
+    } catch (signalError) {
+      this.logger.warn(
+        `Signal failed for session ${sessionId}, workflow may have timed out. Restarting...`,
+        signalError,
+      );
+
+      // Load existing messages from DB so the new workflow has full context
+      const existingMessages = await this.sessionRepository.getMessages(sessionId);
+      const initialMessages = existingMessages.map((m) => ({
+        role: m.role,
+        parts: m.parts,
+      }));
+
+      // Start a fresh workflow (Temporal allows reuse of the workflow ID once completed)
+      const result = await this.temporalService.startChatWorkflow({
+        sessionId,
+        organizationId: auth.organizationId,
+        systemPrompt: SYSTEM_PROMPT,
+        initialMessages,
+      });
+      await this.sessionRepository.setTemporalWorkflowId(sessionId, result.workflowId);
+      this.logger.log(
+        `Restarted Temporal chat workflow ${result.workflowId} for session ${sessionId} with ${initialMessages.length} existing messages`,
+      );
+
+      // Now signal the newly started workflow
+      await this.temporalService.signalChatWorkflow(sessionId, {
+        role: lastMessage.role,
+        parts: lastMessage.parts,
+      });
+    }
 
     // Set up AI SDK v6 UI Message Stream headers
     res.writeHead(200, {
@@ -218,9 +224,25 @@ export class ChatService implements OnModuleInit {
       'X-Accel-Buffering': 'no',
     });
 
-    // Track state for generating unique IDs
-    const textPartId = `text-${Date.now()}`;
-    let textStarted = false;
+    // Track state for text part interleaving with tools.
+    // Each text segment between tool calls gets its own text part ID so
+    // the AI SDK renders them inline in the correct order.
+    let textPartCounter = 0;
+    let currentTextId: string | null = null;
+
+    const startTextPart = (): string => {
+      textPartCounter++;
+      currentTextId = `text-${Date.now()}-${textPartCounter}`;
+      this.writeSseEvent(res, { type: 'text-start', id: currentTextId });
+      return currentTextId;
+    };
+
+    const endTextPart = (): void => {
+      if (currentTextId) {
+        this.writeSseEvent(res, { type: 'text-end', id: currentTextId });
+        currentTextId = null;
+      }
+    };
 
     // Subscribe to Redis pub/sub for real-time streaming
     const timer = { id: undefined as ReturnType<typeof setTimeout> | undefined };
@@ -229,12 +251,11 @@ export class ChatService implements OnModuleInit {
       onEvent: (event) => {
         try {
           if (event.type === 'text-delta' && typeof event.text === 'string') {
-            if (!textStarted) {
-              this.writeSseEvent(res, { type: 'text-start', id: textPartId });
-              textStarted = true;
-            }
-            this.writeSseEvent(res, { type: 'text-delta', id: textPartId, delta: event.text });
+            if (!currentTextId) startTextPart();
+            this.writeSseEvent(res, { type: 'text-delta', id: currentTextId, delta: event.text });
           } else if (event.type === 'tool-call') {
+            // End any open text part so the tool renders inline after the text
+            endTextPart();
             const toolCallId = event.toolCallId ?? `call-${Date.now()}`;
             this.writeSseEvent(res, {
               type: 'tool-input-start',
@@ -255,11 +276,9 @@ export class ChatService implements OnModuleInit {
               output: event.result ?? {},
             });
           } else if (event.type === 'title-update' && typeof event.title === 'string') {
-            // Custom event: AI-generated title — relay to frontend
-            this.writeSseEvent(res, {
-              type: 'metadata',
-              metadata: { title: event.title },
-            });
+            // Title updates are saved to DB by the worker activity.
+            // Don't send via SSE — 'metadata' is not a valid AI SDK v6 stream part type.
+            // The frontend refreshes the session list to pick up title changes.
           }
         } catch {
           // Best-effort streaming
@@ -267,9 +286,7 @@ export class ChatService implements OnModuleInit {
       },
       onComplete: () => {
         if (timer.id) clearTimeout(timer.id);
-        if (textStarted) {
-          this.writeSseEvent(res, { type: 'text-end', id: textPartId });
-        }
+        endTextPart();
         this.endSseStream(res);
       },
       onError: (err) => {
@@ -283,15 +300,13 @@ export class ChatService implements OnModuleInit {
     // Timeout: if no completion in 2 minutes, end the stream
     timer.id = setTimeout(() => {
       subscription.unsubscribe();
-      if (!textStarted) {
-        this.writeSseEvent(res, { type: 'text-start', id: textPartId });
-      }
+      const timeoutId = currentTextId ?? startTextPart();
       this.writeSseEvent(res, {
         type: 'text-delta',
-        id: textPartId,
+        id: timeoutId,
         delta: '[Response timed out]',
       });
-      this.writeSseEvent(res, { type: 'text-end', id: textPartId });
+      endTextPart();
       this.endSseStream(res);
     }, 120_000);
 

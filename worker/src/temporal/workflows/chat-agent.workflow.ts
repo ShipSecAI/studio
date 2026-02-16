@@ -116,10 +116,17 @@ export async function chatAgentWorkflow(input: ChatAgentWorkflowInput): Promise<
   setHandler(getStatusQuery, () => status);
 
   // ---- Main loop ----
-  while (!chatEnded) {
-    // Wait until we have a new user message or the chat is ended
-    await condition(() => pendingUserMessages.length > 0 || chatEnded);
+  const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes idle → auto-close
 
+  while (!chatEnded) {
+    // Wait until we have a new user message, the chat is ended, or idle timeout
+    const gotMessage = await condition(
+      () => pendingUserMessages.length > 0 || chatEnded,
+      IDLE_TIMEOUT_MS,
+    );
+
+    // If timed out waiting for a message, end the workflow
+    if (!gotMessage) break;
     if (chatEnded) break;
 
     // Process the next pending user message

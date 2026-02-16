@@ -1,7 +1,8 @@
 import { Context } from '@temporalio/activity';
 import { createOpenAI } from '@ai-sdk/openai';
-import { streamText, generateText, stepCountIs } from 'ai';
-import { z } from 'zod';
+import { createMCPClient } from '@ai-sdk/mcp';
+import { streamText, generateText, stepCountIs, convertToModelMessages } from 'ai';
+import type { UIMessage } from 'ai';
 import type Redis from 'ioredis';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, asc } from 'drizzle-orm';
@@ -42,16 +43,6 @@ interface SaveChatMessagesInput {
 
 interface LoadChatMessagesInput {
   sessionId: string;
-}
-
-// ---------------------------------------------------------------------------
-// Tool definitions fetched from the backend API
-// ---------------------------------------------------------------------------
-
-interface ToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,68 +94,41 @@ function publishStreamChunk(sessionId: string, chunk: string): void {
   }
 }
 
-/** Fetch Studio tool definitions from the backend API */
-async function fetchToolDefinitions(organizationId?: string): Promise<ToolDefinition[]> {
-  if (!globalBackendUrl) return [];
+/** Create an MCP client connected to the backend's Studio MCP server */
+async function createStudioMcpClient(organizationId?: string) {
+  if (!globalBackendUrl) throw new Error('Backend URL not initialized for chat agent activities');
 
-  try {
-    const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-internal-token': internalToken,
-    };
-    if (organizationId) {
-      headers['x-organization-id'] = organizationId;
-    }
-
-    const res = await fetch(`${globalBackendUrl}/api/v1/chat/tools`, { headers });
-    if (!res.ok) return [];
-    return (await res.json()) as ToolDefinition[];
-  } catch {
-    return [];
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
+  const headers: Record<string, string> = {
+    'x-internal-token': internalToken,
+  };
+  if (organizationId) {
+    headers['x-organization-id'] = organizationId;
   }
-}
 
-/** Convert AI SDK response messages to our ChatUIMessage format */
-function convertToUIMessages(messages: { role: string; content: unknown }[]): ChatUIMessage[] {
-  return messages
-    .filter((m) => m.role === 'assistant')
-    .map((m) => {
-      const parts: ChatMessagePart[] = [];
-      if (typeof m.content === 'string') {
-        parts.push({ type: 'text', text: m.content });
-      } else if (Array.isArray(m.content)) {
-        for (const part of m.content) {
-          if (part.type === 'text') {
-            parts.push({ type: 'text', text: part.text });
-          } else if (part.type === 'tool-call') {
-            parts.push({
-              type: 'tool-invocation',
-              toolInvocation: {
-                toolCallId: part.toolCallId,
-                toolName: part.toolName,
-                args: part.args,
-                state: 'result',
-              },
-            });
-          }
-        }
-      }
-      return { role: 'assistant' as const, parts };
-    });
-}
-
-/** Convert ChatUIMessage[] to AI SDK CoreMessage format */
-function toAISDKMessages(messages: ChatUIMessage[]): { role: string; content: string }[] {
-  return messages.map((m) => {
-    const textParts = m.parts
-      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-      .map((p) => p.text);
-    return {
-      role: m.role,
-      content: textParts.join('\n') || '',
-    };
+  return createMCPClient({
+    transport: {
+      type: 'http',
+      url: `${globalBackendUrl}/api/v1/studio-mcp`,
+      headers,
+    },
   });
+}
+
+/**
+ * Convert ChatUIMessage[] to AI SDK ModelMessage format using the SDK's own converter.
+ * This properly handles dynamic-tool parts, creating both assistant tool-call
+ * content and separate tool-role messages with tool results — so the LLM sees
+ * the full tool call/result context in multi-turn conversations.
+ */
+async function toAISDKMessages(messages: ChatUIMessage[]) {
+  return await convertToModelMessages(
+    messages.map((m) => ({
+      role: m.role,
+      parts: m.parts,
+    })) as any,
+    { ignoreIncompleteToolCalls: true },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +137,7 @@ function toAISDKMessages(messages: ChatUIMessage[]): { role: string; content: st
 
 /**
  * Run a single AI agent step: LLM call(s) + tool execution loop.
+ * Connects to the backend's Studio MCP server for tool discovery and execution.
  * Streams events to Redis pub/sub for real-time frontend relay.
  */
 export async function runChatAgentStepActivity(
@@ -183,124 +148,143 @@ export async function runChatAgentStepActivity(
   // Publish "processing" status
   publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'processing' }));
 
-  // Build tools from backend API
-  const toolDefs = await fetchToolDefinitions(organizationId);
-  const tools: Record<string, any> = {};
+  // Connect to the backend's MCP server for tool discovery + execution
+  const mcpClient = await createStudioMcpClient(organizationId);
 
-  for (const def of toolDefs) {
-    // Build a Zod schema from the tool definition
-    const schemaEntries: Record<string, z.ZodTypeAny> = {};
-    if (def.inputSchema && typeof def.inputSchema === 'object') {
-      for (const [key, value] of Object.entries(def.inputSchema)) {
-        const v = value as { type?: string; description?: string };
-        let zodType: z.ZodTypeAny = z.unknown();
-        if (v.type === 'string') zodType = z.string();
-        if (v.description) zodType = zodType.describe(v.description);
-        schemaEntries[key] = zodType.optional();
-      }
-    }
+  try {
+    const tools = await mcpClient.tools();
+    console.log(
+      `[chat-agent] Discovered ${Object.keys(tools).length} MCP tools for session ${sessionId}`,
+    );
 
-    tools[def.name] = {
-      description: def.description,
-      parameters: z.object(schemaEntries),
-      execute: async (args: Record<string, unknown>) => {
-        // Heartbeat to keep the activity alive during tool execution
-        Context.current().heartbeat(`tool:${def.name}`);
+    // Heartbeat before LLM call
+    Context.current().heartbeat('llm-call-start');
 
-        // Generate a stable toolCallId for matching call → result
-        const toolCallId = `call-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    // Convert messages for AI SDK (preserves tool call/result context)
+    const aiMessages = await toAISDKMessages(messages);
 
-        // Publish tool invocation event
-        publishStreamChunk(
-          sessionId,
-          JSON.stringify({ type: 'tool-call', toolCallId, toolName: def.name, args }),
-        );
+    try {
+      // Run streamText with MCP tools — tool execution happens via MCP protocol
+      const result = streamText({
+        model: getModel(),
+        system: systemPrompt,
+        messages: aiMessages as any,
+        tools: tools as any,
+        stopWhen: stepCountIs(maxSteps),
+        onStepFinish: () => {
+          Context.current().heartbeat('step-complete');
+        },
+      });
 
-        // Execute tool via backend API
-        try {
-          const internalToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'local-internal-token';
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            'x-internal-token': internalToken,
-          };
-          if (organizationId) {
-            headers['x-organization-id'] = organizationId;
-          }
+      // Use toUIMessageStream to get properly formatted UIMessage chunks
+      // AND the final responseMessage via onFinish — no custom converter needed.
+      let responseMessage: UIMessage | null = null;
 
-          const res = await fetch(`${globalBackendUrl}/api/v1/chat/tools/${def.name}/execute`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(args),
-          });
+      const uiStream = result.toUIMessageStream({
+        onFinish: ({ responseMessage: msg }) => {
+          responseMessage = msg;
+        },
+      });
 
-          if (!res.ok) {
-            const errText = await res.text();
-            return { error: `Tool execution failed: ${errText}` };
-          }
+      // Stream UIMessage chunks to Redis in real-time.
+      // These chunks use the same format the frontend SSE expects.
+      for await (const chunk of uiStream) {
+        Context.current().heartbeat('stream-chunk');
+        const c = chunk as any;
 
-          const result = await res.json();
-
-          // Publish tool result with matching toolCallId
+        if (c.type === 'text-delta') {
+          publishStreamChunk(sessionId, JSON.stringify({ type: 'text-delta', text: c.delta }));
+        } else if (c.type === 'tool-input-start') {
           publishStreamChunk(
             sessionId,
-            JSON.stringify({ type: 'tool-result', toolCallId, toolName: def.name, result }),
+            JSON.stringify({
+              type: 'tool-call',
+              toolCallId: c.toolCallId,
+              toolName: c.toolName,
+            }),
           );
-
-          return result;
-        } catch (error) {
-          return { error: error instanceof Error ? error.message : String(error) };
+        } else if (c.type === 'tool-input-available') {
+          publishStreamChunk(
+            sessionId,
+            JSON.stringify({
+              type: 'tool-call',
+              toolCallId: c.toolCallId,
+              toolName: c.toolName,
+              args: c.input,
+            }),
+          );
+        } else if (c.type === 'tool-output-available') {
+          publishStreamChunk(
+            sessionId,
+            JSON.stringify({
+              type: 'tool-result',
+              toolCallId: c.toolCallId,
+              result: c.output,
+            }),
+          );
         }
-      },
-    };
-  }
+      }
 
-  // Heartbeat before LLM call
-  Context.current().heartbeat('llm-call-start');
+      // Publish completion
+      publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
 
-  // Convert messages for AI SDK
-  const aiMessages = toAISDKMessages(messages);
+      // Use the SDK-provided responseMessage (properly formatted UIMessage with dynamic-tool parts)
+      const assistantMessages: ChatUIMessage[] = [];
+      if (responseMessage) {
+        assistantMessages.push({
+          role: (responseMessage as UIMessage).role,
+          parts: (responseMessage as UIMessage).parts as ChatMessagePart[],
+        });
+      } else {
+        // Fallback: if no responseMessage, try to get text
+        const fullText = await result.text;
+        if (fullText) {
+          assistantMessages.push({
+            role: 'assistant',
+            parts: [{ type: 'text', text: fullText }],
+          });
+        }
+      }
 
-  // Run streamText for real-time token streaming via Redis pub/sub
-  const result = streamText({
-    model: getModel(),
-    system: systemPrompt,
-    messages: aiMessages as any,
-    tools,
-    stopWhen: stepCountIs(maxSteps),
-    onStepFinish: () => {
-      // Heartbeat on each step
-      Context.current().heartbeat('step-complete');
-    },
-  });
+      return { assistantMessages };
+    } catch (error: any) {
+      // Handle NoOutputGeneratedError from AI SDK
+      if (
+        error?.name === 'AI_NoOutputGeneratedError' ||
+        error?.constructor?.name === 'NoOutputGeneratedError'
+      ) {
+        console.error(
+          `[chat-agent] LLM returned empty response for session ${sessionId}:`,
+          error.message,
+        );
 
-  // Stream text deltas to Redis in real-time
-  for await (const part of result.fullStream) {
-    Context.current().heartbeat('stream-chunk');
+        // Publish completion even on error
+        publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
 
-    if (part.type === 'text-delta') {
-      publishStreamChunk(sessionId, JSON.stringify({ type: 'text-delta', text: part.text }));
+        // Return a friendly error message to the user
+        return {
+          assistantMessages: [
+            {
+              role: 'assistant' as const,
+              parts: [
+                {
+                  type: 'text' as const,
+                  text: '⚠️ I encountered an issue generating a response. The AI service returned an empty result. Please try rephrasing your question or try again.',
+                },
+              ],
+            },
+          ],
+        };
+      }
+
+      // Re-throw other errors for Temporal to handle
+      throw error;
     }
-  }
-
-  // Get the final response metadata
-  const response = await result.response;
-
-  // Publish completion
-  publishStreamChunk(sessionId, JSON.stringify({ type: 'status', status: 'idle' }));
-
-  // Convert result to UIMessages
-  const assistantMessages = convertToUIMessages(response.messages as any);
-
-  // If no structured messages but we have text, create a simple message
-  const fullText = await result.text;
-  if (assistantMessages.length === 0 && fullText) {
-    assistantMessages.push({
-      role: 'assistant',
-      parts: [{ type: 'text', text: fullText }],
+  } finally {
+    await mcpClient.close().catch(() => {
+      // Best-effort cleanup
     });
   }
-
-  return { assistantMessages };
 }
 
 /**
