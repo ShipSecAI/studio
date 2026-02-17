@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Copy,
   ExternalLink,
   Filter,
   Package,
@@ -23,14 +22,454 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  FolderOpen,
+  Shield,
+  Activity,
+  Zap,
+  BarChart3,
+  Database,
+  Link,
+  TestTube2,
+  FileText,
+  MoreHorizontal,
+  AlertTriangle,
+  Layers,
+  ZoomIn,
+  ZoomOut,
+  Workflow,
+  KeyRound,
+  Users,
+  ArrowRight,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useTemplateStore, type Template } from '@/store/templateStore';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
 import { UseTemplateModal } from '@/features/templates/UseTemplateModal';
+import { WorkflowPreview } from '@/features/templates/WorkflowPreview';
 import { cn } from '@/lib/utils';
+
+// ---------------------------------------------------------------------------
+// Category styling
+// ---------------------------------------------------------------------------
+
+interface CategoryStyle {
+  icon: LucideIcon;
+  badge: string;
+  gradient: string;
+  accent: string;
+}
+
+const CATEGORY_STYLES: Record<string, CategoryStyle> = {
+  security: {
+    icon: Shield,
+    badge:
+      'bg-red-100 text-red-700 border-red-200/60 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/40',
+    gradient: 'from-red-500/8 via-orange-500/5 to-transparent',
+    accent: 'text-red-600 dark:text-red-400',
+  },
+  monitoring: {
+    icon: Activity,
+    badge:
+      'bg-blue-100 text-blue-700 border-blue-200/60 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800/40',
+    gradient: 'from-blue-500/8 via-cyan-500/5 to-transparent',
+    accent: 'text-blue-600 dark:text-blue-400',
+  },
+  compliance: {
+    icon: CheckCircle2,
+    badge:
+      'bg-emerald-100 text-emerald-700 border-emerald-200/60 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/40',
+    gradient: 'from-emerald-500/8 via-green-500/5 to-transparent',
+    accent: 'text-emerald-600 dark:text-emerald-400',
+  },
+  'incident response': {
+    icon: AlertTriangle,
+    badge:
+      'bg-amber-100 text-amber-700 border-amber-200/60 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800/40',
+    gradient: 'from-amber-500/8 via-yellow-500/5 to-transparent',
+    accent: 'text-amber-600 dark:text-amber-400',
+  },
+  'data processing': {
+    icon: Database,
+    badge:
+      'bg-purple-100 text-purple-700 border-purple-200/60 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800/40',
+    gradient: 'from-purple-500/8 via-violet-500/5 to-transparent',
+    accent: 'text-purple-600 dark:text-purple-400',
+  },
+  integration: {
+    icon: Link,
+    badge:
+      'bg-teal-100 text-teal-700 border-teal-200/60 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800/40',
+    gradient: 'from-teal-500/8 via-cyan-500/5 to-transparent',
+    accent: 'text-teal-600 dark:text-teal-400',
+  },
+  automation: {
+    icon: Zap,
+    badge:
+      'bg-indigo-100 text-indigo-700 border-indigo-200/60 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800/40',
+    gradient: 'from-indigo-500/8 via-blue-500/5 to-transparent',
+    accent: 'text-indigo-600 dark:text-indigo-400',
+  },
+  reporting: {
+    icon: BarChart3,
+    badge:
+      'bg-emerald-100 text-emerald-700 border-emerald-200/60 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/40',
+    gradient: 'from-emerald-500/8 via-teal-500/5 to-transparent',
+    accent: 'text-emerald-600 dark:text-emerald-400',
+  },
+  testing: {
+    icon: TestTube2,
+    badge:
+      'bg-pink-100 text-pink-700 border-pink-200/60 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800/40',
+    gradient: 'from-pink-500/8 via-rose-500/5 to-transparent',
+    accent: 'text-pink-600 dark:text-pink-400',
+  },
+  other: {
+    icon: MoreHorizontal,
+    badge:
+      'bg-slate-100 text-slate-700 border-slate-200/60 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700/40',
+    gradient: 'from-slate-500/8 via-gray-500/5 to-transparent',
+    accent: 'text-slate-600 dark:text-slate-400',
+  },
+};
+
+const DEFAULT_CATEGORY_STYLE: CategoryStyle = CATEGORY_STYLES.other;
+
+function getCategoryStyle(category?: string | null): CategoryStyle {
+  if (!category) return DEFAULT_CATEGORY_STYLE;
+  return CATEGORY_STYLES[category.toLowerCase()] || DEFAULT_CATEGORY_STYLE;
+}
+
+// ---------------------------------------------------------------------------
+// Preview section with zoom
+// ---------------------------------------------------------------------------
+
+function PreviewSection({
+  graph,
+  category,
+}: {
+  graph?: Record<string, unknown>;
+  category?: string | null;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [origin, setOrigin] = useState({ x: 50, y: 50 }); // percentage-based origin
+  const containerRef = useRef<HTMLDivElement>(null);
+  const hasGraph =
+    graph &&
+    (graph as any)?.nodes &&
+    Array.isArray((graph as any).nodes) &&
+    (graph as any).nodes.length > 0;
+
+  const catStyle = getCategoryStyle(category);
+
+  // Track cursor position for zoom origin
+  const updateOrigin = (e: React.MouseEvent) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setOrigin({
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+    });
+  };
+
+  // Scroll-wheel zoom at cursor position
+  const handleWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+    updateOrigin(e);
+    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+    setZoom((z) => Math.min(Math.max(z + delta, 0.75), 2.5));
+  };
+
+  // Button zoom (uses last known cursor position)
+  const handleZoomIn = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setZoom((z) => Math.min(z + 0.25, 2.5));
+  };
+
+  const handleZoomOut = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setZoom((z) => Math.max(z - 0.25, 0.75));
+  };
+
+  // Reset zoom on double-click
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setZoom(1);
+    setOrigin({ x: 50, y: 50 });
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn(
+        'relative h-36 w-full overflow-hidden rounded-t-xl border-b border-border/40',
+        'bg-gradient-to-br',
+        catStyle.gradient,
+        'bg-muted/20',
+        hasGraph && 'cursor-zoom-in',
+        hasGraph && zoom > 1 && 'cursor-zoom-out',
+      )}
+      onWheel={hasGraph ? handleWheel : undefined}
+      onMouseMove={hasGraph ? updateOrigin : undefined}
+      onDoubleClick={hasGraph ? handleDoubleClick : undefined}
+    >
+      {/* Subtle dot pattern */}
+      <div
+        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle, hsl(var(--foreground)) 0.5px, transparent 0.5px)',
+          backgroundSize: '12px 12px',
+        }}
+      />
+
+      {hasGraph ? (
+        <>
+          <div
+            className="absolute inset-0 flex items-center justify-center p-3 transition-transform duration-150 ease-out"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: `${origin.x}% ${origin.y}%`,
+            }}
+          >
+            <WorkflowPreview graph={graph} className="w-full h-full" />
+          </div>
+
+          {/* Zoom controls */}
+          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={handleZoomOut}
+              className="p-1 rounded-md bg-background/80 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+              title="Zoom out"
+            >
+              <ZoomOut className="h-3 w-3" />
+            </button>
+            <button
+              onClick={handleZoomIn}
+              className="p-1 rounded-md bg-background/80 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+              title="Zoom in"
+            >
+              <ZoomIn className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Zoom indicator */}
+          {zoom !== 1 && (
+            <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-background/70 backdrop-blur-sm text-[9px] font-medium text-muted-foreground border border-border/30">
+              {Math.round(zoom * 100)}%
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground/40">
+          <Workflow className="h-8 w-8" />
+          <span className="text-[10px] font-medium">No preview</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Template card
+// ---------------------------------------------------------------------------
+
+interface TemplateCardProps {
+  template: Template;
+  onUse: (template: Template) => void;
+  canUse: boolean;
+}
+
+function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
+  const catStyle = getCategoryStyle(template.category);
+  const CategoryIcon = catStyle.icon;
+
+  return (
+    <div
+      className={cn(
+        'group flex flex-col rounded-xl border border-border/60 bg-card',
+        'transition-all duration-300 ease-out',
+        'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/30',
+        'hover:-translate-y-0.5',
+      )}
+    >
+      {/* Preview */}
+      <PreviewSection graph={template.graph} category={template.category} />
+
+      {/* Content */}
+      <div className="flex flex-col flex-1 p-4">
+        {/* Header: Category badge + Official */}
+        <div className="flex items-center justify-between mb-2">
+          <Badge
+            variant="outline"
+            className={cn('text-[10px] font-medium gap-1 border', catStyle.badge)}
+          >
+            <CategoryIcon className="h-3 w-3" />
+            {template.category || 'Uncategorized'}
+          </Badge>
+
+          {template.isOfficial && (
+            <Badge
+              variant="secondary"
+              className="text-[10px] gap-1 bg-primary/10 text-primary border-primary/20"
+            >
+              <CheckCircle2 className="h-3 w-3" />
+              Official
+            </Badge>
+          )}
+        </div>
+
+        {/* Name */}
+        <h3
+          className="font-semibold text-sm leading-tight mb-1.5 line-clamp-1"
+          title={template.name}
+        >
+          {template.name}
+        </h3>
+
+        {/* Description */}
+        {template.description && (
+          <p
+            className="text-xs text-muted-foreground leading-relaxed mb-3 line-clamp-2"
+            title={template.description}
+          >
+            {template.description}
+          </p>
+        )}
+
+        {/* Tags */}
+        {template.tags && template.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {template.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/60 text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+            {template.tags.length > 3 && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/60 text-muted-foreground">
+                +{template.tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Spacer to push metadata and actions to bottom */}
+        <div className="flex-1" />
+
+        {/* Metadata row */}
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground mb-3">
+          {template.author && (
+            <span className="flex items-center gap-1 truncate" title={template.author}>
+              <Users className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate max-w-[80px]">{template.author}</span>
+            </span>
+          )}
+          {template.popularity > 0 && (
+            <span className="flex items-center gap-1">
+              <Star className="h-3 w-3 flex-shrink-0 text-amber-500" />
+              {template.popularity}
+            </span>
+          )}
+          {template.requiredSecrets && template.requiredSecrets.length > 0 && (
+            <span
+              className="flex items-center gap-1"
+              title={`${template.requiredSecrets.length} secret(s) required`}
+            >
+              <KeyRound className="h-3 w-3 flex-shrink-0" />
+              {template.requiredSecrets.length}
+            </span>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1 h-8 text-xs gap-1.5 font-medium"
+            onClick={() => onUse(template)}
+            disabled={!canUse}
+          >
+            Use Template
+            <ArrowRight className="h-3 w-3" />
+          </Button>
+          {template.repository && (
+            <Button size="sm" variant="outline" className="h-8 px-2.5" asChild>
+              <a
+                href={`https://github.com/${template.repository}/blob/${template.branch || 'main'}/${template.path}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View on GitHub"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Loading skeleton
+// ---------------------------------------------------------------------------
+
+function CardSkeleton() {
+  return (
+    <div className="flex flex-col rounded-xl border border-border/60 bg-card overflow-hidden">
+      <Skeleton className="h-36 w-full rounded-none" />
+      <div className="p-4 space-y-3">
+        <div className="flex gap-2">
+          <Skeleton className="h-5 w-20 rounded-full" />
+        </div>
+        <Skeleton className="h-5 w-3/4" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-1/2" />
+        <div className="flex gap-1.5 pt-1">
+          <Skeleton className="h-5 w-12 rounded" />
+          <Skeleton className="h-5 w-12 rounded" />
+          <Skeleton className="h-5 w-12 rounded" />
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Skeleton className="h-8 flex-1 rounded-md" />
+          <Skeleton className="h-8 w-10 rounded-md" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Empty state
+// ---------------------------------------------------------------------------
+
+function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 px-4">
+      <div className="relative mb-6">
+        <div className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center">
+          <Layers className="h-10 w-10 text-muted-foreground/40" />
+        </div>
+        <div className="absolute -bottom-1 -right-1 h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Search className="h-4 w-4 text-primary/40" />
+        </div>
+      </div>
+      <h3 className="text-lg font-semibold mb-2">No templates found</h3>
+      <p className="text-sm text-muted-foreground text-center max-w-sm">
+        {hasFilters
+          ? "Try adjusting your filters or search query to find what you're looking for."
+          : 'No templates available yet. Sync from GitHub to load templates.'}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export function TemplateLibraryPage() {
   const navigate = useNavigate();
@@ -60,7 +499,6 @@ export function TemplateLibraryPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isUseModalOpen, setIsUseModalOpen] = useState(false);
 
-  // Load initial data
   useEffect(() => {
     fetchTemplates();
     fetchCategories();
@@ -98,9 +536,7 @@ export function TemplateLibraryPage() {
   };
 
   const handleUseTemplate = (template: Template) => {
-    if (!canManageWorkflows) {
-      return;
-    }
+    if (!canManageWorkflows) return;
     setSelectedTemplate(template);
     setIsUseModalOpen(true);
     track(Events.TemplateUseClicked, {
@@ -116,100 +552,141 @@ export function TemplateLibraryPage() {
     navigate(`/workflows/${workflowId}`);
   };
 
+  const hasFilters = Boolean(selectedCategory || selectedTags.length > 0 || searchQuery);
+
   return (
     <div className="flex-1 bg-background">
-      <div className="container mx-auto py-4 md:py-8 px-3 md:px-4">
+      <div className="container mx-auto py-6 md:py-8 px-3 md:px-6 max-w-7xl">
         {/* Header */}
-        <div className="mb-6 md:mb-8">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-8">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1">Template Library</h1>
-              <p className="text-muted-foreground">
+              <div className="flex items-center gap-3 mb-1.5">
+                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Package className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                    Template Library
+                  </h1>
+                </div>
+              </div>
+              <p className="text-muted-foreground text-sm ml-12">
                 Browse and use pre-built workflow templates to accelerate your automation
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSync}
-              disabled={isSyncing || !canManageWorkflows}
-              className="gap-2"
-            >
-              <RefreshCw className={cn('h-4 w-4', isSyncing && 'animate-spin')} />
-              <span className="hidden sm:inline">Sync from GitHub</span>
-            </Button>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {!isLoading && templates.length > 0 && (
+                <Badge variant="secondary" className="text-xs font-medium gap-1 hidden sm:flex">
+                  <FileText className="h-3 w-3" />
+                  {templates.length} template{templates.length !== 1 ? 's' : ''}
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSync}
+                disabled={isSyncing || !canManageWorkflows}
+                className="gap-2 h-8"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', isSyncing && 'animate-spin')} />
+                <span className="hidden sm:inline">Sync</span>
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="mb-6 space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search templates..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+        <div className="mb-6 space-y-3">
+          {/* Search + Category */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search templates..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-10 h-9"
+              />
+            </div>
 
-          {/* Category and Tag Filters */}
-          <div className="flex flex-wrap gap-3">
-            {/* Category Select */}
             <Select value={selectedCategory || 'all'} onValueChange={handleCategoryChange}>
-              <SelectTrigger className="w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
+              <SelectTrigger className="w-[180px] h-9">
+                <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem
-                    key={cat.category || 'uncategorized'}
-                    value={cat.category || 'uncategorized'}
-                  >
-                    {cat.category || 'Uncategorized'} ({cat.count})
-                  </SelectItem>
-                ))}
+                {categories.map((cat) => {
+                  const style = getCategoryStyle(cat.category);
+                  const CatIcon = style.icon;
+                  return (
+                    <SelectItem
+                      key={cat.category || 'uncategorized'}
+                      value={cat.category || 'uncategorized'}
+                    >
+                      <span className="flex items-center gap-2">
+                        <CatIcon className={cn('h-3.5 w-3.5', style.accent)} />
+                        {cat.category || 'Uncategorized'} ({cat.count})
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
-
-            {/* Tag Pills */}
-            {tags.slice(0, 10).map((tag) => (
-              <Badge
-                key={tag}
-                variant={selectedTags.includes(tag) ? 'default' : 'outline'}
-                className="cursor-pointer"
-                onClick={() => toggleTag(tag)}
-              >
-                <Tag className="h-3 w-3 mr-1" />
-                {tag}
-              </Badge>
-            ))}
-
-            {/* Clear Filters */}
-            {(selectedCategory || selectedTags.length > 0 || searchQuery) && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-2">
-                <X className="h-4 w-4" />
-                Clear filters
-              </Button>
-            )}
           </div>
+
+          {/* Tags + Clear */}
+          {tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Tag className="h-3.5 w-3.5 text-muted-foreground mr-1" />
+              {tags.slice(0, 12).map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={cn(
+                    'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200',
+                    'border',
+                    selectedTags.includes(tag)
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-muted/40 text-muted-foreground border-transparent hover:bg-muted hover:border-border',
+                  )}
+                >
+                  {tag}
+                </button>
+              ))}
+
+              {hasFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-7 px-2.5 text-xs gap-1 text-muted-foreground hover:text-foreground ml-1"
+                >
+                  <X className="h-3 w-3" />
+                  Clear
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Error State */}
         {error && (
-          <div className="mb-6 rounded-md border border-destructive/50 bg-destructive/10 p-4">
+          <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
             <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <div className="flex-1">
-                <p className="font-medium text-destructive">Error loading templates</p>
-                <p className="text-sm text-destructive/80">{error}</p>
+              <div className="h-8 w-8 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-destructive">Error loading templates</p>
+                <p className="text-xs text-destructive/70 truncate">{error}</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
+                className="h-8"
                 onClick={() => {
                   clearError();
                   fetchTemplates();
@@ -221,31 +698,15 @@ export function TemplateLibraryPage() {
           </div>
         )}
 
-        {/* Templates Grid */}
+        {/* Grid */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="border rounded-lg p-4 space-y-3">
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-1/2" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-6 w-16" />
-                  <Skeleton className="h-6 w-16" />
-                </div>
-              </div>
+              <CardSkeleton key={i} />
             ))}
           </div>
         ) : templates.length === 0 ? (
-          <div className="text-center py-12 border rounded-lg bg-card">
-            <FolderOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No templates found</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery || selectedCategory || selectedTags.length > 0
-                ? 'Try adjusting your filters or search query'
-                : 'No templates available yet. Sync from GitHub to load templates.'}
-            </p>
-          </div>
+          <EmptyState hasFilters={hasFilters} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map((template) => (
@@ -269,123 +730,6 @@ export function TemplateLibraryPage() {
           onSuccess={handleTemplateUseSuccess}
         />
       )}
-    </div>
-  );
-}
-
-interface TemplateCardProps {
-  template: Template;
-  onUse: (template: Template) => void;
-  canUse: boolean;
-}
-
-function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  return (
-    <div
-      className={cn(
-        'flex flex-col border rounded-lg p-4 transition-all duration-200 bg-card',
-        isHovered && 'shadow-md border-primary/50',
-      )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Package className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold truncate max-w-[180px]" title={template.name}>
-            {template.name}
-          </h3>
-        </div>
-        {template.isOfficial && (
-          <Badge variant="secondary" className="gap-1">
-            <CheckCircle2 className="h-3 w-3" />
-            Official
-          </Badge>
-        )}
-      </div>
-
-      {/* Content area - grows to fill available space */}
-      <div className="flex-1">
-        {/* Description */}
-        {template.description && (
-          <p
-            className="text-sm text-muted-foreground mb-3 line-clamp-2"
-            title={template.description}
-          >
-            {template.description}
-          </p>
-        )}
-
-        {/* Tags */}
-        {template.tags && template.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {template.tags.slice(0, 3).map((tag) => (
-              <Badge key={tag} variant="outline" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-            {template.tags.length > 3 && (
-              <Badge variant="outline" className="text-xs">
-                +{template.tags.length - 3}
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Metadata */}
-        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
-          {template.category && (
-            <span className="flex items-center gap-1">
-              <FolderOpen className="h-3 w-3" />
-              {template.category}
-            </span>
-          )}
-          {template.author && (
-            <span className="flex items-center gap-1" title={template.author}>
-              <Copy className="h-3 w-3" />
-              {template.author.length > 15 ? `${template.author.slice(0, 15)}...` : template.author}
-            </span>
-          )}
-          {template.popularity > 0 && (
-            <span className="flex items-center gap-1">
-              <Star className="h-3 w-3" />
-              {template.popularity}
-            </span>
-          )}
-        </div>
-
-        {/* Required Secrets Badge */}
-        {template.requiredSecrets && template.requiredSecrets.length > 0 && (
-          <div className="mb-3 p-2 rounded bg-muted/50 text-xs">
-            <span className="font-medium">
-              Requires {template.requiredSecrets.length} secret
-              {template.requiredSecrets.length > 1 ? 's' : ''}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Actions - pinned to bottom */}
-      <div className="flex gap-2 mt-auto pt-2">
-        <Button size="sm" className="flex-1" onClick={() => onUse(template)} disabled={!canUse}>
-          Use Template
-        </Button>
-        {template.repository && (
-          <Button size="sm" variant="outline" asChild>
-            <a
-              href={`https://github.com/${template.repository}/blob/${template.branch || 'main'}/${template.path}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="View on GitHub"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
