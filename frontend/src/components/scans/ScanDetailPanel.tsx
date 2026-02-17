@@ -130,24 +130,49 @@ function buildWorkflowCompatibility(runtimeInputs: unknown[]): WorkflowCompatibi
 
 const QUICK_SCANS = [
   {
-    id: 'secret-detection',
+    slug: 'secret-detection',
     name: 'Secret Detection',
     description: 'Scan for exposed secrets',
     icon: ShieldAlert,
+    matchPattern: /secret|trufflehog/i,
   },
   {
-    id: 'sast-semgrep',
-    name: 'SAST (Semgrep)',
+    slug: 'sast-opengrep',
+    name: 'SAST (OpenGrep)',
     description: 'Static application security testing',
     icon: Search,
+    matchPattern: /sast|opengrep|semgrep/i,
   },
   {
-    id: 'dependency-audit',
+    slug: 'dependency-audit',
     name: 'Dependency Audit',
     description: 'Check for vulnerable dependencies',
     icon: Package,
+    matchPattern: /dependency|audit/i,
   },
 ];
+
+function resolveQuickScans(workflows: WorkflowOption[]): {
+  slug: string;
+  workflowId: string;
+  name: string;
+  description: string;
+  icon: typeof ShieldAlert;
+}[] {
+  return QUICK_SCANS.flatMap((scan) => {
+    const match = workflows.find((w) => scan.matchPattern.test(w.name));
+    if (!match) return [];
+    return [
+      {
+        slug: scan.slug,
+        workflowId: match.id,
+        name: scan.name,
+        description: scan.description,
+        icon: scan.icon,
+      },
+    ];
+  });
+}
 
 function RerunScanModal({
   open,
@@ -287,17 +312,17 @@ function RerunScanModal({
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Quick Scans</h4>
             <div className="grid gap-2">
-              {QUICK_SCANS.map((scan) => {
+              {resolveQuickScans(workflows).map((scan) => {
                 const Icon = scan.icon;
                 return (
                   <Button
-                    key={scan.id}
+                    key={scan.slug}
                     variant="outline"
                     className="justify-start h-auto py-3 px-4"
-                    onClick={() => handleTrigger(scan.id)}
+                    onClick={() => handleTrigger(scan.workflowId)}
                     disabled={triggering !== null}
                   >
-                    {triggering === scan.id ? (
+                    {triggering === scan.workflowId ? (
                       <Loader2 className="h-5 w-5 mr-3 animate-spin" />
                     ) : (
                       <Icon className="h-5 w-5 mr-3 text-muted-foreground" />

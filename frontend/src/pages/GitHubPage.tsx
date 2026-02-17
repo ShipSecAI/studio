@@ -141,27 +141,50 @@ function EmptyState({
   );
 }
 
-// Predefined quick scan workflow templates
+// Predefined quick scan workflow templates.
+// `matchPattern` is matched (case-insensitive) against workflow names to resolve to a real workflow UUID.
 const QUICK_SCANS = [
   {
-    id: 'secret-detection',
+    slug: 'secret-detection',
     name: 'Secret Detection',
     description: 'Scan for exposed secrets, API keys, and credentials',
     icon: Shield,
+    matchPattern: /secret|trufflehog/i,
   },
   {
-    id: 'sast-semgrep',
-    name: 'SAST (Semgrep)',
+    slug: 'sast-opengrep',
+    name: 'SAST (OpenGrep)',
     description: 'Static Application Security Testing',
     icon: Search,
+    matchPattern: /sast|opengrep|semgrep/i,
   },
   {
-    id: 'dependency-audit',
+    slug: 'dependency-audit',
     name: 'Dependency Audit',
     description: 'Check dependencies for known vulnerabilities',
     icon: Package,
+    matchPattern: /dependency|audit/i,
   },
 ];
+
+/** Resolve a quick scan slug to a real workflow UUID by matching workflow names. */
+function resolveQuickScans(
+  workflows: WorkflowOption[],
+): { slug: string; workflowId: string; name: string; description: string; icon: typeof Shield }[] {
+  return QUICK_SCANS.flatMap((scan) => {
+    const match = workflows.find((w) => scan.matchPattern.test(w.name));
+    if (!match) return [];
+    return [
+      {
+        slug: scan.slug,
+        workflowId: match.id,
+        name: scan.name,
+        description: scan.description,
+        icon: scan.icon,
+      },
+    ];
+  });
+}
 
 interface WorkflowPickerModalProps {
   open: boolean;
@@ -293,17 +316,17 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Quick Scans</h4>
             <div className="grid gap-2">
-              {QUICK_SCANS.map((scan) => {
+              {resolveQuickScans(workflows).map((scan) => {
                 const Icon = scan.icon;
                 return (
                   <Button
-                    key={scan.id}
+                    key={scan.slug}
                     variant="outline"
                     className="justify-start h-auto py-3 px-4"
-                    onClick={() => handleTrigger(scan.id)}
+                    onClick={() => handleTrigger(scan.workflowId)}
                     disabled={triggering !== null}
                   >
-                    {triggering === scan.id ? (
+                    {triggering === scan.workflowId ? (
                       <Loader2 className="h-5 w-5 mr-3 animate-spin" />
                     ) : (
                       <Icon className="h-5 w-5 mr-3 text-muted-foreground" />
