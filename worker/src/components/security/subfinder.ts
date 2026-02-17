@@ -195,7 +195,7 @@ interface BuildSubfinderArgsOptions {
 const buildSubfinderArgs = (options: BuildSubfinderArgsOptions): string[] => {
   const args: string[] = [];
 
-  // Always use silent mode for clean output
+  // Use silent mode — stdout is the structured output (one subdomain per line)
   args.push('-silent');
 
   // Domain list file input
@@ -425,8 +425,8 @@ const definition = defineComponent({
         timeoutSeconds: baseRunner.timeoutSeconds ?? SUBFINDER_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
         // Preserve the shell wrapper from baseRunner (sh -c 'subfinder "$@"' --)
+        // The K8s runner detects the "$@" pattern and strips the shell for distroless images
         entrypoint: baseRunner.entrypoint,
-        // Append subfinder arguments to shell wrapper command
         command: [...(baseRunner.command ?? []), ...subfinderArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };

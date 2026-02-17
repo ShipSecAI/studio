@@ -643,10 +643,10 @@ function parseOutputFromLogs<O>(logs: string, context: ExecutionContext): O {
     if (outputStr) {
       try {
         return JSON.parse(outputStr) as O;
-      } catch (e) {
-        context.logger.warn(
-          `[K8sRunner] Failed to parse delimited output: ${(e as Error).message}`,
-        );
+      } catch {
+        // Not JSON — return delimited content as raw string
+        // (e.g., plain text domain lists from -o file output)
+        return outputStr as unknown as O;
       }
     }
   }
