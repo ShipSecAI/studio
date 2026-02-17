@@ -199,12 +199,17 @@ export function WorkflowSchedulesSidebar({
             return (
               <div key={schedule.id} className="space-y-2 rounded-lg border bg-muted/30 px-3 py-2">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{schedule.name}</span>
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="text-sm font-semibold truncate min-w-0"
+                        title={schedule.name}
+                      >
+                        {schedule.name}
+                      </span>
                       <Badge
                         variant={scheduleStatusVariant[schedule.status]}
-                        className="text-[11px] capitalize"
+                        className="text-[11px] capitalize flex-shrink-0"
                       >
                         {schedule.status}
                       </Badge>

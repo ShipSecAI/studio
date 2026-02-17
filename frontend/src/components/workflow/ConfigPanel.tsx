@@ -1326,13 +1326,18 @@ export function ConfigPanel({
                           key={schedule.id}
                           className="rounded-lg border bg-background px-3 py-2 space-y-2"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold">{schedule.name}</span>
+                          <div className="flex flex-col gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                  className="text-sm font-semibold truncate min-w-0"
+                                  title={schedule.name}
+                                >
+                                  {schedule.name}
+                                </span>
                                 <Badge
                                   variant={scheduleStatusVariant[schedule.status]}
-                                  className="text-[11px] capitalize"
+                                  className="text-[11px] capitalize flex-shrink-0"
                                 >
                                   {schedule.status}
                                 </Badge>
@@ -1341,7 +1346,7 @@ export function ConfigPanel({
                                 Next: {formatScheduleTimestamp(schedule.nextRunAt)}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1">
                               <Button
                                 type="button"
                                 size="sm"

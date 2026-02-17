@@ -547,8 +547,8 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                                   {truncatedMessage}
                                 </pre>
                                 {isTruncated && (
-                                  <span className="text-slate-400 text-[9px] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    ⋯
+                                  <span className="text-blue-400/70 text-[9px] flex-shrink-0 ml-1">
+                                    click to expand
                                   </span>
                                 )}
                               </div>
