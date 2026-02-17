@@ -119,40 +119,7 @@
         }
       }
     },
-    {
-      "id": "opengrep-log",
-      "type": "core.console.log",
-      "position": {
-        "x": 0,
-        "y": 860
-      },
-      "data": {
-        "label": "Console Log - OpenGrep",
-        "config": {
-          "params": {},
-          "inputOverrides": {
-            "label": "OpenGrep Findings"
-          }
-        }
-      }
-    },
-    {
-      "id": "trufflehog-log",
-      "type": "core.console.log",
-      "position": {
-        "x": 420,
-        "y": 860
-      },
-      "data": {
-        "label": "Console Log - TruffleHog",
-        "config": {
-          "params": {},
-          "inputOverrides": {
-            "label": "TruffleHog Findings"
-          }
-        }
-      }
-    },
+
     {
       "id": "normalize-opengrep",
       "type": "security.findings.normalize",
@@ -315,20 +282,7 @@
       "sourceHandle": "volumeName",
       "targetHandle": "volumeName"
     },
-    {
-      "id": "edge-opengrep-to-log",
-      "source": "opengrep-scanner",
-      "target": "opengrep-log",
-      "sourceHandle": "findings",
-      "targetHandle": "data"
-    },
-    {
-      "id": "edge-trufflehog-to-log",
-      "source": "trufflehog-scanner",
-      "target": "trufflehog-log",
-      "sourceHandle": "findings",
-      "targetHandle": "data"
-    },
+
     {
       "id": "edge-opengrep-findings-to-normalize",
       "source": "opengrep-scanner",

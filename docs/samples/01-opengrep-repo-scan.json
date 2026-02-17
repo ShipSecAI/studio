@@ -57,23 +57,7 @@
           }
         }
       },
-      {
-        "id": "console-log",
-        "type": "core.console.log",
-        "position": {
-          "x": 1116.3751311389549,
-          "y": 127.274208167111
-        },
-        "data": {
-          "label": "Console Log - OpenGrep Findings",
-          "config": {
-            "params": {},
-            "inputOverrides": {
-              "label": "OpenGrep Normalized Findings"
-            }
-          }
-        }
-      },
+
       {
         "id": "security-findings-normalize-1770512156026",
         "type": "security.findings.normalize",
@@ -102,14 +86,7 @@
         "targetHandle": "volumeName",
         "type": "default"
       },
-      {
-        "id": "reactflow__edge-security-findings-normalize-1770512156026findings-console-logdata",
-        "source": "security-findings-normalize-1770512156026",
-        "target": "console-log",
-        "sourceHandle": "findings",
-        "targetHandle": "data",
-        "type": "default"
-      },
+
       {
         "id": "reactflow__edge-opengrep-scannerfindings-security-findings-normalize-1770512156026rawFindings",
         "source": "opengrep-scanner",

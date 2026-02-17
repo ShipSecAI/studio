@@ -102,23 +102,7 @@
         }
       }
     },
-    {
-      "id": "console-log",
-      "type": "core.console.log",
-      "position": {
-        "x": 520,
-        "y": 860
-      },
-      "data": {
-        "label": "Console Log - OpenGrep Findings",
-        "config": {
-          "params": {},
-          "inputOverrides": {
-            "label": "OpenGrep SAST Findings"
-          }
-        }
-      }
-    },
+
     {
       "id": "pr-comment",
       "type": "github.pr.comment",
@@ -178,13 +162,7 @@
       "sourceHandle": "volumeName",
       "targetHandle": "volumeName"
     },
-    {
-      "id": "edge-opengrep-to-log",
-      "source": "opengrep-scanner",
-      "target": "console-log",
-      "sourceHandle": "findings",
-      "targetHandle": "data"
-    },
+
     {
       "id": "edge-opengrep-to-pr-comment",
       "source": "opengrep-scanner",
