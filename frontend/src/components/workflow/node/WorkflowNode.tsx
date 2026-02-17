@@ -34,7 +34,6 @@ import type { InputPort } from '@/schemas/component';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useThemeStore } from '@/store/themeStore';
 import {
-  type ComponentCategory,
   getCategorySeparatorColor,
   getCategoryHeaderBackgroundColor,
 } from '@/utils/categoryColors';
@@ -152,8 +151,7 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
   const isTextBlock = component?.id === 'core.ui.text';
   const isEntryPoint = component?.id === 'core.workflow.entrypoint';
   const isDarkMode = theme === 'dark';
-  const componentCategory: ComponentCategory =
-    (component?.category as ComponentCategory) || (isEntryPoint ? 'input' : 'input');
+  const componentCategory = component?.category ?? 'input';
   const isToolModeOnly = component?.id ? TOOL_MODE_ONLY_COMPONENTS.has(component.id) : false;
   const showMcpBadge = componentCategory === 'mcp' || isToolModeOnly;
   const isToolMode = Boolean(

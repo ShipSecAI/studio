@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { api } from '@/services/api';
 
@@ -47,23 +47,45 @@ export function useWorkflowSchedules({
   const [editingSchedule, setEditingSchedule] = useState<WorkflowSchedule | null>(null);
   const [schedulePanelExpanded, setSchedulePanelExpanded] = useState(false);
 
+  const lastFetchRef = useRef<{ workflowId: string; time: number } | null>(null);
+  const inflightRef = useRef<{ workflowId: string; promise: Promise<void> } | null>(null);
+
   const refreshSchedules = useCallback(async () => {
     if (!workflowId) {
       setSchedules([]);
       setError(null);
       return;
     }
-    setIsLoading(true);
-    try {
-      const list = await api.schedules.list({ workflowId });
-      setSchedules(list);
-      setError(null);
-    } catch (err) {
-      console.error('Failed to load workflow schedules', err);
-      setError(err instanceof Error ? err.message : 'Failed to load schedules');
-    } finally {
-      setIsLoading(false);
+    // Deduplicate: return inflight promise only if it's for the same workflowId
+    if (inflightRef.current && inflightRef.current.workflowId === workflowId) {
+      return inflightRef.current.promise;
     }
+    // Skip if same workflowId was fetched within 5 seconds
+    const now = Date.now();
+    if (
+      lastFetchRef.current &&
+      lastFetchRef.current.workflowId === workflowId &&
+      now - lastFetchRef.current.time < 5000
+    ) {
+      return;
+    }
+    setIsLoading(true);
+    const promise = (async () => {
+      try {
+        const list = await api.schedules.list({ workflowId });
+        setSchedules(list);
+        setError(null);
+        lastFetchRef.current = { workflowId, time: Date.now() };
+      } catch (err) {
+        console.error('Failed to load workflow schedules', err);
+        setError(err instanceof Error ? err.message : 'Failed to load schedules');
+      } finally {
+        setIsLoading(false);
+        inflightRef.current = null;
+      }
+    })();
+    inflightRef.current = { workflowId, promise };
+    return promise;
   }, [workflowId]);
 
   useEffect(() => {

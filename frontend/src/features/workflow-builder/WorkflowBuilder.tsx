@@ -646,15 +646,18 @@ function WorkflowBuilderContent() {
           node_count: workflowNodes.length,
         });
 
-        // Check for active runs to resume monitoring
-        // Only auto-switch to live mode if we opened via a runs URL (execution mode)
-        // For design mode, just set up background monitoring without switching views
+        // Check for active runs to resume monitoring — only when opened via runs URL
         const openedInExecutionMode = Boolean(routeRunId) || isRunsRoute;
+        // Skip runs fetch entirely in design mode to avoid the slow /workflows/runs call
+        // Runs will be fetched on-demand when the user switches to execution mode
         try {
-          const { runs } = await api.executions.listRuns({
-            workflowId: workflow.id,
-            limit: 1,
-          });
+          const cachedRuns = useRunStore.getState().cache[workflow.id]?.runs;
+          const runs = openedInExecutionMode
+            ? (cachedRuns ??
+              (await fetchRuns({ workflowId: workflow.id }).then(
+                () => useRunStore.getState().cache[workflow.id]?.runs ?? [],
+              )))
+            : (cachedRuns ?? []);
 
           if (runs && runs.length > 0) {
             const latestRun = runs[0];
@@ -734,6 +737,7 @@ function WorkflowBuilderContent() {
     resetHistoricalTracking,
     metadata.id,
     initializeHistory,
+    fetchRuns,
   ]);
 
   const resolveRuntimeInputDefinitions = useCallback(() => {
@@ -1003,7 +1007,10 @@ function WorkflowBuilderContent() {
 
   const canvasContent = mode === 'design' ? designerCanvas : executionCanvas;
 
-  const inspectorContent = <ExecutionInspector onRerunRun={handleRerunFromTimeline} />;
+  // Only mount ExecutionInspector (which includes RunSelector) in execution mode.
+  // This avoids an eager /workflows/runs fetch on the design canvas page.
+  const inspectorContent =
+    mode === 'execution' ? <ExecutionInspector onRerunRun={handleRerunFromTimeline} /> : null;
 
   const runDialogNode = (
     <RunWorkflowDialog

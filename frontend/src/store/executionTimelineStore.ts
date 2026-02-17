@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-
-const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'TERMINATED', 'TIMED_OUT'] as const;
+import { TERMINAL_STATUSES } from '@shipsec/shared';
 import { api } from '@/services/api';
 import type { ExecutionLog, ExecutionStatusResponse } from '@/schemas/execution';
 import type { NodeStatus } from '@/schemas/node';

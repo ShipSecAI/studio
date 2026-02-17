@@ -107,8 +107,14 @@ export function useWorkflowExecutionLifecycle({
       return;
     }
 
-    fetchRuns({ workflowId: metadata.id }).catch(() => undefined);
-  }, [fetchRuns, metadata.id]);
+    // Only fetch runs when in execution mode or navigating to a specific run.
+    // In design mode (the default when opening /workflows/:id), runs aren't
+    // needed — they'll be fetched on-demand when the user switches to the runs
+    // tab or executes the workflow.
+    if (mode === 'execution' || routeRunId) {
+      fetchRuns({ workflowId: metadata.id }).catch(() => undefined);
+    }
+  }, [fetchRuns, metadata.id, mode, routeRunId]);
 
   useEffect(() => {
     if (!metadata.id || !routeRunId) {

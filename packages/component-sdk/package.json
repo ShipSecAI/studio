@@ -19,6 +19,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@shipsec/shared": "workspace:*",
     "zod": "^4.3.6"
   },
   "optionalDependencies": {

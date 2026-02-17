@@ -3,6 +3,7 @@ import { formatDuration, formatStartTime } from '@/utils/timeFormat';
 import { getTriggerDisplay } from '@/utils/triggerDisplay';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import type { ExecutionRun } from '@/store/runStore';
+import { isRunLive } from '@/features/workflow-builder/utils/executionRuns';
 import { cn } from '@/lib/utils';
 import { Wifi } from 'lucide-react';
 
@@ -30,18 +31,6 @@ export function RunInfoDisplay({
     hasVersion &&
     typeof currentWorkflowVersion === 'number' &&
     runVersion !== currentWorkflowVersion;
-
-  const isRunLive = (run: ExecutionRun) => {
-    const TERMINAL_STATUSES: ExecutionRun['status'][] = [
-      'COMPLETED',
-      'FAILED',
-      'CANCELLED',
-      'TERMINATED',
-      'TIMED_OUT',
-    ];
-    if (run.isLive) return true;
-    return !TERMINAL_STATUSES.includes(run.status);
-  };
 
   const infoItems = [
     formatStartTime(run.startTime),

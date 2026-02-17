@@ -295,6 +295,9 @@ describe('WorkflowsService', () => {
     async hasPendingInputs() {
       return false;
     },
+    async cacheTerminalStatus() {
+      // no-op in tests
+    },
   };
 
   const traceRepositoryMock = {

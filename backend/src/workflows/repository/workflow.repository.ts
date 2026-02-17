@@ -10,6 +10,18 @@ import { DRIZZLE_TOKEN } from '../../database/database.module';
 
 export type WorkflowRecord = typeof workflowsTable.$inferSelect;
 
+export interface WorkflowSummaryRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  organizationId: string | null;
+  lastRun: Date | null;
+  runCount: number;
+  nodeCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 type WorkflowGraph = z.infer<typeof WorkflowGraphSchema>;
 
 export interface WorkflowRepositoryOptions {
@@ -131,6 +143,30 @@ export class WorkflowRepository {
         .where(eq(workflowsTable.organizationId, options.organizationId));
     }
     return this.db.select().from(workflowsTable);
+  }
+
+  async listSummary(options: WorkflowRepositoryOptions = {}): Promise<WorkflowSummaryRecord[]> {
+    const columns = {
+      id: workflowsTable.id,
+      name: workflowsTable.name,
+      description: workflowsTable.description,
+      organizationId: workflowsTable.organizationId,
+      lastRun: workflowsTable.lastRun,
+      runCount: workflowsTable.runCount,
+      nodeCount: sql<number>`coalesce(jsonb_array_length(${workflowsTable.graph}->'nodes'), 0)`.as(
+        'node_count',
+      ),
+      createdAt: workflowsTable.createdAt,
+      updatedAt: workflowsTable.updatedAt,
+    };
+
+    if (options.organizationId) {
+      return this.db
+        .select(columns)
+        .from(workflowsTable)
+        .where(eq(workflowsTable.organizationId, options.organizationId));
+    }
+    return this.db.select(columns).from(workflowsTable);
   }
 
   async incrementRunCount(
