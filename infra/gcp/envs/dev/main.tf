@@ -78,6 +78,12 @@ resource "google_container_cluster" "gke" {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
 
+  addons_config {
+    gcs_fuse_csi_driver_config {
+      enabled = true
+    }
+  }
+
   depends_on = [google_project_service.enabled]
 }
 
@@ -99,6 +105,78 @@ resource "google_container_node_pool" "default_pool" {
       "https://www.googleapis.com/auth/cloud-platform",
     ]
   }
+}
+
+# --- GCS FUSE volume support ---
+
+# GCS bucket for job volumes
+resource "google_storage_bucket" "volumes" {
+  project                     = var.project_id
+  name                        = "${var.project_id}-volumes-${var.cluster_name}"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  force_destroy               = true
+
+  lifecycle_rule {
+    condition {
+      age = 7
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}
+
+# GCP SA for job pods (mounted via GCS FUSE CSI)
+resource "google_service_account" "job_runner" {
+  project      = var.project_id
+  account_id   = "shipsec-job-runner"
+  display_name = "ShipSec K8s Job Runner"
+}
+
+# Job runner SA → bucket access
+resource "google_storage_bucket_iam_member" "job_runner_storage" {
+  bucket = google_storage_bucket.volumes.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.job_runner.email}"
+}
+
+# Workload Identity: K8s SA → GCP SA (for job pods in shipsec-workloads)
+resource "google_service_account_iam_member" "job_runner_wi" {
+  service_account_id = google_service_account.job_runner.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[shipsec-workloads/shipsec-job-runner]"
+}
+
+# Worker SA also needs GCS access (to upload inputs / read outputs via SDK)
+resource "google_service_account" "worker" {
+  project      = var.project_id
+  account_id   = "shipsec-worker"
+  display_name = "ShipSec Worker"
+}
+
+resource "google_storage_bucket_iam_member" "worker_storage" {
+  bucket = google_storage_bucket.volumes.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.worker.email}"
+}
+
+resource "google_service_account_iam_member" "worker_wi" {
+  service_account_id = google_service_account.worker.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[shipsec-workers/shipsec-worker]"
+}
+
+output "gcs_volumes_bucket" {
+  value = google_storage_bucket.volumes.name
+}
+
+output "job_runner_sa_email" {
+  value = google_service_account.job_runner.email
+}
+
+output "worker_sa_email" {
+  value = google_service_account.worker.email
 }
 
 output "artifact_registry_repo" {

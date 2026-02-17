@@ -53,6 +53,14 @@ spec:
         - name: K8S_IMAGE_PULL_SECRET
           value: {{ .Values.execution.k8s.imagePullSecret | quote }}
         {{- end }}
+        {{- if .Values.execution.k8s.gcsBucket }}
+        - name: GCS_VOLUME_BUCKET
+          value: {{ .Values.execution.k8s.gcsBucket | quote }}
+        {{- end }}
+        {{- if .Values.execution.k8s.jobServiceAccount }}
+        - name: K8S_JOB_SERVICE_ACCOUNT
+          value: {{ .Values.execution.k8s.jobServiceAccount | quote }}
+        {{- end }}
         {{- else if .Values.execution.workerDockerHost }}
         - name: DOCKER_HOST
           value: {{ .Values.execution.workerDockerHost | quote }}

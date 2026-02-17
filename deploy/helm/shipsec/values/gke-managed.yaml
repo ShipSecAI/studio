@@ -88,3 +88,7 @@ execution:
     jobNamespace: shipsec-workloads
     imagePullPolicy: IfNotPresent
     imagePullSecret: ghcr-creds
+    gcsBucket: shipsec-volumes-shipsec-dev
+    jobServiceAccount: shipsec-job-runner
+    jobRunnerGcpSa: shipsec-job-runner@shipsec.iam.gserviceaccount.com
+    workerGcpSa: shipsec-worker@shipsec.iam.gserviceaccount.com

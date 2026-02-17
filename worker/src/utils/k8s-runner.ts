@@ -21,6 +21,7 @@ const OUTPUT_FILENAME = 'result.json';
 interface BuildJobResult {
   job: k8s.V1Job;
   writableVolumeMappings: Map<string, string>; // mountPath → configMapName
+  hasGcsFuse: boolean;
 }
 
 // Lazy-init shared K8s clients
@@ -220,7 +221,8 @@ function buildJobSpec(
     },
   ];
 
-  // Handle additional volumes (from IsolatedK8sVolume)
+  // Handle additional volumes (from IsolatedK8sVolume or IsolatedGcsVolume)
+  let hasGcsFuse = false;
   if (runner.volumes) {
     for (let i = 0; i < runner.volumes.length; i++) {
       const vol = runner.volumes[i];
@@ -228,7 +230,25 @@ function buildJobSpec(
 
       const volName = `extra-vol-${i}`;
 
-      if (vol.source.startsWith('configmap:') && (vol.readOnly ?? true)) {
+      if (vol.source.startsWith('gcsfuse:')) {
+        // GCS FUSE CSI volume from IsolatedGcsVolume
+        // Parse "gcsfuse:{bucket}:{prefix}"
+        const [, bucketName, ...prefixParts] = vol.source.split(':');
+        const onlyDir = prefixParts.join(':');
+        hasGcsFuse = true;
+        volumes.push({
+          name: volName,
+          csi: {
+            driver: 'gcsfuse.csi.storage.gke.io',
+            readOnly: vol.readOnly ?? false,
+            volumeAttributes: {
+              bucketName,
+              mountOptions: `implicit-dirs,only-dir=${onlyDir}`,
+            },
+          },
+        });
+        // NO writableVolumeMappings tracking needed — GCS handles write natively
+      } else if (vol.source.startsWith('configmap:') && (vol.readOnly ?? true)) {
         // ConfigMap-backed volume from IsolatedK8sVolume (read-only)
         const cmName = vol.source.replace('configmap:', '');
         volumes.push({
@@ -288,9 +308,14 @@ function buildJobSpec(
             'app.kubernetes.io/managed-by': 'shipsec-worker',
             'shipsec.ai/run-id': sanitizeName(context.runId),
           },
+          ...(hasGcsFuse ? { annotations: { 'gke-gcsfuse/volumes': 'true' } } : {}),
         },
         spec: {
           restartPolicy: 'Never',
+          ...(process.env.K8S_JOB_SERVICE_ACCOUNT
+            ? { serviceAccountName: process.env.K8S_JOB_SERVICE_ACCOUNT }
+            : {}),
+          ...(hasGcsFuse ? { terminationGracePeriodSeconds: 60 } : {}),
           ...(process.env.K8S_IMAGE_PULL_SECRET
             ? { imagePullSecrets: [{ name: process.env.K8S_IMAGE_PULL_SECRET }] }
             : {}),
@@ -318,7 +343,7 @@ function buildJobSpec(
     },
   };
 
-  return { job, writableVolumeMappings };
+  return { job, writableVolumeMappings, hasGcsFuse };
 }
 
 /**
@@ -670,6 +695,42 @@ function parseOutputFromLogs<O>(logs: string, context: ExecutionContext): O {
 }
 
 /**
+ * Wait for the GCS FUSE sidecar container to terminate after the main
+ * container exits. This ensures all writes are flushed to GCS before
+ * the worker reads output via the GCS SDK.
+ */
+async function waitForGcsFuseFlush(
+  podName: string,
+  namespace: string,
+  context: ExecutionContext,
+): Promise<void> {
+  const core = getCoreApi();
+  const deadline = Date.now() + 60_000; // max 60s wait
+
+  context.logger.info(`[K8sRunner] Waiting for GCS FUSE sidecar flush on pod ${podName}`);
+
+  while (Date.now() < deadline) {
+    const pod = await core.readNamespacedPod({ name: podName, namespace });
+    const sidecar = pod.status?.containerStatuses?.find((c) => c.name === 'gke-gcsfuse-sidecar');
+
+    if (!sidecar) {
+      // No sidecar found — GCS FUSE may not have been injected, skip wait
+      context.logger.info(`[K8sRunner] No GCS FUSE sidecar found, skipping flush wait`);
+      return;
+    }
+
+    if (sidecar.state?.terminated) {
+      context.logger.info(`[K8sRunner] GCS FUSE sidecar terminated, flush complete`);
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
+  context.logger.warn(`[K8sRunner] GCS FUSE sidecar did not terminate within 60s, proceeding`);
+}
+
+/**
  * Clean up resources created for a Job execution.
  */
 async function cleanup(
@@ -727,13 +788,11 @@ export async function runComponentInK8sJob<I, O>(
     context.logger.info(`[K8sRunner] Created ConfigMap ${configMapName}`);
 
     // 2. Create Job
-    const { job: jobSpec, writableVolumeMappings } = buildJobSpec(
-      jobName,
-      namespace,
-      configMapName,
-      runner,
-      context,
-    );
+    const {
+      job: jobSpec,
+      writableVolumeMappings,
+      hasGcsFuse: hasGcsFuseVolume,
+    } = buildJobSpec(jobName, namespace, configMapName, runner, context);
     await getBatchApi().createNamespacedJob({ namespace, body: jobSpec });
     context.logger.info(`[K8sRunner] Created Job ${jobName}`);
 
@@ -758,7 +817,12 @@ export async function runComponentInK8sJob<I, O>(
     context.logger.info(`[K8sRunner] Job ${jobName} completed successfully`);
     context.emitProgress('K8s Job completed');
 
-    // 4.5. Write back writable volume data to ConfigMaps
+    // 4.5a. Wait for GCS FUSE sidecar to flush writes before reading output
+    if (hasGcsFuseVolume) {
+      await waitForGcsFuseFlush(podName, namespace, context);
+    }
+
+    // 4.5b. Write back writable volume data to ConfigMaps
     // Must happen BEFORE cleanup so volume.readFiles() can access updated ConfigMaps
     if (writableVolumeMappings.size > 0) {
       const volumeData = extractVolumeDataFromLogs(logs);

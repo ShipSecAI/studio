@@ -8,6 +8,10 @@ metadata:
   labels:
     {{- include "shipsec.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker
+  {{- if .Values.execution.k8s.workerGcpSa }}
+  annotations:
+    iam.gke.io/gcp-service-account: {{ .Values.execution.k8s.workerGcpSa | quote }}
+  {{- end }}
 ---
 # Role in the workloads namespace — worker creates Jobs and ConfigMaps here
 apiVersion: rbac.authorization.k8s.io/v1
@@ -44,4 +48,17 @@ subjects:
 - kind: ServiceAccount
   name: shipsec-worker
   namespace: {{ .Values.global.namespaces.workers }}
+{{- if .Values.execution.k8s.jobRunnerGcpSa }}
+---
+# ServiceAccount for job pods (GCS FUSE CSI access via Workload Identity)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shipsec-job-runner
+  namespace: {{ .Values.global.namespaces.workloads }}
+  labels:
+    {{- include "shipsec.labels" . | nindent 4 }}
+  annotations:
+    iam.gke.io/gcp-service-account: {{ .Values.execution.k8s.jobRunnerGcpSa | quote }}
+{{- end }}
 {{- end }}

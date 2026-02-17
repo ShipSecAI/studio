@@ -300,8 +300,22 @@ async function listVolumeFiles(volume: ReturnType<typeof createIsolatedVolume>):
   const volumeName = volume.getVolumeName();
   if (!volumeName) return [];
 
-  // In K8s mode, volumes are ConfigMap-backed — list keys via K8s API
+  // In K8s mode, volumes are ConfigMap-backed or GCS-backed
   if (process.env.EXECUTION_MODE === 'k8s') {
+    // GCS FUSE volumes: list objects in the GCS prefix via SDK
+    if (process.env.GCS_VOLUME_BUCKET) {
+      try {
+        const { Storage } = await import('@google-cloud/storage');
+        const storage = new Storage();
+        const bucket = storage.bucket(process.env.GCS_VOLUME_BUCKET);
+        const [files] = await bucket.getFiles({ prefix: `${volumeName}/` });
+        return files.map((f) => f.name.replace(`${volumeName}/`, ''));
+      } catch {
+        return [];
+      }
+    }
+
+    // ConfigMap-backed volumes: list keys via K8s API
     try {
       const k8s = await import('@kubernetes/client-node');
       const kc = new k8s.KubeConfig();
