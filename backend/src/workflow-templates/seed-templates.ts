@@ -448,42 +448,46 @@ function aiCodeReviewTemplate(): SeedTemplate {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Template 7: AWS Org-Wide Prowler Scan
-// AWS Credentials → Prowler → Normalize → Analytics Sink
+// Template 7: Cloud Security Scan
+// Entry Point → AWS Credentials → Prowler → Normalize → Analytics Sink
 // ──────────────────────────────────────────────────────────────────────────────
-function awsOrgWideProwlerScanTemplate(): SeedTemplate {
+function cloudSecurityScanTemplate(): SeedTemplate {
   resetCounter();
+  const entryPoint = nid('node');
   const awsCreds = nid('node');
   const prowler = nid('node');
   const normalize = nid('node');
   const analytics = nid('node');
 
   return {
-    name: 'AWS Org-Wide Prowler Scan',
-    slug: 'aws-org-prowler-scan',
+    name: 'Cloud Security Scan',
+    slug: 'cloud-security-scan',
     description:
-      'Resolves AWS org credentials, scans all member accounts with Prowler, and indexes aggregated findings into Analytics.',
+      'Scan AWS accounts with Prowler and index findings into Analytics. Supports single-account or org-wide scanning.',
     category: 'cloud-security',
     icon: 'cloud',
-    screenshotUrl: '/templates/aws-prowler-scan.png',
-    isFeatured: false,
+    screenshotUrl: '/templates/cloud-security-scan.png',
+    isFeatured: true,
     isDefault: true,
     graph: {
-      name: 'AWS Org-Wide Prowler Scan',
-      description: 'Org-wide Prowler scan across all AWS member accounts',
+      name: 'Cloud Security Scan',
+      description: 'AWS cloud security scan with Prowler',
       nodes: [
-        makeNode(awsCreds, 'core.credentials.aws', 'AWS Credentials', 0, 0),
-        makeNode(prowler, 'security.prowler.scan', 'Prowler', 300, 0),
-        makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 600, 0),
-        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 900, 0),
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0),
+        makeNode(awsCreds, 'core.credentials.aws', 'AWS Credentials', 300, 0),
+        makeNode(prowler, 'security.prowler.scan', 'Prowler', 600, 0),
+        makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 900, 0),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 0),
       ],
       edges: [
+        // Entry Point → Prowler (pass orgScan flag from trigger/integration)
+        makeEdge('e1', entryPoint, prowler, 'input1', 'orgScan'),
         // AWS Creds → Prowler
-        makeEdge('e1', awsCreds, prowler, 'credentials', 'credentials'),
+        makeEdge('e2', awsCreds, prowler, 'credentials', 'credentials'),
         // Prowler → Normalize
-        makeEdge('e2', prowler, normalize, 'findings', 'rawFindings'),
+        makeEdge('e3', prowler, normalize, 'findings', 'rawFindings'),
         // Normalize → Analytics
-        makeEdge('e3', normalize, analytics, 'findings', 'input1'),
+        makeEdge('e4', normalize, analytics, 'findings', 'input1'),
       ],
       viewport: { x: 0, y: 0, zoom: 0.8 },
     },
@@ -548,6 +552,62 @@ function attackSurfaceReconTemplate(): SeedTemplate {
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Template 9: Container Image Scan
+// Entry Point → Trivy (image scan) → Normalize → Markdown
+// ──────────────────────────────────────────────────────────────────────────────
+function containerImageScanTemplate(): SeedTemplate {
+  resetCounter();
+  const entryPoint = nid('node');
+  const trivy = nid('node');
+  const normalize = nid('node');
+  const markdown = nid('node');
+
+  return {
+    name: 'Container Image Scan',
+    slug: 'container-image-scan',
+    description:
+      'Scan container images from any registry (Docker Hub, ECR, GCR, GHCR) for vulnerabilities using Trivy. Supports public and private images with registry credentials.',
+    category: 'cloud-security',
+    icon: 'container',
+    screenshotUrl: '/templates/container-image-scan.png',
+    isFeatured: true,
+    isDefault: true,
+    graph: {
+      name: 'Container Image Scan',
+      description: 'Scan container images for vulnerabilities',
+      nodes: [
+        makeNode(entryPoint, 'core.workflow.entrypoint', 'Entry Point', 0, 0, {
+          runtimeInputs: [
+            {
+              id: 'imageRef',
+              label: 'Image Reference',
+              type: 'text',
+              required: true,
+              description:
+                'Container image to scan (e.g., nginx:latest, 123456.dkr.ecr.us-east-1.amazonaws.com/app:v1)',
+            },
+          ],
+        }),
+        makeNode(trivy, 'scanner.trivy', 'Trivy Image Scan', 400, 0, {
+          scanType: 'image',
+        }),
+        makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 800, 0),
+        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
+      ],
+      edges: [
+        // Entry Point → Trivy: pass image reference
+        makeEdge('e1', entryPoint, trivy, 'imageRef', 'imageRef'),
+        // Trivy → Normalize: pass findings
+        makeEdge('e2', trivy, normalize, 'findings', 'rawFindings'),
+        // Normalize → Markdown: pass normalized findings
+        makeEdge('e3', normalize, markdown, 'findings', 'findings'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 0.8 },
+    },
+  };
+}
+
 /**
  * All seed templates. Import and use with the WorkflowTemplatesService to seed the database.
  */
@@ -558,6 +618,7 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
   fullCodeSecurityTemplate(),
   prSecurityGateTemplate(),
   aiCodeReviewTemplate(),
-  awsOrgWideProwlerScanTemplate(),
+  cloudSecurityScanTemplate(),
   attackSurfaceReconTemplate(),
+  containerImageScanTemplate(),
 ];

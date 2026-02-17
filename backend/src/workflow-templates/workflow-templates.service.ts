@@ -14,7 +14,8 @@ import {
   type WorkflowTemplate,
   type NewWorkflowTemplate,
 } from '../database/schema/workflow-templates';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
+import { workflowsTable } from '../database/schema/workflows';
 import { SEED_TEMPLATES } from './seed-templates';
 
 @Injectable()
@@ -47,9 +48,9 @@ export class WorkflowTemplatesService implements OnModuleInit {
       isFeatured: true,
       runCount: 1240,
     },
-    'AWS Org-Wide Prowler Scan': {
-      screenshotUrl: '/templates/aws-prowler-scan.png',
-      isFeatured: false,
+    'Cloud Security Scan': {
+      screenshotUrl: '/templates/cloud-security-scan.png',
+      isFeatured: true,
       runCount: 310,
     },
     'Attack Surface Recon': {
@@ -84,6 +85,9 @@ export class WorkflowTemplatesService implements OnModuleInit {
 
         // Backfill metadata for existing templates that lack screenshotUrl
         await this.backfillMetadata(existing);
+
+        // Remove stale default templates no longer in SEED_TEMPLATES
+        await this.removeStaleDefaults(existing);
       }
     } catch (error) {
       // Table may not exist yet if migration hasn't run — that's OK
@@ -128,6 +132,29 @@ export class WorkflowTemplatesService implements OnModuleInit {
         .where(eq(workflowTemplatesTable.id, template.id));
     }
     this.logger.log('Backfill complete');
+  }
+
+  private async removeStaleDefaults(existing: WorkflowTemplate[]) {
+    const seedNames = new Set(SEED_TEMPLATES.map((t) => t.name));
+    const stale = existing.filter((t) => t.isDefault && !seedNames.has(t.name));
+    if (stale.length === 0) return;
+
+    const staleIds = stale.map((t) => t.id);
+    this.logger.log(
+      `Removing ${stale.length} stale default template(s): ${stale.map((t) => t.name).join(', ')}`,
+    );
+
+    // Delete system workflows referencing these templates first
+    await this.db
+      .delete(workflowsTable)
+      .where(and(eq(workflowsTable.isSystem, true), inArray(workflowsTable.templateId, staleIds)));
+
+    // Delete the stale templates
+    for (const id of staleIds) {
+      await this.db.delete(workflowTemplatesTable).where(eq(workflowTemplatesTable.id, id));
+    }
+
+    this.logger.log('Stale default templates removed');
   }
 
   async list(): Promise<WorkflowTemplate[]> {

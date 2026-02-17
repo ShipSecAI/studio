@@ -88,6 +88,20 @@ const inputSchema = inputs({
       connectionType: { kind: 'primitive', name: 'text' },
     },
   ),
+  orgScan: port(
+    z
+      .boolean()
+      .optional()
+      .describe(
+        'When true, discovers all org accounts and scans each one. Overrides the orgScan parameter when connected.',
+      ),
+    {
+      label: 'Org-Wide Scan',
+      description:
+        'Pass true from an upstream node (e.g. integration trigger) to enable org-wide scanning. Overrides the parameter toggle when connected.',
+      connectionType: { kind: 'primitive', name: 'boolean' },
+    },
+  ),
 });
 
 // ---------------------------------------------------------------------------
@@ -1089,7 +1103,10 @@ const definition = defineComponent({
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
 
-    if (parsedParams.orgScan) {
+    // Input-level orgScan (from upstream node) takes precedence over the parameter toggle
+    const isOrgScan = inputs.orgScan ?? parsedParams.orgScan;
+
+    if (isOrgScan) {
       return executeOrgScan({ inputs, params }, context);
     }
     return executeSingleAccountScan({ inputs, params }, context);
