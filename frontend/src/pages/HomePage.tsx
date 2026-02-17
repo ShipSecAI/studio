@@ -11,7 +11,7 @@ import { api } from '@/services/api';
 
 // Lazy-load the heavy SecurityDashboardContent (pulls in recharts, markdown-it, etc.)
 const SecurityDashboardContent = lazy(() =>
-  import('@/pages/AwsSecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
+  import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
 );
 import { BUILT_IN_VIEWS } from '@/config/securityViews';
 import { Clock } from 'lucide-react';

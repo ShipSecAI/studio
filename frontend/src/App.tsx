@@ -103,6 +103,9 @@ const IntegrationDetailPage = lazy(() =>
 const AwsSecurityDashboard = lazy(() =>
   import('@/pages/AwsSecurityDashboard').then((m) => ({ default: m.AwsSecurityDashboard })),
 );
+const SecurityDashboard = lazy(() =>
+  import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
+);
 
 // Lazy-load CommandPalette — it pulls in the entire lucide-react barrel (~350KB)
 const CommandPalette = lazy(() =>
@@ -244,64 +247,83 @@ function App() {
               <PostHogClerkBridge />
               <AppLayout>
                 <ProtectedRoute>
-                  <Routes>
-                    <Route path="/" element={<WorkflowList />} />
-                    <Route
-                      path="/workflows/:id"
-                      element={
-                        <ProtectedRoute>
-                          <WorkflowBuilder />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/workflows/:id/runs"
-                      element={
-                        <ProtectedRoute>
-                          <WorkflowBuilder />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/workflows/:id/runs/:runId"
-                      element={
-                        <ProtectedRoute>
-                          <WorkflowBuilder />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route path="/secrets" element={<SecretsManager />} />
-                    <Route path="/api-keys" element={<ApiKeysManager />} />
-                    <Route path="/integrations" element={<IntegrationsManager />} />
-                    <Route path="/integrations/github" element={<GitHubPage />} />
-                    <Route
-                      path="/integrations/github/triggers/new"
-                      element={<CreateTriggerRulePage />}
-                    />
-                    <Route
-                      path="/integrations/github/triggers/:id"
-                      element={<EditTriggerRulePage />}
-                    />
-                    <Route path="/integrations/github/scans/:id" element={<ScanResultPage />} />
-                    <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
-                    <Route path="/webhooks" element={<WebhooksPage />} />
-                    <Route path="/webhooks/new" element={<WebhookEditorPage />} />
-                    <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
-                    <Route path="/webhooks/:id/deliveries" element={<WebhookEditorPage />} />
-                    <Route path="/webhooks/:id/settings" element={<WebhookEditorPage />} />
-                    <Route path="/schedules" element={<SchedulesPage />} />
-                    <Route path="/action-center" element={<ActionCenterPage />} />
-                    <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
-                    <Route path="/dashboards/aws-security" element={<AwsSecurityDashboard />} />
-                    <Route path="/artifacts" element={<ArtifactLibrary />} />
-                    <Route path="/mcp-library" element={<McpLibraryPage />} />
-                    <Route path="/runs/:runId" element={<RunRedirect />} />
-                    <Route
-                      path="/integrations/callback/:provider"
-                      element={<IntegrationCallback />}
-                    />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
+                  <Suspense
+                    fallback={
+                      <div className="container py-6 space-y-6">
+                        <div className="flex items-center justify-between">
+                          <Skeleton className="h-8 w-48" />
+                          <Skeleton className="h-9 w-28" />
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <Skeleton className="h-28 rounded-lg" />
+                          <Skeleton className="h-28 rounded-lg" />
+                          <Skeleton className="h-28 rounded-lg" />
+                        </div>
+                        <Skeleton className="h-64 rounded-lg" />
+                      </div>
+                    }
+                  >
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/builder" element={<WorkflowList />} />
+                      <Route path="/templates" element={<WorkflowTemplatesPage />} />
+                      <Route
+                        path="/workflows/:id"
+                        element={
+                          <ProtectedRoute>
+                            <WorkflowBuilder />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/workflows/:id/runs"
+                        element={
+                          <ProtectedRoute>
+                            <WorkflowBuilder />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/workflows/:id/runs/:runId"
+                        element={
+                          <ProtectedRoute>
+                            <WorkflowBuilder />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route path="/secrets" element={<SecretsManager />} />
+                      <Route path="/api-keys" element={<ApiKeysManager />} />
+                      <Route path="/integrations" element={<IntegrationsManager />} />
+                      <Route path="/integrations/github" element={<GitHubPage />} />
+                      <Route
+                        path="/integrations/github/triggers/new"
+                        element={<CreateTriggerRulePage />}
+                      />
+                      <Route
+                        path="/integrations/github/triggers/:id"
+                        element={<EditTriggerRulePage />}
+                      />
+                      <Route path="/integrations/github/scans/:id" element={<ScanResultPage />} />
+                      <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
+                      <Route path="/webhooks" element={<WebhooksPage />} />
+                      <Route path="/webhooks/new" element={<WebhookEditorPage />} />
+                      <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
+                      <Route path="/webhooks/:id/deliveries" element={<WebhookEditorPage />} />
+                      <Route path="/webhooks/:id/settings" element={<WebhookEditorPage />} />
+                      <Route path="/schedules" element={<SchedulesPage />} />
+                      <Route path="/action-center" element={<ActionCenterPage />} />
+                      <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
+                      <Route path="/dashboards/security" element={<SecurityDashboard />} />
+                      <Route path="/artifacts" element={<ArtifactLibrary />} />
+                      <Route path="/mcp-library" element={<McpLibraryPage />} />
+                      <Route path="/runs/:runId" element={<RunRedirect />} />
+                      <Route
+                        path="/integrations/callback/:provider"
+                        element={<IntegrationCallback />}
+                      />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Suspense>
                 </ProtectedRoute>
               </AppLayout>
             </CommandPaletteProvider>
