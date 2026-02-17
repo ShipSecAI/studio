@@ -42,6 +42,11 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.name }}
               key: MINIO_SECRET_KEY
+        - name: SECRET_STORE_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: SECRET_STORE_MASTER_KEY
         {{- if eq .Values.execution.mode "k8s" }}
         - name: EXECUTION_MODE
           value: "k8s"

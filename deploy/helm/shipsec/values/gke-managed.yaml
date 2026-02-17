@@ -14,6 +14,7 @@ secrets:
   databaseUrl: 'postgresql://shipsec:shipsec-dev-2026@10.25.225.3:5432/shipsec'
   minioRootUser: minioadmin
   minioRootPassword: minioadmin
+  secretStoreMasterKey: '0123456789abcdef0123456789abcdef'
 
 backend:
   image:
@@ -44,7 +45,7 @@ backend:
 worker:
   image:
     repository: us-central1-docker.pkg.dev/shipsec/shipsec-studio/worker
-    tag: f1b15727-wk-amd64-v3
+    tag: 49d5de9a-wk-fix2-20260218003437
   env:
     NODE_ENV: production
     SHIPSEC_ENV: local

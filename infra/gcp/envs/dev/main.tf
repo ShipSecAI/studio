@@ -274,6 +274,27 @@ resource "google_storage_bucket" "volumes" {
   }
 }
 
+# GCP SA for the worker pod (Workload Identity → GCS SDK access)
+resource "google_service_account" "worker" {
+  project      = var.project_id
+  account_id   = "shipsec-worker"
+  display_name = "ShipSec Worker"
+}
+
+# Workload Identity: shipsec-workers/shipsec-worker KSA → shipsec-worker GCP SA
+resource "google_service_account_iam_member" "worker_wi" {
+  service_account_id = google_service_account.worker.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[shipsec-workers/shipsec-worker]"
+}
+
+# Worker SA → volumes bucket access (reads inputs, reads outputs via SDK)
+resource "google_storage_bucket_iam_member" "worker_volumes" {
+  bucket = google_storage_bucket.volumes.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.worker.email}"
+}
+
 # GCP SA for job pods (mounted via GCS FUSE CSI)
 resource "google_service_account" "job_runner" {
   project      = var.project_id
@@ -348,4 +369,8 @@ output "gcs_volumes_bucket" {
 
 output "job_runner_sa_email" {
   value = google_service_account.job_runner.email
+}
+
+output "worker_sa_email" {
+  value = google_service_account.worker.email
 }
