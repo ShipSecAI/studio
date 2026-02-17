@@ -27,7 +27,7 @@ export function SecurityTabBar() {
   const setViewFilter = useSecurityDashboardStore((s) => s.setViewFilter);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // On mount: sync ?view= param to store (no param = home)
+  // Sync ?view= param to store whenever URL changes (no param = home)
   useEffect(() => {
     const viewParam = searchParams.get('view');
     const targetViewId = viewParam ?? 'home';
@@ -43,8 +43,7 @@ export function SecurityTabBar() {
         setViewFilter(view.baseFilter);
       }
     }
-    // Only run on mount
-  }, []);
+  }, [searchParams]);
 
   const updateUrlParam = (viewId: string) => {
     setSearchParams(
