@@ -11,3 +11,6 @@ node_modules/
 
 # Generated files
 *.generated.ts
+
+# GitHub Actions (uses ${{ }} template syntax)
+.github/workflows/
