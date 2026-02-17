@@ -554,7 +554,7 @@ function attackSurfaceReconTemplate(): SeedTemplate {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Template 9: Container Image Scan
-// Entry Point → Trivy (image scan) → Normalize → Markdown
+// Entry Point → Trivy (image scan) → Normalize → [Markdown, Analytics]
 // ──────────────────────────────────────────────────────────────────────────────
 function containerImageScanTemplate(): SeedTemplate {
   resetCounter();
@@ -562,6 +562,7 @@ function containerImageScanTemplate(): SeedTemplate {
   const trivy = nid('node');
   const normalize = nid('node');
   const markdown = nid('node');
+  const analytics = nid('node');
 
   return {
     name: 'Container Image Scan',
@@ -593,7 +594,8 @@ function containerImageScanTemplate(): SeedTemplate {
           scanType: 'image',
         }),
         makeNode(normalize, 'security.findings.normalize', 'Normalize Findings', 800, 0),
-        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, 0),
+        makeNode(markdown, 'security.findings.markdown', 'Findings Report', 1200, -100),
+        makeNode(analytics, 'core.analytics.sink', 'Analytics Sink', 1200, 100),
       ],
       edges: [
         // Entry Point → Trivy: pass image reference
@@ -602,8 +604,10 @@ function containerImageScanTemplate(): SeedTemplate {
         makeEdge('e2', trivy, normalize, 'findings', 'rawFindings'),
         // Normalize → Markdown: pass normalized findings
         makeEdge('e3', normalize, markdown, 'findings', 'findings'),
+        // Normalize → Analytics: index findings
+        makeEdge('e4', normalize, analytics, 'findings', 'input1'),
       ],
-      viewport: { x: 0, y: 0, zoom: 0.8 },
+      viewport: { x: 0, y: 0, zoom: 0.7 },
     },
   };
 }

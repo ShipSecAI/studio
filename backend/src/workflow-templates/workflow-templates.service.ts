@@ -58,6 +58,11 @@ export class WorkflowTemplatesService implements OnModuleInit {
       isFeatured: true,
       runCount: 430,
     },
+    'Container Image Scan': {
+      screenshotUrl: '/templates/container-image-scan.png',
+      isFeatured: true,
+      runCount: 180,
+    },
   };
 
   async onModuleInit() {
