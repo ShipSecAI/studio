@@ -1,3 +1,6 @@
+/* Fonts loaded via <link> in index.html for non-blocking rendering */
+
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
