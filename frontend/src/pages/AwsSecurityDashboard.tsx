@@ -516,14 +516,16 @@ export function SecurityDashboardContent() {
     }
   }, []);
 
-  // Sync filters → URL (preserve view param managed by wrapper)
+  // Sync filters → URL (preserve view param from store, not URL — avoids race
+  // condition where SecurityTabBar's setSearchParams hasn't committed yet)
   useEffect(() => {
     setSearchParams(
-      (prev) => {
+      () => {
         const params = new URLSearchParams();
-        // Preserve view param from wrapper
-        const viewParam = prev.get('view');
-        if (viewParam) params.set('view', viewParam);
+        const currentViewId = useSecurityViewStore.getState().activeViewId;
+        if (currentViewId && currentViewId !== 'home') {
+          params.set('view', currentViewId);
+        }
 
         if (filters.account) params.set('account', filters.account);
         if (filters.severity.length) params.set('severity', filters.severity.join(','));

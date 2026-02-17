@@ -41,6 +41,32 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
 
+// Thin loading bar shown during lazy-loaded route transitions.
+// React Router v7 wraps navigations in startTransition, so React 19
+// keeps the old page visible instead of showing the Suspense fallback.
+// This component detects pending transitions via location.key changes.
+function NavigationProgress() {
+  const location = useLocation();
+  const [isPending, startTransition] = React.useTransition();
+  const [navKey, setNavKey] = useState(location.key);
+
+  useEffect(() => {
+    if (location.key !== navKey) {
+      startTransition(() => {
+        setNavKey(location.key);
+      });
+    }
+  }, [location.key, navKey, startTransition]);
+
+  if (!isPending) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 h-0.5 bg-primary/20 z-[200] overflow-hidden">
+      <div className="h-full w-1/3 bg-primary animate-[loading-bar_1.5s_ease-in-out_infinite]" />
+    </div>
+  );
+}
+
 interface AppLayoutProps {
   children: React.ReactNode;
 }
@@ -381,6 +407,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <SidebarContext.Provider value={sidebarContextValue}>
       <ThemeTransition />
+      <NavigationProgress />
       <div className="flex h-screen bg-background overflow-hidden">
         {/* Mobile backdrop overlay */}
         {isMobile && sidebarOpen && (

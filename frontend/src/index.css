@@ -12,6 +12,11 @@
   }
 }
 
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
