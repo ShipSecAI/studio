@@ -395,7 +395,7 @@ export function PublishTemplateModal({
             Publish as Template
           </DialogTitle>
           <DialogDescription>
-            Submit your workflow as a template to the GitHub repository.
+            Submit your workflow as a template via a GitHub pull request.
           </DialogDescription>
         </DialogHeader>
 
@@ -408,7 +408,12 @@ export function PublishTemplateModal({
               </div>
               <div>
                 <h3 className="text-lg font-semibold">Template Ready for Submission!</h3>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
+                  Templates are submitted as pull requests to our GitHub repository. A GitHub editor
+                  has opened in a new tab &mdash; paste the template code there to propose your
+                  changes.
+                </p>
+                <p className="text-sm font-medium mt-2">
                   {copied
                     ? 'Template code has been copied to your clipboard.'
                     : 'Copy the template code below and paste it in the GitHub editor.'}
