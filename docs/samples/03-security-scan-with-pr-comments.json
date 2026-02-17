@@ -174,15 +174,15 @@
       "id": "edge-clone-to-opengrep",
       "source": "clone-repo",
       "target": "opengrep-scanner",
-      "sourceHandle": "volumePath",
-      "targetHandle": "volumePath"
+      "sourceHandle": "volumeName",
+      "targetHandle": "volumeName"
     },
     {
       "id": "edge-clone-to-trufflehog",
       "source": "clone-repo",
       "target": "trufflehog-scanner",
-      "sourceHandle": "volumePath",
-      "targetHandle": "volumePath"
+      "sourceHandle": "volumeName",
+      "targetHandle": "volumeName"
     },
     {
       "id": "edge-opengrep-to-log",
