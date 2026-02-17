@@ -36,6 +36,7 @@ import { WorkflowRunRepository } from './repository/workflow-run.repository';
 import { WorkflowVersionRepository } from './repository/workflow-version.repository';
 import { TraceRepository } from '../trace/trace.repository';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { SystemWorkflowsService } from './system-workflows.service';
 import {
   ExecutionStatus,
   FailureSummary,
@@ -55,6 +56,8 @@ export interface WorkflowSummaryResponse {
   name: string;
   description: string | null;
   organizationId: string | null;
+  isSystem: boolean;
+  templateId: string | null;
   lastRun: string | null;
   latestRunStatus: string | null;
   runCount: number;
@@ -156,6 +159,7 @@ export class WorkflowsService {
     private readonly traceRepository: TraceRepository,
     private readonly temporalService: TemporalService,
     private readonly analyticsService: AnalyticsService,
+    private readonly systemWorkflowsService: SystemWorkflowsService,
     @Optional()
     @Inject('GitHubAppService')
     private readonly githubAppService?: {
@@ -565,6 +569,14 @@ export class WorkflowsService {
 
   async listSummary(auth?: AuthContext | null): Promise<WorkflowSummaryResponse[]> {
     const organizationId = this.requireOrganizationId(auth);
+
+    // Ensure system workflows exist for this org (idempotent, fast if already created)
+    try {
+      await this.systemWorkflowsService.ensureSystemWorkflows(organizationId);
+    } catch (err) {
+      this.logger.warn('Failed to ensure system workflows', err);
+    }
+
     const records = await this.repository.listSummary({ organizationId });
     return records.map((record) => ({
       ...record,
