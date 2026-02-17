@@ -84,7 +84,7 @@ const VOLUME_CAPTURE_SCRIPT = [
   '    echo "___FILE_END___"',
   '  done',
   'done',
-].join('; ');
+].join('\n');
 
 /**
  * Build the command wrapper that emits the output file to stdout.
@@ -711,7 +711,13 @@ async function waitForGcsFuseFlush(
 
   while (Date.now() < deadline) {
     const pod = await core.readNamespacedPod({ name: podName, namespace });
-    const sidecar = pod.status?.containerStatuses?.find((c) => c.name === 'gke-gcsfuse-sidecar');
+    // GCS FUSE sidecar may appear in containerStatuses (K8s ≥1.28 native sidecar)
+    // or initContainerStatuses (older injection approach)
+    const allStatuses = [
+      ...(pod.status?.containerStatuses ?? []),
+      ...(pod.status?.initContainerStatuses ?? []),
+    ];
+    const sidecar = allStatuses.find((c) => c.name === 'gke-gcsfuse-sidecar');
 
     if (!sidecar) {
       // No sidecar found — GCS FUSE may not have been injected, skip wait
