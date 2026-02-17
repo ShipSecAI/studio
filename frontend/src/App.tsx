@@ -1,22 +1,6 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { ChatInterface } from '@/pages/ChatInterface';
-import { WorkflowList } from '@/pages/WorkflowList';
-import { WorkflowBuilder } from '@/features/workflow-builder/WorkflowBuilder';
-import { SecretsManager } from '@/pages/SecretsManager';
-import { ApiKeysManager } from '@/pages/ApiKeysManager';
-import { IntegrationsManager } from '@/pages/IntegrationsManager';
-import { ArtifactLibrary } from '@/pages/ArtifactLibrary';
-import { McpLibraryPage } from '@/pages/McpLibraryPage';
-import { IntegrationCallback } from '@/pages/IntegrationCallback';
-import { NotFound } from '@/pages/NotFound';
-import { WebhooksPage } from '@/pages/WebhooksPage';
-import { WebhookEditorPage } from '@/pages/WebhookEditorPage';
-import { SchedulesPage } from '@/pages/SchedulesPage';
-import { ActionCenterPage } from '@/pages/ActionCenterPage';
-import { RunRedirect } from '@/pages/RunRedirect';
-import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
 import { ToastProvider } from '@/components/ui/toast-provider';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthProvider } from '@/auth/auth-context';
 import { useAuthStoreIntegration } from '@/auth/store-integration';
@@ -24,6 +8,53 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AnalyticsRouterListener } from '@/features/analytics/AnalyticsRouterListener';
 import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge';
 import { CommandPalette, useCommandPaletteKeyboard } from '@/features/command-palette';
+
+// Lazy-loaded page components
+const WorkflowList = lazy(() =>
+  import('@/pages/WorkflowList').then((m) => ({ default: m.WorkflowList })),
+);
+const WorkflowBuilder = lazy(() =>
+  import('@/features/workflow-builder/WorkflowBuilder').then((m) => ({
+    default: m.WorkflowBuilder,
+  })),
+);
+const SecretsManager = lazy(() =>
+  import('@/pages/SecretsManager').then((m) => ({ default: m.SecretsManager })),
+);
+const ApiKeysManager = lazy(() =>
+  import('@/pages/ApiKeysManager').then((m) => ({ default: m.ApiKeysManager })),
+);
+const IntegrationsManager = lazy(() =>
+  import('@/pages/IntegrationsManager').then((m) => ({ default: m.IntegrationsManager })),
+);
+const ArtifactLibrary = lazy(() =>
+  import('@/pages/ArtifactLibrary').then((m) => ({ default: m.ArtifactLibrary })),
+);
+const McpLibraryPage = lazy(() =>
+  import('@/pages/McpLibraryPage').then((m) => ({ default: m.McpLibraryPage })),
+);
+const IntegrationCallback = lazy(() =>
+  import('@/pages/IntegrationCallback').then((m) => ({ default: m.IntegrationCallback })),
+);
+const NotFound = lazy(() => import('@/pages/NotFound').then((m) => ({ default: m.NotFound })));
+const WebhooksPage = lazy(() =>
+  import('@/pages/WebhooksPage').then((m) => ({ default: m.WebhooksPage })),
+);
+const WebhookEditorPage = lazy(() =>
+  import('@/pages/WebhookEditorPage').then((m) => ({ default: m.WebhookEditorPage })),
+);
+const SchedulesPage = lazy(() =>
+  import('@/pages/SchedulesPage').then((m) => ({ default: m.SchedulesPage })),
+);
+const ActionCenterPage = lazy(() =>
+  import('@/pages/ActionCenterPage').then((m) => ({ default: m.ActionCenterPage })),
+);
+const RunRedirect = lazy(() =>
+  import('@/pages/RunRedirect').then((m) => ({ default: m.RunRedirect })),
+);
+const AnalyticsSettingsPage = lazy(() =>
+  import('@/pages/AnalyticsSettingsPage').then((m) => ({ default: m.AnalyticsSettingsPage })),
+);
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration();
@@ -46,16 +77,21 @@ function App() {
       <AuthIntegration>
         <ToastProvider>
           <BrowserRouter>
-            <TooltipProvider>
-              <CommandPaletteProvider>
-                {/* Analytics wiring */}
-                <AnalyticsRouterListener />
-                <PostHogClerkBridge />
-                <AppLayout>
-                  <ProtectedRoute>
+            <CommandPaletteProvider>
+              {/* Analytics wiring */}
+              <AnalyticsRouterListener />
+              <PostHogClerkBridge />
+              <AppLayout>
+                <ProtectedRoute>
+                  <Suspense
+                    fallback={
+                      <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                      </div>
+                    }
+                  >
                     <Routes>
-                      <Route path="/" element={<ChatInterface />} />
-                      <Route path="/workflows" element={<WorkflowList />} />
+                      <Route path="/" element={<WorkflowList />} />
                       <Route
                         path="/workflows/:id"
                         element={
@@ -100,10 +136,10 @@ function App() {
                       />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
-                  </ProtectedRoute>
-                </AppLayout>
-              </CommandPaletteProvider>
-            </TooltipProvider>
+                  </Suspense>
+                </ProtectedRoute>
+              </AppLayout>
+            </CommandPaletteProvider>
           </BrowserRouter>
         </ToastProvider>
       </AuthIntegration>

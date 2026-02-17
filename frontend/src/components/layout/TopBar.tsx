@@ -274,7 +274,7 @@ export function TopBar({
     );
 
   return (
-    <div className="h-14 border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
+    <div className="min-h-[56px] md:min-h-[60px] border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
       <Button
         variant="ghost"
         size="icon"

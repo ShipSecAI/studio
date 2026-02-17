@@ -12,6 +12,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
 
@@ -161,6 +164,11 @@ const outputSchema = outputs({
   subdomainCount: port(z.number(), {
     label: 'Subdomain Count',
     description: 'Number of unique subdomains discovered.',
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
 });
 
@@ -371,8 +379,19 @@ const definition = defineComponent({
 
       const deduped = Array.from(new Set(subdomains));
 
+      // Build analytics-ready results with scanner metadata
+      const analyticsResults: AnalyticsResult[] = deduped.map((subdomain) => ({
+        scanner: 'shuffledns',
+        finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
+        severity: 'info' as const,
+        asset_key: subdomain,
+        subdomain,
+        parent_domains: domains,
+      }));
+
       return outputSchema.parse({
         subdomains: deduped,
+        results: analyticsResults,
         rawOutput,
         domainCount: domains.length,
         subdomainCount: deduped.length,
@@ -397,17 +416,31 @@ const definition = defineComponent({
             .map((line) => line.trim())
             .filter((line) => line.length > 0);
 
+      const deduped = Array.from(new Set(subdomainsValue));
+
+      // Build analytics-ready results
+      const analyticsResults: AnalyticsResult[] = deduped.map((subdomain) => ({
+        scanner: 'shuffledns',
+        finding_hash: generateFindingHash('subdomain-discovery', subdomain, domains.join(',')),
+        severity: 'info' as const,
+        asset_key: subdomain,
+        subdomain,
+        parent_domains: domains,
+      }));
+
       return outputSchema.parse({
-        subdomains: Array.from(new Set(subdomainsValue)),
+        subdomains: deduped,
+        results: analyticsResults,
         rawOutput: maybeRaw || subdomainsValue.join('\n'),
         domainCount: domains.length,
-        subdomainCount: subdomainsValue.length,
+        subdomainCount: deduped.length,
       });
     }
 
     // Fallback – empty
     return outputSchema.parse({
       subdomains: [],
+      results: [],
       rawOutput: '',
       domainCount: domains.length,
       subdomainCount: 0,

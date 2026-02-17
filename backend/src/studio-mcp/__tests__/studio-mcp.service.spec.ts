@@ -129,7 +129,7 @@ describe('StudioMcpService Unit Tests', () => {
           trigger: {
             type: 'api',
             sourceId: mockAuthContext.userId,
-            label: 'Studio',
+            label: 'Studio MCP',
           },
         },
       );

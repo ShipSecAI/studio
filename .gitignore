@@ -76,8 +76,16 @@ vite.config.ts.timestamp-*
 .omc/
 MCP_FLOW_TRACE.md
 
-# Playwright MCP
-.playwright-mcp/
-
-# Test screenshots
-chat-*.png
+# Terraform / OpenTofu
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl.bak

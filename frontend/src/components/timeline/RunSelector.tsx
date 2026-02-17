@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronDown, Play, Clock, Wifi, RefreshCw, Link2, Loader2 } from 'lucide-react';
+import { ChevronDown, Play, Clock, Wifi, RefreshCw, Link2 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,13 +13,7 @@ import {
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useExecutionStore } from '@/store/executionStore';
 import { useWorkflowStore } from '@/store/workflowStore';
-import {
-  useWorkflowRuns,
-  fetchMoreRuns as fetchMoreRunsFn,
-  type ExecutionRun,
-} from '@/hooks/queries/useRunQueries';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/queryKeys';
+import { useRunStore, type ExecutionRun } from '@/store/runStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -49,37 +43,27 @@ type TriggerFilter = 'all' | 'manual' | 'schedule';
 
 interface RunSelectorProps {
   onRerun?: (runId: string) => void;
-  /** Pre-fetched runs from parent to avoid duplicate useWorkflowRuns calls */
-  runsPage?: { runs: ExecutionRun[]; hasMore: boolean } | null;
-  isLoadingRuns?: boolean;
 }
 
-export function RunSelector({
-  onRerun,
-  runsPage: externalRunsPage,
-  isLoadingRuns: externalIsLoading,
-}: RunSelectorProps = {}) {
+export function RunSelector({ onRerun }: RunSelectorProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [triggerFilter, setTriggerFilter] = useState<TriggerFilter>('all');
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { id: routeWorkflowId, runId: routeRunId } = useParams<{ id?: string; runId?: string }>();
   const { toast } = useToast();
-  const { selectedRunId, playbackMode, selectRun } = useExecutionTimelineStore();
+  const { selectedRunId, playbackMode, selectRun, switchToLiveMode } = useExecutionTimelineStore();
   const workflowMetadata = useWorkflowStore((state) => state.metadata);
   const workflowId = workflowMetadata.id;
   const targetWorkflowId = routeWorkflowId ?? workflowId;
   const currentWorkflowVersion = workflowMetadata.currentVersion;
-  const queryClient = useQueryClient();
-  // Skip internal fetch when parent provides data — avoids duplicate network requests
-  const { data: internalRunsData, isLoading: internalIsLoading } = useWorkflowRuns(
-    externalRunsPage !== undefined ? undefined : targetWorkflowId,
-  );
-  const runsData = externalRunsPage ?? internalRunsData;
-  const isLoadingRuns = externalIsLoading ?? internalIsLoading;
-  const runs = runsData?.runs ?? [];
-  const hasMoreRuns = runsData?.hasMore ?? true;
+  const workflowCacheKey = targetWorkflowId ?? '__global__';
+  const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs);
+  const runs = scopedRuns ?? [];
+  const fetchRuns = useRunStore((state) => state.fetchRuns);
+  const fetchMoreRuns = useRunStore((state) => state.fetchMoreRuns);
+  const isLoadingRuns = useRunStore((state) => state.cache[workflowCacheKey]?.isLoading) ?? false;
+  const hasMoreRuns = useRunStore((state) => state.cache[workflowCacheKey]?.hasMore) ?? true;
 
   const mode = useWorkflowUiStore((state) => state.mode);
 
@@ -138,7 +122,13 @@ export function RunSelector({
     [filteredRunsByTrigger],
   );
 
-  // Runs auto-fetched by useWorkflowRuns()
+  // Load runs on mount
+  useEffect(() => {
+    if (!targetWorkflowId) {
+      return;
+    }
+    fetchRuns({ workflowId: targetWorkflowId }).catch(() => undefined);
+  }, [fetchRuns, targetWorkflowId]);
 
   // Auto-load a live run if it exists and nothing is selected
   useEffect(() => {
@@ -198,10 +188,13 @@ export function RunSelector({
     const interval = window.setInterval(() => {
       // Poll runs while in execution mode; skip navigation churn in design
       if (mode === 'execution') {
-        const queryKey = targetWorkflowId
-          ? queryKeys.runs.byWorkflow(targetWorkflowId)
-          : queryKeys.runs.global();
-        queryClient.invalidateQueries({ queryKey });
+        // Read current cache size directly from the store to avoid stale closure
+        const currentCount = useRunStore.getState().cache[workflowCacheKey]?.runs?.length ?? 0;
+        fetchRuns({
+          workflowId: targetWorkflowId,
+          force: true,
+          limit: Math.max(currentCount, 5),
+        }).catch(() => undefined);
       }
     }, 10000);
     return () => window.clearInterval(interval);
@@ -209,7 +202,7 @@ export function RunSelector({
     targetWorkflowId,
     currentLiveRunId,
     liveRuns.length,
-    queryClient,
+    fetchRuns,
     routeWorkflowId,
     workflowId,
     mode,
@@ -264,8 +257,7 @@ export function RunSelector({
 
   const handleSwitchToLive = () => {
     if (currentLiveRunId) {
-      // Use selectRun with 'live' mode — it already calls loadTimeline internally.
-      // Don't also call switchToLiveMode() which would trigger a second loadTimeline.
+      switchToLiveMode();
       void selectRun(currentLiveRunId, 'live');
       navigateToRun(currentLiveRunId);
       setIsOpen(false);
@@ -474,25 +466,13 @@ export function RunSelector({
                   variant="ghost"
                   size="sm"
                   className="w-full text-xs text-muted-foreground"
-                  disabled={isLoadingMore}
-                  onClick={async (event) => {
+                  disabled={isLoadingRuns}
+                  onClick={(event) => {
                     event.preventDefault();
-                    setIsLoadingMore(true);
-                    try {
-                      await fetchMoreRunsFn(targetWorkflowId);
-                    } finally {
-                      setIsLoadingMore(false);
-                    }
+                    fetchMoreRuns(targetWorkflowId);
                   }}
                 >
-                  {isLoadingMore ? (
-                    <>
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      Loading…
-                    </>
-                  ) : (
-                    'Load more runs'
-                  )}
+                  {isLoadingRuns ? 'Loading…' : 'Load more runs'}
                 </Button>
               ) : (
                 <p className="text-center text-xs text-muted-foreground py-1">

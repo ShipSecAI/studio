@@ -16,7 +16,6 @@ export interface WorkflowSummaryRecord {
   description: string | null;
   organizationId: string | null;
   lastRun: Date | null;
-  latestRunStatus: string | null;
   runCount: number;
   nodeCount: number;
   createdAt: Date;
@@ -153,12 +152,6 @@ export class WorkflowRepository {
       description: workflowsTable.description,
       organizationId: workflowsTable.organizationId,
       lastRun: workflowsTable.lastRun,
-      latestRunStatus: sql<string | null>`(
-        SELECT wr.status FROM workflow_runs wr
-        WHERE wr.workflow_id = ${workflowsTable.id}
-        ORDER BY wr.created_at DESC
-        LIMIT 1
-      )`.as('latest_run_status'),
       runCount: workflowsTable.runCount,
       nodeCount: sql<number>`coalesce(jsonb_array_length(${workflowsTable.graph}->'nodes'), 0)`.as(
         'node_count',

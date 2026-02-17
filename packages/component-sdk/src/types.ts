@@ -15,7 +15,7 @@ import type { HttpInstrumentationOptions, HttpRequestInput } from './http/types'
 
 export type { ExecutionContextMetadata } from './interfaces';
 
-export type RunnerKind = 'inline' | 'docker' | 'remote';
+export type RunnerKind = 'inline' | 'docker' | 'remote' | 'k8s';
 
 export interface InlineRunnerConfig {
   kind: 'inline';
@@ -332,8 +332,7 @@ export type ComponentParameterType =
   | 'variable-list'
   | 'form-fields'
   | 'selection-options'
-  | 'analytics-inputs'
-  | 'tags';
+  | 'analytics-inputs';
 
 export interface ComponentParameterOption {
   label: string;

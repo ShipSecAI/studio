@@ -11,7 +11,7 @@ import {
   param,
 } from '@shipsec/component-sdk';
 import { LLMProviderSchema, llmProviderContractName } from '@shipsec/contracts';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 import { DEFAULT_GATEWAY_URL, getGatewaySessionToken } from './utils';
 
 const inputSchema = inputs({
@@ -52,32 +52,6 @@ const inputSchema = inputs({
     reason: 'Tool-mode port acts as a graph anchor; payloads are not consumed directly.',
     connectionType: { kind: 'contract', name: 'mcp.tool' },
   }),
-  supplementaryA: port(
-    z
-      .string()
-      .optional()
-      .describe('Additional data written to /workspace/supplementary-a.txt for the agent.'),
-    {
-      label: 'Supplementary Input A',
-      description:
-        'Optional text/data (e.g. scanner findings) written to a workspace file the agent can read.',
-      allowAny: true,
-      reason: 'Accepts any stringifiable data for the agent workspace.',
-    },
-  ),
-  supplementaryB: port(
-    z
-      .string()
-      .optional()
-      .describe('Additional data written to /workspace/supplementary-b.txt for the agent.'),
-    {
-      label: 'Supplementary Input B',
-      description:
-        'Optional text/data (e.g. scanner findings) written to a workspace file the agent can read.',
-      allowAny: true,
-      reason: 'Accepts any stringifiable data for the agent workspace.',
-    },
-  ),
 });
 
 const parameterSchema = parameters({
@@ -154,7 +128,7 @@ const definition = defineComponent({
     },
   },
   async execute({ inputs, params }, context) {
-    const { task, context: taskContext, model, supplementaryA, supplementaryB } = inputs;
+    const { task, context: taskContext, model } = inputs;
     const { systemPrompt, providerConfig } = params;
 
     const { connectedToolNodeIds, organizationId } = context.metadata;
@@ -260,20 +234,21 @@ Please investigate the issue and generate a detailed report.
       finalPrompt = defaultPrompt.replace('{{TASK}}', task);
     }
 
-    // Append supplementary file references to the prompt
-    const suppFiles: string[] = [];
-    if (supplementaryA) suppFiles.push('/workspace/supplementary-a.txt');
-    if (supplementaryB) suppFiles.push('/workspace/supplementary-b.txt');
-    if (suppFiles.length > 0) {
-      finalPrompt += `\n\n# Additional Data Files\n${suppFiles.map((f) => `- ${f}`).join('\n')}`;
-    }
+    // Ask the agent to list available MCP tools first (best-effort).
+    finalPrompt =
+      `${finalPrompt}\n\n# MCP Tools\n` +
+      `Before you start, list the MCP tools you can see. If none are available, say so explicitly.`;
 
     // 4. Setup Isolated Volume
     const tenantId = (context as any).tenantId ?? 'default-tenant';
-    const volume = new IsolatedContainerVolume(tenantId, context.runId);
+    const volume = createIsolatedVolume(tenantId, context.runId);
 
     try {
       // 5. Execute Docker Container
+      // HACK: Fail fast after listing tools for faster iteration on MCP tool registration
+      // TODO: Remove this hack once MCP tool registration is working correctly
+      const HACK_FAIL_FAST_AFTER_TOOL_LIST = 'false';
+
       // Write a wrapper script to properly execute opencode with file reading
       // The script runs inside the container, so $(cat /workspace/prompt.txt) works correctly
       // Note: --quiet flag doesn't exist in opencode 1.1.34, use --log-level ERROR instead
@@ -281,26 +256,30 @@ Please investigate the issue and generate a detailed report.
         '#!/bin/sh',
         'set -e',
         'cd /workspace',
-        '# List MCP tools for debugging (stderr only)',
-        'opencode mcp list --log-level ERROR >&2 || true',
-        '# Run the agent — only agent output goes to stdout',
+        'echo "[OpenCode] Listing MCP tools before run..."',
+        'opencode mcp list --log-level ERROR > /tmp/mcp_tools.txt 2>&1',
+        'cat /tmp/mcp_tools.txt',
+        'echo "[OpenCode] === Full tool list output above ==="',
+        // HACK: Exit after listing tools for fast iteration
+        `if [ "${HACK_FAIL_FAST_AFTER_TOOL_LIST}" = "true" ]; then`,
+        '  echo "[OpenCode] HACK: Exiting after tool list for fast iteration"',
+        '  exit 1',
+        'fi',
+        'echo "[OpenCode] Starting agent run..."',
         'opencode run --log-level ERROR "$(cat /workspace/prompt.txt)"',
         '',
       ].join('\n');
 
       const opencodeConfigJson = JSON.stringify(opencodeConfig, null, 2);
-      // Initialize workspace with config, context, prompt, wrapper script, and supplementary files
-      const workspaceFiles: Record<string, string> = {
+      // Initialize workspace with config, context, prompt, and wrapper script
+      await volume.initialize({
         'context.json': contextJson,
         // Opencode prefers opencode.jsonc in cwd; keep opencode.json for backwards compat.
         'opencode.jsonc': opencodeConfigJson,
         'opencode.json': opencodeConfigJson,
         'prompt.txt': finalPrompt,
         'run.sh': wrapperScript,
-      };
-      if (supplementaryA) workspaceFiles['supplementary-a.txt'] = supplementaryA;
-      if (supplementaryB) workspaceFiles['supplementary-b.txt'] = supplementaryB;
-      await volume.initialize(workspaceFiles);
+      });
 
       const runnerConfig = {
         ...definition.runner,
@@ -366,7 +345,7 @@ Please investigate the issue and generate a detailed report.
       }
 
       return outputSchema.parse({
-        report: cleanReport(stdout),
+        report: stdout, // The markdown report is expected in stdout
         rawOutput: `STDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`,
       });
     } finally {
@@ -377,53 +356,6 @@ Please investigate the issue and generate a detailed report.
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Strip debug preamble and OpenCode internal log lines from stdout
- * so only the actual agent-generated report is returned.
- */
-function cleanReport(raw: string): string {
-  const lines = raw.split('\n');
-  let startIdx = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    // Skip [OpenCode] prefixed debug lines
-    if (trimmed.startsWith('[OpenCode]')) {
-      startIdx = i + 1;
-      continue;
-    }
-    // Skip MCP server listing box-drawing characters
-    if (
-      /^[┌│└●◆◇]/.test(trimmed) ||
-      trimmed.includes('MCP Servers') ||
-      /^\d+ server\(s\)/.test(trimmed)
-    ) {
-      startIdx = i + 1;
-      continue;
-    }
-    // Skip leading blank lines after debug output
-    if (startIdx > 0 && trimmed === '') {
-      startIdx = i + 1;
-      continue;
-    }
-    break;
-  }
-
-  let result = lines.slice(startIdx).join('\n').trim();
-
-  // Strip any LLM preamble before the first markdown heading (e.g. "## ...")
-  const headingMatch = result.match(/^(.*?\n)*(#{1,3} )/s);
-  if (headingMatch && headingMatch.index !== undefined && headingMatch.index > 0) {
-    const beforeHeading = result.slice(0, headingMatch.index).trim();
-    // Only strip if the preamble is short (< 500 chars) — avoids removing real content
-    if (beforeHeading.length > 0 && beforeHeading.length < 500) {
-      result = result.slice(result.indexOf(headingMatch[2], headingMatch.index));
-    }
-  }
-
-  return result;
 }
 
 function buildProviderEnv(model?: { provider: string; apiKey?: string }): Record<string, string> {

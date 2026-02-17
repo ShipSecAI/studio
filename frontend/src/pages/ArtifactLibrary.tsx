@@ -1,13 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, RefreshCw, Search, Copy, ExternalLink, Trash2 } from 'lucide-react';
-import {
-  useArtifactLibrary,
-  useDownloadArtifact,
-  useDeleteArtifact,
-} from '@/hooks/queries/useArtifactQueries';
-import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
-import { useQueryClient } from '@tanstack/react-query';
+import { useArtifactStore } from '@/store/artifactStore';
+import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ArtifactMetadata } from '@shipsec/shared';
@@ -33,33 +28,50 @@ const formatTimestamp = (value: string) => {
 
 export function ArtifactLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
-  const queryClient = useQueryClient();
-
-  const searchFilter = searchQuery.trim() || undefined;
   const {
-    data: library = [],
-    isLoading: libraryLoading,
-    error: libraryQueryError,
-  } = useArtifactLibrary(searchFilter ? { search: searchFilter } : undefined);
-  const libraryError = libraryQueryError?.message ?? null;
-
-  const downloadArtifactMutation = useDownloadArtifact();
-  const deleteArtifactMutation = useDeleteArtifact();
+    library,
+    libraryLoading,
+    libraryError,
+    fetchLibrary,
+    downloadArtifact,
+    downloading,
+    deleteArtifact,
+    deleting,
+  } = useArtifactStore();
   const [copiedRemoteUri, setCopiedRemoteUri] = useState<string | null>(null);
+  const [workflows, setWorkflows] = useState<Record<string, string>>({});
 
-  const { data: workflowsRaw = [] } = useWorkflowsSummary();
-  const workflows: Record<string, string> = {};
-  workflowsRaw.forEach((w: any) => {
-    if (w.id) workflows[w.id] = w.name;
-  });
+  useEffect(() => {
+    const loadWorkflows = async () => {
+      try {
+        const list = await api.workflows.listSummary();
+        const map: Record<string, string> = {};
+        list.forEach((w) => {
+          if (w.id) map[w.id] = w.name;
+        });
+        setWorkflows(map);
+      } catch (err) {
+        console.error('Failed to load workflows', err);
+      }
+    };
+    loadWorkflows();
+  }, []);
+
+  useEffect(() => {
+    void fetchLibrary();
+  }, [fetchLibrary]);
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    queryClient.invalidateQueries({ queryKey: ['artifactLibrary'] });
+    void fetchLibrary({
+      search: searchQuery.trim() || undefined,
+    });
   };
 
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['artifactLibrary'] });
+    void fetchLibrary({
+      search: searchQuery.trim() || undefined,
+    });
   };
 
   return (
@@ -149,12 +161,9 @@ export function ArtifactLibrary() {
                     key={artifact.id}
                     artifact={artifact}
                     workflowName={workflows[artifact.workflowId] || 'Unknown Workflow'}
-                    onDownload={() => downloadArtifactMutation.mutate({ artifact })}
-                    onDelete={() => deleteArtifactMutation.mutate(artifact.id)}
-                    isDeleting={
-                      deleteArtifactMutation.isPending &&
-                      deleteArtifactMutation.variables === artifact.id
-                    }
+                    onDownload={() => downloadArtifact(artifact)}
+                    onDelete={() => deleteArtifact(artifact.id)}
+                    isDeleting={Boolean(deleting[artifact.id])}
                     onCopyRemoteUri={async (uri: string) => {
                       try {
                         await navigator.clipboard.writeText(uri);
@@ -167,7 +176,7 @@ export function ArtifactLibrary() {
                       }
                     }}
                     copiedRemoteUri={copiedRemoteUri}
-                    isDownloading={downloadArtifactMutation.isPending}
+                    isDownloading={Boolean(downloading[artifact.id])}
                   />
                 ))}
               </tbody>

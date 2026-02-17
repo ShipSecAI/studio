@@ -43,7 +43,7 @@ The easiest way to run ShipSec Studio on your own infrastructure:
 #### One-Line Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | bash
+curl -fsSL https://get.shipsec.ai | bash
 ```
 
 This installer will:
@@ -91,16 +91,7 @@ Native support for industry-standard security tools including:
 
 - **Discovery**: `Subfinder`, `DNSX`, `Naabu`, `HTTPx`
 - **Vulnerability**: `Nuclei`, `TruffleHog`
-- **CSPM**: `Prowler` for AWS cloud security posture management
 - **Utility**: `JSON Transform`, `Logic Scripts`, `HTTP Requests`
-
-### Cloud & Platform Integrations
-
-First-class integration support with encrypted credential management:
-
-- **AWS**: IAM Role connections with STS AssumeRole, Organization account discovery, cross-account scanning
-- **Slack**: Incoming Webhooks and OAuth App connections for notifications and alerts
-- **Credential Resolution**: Workflow components that securely resolve connection credentials at runtime
 
 ### Advanced Orchestration
 

@@ -1,8 +1,8 @@
 import { useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { env } from '@/config/env';
 import { cn } from '@/lib/utils';
-import { resolvePageTitle } from '@/config/pageTitles';
 
 interface AppTopBarProps {
   title?: string;
@@ -25,18 +25,95 @@ export function AppTopBar({
 }: AppTopBarProps) {
   const location = useLocation();
 
-  // Resolve page info from centralized config, with prop overrides
-  const resolved = resolvePageTitle(location.pathname);
-  const pageInfo = title
-    ? { title, shortTitle: title, subtitle: subtitle ?? '', icon: undefined }
-    : { ...resolved };
+  // Determine page title and navigation based on current route
+  const getPageInfo = () => {
+    if (title) return { title, subtitle };
 
-  const PageIcon = pageInfo.icon;
+    if (location.pathname === '/') {
+      return {
+        title: 'Security Workflow Builder',
+        shortTitle: 'Workflows',
+        subtitle: 'Create and manage security automation workflows',
+      };
+    }
+
+    if (location.pathname.startsWith('/workflows')) {
+      return {
+        title: 'Workflow Builder',
+        shortTitle: 'Builder',
+        subtitle: 'Design and automate security workflows',
+      };
+    }
+
+    if (location.pathname.startsWith('/schedules')) {
+      return {
+        title: 'Workflow Schedules',
+        shortTitle: 'Schedules',
+        subtitle: 'Manage recurring workflow cadences',
+      };
+    }
+
+    if (location.pathname === '/secrets') {
+      return {
+        title: 'Secret Manager',
+        shortTitle: 'Secrets',
+        subtitle: 'Store and manage sensitive credentials',
+      };
+    }
+
+    if (location.pathname === '/webhooks') {
+      return {
+        title: 'Webhooks Manager',
+        shortTitle: 'Webhooks',
+        subtitle: 'Manage and debug incoming webhooks',
+      };
+    }
+
+    if (location.pathname === '/api-keys') {
+      return {
+        title: 'API Keys',
+        shortTitle: 'API Keys',
+        subtitle: 'Manage API keys for workflow triggers',
+      };
+    }
+
+    if (env.VITE_ENABLE_CONNECTIONS && location.pathname === '/integrations') {
+      return {
+        title: 'Connections',
+        shortTitle: 'Connections',
+        subtitle: 'Manage OAuth tokens for external providers',
+      };
+    }
+
+    if (location.pathname === '/artifacts') {
+      return {
+        title: 'Artifact Library',
+        shortTitle: 'Artifacts',
+        subtitle: 'Browse artifacts saved across workflow runs',
+      };
+    }
+
+    if (location.pathname === '/analytics-settings') {
+      return {
+        title: 'Analytics Settings',
+        shortTitle: 'Analytics',
+        subtitle: 'Configure data retention and storage settings',
+      };
+    }
+
+    return {
+      title: 'Security Workflow Builder',
+      shortTitle: 'Workflows',
+      subtitle: 'Create and manage security automation workflows',
+    };
+  };
+
+  const pageInfo = getPageInfo();
 
   return (
     <div
       className={cn(
-        'h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
+        'h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
         'flex items-center px-3 md:px-4 gap-2 md:gap-4 sticky top-0 z-40',
       )}
     >
@@ -76,8 +153,8 @@ export function AppTopBar({
                 <span className="text-xs text-muted-foreground font-medium -mt-1.5">Studio</span>
               </div>
             </Link>
-            {/* Show page title on non-root pages */}
-            {location.pathname !== '/' && (
+            {/* Show page title on non-workflow pages */}
+            {location.pathname !== '/' && !location.pathname.startsWith('/workflows') && (
               <>
                 <span className="text-muted-foreground">|</span>
                 <span className="font-medium text-sm truncate">
@@ -87,11 +164,8 @@ export function AppTopBar({
             )}
           </div>
         ) : (
-          /* Desktop: Icon + Full page title */
-          <div className="flex items-center gap-2.5">
-            {PageIcon && <PageIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />}
-            <h1 className="text-xl font-semibold truncate">{pageInfo.title}</h1>
-          </div>
+          /* Desktop: Full page title */
+          <h1 className="text-xl font-semibold truncate">{pageInfo.title}</h1>
         )}
       </div>
 

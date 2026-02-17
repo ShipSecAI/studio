@@ -142,7 +142,7 @@ export function WebhookEditorPage() {
       try {
         if (!isNew) setIsLoading(true);
 
-        const workflowsList = await api.workflows.list();
+        const workflowsList = await api.workflows.listSummary();
         setWorkflows(workflowsList.map((w) => ({ id: w.id, name: w.name })));
 
         if (isNew) {
@@ -309,7 +309,7 @@ export function WebhookEditorPage() {
       {/* Header */}
       <div
         className={cn(
-          'h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
+          'h-[56px] md:h-[60px] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60',
           'flex items-center justify-between px-3 md:px-4 gap-2 md:gap-4 shrink-0 z-10',
         )}
       >

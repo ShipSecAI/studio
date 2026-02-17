@@ -79,9 +79,6 @@ export class McpGroupsSeedingService {
   /**
    * Sync all templates to the database
    *
-   * This is a platform-level bootstrap operation; servers are created with
-   * organizationId = null so they are visible to all orgs as shared defaults.
-   *
    * @param force - Force update even if template hash matches
    * @returns Summary of sync operation
    */
@@ -91,7 +88,7 @@ export class McpGroupsSeedingService {
     const results: TemplateSyncResult[] = [];
 
     for (const slug of slugs) {
-      const result = await this.syncTemplate(slug, force, null);
+      const result = await this.syncTemplate(slug, force);
       results.push(result);
     }
 
@@ -116,14 +113,9 @@ export class McpGroupsSeedingService {
    *
    * @param slug - Template slug to sync
    * @param force - Force update even if template hash matches
-   * @param organizationId - The org that owns the created servers, or null for platform-level bootstrap
    * @returns Sync result for the template
    */
-  async syncTemplate(
-    slug: string,
-    force = false,
-    organizationId: string | null = null,
-  ): Promise<TemplateSyncResult> {
+  async syncTemplate(slug: string, force = false): Promise<TemplateSyncResult> {
     const template = MCP_GROUP_TEMPLATES[slug];
     if (!template) {
       throw new Error(`Template '${slug}' not found`);
@@ -134,7 +126,7 @@ export class McpGroupsSeedingService {
 
     if (!existingGroup) {
       // Create new group from template
-      return this.createGroupFromTemplate(template, templateHash, organizationId);
+      return this.createGroupFromTemplate(template, templateHash);
     }
 
     // Check if update is needed
@@ -151,7 +143,7 @@ export class McpGroupsSeedingService {
     }
 
     // Update existing group
-    return this.updateGroupFromTemplate(existingGroup.id, template, templateHash, organizationId);
+    return this.updateGroupFromTemplate(existingGroup.id, template, templateHash);
   }
 
   /**
@@ -160,7 +152,6 @@ export class McpGroupsSeedingService {
   private async createGroupFromTemplate(
     template: McpGroupTemplate,
     templateHash: string,
-    organizationId: string | null,
   ): Promise<TemplateSyncResult> {
     this.logger.log(`Creating group '${template.slug}' from template...`);
 
@@ -183,7 +174,7 @@ export class McpGroupsSeedingService {
       // Create servers and relationships
       let serversSynced = 0;
       for (const serverTemplate of template.servers) {
-        const server = await this.createServer(tx, group.id, serverTemplate, organizationId);
+        const server = await this.createServer(tx, group.id, serverTemplate);
         await this.createGroupServerRelation(tx, group.id, server.id, serverTemplate);
         serversSynced++;
       }
@@ -207,7 +198,6 @@ export class McpGroupsSeedingService {
     groupId: string,
     template: McpGroupTemplate,
     templateHash: string,
-    organizationId: string | null,
   ): Promise<TemplateSyncResult> {
     this.logger.log(`Updating group '${template.slug}' from template...`);
 
@@ -289,7 +279,6 @@ export class McpGroupsSeedingService {
               command: serverTemplate.command ?? null,
               args: serverTemplate.args ?? null,
               groupId,
-              organizationId,
               enabled: true,
             })
             .returning();
@@ -332,14 +321,11 @@ export class McpGroupsSeedingService {
 
   /**
    * Create a server from a template
-   *
-   * @param organizationId - Org that owns this server instance, or null for platform-level servers
    */
   private async createServer(
     tx: NodePgDatabase,
     groupId: string,
     serverTemplate: any,
-    organizationId: string | null,
   ): Promise<{ id: string }> {
     const [server] = await tx
       .insert(mcpServers)
@@ -351,7 +337,6 @@ export class McpGroupsSeedingService {
         command: serverTemplate.command ?? null,
         args: serverTemplate.args ?? null,
         groupId,
-        organizationId,
         enabled: true,
       })
       .returning();

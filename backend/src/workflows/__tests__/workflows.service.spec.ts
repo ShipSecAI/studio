@@ -295,6 +295,9 @@ describe('WorkflowsService', () => {
     async hasPendingInputs() {
       return false;
     },
+    async cacheTerminalStatus() {
+      // no-op in tests
+    },
   };
 
   const traceRepositoryMock = {
@@ -552,44 +555,6 @@ describe('WorkflowsService', () => {
     );
 
     expect(second.runId).toBe(first.runId);
-  });
-
-  it('applies componentParams to override action params by componentId', async () => {
-    await service.create(sampleGraph, authContext);
-    const definition = compileWorkflowGraph(sampleGraph);
-    repositoryMock.findById = async () => ({
-      id: 'workflow-id',
-      createdAt: new Date(now),
-      updatedAt: new Date(now),
-      name: sampleGraph.name,
-      description: sampleGraph.description ?? null,
-      graph: sampleGraph,
-      compiledDefinition: definition,
-      lastRun: null,
-      runCount: 0,
-      organizationId: TEST_ORG,
-    });
-
-    const prepared = await service.prepareRunPayload(
-      'workflow-id',
-      { inputs: { fileId: 'test-file' } },
-      authContext,
-      {
-        componentParams: {
-          'core.file.loader': { path: '/override/path', mode: 'stream' },
-        },
-      },
-    );
-
-    // Find the loader action and verify params were merged
-    const loaderAction = prepared.definition.actions.find(
-      (a) => a.componentId === 'core.file.loader',
-    );
-    expect(loaderAction).toBeDefined();
-    expect(loaderAction!.params).toMatchObject({
-      path: '/override/path',
-      mode: 'stream',
-    });
   });
 
   it('delegates status, result, and cancel operations to the Temporal service', async () => {

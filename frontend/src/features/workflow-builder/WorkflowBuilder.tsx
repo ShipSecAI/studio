@@ -13,7 +13,6 @@ import { ExecutionInspector } from '@/components/timeline/ExecutionInspector';
 import { RunBreadcrumbs } from '@/components/timeline/RunBreadcrumbs';
 import { RunWorkflowDialog } from '@/components/workflow/RunWorkflowDialog';
 import { WorkflowBuilderShell } from '@/components/workflow/WorkflowBuilderShell';
-import { PublishTemplateModal } from '@/features/templates/PublishTemplateModal';
 import {
   useWorkflowGraphControllers,
   cloneNodes,
@@ -31,14 +30,12 @@ import { HistoryDebugger } from '@/features/workflow-builder/components/HistoryD
 import { useToast } from '@/components/ui/use-toast';
 import { useExecutionStore } from '@/store/executionStore';
 import { useWorkflowStore } from '@/store/workflowStore';
-import { useComponents } from '@/hooks/queries/useComponentQueries';
+import { useComponentStore } from '@/store/componentStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useWorkflowExecutionLifecycle } from '@/features/workflow-builder/hooks/useWorkflowExecutionLifecycle';
 import { api, API_BASE_URL } from '@/services/api';
-import { getRunByIdFromCache } from '@/hooks/queries/useRunQueries';
-import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/lib/queryKeys';
+import { useRunStore } from '@/store/runStore';
 import {
   deserializeNodes,
   deserializeEdges,
@@ -98,8 +95,6 @@ function WorkflowBuilderContent() {
   const isNewWorkflow = id === 'new';
   // Detect if we're on a /runs URL (execution mode without specific run)
   const isRunsRoute = location.pathname.includes('/runs') && !routeRunId;
-  // Detect if we're in the workflow builder (not other parts of the app)
-  const isInWorkflowBuilder = location.pathname.match(/^\/workflows\/[^/]/) !== null;
   const { metadata, isDirty, setMetadata, setWorkflowId, markClean, markDirty, resetWorkflow } =
     useWorkflowStore();
   const { toast } = useToast();
@@ -138,9 +133,6 @@ function WorkflowBuilderContent() {
   // Execution dirty state: tracks if nodes have been rearranged in execution mode
   const [_executionDirty, setExecutionDirty] = useState(false);
 
-  // Publish template modal state
-  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
-
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
   const {
@@ -158,7 +150,8 @@ function WorkflowBuilderContent() {
   } = useWorkflowUiStore();
 
   const selectedRunId = useExecutionTimelineStore((state) => state.selectedRunId);
-  const selectedRun = selectedRunId ? (getRunByIdFromCache(selectedRunId) ?? null) : null;
+  const getRunById = useRunStore((state) => state.getRunById);
+  const selectedRun = selectedRunId ? getRunById(selectedRunId) : null;
   const isMobile = useIsMobile();
 
   // Undo/redo history management
@@ -322,14 +315,7 @@ function WorkflowBuilderContent() {
     },
     [onEdgesChangeBase, markDirty, mode, captureSnapshot],
   );
-  const { data: componentIndex } = useComponents();
-  const getComponent = (ref: string) => {
-    if (!componentIndex || !ref) return null;
-    if (componentIndex.byId[ref]) return componentIndex.byId[ref];
-    const idFromSlug = componentIndex.slugIndex[ref];
-    if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
-    return null;
-  };
+  const { getComponent } = useComponentStore();
   const createEntryPointNode = useCallback((): ReactFlowNode<FrontendNodeData> => {
     const component = getComponent(ENTRY_COMPONENT_ID);
     const slug = component?.slug ?? ENTRY_COMPONENT_SLUG;
@@ -385,12 +371,10 @@ function WorkflowBuilderContent() {
       workflowRoutePrefix: builderRoutePrefix,
     });
 
-  // Use route param `id` for queries — available immediately, unlike metadata.id
-  // which requires a useEffect cycle to propagate from route → store.
   const { mostRecentRunId, fetchRuns, resetHistoricalTracking } = useWorkflowExecutionLifecycle({
-    workflowId: isNewWorkflow ? 'new' : (id ?? null),
+    workflowId,
     metadata: {
-      id: metadata.id ?? id ?? null,
+      id: metadata.id,
       currentVersionId: metadata.currentVersionId,
     },
     routeRunId,
@@ -661,18 +645,13 @@ function WorkflowBuilderContent() {
         // Skip runs fetch entirely in design mode to avoid the slow /workflows/runs call
         // Runs will be fetched on-demand when the user switches to execution mode
         try {
-          const cachedRunsPage = queryClient.getQueryData<{ runs: any[]; hasMore: boolean }>(
-            queryKeys.runs.byWorkflow(workflow.id),
-          );
+          const cachedRuns = useRunStore.getState().cache[workflow.id]?.runs;
           const runs = openedInExecutionMode
-            ? (cachedRunsPage?.runs ??
+            ? (cachedRuns ??
               (await fetchRuns({ workflowId: workflow.id }).then(
-                () =>
-                  queryClient.getQueryData<{ runs: any[]; hasMore: boolean }>(
-                    queryKeys.runs.byWorkflow(workflow.id),
-                  )?.runs ?? [],
+                () => useRunStore.getState().cache[workflow.id]?.runs ?? [],
               )))
-            : (cachedRunsPage?.runs ?? []);
+            : (cachedRuns ?? []);
 
           if (runs && runs.length > 0) {
             const latestRun = runs[0];
@@ -972,12 +951,11 @@ function WorkflowBuilderContent() {
       selectedRunId={selectedRunId}
       selectedRunStatus={selectedRun?.status ?? null}
       selectedRunOrgId={selectedRun?.organizationId ?? null}
-      isInWorkflowBuilder={isInWorkflowBuilder}
+      isNew={isNewWorkflow}
       onRun={handleRun}
       onSave={handleSave}
       onImport={handleImportWorkflow}
       onExport={handleExportWorkflow}
-      onPublishTemplate={() => setIsPublishModalOpen(true)}
       canManageWorkflows={canManageWorkflows}
       onUndo={undo}
       onRedo={redo}
@@ -1038,54 +1016,44 @@ function WorkflowBuilderContent() {
   );
 
   return (
-    <>
-      <WorkflowBuilderShell
-        mode={mode}
-        topBar={topBarNode}
-        isLibraryVisible={isLibraryVisible}
-        onToggleLibrary={toggleLibrary}
-        libraryContent={<Sidebar />}
-        canvasContent={canvasContent}
-        showScheduleSidebarContainer={false}
-        isScheduleSidebarVisible={schedulesPanelOpen}
-        scheduleSidebarContent={null}
-        isInspectorVisible={isInspectorVisible}
-        inspectorContent={inspectorContent}
-        inspectorWidth={inspectorWidth}
-        setInspectorWidth={setInspectorWidth}
-        showLoadingOverlay={shouldShowInitialLoader}
-        scheduleDrawer={null}
-        runDialog={runDialogNode}
-        isConfigPanelVisible={configPanelOpen}
-        configPanelContent={null} // Will be portalled
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        executionOverlay={
-          selectedRun?.parentRunId ? (
-            <RunBreadcrumbs
-              currentRun={{
-                id: selectedRun.id,
-                workflowId: selectedRun.workflowId,
-                workflowName: selectedRun.workflowName,
-                parentRunId: selectedRun.parentRunId,
-                parentNodeRef: selectedRun.parentNodeRef,
-              }}
-              variant="floating"
-            />
-          ) : null
-        }
-      />
-      {!isNewWorkflow && workflowId && (
-        <PublishTemplateModal
-          workflowId={workflowId}
-          workflowName={metadata.name || 'Untitled Workflow'}
-          open={isPublishModalOpen}
-          onOpenChange={setIsPublishModalOpen}
-        />
-      )}
-    </>
+    <WorkflowBuilderShell
+      mode={mode}
+      topBar={topBarNode}
+      isLibraryVisible={isLibraryVisible}
+      onToggleLibrary={toggleLibrary}
+      libraryContent={<Sidebar />}
+      canvasContent={canvasContent}
+      showScheduleSidebarContainer={false}
+      isScheduleSidebarVisible={schedulesPanelOpen}
+      scheduleSidebarContent={null}
+      isInspectorVisible={isInspectorVisible}
+      inspectorContent={inspectorContent}
+      inspectorWidth={inspectorWidth}
+      setInspectorWidth={setInspectorWidth}
+      showLoadingOverlay={shouldShowInitialLoader}
+      scheduleDrawer={null}
+      runDialog={runDialogNode}
+      isConfigPanelVisible={configPanelOpen}
+      configPanelContent={null} // Will be portalled
+      onUndo={undo}
+      onRedo={redo}
+      canUndo={canUndo}
+      canRedo={canRedo}
+      executionOverlay={
+        selectedRun?.parentRunId ? (
+          <RunBreadcrumbs
+            currentRun={{
+              id: selectedRun.id,
+              workflowId: selectedRun.workflowId,
+              workflowName: selectedRun.workflowName,
+              parentRunId: selectedRun.parentRunId,
+              parentNodeRef: selectedRun.parentNodeRef,
+            }}
+            variant="floating"
+          />
+        ) : null
+      }
+    />
   );
 }
 

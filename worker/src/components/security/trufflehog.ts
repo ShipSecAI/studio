@@ -16,7 +16,7 @@ import {
   analyticsResultSchema,
   type AnalyticsResult,
 } from '@shipsec/component-sdk';
-import { IsolatedContainerVolume } from '../../utils/isolated-volume';
+import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 const scanTypeSchema = z.enum(['git', 'github', 'gitlab', 's3', 'gcs', 'filesystem', 'docker']);
 
@@ -69,8 +69,7 @@ const parameterSchema = parameters({
     label: 'Only Verified',
     editor: 'boolean',
     description: 'Show only verified secrets (actively valid credentials).',
-    helpText:
-      'When enabled, passes --results=verified. When disabled, no --results flag is passed.',
+    helpText: 'Disable to also show unverified potential secrets.',
   }),
   jsonOutput: param(z.boolean().default(true).describe('Output results in JSON format'), {
     label: 'JSON Output',
@@ -219,6 +218,8 @@ function buildTruffleHogCommand(
   // Add results filter
   if (input.onlyVerified) {
     args.push('--results=verified');
+  } else {
+    args.push('--results=verified,unknown');
   }
 
   // Add JSON output flag
@@ -391,7 +392,7 @@ const definition = defineComponent({
     });
 
     // Handle filesystem scanning with isolated volumes
-    let volume: IsolatedContainerVolume | undefined;
+    let volume: ReturnType<typeof createIsolatedVolume> | undefined;
     let effectiveInput = runnerPayload;
 
     const baseRunner = definition.runner;
@@ -414,7 +415,7 @@ const definition = defineComponent({
         }
 
         const tenantId = (context as any).tenantId ?? 'default-tenant';
-        volume = new IsolatedContainerVolume(tenantId, context.runId);
+        volume = createIsolatedVolume(tenantId, context.runId);
 
         // Initialize volume with files
         const volumeName = await volume.initialize(runnerPayload.filesystemContent);

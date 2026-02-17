@@ -51,6 +51,20 @@ interface TerminalChunkResponse {
   }[];
 }
 
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  organizationId: string | null;
+  isSystem: boolean;
+  templateId: string | null;
+  lastRun: string | null;
+  runCount: number;
+  nodeCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type IntegrationProvider = IntegrationProviderResponse;
 export type IntegrationConnection = IntegrationConnectionResponse;
 export type IntegrationProviderConfiguration = ProviderConfigurationResponse;
@@ -83,7 +97,9 @@ function resolveApiBaseUrl() {
     }
   }
 
-  // Use relative URLs so the Vite dev proxy (or nginx in prod) handles routing
+  // No explicit API URL — use same-origin relative paths.
+  // Works with path-based routing (/api/v1/* routed to backend via Ingress).
+  // For local dev, set VITE_API_URL=http://localhost:3211 in frontend/.env
   return '';
 }
 
@@ -179,6 +195,13 @@ export const api = {
       const response = await apiClient.listWorkflows();
       if (response.error) throw new Error('Failed to fetch workflows');
       return response.data || [];
+    },
+
+    listSummary: async (): Promise<WorkflowSummary[]> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/workflows/summary`, { headers });
+      if (!response.ok) throw new Error('Failed to fetch workflow summaries');
+      return response.json();
     },
 
     get: async (id: string): Promise<WorkflowResponseDto> => {
@@ -584,7 +607,8 @@ export const api = {
       },
     ): Promise<TerminalChunkResponse> => {
       const headers = await getAuthHeaders();
-      const url = new URL(`${API_V1_URL}/workflows/runs/${executionId}/terminal`);
+      const path = `${API_V1_URL}/workflows/runs/${executionId}/terminal`;
+      const url = new URL(path, window.location.origin);
       if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
       if (params?.stream) url.searchParams.set('stream', params.stream);
       if (params?.cursor) url.searchParams.set('cursor', params.cursor);
@@ -680,7 +704,12 @@ export const api = {
       return { success: true };
     },
 
-    listRuns: async (options?: { workflowId?: string; status?: string; limit?: number }) => {
+    listRuns: async (options?: {
+      workflowId?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }) => {
       const response = await apiClient.listWorkflowRuns(options);
       if (response.error) throw new Error('Failed to fetch runs');
       return response.data || { runs: [] };

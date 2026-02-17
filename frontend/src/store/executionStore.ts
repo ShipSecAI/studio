@@ -1,13 +1,7 @@
 import { create } from 'zustand';
 import { TERMINAL_STATUSES } from '@shipsec/shared';
 import { api } from '@/services/api';
-import { queryClient } from '@/lib/queryClient';
-import {
-  executionStatusOptions,
-  executionTraceOptions,
-  executionTerminalChunksOptions,
-} from '@/lib/executionQueryOptions';
-import { invalidateRunsForWorkflow } from '@/hooks/queries/useRunQueries';
+import { useRunStore } from '@/store/runStore';
 import {
   ExecutionStatusResponseSchema,
   type ExecutionLog,
@@ -220,7 +214,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         // Terminal streams will be populated as new run progresses
         terminalStreams: {},
       });
-      invalidateRunsForWorkflow(workflowId);
+      void useRunStore.getState().refreshRuns(workflowId);
 
       await get().pollOnce();
       get().monitorRun(executionId, workflowId);
@@ -243,7 +237,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       // Fetch final status before stopping polling so runStatus reflects terminal state.
       // This ensures timeline store and other consumers see the TERMINATED/CANCELLED status.
       try {
-        const statusPayload = await queryClient.fetchQuery(executionStatusOptions(runId));
+        const statusPayload = await api.executions.getStatus(runId);
         if (statusPayload) {
           const status = (statusPayload as any)?.status as ExecutionStatus | undefined;
           const lifecycle = mapStatusToLifecycle(status);
@@ -263,7 +257,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
 
       const workflowId = get().workflowId;
       if (workflowId) {
-        invalidateRunsForWorkflow(workflowId);
+        void useRunStore.getState().refreshRuns(workflowId);
       }
     } catch (error) {
       console.error('Failed to stop execution:', error);
@@ -285,17 +279,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       set({ workflowId });
     }
 
-    // Skip the first poll tick — selectRun → loadTimeline already fetches
-    // initial events, dataflows, and status. Start polling after a double
-    // interval so the first real poll fires at ~4s instead of ~2s.
-    let isFirstTick = true;
     const poll = async () => {
-      if (isFirstTick) {
-        isFirstTick = false;
-        return;
-      }
       await get().pollOnce();
     };
+
+    poll();
 
     const interval = setInterval(poll, 2000);
     set({ pollingInterval: interval, runId });
@@ -314,8 +302,8 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
 
     try {
       const [statusPayload, traceEnvelope] = await Promise.all([
-        queryClient.fetchQuery(executionStatusOptions(runId)),
-        queryClient.fetchQuery(executionTraceOptions(runId)),
+        api.executions.getStatus(runId),
+        api.executions.getTrace(runId),
       ]);
 
       // Safety check: if runId changed or was cleared during await, abort
@@ -362,7 +350,9 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         get().stopPolling();
         const currentWorkflowId = get().workflowId;
         if (currentWorkflowId) {
-          invalidateRunsForWorkflow(currentWorkflowId);
+          void useRunStore.getState().refreshRuns(currentWorkflowId);
+        } else {
+          void useRunStore.getState().refreshRuns(undefined);
         }
       }
     } catch (error) {
@@ -673,9 +663,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       return;
     }
     try {
-      const result = await queryClient.fetchQuery(
-        executionTerminalChunksOptions(runId, nodeId, stream),
-      );
+      const result = await api.executions.getTerminalChunks(runId, { nodeRef: nodeId, stream });
       if (!result?.chunks || result.chunks.length === 0) {
         return;
       }

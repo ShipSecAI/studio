@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+// Textarea and Label removed
 import {
   Select,
   SelectContent,
@@ -23,13 +24,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { RefreshCw, Plus, Trash2, ExternalLink, Link2, Copy, RotateCw } from 'lucide-react';
-import {
-  useWebhooks,
-  useDeleteWebhook,
-  useRegenerateWebhookPath,
-} from '@/hooks/queries/useWebhookQueries';
-import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
-import { useQueryClient } from '@tanstack/react-query';
+import { useWebhookStore } from '@/store/webhookStore';
+import { api } from '@/services/api';
 import { env } from '@/config/env';
 import type { WebhookConfiguration } from '@shipsec/shared';
 
@@ -71,31 +67,63 @@ const WEBHOOK_BASE_URL = env.VITE_API_URL || 'https://api.shipsec.ai';
 
 export function WebhooksPage() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [workflowOptions, setWorkflowOptions] = useState<WorkflowOption[]>([]);
+  const [workflowsLoading, setWorkflowsLoading] = useState(true);
   const [actionState, setActionState] = useState<Record<string, 'delete' | 'regenerate' | 'test'>>(
     {},
   );
 
-  const initialWorkflowId = searchParams.get('workflowId') || null;
-  const [filters, setFilters] = useState<{
-    search: string;
-    status: string;
-    workflowId: string | null;
-  }>({ search: '', status: 'all', workflowId: initialWorkflowId });
+  const webhooks = useWebhookStore((state) => state.webhooks);
+  const isLoading = useWebhookStore((state) => state.isLoading);
+  const error = useWebhookStore((state) => state.error);
+  const filters = useWebhookStore((state) => state.filters);
+  const fetchWebhooks = useWebhookStore((state) => state.fetchWebhooks);
+  const refreshWebhooks = useWebhookStore((state) => state.refreshWebhooks);
+  const setFilters = useWebhookStore((state) => state.setFilters);
+  const deleteWebhook = useWebhookStore((state) => state.deleteWebhook);
+  const regeneratePath = useWebhookStore((state) => state.regeneratePath);
 
-  const { data: webhooks = [], isLoading, error: webhooksError } = useWebhooks();
-  const error = webhooksError?.message ?? null;
+  useEffect(() => {
+    const initialWorkflowId = searchParams.get('workflowId');
+    if (initialWorkflowId) {
+      setFilters({ workflowId: initialWorkflowId });
+    }
+  }, []);
 
-  const { data: workflowsRaw = [], isLoading: workflowsLoading } = useWorkflowsSummary();
-  const workflowOptions: WorkflowOption[] = useMemo(
-    () => workflowsRaw.map((w: any) => ({ id: w.id, name: w.name ?? 'Untitled workflow' })),
-    [workflowsRaw],
-  );
+  useEffect(() => {
+    fetchWebhooks({ force: true }).catch(() => {});
+  }, [fetchWebhooks]);
 
-  const deleteWebhookMutation = useDeleteWebhook();
-  const regeneratePathMutation = useRegenerateWebhookPath();
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const workflowList = await api.workflows.listSummary();
+        if (cancelled) return;
+        const normalized = workflowList.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name ?? 'Untitled workflow',
+        }));
+        setWorkflowOptions(normalized);
+      } catch (_err) {
+        console.error('Failed to load workflows', _err);
+        toast({
+          title: 'Unable to load workflows',
+          description: _err instanceof Error ? _err.message : 'Please try refreshing the page.',
+          variant: 'destructive',
+        });
+      } finally {
+        if (!cancelled) {
+          setWorkflowsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
 
   const filteredWebhooks = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
@@ -116,7 +144,7 @@ export function WebhooksPage() {
 
   const handleWorkflowFilterChange = (value: string) => {
     const workflowId = value === 'all' ? null : value;
-    setFilters((prev) => ({ ...prev, workflowId }));
+    setFilters({ workflowId });
     const nextParams = new URLSearchParams(searchParams);
     if (workflowId) {
       nextParams.set('workflowId', workflowId);
@@ -127,7 +155,7 @@ export function WebhooksPage() {
   };
 
   const handleStatusFilterChange = (value: string) => {
-    setFilters((prev) => ({ ...prev, status: value as typeof filters.status }));
+    setFilters({ status: value as typeof filters.status });
   };
 
   const handleCopyUrl = async (webhook: WebhookConfiguration) => {
@@ -149,7 +177,7 @@ export function WebhooksPage() {
 
   const handleRefresh = async () => {
     try {
-      await queryClient.invalidateQueries({ queryKey: ['webhooks'] });
+      await refreshWebhooks();
       toast({
         title: 'Webhooks refreshed',
         description: 'Latest webhook configurations have been loaded.',
@@ -178,7 +206,7 @@ export function WebhooksPage() {
 
     setActionState((prev) => ({ ...prev, [webhook.id]: 'delete' }));
     try {
-      await deleteWebhookMutation.mutateAsync(webhook.id);
+      await deleteWebhook(webhook.id);
       toast({
         title: 'Webhook deleted',
         description: `Successfully deleted webhook ${webhook.name}`,
@@ -208,7 +236,7 @@ export function WebhooksPage() {
 
     setActionState((prev) => ({ ...prev, [webhook.id]: 'regenerate' }));
     try {
-      await regeneratePathMutation.mutateAsync(webhook.id);
+      await regeneratePath(webhook.id);
       toast({
         title: 'URL regenerated',
         description: 'New webhook URL has been generated',
@@ -241,7 +269,7 @@ export function WebhooksPage() {
                 <Input
                   placeholder="Filter by name, workflow, or URL"
                   value={filters.search}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  onChange={(e) => setFilters({ search: e.target.value })}
                 />
               </div>
               <div className="space-y-2">

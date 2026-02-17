@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 const instance = parseInt(process.env.SHIPSEC_INSTANCE || '0', 10);
@@ -9,7 +8,7 @@ const backendPort = 3211 + instance * 100;
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [tailwindcss(), react()],
+  plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -29,14 +28,14 @@ export default defineConfig({
     port: frontendPort,
     strictPort: true,
     open: false,
-    allowedHosts: ['studio.shipsec.ai', 'frontend'],
+    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai', 'frontend'],
     proxy: {
-      '/api': {
+      '/api/': {
         target: `http://localhost:${backendPort}`,
         changeOrigin: true,
         secure: false,
       },
-      '/analytics': {
+      '/analytics/': {
         target: 'http://localhost:5601',
         changeOrigin: true,
         secure: false,
@@ -44,6 +43,6 @@ export default defineConfig({
     },
   },
   preview: {
-    allowedHosts: ['studio.shipsec.ai', 'frontend'],
+    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai', 'frontend'],
   },
 });

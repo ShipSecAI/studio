@@ -22,10 +22,6 @@
             "pages": ["architecture"]
           },
           {
-            "group": "Integrations",
-            "pages": ["integrations"]
-          },
-          {
             "group": "Components",
             "pages": [
               "components/overview",

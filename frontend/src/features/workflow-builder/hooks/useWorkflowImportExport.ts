@@ -13,10 +13,8 @@ import {
 import type { FrontendNodeData } from '@/schemas/node';
 import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from 'reactflow';
 import { api } from '@/services/api';
-import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/lib/queryKeys';
-import { getComponentFromCache } from '@/hooks/queries/useComponentQueries';
-import type { SecretSummary } from '@/schemas/secret';
+import { useSecretStore } from '@/store/secretStore';
+import { useComponentStore } from '@/store/componentStore';
 interface WorkflowMetadataShape {
   id: string | null;
   name: string;
@@ -138,19 +136,24 @@ export function useWorkflowImportExport({
       // Validate secret references
       const removedSecrets: { param: string; node: string; secretId: string }[] = [];
       try {
-        await queryClient.refetchQueries({ queryKey: queryKeys.secrets.all() });
-        const secrets = queryClient.getQueryData<SecretSummary[]>(queryKeys.secrets.all()) ?? [];
+        await useSecretStore.getState().fetchSecrets();
+        const secrets = useSecretStore.getState().secrets;
         const secretIds = new Set(secrets.map((s) => s.id));
 
-        // Ensure components are loaded in TanStack Query cache
-        await queryClient.refetchQueries({ queryKey: queryKeys.components.all() });
+        const componentStore = useComponentStore.getState();
+        if (Object.keys(componentStore.components).length === 0) {
+          await componentStore.fetchComponents();
+        }
+        const components = useComponentStore.getState().components;
 
         resolvedNodes.forEach((node) => {
           const data = node.data as FrontendNodeData;
           const componentRef = data.componentId || data.componentSlug;
           if (!componentRef) return;
 
-          const component = getComponentFromCache(componentRef);
+          const component =
+            componentStore.getComponent(componentRef) ||
+            Object.values(components).find((c) => c.slug === componentRef);
 
           if (!component || !component.parameters) return;
 

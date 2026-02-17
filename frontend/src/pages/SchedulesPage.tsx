@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -100,7 +100,7 @@ export function SchedulesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const workflowList = await api.workflows.list();
+        const workflowList = await api.workflows.listSummary();
         if (cancelled) return;
         const normalized = workflowList.map((workflow) => ({
           id: workflow.id,
@@ -280,8 +280,6 @@ export function SchedulesPage() {
   };
 
   const isActionBusy = (id: string) => Boolean(actionState[id]);
-  const getScheduleScansHref = (scheduleId: string) =>
-    `/github?tab=scans&source=schedule&scheduleId=${encodeURIComponent(scheduleId)}`;
 
   const renderStatusBadge = (status: string) => {
     const variant = STATUS_VARIANTS[status] || 'outline';
@@ -475,17 +473,6 @@ export function SchedulesPage() {
                                       <span className="hidden md:inline">Pause</span>
                                     </>
                                   )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 px-2 md:px-3"
-                                  asChild
-                                >
-                                  <Link to={getScheduleScansHref(schedule.id)}>
-                                    <span className="hidden md:inline">View scans</span>
-                                    <span className="md:hidden">Scans</span>
-                                  </Link>
                                 </Button>
                                 <Tooltip>
                                   <TooltipTrigger asChild>

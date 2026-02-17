@@ -11,10 +11,15 @@ import {
   port,
   param,
   type DockerRunnerConfig,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
+  type ExecutionContext,
+  type ExecutionPayload,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
 
-const AMASS_IMAGE = 'ghcr.io/shipsecai/amass:v5.0.1';
+const AMASS_IMAGE = 'ghcr.io/shipsecai/amass:latest';
 const AMASS_TIMEOUT_SECONDS = (() => {
   const raw = process.env.AMASS_TIMEOUT_SECONDS;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
@@ -278,6 +283,11 @@ const outputSchema = outputs({
       connectionType: { kind: 'primitive', name: 'json' },
     },
   ),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 // Split custom CLI flags into an array of arguments
@@ -452,7 +462,7 @@ const amassRetryPolicy: ComponentRetryPolicy = {
   nonRetryableErrorTypes: ['ContainerError', 'ValidationError', 'ConfigurationError'],
 };
 
-const definition = defineComponent({
+const definition = (defineComponent as any)({
   id: 'shipsec.amass.enum',
   label: 'Amass Enumeration',
   category: 'security',
@@ -460,24 +470,24 @@ const definition = defineComponent({
   runner: {
     kind: 'docker',
     image: AMASS_IMAGE,
-    // IMPORTANT: Use shell wrapper for PTY compatibility
-    // Running CLI tools directly as entrypoint can cause them to hang with PTY (pseudo-terminal)
-    // The shell wrapper ensures proper TTY signal handling and clean exit
-    // See docs/component-development.md "Docker Entrypoint Pattern" for details
-    entrypoint: 'sh',
+    // The amass image is distroless (no shell available).
+    // Use the image's default entrypoint directly and pass args via command.
     network: 'bridge',
     timeoutSeconds: AMASS_TIMEOUT_SECONDS,
     env: {
       HOME: '/tmp',
     },
-    // Shell wrapper pattern: sh -c 'amass "$@"' -- [args...]
-    // This allows dynamic args to be appended and properly passed to amass
-    command: ['-c', 'amass "$@"', '--'],
+    command: [],
   },
   inputs: inputSchema,
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Enumerate subdomains with OWASP Amass. Supports active techniques, brute forcing, alterations, recursion tuning, and DNS throttling.',
+  toolProvider: {
+    kind: 'component',
+    name: 'amass_enum',
+    description: 'Deep subdomain enumeration and attack surface mapping tool (Amass).',
+  },
   ui: {
     slug: 'amass',
     version: '1.0.0',
@@ -495,10 +505,6 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Deep subdomain enumeration and attack surface mapping tool (Amass).',
-    },
     example:
       '`amass enum -d example.com -brute -alts` - Aggressively enumerates subdomains with brute force and alteration engines enabled.',
     examples: [
@@ -506,7 +512,13 @@ const definition = defineComponent({
       'Perform quick passive reconnaissance using custom CLI flags like --passive.',
     ],
   },
-  async execute({ inputs, params }, context) {
+  async execute(
+    {
+      inputs,
+      params,
+    }: ExecutionPayload<z.infer<typeof inputSchema>, z.infer<typeof parameterSchema>>,
+    context: ExecutionContext,
+  ) {
     const parsedParams = parameterSchema.parse(params);
     const {
       passive,
@@ -626,9 +638,7 @@ const definition = defineComponent({
         network: baseRunner.network,
         timeoutSeconds: baseRunner.timeoutSeconds ?? AMASS_TIMEOUT_SECONDS,
         env: { ...(baseRunner.env ?? {}) },
-        // Preserve the shell wrapper from baseRunner (sh -c 'amass "$@"' --)
-        entrypoint: baseRunner.entrypoint,
-        // Append amass arguments to shell wrapper command
+        // Pass amass CLI args directly (image default entrypoint is amass)
         command: [...(baseRunner.command ?? []), ...amassArgs],
         volumes: [volume.getVolumeConfig(CONTAINER_INPUT_DIR, true)],
       };
@@ -718,12 +728,23 @@ const definition = defineComponent({
       });
     }
 
+    // Build analytics-ready results with scanner metadata
+    const analyticsResults: AnalyticsResult[] = subdomains.map((subdomain) => ({
+      scanner: 'amass',
+      finding_hash: generateFindingHash('subdomain-discovery', subdomain, inputs.domains.join(',')),
+      severity: 'info' as const,
+      asset_key: subdomain,
+      subdomain,
+      parent_domains: inputs.domains,
+    }));
+
     return {
       subdomains,
       rawOutput,
       domainCount,
       subdomainCount,
       options: optionsSummary,
+      results: analyticsResults,
     };
   },
 });

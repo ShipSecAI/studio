@@ -8,6 +8,5 @@ import { StudioMcpService } from './studio-mcp.service';
   imports: [WorkflowsModule],
   controllers: [StudioMcpController],
   providers: [StudioMcpService],
-  exports: [StudioMcpService],
 })
 export class StudioMcpModule {}

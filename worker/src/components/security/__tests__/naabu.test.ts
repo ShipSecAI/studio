@@ -1,28 +1,11 @@
-import { describe, it, expect, beforeAll, afterEach, vi, mock } from 'bun:test';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'bun:test';
 import * as sdk from '@shipsec/component-sdk';
+import { componentRegistry } from '../../index';
 import type { NaabuInput, NaabuOutput } from '../naabu';
-
-// Mock IsolatedContainerVolume BEFORE any component imports.
-// ../../index eagerly imports naabu.ts which pulls in the real
-// IsolatedContainerVolume; using a dynamic import in beforeAll()
-// ensures the mock is registered first.
-mock.module('../../../utils/isolated-volume', () => ({
-  IsolatedContainerVolume: class {
-    async initialize() {
-      return 'mock-volume';
-    }
-    getVolumeConfig(containerPath = '/inputs', readOnly = true) {
-      return { source: 'mock-volume', target: containerPath, readOnly };
-    }
-    async cleanup() {}
-  },
-}));
-
-let componentRegistry: typeof import('@shipsec/component-sdk').componentRegistry;
 
 describe('naabu component', () => {
   beforeAll(async () => {
-    ({ componentRegistry } = await import('../../index'));
+    await import('../../index');
   });
 
   afterEach(() => {

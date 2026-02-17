@@ -60,9 +60,7 @@
       "data": {
         "label": "Nuclei Scanner",
         "config": {
-          "targets": [
-            "{{trigger.targetUrl}}"
-          ],
+          "targets": ["{{trigger.targetUrl}}"],
           "templateIds": [
             "CVE-2024-1234",
             "http-missing-security-headers",
