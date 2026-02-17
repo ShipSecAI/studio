@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import { exec as execCallback } from 'child_process';
 import { ValidationError, ConfigurationError, ContainerError } from '@shipsec/component-sdk';
 import { IsolatedK8sVolume } from './k8s-volume';
+import { IsolatedGcsVolume } from './gcs-volume';
 
 const exec = promisify(execCallback);
 
@@ -557,8 +558,11 @@ export async function cleanupOrphanedVolumes(olderThanHours = 24): Promise<numbe
 export function createIsolatedVolume(
   tenantId: string,
   runId: string,
-): IsolatedContainerVolume | IsolatedK8sVolume {
+): IsolatedContainerVolume | IsolatedK8sVolume | IsolatedGcsVolume {
   if (process.env.EXECUTION_MODE === 'k8s') {
+    if (process.env.GCS_VOLUME_BUCKET) {
+      return new IsolatedGcsVolume(tenantId, runId);
+    }
     return new IsolatedK8sVolume(tenantId, runId);
   }
   return new IsolatedContainerVolume(tenantId, runId);
