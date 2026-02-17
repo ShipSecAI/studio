@@ -11,6 +11,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 /**
@@ -212,6 +215,11 @@ const outputSchema = outputs({
     label: 'Findings',
     description: 'Array of detected issues in standardized format.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   findingCount: port(z.number(), {
     label: 'Finding Count',
@@ -573,8 +581,17 @@ const definition = defineComponent({
       });
     }
 
+    // Build analytics-ready results (follows core.analytics.result.v1 contract)
+    const results: AnalyticsResult[] = findings.map((finding) => ({
+      ...finding,
+      scanner: 'trivy',
+      asset_key: finding.target,
+      finding_hash: generateFindingHash(finding.vulnerability_id, finding.target, finding.severity),
+    }));
+
     const output: Output = {
       findings,
+      results,
       findingCount: findings.length,
       rawOutput,
     };
