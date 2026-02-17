@@ -6,6 +6,8 @@ export interface GitHubAppConfig {
   webhookSecret: string | null;
   clientId: string | null;
   clientSecret: string | null;
+  /** App slug for install URL (e.g. "shipsec-test") */
+  slug: string | null;
   /** Base URL for GitHub API (default: https://api.github.com) */
   apiBaseUrl: string;
   /** Base URL for GitHub (default: https://github.com) */
@@ -30,6 +32,7 @@ export const githubAppConfig = registerAs<GitHubAppConfig>('githubApp', () => {
     webhookSecret: process.env.GITHUB_APP_WEBHOOK_SECRET ?? null,
     clientId: process.env.GITHUB_APP_CLIENT_ID ?? null,
     clientSecret: process.env.GITHUB_APP_CLIENT_SECRET ?? null,
+    slug: process.env.GITHUB_APP_SLUG ?? null,
     apiBaseUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
     baseUrl: process.env.GITHUB_URL ?? 'https://github.com',
   };
@@ -61,6 +64,7 @@ export function getGitHubAppConfig(): GitHubAppConfig {
     webhookSecret: process.env.GITHUB_APP_WEBHOOK_SECRET ?? null,
     clientId: process.env.GITHUB_APP_CLIENT_ID ?? null,
     clientSecret: process.env.GITHUB_APP_CLIENT_SECRET ?? null,
+    slug: process.env.GITHUB_APP_SLUG ?? null,
     apiBaseUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
     baseUrl: process.env.GITHUB_URL ?? 'https://github.com',
   };

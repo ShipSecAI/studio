@@ -86,7 +86,11 @@ export class GitHubAppService implements OnModuleInit {
     if (!this.config.appId) {
       throw new BadRequestException('GitHub App is not configured');
     }
-    return `${this.config.baseUrl}/apps/shipsec-test-app/installations/new`;
+    const slug = this.config.slug;
+    if (!slug) {
+      throw new BadRequestException('GitHub App slug is not configured. Set GITHUB_APP_SLUG.');
+    }
+    return `${this.config.baseUrl}/apps/${slug}/installations/new`;
   }
 
   // ============ JWT Authentication ============
