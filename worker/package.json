@@ -28,6 +28,7 @@
     "@kubernetes/client-node": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@okta/okta-sdk-nodejs": "^7.3.0",
+    "@opensearch-project/opensearch": "^3.5.1",
     "@shipsec/component-sdk": "*",
     "@shipsec/contracts": "*",
     "@shipsec/shared": "*",

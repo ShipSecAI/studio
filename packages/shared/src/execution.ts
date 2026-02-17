@@ -1,5 +1,20 @@
 import { z } from 'zod';
 
+/**
+ * Workflow execution status values.
+ *
+ * @see docs/workflows/execution-status.md for detailed documentation
+ *
+ * - QUEUED: Waiting to execute
+ * - RUNNING: Actively executing
+ * - COMPLETED: All nodes finished successfully
+ * - FAILED: Execution failed (node failure or crash)
+ * - CANCELLED: User cancelled
+ * - TERMINATED: Forcefully terminated
+ * - TIMED_OUT: Exceeded max execution time
+ * - AWAITING_INPUT: Paused for human input
+ * - STALE: Orphaned record (data inconsistency)
+ */
 export const EXECUTION_STATUS = [
   'QUEUED',
   'RUNNING',
@@ -8,10 +23,23 @@ export const EXECUTION_STATUS = [
   'CANCELLED',
   'TERMINATED',
   'TIMED_OUT',
-  'AWAITING_INPUT'
+  'AWAITING_INPUT',
+  'STALE',
 ] as const;
 
 export type ExecutionStatus = (typeof EXECUTION_STATUS)[number];
+
+/**
+ * Statuses that indicate a workflow run has permanently finished.
+ * Once a run reaches one of these, its status will never change again.
+ */
+export const TERMINAL_STATUSES: readonly ExecutionStatus[] = [
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+  'TERMINATED',
+  'TIMED_OUT',
+] as const;
 
 export const ExecutionStatusSchema = z.enum(EXECUTION_STATUS);
 

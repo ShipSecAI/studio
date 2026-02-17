@@ -16,7 +16,6 @@ import './core/test-error-generator';
 import './notification/slack';
 import './core/text-splitter';
 import './core/text-joiner';
-import './core/console-log';
 import './core/secret-fetch';
 import './core/array-pick';
 import './core/array-pack';
@@ -28,6 +27,7 @@ import './core/destination-s3';
 import './core/text-block';
 import './core/workflow-call';
 import './core/mcp-library';
+import './core/analytics-sink';
 // Manual Action components
 import './manual-action/manual-approval';
 import './manual-action/manual-selection';
@@ -65,10 +65,14 @@ import './github/remove-org-membership';
 import './it-automation/google-workspace-license-unassign';
 import './it-automation/okta-user-offboard';
 
+// Dev / debug components
+import './dev/mock-agent';
+
 // Test utility components
 import './test/sleep-parallel';
 import './test/live-event-heartbeat';
 import './test/simple-http-mcp';
+import './test/analytics-fixture';
 
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';

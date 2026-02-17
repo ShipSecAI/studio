@@ -31,17 +31,23 @@ description: "Get ShipSec Studio running in 5 minutes"
   </Step>
   
   <Step title="Open ShipSec Studio">
-    Navigate to [http://localhost:5173](http://localhost:5173) and sign in or create an account.
+    Navigate to [http://localhost](http://localhost) and sign in or create an account.
   </Step>
 </Steps>
 
 ## Access Points
 
+All services are accessible through nginx on port 80:
+
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:3211 |
+| Frontend | http://localhost/ |
+| Backend API | http://localhost/api/ |
 | Temporal UI | http://localhost:8081 |
+
+<Note>
+  Individual service ports are available for debugging (frontend: 5173, backend: 3211) but should not be used in normal development.
+</Note>
 
 ## Your First Workflow
 

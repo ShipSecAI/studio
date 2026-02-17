@@ -20,7 +20,7 @@ export interface McpGroupUpdateData {
   name?: string;
   description?: string | null;
   credentialContractName?: string;
-  credentialMapping?: Record<string, unknown> | null;
+  credentialMapping?: Record<string, string> | null;
   defaultDockerImage?: string | null;
   enabled?: boolean;
 }

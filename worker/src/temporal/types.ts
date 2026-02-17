@@ -74,6 +74,7 @@ export interface WorkflowDefinition {
 export interface RunComponentActivityInput {
   runId: string;
   workflowId: string;
+  workflowName?: string;
   workflowVersionId?: string | null;
   organizationId?: string | null;
   action: {
@@ -189,6 +190,7 @@ export interface RegisterComponentToolActivityInput {
   runId: string;
   nodeId: string;
   toolName: string;
+  exposedToAgent?: boolean;
   componentId: string;
   description: string;
   inputSchema: any;
@@ -228,7 +230,7 @@ export interface PrepareAndRegisterToolActivityInput {
   params: Record<string, unknown>;
 }
 
-export interface CleanupLocalMcpActivityInput {
+export interface CleanupRunResourcesActivityInput {
   runId: string;
 }
 

@@ -174,7 +174,7 @@ export function Canvas({
   const prevNodesLengthRef = useRef(nodes.length);
   const prevEdgesLengthRef = useRef(edges.length);
   const lastSelectedNodeIdRef = useRef<string | null>(null);
-  const [configPanelWidth, setConfigPanelWidth] = useState(432); // Default panel width
+  const configPanelWidth = 432;
   const [canvasOpacity, setCanvasOpacity] = useState(1); // For fade transition
 
   const nodeTypes = useMemo(
@@ -1051,8 +1051,6 @@ export function Canvas({
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [nodes, edges, setNodes, setEdges, markDirty, mode, onSnapshot, toast]);
 
-  // Panel width changes are handled by CSS transitions, no manual viewport translation needed
-
   const entryPointActionsValue = useMemo(
     () => ({
       onOpenScheduleSidebar: () => {
@@ -1251,7 +1249,6 @@ export function Canvas({
                     onScheduleAction={resolvedOnScheduleAction}
                     onScheduleDelete={resolvedOnScheduleDelete}
                     onViewSchedules={resolvedOnViewSchedules}
-                    onWidthChange={() => {}} // Not resizable on mobile
                   />
                 </div>,
                 document.getElementById('mobile-bottom-sheet-portal') || document.body,
@@ -1280,7 +1277,6 @@ export function Canvas({
                   onScheduleAction={resolvedOnScheduleAction}
                   onScheduleDelete={resolvedOnScheduleDelete}
                   onViewSchedules={resolvedOnViewSchedules}
-                  onWidthChange={setConfigPanelWidth}
                 />
               </div>
             ))}

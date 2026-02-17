@@ -20,6 +20,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppController_validateAuth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AppController_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AppController_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/{agentRunId}/parts": {
         parameters: {
             query?: never;
@@ -591,6 +639,54 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["ArtifactsController_deleteArtifact"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_queryAnalytics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AnalyticsController_getAnalyticsSettings"];
+        put: operations["AnalyticsController_updateAnalyticsSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/ensure-tenant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AnalyticsController_ensureTenant"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1639,7 +1735,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/internal/mcp/register-remote": {
+    "/api/v1/internal/mcp/register-mcp-server": {
         parameters: {
             query?: never;
             header?: never;
@@ -1648,23 +1744,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["InternalMcpController_registerRemote"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/internal/mcp/register-local": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["InternalMcpController_registerLocal"];
+        post: operations["InternalMcpController_registerMcpServer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1697,6 +1777,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["InternalMcpController_areToolsReady"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/mcp/register-group-server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InternalMcpController_registerGroupServer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2321,6 +2417,96 @@ export interface components {
                 createdAt: string;
             }[];
         };
+        AnalyticsQueryRequestDto: {
+            /**
+             * @description OpenSearch DSL query object
+             * @example {
+             *       "match_all": {}
+             *     }
+             */
+            query?: Record<string, never>;
+            /**
+             * @description Number of results to return
+             * @default 10
+             * @example 10
+             */
+            size: number;
+            /**
+             * @description Offset for pagination
+             * @default 0
+             * @example 0
+             */
+            from: number;
+            /**
+             * @description OpenSearch aggregations object
+             * @example {
+             *       "components": {
+             *         "terms": {
+             *           "field": "component_id"
+             *         }
+             *       }
+             *     }
+             */
+            aggs?: Record<string, never>;
+        };
+        AnalyticsQueryResponseDto: {
+            /**
+             * @description Total number of matching documents
+             * @example 100
+             */
+            total: number;
+            /** @description Search hits */
+            hits: Record<string, never>[];
+            /** @description Aggregation results */
+            aggregations?: Record<string, never>;
+        };
+        AnalyticsSettingsResponseDto: {
+            /**
+             * @description Organization ID
+             * @example org_abc123
+             */
+            organizationId: string;
+            /**
+             * @description Subscription tier
+             * @example free
+             * @enum {string}
+             */
+            subscriptionTier: "free" | "pro" | "enterprise";
+            /**
+             * @description Data retention period in days
+             * @example 30
+             */
+            analyticsRetentionDays: number;
+            /**
+             * @description Maximum retention days allowed for this tier
+             * @example 30
+             */
+            maxRetentionDays: number;
+            /**
+             * Format: date-time
+             * @description Timestamp when settings were created
+             * @example 2026-01-20T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Timestamp when settings were last updated
+             * @example 2026-01-20T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        UpdateAnalyticsSettingsDto: {
+            /**
+             * @description Data retention period in days (must be within tier limits)
+             * @example 30
+             */
+            analyticsRetentionDays?: number;
+            /**
+             * @description Subscription tier (optional - usually set by billing system)
+             * @enum {string}
+             */
+            subscriptionTier?: "free" | "pro" | "enterprise";
+        };
         ApiKeyResponseDto: {
             id: string;
             name: string;
@@ -2927,7 +3113,7 @@ export interface components {
             description: string | null;
             credentialContractName: string;
             credentialMapping: {
-                [key: string]: unknown;
+                [key: string]: string;
             } | null;
             defaultDockerImage: string | null;
             enabled: boolean;
@@ -2943,7 +3129,7 @@ export interface components {
             description?: string;
             credentialContractName: string;
             credentialMapping?: {
-                [key: string]: unknown;
+                [key: string]: string;
             };
             defaultDockerImage: string;
             version: {
@@ -2970,7 +3156,7 @@ export interface components {
             description?: string | null;
             credentialContractName: string;
             credentialMapping?: {
-                [key: string]: unknown;
+                [key: string]: string;
             } | null;
             defaultDockerImage?: string | null;
             enabled?: boolean;
@@ -2980,7 +3166,7 @@ export interface components {
             description?: string | null;
             credentialContractName?: string;
             credentialMapping?: {
-                [key: string]: unknown;
+                [key: string]: string;
             } | null;
             defaultDockerImage?: string | null;
             enabled?: boolean;
@@ -3033,7 +3219,7 @@ export interface components {
                 description: string | null;
                 credentialContractName: string;
                 credentialMapping: {
-                    [key: string]: unknown;
+                    [key: string]: string;
                 } | null;
                 defaultDockerImage: string | null;
                 enabled: boolean;
@@ -3045,8 +3231,7 @@ export interface components {
             };
         };
         RegisterComponentToolInput: Record<string, never>;
-        RegisterRemoteMcpInput: Record<string, never>;
-        RegisterLocalMcpInput: Record<string, never>;
+        RegisterMcpServerInput: Record<string, never>;
         DiscoveryInputDto: {
             /**
              * @description Transport type for MCP server
@@ -3217,6 +3402,59 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AppController_validateAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AppController_login: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AppController_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3419,6 +3657,7 @@ export interface operations {
                         runs?: {
                             id?: string;
                             workflowId?: string;
+                            organizationId?: string;
                             /** @enum {string} */
                             status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
                             /** Format: date-time */
@@ -3472,6 +3711,7 @@ export interface operations {
                     "application/json": {
                         id?: string;
                         workflowId?: string;
+                        organizationId?: string;
                         /** @enum {string} */
                         status?: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "TERMINATED" | "CONTINUED_AS_NEW" | "TIMED_OUT" | "UNKNOWN";
                         /** Format: date-time */
@@ -4477,6 +4717,105 @@ export interface operations {
             };
         };
     };
+    AnalyticsController_queryAnalytics: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Number of requests remaining in the current time window */
+                "X-RateLimit-Remaining"?: number;
+                /** @description Maximum number of requests allowed per minute */
+                "X-RateLimit-Limit"?: number;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsQueryRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Query analytics data for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsQueryResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_getAnalyticsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Get analytics settings for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_updateAnalyticsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAnalyticsSettingsDto"];
+            };
+        };
+        responses: {
+            /** @description Update analytics settings for the authenticated organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSettingsResponseDto"];
+                };
+            };
+        };
+    };
+    AnalyticsController_ensureTenant: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-internal-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ensure tenant resources exist for organization */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success?: boolean;
+                        securityEnabled?: boolean;
+                        message?: string;
+                    };
+                };
+            };
+        };
+    };
     ApiKeysController_list: {
         parameters: {
             query?: {
@@ -4728,10 +5067,11 @@ export interface operations {
                             rows?: number | null;
                         }[];
                         examples?: string[];
-                        agentTool?: {
-                            enabled?: boolean;
-                            toolName?: string | null;
-                            toolDescription?: string | null;
+                        toolProvider?: {
+                            /** @enum {string} */
+                            kind?: "component" | "mcp-server" | "mcp-group";
+                            name?: string;
+                            description?: string;
                         } | null;
                     }[];
                 };
@@ -6569,7 +6909,7 @@ export interface operations {
             };
         };
     };
-    InternalMcpController_registerRemote: {
+    InternalMcpController_registerMcpServer: {
         parameters: {
             query?: never;
             header?: never;
@@ -6578,28 +6918,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RegisterRemoteMcpInput"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    InternalMcpController_registerLocal: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterLocalMcpInput"];
+                "application/json": components["schemas"]["RegisterMcpServerInput"];
             };
         };
         responses: {
@@ -6629,6 +6948,23 @@ export interface operations {
         };
     };
     InternalMcpController_areToolsReady: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InternalMcpController_registerGroupServer: {
         parameters: {
             query?: never;
             header?: never;

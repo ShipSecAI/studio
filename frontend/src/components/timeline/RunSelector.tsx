@@ -19,14 +19,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { formatDuration, formatStartTime } from '@/utils/timeFormat';
 import { RunInfoDisplay } from '@/components/timeline/RunInfoDisplay';
-
-const TERMINAL_STATUSES: ExecutionRun['status'][] = [
-  'COMPLETED',
-  'FAILED',
-  'CANCELLED',
-  'TERMINATED',
-  'TIMED_OUT',
-];
+import { isRunLive } from '@/features/workflow-builder/utils/executionRuns';
 
 // Custom hook to detect mobile viewport
 function useIsMobile(breakpoint = 768) {
@@ -45,16 +38,6 @@ function useIsMobile(breakpoint = 768) {
 
   return isMobile;
 }
-
-const isRunLive = (run?: ExecutionRun | null) => {
-  if (!run) {
-    return false;
-  }
-  if (run.isLive) {
-    return true;
-  }
-  return !TERMINAL_STATUSES.includes(run.status);
-};
 
 type TriggerFilter = 'all' | 'manual' | 'schedule';
 
@@ -78,7 +61,9 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
   const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs);
   const runs = scopedRuns ?? [];
   const fetchRuns = useRunStore((state) => state.fetchRuns);
+  const fetchMoreRuns = useRunStore((state) => state.fetchMoreRuns);
   const isLoadingRuns = useRunStore((state) => state.cache[workflowCacheKey]?.isLoading) ?? false;
+  const hasMoreRuns = useRunStore((state) => state.cache[workflowCacheKey]?.hasMore) ?? true;
 
   const mode = useWorkflowUiStore((state) => state.mode);
 
@@ -203,7 +188,13 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
     const interval = window.setInterval(() => {
       // Poll runs while in execution mode; skip navigation churn in design
       if (mode === 'execution') {
-        fetchRuns({ workflowId: targetWorkflowId, force: true }).catch(() => undefined);
+        // Read current cache size directly from the store to avoid stale closure
+        const currentCount = useRunStore.getState().cache[workflowCacheKey]?.runs?.length ?? 0;
+        fetchRuns({
+          workflowId: targetWorkflowId,
+          force: true,
+          limit: Math.max(currentCount, 5),
+        }).catch(() => undefined);
       }
     }, 10000);
     return () => window.clearInterval(interval);
@@ -465,6 +456,29 @@ export function RunSelector({ onRerun }: RunSelectorProps = {}) {
           ) : (
             <div className="max-h-64 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
               {historicalRuns.map(renderRunItem)}
+            </div>
+          )}
+
+          {historicalRuns.length > 0 && (
+            <div className="px-3 py-2 border-t border-border/50">
+              {hasMoreRuns ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  disabled={isLoadingRuns}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    fetchMoreRuns(targetWorkflowId);
+                  }}
+                >
+                  {isLoadingRuns ? 'Loading…' : 'Load more runs'}
+                </Button>
+              ) : (
+                <p className="text-center text-xs text-muted-foreground py-1">
+                  No more runs to load
+                </p>
+              )}
             </div>
           )}
 

@@ -1,0 +1,72 @@
+# OpenSearch Security - Internal Users (SaaS Model)
+#
+# USER PROVISIONING STRATEGY:
+# Customer users are created dynamically via the Security REST API
+# when users are added to the platform. This file only contains
+# system users required for platform operations.
+#
+# Customer user creation example (via backend):
+#   PUT /_plugins/_security/api/internalusers/{user_email}
+#   {
+#     "password": "hashed_password",
+#     "backend_roles": ["customer_{customer_id}"],
+#     "attributes": {
+#       "customer_id": "{customer_id}",
+#       "email": "{user_email}"
+#     }
+#   }
+#
+# Password hashing:
+#   docker run -it opensearchproject/opensearch:2.11.1 \
+#     /usr/share/opensearch/plugins/opensearch-security/tools/hash.sh -p <password>
+
+---
+_meta:
+  type: 'internalusers'
+  config_version: 2
+
+# =============================================================================
+# SYSTEM USERS (Platform Operations)
+# =============================================================================
+
+# Platform admin - for internal operations only
+admin:
+  # Default password: admin (CHANGE IN PRODUCTION!)
+  hash: '$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG'
+  reserved: true
+  backend_roles:
+    - 'admin'
+  attributes:
+    role: 'system'
+  description: 'Platform administrator - internal use only'
+
+# Dashboards server user - used by OpenSearch Dashboards
+kibanaserver:
+  # Default password: admin (matches OPENSEARCH_DASHBOARDS_PASSWORD default)
+  hash: '$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG'
+  reserved: true
+  attributes:
+    role: 'system'
+  description: 'Dashboards backend communication user'
+
+# Worker service user - for indexing security findings from worker processes
+worker:
+  # Default password: worker (CHANGE IN PRODUCTION!)
+  hash: '$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG'
+  reserved: false
+  backend_roles:
+    - 'worker_write'
+  attributes:
+    role: 'system'
+  description: 'Worker service for indexing security findings'
+
+# =============================================================================
+# CUSTOMER USERS
+# Note: Customer users are created dynamically by the backend when users
+# register or are invited to the platform.
+#
+# Each customer user will have:
+#   - backend_roles: ["customer_{customer_id}"]
+#   - attributes.customer_id: their customer ID
+#   - Mapped to customer-specific role for index isolation
+# =============================================================================

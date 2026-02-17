@@ -75,6 +75,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.4",
+    "html-to-image": "1.11.11",
     "lucide-react": "^0.544.0",
     "markdown-it": "^14.1.0",
     "markdown-it-html5-embed": "^1.0.0",

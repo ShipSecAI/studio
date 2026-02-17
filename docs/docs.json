@@ -15,18 +15,11 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": [
-              "index",
-              "quickstart",
-              "installation",
-              "command-reference"
-            ]
+            "pages": ["index", "quickstart", "installation", "command-reference"]
           },
           {
             "group": "Architecture",
-            "pages": [
-              "architecture"
-            ]
+            "pages": ["architecture"]
           },
           {
             "group": "Components",
@@ -42,6 +35,7 @@
             "pages": [
               "development/component-development",
               "development/isolated-volumes",
+              "development/workflow-analytics",
               "development/analytics",
               "development/release-process"
             ]

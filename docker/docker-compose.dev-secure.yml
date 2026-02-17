@@ -1,0 +1,83 @@
+# Development Docker Compose with Security & Multitenancy
+#
+# Usage:
+#   docker compose -f docker-compose.infra.yml -f docker-compose.dev-secure.yml up -d
+#
+# This overlay enables OpenSearch Security plugin for development:
+#   - TLS encryption
+#   - Multi-tenant isolation
+#   - Same security model as production
+#
+# Requires:
+#   1. TLS certificates in docker/certs/ (run: just generate-certs)
+#   2. Environment variables (auto-set by just dev for convenience):
+#      - OPENSEARCH_ADMIN_PASSWORD
+#      - OPENSEARCH_DASHBOARDS_PASSWORD
+
+services:
+  opensearch:
+    # Custom entrypoint for proxy auth config templating
+    entrypoint: ['/usr/share/opensearch/config/opensearch-security/docker-entrypoint-security.sh']
+    environment:
+      # Enable security plugin (override infra.yml settings)
+      - DISABLE_SECURITY_PLUGIN=false
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      # Admin password for healthcheck (default: admin)
+      - OPENSEARCH_ADMIN_PASSWORD=${OPENSEARCH_ADMIN_PASSWORD:-admin}
+      # Proxy auth - trusted proxy IP regex (Docker networks: 172.x, 192.168.x, 10.x)
+      # NOTE: Double backslashes required - sed consumes one level during config templating
+      - OPENSEARCH_INTERNAL_PROXIES=(172|192|10)\\.\\d+\\.\\d+\\.\\d+
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+      - ./certs:/usr/share/opensearch/config/certs:ro
+      - ./opensearch-security:/usr/share/opensearch/config/opensearch-security:ro
+      # Custom config file with admin_dn as YAML array (env vars don't support arrays)
+      - ./opensearch.dev-secure.yml:/usr/share/opensearch/config/opensearch.yml:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf -u admin:$${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  opensearch-dashboards:
+    environment:
+      # Enable security plugin (override infra.yml settings)
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=false
+      - OPENSEARCH_HOSTS=["https://opensearch:9200"]
+      - OPENSEARCH_DASHBOARDS_PASSWORD=${OPENSEARCH_DASHBOARDS_PASSWORD:-admin}
+    volumes:
+      - ./opensearch-dashboards.prod.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+      - ./certs:/usr/share/opensearch-dashboards/config/certs:ro
+    healthcheck:
+      # Check if server responds (401 is fine - means server is up, security just requires auth)
+      test:
+        [
+          'CMD-SHELL',
+          "curl -sf -o /dev/null -w '%{http_code}' http://localhost:5601/analytics/api/status | grep -qE '(200|401)' || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # Override init script to work with secured cluster
+  opensearch-init:
+    environment:
+      - OPENSEARCH_SECURITY_ENABLED=true
+      - OPENSEARCH_ADMIN_PASSWORD=${OPENSEARCH_ADMIN_PASSWORD:-admin}
+      - OPENSEARCH_CA_CERT=/certs/root-ca.pem
+    volumes:
+      - ./opensearch-init.sh:/init.sh:ro
+      - ./certs:/certs:ro
+
+volumes:
+  opensearch_data:
+
+networks:
+  default:
+    name: shipsec-network

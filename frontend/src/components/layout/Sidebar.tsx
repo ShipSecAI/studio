@@ -13,7 +13,8 @@ import type { ComponentMetadata } from '@/schemas/component';
 import { cn } from '@/lib/utils';
 import { env } from '@/config/env';
 import { Skeleton } from '@/components/ui/skeleton';
-import { type ComponentCategory, getCategorySeparatorColor } from '@/utils/categoryColors';
+import { COMPONENT_CATEGORY_ORDER, isComponentCategory } from '@shipsec/shared';
+import { getCategorySeparatorColor, getCategoryTextColorClass } from '@/utils/categoryColors';
 import { useThemeStore } from '@/store/themeStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -210,23 +211,13 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   const hasBranchInfo = Boolean(frontendBranch || backendBranch);
 
   // Get category accent color (for left border) - uses separator colors for brightness
-  const getCategoryAccentColor = (category: string): string | undefined => {
-    return getCategorySeparatorColor(category as ComponentCategory, isDarkMode);
+  const getCategoryAccentColor = (category: string): string => {
+    return getCategorySeparatorColor(category, isDarkMode);
   };
 
   // Get category text color with good contrast in both light and dark modes
   const getCategoryTextColor = (category: string): string => {
-    const categoryColors: Record<string, string> = {
-      input: 'text-blue-600 dark:text-blue-400',
-      transform: 'text-orange-600 dark:text-orange-400',
-      ai: 'text-purple-600 dark:text-purple-400',
-      mcp: 'text-teal-600 dark:text-teal-400',
-      security: 'text-red-600 dark:text-red-400',
-      it_ops: 'text-cyan-600 dark:text-cyan-400',
-      notification: 'text-pink-600 dark:text-pink-400',
-      output: 'text-green-600 dark:text-green-400',
-    };
-    return categoryColors[category] || 'text-foreground';
+    return getCategoryTextColorClass(category);
   };
 
   // Custom scrollbar state
@@ -300,18 +291,6 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     );
   }, [filteredComponents]);
 
-  // Category display order
-  const categoryOrder = [
-    'input',
-    'output',
-    'notification',
-    'security',
-    'mcp',
-    'ai',
-    'transform',
-    'it_ops',
-  ] as const;
-
   // Filter components based on search query
   const filteredComponentsByCategory = useMemo(() => {
     const filtered = searchQuery.trim()
@@ -351,8 +330,8 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
 
     // Sort categories by predefined order
     const sortedEntries = Object.entries(filtered).sort(([a], [b]) => {
-      const indexA = categoryOrder.indexOf(a as (typeof categoryOrder)[number]);
-      const indexB = categoryOrder.indexOf(b as (typeof categoryOrder)[number]);
+      const indexA = isComponentCategory(a) ? COMPONENT_CATEGORY_ORDER.indexOf(a) : -1;
+      const indexB = isComponentCategory(b) ? COMPONENT_CATEGORY_ORDER.indexOf(b) : -1;
       // If category not in order list, put it at the end
       if (indexA === -1 && indexB === -1) return 0;
       if (indexA === -1) return 1;

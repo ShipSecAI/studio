@@ -92,6 +92,13 @@
       "when": 1738454400000,
       "tag": "0019_migrate-error-to-jsonb",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1762992000000,
+      "tag": "0026_add-run-status-cache",
+      "breakpoints": true
     }
   ]
 }

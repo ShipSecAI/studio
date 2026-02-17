@@ -62,7 +62,7 @@ function buildIndexes(components: any[]) {
       outputs: component.outputs || [],
       parameters: component.parameters || [],
       examples: component.examples || [],
-      agentTool: component.agentTool || null,
+      toolProvider: component.toolProvider || null,
       toolSchema: component.toolSchema ?? null,
     };
 
@@ -84,6 +84,11 @@ export const useComponentStore = create<ComponentStore>((set, get) => ({
   error: null,
 
   fetchComponents: async () => {
+    const state = get();
+    // Skip if already loaded or currently loading
+    if (Object.keys(state.components).length > 0 || state.loading) {
+      return;
+    }
     set({ loading: true, error: null });
     try {
       const components = await api.components.list();

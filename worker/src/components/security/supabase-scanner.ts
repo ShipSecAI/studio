@@ -10,8 +10,11 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
+  type DockerRunnerConfig,
 } from '@shipsec/component-sdk';
-import type { DockerRunnerConfig } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
 
 // Extract Supabase project ref from a standard URL like https://<project-ref>.supabase.co
@@ -149,6 +152,11 @@ const outputSchema = outputs({
     allowAny: true,
     reason: 'Scanner issue payloads can vary by Supabase project configuration.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
   }),
   report: port(z.unknown(), {
     label: 'Scanner Report',
@@ -329,6 +337,19 @@ const definition = defineComponent({
       } catch (err) {
         const msg = (err as Error)?.message ?? 'Unknown error';
         context.logger.error(`[SupabaseScanner] Scanner failed: ${msg}`);
+
+        // Check if this is a fatal Docker error (image pull failure, container start failure)
+        // These should fail hard, not gracefully degrade
+        if (
+          msg.includes('exit code 125') ||
+          msg.includes('Unable to find image') ||
+          msg.includes('permission denied') ||
+          msg.includes('authentication required')
+        ) {
+          throw err;
+        }
+
+        // For other errors (scanner runtime errors), allow graceful degradation
         errors.push(msg);
       }
 
@@ -357,6 +378,22 @@ const definition = defineComponent({
     } catch (err) {
       const msg = (err as Error)?.message ?? 'Unknown error';
       context.logger.error(`[SupabaseScanner] Scanner failed: ${msg}`);
+
+      // Check if this is a fatal Docker error that should fail the workflow
+      if (
+        msg.includes('exit code 125') ||
+        msg.includes('Unable to find image') ||
+        msg.includes('permission denied') ||
+        msg.includes('authentication required')
+      ) {
+        // Cleanup volume before throwing
+        if (volumeInitialized) {
+          await volume.cleanup();
+          context.logger.info('[SupabaseScanner] Cleaned up isolated volume');
+        }
+        throw err;
+      }
+
       errors.push(msg);
     } finally {
       if (volumeInitialized) {
@@ -365,11 +402,34 @@ const definition = defineComponent({
       }
     }
 
+    // Build analytics-ready results with scanner metadata (follows core.analytics.result.v1 contract)
+    const results: AnalyticsResult[] = (issues ?? []).map((issue) => {
+      const issueObj = typeof issue === 'object' && issue !== null ? issue : { raw: issue };
+      const issueRecord = issueObj as Record<string, unknown>;
+      // Extract check_id and resource for deduplication hash
+      const checkId = issueRecord.check_id as string | undefined;
+      const resource = issueRecord.resource as string | undefined;
+      // Map severity from scanner output or default to 'medium' for security issues
+      const rawSeverity = (issueRecord.severity as string | undefined)?.toLowerCase();
+      const validSeverities = ['critical', 'high', 'medium', 'low', 'info', 'none'] as const;
+      const severity = validSeverities.includes(rawSeverity as (typeof validSeverities)[number])
+        ? (rawSeverity as (typeof validSeverities)[number])
+        : 'medium';
+      return {
+        ...issueObj,
+        scanner: 'supabase-scanner',
+        severity,
+        asset_key: projectRef ?? undefined,
+        finding_hash: generateFindingHash(checkId, projectRef, resource),
+      };
+    });
+
     const output: Output = {
       projectRef: projectRef ?? null,
       score,
       summary,
       issues,
+      results,
       report,
       rawOutput: stdoutCombined ?? '',
       errors: errors.length > 0 ? errors : undefined,

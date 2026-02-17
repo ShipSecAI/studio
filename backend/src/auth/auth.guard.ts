@@ -124,6 +124,7 @@ export class AuthGuard implements CanActivate {
       roles: ['MEMBER'], // API keys have MEMBER role by default
       isAuthenticated: true,
       provider: 'api-key',
+      apiKeyPermissions: apiKey.permissions,
     };
   }
 }

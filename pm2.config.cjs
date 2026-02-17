@@ -162,11 +162,46 @@ if (!swcBinaryPath) {
   console.warn('Unable to automatically resolve SWC native binary; Temporal workers will use default resolution.');
 }
 
-// Load frontend .env file and extract VITE_* variables
-function loadFrontendEnv() {
-  const envPath = path.join(__dirname, 'frontend', '.env');
+// Load .env file and extract VITE_* variables for frontend
+function loadFrontendEnv(envFilePath) {
   const env = { NODE_ENV: 'development' };
-  
+
+  try {
+    if (fs.existsSync(envFilePath)) {
+      const envContent = fs.readFileSync(envFilePath, 'utf-8');
+      envContent.split('\n').forEach((line) => {
+        const trimmed = line.trim();
+        // Skip comments and empty lines
+        if (!trimmed || trimmed.startsWith('#')) {
+          return;
+        }
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          let value = match[2].trim();
+          // Remove surrounding quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          // Only include VITE_* variables for frontend
+          if (key.startsWith('VITE_')) {
+            env[key] = value;
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to load frontend .env file:', err.message);
+  }
+
+  return env;
+}
+
+// Load worker .env file for OpenSearch and other worker-specific variables
+function loadWorkerEnv() {
+  const envPath = path.join(__dirname, 'worker', '.env');
+  const env = {};
+
   try {
     if (fs.existsSync(envPath)) {
       const envContent = fs.readFileSync(envPath, 'utf-8');
@@ -179,22 +214,23 @@ function loadFrontendEnv() {
         const match = trimmed.match(/^([^=]+)=(.*)$/);
         if (match) {
           const key = match[1].trim();
-          const value = match[2].trim();
-          // Only include VITE_* variables for frontend
-          if (key.startsWith('VITE_')) {
-            env[key] = value;
+          let value = match[2].trim();
+          // Remove surrounding quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
           }
+          env[key] = value;
         }
       });
     }
   } catch (err) {
-    console.warn('Failed to load frontend .env file:', err.message);
+    console.warn('Failed to load worker .env file:', err.message);
   }
-  
+
   return env;
 }
 
-const frontendEnv = loadFrontendEnv();
+const workerEnv = loadWorkerEnv();
 
 // Determine environment from NODE_ENV or SHIPSEC_ENV
 const environment = process.env.SHIPSEC_ENV || process.env.NODE_ENV || 'development';
@@ -264,7 +300,7 @@ module.exports = {
         // Ensure instance DB isolation even if dotenv auto-loads a workspace/default `.env`.
         ...devInstanceEnv,
         TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-        LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:19092',
+        LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
         LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
         LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-backend-${instanceNum}`,
         LOG_KAFKA_GROUP_ID: process.env.LOG_KAFKA_GROUP_ID || `shipsec-backend-log-consumer-${instanceNum}`,
@@ -295,13 +331,12 @@ module.exports = {
       name: `shipsec-frontend-${instanceNum}`,
       cwd: __dirname + '/frontend',
       script: 'bun',
-      // Ensure each instance binds to its own Vite port (default is 5173).
-      args: ['run', 'dev', '--', '--port', String(getInstancePort(5173, instanceNum)), '--strictPort'],
+      args: 'run dev',
       env_file: resolveEnvFile('frontend', instanceNum),
       env: {
-        ...frontendEnv,
+        ...loadFrontendEnv(resolveEnvFile('frontend', instanceNum)),
         ...currentEnvConfig,
-        VITE_API_URL: `http://localhost:${getInstancePort(3211, instanceNum)}`,
+        SHIPSEC_INSTANCE: instanceNum,
       },
       watch: !isProduction ? ['src'] : false,
       ignore_watch: ['node_modules', 'dist', '*.log'],
@@ -315,13 +350,14 @@ module.exports = {
       env_file: resolveEnvFile('worker', instanceNum),
       env: Object.assign(
         {
+          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
           ...currentEnvConfig,
           NAPI_RS_FORCE_WASI: '1',
           INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN || 'local-internal-token',
           STUDIO_API_BASE_URL: process.env.STUDIO_API_BASE_URL || `http://localhost:${getInstancePort(3211, instanceNum)}/api/v1`,
           ...devInstanceEnv,
           TERMINAL_REDIS_URL: process.env.TERMINAL_REDIS_URL || 'redis://localhost:6379',
-          LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:19092',
+          LOG_KAFKA_BROKERS: process.env.LOG_KAFKA_BROKERS || 'localhost:9092',
           LOG_KAFKA_TOPIC: process.env.LOG_KAFKA_TOPIC || 'telemetry.logs',
           LOG_KAFKA_CLIENT_ID: process.env.LOG_KAFKA_CLIENT_ID || `shipsec-worker-${instanceNum}`,
           EVENT_KAFKA_TOPIC: process.env.EVENT_KAFKA_TOPIC || 'telemetry.events',
@@ -329,6 +365,7 @@ module.exports = {
           TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS || 'localhost:7233',
           TEMPORAL_NAMESPACE: `shipsec-dev-${instanceNum}`,
           TEMPORAL_TASK_QUEUE: `shipsec-dev-${instanceNum}`,
+          SKIP_CONTAINER_CLEANUP: process.env.SKIP_CONTAINER_CLEANUP || 'false',
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
@@ -345,6 +382,7 @@ module.exports = {
       env_file: __dirname + '/worker/.env',
       env: Object.assign(
         {
+          ...workerEnv, // Load worker .env file (includes OPENSEARCH_URL, etc.)
           TEMPORAL_TASK_QUEUE: 'test-worker-integration',
           TEMPORAL_NAMESPACE: 'shipsec-dev',
           NODE_ENV: 'development',
@@ -352,25 +390,6 @@ module.exports = {
         },
         swcBinaryPath ? { SWC_BINARY_PATH: swcBinaryPath } : {},
       ),
-    },
-    {
-      name: 'shipsec-mcp-server',
-      cwd: __dirname,
-      script: 'bun',
-      args: '.playground/mcp-server.ts',
-      env_file: __dirname + '/.playground/.env',
-      env: {
-        NODE_ENV: 'development',
-        MCP_PORT: process.env.MCP_PORT || '4312',
-        MCP_DELAY_MS: process.env.MCP_DELAY_MS || '1500',
-        GEMINI_API_KEY: process.env.GEMINI_API_KEY || 'AIzaSyArjdbc9tz8EGL94kyDLutWOAhVnzbcnjc',
-      },
-      watch: ['.playground/mcp-server.ts'],
-      ignore_watch: ['node_modules', '*.log'],
-      max_memory_restart: '200M',
-      restart_delay: 4000,
-      max_restarts: 10,
-      min_uptime: '10s',
     },
   ],
 };

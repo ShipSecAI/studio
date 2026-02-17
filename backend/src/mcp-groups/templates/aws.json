@@ -4,10 +4,10 @@
   "description": "Essential AWS security tools for auditing, monitoring, and incident response",
   "credentialContractName": "core.credential.aws",
   "credentialMapping": {
-    "accessKeyId": "AWS_ACCESS_KEY_ID",
-    "secretAccessKey": "AWS_SECRET_ACCESS_KEY",
-    "sessionToken": "AWS_SESSION_TOKEN",
-    "region": "AWS_REGION"
+    "AWS_ACCESS_KEY_ID": "accessKeyId",
+    "AWS_SECRET_ACCESS_KEY": "secretAccessKey",
+    "AWS_SESSION_TOKEN": "sessionToken",
+    "AWS_REGION": "region"
   },
   "defaultDockerImage": "shipsec/mcp-aws-suite:latest",
   "version": {
@@ -17,6 +17,7 @@
   },
   "servers": [
     {
+      "id": "aws-cloudtrail",
       "name": "cloudtrail",
       "description": "CloudTrail auditing - event lookup, user activity analysis, compliance investigations",
       "transportType": "stdio",
@@ -25,6 +26,7 @@
       "defaultSelected": true
     },
     {
+      "id": "aws-iam",
       "name": "iam",
       "description": "IAM security - user/role management, permission analysis, access key audit",
       "transportType": "stdio",
@@ -33,6 +35,7 @@
       "defaultSelected": true
     },
     {
+      "id": "aws-s3-tables",
       "name": "s3-tables",
       "description": "S3 Tables security - S3 Tables bucket policies, access controls",
       "transportType": "stdio",
@@ -41,6 +44,7 @@
       "defaultSelected": true
     },
     {
+      "id": "aws-cloudwatch",
       "name": "cloudwatch",
       "description": "CloudWatch monitoring - logs, metrics, alarms for security events",
       "transportType": "stdio",
@@ -49,6 +53,7 @@
       "defaultSelected": true
     },
     {
+      "id": "aws-network",
       "name": "aws-network",
       "description": "AWS Network - VPC, networking configuration, security groups",
       "transportType": "stdio",
@@ -57,6 +62,7 @@
       "defaultSelected": false
     },
     {
+      "id": "aws-lambda",
       "name": "lambda",
       "description": "Lambda security - function permissions, runtime analysis, IAM roles",
       "transportType": "stdio",
@@ -65,6 +71,7 @@
       "defaultSelected": false
     },
     {
+      "id": "aws-dynamodb",
       "name": "dynamodb",
       "description": "DynamoDB security - table access policies, encryption, point-in-time recovery",
       "transportType": "stdio",
@@ -73,6 +80,7 @@
       "defaultSelected": false
     },
     {
+      "id": "aws-documentation",
       "name": "aws-documentation",
       "description": "AWS docs - real-time access to official AWS security documentation",
       "transportType": "stdio",
@@ -81,6 +89,7 @@
       "defaultSelected": false
     },
     {
+      "id": "aws-well-architected",
       "name": "well-architected-security",
       "description": "Security review - AWS Well-Architected security best practices framework",
       "transportType": "stdio",
@@ -89,6 +98,7 @@
       "defaultSelected": false
     },
     {
+      "id": "aws-api",
       "name": "aws-api",
       "description": "AWS API explorer - interact with any AWS service API directly",
       "transportType": "stdio",

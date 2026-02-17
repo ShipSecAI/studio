@@ -66,10 +66,18 @@ export async function startMcpDockerServer(
     kind: 'docker' as const,
     image: input.image,
     command: [...(input.command ?? []), ...(input.args ?? [])],
-    env: { ...input.env, PORT: String(port), ENDPOINT: endpoint },
+    env: {
+      ...input.env,
+      PORT: String(port),
+      ENDPOINT: endpoint,
+      // Add runId to env for container identification
+      STUDIO_RUN_ID: input.context.runId || 'unknown',
+    },
     network: 'bridge' as const,
     detached: true,
-    autoRemove: input.autoRemove,
+    // Explicitly disable autoRemove to ensure containers persist for manual cleanup
+    // This prevents race conditions where containers are removed before cleanup runs
+    autoRemove: false,
     containerName,
     // Bind to 0.0.0.0 so all interfaces can reach it (both localhost and Docker network)
     ports: { [`0.0.0.0:${port}`]: port },

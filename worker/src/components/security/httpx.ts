@@ -10,6 +10,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
 
@@ -145,7 +148,7 @@ const findingSchema = z.object({
 type Finding = z.infer<typeof findingSchema>;
 
 const outputSchema = outputs({
-  results: port(z.array(findingSchema), {
+  responses: port(z.array(findingSchema), {
     label: 'HTTP Responses',
     description: 'Structured metadata for each responsive endpoint.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
@@ -178,6 +181,11 @@ const outputSchema = outputs({
       connectionType: { kind: 'primitive', name: 'json' },
     },
   ),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 const httpxRunnerOutputSchema = z.object({
@@ -202,7 +210,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/httpx:v1.7.4',
+    image: 'ghcr.io/shipsecai/httpx:latest',
     entrypoint: 'httpx',
     network: 'bridge',
     timeoutSeconds: dockerTimeoutSeconds,
@@ -239,16 +247,15 @@ const definition = defineComponent({
     },
     isLatest: true,
     deprecated: false,
-    example:
-      '`httpx -l targets.txt -json -status-code 200,301` - Probe discovered hosts and capture responsive endpoints with matching status codes.',
     examples: [
       'Validate Subfinder or Amass discoveries by probing for live web services.',
       'Filter Naabu results to identify hosts exposing HTTP/S services on uncommon ports.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Live HTTP endpoint probe and metadata collector (httpx).',
-    },
+  },
+  toolProvider: {
+    kind: 'component',
+    name: 'httpx_probe',
+    description: 'Live HTTP endpoint probe and metadata collector (httpx).',
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
@@ -272,6 +279,7 @@ const definition = defineComponent({
     if (runnerParams.targets.length === 0) {
       context.logger.info('[httpx] Skipping httpx probe because no targets were provided.');
       const emptyOutput: Output = {
+        responses: [],
         results: [],
         rawOutput: '',
         targetCount: 0,
@@ -395,8 +403,27 @@ const definition = defineComponent({
         `[httpx] Completed probe with ${findings.length} result(s) from ${runnerParams.targets.length} target(s)`,
       );
 
+      // Build analytics-ready results with scanner metadata
+      const analyticsResults: AnalyticsResult[] = findings.map((finding) => ({
+        scanner: 'httpx',
+        finding_hash: generateFindingHash(
+          'http-endpoint',
+          finding.url,
+          String(finding.statusCode ?? 0),
+        ),
+        severity: 'info' as const,
+        asset_key: finding.url,
+        url: finding.url,
+        host: finding.host,
+        status_code: finding.statusCode,
+        title: finding.title,
+        webserver: finding.webserver,
+        technologies: finding.technologies,
+      }));
+
       const output: Output = {
-        results: findings,
+        responses: findings,
+        results: analyticsResults,
         rawOutput: runnerOutput,
         targetCount: runnerParams.targets.length,
         resultCount: findings.length,

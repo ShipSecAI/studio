@@ -1,0 +1,7 @@
+# Ignore generated certificates and private keys
+# These should NEVER be committed to version control
+*.pem
+*.key
+*.crt
+*.csr
+*.srl

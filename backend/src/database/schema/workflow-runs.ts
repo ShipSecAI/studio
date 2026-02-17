@@ -20,6 +20,8 @@ export const workflowRunsTable = pgTable('workflow_runs', {
     .notNull()
     .default({ runtimeInputs: {}, nodeOverrides: {} }),
   organizationId: varchar('organization_id', { length: 191 }),
+  status: text('status'),
+  closeTime: timestamp('close_time', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

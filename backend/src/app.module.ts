@@ -2,10 +2,16 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'node:path';
+import { ThrottlerModule, ThrottlerGuard, seconds } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import Redis from 'ioredis';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { authConfig } from './config/auth.config';
+import { opensearchConfig } from './config/opensearch.config';
+import { validateBackendEnv } from './config/env.validate';
+import { OpenSearchModule } from './config/opensearch.module';
 import { AgentsModule } from './agents/agents.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthGuard } from './auth/auth.guard';
@@ -20,6 +26,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { McpModule } from './mcp/mcp.module';
+import { StudioMcpModule } from './studio-mcp/studio-mcp.module';
 
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -44,6 +51,7 @@ const coreModules = [
   McpServersModule,
   McpGroupsModule,
   McpModule,
+  StudioMcpModule,
 ];
 
 const testingModules = process.env.NODE_ENV === 'production' ? [] : [TestingSupportModule];
@@ -68,8 +76,26 @@ function getEnvFilePaths(): string[] {
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: getEnvFilePaths(),
-      load: [authConfig],
+      load: [authConfig, opensearchConfig],
+      validate: validateBackendEnv,
     }),
+    ThrottlerModule.forRootAsync({
+      useFactory: () => {
+        const redisUrl = process.env.REDIS_URL;
+
+        return {
+          throttlers: [
+            {
+              name: 'default',
+              ttl: seconds(60), // 60 seconds
+              limit: 100, // 100 requests per minute
+            },
+          ],
+          storage: redisUrl ? new ThrottlerStorageRedisService(new Redis(redisUrl)) : undefined, // Falls back to in-memory storage if Redis not configured
+        };
+      },
+    }),
+    OpenSearchModule,
     ...coreModules,
     ...testingModules,
   ],
@@ -83,6 +109,10 @@ function getEnvFilePaths(): string[] {
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })

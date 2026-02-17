@@ -1,0 +1,73 @@
+# OpenSearch Security - Roles Mapping (SaaS Model)
+#
+# DYNAMIC ROLE MAPPING:
+# Customer role mappings are created dynamically when users are provisioned.
+# Each customer user is mapped to their customer-specific role.
+#
+# Example dynamic mapping creation (via backend):
+#   PUT /_plugins/_security/api/rolesmapping/customer_{customer_id}_rw
+#   {
+#     "users": ["user@customer.com"],
+#     "backend_roles": ["customer_{customer_id}"]
+#   }
+#
+# The backend should:
+# 1. Create customer tenant when customer onboards
+# 2. Create customer role (customer_{id}_rw or customer_{id}_ro)
+# 3. Map user to customer role when user is added
+
+---
+_meta:
+  type: 'rolesmapping'
+  config_version: 2
+
+# =============================================================================
+# SYSTEM ROLE MAPPINGS
+# =============================================================================
+
+# Platform admin mapping - internal operators only
+platform_admin:
+  reserved: true
+  users:
+    - 'admin'
+  backend_roles:
+    - 'platform_admin'
+  description: 'Platform administrators with full system access'
+
+# Dashboards server mapping
+kibana_server:
+  reserved: true
+  users:
+    - 'kibanaserver'
+  description: 'OpenSearch Dashboards server user'
+
+# Security REST API access - for admin operations
+security_rest_api_access:
+  reserved: true
+  users:
+    - 'admin'
+  backend_roles:
+    - 'platform_admin'
+  description: 'Access to Security REST API for tenant/role management'
+
+# Worker service mapping - for indexing security findings
+worker_write:
+  reserved: false
+  users:
+    - 'worker'
+  backend_roles:
+    - 'worker_write'
+  description: 'Worker service for indexing security findings'
+
+# =============================================================================
+# CUSTOMER ROLE MAPPINGS
+# Note: Customer-specific mappings are created dynamically by the backend
+# when customers and users are provisioned.
+#
+# Pattern for dynamic mappings:
+#   Role: customer_{customer_id}_rw
+#   Users: [list of customer's users with write access]
+#
+#   Role: customer_{customer_id}_ro
+#   Users: [list of customer's users with read-only access]
+# =============================================================================

@@ -11,6 +11,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 
 const inputSchema = inputs({
@@ -64,6 +67,11 @@ const outputSchema = outputs({
       connectionType: { kind: 'primitive', name: 'json' },
     },
   ),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 // Retry policy for VirusTotal API - handles rate limits and transient failures
@@ -85,6 +93,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Check the reputation of an IP, Domain, File Hash, or URL using the VirusTotal v3 API.',
+  toolProvider: {
+    kind: 'component',
+    name: 'virustotal_lookup',
+    description: 'Threat intelligence lookup for IPs, domains, hashes, and URLs (VirusTotal).',
+  },
   ui: {
     slug: 'virustotal-lookup',
     version: '1.0.0',
@@ -95,11 +108,6 @@ const definition = defineComponent({
     author: { name: 'ShipSecAI', type: 'shipsecai' },
     isLatest: true,
     deprecated: false,
-    agentTool: {
-      enabled: true,
-      toolDescription:
-        'Threat intelligence lookup for IPs, domains, hashes, and URLs (VirusTotal).',
-    },
   },
   async execute({ inputs, params }, context) {
     const { indicator, apiKey } = inputs;
@@ -167,6 +175,7 @@ const definition = defineComponent({
         suspicious: 0,
         harmless: 0,
         tags: [],
+        results: [],
         full_report: { error: 'Not Found in VirusTotal' },
       };
     }
@@ -190,12 +199,44 @@ const definition = defineComponent({
       `[VirusTotal] Results for ${indicator}: ${malicious} malicious, ${suspicious} suspicious.`,
     );
 
+    // Determine severity based on malicious/suspicious counts
+    let severity: 'critical' | 'high' | 'medium' | 'low' | 'info' | 'none' = 'none';
+    if (malicious >= 10) {
+      severity = 'critical';
+    } else if (malicious >= 5) {
+      severity = 'high';
+    } else if (malicious >= 1 || suspicious >= 5) {
+      severity = 'medium';
+    } else if (suspicious >= 1) {
+      severity = 'low';
+    } else {
+      severity = 'info';
+    }
+
+    // Build analytics-ready results
+    const analyticsResults: AnalyticsResult[] = [
+      {
+        scanner: 'virustotal',
+        finding_hash: generateFindingHash('threat-intelligence', indicator, type),
+        severity,
+        asset_key: indicator,
+        indicator,
+        indicator_type: type,
+        malicious_count: malicious,
+        suspicious_count: suspicious,
+        harmless_count: harmless,
+        reputation,
+        tags,
+      },
+    ];
+
     return {
       malicious,
       suspicious,
       harmless,
       tags,
       reputation,
+      results: analyticsResults,
       full_report: data,
     };
   },

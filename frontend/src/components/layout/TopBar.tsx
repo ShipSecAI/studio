@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   Undo2,
   Redo2,
+  ExternalLink,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -25,11 +26,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
+import { useAuthStore, DEFAULT_ORG_ID } from '@/store/authStore';
 import { cn } from '@/lib/utils';
+import { env } from '@/config/env';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TopBarProps {
   workflowId?: string;
   selectedRunId?: string | null;
+  selectedRunStatus?: string | null;
+  selectedRunOrgId?: string | null;
   isNew?: boolean;
   onRun?: () => void;
   onSave: () => Promise<void> | void;
@@ -40,6 +46,7 @@ interface TopBarProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  hasAnalyticsSink?: boolean;
 }
 
 const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow';
@@ -47,6 +54,8 @@ const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow';
 export function TopBar({
   workflowId,
   selectedRunId,
+  selectedRunStatus,
+  selectedRunOrgId,
   onRun,
   onSave,
   onImport,
@@ -56,6 +65,7 @@ export function TopBar({
   onRedo,
   canUndo,
   canRedo,
+  hasAnalyticsSink = false,
 }: TopBarProps) {
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
@@ -68,6 +78,11 @@ export function TopBar({
 
   const { metadata, isDirty, setWorkflowName } = useWorkflowStore();
   const mode = useWorkflowUiStore((state) => state.mode);
+  const organizationId = useAuthStore((s) => s.organizationId);
+  const authProvider = useAuthStore((s) => s.provider);
+  // For Clerk auth, org context is ready when organizationId is set to a real value (not default)
+  // For other providers (local, custom), org context is always ready
+  const isOrgReady = authProvider !== 'clerk' || organizationId !== DEFAULT_ORG_ID;
   const canEdit = Boolean(canManageWorkflows);
 
   const handleChangeWorkflowName = () => {
@@ -453,6 +468,68 @@ export function TopBar({
                   </Button>
                 </>
               )}
+
+              {env.VITE_OPENSEARCH_DASHBOARDS_URL &&
+                workflowId &&
+                (!selectedRunId || (selectedRunStatus && selectedRunStatus !== 'RUNNING')) && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 md:gap-2 min-w-0"
+                            disabled={!isOrgReady || !hasAnalyticsSink}
+                            onClick={() => {
+                              if (!isOrgReady || !hasAnalyticsSink) return;
+                              const baseUrl = env.VITE_OPENSEARCH_DASHBOARDS_URL.replace(
+                                /\/+$/,
+                                '',
+                              );
+                              // Filter by run_id if a specific run is selected, otherwise by workflow_id
+                              const filterQuery = selectedRunId
+                                ? `shipsec.run_id.keyword:"${selectedRunId}"`
+                                : `shipsec.workflow_id.keyword:"${workflowId}"`;
+                              // Use the run's backend-resolved org ID when available (matches indexed data),
+                              // fall back to auth store org ID for workflow-level queries
+                              const effectiveOrgId = (
+                                selectedRunOrgId || organizationId
+                              ).toLowerCase();
+                              const orgScopedPattern = `security-findings-${effectiveOrgId}-*`;
+                              // OpenSearch Data Explorer URL format
+                              // Use .keyword fields for exact match filtering
+                              // Use 'all time' range (1 year) since run_id is unique - no need to filter by time
+                              const aParam = encodeURIComponent(
+                                `(discover:(columns:!(_source),interval:auto,sort:!()),metadata:(indexPattern:'${orgScopedPattern}',view:discover))`,
+                              );
+                              const qParam = encodeURIComponent(
+                                `(query:(language:kuery,query:'${filterQuery}'))`,
+                              );
+                              const gParam = encodeURIComponent(
+                                '(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1y,to:now))',
+                              );
+                              const url = `${baseUrl}/app/data-explorer/discover/#?_a=${aParam}&_q=${qParam}&_g=${gParam}`;
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            <span className="hidden lg:inline">View Analytics</span>
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {!hasAnalyticsSink
+                          ? 'Connect analytics sink to view analytics'
+                          : !isOrgReady
+                            ? 'Loading organization context...'
+                            : selectedRunId
+                              ? 'View analytics for this run in OpenSearch Dashboards'
+                              : 'View analytics for this workflow in OpenSearch Dashboards'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
 
               <Button
                 onClick={handleRun}

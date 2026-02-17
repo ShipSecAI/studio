@@ -12,6 +12,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
 import * as yaml from 'js-yaml';
@@ -203,6 +206,11 @@ const outputSchema = outputs({
     description: 'Array of detected vulnerabilities with severity, tags, and matched URLs.',
     connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
   }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
   rawOutput: port(z.string(), {
     label: 'Raw Output',
     description: 'Complete JSONL output from nuclei for downstream processing.',
@@ -283,6 +291,12 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Run ProjectDiscovery Nuclei vulnerability scanner with custom or built-in templates. Supports quick YAML testing or bulk scans with template archives.',
+  toolProvider: {
+    kind: 'component',
+    name: 'nuclei_scan',
+    description:
+      'Fast vulnerability scanner for CVEs, misconfigurations, and exposures using YAML templates.',
+  },
   ui: {
     slug: 'nuclei',
     version: '1.0.0',
@@ -308,11 +322,6 @@ const definition = defineComponent({
       'Bulk custom scan: Upload zip archive via Entry Point → File Loader → Nuclei',
       'Comprehensive scan: Combine custom archive + built-in templates for complete coverage',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription:
-        'Fast vulnerability scanner for CVEs, misconfigurations, and exposures using YAML templates.',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedInputs = inputSchema.parse(inputs);
@@ -549,8 +558,17 @@ const definition = defineComponent({
         `[Nuclei] Scan complete: ${findings.length} finding(s) from ${parsedInputs.targets.length} target(s)`,
       );
 
+      // Build analytics-ready results with scanner metadata (follows core.analytics.result.v1 contract)
+      const results: AnalyticsResult[] = findings.map((finding) => ({
+        ...finding,
+        scanner: 'nuclei',
+        asset_key: finding.host ?? finding.matchedAt,
+        finding_hash: generateFindingHash(finding.templateId, finding.host, finding.matchedAt),
+      }));
+
       const output = {
         findings,
+        results,
         rawOutput: stdout,
         targetCount: parsedInputs.targets.length,
         findingCount: findings.length,

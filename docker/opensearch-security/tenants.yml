@@ -1,0 +1,28 @@
+# OpenSearch Security - Tenants Configuration (SaaS Model)
+#
+# TENANT ISOLATION STRATEGY:
+# Each customer gets their own isolated tenant and index pattern.
+# No shared/global dashboards - sharing is explicitly opt-in.
+#
+# Tenants are created dynamically via the Security REST API when
+# a new customer is onboarded. Tenant name = customer ID.
+#
+# Index naming convention: {customer_id}-analytics-*
+# Each customer's role restricts access to only their indices.
+#
+# Example dynamic tenant creation (via backend):
+#   POST /_plugins/_security/api/tenants/{customer_id}
+#   { "description": "Tenant for customer {customer_id}" }
+
+---
+_meta:
+  type: 'tenants'
+  config_version: 2
+
+# NOTE: Customer tenants are created dynamically by the application backend
+# when customers are onboarded. This file only contains system tenants.
+
+# Admin tenant - for platform operators only (not customers)
+__platform_admin:
+  reserved: true
+  description: 'Platform administration - internal use only'

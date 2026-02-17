@@ -1,16 +1,30 @@
 #!/bin/bash
-# Create instance-specific PostgreSQL databases
+# Create additional PostgreSQL databases required by ShipSec
 # This script is run automatically by PostgreSQL init-entrypoint
+#
+# Creates:
+#   - temporal: Required by Temporal workflow engine
+#   - shipsec_instance_0..9: Multi-instance dev databases
 
 set -e
 
-echo "🗄️  Creating instance-specific databases..."
+# --- Temporal database (required for workflow engine) ---
+echo "🗄️  Creating Temporal database..."
+if psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d postgres -lqt | cut -d \| -f 1 | grep -qw "temporal"; then
+  echo "  Database temporal already exists, skipping..."
+else
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d postgres <<-EOSQL
+    CREATE DATABASE temporal OWNER "$POSTGRES_USER";
+    GRANT ALL PRIVILEGES ON DATABASE temporal TO "$POSTGRES_USER";
+EOSQL
+  echo "  ✅ temporal created"
+fi
 
-# Create databases for instances 0-9
+# --- Instance-specific databases (for multi-instance dev) ---
+echo "🗄️  Creating instance-specific databases..."
 for i in {0..9}; do
   DB_NAME="shipsec_instance_$i"
-  
-  # Check if database already exists
+
   if psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d postgres -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
     echo "  Database $DB_NAME already exists, skipping..."
   else
@@ -22,7 +36,4 @@ EOSQL
   fi
 done
 
-echo "✅ Instance-specific databases created successfully"
-echo ""
-echo "Available databases:"
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d postgres -c "\\l" | grep shipsec_instance
+echo "✅ All databases created successfully"

@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ShipSec AWS Integration - Forward GuardDuty findings to ShipSec for automated triage'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: 'ShipSec Configuration'
+        Parameters:
+          - ShipSecWebhookPath
+          - ShipSecWebhookDomain
+      - Label:
+          default: 'GuardDuty Settings'
+        Parameters:
+          - GuardDutySeverityThreshold
+          - EnableTestFinding
+
+Parameters:
+  ShipSecWebhookPath:
+    Type: String
+    Description: 'Webhook path from ShipSec (e.g., wh_abc123xyz...)'
+    MinLength: 10
+    ConstraintDescription: 'Must be a valid webhook path'
+
+  ShipSecWebhookDomain:
+    Type: String
+    Default: 'api.shipsec.ai'
+    Description: 'ShipSec API domain'
+    AllowedValues:
+      - 'api.shipsec.ai'
+      - 'localhost:3211'
+    ConstraintDescription: 'Use api.shipsec.ai for cloud or localhost:3211 for local testing'
+
+  GuardDutySeverityThreshold:
+    Type: Number
+    Default: 4
+    Description: 'Only forward findings with severity > this value (0-8.9)'
+    MinValue: 0
+    MaxValue: 8.9
+
+  EnableTestFinding:
+    Type: String
+    Default: 'true'
+    Description: 'Generate a test GuardDuty finding after deployment'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+Conditions:
+  ShouldCreateTestFinding: !Equals [!Ref EnableTestFinding, 'true']
+
+Resources:
+  # IAM Role for EventBridge to publish to SNS
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ShipSecGuardDutyRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: AllowSNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sns:Publish'
+                Resource: !GetAtt ShipSecTopic.TopicArn
+
+  # SNS Topic to receive GuardDuty findings
+  ShipSecTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: shipsec-guardduty-findings
+      DisplayName: 'ShipSec GuardDuty Findings'
+
+  # HTTP subscription to ShipSec webhook endpoint
+  ShipSecWebhookSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: https
+      TopicArn: !GetAtt ShipSecTopic.TopicArn
+      Endpoint: !Sub 'https://${ShipSecWebhookDomain}/webhooks/inbound/${ShipSecWebhookPath}'
+      Attributes:
+        # For local testing only - auto-confirm without email
+        - Name: RawMessageDelivery
+          Value: 'false'
+
+  # EventBridge rule to catch GuardDuty findings
+  GuardDutyRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: guardduty-to-shipsec
+      Description: 'Forward GuardDuty findings to ShipSec'
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.guardduty
+        detail-type:
+          - GuardDuty Finding
+        detail:
+          severity:
+            - numeric:
+                - '>'
+                - !Ref GuardDutySeverityThreshold
+      Targets:
+        - Arn: !GetAtt ShipSecTopic.TopicArn
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          Id: ShipSecTarget
+
+  # Lambda to generate test finding (optional)
+  TestFindingLambdaRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldCreateTestFinding
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: AllowGuardDutyAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'guardduty:CreateSampleFindings'
+                  - 'guardduty:ListDetectors'
+                Resource: '*'
+
+  TestFindingLambda:
+    Type: AWS::Lambda::Function
+    Condition: ShouldCreateTestFinding
+    Properties:
+      FunctionName: shipsec-test-finding-generator
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt TestFindingLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import cfnresponse
+
+          guardduty = boto3.client('guardduty')
+
+          def lambda_handler(event, context):
+            try:
+              if event['RequestType'] == 'Create':
+                # List detectors
+                detectors = guardduty.list_detectors()
+                if not detectors['DetectorIds']:
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {}, 'No GuardDuty detector found')
+                  return
+                
+                detector_id = detectors['DetectorIds'][0]
+                
+                # Create sample finding
+                response = guardduty.create_sample_findings(
+                  DetectorId=detector_id,
+                  FindingTypes=['Recon:EC2/PortProbeUnprotectedPort']
+                )
+                
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                  'DetectorId': detector_id,
+                  'Message': 'Test finding created'
+                })
+              else:
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+            except Exception as e:
+              print(f'Error: {str(e)}')
+              cfnresponse.send(event, context, cfnresponse.FAILED, {}, str(e))
+
+  TestFindingInvoker:
+    Type: AWS::CloudFormation::CustomResource
+    Condition: ShouldCreateTestFinding
+    Properties:
+      ServiceToken: !GetAtt TestFindingLambda.Arn
+
+Outputs:
+  SNSTopicArn:
+    Description: 'SNS Topic ARN for GuardDuty findings'
+    Value: !GetAtt ShipSecTopic.TopicArn
+
+  EventBridgeRuleArn:
+    Description: 'EventBridge Rule ARN'
+    Value: !GetAtt GuardDutyRule.Arn
+
+  WebhookUrl:
+    Description: 'Full webhook URL receiving findings'
+    Value: !Sub 'https://${ShipSecWebhookDomain}/webhooks/inbound/${ShipSecWebhookPath}'
+
+  StackName:
+    Description: 'CloudFormation stack name'
+    Value: !Ref AWS::StackName
+
+  Status:
+    Description: 'Integration status'
+    Value: !If
+      - ShouldCreateTestFinding
+      - 'Ready - Test finding created, check ShipSec dashboard'
+      - 'Ready - Waiting for GuardDuty findings'
+
+  SetupInstructions:
+    Description: 'Next steps'
+    Value: |
+      1. ✅ CloudFormation stack deployed
+      2. ⏳ SNS subscription may be pending confirmation
+         - Check SNS console → Subscriptions
+         - If pending: AWS sends email with confirmation link
+      3. 🧪 Test the connection:
+         - Wait for a GuardDuty finding, OR
+         - Manually POST to webhook:
+           curl -X POST "https://api.shipsec.ai/webhooks/inbound/wh_YOUR_PATH" \
+             -H 'Content-Type: application/json' \
+             -d '{"Message":"..."}'
+      4. 📊 Monitor in ShipSec dashboard

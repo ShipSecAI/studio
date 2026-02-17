@@ -65,14 +65,9 @@ import { RunArtifactsResponseDto } from '../storage/dto/artifact.dto';
 import { RunArtifactIdParamDto, RunArtifactIdParamSchema } from '../storage/dto/artifacts.dto';
 import type { WorkflowTerminalRecord } from '../database/schema';
 import { NodeIOService } from '../node-io/node-io.service';
+import { TERMINAL_STATUSES } from '@shipsec/shared';
 
-const TERMINAL_COMPLETION_STATUSES = new Set([
-  'COMPLETED',
-  'FAILED',
-  'CANCELLED',
-  'TERMINATED',
-  'TIMED_OUT',
-]);
+const TERMINAL_COMPLETION_STATUSES = new Set(TERMINAL_STATUSES);
 
 const traceFailureSchema = {
   type: 'object',
@@ -290,6 +285,32 @@ export class WorkflowsController {
     return this.transformServiceResponseToApi(serviceResponse);
   }
 
+  @Get('summary')
+  @ApiOkResponse({
+    description: 'Lightweight workflow list without graph data',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          isSystem: { type: 'boolean' },
+          templateId: { type: 'string', format: 'uuid', nullable: true },
+          lastRun: { type: 'string', format: 'date-time', nullable: true },
+          runCount: { type: 'integer' },
+          nodeCount: { type: 'integer' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+  })
+  async listSummary(@CurrentAuth() auth: AuthContext | null) {
+    return this.workflowsService.listSummary(auth);
+  }
+
   @Get('/runs')
   @ApiOkResponse({
     description: 'List all workflow runs with metadata',
@@ -303,6 +324,7 @@ export class WorkflowsController {
             properties: {
               id: { type: 'string' },
               workflowId: { type: 'string' },
+              organizationId: { type: 'string' },
               status: {
                 type: 'string',
                 enum: [
@@ -361,6 +383,7 @@ export class WorkflowsController {
       workflowId: query.workflowId,
       status: query.status,
       limit: query.limit,
+      offset: query.offset,
     });
   }
 
@@ -372,6 +395,7 @@ export class WorkflowsController {
       properties: {
         id: { type: 'string' },
         workflowId: { type: 'string' },
+        organizationId: { type: 'string' },
         status: {
           type: 'string',
           enum: [

@@ -1,0 +1,83 @@
+name: Sync upstream main
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # Once daily at 9am UTC
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/ShipSecAI/studio.git || true
+          git fetch upstream main
+
+      - name: Check for divergence
+        id: check
+        run: |
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          # Check if upstream-sync branch exists on origin
+          if git ls-remote --exit-code origin upstream-sync &>/dev/null; then
+            CURRENT_SHA=$(git rev-parse origin/upstream-sync)
+          else
+            CURRENT_SHA=""
+          fi
+
+          if [ "$UPSTREAM_SHA" = "$CURRENT_SHA" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No new upstream commits"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            AHEAD=$(git rev-list --count origin/main..upstream/main)
+            echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
+            echo "Upstream is $AHEAD commits ahead"
+          fi
+
+      - name: Push upstream-sync branch
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git checkout -B upstream-sync upstream/main
+          git push origin upstream-sync --force
+
+      - name: Create or update PR
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING_PR=$(gh pr list --head upstream-sync --base main --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists, updated sync branch"
+            gh pr comment "$EXISTING_PR" --body "Sync branch updated. Upstream is now ${{ steps.check.outputs.ahead }} commits ahead of main."
+          else
+            gh pr create \
+              --head upstream-sync \
+              --base main \
+              --title "sync: merge upstream main" \
+              --body "$(cat <<'EOF'
+Automated sync from [ShipSecAI/studio](https://github.com/ShipSecAI/studio) main.
+
+**${{ steps.check.outputs.ahead }} new upstream commits.**
+
+Review the changes and merge when ready. If there are conflicts, resolve them locally:
+```bash
+git fetch origin upstream-sync main
+git checkout main
+git merge origin/upstream-sync
+# resolve conflicts
+git push origin main
+```
+EOF
+)"
+          fi

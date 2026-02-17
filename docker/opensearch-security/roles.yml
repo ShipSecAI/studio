@@ -1,0 +1,177 @@
+# OpenSearch Security - Roles Configuration (SaaS Model)
+#
+# INDEX ISOLATION STRATEGY:
+# Each customer's data is stored in indices prefixed with their customer ID:
+#   {customer_id}-analytics-*
+#   {customer_id}-workflows-*
+#   {customer_id}-scans-*
+#
+# Roles are created dynamically per customer with index patterns that
+# restrict access to only their data. This file defines role templates
+# and system roles.
+#
+# Dynamic role creation example (via backend):
+#   PUT /_plugins/_security/api/roles/customer_{customer_id}
+#   {
+#     "cluster_permissions": ["cluster_composite_ops_ro"],
+#     "index_permissions": [{
+#       "index_patterns": ["{customer_id}-*"],
+#       "allowed_actions": ["read", "indices:data/read/*"]
+#     }],
+#     "tenant_permissions": [{
+#       "tenant_patterns": ["{customer_id}"],
+#       "allowed_actions": ["kibana_all_write"]
+#     }]
+#   }
+
+---
+_meta:
+  type: 'roles'
+  config_version: 2
+
+# =============================================================================
+# SYSTEM ROLES (Platform Operations)
+# =============================================================================
+
+# Platform admin - full access for operators
+platform_admin:
+  reserved: true
+  cluster_permissions:
+    - '*'
+  index_permissions:
+    - index_patterns:
+        - '*'
+      allowed_actions:
+        - '*'
+  tenant_permissions:
+    - tenant_patterns:
+        - '*'
+      allowed_actions:
+        - 'kibana_all_write'
+
+# Worker write role - for indexing security findings from worker processes
+# Write-only access to security-findings-* indices (no read of other orgs' data)
+worker_write:
+  reserved: false
+  description: 'Worker service role for indexing security findings'
+  cluster_permissions:
+    - 'cluster_composite_ops_ro'
+    - 'indices:data/write/*'
+  index_permissions:
+    - index_patterns:
+        - 'security-findings-*'
+      allowed_actions:
+        - 'write'
+        - 'create_index'
+        - 'indices:data/write/*'
+        - 'indices:admin/mapping/put'
+
+# =============================================================================
+# CUSTOMER ROLE TEMPLATE
+# These are templates - actual roles are created dynamically per customer
+# =============================================================================
+
+# Template: Customer read-write access (for active users)
+# Actual role name: customer_{customer_id}_rw
+# Index pattern: {customer_id}-*
+customer_template_rw:
+  reserved: false
+  description: 'Template for customer read-write roles - DO NOT USE DIRECTLY'
+  cluster_permissions:
+    - 'cluster_composite_ops_ro'
+    - 'indices:data/read/scroll*'
+    # Required for Dashboards saved objects (bulk writes to .kibana_* tenant indices)
+    - 'indices:data/write/bulk'
+    # Alerting: monitor CRUD, execution, alerts, and destinations (legacy endpoints)
+    - 'cluster:admin/opendistro/alerting/monitor/get'
+    - 'cluster:admin/opendistro/alerting/monitor/search'
+    - 'cluster:admin/opendistro/alerting/monitor/write'
+    - 'cluster:admin/opendistro/alerting/monitor/execute'
+    - 'cluster:admin/opendistro/alerting/alerts/get'
+    - 'cluster:admin/opendistro/alerting/alerts/ack'
+    - 'cluster:admin/opendistro/alerting/destination/get'
+    - 'cluster:admin/opendistro/alerting/destination/write'
+    - 'cluster:admin/opendistro/alerting/destination/delete'
+    # Notifications plugin (OpenSearch 2.x): channel features + config CRUD
+    - 'cluster:admin/opensearch/notifications/features'
+    - 'cluster:admin/opensearch/notifications/configs/get'
+    - 'cluster:admin/opensearch/notifications/configs/create'
+    - 'cluster:admin/opensearch/notifications/configs/update'
+    - 'cluster:admin/opensearch/notifications/configs/delete'
+  index_permissions:
+    - index_patterns:
+        - 'CUSTOMER_ID_PLACEHOLDER-*'
+      allowed_actions:
+        - 'read'
+        - 'write'
+        - 'create_index'
+        - 'indices:data/read/*'
+        - 'indices:data/write/*'
+        - 'indices:admin/mapping/put'
+    - index_patterns:
+        - '.kibana*'
+      allowed_actions:
+        - 'read'
+        - 'write'
+        - 'create_index'
+        - 'indices:data/read/*'
+        - 'indices:data/write/*'
+        - 'indices:admin/mapping/put'
+  tenant_permissions:
+    - tenant_patterns:
+        - 'CUSTOMER_ID_PLACEHOLDER'
+      allowed_actions:
+        - 'kibana_all_write'
+
+# Template: Customer read-only access (for viewers)
+# Actual role name: customer_{customer_id}_ro
+# Index pattern: {customer_id}-*
+customer_template_ro:
+  reserved: false
+  description: 'Template for customer read-only roles - DO NOT USE DIRECTLY'
+  cluster_permissions:
+    - 'cluster_composite_ops_ro'
+    # Required for Dashboards saved objects (bulk writes to .kibana_* tenant indices)
+    - 'indices:data/write/bulk'
+    # Alerting: monitor CRUD, execution, alerts, and destinations (legacy endpoints)
+    - 'cluster:admin/opendistro/alerting/monitor/get'
+    - 'cluster:admin/opendistro/alerting/monitor/search'
+    - 'cluster:admin/opendistro/alerting/monitor/write'
+    - 'cluster:admin/opendistro/alerting/monitor/execute'
+    - 'cluster:admin/opendistro/alerting/alerts/get'
+    - 'cluster:admin/opendistro/alerting/alerts/ack'
+    - 'cluster:admin/opendistro/alerting/destination/get'
+    - 'cluster:admin/opendistro/alerting/destination/write'
+    - 'cluster:admin/opendistro/alerting/destination/delete'
+    # Notifications plugin (OpenSearch 2.x): channel features + config CRUD
+    - 'cluster:admin/opensearch/notifications/features'
+    - 'cluster:admin/opensearch/notifications/configs/get'
+    - 'cluster:admin/opensearch/notifications/configs/create'
+    - 'cluster:admin/opensearch/notifications/configs/update'
+    - 'cluster:admin/opensearch/notifications/configs/delete'
+  index_permissions:
+    - index_patterns:
+        - 'CUSTOMER_ID_PLACEHOLDER-*'
+      allowed_actions:
+        - 'read'
+        - 'indices:data/read/*'
+    - index_patterns:
+        - '.kibana*'
+      allowed_actions:
+        - 'read'
+        - 'write'
+        - 'create_index'
+        - 'indices:data/read/*'
+        - 'indices:data/write/*'
+        - 'indices:admin/mapping/put'
+  tenant_permissions:
+    - tenant_patterns:
+        - 'CUSTOMER_ID_PLACEHOLDER'
+      allowed_actions:
+        - 'kibana_all_write'
+
+# =============================================================================
+# DASHBOARDS INTERNAL ROLES
+# Note: kibana_server and kibana_read_only are built-in static roles
+# Do NOT redefine them here - they are managed by OpenSearch Security plugin
+# =============================================================================

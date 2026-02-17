@@ -640,15 +640,18 @@ function WorkflowBuilderContent() {
           node_count: workflowNodes.length,
         });
 
-        // Check for active runs to resume monitoring
-        // Only auto-switch to live mode if we opened via a runs URL (execution mode)
-        // For design mode, just set up background monitoring without switching views
+        // Check for active runs to resume monitoring — only when opened via runs URL
         const openedInExecutionMode = Boolean(routeRunId) || isRunsRoute;
+        // Skip runs fetch entirely in design mode to avoid the slow /workflows/runs call
+        // Runs will be fetched on-demand when the user switches to execution mode
         try {
-          const { runs } = await api.executions.listRuns({
-            workflowId: workflow.id,
-            limit: 1,
-          });
+          const cachedRuns = useRunStore.getState().cache[workflow.id]?.runs;
+          const runs = openedInExecutionMode
+            ? (cachedRuns ??
+              (await fetchRuns({ workflowId: workflow.id }).then(
+                () => useRunStore.getState().cache[workflow.id]?.runs ?? [],
+              )))
+            : (cachedRuns ?? []);
 
           if (runs && runs.length > 0) {
             const latestRun = runs[0];
@@ -728,6 +731,7 @@ function WorkflowBuilderContent() {
     resetHistoricalTracking,
     metadata.id,
     initializeHistory,
+    fetchRuns,
   ]);
 
   const resolveRuntimeInputDefinitions = useCallback(() => {
@@ -768,6 +772,36 @@ function WorkflowBuilderContent() {
     return [];
   }, [getComponent, nodes]);
 
+  // Resolve default values from Entry Point's runtimeInputs parameter (defaultValue field)
+  const resolveRuntimeInputDefaults = useCallback((): Record<string, unknown> => {
+    const triggerNode = nodes.find((node) => {
+      const nodeData = node.data as any;
+      const componentRef = nodeData.componentId ?? nodeData.componentSlug;
+      const component = getComponent(componentRef);
+      return component?.id === 'core.workflow.entrypoint';
+    });
+
+    if (!triggerNode) {
+      return {};
+    }
+
+    const nodeData = triggerNode.data as any;
+    const runtimeInputsParam = nodeData.config?.params?.runtimeInputs;
+
+    // Extract default values from each runtime input definition
+    if (Array.isArray(runtimeInputsParam)) {
+      const defaults: Record<string, unknown> = {};
+      for (const input of runtimeInputsParam) {
+        if (input?.id && input.defaultValue !== undefined && input.defaultValue !== null) {
+          defaults[input.id] = input.defaultValue;
+        }
+      }
+      return defaults;
+    }
+
+    return {};
+  }, [getComponent, nodes]);
+
   const {
     runDialogOpen,
     setRunDialogOpen,
@@ -786,6 +820,7 @@ function WorkflowBuilderContent() {
     setNodes,
     toast,
     resolveRuntimeInputDefinitions,
+    resolveRuntimeInputDefaults,
     fetchRuns,
     markClean,
     navigate,
@@ -885,6 +920,15 @@ function WorkflowBuilderContent() {
   // This allows smooth transition without forcing mode change
   const isInspectorVisible = mode === 'execution' || (selectedRunId !== null && mode !== 'design');
 
+  const hasAnalyticsSink = useMemo(() => {
+    // When viewing a specific run, bypass the sink check — the run may have
+    // indexed results even if the current design no longer contains a sink.
+    if (selectedRunId) return true;
+    return designNodes.some((node) => {
+      return (node.data?.componentId ?? node.data?.componentSlug) === 'core.analytics.sink';
+    });
+  }, [designNodes, selectedRunId]);
+
   const shouldShowInitialLoader =
     isLoading && designNodes.length === 0 && executionNodes.length === 0 && !isNewWorkflow;
 
@@ -905,6 +949,8 @@ function WorkflowBuilderContent() {
     <TopBar
       workflowId={id}
       selectedRunId={selectedRunId}
+      selectedRunStatus={selectedRun?.status ?? null}
+      selectedRunOrgId={selectedRun?.organizationId ?? null}
       isNew={isNewWorkflow}
       onRun={handleRun}
       onSave={handleSave}
@@ -915,6 +961,7 @@ function WorkflowBuilderContent() {
       onRedo={redo}
       canUndo={canUndo}
       canRedo={canRedo}
+      hasAnalyticsSink={hasAnalyticsSink}
     />
   );
 
@@ -953,7 +1000,10 @@ function WorkflowBuilderContent() {
 
   const canvasContent = mode === 'design' ? designerCanvas : executionCanvas;
 
-  const inspectorContent = <ExecutionInspector onRerunRun={handleRerunFromTimeline} />;
+  // Only mount ExecutionInspector (which includes RunSelector) in execution mode.
+  // This avoids an eager /workflows/runs fetch on the design canvas page.
+  const inspectorContent =
+    mode === 'execution' ? <ExecutionInspector onRerunRun={handleRerunFromTimeline} /> : null;
 
   const runDialogNode = (
     <RunWorkflowDialog

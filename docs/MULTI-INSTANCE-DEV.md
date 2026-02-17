@@ -2,57 +2,58 @@
 
 ShipSec Studio supports running multiple isolated dev instances (0-9) on one machine.
 
-The key design is:
-
-- **One shared Docker infra stack** (`shipsec-infra`): Postgres, Temporal, Redpanda, Redis, MinIO, Loki, etc.
-- **Many app instances** (PM2): `shipsec-{backend,worker,frontend}-N`
-- **Isolation comes from namespacing**, not per-instance infra containers:
-  - Postgres database: `shipsec_instance_N`
-  - Temporal namespace + task queue: `shipsec-dev-N`
-  - Kafka topics: `telemetry.*.instance-N` (via `SHIPSEC_INSTANCE`)
-
 ## Quick Start
 
 ```bash
-# First-time setup
-just init
-
-# Pick an "active" instance for this workspace (stored in .shipsec-instance)
-just instance use 5
-
-# Start the active instance (defaults to 0 if not set)
+# Instance 0 (default) — works exactly as before
 just dev
 
-# Start a specific instance explicitly
-just dev 2 start
+# Instance 1 — runs on offset ports (frontend :5273, backend :3311)
+SHIPSEC_INSTANCE=1 just dev
 
-# Stop just the active instance
-just dev stop
+# Or persist the choice for this workspace
+echo 1 > .shipsec-instance
+just dev          # now uses instance 1
 
-# Stop all instances + shared infra
-just dev stop all
+# Stop your instance
+SHIPSEC_INSTANCE=1 just dev stop
 ```
 
-## Active Instance (Workspace Default)
+## How It Works
 
-By default, `just dev` and related commands operate on an **active instance**.
+- **One shared Docker infra stack**: Postgres, Temporal, Redpanda, Redis, MinIO, etc.
+- **Many app instances** via PM2: `shipsec-{backend,worker,frontend}-N`
+- **Isolation via namespacing**, not per-instance containers:
+  - Postgres database: `shipsec_instance_N`
+  - Temporal namespace + task queue: `shipsec-dev-N`
+  - Kafka client/group IDs: `shipsec-*-N`
 
-- Set it: `just instance use 5`
-- Show it: `just instance show`
-- Storage: `.shipsec-instance` (gitignored)
-- Override per-shell: set `SHIPSEC_INSTANCE=N` in your environment
-- Override per-command: pass an explicit instance number (`just dev 3 ...`)
+## Selecting an Instance
+
+The instance is resolved in this order:
+
+1. `SHIPSEC_INSTANCE` environment variable (highest priority)
+2. `.shipsec-instance` file in repo root (gitignored)
+3. Defaults to `0`
+
+```bash
+# Per-command
+SHIPSEC_INSTANCE=2 just dev
+
+# Per-workspace (persistent)
+echo 2 > .shipsec-instance
+```
 
 ## Port Map
 
-Instance-scoped (offset by `N * 100`):
+Ports are offset by `N * 100`:
 
 | Service  | Base | Instance 0 | Instance 1 | Instance 2 | Instance 5 |
 | -------- | ---- | ---------- | ---------- | ---------- | ---------- |
 | Frontend | 5173 | 5173       | 5273       | 5373       | 5673       |
 | Backend  | 3211 | 3211       | 3311       | 3411       | 3711       |
 
-Shared infra (fixed ports for all instances):
+Shared infra (fixed ports, same for all instances):
 
 | Service          | Port        |
 | ---------------- | ----------- |
@@ -65,125 +66,76 @@ Shared infra (fixed ports for all instances):
 | MinIO API/UI     | 9000 / 9001 |
 | Loki             | 3100        |
 
+## Nginx Limitation
+
+The nginx reverse proxy (`http://localhost`) always routes to **instance 0** (ports 5173/3211 are hardcoded in `docker/nginx/nginx.dev.conf`). This is by design — nginx is shared infra.
+
+For non-zero instances, access your app directly:
+
+```
+# Instance 1
+http://localhost:5273        # frontend
+http://localhost:3311/api    # backend API
+```
+
+The Vite dev server proxies `/api` calls to the correct backend port automatically (computed from `SHIPSEC_INSTANCE` in `vite.config.ts`).
+
 ## Commands
 
-### Start / Stop
+All commands respect `SHIPSEC_INSTANCE`:
 
 ```bash
-# Start active instance
-just dev
+# Start
+SHIPSEC_INSTANCE=1 just dev
 
-# Start specific instance
-just dev 1 start
+# Stop (only stops PM2 apps; infra stays running for other instances)
+SHIPSEC_INSTANCE=1 just dev stop
 
-# Stop active instance (does NOT stop shared infra)
-just dev stop
+# Logs (filtered to your instance's PM2 apps)
+SHIPSEC_INSTANCE=1 just dev logs
 
-# Stop a specific instance
-just dev 1 stop
+# Status
+SHIPSEC_INSTANCE=1 just dev status
 
-# Stop all instances AND shared infra
-just dev stop all
+# Clean (stops PM2 apps; only tears down infra if instance 0)
+SHIPSEC_INSTANCE=1 just dev clean
 ```
 
-### Logs / Status
-
-```bash
-# Logs/status for active instance
-just dev logs
-just dev status
-
-# Logs/status for a specific instance
-just dev 2 logs
-just dev 2 status
-
-# Infra + PM2 overview
-just dev status all
-```
-
-### Clean (Reset Instance State)
-
-`clean` removes instance-local state and resets its “namespace”:
-
-- Drops/recreates `shipsec_instance_N` and reruns migrations
-- Best-effort deletes Temporal namespace `shipsec-dev-N`
-- Best-effort deletes Kafka topics `telemetry.*.instance-N`
-- Deletes `.instances/instance-N/`
-
-```bash
-just dev 0 clean
-just dev 5 clean
-```
-
-## What Happens When You Run `just dev N start`
-
-1. Ensures `.instances/instance-N/{backend,worker,frontend}.env` exist (copied from root envs).
-2. Brings up shared infra once (Docker Compose project `shipsec-infra`).
-3. Bootstraps per-instance state:
-   - Ensures DB `shipsec_instance_N` exists
-   - Runs migrations against that DB
-   - Ensures Temporal namespace `shipsec-dev-N` exists
-   - Ensures per-instance Kafka topics exist (best-effort)
-4. Starts 3 PM2 apps for that instance:
-   - `shipsec-backend-N` (port `3211 + N*100`)
-   - `shipsec-worker-N` (Temporal namespace/task queue `shipsec-dev-N`)
-   - `shipsec-frontend-N` (Vite port `5173 + N*100`, `VITE_API_URL` points at the instance backend)
-
-## Directory Structure
-
-Instance env overrides live in `.instances/` (auto-generated, safe to delete):
-
-```
-.instances/
-  instance-0/
-    backend.env
-    worker.env
-    frontend.env
-  instance-1/
-    ...
-```
+When stopping/cleaning instance 0, Docker infra is also torn down. For non-zero instances, only the PM2 apps are stopped (since other instances may still need the shared infra).
 
 ## E2E Tests (Instance-Aware)
 
-E2E tests choose which backend to hit via instance selection:
-
-- `SHIPSEC_INSTANCE` (preferred)
-- or `E2E_INSTANCE`
-- or the workspace active instance (`.shipsec-instance`)
-
-Run E2E against the active instance:
+E2E tests use the same instance resolution to pick the right backend port:
 
 ```bash
+# Against the active instance
 bun run test:e2e
-```
 
-Run E2E against a specific instance:
-
-```bash
-SHIPSEC_INSTANCE=5 bun run test:e2e
+# Against a specific instance
+SHIPSEC_INSTANCE=2 bun run test:e2e
 ```
 
 ## Troubleshooting
 
-### Port already in use (frontend/backend)
+### Port already in use
 
 ```bash
-lsof -i :3211
-lsof -i :5173
+# Check which process is using the port
+lsof -i :5273   # frontend instance 1
+lsof -i :3311   # backend instance 1
 ```
 
 ### Instance is unhealthy but infra is fine
 
 ```bash
-just dev 5 logs
-just dev 5 status
-just dev 5 clean
-just dev 5 start
+SHIPSEC_INSTANCE=1 just dev logs
+SHIPSEC_INSTANCE=1 just dev stop
+SHIPSEC_INSTANCE=1 just dev
 ```
 
 ### Infra conflicts / stuck containers
 
 ```bash
-just dev stop all
+just dev stop    # stops instance 0 + infra
 just infra clean
 ```

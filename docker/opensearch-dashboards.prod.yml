@@ -1,0 +1,67 @@
+# OpenSearch Dashboards Production Configuration
+# Mount this file to /usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+#
+# This configuration enables:
+#   - Security plugin with authentication
+#   - Multitenancy for tenant isolation
+#   - TLS for secure communication with OpenSearch
+
+server.host: '0.0.0.0'
+server.port: 5601
+
+# Base path configuration for reverse proxy
+server.basePath: '/analytics'
+server.rewriteBasePath: true
+
+# OpenSearch connection (HTTPS for production)
+opensearch.hosts: ['https://opensearch:9200']
+
+# TLS Configuration - trust the CA certificate
+opensearch.ssl.verificationMode: certificate
+opensearch.ssl.certificateAuthorities: ['/usr/share/opensearch-dashboards/config/certs/root-ca.pem']
+
+# Authentication - proxy auth from nginx (primary) + basic auth for kibanaserver
+# Note: OpenSearch Dashboards doesn't support env var interpolation in YAML
+# In production, use a secrets manager or pre-process this file
+opensearch.username: 'kibanaserver'
+opensearch.password: 'admin'
+opensearch.requestHeadersAllowlist:
+  ['securitytenant', 'Authorization', 'x-forwarded-for', 'x-proxy-user', 'x-proxy-roles']
+
+# Proxy Authentication Configuration
+# Nginx sets x-proxy-user/x-proxy-roles headers after validating user session via auth_request.
+# Dashboards trusts these headers (no login form). Users must log in via the main app first.
+# The kibanaserver user (above) is still used for Dashboards' own backend connection to OpenSearch.
+opensearch_security.auth.type: 'proxy'
+opensearch_security.proxycache.user_header: 'x-proxy-user'
+opensearch_security.proxycache.roles_header: 'x-proxy-roles'
+
+# Security Plugin Configuration - SaaS Multitenancy
+# Each customer gets their own isolated tenant - no shared data by default
+# Tenant is forced via nginx securitytenant header (per-org), no tenant picker shown
+opensearch_security.multitenancy.enabled: true
+opensearch_security.multitenancy.tenants.enable_global: false
+opensearch_security.multitenancy.tenants.enable_private: false
+opensearch_security.multitenancy.tenants.preferred: ['Custom']
+opensearch_security.multitenancy.show_roles: false
+opensearch_security.multitenancy.enable_filter: false
+opensearch_security.readonly_mode.roles: ['kibana_read_only']
+opensearch_security.cookie.secure: true
+opensearch_security.cookie.isSameSite: 'Strict'
+
+# Session configuration
+opensearch_security.session.ttl: 3600000
+opensearch_security.session.keepalive: true
+
+# Default landing page - Discover instead of Home (which shows all plugin links)
+uiSettings.overrides.defaultRoute: '/app/discover'
+
+# Logging
+logging.dest: stdout
+logging.silent: false
+logging.quiet: false
+logging.verbose: false
+
+# CSP headers for security
+csp.strict: true
+csp.warnLegacyBrowsers: true

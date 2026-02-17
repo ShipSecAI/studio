@@ -43,7 +43,7 @@ The easiest way to run ShipSec Studio on your own infrastructure:
 #### One-Line Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ShipSecAI/studio/main/install.sh | bash
+curl -fsSL https://get.shipsec.ai | bash
 ```
 
 This installer will:
@@ -53,7 +53,7 @@ This installer will:
 - Clone the repository and start all services
 - Guide you through any required setup steps
 
-Once complete, visit **http://localhost:8090** to access ShipSec Studio.
+Once complete, visit **http://localhost** to access ShipSec Studio.
 
 ### 2. ShipSec Cloud (Preview)
 
@@ -79,7 +79,7 @@ cd studio
 just prod start-latest
 ```
 
-Access the studio at `http://localhost:8090`.
+Access the studio at `http://localhost`.
 
 ---
 
@@ -126,6 +126,22 @@ Learn more about our design decisions and system components in the **[Architectu
 - 💬 **[Discord](https://discord.gg/fmMA4BtNXC)** — Real-time support and community discussion.
 - 🗣️ **[GitHub Discussions](https://github.com/ShipSecAI/studio/discussions)** — Technical RFCs and feature requests.
 - 📚 **[Documentation](https://docs.shipsec.ai)** — Full guides on component development and deployment.
+
+---
+
+## 🔀 Multi-Instance Development
+
+Run multiple isolated dev instances on one machine for parallel feature work:
+
+```bash
+# Instance 0 (default)
+just dev
+
+# Instance 1 — offset ports (frontend :5273, backend :3311)
+SHIPSEC_INSTANCE=1 just dev
+```
+
+Each instance gets its own frontend port, backend port, database, and Temporal namespace while sharing a single Docker infra stack. See [Multi-Instance Development Guide](docs/MULTI-INSTANCE-DEV.md) for full details.
 
 ---
 

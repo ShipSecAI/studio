@@ -12,6 +12,9 @@ import {
   parameters,
   port,
   param,
+  generateFindingHash,
+  analyticsResultSchema,
+  type AnalyticsResult,
 } from '@shipsec/component-sdk';
 import { createIsolatedVolume } from '../../utils/isolated-volume';
 
@@ -186,6 +189,11 @@ const outputSchema = outputs({
     label: 'Has Verified Secrets',
     description: 'True when any verified secrets are detected.',
   }),
+  results: port(z.array(analyticsResultSchema()), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings with scanner, finding_hash, and severity. Connect to Analytics Sink.',
+  }),
 });
 
 // Helper function to build TruffleHog command arguments
@@ -256,6 +264,7 @@ function parseRawOutput(rawOutput: string): Output {
       secretCount: 0,
       verifiedCount: 0,
       hasVerifiedSecrets: false,
+      results: [],
     };
   }
 
@@ -294,6 +303,7 @@ function parseRawOutput(rawOutput: string): Output {
     secretCount: secrets.length,
     verifiedCount,
     hasVerifiedSecrets: verifiedCount > 0,
+    results: [], // Populated in execute() with scanner metadata
   };
 }
 
@@ -303,7 +313,7 @@ const definition = defineComponent({
   category: 'security',
   runner: {
     kind: 'docker',
-    image: 'ghcr.io/shipsecai/trufflehog:v3.93.1',
+    image: 'ghcr.io/shipsecai/trufflehog:latest',
     entrypoint: 'trufflehog',
     network: 'bridge',
     command: [], // Will be built dynamically in execute
@@ -323,6 +333,11 @@ const definition = defineComponent({
   outputs: outputSchema,
   parameters: parameterSchema,
   docs: 'Scan for secrets and credentials using TruffleHog. Supports Git repositories, GitHub, GitLab, filesystems, S3 buckets, Docker images, and more.',
+  toolProvider: {
+    kind: 'component',
+    name: 'secret_scan',
+    description: 'Secret and credential leakage scanner (TruffleHog).',
+  },
   ui: {
     slug: 'trufflehog',
     version: '1.0.0',
@@ -349,10 +364,6 @@ const definition = defineComponent({
       'Scan only changes in a Pull Request by setting branch to PR branch and sinceCommit to base branch.',
       'Scan last 10 commits in CI/CD using sinceCommit=HEAD~10 to catch recent secrets.',
     ],
-    agentTool: {
-      enabled: true,
-      toolDescription: 'Secret and credential leakage scanner (TruffleHog).',
-    },
   },
   async execute({ inputs, params }, context) {
     const parsedParams = parameterSchema.parse(params);
@@ -493,7 +504,23 @@ const definition = defineComponent({
         });
       }
 
-      return output;
+      // Build analytics-ready results with scanner metadata (follows core.analytics.result.v1 contract)
+      const results: AnalyticsResult[] = output.secrets.map((secret: Secret) => {
+        // Extract file path from source metadata for hashing
+        const filePath =
+          secret.SourceMetadata?.Data?.Git?.file ??
+          secret.SourceMetadata?.Data?.Filesystem?.file ??
+          '';
+        return {
+          ...secret,
+          scanner: 'trufflehog',
+          severity: 'high' as const, // Secrets are always high severity
+          asset_key: runnerPayload.scanTarget,
+          finding_hash: generateFindingHash(secret.DetectorType, secret.Redacted, filePath),
+        };
+      });
+
+      return { ...output, results };
     } finally {
       // Always cleanup volume if it was created
       if (volume) {

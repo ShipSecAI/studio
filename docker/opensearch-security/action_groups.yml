@@ -1,0 +1,61 @@
+# OpenSearch Security - Action Groups
+#
+# Action groups bundle permissions together for easier role assignment.
+# Most common groups are built-in, but custom ones can be defined here.
+#
+# Built-in action groups (no need to redefine):
+#   - cluster_all, cluster_monitor, cluster_composite_ops, cluster_composite_ops_ro
+#   - indices_all, indices_monitor, read, write, delete, create_index, manage
+#   - kibana_all_read, kibana_all_write
+#
+# Reference: https://opensearch.org/docs/latest/security/access-control/default-action-groups/
+
+---
+_meta:
+  type: 'actiongroups'
+  config_version: 2
+
+# =============================================================================
+# CUSTOM ACTION GROUPS
+# =============================================================================
+
+# Index management for security findings
+security_findings_write:
+  reserved: false
+  static: false
+  allowed_actions:
+    - 'indices:data/write/index'
+    - 'indices:data/write/bulk*'
+    - 'indices:data/write/update'
+    - 'indices:data/write/delete'
+    - 'indices:admin/create'
+    - 'indices:admin/mapping/put'
+  description: 'Write access to security findings indices'
+
+security_findings_read:
+  reserved: false
+  static: false
+  allowed_actions:
+    - 'indices:data/read/search*'
+    - 'indices:data/read/get*'
+    - 'indices:data/read/mget*'
+    - 'indices:data/read/msearch*'
+    - 'indices:data/read/scroll*'
+    - 'indices:admin/mappings/get'
+    - 'indices:admin/resolve/index'
+  description: 'Read access to security findings indices'
+
+# Dashboard access for customers
+dashboards_read:
+  reserved: false
+  static: false
+  allowed_actions:
+    - 'kibana_all_read'
+  description: 'Read-only access to dashboards'
+
+dashboards_write:
+  reserved: false
+  static: false
+  allowed_actions:
+    - 'kibana_all_write'
+  description: 'Write access to dashboards'

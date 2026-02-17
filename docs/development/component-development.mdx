@@ -22,6 +22,15 @@ worker/src/components/
 └── manual-action/   # Human-in-the-loop (approvals, forms)
 ```
 
+### Category Source of Truth
+
+Component categories are defined once in `packages/shared/src/component-categories.ts`.
+
+- Backend categorization and API metadata read from this shared registry.
+- Frontend schema validation and category styling also read from the same registry.
+
+When adding or renaming a category, update this shared file so backend and frontend stay in sync.
+
 ### ID Naming Convention
 
 ```
@@ -405,7 +414,166 @@ async execute({ inputs }, context) {
 
 ---
 
+## Analytics Output Port (Results)
 
+Security components should include a `results` output port for analytics integration. This port outputs structured findings that can be indexed into OpenSearch via the Analytics Sink.
+
+### Schema Requirements
+
+The `results` port must output `list<json>` (array of records):
+
+```typescript
+outputs: outputs({
+  // ... other outputs ...
+
+  results: port(z.array(z.record(z.string(), z.unknown())), {
+    label: 'Results',
+    description:
+      'Analytics-ready findings array. Each item includes scanner name and asset key. Connect to Analytics Sink.',
+    connectionType: { kind: 'list', element: { kind: 'primitive', name: 'json' } },
+  }),
+}),
+```
+
+### Required Fields
+
+Each finding in the results array **must** include:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `scanner` | string | Scanner identifier (e.g., `'nuclei'`, `'trufflehog'`, `'supabase-scanner'`) |
+| `asset_key` | string | Primary asset identifier (host, domain, target, etc.) |
+| `finding_hash` | string | Stable hash for deduplication (16-char hex from SHA-256) |
+
+Additional fields from the scanner output should be spread into the finding object.
+
+### Finding Hash
+
+The `finding_hash` is a stable identifier that enables deduplication across workflow runs. It should be generated from the key identifying fields of each finding.
+
+**Purpose:**
+- Track if a finding is **new** or **recurring** across scans
+- Deduplicate findings in dashboards
+- Calculate **first-seen** and **last-seen** timestamps
+- Identify which findings have been **resolved** (no longer appearing)
+
+**How to generate:**
+
+Import from the component SDK:
+
+```typescript
+import { generateFindingHash } from '@shipsec/component-sdk';
+
+// Usage
+const hash = generateFindingHash(finding.templateId, finding.host, finding.matchedAt);
+```
+
+**Key fields per scanner:**
+
+| Scanner | Fields Used |
+|---------|-------------|
+| Nuclei | `templateId + host + matchedAt` |
+| TruffleHog | `DetectorType + Redacted + filePath` |
+| Supabase Scanner | `check_id + projectRef + resource` |
+
+Choose fields that uniquely identify a finding but remain stable across runs (avoid timestamps, random IDs, etc.).
+
+### Example Implementation
+
+```typescript
+import { generateFindingHash } from '@shipsec/component-sdk';
+
+async execute({ inputs, params }, context) {
+  // ... run scanner and get findings ...
+
+  // Build analytics-ready results with scanner metadata
+  const results: Record<string, unknown>[] = findings.map((finding) => ({
+    ...finding,                           // Spread all finding fields
+    scanner: 'my-scanner',               // Scanner identifier
+    asset_key: finding.host ?? inputs.target,  // Primary asset
+    finding_hash: generateFindingHash(   // Stable deduplication hash
+      finding.ruleId,
+      finding.host,
+      finding.matchedAt
+    ),
+  }));
+
+  return {
+    findings,      // Original findings array
+    results,       // Analytics-ready array for Analytics Sink
+    rawOutput,     // Raw output for debugging
+  };
+}
+```
+
+### How It Works
+
+1. **Component outputs `results`**: Each scanner outputs its findings with `scanner` and `asset_key` fields
+2. **Connect to Analytics Sink**: In the workflow canvas, connect the `results` port to Analytics Sink's `data` input
+3. **Indexed to OpenSearch**: Each item in the array becomes a separate document with:
+   - Finding data at root level (nested objects serialized to JSON strings)
+   - Workflow context under `shipsec.*` namespace
+   - Consistent `@timestamp` for all findings in the batch
+
+### Document Structure in OpenSearch
+
+```json
+{
+  "check_id": "DB_RLS_DISABLED",
+  "severity": "CRITICAL",
+  "title": "RLS Disabled",
+  "metadata": "{\"table\":\"users\"}",
+  "scanner": "supabase-scanner",
+  "asset_key": "abc123xyz",
+  "finding_hash": "a1b2c3d4e5f67890",
+  "shipsec": {
+    "organization_id": "org_123",
+    "run_id": "run_abc123",
+    "workflow_id": "wf_xyz789",
+    "workflow_name": "Supabase Security Audit",
+    "component_id": "core.analytics.sink",
+    "node_ref": "analytics-sink-1"
+  },
+  "@timestamp": "2024-01-21T10:30:00Z"
+}
+```
+
+### `shipsec` Context Fields
+
+The Analytics Sink automatically adds workflow context under the `shipsec` namespace:
+
+| Field | Description |
+|-------|-------------|
+| `organization_id` | Organization that owns the workflow |
+| `run_id` | Unique identifier for this workflow execution |
+| `workflow_id` | ID of the workflow definition |
+| `workflow_name` | Human-readable workflow name |
+| `component_id` | Component type (e.g., `core.analytics.sink`) |
+| `node_ref` | Node reference in the workflow graph |
+| `asset_key` | Auto-detected or specified asset identifier |
+
+### Example Queries
+
+```
+# Find all findings for an asset
+asset_key: "api.example.com"
+
+# Find new findings (first seen today)
+finding_hash: X AND @timestamp: [now-1d TO now] AND NOT (finding_hash: X AND @timestamp: [* TO now-1d])
+
+# All findings from a specific workflow run
+shipsec.run_id: "run_abc123"
+
+# Aggregate findings by scanner
+scanner: * | stats count() by scanner
+
+# Track recurring findings
+finding_hash: "a1b2c3d4" | sort @timestamp
+```
+
+<Note>
+  Nested objects in findings are automatically serialized to JSON strings to prevent OpenSearch field explosion (1000 field limit).
+</Note>
 
 ---
 
@@ -456,13 +624,48 @@ Does your Docker image have a shell (/bin/sh)?
 ├─ YES → Use Shell Wrapper Pattern
 │         entrypoint: 'sh', command: ['-c', 'tool "$@"', '--']
 │
-└─ NO (Distroless) → Does your tool have a -stream flag?
-   ├─ YES → Use Direct Binary + Stream
-   │         entrypoint: 'tool', command: ['-stream', ...]
-   │
-   └─ NO → Rely on SDK stdin handling
-            Note: May have buffering issues
+└─ NO (Distroless) → Use Default Entrypoint Pattern
+          Omit entrypoint, pass args via command: []
+          The image's built-in ENTRYPOINT handles execution.
 ```
+
+### Distroless Images (Default Entrypoint Pattern)
+
+Many ProjectDiscovery images (subfinder, dnsx, naabu, amass, notify) are **distroless** and do not contain `/bin/sh`. For these images, omit the `entrypoint` field entirely and let Docker use the image's default entrypoint:
+
+```typescript
+// ✅ CORRECT - Distroless image (no shell available)
+runner: {
+  kind: 'docker',
+  image: 'ghcr.io/shipsecai/subfinder:latest',
+  // No entrypoint — uses image default (/usr/local/bin/subfinder)
+  command: [],
+  network: 'bridge',
+}
+```
+
+```typescript
+// ❌ WRONG - Distroless image with shell wrapper (exit code 127)
+runner: {
+  kind: 'docker',
+  image: 'ghcr.io/shipsecai/subfinder:latest',
+  entrypoint: 'sh',  // sh does not exist in distroless images!
+  command: ['-c', 'subfinder "$@"', '--'],
+}
+```
+
+In the `execute()` function, append tool arguments directly to `command`:
+```typescript
+const runnerConfig: DockerRunnerConfig = {
+  ...baseRunner,
+  command: [...(baseRunner.command ?? []), ...toolArgs],
+};
+```
+
+<Note>
+  Distroless Go binaries (like ProjectDiscovery tools) handle PTY signals correctly.
+  Verified with `docker run --rm -t image args...` — output streams and exits cleanly.
+</Note>
 
 ---
 
@@ -606,8 +809,8 @@ Located in `e2e-tests/`. These tests create real workflows via the API and execu
 # Start full local environment
 just dev
 
-# Verify services are running
-curl http://localhost:3211/api/v1/health -H "x-internal-token: local-internal-token"
+# Verify services are running (via nginx)
+curl http://localhost/api/v1/health -H "x-internal-token: local-internal-token"
 ```
 
 **Run E2E tests:**
@@ -620,7 +823,7 @@ RUN_E2E=true bun --cwd e2e-tests test
 ```typescript
 import { describe, test, expect } from 'bun:test';
 
-const API_BASE = 'http://localhost:3211/api/v1';
+const API_BASE = 'http://localhost/api/v1';
 const HEADERS = {
   'Content-Type': 'application/json',
   'x-internal-token': 'local-internal-token',

@@ -113,7 +113,7 @@ describe.skip('amass component', () => {
 
     expect(component.runner.kind).toBe('docker');
     if (component.runner.kind === 'docker') {
-      expect(component.runner.image).toBe('ghcr.io/shipsecai/amass:v5.0.1');
+      expect(component.runner.image).toBe('ghcr.io/shipsecai/amass:latest');
       expect(component.runner.entrypoint).toBe('sh');
       expect(component.runner.command).toBeInstanceOf(Array);
     }
