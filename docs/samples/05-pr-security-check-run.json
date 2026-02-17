@@ -1,6 +1,6 @@
 {
   "name": "PR Security Check Run",
-  "description": "Triggered on PR events. Creates GitHub Check Runs, fetches PR context, clones the repo, runs OpenGrep and TruffleHog in parallel, then updates the check runs with results.",
+  "description": "Triggered on PR events. Creates GitHub Check Runs, fetches PR context, clones the repo, runs OpenGrep and TruffleHog in parallel, normalizes findings, then updates the check runs with results.",
   "nodes": [
     {
       "id": "entry-point",
@@ -156,36 +156,38 @@
       }
     },
     {
-      "id": "opengrep-log",
-      "type": "core.console.log",
+      "id": "normalize-opengrep",
+      "type": "security.findings.normalize",
       "position": {
         "x": 100,
         "y": 1080
       },
       "data": {
-        "label": "Console Log - OpenGrep",
+        "label": "Normalize OpenGrep Findings",
         "config": {
-          "params": {},
-          "inputOverrides": {
-            "label": "OpenGrep Findings"
-          }
+          "params": {
+            "scannerType": "opengrep",
+            "filterToChangedFiles": false
+          },
+          "inputOverrides": {}
         }
       }
     },
     {
-      "id": "trufflehog-log",
-      "type": "core.console.log",
+      "id": "normalize-trufflehog",
+      "type": "security.findings.normalize",
       "position": {
         "x": 520,
         "y": 1080
       },
       "data": {
-        "label": "Console Log - TruffleHog",
+        "label": "Normalize TruffleHog Findings",
         "config": {
-          "params": {},
-          "inputOverrides": {
-            "label": "TruffleHog Findings"
-          }
+          "params": {
+            "scannerType": "trufflehog",
+            "filterToChangedFiles": false
+          },
+          "inputOverrides": {}
         }
       }
     },
@@ -340,18 +342,18 @@
       "targetHandle": "volumeName"
     },
     {
-      "id": "edge-opengrep-to-log",
+      "id": "edge-opengrep-to-normalize",
       "source": "opengrep-scanner",
-      "target": "opengrep-log",
+      "target": "normalize-opengrep",
       "sourceHandle": "findings",
-      "targetHandle": "data"
+      "targetHandle": "rawFindings"
     },
     {
-      "id": "edge-trufflehog-to-log",
+      "id": "edge-trufflehog-to-normalize",
       "source": "trufflehog-scanner",
-      "target": "trufflehog-log",
+      "target": "normalize-trufflehog",
       "sourceHandle": "findings",
-      "targetHandle": "data"
+      "targetHandle": "rawFindings"
     },
     {
       "id": "edge-create-check-opengrep-to-update",
