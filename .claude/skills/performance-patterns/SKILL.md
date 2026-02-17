@@ -197,9 +197,50 @@ useEffect(() => {
 
 ---
 
+## 8. Route Prefetching
+
+**Rule:** All new page routes must be registered in the prefetch map so navigation feels instant.
+
+The app uses idle + hover prefetching via `frontend/src/lib/prefetch-routes.ts`. When a new page is added:
+
+1. Add a `React.lazy()` entry in `App.tsx` (standard lazy loading)
+2. Add the route's path and import to `routeImports` in `prefetch-routes.ts`
+3. Sidebar links automatically get hover prefetching via `onMouseEnter={() => prefetchRoute(item.href)}`
+4. All routes in the map are idle-prefetched after initial page load via `requestIdleCallback`
+
+```typescript
+// In prefetch-routes.ts — add new route to the map:
+const routeImports: Record<string, () => Promise<unknown>> = {
+  '/my-new-page': () => import('@/pages/MyNewPage'),
+  // ... existing routes
+};
+```
+
+```typescript
+// In AppLayout.tsx — sidebar links already have hover prefetching:
+<Link
+  to={item.href}
+  onMouseEnter={() => prefetchRoute(item.href)}
+>
+```
+
+**How it works:**
+
+- **Idle prefetching**: After initial page load, `requestIdleCallback` triggers `import()` for all sidebar routes. The browser caches the modules so `React.lazy()` resolves instantly on navigation.
+- **Hover prefetching**: `onMouseEnter` on sidebar links triggers `import()` ~200-400ms before click. Acts as a fallback if idle prefetching hasn't completed yet.
+- **Deduplication**: A `Set` tracks prefetched routes to avoid redundant imports.
+
+**Do NOT:**
+
+- Add heavy non-page modules to the prefetch map (keep it to route-level page chunks only)
+- Prefetch routes that require authentication checks before loading
+
+---
+
 ## Quick Checklist for New Features
 
 - [ ] Page component uses `React.lazy()` in `App.tsx`
+- [ ] Route added to `routeImports` in `frontend/src/lib/prefetch-routes.ts`
 - [ ] List endpoint returns only display-needed fields (no full graphs/configs)
 - [ ] Store fetches are deduplicated (skip-if-loaded or cooldown)
 - [ ] Lists with >10 potential items use pagination (limit + offset)
