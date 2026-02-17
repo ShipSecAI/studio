@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 const ReactQueryDevtools = lazy(() =>
@@ -38,6 +38,10 @@ import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge';
 import { useCommandPaletteKeyboard } from '@/features/command-palette/useCommandPaletteKeyboard';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const CommandPalette = lazy(() =>
+  import('@/features/command-palette/CommandPalette').then((m) => ({ default: m.CommandPalette })),
+);
 
 // Lazy-loaded page components
 const WorkflowList = lazy(() =>
@@ -138,19 +142,14 @@ function AuthIntegration({ children }: { children: React.ReactNode }) {
 
 function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
   useCommandPaletteKeyboard();
-  const isOpen = useCommandPaletteStore((state) => state.isOpen);
-  const [hasOpened, setHasOpened] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && !hasOpened) {
-      setHasOpened(true);
-    }
-  }, [isOpen, hasOpened]);
-
+  const isOpen = useCommandPaletteStore((s) => s.isOpen);
+  // Track whether the palette has ever been opened so we keep it mounted after first use
+  const hasOpened = React.useRef(false);
+  if (isOpen) hasOpened.current = true;
   return (
     <>
       {children}
-      {hasOpened && (
+      {hasOpened.current && (
         <Suspense fallback={null}>
           <CommandPalette />
         </Suspense>

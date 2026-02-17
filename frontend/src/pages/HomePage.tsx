@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useGitHubStore } from '@/store/githubStore';
@@ -6,8 +6,13 @@ import { useScheduleStore } from '@/store/scheduleStore';
 import { useIntegrationStore } from '@/store/integrationStore';
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
 import { useSecurityViewStore } from '@/store/securityViewStore';
-import { SecurityDashboardContent } from '@/pages/AwsSecurityDashboard';
+import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/services/api';
+
+// Lazy-load the heavy SecurityDashboardContent (pulls in recharts, markdown-it, etc.)
+const SecurityDashboardContent = lazy(() =>
+  import('@/pages/AwsSecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
+);
 import { BUILT_IN_VIEWS } from '@/config/securityViews';
 import { Clock } from 'lucide-react';
 
@@ -410,5 +415,19 @@ export function HomePage() {
   }
 
   // --- Any other view: full Security Dashboard ---
-  return <SecurityDashboardContent />;
+  return (
+    <Suspense
+      fallback={
+        <div className="container py-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+          <Skeleton className="h-64 rounded-lg" />
+        </div>
+      }
+    >
+      <SecurityDashboardContent />
+    </Suspense>
+  );
 }
