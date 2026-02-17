@@ -377,8 +377,8 @@ export class GitHubAppController {
     signature: string | undefined,
   ): boolean {
     if (!this.config.webhookSecret) {
-      this.logger.warn('Webhook secret not configured, skipping signature verification');
-      return true;
+      this.logger.error('Webhook secret not configured; rejecting unsigned webhook');
+      return false;
     }
 
     if (!payload || !signature) {

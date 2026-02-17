@@ -443,6 +443,11 @@ export class GitHubAppService implements OnModuleInit {
         organizationId,
       });
 
+      if (!repoRecord.scansEnabled) {
+        this.logger.log(`Scans disabled for repository ${repo.full_name}, skipping`);
+        continue;
+      }
+
       const rules = await this.findMatchingTriggerRules(
         organizationId,
         'repository_added',
@@ -682,12 +687,22 @@ export class GitHubAppService implements OnModuleInit {
       throw new BadRequestException('Repository installation not found');
     }
 
-    const branches = await this.githubApiRequest<{ name: string }[]>(
-      installation.installationId,
-      `/repos/${repo.fullName}/branches?per_page=100`,
-    );
+    const allBranches: { name: string }[] = [];
+    let page = 1;
+    const perPage = 100;
+    let hasMore = true;
 
-    return branches.map((b) => ({
+    while (hasMore) {
+      const pageBranches = await this.githubApiRequest<{ name: string }[]>(
+        installation.installationId,
+        `/repos/${repo.fullName}/branches?per_page=${perPage}&page=${page}`,
+      );
+      allBranches.push(...pageBranches);
+      hasMore = pageBranches.length === perPage;
+      page++;
+    }
+
+    return allBranches.map((b) => ({
       name: b.name,
       isDefault: b.name === repo.defaultBranch,
     }));
@@ -849,6 +864,11 @@ export class GitHubAppService implements OnModuleInit {
       return { status: 'repository_not_found', scansTriggered: 0 };
     }
 
+    if (!repoRecord.scansEnabled) {
+      this.logger.log(`Scans disabled for repository ${repository.full_name}, skipping`);
+      return { status: 'scans_disabled', scansTriggered: 0 };
+    }
+
     // Find matching trigger rules - use head.ref (source branch where changes are)
     const rules = await this.findMatchingTriggerRules(
       organizationId,
@@ -1005,6 +1025,11 @@ export class GitHubAppService implements OnModuleInit {
     if (!repoRecord) {
       this.logger.warn(`Repository ${repository.full_name} not found in database`);
       return { status: 'repository_not_found', scansTriggered: 0 };
+    }
+
+    if (!repoRecord.scansEnabled) {
+      this.logger.log(`Scans disabled for repository ${repository.full_name}, skipping`);
+      return { status: 'scans_disabled', scansTriggered: 0 };
     }
 
     // Find matching trigger rules

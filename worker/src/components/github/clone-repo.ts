@@ -241,7 +241,7 @@ const definition = defineComponent({
     });
 
     // Get tenant ID for isolated volume
-    const tenantId = (context as any).tenantId ?? 'default-tenant';
+    const tenantId = (context as any).tenantId ?? context.runId;
     let volume: IsolatedContainerVolume | null = null;
 
     try {

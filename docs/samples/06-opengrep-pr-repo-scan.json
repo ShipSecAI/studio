@@ -1,6 +1,6 @@
 {
   "name": "OpenGrep PR & Repo Scanner",
-  "description": "Run OpenGrep SAST scanner on a GitHub repository or PR. Fetches PR context, clones the repo at the PR head, runs OpenGrep with security-audit rulesets, logs findings, and posts results as a PR comment.",
+  "description": "Run OpenGrep SAST scanner on a GitHub repository or PR. Fetches PR context, clones the repo at the PR head, runs OpenGrep with security-audit rulesets, normalizes findings, formats them as Markdown, and posts results as a PR comment.",
   "nodes": [
     {
       "id": "entry-point",
@@ -102,13 +102,49 @@
         }
       }
     },
-
+    {
+      "id": "normalize-opengrep",
+      "type": "security.findings.normalize",
+      "position": {
+        "x": 300,
+        "y": 860
+      },
+      "data": {
+        "label": "Normalize OpenGrep Findings",
+        "config": {
+          "params": {
+            "scannerType": "opengrep",
+            "filterToChangedFiles": true
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
+    {
+      "id": "markdown-opengrep",
+      "type": "security.findings.markdown",
+      "position": {
+        "x": 300,
+        "y": 1060
+      },
+      "data": {
+        "label": "Format OpenGrep Report",
+        "config": {
+          "params": {
+            "title": "OpenGrep SAST Results",
+            "grouping": "severity",
+            "maxFindings": 25
+          },
+          "inputOverrides": {}
+        }
+      }
+    },
     {
       "id": "pr-comment",
       "type": "github.pr.comment",
       "position": {
-        "x": 100,
-        "y": 860
+        "x": 300,
+        "y": 1260
       },
       "data": {
         "label": "PR Comment - OpenGrep Results",
@@ -162,12 +198,32 @@
       "sourceHandle": "volumeName",
       "targetHandle": "volumeName"
     },
-
     {
-      "id": "edge-opengrep-to-pr-comment",
+      "id": "edge-opengrep-findings-to-normalize",
       "source": "opengrep-scanner",
+      "target": "normalize-opengrep",
+      "sourceHandle": "findings",
+      "targetHandle": "rawFindings"
+    },
+    {
+      "id": "edge-pr-context-changed-files-to-normalize",
+      "source": "pr-context",
+      "target": "normalize-opengrep",
+      "sourceHandle": "changedFiles",
+      "targetHandle": "changedFiles"
+    },
+    {
+      "id": "edge-normalize-to-markdown",
+      "source": "normalize-opengrep",
+      "target": "markdown-opengrep",
+      "sourceHandle": "findings",
+      "targetHandle": "findings"
+    },
+    {
+      "id": "edge-markdown-to-pr-comment",
+      "source": "markdown-opengrep",
       "target": "pr-comment",
-      "sourceHandle": "rawOutput",
+      "sourceHandle": "markdown",
       "targetHandle": "body"
     },
     {

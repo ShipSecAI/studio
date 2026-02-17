@@ -5,7 +5,7 @@
   "event": "pull_request",
   "actions": ["opened", "synchronize", "reopened"],
   "branches": [],
-  "workflowId": "0e842188-7a4a-45bb-a06a-7e5eecfa2151",
+  "workflowId": "YOUR_WORKFLOW_UUID_HERE",
   "postPrComment": true,
   "createCheckRun": true,
   "enabled": true,

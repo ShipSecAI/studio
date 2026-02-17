@@ -94,7 +94,7 @@
             "model": {
               "provider": "zai-coding-plan",
               "modelId": "glm-4.7",
-              "apiKey": "YOUR_ZAI_CODING_PLAN_API_KEY"
+              "apiKey": ""
             }
           }
         }

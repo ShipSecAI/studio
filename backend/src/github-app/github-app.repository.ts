@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DRIZZLE_TOKEN } from '../database/database.module';
 
@@ -464,6 +464,7 @@ export class GitHubAppRepository {
       .select()
       .from(githubScanResults)
       .where(eq(githubScanResults.status, 'running'))
+      .orderBy(asc(githubScanResults.startedAt))
       .limit(limit);
   }
 }
