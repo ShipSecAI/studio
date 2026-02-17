@@ -226,7 +226,7 @@ function PreviewSection({
       {hasGraph ? (
         <>
           <div
-            className="absolute inset-0 flex items-center justify-center p-3 transition-transform duration-150 ease-out"
+            className="absolute inset-0 flex items-center justify-center p-2 transition-transform duration-150 ease-out"
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: `${origin.x}% ${origin.y}%`,
@@ -234,6 +234,39 @@ function PreviewSection({
           >
             <WorkflowPreview graph={graph} className="w-full h-full" />
           </div>
+
+          {/* "Scroll to zoom" hint — visible on hover, hides once user zooms */}
+          {zoom === 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-foreground/5 backdrop-blur-sm text-[9px] font-medium text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="opacity-60">
+                <rect
+                  x="6"
+                  y="1"
+                  width="4"
+                  height="8"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <line
+                  x1="8"
+                  y1="4"
+                  x2="8"
+                  y2="6"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M8 11v2m-2 1h4"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Scroll to zoom
+            </div>
+          )}
 
           {/* Zoom controls */}
           <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -261,7 +294,7 @@ function PreviewSection({
           )}
         </>
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground/40">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground/30">
           <Workflow className="h-8 w-8" />
           <span className="text-[10px] font-medium">No preview</span>
         </div>
@@ -639,8 +672,8 @@ export function TemplateLibraryPage() {
 
           {/* Tags + Clear */}
           {tags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Tag className="h-3.5 w-3.5 text-muted-foreground mr-1" />
+            <div className="flex flex-wrap items-center gap-1.5 ml-1">
+              <Tag className="h-3.5 w-3.5 text-muted-foreground mr-0.5" />
               {tags.slice(0, 12).map((tag) => (
                 <button
                   key={tag}
