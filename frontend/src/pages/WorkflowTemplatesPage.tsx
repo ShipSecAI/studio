@@ -163,8 +163,8 @@ function TemplateCard({
       className="group flex flex-col overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-200 cursor-pointer"
       onClick={() => onShowDetails(template)}
     >
-      {/* Preview */}
-      <div className="aspect-video w-full bg-muted relative overflow-hidden">
+      {/* Preview — full on sm+, compact icon on mobile */}
+      <div className="hidden sm:block aspect-video w-full bg-muted relative overflow-hidden">
         {template.screenshotUrl ? (
           <img
             src={template.screenshotUrl}
@@ -191,6 +191,17 @@ function TemplateCard({
           <Badge
             variant="secondary"
             className="absolute top-2 right-2 bg-background/90 backdrop-blur-sm text-xs"
+          >
+            Popular
+          </Badge>
+        )}
+      </div>
+      <div className="sm:hidden h-12 w-full bg-muted flex items-center justify-center relative">
+        <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
+        {runCount > 0 && (
+          <Badge
+            variant="secondary"
+            className="absolute top-1 right-1 bg-background/90 backdrop-blur-sm text-[10px] px-1.5 py-0"
           >
             Popular
           </Badge>
@@ -315,6 +326,8 @@ export function WorkflowTemplatesPage() {
         title: 'Workflow created',
         description: `Created "${template.name}" workflow`,
       });
+      // Close dialog before navigating to prevent Radix Dialog from blocking route transition
+      setDetailOpen(false);
       navigate(`/workflows/${workflow.id}`);
     } catch {
       toast({
@@ -379,7 +392,7 @@ export function WorkflowTemplatesPage() {
     : '';
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-4 sm:p-6 space-y-8">
       {/* Featured section */}
       {featured.length > 0 && (
         <div className="space-y-3">

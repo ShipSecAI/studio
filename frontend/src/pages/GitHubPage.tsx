@@ -208,7 +208,7 @@ interface WorkflowPickerModalProps {
 }
 
 function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowPickerModalProps) {
-  const { mutateAsync: triggerScan } = useTriggerScan();
+  const { mutate: triggerScan } = useTriggerScan();
   const { toast } = useToast();
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
@@ -266,7 +266,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
   const selectedWorkflowRequiresPrContext =
     selectedWorkflowCompatibility?.requiresPrContext ?? false;
 
-  const handleTrigger = async (workflowId: string) => {
+  const handleTrigger = (workflowId: string) => {
     if (!repository) return;
     const compatibility = workflowCompatibility[workflowId];
     if (compatibility?.requiresPrContext) {
@@ -279,23 +279,29 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
       return;
     }
     setTriggering(workflowId);
-    try {
-      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
-      toast({
-        title: 'Scan started',
-        description: `Security scan started for ${repository.fullName}`,
-      });
-      onClose();
-      onSuccess();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to start scan',
-        variant: 'destructive',
-      });
-    } finally {
-      setTriggering(null);
-    }
+    triggerScan(
+      { repoId: repository.id, workflowId, branch: selectedBranch || undefined },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Scan started',
+            description: `Security scan started for ${repository.fullName}`,
+          });
+          onClose();
+          onSuccess();
+        },
+        onError: (error) => {
+          toast({
+            title: 'Scan failed',
+            description: error instanceof Error ? error.message : 'Failed to start scan',
+            variant: 'destructive',
+          });
+        },
+        onSettled: () => {
+          setTriggering(null);
+        },
+      },
+    );
   };
 
   if (!repository) return null;
@@ -967,7 +973,10 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onRunScan(repo)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRunScan(repo);
+                    }}
                     disabled={!repo.scansEnabled}
                     title={!repo.scansEnabled ? 'Enable scans first to run a scan' : undefined}
                   >
@@ -2837,9 +2846,9 @@ export function GitHubPage() {
     }
   }, []);
 
-  const handleRunScan = (repo: GitHubRepo) => {
+  const handleRunScan = useCallback((repo: GitHubRepo) => {
     setSelectedRepoForScan(repo);
-  };
+  }, []);
 
   const handleScanSuccess = () => {
     // Switch to Scans tab and refresh scan results

@@ -103,12 +103,22 @@ export function SecurityDashboardContent() {
   const deepLinkedFindingId = searchParams.get('finding');
   const { data: deepLinkedFinding } = useFindingDetail(deepLinkedFindingId);
 
-  // Set deep-linked finding when it loads
+  // Track whether user explicitly closed the sheet to prevent deep-link from re-opening
+  const userClosedRef = useRef(false);
+
+  // Set deep-linked finding when it loads (only if user hasn't just closed the sheet)
   useEffect(() => {
-    if (deepLinkedFinding && !selectedFinding) {
+    if (deepLinkedFinding && !selectedFinding && !userClosedRef.current) {
       setSelectedFinding(deepLinkedFinding);
     }
   }, [deepLinkedFinding, selectedFinding, setSelectedFinding]);
+
+  // Reset the user-closed flag when the finding param changes (new deep link)
+  useEffect(() => {
+    if (deepLinkedFindingId) {
+      userClosedRef.current = false;
+    }
+  }, [deepLinkedFindingId]);
 
   // Selected finding lifecycle
   const selectedFindingHash = selectedFinding?.finding_hash ?? null;
@@ -183,12 +193,17 @@ export function SecurityDashboardContent() {
         if (filters.page > 1) params.set('page', String(filters.page));
         if (filters.sort !== '@timestamp') params.set('sort', filters.sort);
         if (filters.order !== 'desc') params.set('order', filters.order);
-        if (selectedFinding) params.set('finding', selectedFinding._id);
+        if (selectedFinding) {
+          params.set('finding', selectedFinding._id);
+        } else if (deepLinkedFindingId) {
+          // Preserve the finding param while the deep-linked finding is still loading
+          params.set('finding', deepLinkedFindingId);
+        }
         return params;
       },
       { replace: true },
     );
-  }, [filters, selectedFinding, setSearchParams]);
+  }, [filters, selectedFinding, deepLinkedFindingId, setSearchParams]);
 
   // Debounced search
   const handleSearchInput = useCallback(
@@ -343,7 +358,10 @@ export function SecurityDashboardContent() {
 
   const handleSheetClose = useCallback(
     (open: boolean) => {
-      if (!open) setSelectedFinding(null);
+      if (!open) {
+        userClosedRef.current = true;
+        setSelectedFinding(null);
+      }
     },
     [setSelectedFinding],
   );
