@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '@/services/api';
+import { useExecutionRun } from '@/hooks/queries/useExecutionQueries';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -12,30 +12,21 @@ import { Loader2 } from 'lucide-react';
 export function RunRedirect() {
   const { runId } = useParams<{ runId: string }>();
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  const { data: run, error: queryError } = useExecutionRun(runId);
 
   useEffect(() => {
-    if (!runId) {
-      setError('No run ID provided');
-      return;
+    if (run?.workflowId) {
+      navigate(`/workflows/${run.workflowId}/runs/${runId}`, { replace: true });
     }
+  }, [run, runId, navigate]);
 
-    const fetchAndRedirect = async () => {
-      try {
-        const run = await api.executions.getRun(runId);
-        if (run?.workflowId) {
-          navigate(`/workflows/${run.workflowId}/runs/${runId}`, { replace: true });
-        } else {
-          setError('Run not found or missing workflow ID');
-        }
-      } catch (err) {
-        console.error('Failed to fetch run:', err);
-        setError('Failed to load run');
-      }
-    };
-
-    fetchAndRedirect();
-  }, [runId, navigate]);
+  const error = !runId
+    ? 'No run ID provided'
+    : queryError
+      ? 'Failed to load run'
+      : run && !run.workflowId
+        ? 'Run not found or missing workflow ID'
+        : null;
 
   if (error) {
     return (

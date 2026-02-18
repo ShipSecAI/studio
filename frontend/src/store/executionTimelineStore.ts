@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { TERMINAL_STATUSES } from '@shipsec/shared';
-import { api } from '@/services/api';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/queryKeys';
+import {
+  executionEventsOptions,
+  executionDataFlowsOptions,
+  executionStatusOptions,
+} from '@/lib/executionQueryOptions';
 import type { ExecutionLog, ExecutionStatusResponse } from '@/schemas/execution';
 import type { NodeStatus } from '@/schemas/node';
 
@@ -503,6 +509,12 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
 
     selectRun: async (runId: string, initialMode: 'live' | 'replay' = 'replay') => {
       const state = get();
+
+      // Idempotent: skip if already selected with same mode
+      if (state.selectedRunId === runId && state.playbackMode === initialMode) {
+        return;
+      }
+
       const previousRunId = state.selectedRunId;
 
       // Save current node selection to history before switching runs
@@ -542,9 +554,9 @@ export const useExecutionTimelineStore = create<TimelineStore>()(
     loadTimeline: async (runId: string) => {
       try {
         const [eventsResponse, dataFlowResponse, statusResponse] = await Promise.all([
-          api.executions.getEvents(runId),
-          api.executions.getDataFlows(runId),
-          api.executions.getStatus(runId).catch(() => null),
+          queryClient.fetchQuery(executionEventsOptions(runId)),
+          queryClient.fetchQuery(executionDataFlowsOptions(runId)),
+          queryClient.fetchQuery(executionStatusOptions(runId)).catch(() => null),
         ]);
 
         // Only fetch historical logs when we're in replay mode (live runs rely on SSE live logs)
@@ -951,27 +963,42 @@ export const initializeTimelineStore = () => {
               },
             );
 
-            // Update run in run store to mark it as completed (removes from live runs)
+            // Update run in TanStack Query cache to mark it as completed (removes from live runs)
             if (runStatus) {
-              void import('./runStore').then(({ useRunStore }) => {
-                const runStore = useRunStore.getState();
-                const existingRun = runStore.getRunById(runId);
-                if (existingRun) {
-                  // Update run with final status and endTime
-                  const endTime =
-                    runStatus.completedAt || runStatus.updatedAt || new Date().toISOString();
-                  runStore.upsertRun({
-                    ...existingRun,
-                    status: runStatus.status,
-                    endTime,
-                    duration: existingRun.startTime
-                      ? new Date(endTime).getTime() - new Date(existingRun.startTime).getTime()
-                      : existingRun.duration,
-                    isLive: false, // Explicitly mark as not live
-                  });
-                }
-              });
+              void import('@/hooks/queries/useRunQueries').then(
+                ({ getRunByIdFromCache, upsertRunInCache }) => {
+                  const existingRun = getRunByIdFromCache(runId);
+                  if (existingRun) {
+                    // Update run with final status and endTime
+                    const endTime =
+                      runStatus.completedAt || runStatus.updatedAt || new Date().toISOString();
+                    upsertRunInCache({
+                      ...existingRun,
+                      status: runStatus.status,
+                      endTime,
+                      duration: existingRun.startTime
+                        ? new Date(endTime).getTime() - new Date(existingRun.startTime).getTime()
+                        : existingRun.duration,
+                      isLive: false, // Explicitly mark as not live
+                    });
+                  }
+                },
+              );
             }
+
+            // Invalidate execution-scoped queries so they do one final fresh fetch
+            // before becoming Infinity-stale (terminal run optimization)
+            import('@/lib/queryClient').then(({ queryClient: qc }) => {
+              qc.invalidateQueries({
+                queryKey: queryKeys.executions.nodeIO(runId),
+              });
+              qc.invalidateQueries({
+                queryKey: queryKeys.executions.result(runId),
+              });
+              qc.invalidateQueries({
+                queryKey: queryKeys.executions.run(runId),
+              });
+            });
 
             useExecutionTimelineStore.setState({
               playbackMode: 'replay',

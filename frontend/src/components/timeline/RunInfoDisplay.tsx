@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDuration, formatStartTime } from '@/utils/timeFormat';
 import { getTriggerDisplay } from '@/utils/triggerDisplay';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
-import type { ExecutionRun } from '@/store/runStore';
+import type { ExecutionRun } from '@/hooks/queries/useRunQueries';
 import { isRunLive } from '@/features/workflow-builder/utils/executionRuns';
 import { cn } from '@/lib/utils';
 import { Wifi } from 'lucide-react';

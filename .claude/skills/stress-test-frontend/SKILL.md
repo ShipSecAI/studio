@@ -1,5 +1,5 @@
 ---
-name: load-audit
+name: stress-test-frontend
 description: Run a frontend load testing audit. Seeds data, tests all pages via Chrome DevTools MCP, records network calls, TanStack queries, DOM sizes, and generates a timestamped report.
 user_invocable: true
 ---
@@ -13,7 +13,7 @@ user_invocable: true
 
 ## Agent Instructions
 
-When the user invokes `/load-audit`, perform a full frontend load testing audit:
+When the user invokes `/stress-test-frontend`, perform a full frontend load testing audit:
 
 ### 1. Setup
 

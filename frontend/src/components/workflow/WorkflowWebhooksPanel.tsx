@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, Plus, X, Copy, Check, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { api } from '@/services/api';
+import { useWebhooks } from '@/hooks/queries/useWebhookQueries';
 import type { WebhookConfiguration } from '@shipsec/shared';
 import { WebhookDetails } from './WebhookDetails';
-import { useApiKeyStore } from '@/store/apiKeyStore';
+import { useApiKeyUiStore } from '@/hooks/queries/useApiKeyQueries';
 import type { Node as ReactFlowNode } from 'reactflow';
 import type { FrontendNodeData } from '@/schemas/node';
 
@@ -35,38 +35,17 @@ export function WorkflowWebhooksSidebar({
 }: WorkflowWebhooksSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { lastCreatedKey } = useApiKeyStore();
-  const [webhooks, setWebhooks] = useState<WebhookConfiguration[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const lastCreatedKey = useApiKeyUiStore((state) => state.lastCreatedKey);
+  const { data: allWebhooks = [], isLoading, error: queryError } = useWebhooks();
+  const webhooks = useMemo(
+    () =>
+      workflowId
+        ? allWebhooks.filter((w: WebhookConfiguration) => w.workflowId === workflowId)
+        : [],
+    [allWebhooks, workflowId],
+  );
+  const error = queryError?.message ?? null;
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchWebhooks = async () => {
-      // Skip fetching if no workflowId (unsaved workflow)
-      if (!workflowId) {
-        setIsLoading(false);
-        setWebhooks([]);
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-      try {
-        const allWebhooks = await api.webhooks.list();
-        // Filter webhooks for this workflow
-        const filtered = allWebhooks.filter(
-          (w: WebhookConfiguration) => w.workflowId === workflowId,
-        );
-        setWebhooks(filtered);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load webhooks');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchWebhooks();
-  }, [workflowId]);
 
   const handleCopy = async (text: string, id: string) => {
     try {

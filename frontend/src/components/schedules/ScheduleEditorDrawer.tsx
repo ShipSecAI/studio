@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { components } from '@shipsec/backend-client';
 import type { WorkflowSchedule, ScheduleOverlapPolicy } from '@shipsec/shared';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,11 +22,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/services/api';
+import { useWorkflow } from '@/hooks/queries/useWorkflowQueries';
 import { cn } from '@/lib/utils';
 
 const ENTRY_COMPONENT_ID = 'core.workflow.entrypoint';
-
-type WorkflowResponseDto = components['schemas']['WorkflowResponseDto'];
 
 type RuntimeInputType = 'file' | 'text' | 'number' | 'json' | 'array' | 'string';
 type NormalizedRuntimeInputType = Exclude<RuntimeInputType, 'string'>;
@@ -154,10 +152,30 @@ export function ScheduleEditorDrawer({
     overlapPolicy: 'skip',
     catchupWindowSeconds: '0',
   }));
-  const [workflowDetail, setWorkflowDetail] = useState<WorkflowResponseDto | null>(null);
-  const [workflowCache, setWorkflowCache] = useState<Record<string, WorkflowResponseDto>>({});
-  const [workflowLoading, setWorkflowLoading] = useState(false);
-  const [runtimeInputs, setRuntimeInputs] = useState<RuntimeInputDefinition[]>([]);
+  // --- Workflow detail query (replaces manual fetch + workflowCache) ---
+  const {
+    data: workflowDetail,
+    isLoading: workflowLoading,
+    error: workflowError,
+  } = useWorkflow(open && form.workflowId ? form.workflowId : undefined);
+
+  // Propagate workflow load error to form
+  useEffect(() => {
+    if (workflowError) {
+      setFormError(
+        workflowError instanceof Error ? workflowError.message : 'Unable to load workflow details',
+      );
+    }
+  }, [workflowError]);
+
+  const runtimeInputs = useMemo<RuntimeInputDefinition[]>(() => {
+    if (!workflowDetail) return [];
+    const entryNode = workflowDetail.graph.nodes.find(
+      (node: any) => node.type === ENTRY_COMPONENT_ID,
+    );
+    return normalizeRuntimeInputs((entryNode?.data as any)?.config?.runtimeInputs);
+  }, [workflowDetail]);
+
   const [runtimeValues, setRuntimeValues] = useState<Record<string, unknown>>({});
   const [runtimeErrors, setRuntimeErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
@@ -191,10 +209,6 @@ export function ScheduleEditorDrawer({
     setPendingOverrideNode('');
     setFormError(null);
     setFormSeed((seed) => seed + 1);
-    if (!baseWorkflowId) {
-      setWorkflowDetail(null);
-      setRuntimeInputs([]);
-    }
   };
 
   useEffect(() => {
@@ -207,51 +221,6 @@ export function ScheduleEditorDrawer({
     () => workflowOptions.find((workflow) => workflow.id === form.workflowId) ?? null,
     [workflowOptions, form.workflowId],
   );
-
-  useEffect(() => {
-    if (!open) return;
-    if (!form.workflowId) {
-      setWorkflowDetail(null);
-      setRuntimeInputs([]);
-      return;
-    }
-    const cached = workflowCache[form.workflowId];
-    if (cached) {
-      setWorkflowDetail(cached);
-      setRuntimeInputs(
-        normalizeRuntimeInputs(
-          (cached.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID)?.data?.config as any)
-            ?.runtimeInputs,
-        ),
-      );
-      return;
-    }
-    let cancelled = false;
-    setWorkflowLoading(true);
-    (async () => {
-      try {
-        const detail = await api.workflows.get(form.workflowId);
-        if (cancelled) return;
-        setWorkflowCache((prev) => ({ ...prev, [detail.id]: detail }));
-        setWorkflowDetail(detail);
-        const entryNode = detail.graph.nodes.find((node) => node.type === ENTRY_COMPONENT_ID);
-        setRuntimeInputs(normalizeRuntimeInputs((entryNode?.data as any)?.config?.runtimeInputs));
-      } catch (error) {
-        if (!cancelled) {
-          setFormError(error instanceof Error ? error.message : 'Unable to load workflow details');
-          setWorkflowDetail(null);
-          setRuntimeInputs([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setWorkflowLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [form.workflowId, open, workflowCache]);
 
   const workflowNodes = useMemo(() => {
     if (!workflowDetail) return [];

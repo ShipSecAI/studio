@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Server, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { mcpGroupsApi, type McpGroupServerResponse } from '@/services/mcpGroupsApi';
+import { useMcpGroups, useMcpGroupServers } from '@/hooks/queries/useMcpGroupQueries';
+import type { McpGroupServerResponse } from '@/services/mcpGroupsApi';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface McpGroupConfigProps {
   /** Group slug to fetch servers for */
@@ -30,40 +32,15 @@ export function McpGroupConfig({
   onChange,
   disabled = false,
 }: McpGroupConfigProps) {
-  const [servers, setServers] = useState<McpGroupServerResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: groups = [] } = useMcpGroups();
+  const group = useMemo(() => groups.find((g) => g.slug === groupSlug), [groups, groupSlug]);
+  const { data: rawServers = [], isLoading, error: queryError } = useMcpGroupServers(group?.id);
+  const servers = useMemo(() => rawServers.filter((s) => s.enabled), [rawServers]);
+  const error = queryError?.message ?? null;
+
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set(value));
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Fetch group servers on mount
-  const fetchServers = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // First, find the group by slug
-      const groups = await mcpGroupsApi.listGroups();
-      const group = groups.find((g) => g.slug === groupSlug);
-
-      if (!group) {
-        throw new Error(`Group "${groupSlug}" not found`);
-      }
-
-      // Then fetch the servers
-      const groupServers = await mcpGroupsApi.getGroupServers(group.id);
-      setServers(groupServers.filter((s) => s.enabled));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load group servers');
-      setServers([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchServers();
-  }, [groupSlug]);
 
   // Sync external value changes to local state
   useEffect(() => {
@@ -98,7 +75,10 @@ export function McpGroupConfig({
 
     setIsRefreshing(true);
     try {
-      await fetchServers();
+      await queryClient.invalidateQueries({ queryKey: ['mcpGroups'] });
+      if (group?.id) {
+        await queryClient.invalidateQueries({ queryKey: ['mcpGroupServers'] });
+      }
     } finally {
       setIsRefreshing(false);
     }

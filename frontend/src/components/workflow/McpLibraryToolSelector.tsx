@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronRight, Server, Wrench, RefreshCw, AlertCircle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useMcpServerStore } from '@/store/mcpServerStore';
+import { useMcpServers, useMcpAllTools } from '@/hooks/queries/useMcpServerQueries';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface McpLibraryToolSelectorProps {
   /** Whether Custom MCPs is enabled (controls visibility) */
@@ -34,18 +35,13 @@ export function McpLibraryToolSelector({
   onServerExclusionChange,
   onToolExclusionChange,
 }: McpLibraryToolSelectorProps) {
-  const { servers, tools, isLoading, error, fetchServers, fetchAllTools } = useMcpServerStore();
+  const { data: servers = [], isLoading, error: serversError } = useMcpServers();
+  const { data: tools = [] } = useMcpAllTools();
+  const queryClient = useQueryClient();
+  const error = serversError?.message ?? null;
 
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Fetch servers and tools on mount
-  useEffect(() => {
-    if (enabled) {
-      fetchServers();
-      fetchAllTools();
-    }
-  }, [enabled, fetchServers, fetchAllTools]);
 
   // Only show enabled servers
   const enabledServers = servers.filter((s) => s.enabled);
@@ -53,7 +49,10 @@ export function McpLibraryToolSelector({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([fetchServers({ force: true }), fetchAllTools()]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['mcpServers'] }),
+        queryClient.invalidateQueries({ queryKey: ['mcpAllTools'] }),
+      ]);
     } finally {
       setIsRefreshing(false);
     }

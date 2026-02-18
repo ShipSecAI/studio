@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -71,10 +71,27 @@ import {
   Loader2,
   CheckCircle,
 } from 'lucide-react';
-import { useMcpServerStore } from '@/store/mcpServerStore';
-import { useMcpGroupStore } from '@/store/mcpGroupStore';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useMcpServers,
+  useMcpAllTools,
+  useCreateMcpServer,
+  useUpdateMcpServer,
+  useDeleteMcpServer,
+  useToggleMcpServer,
+  useTestMcpConnection,
+  useFetchServerTools,
+  useToggleMcpTool,
+  useDiscoverMcpTools,
+} from '@/hooks/queries/useMcpServerQueries';
+import { useMcpGroupsWithServers, useMcpGroupTemplates } from '@/hooks/queries/useMcpGroupQueries';
+import { queryKeys } from '@/lib/queryKeys';
 import { useToast } from '@/components/ui/use-toast';
-import { mcpGroupsApi, type McpGroupTemplateResponse } from '@/services/mcpGroupsApi';
+import {
+  mcpGroupsApi,
+  type McpGroupTemplateResponse,
+  type McpGroupServerResponse,
+} from '@/services/mcpGroupsApi';
 import { mcpDiscoveryApi } from '@/services/mcpDiscoveryApi';
 import type { McpHealthStatus, CreateMcpServer } from '@shipsec/shared';
 import { cn } from '@/lib/utils';
@@ -295,8 +312,7 @@ export function McpLibraryPage() {
   const [headerEntries, setHeaderEntries] = useState<HeaderEntry[]>([]);
   const [secretPickerEntryIndex, setSecretPickerEntryIndex] = useState<number | null>(null);
   const [discoveringServerIds, setDiscoveringServerIds] = useState<Set<string>>(new Set());
-  const [groupTemplates, setGroupTemplates] = useState<McpGroupTemplateResponse[]>([]);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const { data: groupTemplates = [], isLoading: isLoadingTemplates } = useMcpGroupTemplates();
   const [importingTemplates, setImportingTemplates] = useState<Set<string>>(new Set());
   const [templatesOpen, setTemplatesOpen] = useState(true);
   const [templatesManuallyToggled, setTemplatesManuallyToggled] = useState(false);
@@ -324,71 +340,30 @@ export function McpLibraryPage() {
     error?: string;
   } | null>(null);
 
-  const {
-    servers,
-    tools,
-    isLoading,
-    error,
-    fetchServers,
-    createServer,
-    updateServer,
-    deleteServer,
-    toggleServer,
-    testConnection,
-    fetchServerTools,
-    fetchAllTools,
-    discoverTools,
-    toggleTool,
-  } = useMcpServerStore();
+  const queryClient = useQueryClient();
+  const { data: servers = [], isLoading, error: serversError } = useMcpServers();
+  const { data: tools = [] } = useMcpAllTools();
+  const error = serversError?.message ?? null;
+  const { data: groups = [] } = useMcpGroupsWithServers();
 
-  const { groups, fetchGroups, fetchGroupServers, getGroupServers } = useMcpGroupStore();
+  // Mutation hooks
+  const createServerMutation = useCreateMcpServer();
+  const updateServerMutation = useUpdateMcpServer();
+  const deleteServerMutation = useDeleteMcpServer();
+  const toggleServerMutation = useToggleMcpServer();
+  const testConnectionMutation = useTestMcpConnection();
+  const fetchServerToolsMutation = useFetchServerTools();
+  const toggleToolMutation = useToggleMcpTool();
+  const discoverToolsMutation = useDiscoverMcpTools();
 
-  useEffect(() => {
-    fetchServers();
-    fetchAllTools();
-    fetchGroups();
-  }, [fetchServers, fetchAllTools, fetchGroups]);
+  const getGroupServers = useCallback(
+    (groupId: string): McpGroupServerResponse[] => {
+      return groups.find((g) => g.id === groupId)?.servers ?? [];
+    },
+    [groups],
+  );
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadTemplates = async () => {
-      setIsLoadingTemplates(true);
-      try {
-        const templates = await mcpGroupsApi.listTemplates();
-        if (isMounted) {
-          setGroupTemplates(templates);
-        }
-      } catch (error) {
-        if (isMounted) {
-          toast({
-            title: 'Failed to load group templates',
-            description:
-              error instanceof Error ? error.message : 'Could not fetch available groups.',
-            variant: 'destructive',
-          });
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingTemplates(false);
-        }
-      }
-    };
-
-    loadTemplates();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [toast]);
-
-  useEffect(() => {
-    if (groups.length > 0) {
-      groups.forEach((group) => {
-        fetchGroupServers(group.id);
-      });
-    }
-  }, [groups, fetchGroupServers]);
+  // Templates are now fetched via useMcpGroupTemplates() hook above.
 
   // Default: show templates when no groups are installed; collapse when groups exist.
   useEffect(() => {
@@ -412,15 +387,11 @@ export function McpLibraryPage() {
 
   // Populate header entries when editing a server
   useEffect(() => {
-    if (editingServer) {
-      const server = servers.find((s) => s.id === editingServer);
-      if (server?.headerKeys && server.headerKeys.length > 0) {
-        setHeaderEntries(server.headerKeys.map((key) => ({ key, value: '' })));
-      } else {
-        setHeaderEntries([]);
-      }
+    if (!editingServer) return;
+    const server = servers.find((s) => s.id === editingServer);
+    if (server?.headerKeys && server.headerKeys.length > 0) {
+      setHeaderEntries(server.headerKeys.map((key) => ({ key, value: '' })));
     } else {
-      // Reset when creating new server
       setHeaderEntries([]);
     }
   }, [editingServer, servers]);
@@ -807,14 +778,14 @@ export function McpLibraryPage() {
       if (editingServer) {
         // Mark as checking BEFORE the update to prevent "Unknown" flash
         setCheckingServers((prev) => new Set([...prev, editingServer]));
-        await updateServer(editingServer, payload);
+        await updateServerMutation.mutateAsync({ id: editingServer, input: payload });
         // Run health check after update to refresh status and tools
-        testConnection(editingServer)
+        testConnectionMutation
+          .mutateAsync(editingServer)
           .then(async () => {
-            // Fetch all tools after health check to update tool counts
-            await fetchAllTools();
-            // Refresh health status in store before clearing checking state
-            await fetchServers();
+            // Invalidate queries to refresh tool counts and health status
+            await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
           })
           .catch(() => {
             // Silently ignore health check errors on update
@@ -828,16 +799,16 @@ export function McpLibraryPage() {
           });
         toast({ title: 'Server updated', description: `${payload.name} has been updated.` });
       } else {
-        const newServer = await createServer(payload);
+        const newServer = await createServerMutation.mutateAsync(payload);
         // Immediately add to checking set - batched with store update to prevent "Unknown" flash
         setCheckingServers((prev) => new Set([...prev, newServer.id]));
         // Run health check to set status and discover tools
-        testConnection(newServer.id)
+        testConnectionMutation
+          .mutateAsync(newServer.id)
           .then(async (result) => {
-            // Fetch all tools after health check to update tool counts
-            await fetchAllTools();
-            // Refresh health status in store before clearing checking state
-            await fetchServers();
+            // Invalidate queries to refresh tool counts and health status
+            await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
             if (result.toolCount !== undefined && result.toolCount > 0) {
               toast({
                 title: 'Server ready',
@@ -878,7 +849,7 @@ export function McpLibraryPage() {
 
     setIsDeleting(true);
     try {
-      await deleteServer(serverToDelete);
+      await deleteServerMutation.mutateAsync(serverToDelete);
       toast({ title: 'Server deleted', description: 'MCP server has been removed.' });
       setDeleteDialogOpen(false);
       setServerToDelete(null);
@@ -895,7 +866,7 @@ export function McpLibraryPage() {
 
   const handleToggle = async (serverId: string) => {
     try {
-      const server = await toggleServer(serverId);
+      const server = await toggleServerMutation.mutateAsync(serverId);
       toast({
         title: server.enabled ? 'Server enabled' : 'Server disabled',
         description: `${server.name} has been ${server.enabled ? 'enabled' : 'disabled'}.`,
@@ -912,7 +883,7 @@ export function McpLibraryPage() {
   const handleTestConnection = async (serverId: string) => {
     setTestingServer(serverId);
     try {
-      const result = await testConnection(serverId);
+      const result = await testConnectionMutation.mutateAsync(serverId);
       toast({
         title: result.success ? 'Connection successful' : 'Connection failed',
         description: result.message,
@@ -932,7 +903,7 @@ export function McpLibraryPage() {
   const handleViewTools = async (serverId: string) => {
     setSelectedServerForTools(serverId);
     setToolsDialogOpen(true);
-    await fetchServerTools(serverId);
+    await fetchServerToolsMutation.mutateAsync(serverId);
   };
 
   const handleDiscoverServerTools = async (serverId: string, image?: string) => {
@@ -940,7 +911,7 @@ export function McpLibraryPage() {
 
     setDiscoveringServerIds((prev) => new Set(prev).add(serverId));
     try {
-      const tools = await discoverTools(serverId, image ? { image } : undefined);
+      const tools = await discoverToolsMutation.mutateAsync({ serverId, servers, image });
       toast({
         title: 'Tool discovery complete',
         description: `Discovered ${tools.length} tool(s) from this server.`,
@@ -961,19 +932,7 @@ export function McpLibraryPage() {
   };
 
   const refreshTemplates = async () => {
-    setIsLoadingTemplates(true);
-    try {
-      const templates = await mcpGroupsApi.listTemplates();
-      setGroupTemplates(templates);
-    } catch (error) {
-      toast({
-        title: 'Failed to load group templates',
-        description: error instanceof Error ? error.message : 'Could not fetch available groups.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoadingTemplates(false);
-    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.mcpGroups.templates() });
   };
 
   const handleGroupTestAndDiscover = async (template: McpGroupTemplateResponse) => {
@@ -1146,9 +1105,8 @@ export function McpLibraryPage() {
 
       // Import template with cache tokens
       const result = await mcpGroupsApi.importTemplate(template.slug, serverCacheTokens);
-      await fetchGroups({ force: true });
-      await fetchGroupServers(result.group.id, { force: true });
-      await fetchAllTools();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpGroups.all() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
 
       toast({
         title: 'Group imported',
@@ -1185,7 +1143,7 @@ export function McpLibraryPage() {
         title: 'Group removed',
         description: `${groupName} was removed.`,
       });
-      await fetchGroups({ force: true });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpGroups.all() });
     } catch (err) {
       toast({
         title: 'Remove failed',
@@ -1197,7 +1155,7 @@ export function McpLibraryPage() {
 
   const handleToggleTool = async (serverId: string, toolId: string) => {
     try {
-      const tool = await toggleTool(serverId, toolId);
+      const tool = await toggleToolMutation.mutateAsync({ serverId, toolId });
       toast({
         title: tool.enabled ? 'Tool enabled' : 'Tool disabled',
         description: `${tool.toolName} has been ${tool.enabled ? 'enabled' : 'disabled'}.`,
@@ -1447,7 +1405,7 @@ export function McpLibraryPage() {
           headers: firstServer.headers.trim() ? JSON.parse(firstServer.headers) : undefined,
           enabled: formData.enabled,
         };
-        await updateServer(editingServer, payload);
+        await updateServerMutation.mutateAsync({ id: editingServer, input: payload });
         toast({ title: 'Server updated', description: `${payload.name} has been updated.` });
         setEditorOpen(false);
         setEditingServer(null);
@@ -1493,12 +1451,12 @@ export function McpLibraryPage() {
             // Pass cacheToken to backend so it can automatically create tools from cached discovery
             cacheToken: cached?.cacheToken,
           };
-          return createServer(payload);
+          return createServerMutation.mutateAsync(payload);
         }),
       );
 
       // Extract successfully created servers and collect errors
-      type ServerResponse = Awaited<ReturnType<typeof createServer>>;
+      type ServerResponse = Awaited<ReturnType<typeof createServerMutation.mutateAsync>>;
       const createdServers = results
         .filter((r): r is PromiseFulfilledResult<ServerResponse> => r.status === 'fulfilled')
         .map((r) => r.value);
@@ -1540,13 +1498,16 @@ export function McpLibraryPage() {
           setDiscoveringServerIds(new Set(serversToDiscover.map((s) => s.id)));
 
           Promise.allSettled(
-            serversToDiscover.map((server) => discoverTools(server.id).catch(() => {})),
+            serversToDiscover.map((server) =>
+              discoverToolsMutation
+                .mutateAsync({ serverId: server.id, servers: createdServers })
+                .catch(() => {}),
+            ),
           )
             .then(async () => {
-              // Fetch all tools after discovery completes
-              await fetchAllTools();
-              // Refresh health status in store before clearing checking state
-              await fetchServers();
+              // Invalidate queries to refresh tool counts and health status
+              await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
             })
             .finally(() => {
               // Clear discovering state
@@ -1562,9 +1523,9 @@ export function McpLibraryPage() {
         if (serversToDiscover.length < createdServers.length) {
           Promise.resolve()
             .then(async () => {
-              // Fetch tools for all created servers (cached ones will have tools from backend)
-              await fetchAllTools();
-              await fetchServers();
+              // Invalidate queries to refresh tool counts and health status
+              await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.tools() });
+              await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
             })
             .finally(() => {
               // Clear checking state
@@ -1638,7 +1599,11 @@ export function McpLibraryPage() {
           <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
           <h2 className="text-lg font-semibold mb-2">Failed to load MCP servers</h2>
           <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => fetchServers({ force: true })}>Try again</Button>
+          <Button
+            onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() })}
+          >
+            Try again
+          </Button>
         </div>
       </div>
     );
@@ -1675,8 +1640,8 @@ export function McpLibraryPage() {
           variant="outline"
           size="icon"
           onClick={() => {
-            fetchServers({ force: true });
-            fetchGroups();
+            queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.mcpGroups.all() });
             void refreshTemplates();
           }}
           disabled={isLoading}

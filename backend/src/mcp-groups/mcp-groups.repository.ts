@@ -123,6 +123,60 @@ export class McpGroupsRepository {
 
   // Group-Server relationship methods
 
+  async findAllServersGrouped(): Promise<
+    Map<
+      string,
+      (McpServerRecord & { recommended: boolean; defaultSelected: boolean; toolCount: number })[]
+    >
+  > {
+    const query = sql`
+      SELECT
+        gs.group_id,
+        s.id,
+        s.name,
+        s.description,
+        s.transport_type,
+        s.endpoint,
+        s.command,
+        s.args,
+        s.headers,
+        s.enabled,
+        s.health_check_url,
+        s.last_health_check,
+        s.last_health_status,
+        s.group_id AS server_group_id,
+        s.organization_id,
+        s.created_by,
+        s.created_at,
+        s.updated_at,
+        gs.recommended,
+        gs.default_selected,
+        COALESCE(tc.tool_count, 0) as tool_count
+      FROM mcp_group_servers gs
+      INNER JOIN mcp_servers s ON gs.server_id = s.id
+      LEFT JOIN (
+        SELECT server_id, COUNT(id) as tool_count
+        FROM mcp_server_tools
+        GROUP BY server_id
+      ) tc ON tc.server_id = s.id
+      ORDER BY gs.group_id, CASE WHEN gs.recommended THEN 0 ELSE 1 END ASC, s.name
+    `;
+
+    const result = await this.db.execute(query);
+    const grouped = new Map<
+      string,
+      (McpServerRecord & { recommended: boolean; defaultSelected: boolean; toolCount: number })[]
+    >();
+    for (const row of result.rows as any[]) {
+      const groupId = row.group_id;
+      if (!grouped.has(groupId)) {
+        grouped.set(groupId, []);
+      }
+      grouped.get(groupId)!.push(row);
+    }
+    return grouped;
+  }
+
   async findServersByGroup(
     groupId: string,
   ): Promise<

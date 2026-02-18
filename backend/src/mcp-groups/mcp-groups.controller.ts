@@ -45,9 +45,16 @@ export class McpGroupsController {
   @Get()
   @ApiOperation({ summary: 'List all MCP groups' })
   @ApiQuery({ name: 'enabled', required: false, type: Boolean })
+  @ApiQuery({ name: 'includeServers', required: false, type: Boolean })
   @ApiOkResponse({ type: [McpGroupResponse] })
-  async listGroups(@Query('enabled') enabled?: string): Promise<McpGroupResponse[]> {
+  async listGroups(
+    @Query('enabled') enabled?: string,
+    @Query('includeServers') includeServers?: string,
+  ): Promise<McpGroupResponse[]> {
     const enabledOnly = enabled === 'true';
+    if (includeServers === 'true') {
+      return this.mcpGroupsService.listGroupsWithServers(enabledOnly);
+    }
     return this.mcpGroupsService.listGroups(enabledOnly);
   }
 

@@ -8,7 +8,7 @@ import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useExecutionStore } from '@/store/executionStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
 import { useWorkflowStore } from '@/store/workflowStore';
-import { useRunStore } from '@/store/runStore';
+import { useWorkflowRuns } from '@/hooks/queries/useRunQueries';
 import { cn } from '@/lib/utils';
 import { RunArtifactsPanel } from '@/components/artifacts/RunArtifactsPanel';
 
@@ -20,9 +20,8 @@ const formatTime = (timestamp: string) => {
 export function ReviewInspector() {
   const { selectedRunId, playbackMode, isPlaying } = useExecutionTimelineStore();
   const { id: workflowId } = useWorkflowStore((state) => state.metadata);
-  const workflowCacheKey = workflowId ?? '__global__';
-  const scopedRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs);
-  const runs = scopedRuns ?? [];
+  const { data: runsPage, isLoading: isLoadingRuns } = useWorkflowRuns(workflowId);
+  const runs = runsPage?.runs ?? [];
   const displayLogs = useExecutionStore((state) => state.getDisplayLogs());
   const { inspectorTab, setInspectorTab } = useWorkflowUiStore();
 
@@ -50,7 +49,7 @@ export function ReviewInspector() {
     <aside className="h-full w-[360px] border-l bg-muted/30 backdrop-blur flex flex-col overflow-y-auto min-h-0">
       <div className="border-b p-3 space-y-3 bg-background/70">
         <div className="flex items-center justify-between">
-          <RunSelector />
+          <RunSelector runsPage={runsPage ?? null} isLoadingRuns={isLoadingRuns} />
         </div>
         {selectedRun && (
           <div className="rounded-md border bg-background px-3 py-2 text-xs space-y-1">

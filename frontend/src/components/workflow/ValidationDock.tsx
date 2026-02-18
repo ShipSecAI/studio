@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSecretStore, type SecretStore } from '@/store/secretStore';
-import { useComponentStore } from '@/store/componentStore';
+import { useSecrets } from '@/hooks/queries/useSecretQueries';
+import { useComponents } from '@/hooks/queries/useComponentQueries';
 import { getNodeValidationWarnings } from '@/utils/connectionValidation';
 import type { Node, Edge } from 'reactflow';
 import type { NodeData, FrontendNodeData } from '@/schemas/node';
@@ -41,7 +41,14 @@ function useIsMobile(breakpoint = 768) {
 }
 
 export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDockProps) {
-  const { getComponent } = useComponentStore();
+  const { data: componentIndex } = useComponents();
+  const getComponent = (ref: string) => {
+    if (!componentIndex || !ref) return null;
+    if (componentIndex.byId[ref]) return componentIndex.byId[ref];
+    const idFromSlug = componentIndex.slugIndex[ref];
+    if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
+    return null;
+  };
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -49,7 +56,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
   // Only show validation in design mode
   const isDesignMode = mode === 'design';
 
-  const secrets = useSecretStore((state: SecretStore) => state.secrets);
+  const { data: secrets = [] } = useSecrets();
 
   const validationIssues = useMemo<ValidationIssue[]>(() => {
     if (!isDesignMode) return [];
@@ -82,7 +89,7 @@ export function ValidationDock({ nodes, edges, mode, onNodeClick }: ValidationDo
     });
 
     return issues;
-  }, [nodes, edges, getComponent, isDesignMode, secrets]);
+  }, [nodes, edges, componentIndex, isDesignMode, secrets]);
 
   const totalIssues = validationIssues.length;
   const hasIssues = totalIssues > 0;

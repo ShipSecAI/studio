@@ -1,45 +1,42 @@
 # Store Directory
 
-State management using Zustand for frontend application state.
+Client-only UI state management using Zustand.
+
+> **Server state (API data) does NOT belong here.** Use TanStack Query hooks in `src/hooks/queries/` instead. See `frontend/docs/state.md` for the decision guide.
 
 ## Store Files
 
-- **executionTimelineStore.ts** - Timeline state for workflow execution visualization
-- **workflowStore.ts** - Current workflow editor state (nodes, edges, viewport)
-- **authStore.ts** - Authentication and user session state
-- **uiStore.ts** - Global UI state (modals, sidebars, theme)
+- **workflowStore.ts** — Current workflow editor state (nodes, edges, viewport)
+- **workflowUiStore.ts** — Canvas UI toggles, panel sizing, minimap state
+- **executionStore.ts** — Workflow run lifecycle, SSE stream wiring, log/event aggregation
+- **executionTimelineStore.ts** — Timeline playback state, selected run/node
+- **authStore.ts** — Authentication and user session state (used by `queryKeys.ts` for org scoping)
 
-## State Management Pattern
+## When to Use Zustand vs TanStack Query
 
-### Zustand Stores
-- Lightweight, simple state management
-- TypeScript-first with proper type safety
-- Selectors for derived state
-- Actions for state mutations
-- Subscribe to specific state slices
+| Data source                            | Tool                                       |
+| -------------------------------------- | ------------------------------------------ |
+| Backend API response                   | TanStack Query hook (`src/hooks/queries/`) |
+| UI-only state shared across components | Zustand store (this directory)             |
+| UI-only state scoped to one component  | Local `useState`                           |
 
-### Timeline Store Features
-- Event-based timeline state management
-- Node status tracking (pending, running, completed, failed)
-- Playback position and speed control
-- Real-time event processing and visualization
+## Usage Example
 
-### Usage Example
 ```typescript
 import { useExecutionTimelineStore } from '../store/executionTimelineStore';
 
 const { events, currentNode, isPlaying, setPosition } = useExecutionTimelineStore();
 
-// Subscribe to specific state
-const currentEvent = useExecutionTimelineStore(state =>
-  state.events.find(e => e.nodeRef === currentNode)
+// Subscribe to specific state slice to prevent unnecessary re-renders
+const currentEvent = useExecutionTimelineStore((state) =>
+  state.events.find((e) => e.nodeRef === currentNode),
 );
 ```
 
 ## Best Practices
 
-- Keep stores focused on specific domains
+- Keep stores focused on client-only UI concerns
+- Never store API data in Zustand — use TanStack Query instead
 - Use TypeScript interfaces for state shape
-- Implement proper state selectors to prevent unnecessary re-renders
+- Use selectors to subscribe to specific slices and prevent unnecessary re-renders
 - Separate actions from state mutations
-- Use middleware for logging and persistence when needed

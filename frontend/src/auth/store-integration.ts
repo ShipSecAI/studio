@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth, useAuthProvider } from './auth-context';
 import { useAuthStore } from '../store/authStore';
+import { queryClient } from '@/lib/queryClient';
 
 /**
  * Hook to integrate the new auth system with the existing Zustand store
@@ -10,6 +11,25 @@ export function useAuthStoreIntegration() {
   const { user, token, isAuthenticated, isLoading, error } = useAuth();
   const authProvider = useAuthProvider();
   const { setAuthContext, clear: clearStore } = useAuthStore();
+  const organizationId = useAuthStore((s) => s.organizationId);
+  const prevOrgRef = useRef(organizationId);
+
+  // Clear query cache on logout
+  useEffect(() => {
+    if (!isAuthenticated) {
+      queryClient.cancelQueries();
+      queryClient.clear();
+    }
+  }, [isAuthenticated]);
+
+  // Clear query cache on org change
+  useEffect(() => {
+    if (prevOrgRef.current !== organizationId) {
+      queryClient.cancelQueries();
+      queryClient.clear();
+      prevOrgRef.current = organizationId;
+    }
+  }, [organizationId]);
 
   useEffect(() => {
     if (isLoading) {

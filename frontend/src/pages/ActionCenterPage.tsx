@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle, XCircle, RefreshCw, Search, Clock, Zap, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { api } from '@/services/api';
+import { useHumanInputs, useInvalidateHumanInputs } from '@/hooks/queries/useHumanInputQueries';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 const STATUS_OPTIONS = [
@@ -87,37 +87,22 @@ import {
 
 export function ActionCenterPage() {
   const { toast } = useToast();
-  const [approvals, setApprovals] = useState<HumanInputRequest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'resolved' | 'expired'>(
     'pending',
   );
   const [actionState] = useState<Record<string, 'approve' | 'reject' | 'view'>>({});
 
+  const status = statusFilter === 'all' ? undefined : statusFilter;
+  const { data: rawApprovals = [], isLoading, error: queryError } = useHumanInputs({ status });
+  const approvals = rawApprovals as HumanInputRequest[];
+  const invalidateHumanInputs = useInvalidateHumanInputs();
+  const error = queryError?.message ?? null;
+
   // Resolve dialog state
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
   const [resolveAction, setResolveAction] = useState<'approve' | 'reject' | 'view'>('approve');
   const [selectedApproval, setSelectedApproval] = useState<HumanInputRequest | null>(null);
-
-  const fetchApprovals = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const status = statusFilter === 'all' ? undefined : statusFilter;
-      const data = await api.humanInputs.list({ status });
-      setApprovals(data as HumanInputRequest[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load approvals');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchApprovals();
-  }, [statusFilter]);
 
   const filteredApprovals = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -143,7 +128,7 @@ export function ActionCenterPage() {
   };
 
   const handleRefresh = async () => {
-    await fetchApprovals();
+    await invalidateHumanInputs();
     toast({
       title: 'Requests refreshed',
       description: 'Latest status have been loaded.',
@@ -413,7 +398,7 @@ export function ActionCenterPage() {
                 initialAction={resolveAction}
                 onResolved={() => {
                   setResolveDialogOpen(false);
-                  fetchApprovals();
+                  invalidateHumanInputs();
                 }}
                 onCancel={() => setResolveDialogOpen(false)}
               />
