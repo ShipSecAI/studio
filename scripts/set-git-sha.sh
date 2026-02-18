@@ -17,7 +17,7 @@ if [ -f "$FRONTEND_ENV_FILE" ]; then
   else
     echo "VITE_GIT_SHA=$GIT_SHA" >> "$FRONTEND_ENV_FILE"
   fi
-  echo "✅ Git SHA set: $GIT_SHA (first 6 chars: ${GIT_SHA:0:6})"
+  echo "✅  Git SHA set: $GIT_SHA (first 6 chars: ${GIT_SHA:0:6})"
 else
   echo "⚠️  Frontend .env file not found at $FRONTEND_ENV_FILE"
 fi
