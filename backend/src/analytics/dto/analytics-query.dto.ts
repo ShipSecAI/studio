@@ -38,6 +38,12 @@ export class AnalyticsQueryRequestDto {
     required: false,
   })
   aggs?: Record<string, any>;
+
+  @ApiProperty({
+    description: 'Sort specification',
+    required: false,
+  })
+  sort?: Record<string, any>[];
 }
 
 export class AnalyticsQueryResponseDto {

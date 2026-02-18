@@ -23,10 +23,6 @@ type IntegrationProviderResponse = components['schemas']['IntegrationProviderRes
 type IntegrationConnectionResponse = components['schemas']['IntegrationConnectionResponse'];
 type ProviderConfigurationResponse = components['schemas']['ProviderConfigurationResponse'];
 type OAuthStartResponseDto = components['schemas']['OAuthStartResponseDto'];
-type StartOAuthRequest = components['schemas']['StartOAuthDto'];
-type CompleteOAuthRequest = components['schemas']['CompleteOAuthDto'];
-type RefreshConnectionRequest = components['schemas']['RefreshConnectionDto'];
-type DisconnectConnectionRequest = components['schemas']['DisconnectConnectionDto'];
 type UpsertProviderConfigRequest = components['schemas']['UpsertProviderConfigDto'];
 type WorkflowVersionResponse = components['schemas']['WorkflowVersionResponseDto'];
 type CreateScheduleRequestDto = components['schemas']['CreateScheduleRequestDto'];
@@ -36,7 +32,7 @@ type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
 
-export interface TerminalChunkResponse {
+interface TerminalChunkResponse {
   runId: string;
   cursor?: string;
   chunks: {
@@ -51,25 +47,42 @@ export interface TerminalChunkResponse {
   }[];
 }
 
-export interface WorkflowSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  organizationId: string | null;
-  isSystem: boolean;
-  templateId: string | null;
-  lastRun: string | null;
-  latestRunStatus: string | null;
-  runCount: number;
-  nodeCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export type IntegrationProvider = IntegrationProviderResponse;
 export type IntegrationConnection = IntegrationConnectionResponse;
 export type IntegrationProviderConfiguration = ProviderConfigurationResponse;
 export type OAuthStartResponse = OAuthStartResponseDto;
+
+// Catalog types (from backend integration-catalog.ts)
+export interface IntegrationCatalogEntry {
+  id: string;
+  name: string;
+  description: string;
+  docsUrl?: string;
+  iconUrl?: string;
+  authMethods: {
+    type: string;
+    label: string;
+    description: string;
+    fields: {
+      id: string;
+      label: string;
+      type: 'text' | 'password' | 'select';
+      required: boolean;
+      placeholder?: string;
+      helpText?: string;
+      options?: { label: string; value: string }[];
+    }[];
+  }[];
+  supportsMultipleConnections: boolean;
+  setupInstructions: {
+    sections: {
+      title: string;
+      authMethodType: string;
+      scenario: string;
+      steps: string[];
+    }[];
+  };
+}
 export interface ArtifactListFilters {
   workflowId?: string;
   componentId?: string;
@@ -98,7 +111,10 @@ function resolveApiBaseUrl() {
     }
   }
 
-  return 'http://localhost:3211';
+  // Default to empty string (relative URLs) so API calls go through the same
+  // origin that served the page. This avoids CORS/mixed-content issues when
+  // accessed via ngrok or custom domains (nginx proxies /api/ to the backend).
+  return '';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -193,13 +209,6 @@ export const api = {
       const response = await apiClient.listWorkflows();
       if (response.error) throw new Error('Failed to fetch workflows');
       return response.data || [];
-    },
-
-    listSummary: async (): Promise<WorkflowSummary[]> => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_V1_URL}/workflows/summary`, { headers });
-      if (!response.ok) throw new Error('Failed to fetch workflow summaries');
-      return response.json();
     },
 
     get: async (id: string): Promise<WorkflowResponseDto> => {
@@ -365,43 +374,179 @@ export const api = {
       return (response.data ?? []) as IntegrationProvider[];
     },
 
-    listConnections: async (userId: string): Promise<IntegrationConnection[]> => {
-      const response = await apiClient.listIntegrationConnections(userId);
-      if (response.error) throw new Error('Failed to load integrations');
-      return (response.data ?? []) as IntegrationConnection[];
+    // D6: org-scoped connection listing (primary source of truth)
+    listOrgConnections: async (provider?: string): Promise<IntegrationConnection[]> => {
+      const headers = await getAuthHeaders();
+      const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
+      const res = await fetch(`${API_V1_URL}/integrations/org/connections${params}`, { headers });
+      if (!res.ok) throw new Error('Failed to load org connections');
+      return res.json();
     },
 
+    // D5: Provider catalog (AWS + Slack definitions)
+    getCatalog: async (): Promise<IntegrationCatalogEntry[]> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_V1_URL}/integrations/catalog`, { headers });
+      if (!res.ok) throw new Error('Failed to load integration catalog');
+      return res.json();
+    },
+
+    // D16: userId removed from OAuth payloads
     startOAuth: async (
       providerId: string,
-      payload: StartOAuthRequest,
+      payload: { redirectUri: string; scopes?: string[] },
     ): Promise<OAuthStartResponse> => {
-      const response = await apiClient.startIntegrationOAuth(providerId, payload);
-      if (response.error || !response.data) throw new Error('Failed to start OAuth flow');
-      return response.data;
+      const headers = await getAuthHeaders();
+      const res = await fetch(
+        `${API_V1_URL}/integrations/${encodeURIComponent(providerId)}/start`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!res.ok) throw new Error('Failed to start OAuth flow');
+      return res.json();
     },
 
     completeOAuth: async (
       providerId: string,
-      payload: CompleteOAuthRequest,
+      payload: { redirectUri: string; state: string; code: string; scopes?: string[] },
     ): Promise<IntegrationConnection> => {
-      const response = await apiClient.completeIntegrationOAuth(providerId, payload);
-      if (response.error || !response.data) throw new Error('Failed to complete OAuth exchange');
-      return response.data;
+      const headers = await getAuthHeaders();
+      const res = await fetch(
+        `${API_V1_URL}/integrations/${encodeURIComponent(providerId)}/exchange`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!res.ok) throw new Error('Failed to complete OAuth exchange');
+      return res.json();
     },
 
-    refreshConnection: async (id: string, userId: string): Promise<IntegrationConnection> => {
-      const payload: RefreshConnectionRequest = { userId };
-      const response = await apiClient.refreshIntegrationConnection(id, payload);
-      if (response.error || !response.data) {
-        throw new Error('Failed to refresh integration connection');
+    // D16: userId removed, derived from auth context
+    refreshConnection: async (id: string): Promise<IntegrationConnection> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(
+        `${API_V1_URL}/integrations/connections/${encodeURIComponent(id)}/refresh`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to refresh integration connection');
+      return res.json();
+    },
+
+    // D16: userId removed, derived from auth context
+    disconnect: async (id: string): Promise<void> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_V1_URL}/integrations/connections/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (!res.ok) throw new Error('Failed to disconnect integration');
+    },
+
+    // AWS setup info (generates trust policy + external ID + setup token)
+    getAwsSetupInfo: async (): Promise<{
+      platformRoleArn: string;
+      externalId: string;
+      setupToken: string;
+      trustPolicyTemplate: string;
+      externalIdDisplay?: string;
+    }> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_V1_URL}/integrations/aws/setup-info`, { headers });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Failed to load AWS setup info');
       }
-      return response.data;
+      return res.json();
     },
 
-    disconnect: async (id: string, userId: string): Promise<void> => {
-      const payload: DisconnectConnectionRequest = { userId };
-      const response = await apiClient.disconnectIntegrationConnection(id, payload);
-      if (response.error) throw new Error('Failed to disconnect integration');
+    // AWS connection management (IAM role only)
+    createAwsConnection: async (payload: {
+      displayName: string;
+      roleArn: string;
+      region?: string;
+      externalId: string;
+      setupToken: string;
+    }): Promise<IntegrationConnection> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_V1_URL}/integrations/aws/connections`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to create AWS connection');
+      }
+      return res.json();
+    },
+
+    validateAwsConnection: async (id: string): Promise<{ valid: boolean; error?: string }> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(
+        `${API_V1_URL}/integrations/aws/connections/${encodeURIComponent(id)}/validate`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to validate AWS connection');
+      return res.json();
+    },
+
+    discoverOrgAccounts: async (
+      id: string,
+    ): Promise<{
+      accounts: { id: string; name: string; status: string; email?: string }[];
+    }> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(
+        `${API_V1_URL}/integrations/aws/connections/${encodeURIComponent(id)}/discover-org`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to discover AWS organization accounts');
+      return res.json();
+    },
+
+    // Slack connection management
+    createSlackWebhookConnection: async (payload: {
+      displayName: string;
+      webhookUrl: string;
+    }): Promise<IntegrationConnection> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_V1_URL}/integrations/slack/connections`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to create Slack connection');
+      }
+      return res.json();
+    },
+
+    testSlackConnection: async (id: string): Promise<{ ok: boolean; error?: string }> => {
+      const headers = await getAuthHeaders();
+      const res = await fetch(
+        `${API_V1_URL}/integrations/slack/connections/${encodeURIComponent(id)}/test`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to test Slack connection');
+      return res.json();
     },
 
     getProviderConfig: async (providerId: string): Promise<IntegrationProviderConfiguration> => {
@@ -701,12 +846,7 @@ export const api = {
       return { success: true };
     },
 
-    listRuns: async (options?: {
-      workflowId?: string;
-      status?: string;
-      limit?: number;
-      offset?: number;
-    }) => {
+    listRuns: async (options?: { workflowId?: string; status?: string; limit?: number }) => {
       const response = await apiClient.listWorkflowRuns(options);
       if (response.error) throw new Error('Failed to fetch runs');
       return response.data || { runs: [] };
@@ -937,6 +1077,29 @@ export const api = {
       const response = await apiClient.listDeliveries(id);
       if (response.error) throw new Error('Failed to fetch webhook deliveries');
       return (response.data || []) as WebhookDelivery[];
+    },
+  },
+
+  analytics: {
+    query: async (body: {
+      query?: Record<string, any>;
+      size?: number;
+      from?: number;
+      aggs?: Record<string, any>;
+      sort?: Record<string, any>[];
+    }) => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/analytics/query`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`Analytics query failed: ${response.status}`);
+      return response.json() as Promise<{
+        total: number;
+        hits: { _id: string; _source: Record<string, any>; _score?: number }[];
+        aggregations?: Record<string, any>;
+      }>;
     },
   },
 };

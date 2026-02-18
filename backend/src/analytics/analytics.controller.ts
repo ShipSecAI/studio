@@ -112,6 +112,7 @@ export class AnalyticsController {
       size,
       from,
       aggs: queryDto.aggs,
+      sort: queryDto.sort,
     });
   }
 
