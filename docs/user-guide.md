@@ -190,6 +190,21 @@ Once complete, visit **http://localhost** to access ShipSec Studio.
   - Output formats
 - **Use**: Web application vulnerability scanning
 
+#### Prowler Scan
+
+- **Purpose**: AWS cloud security posture management
+- **Features**:
+  - Single-account AWS security scanning
+  - Org-wide multi-account scanning (discovers and scans all member accounts)
+  - Normalized ASFF findings with severity, resource ID, and remediation
+  - Analytics-ready output for dashboards
+- **Configuration**:
+  - Scan mode (AWS account or multi-cloud overview)
+  - Org scan toggle with member role name, concurrency, and error handling
+  - Recommended flag presets (severity filter, ignore exit codes)
+  - Custom CLI flags
+- **Use**: AWS CSPM, compliance scanning, org-wide security posture assessment
+
 #### TruffleHog
 
 - **Purpose**: Secret detection in code

@@ -377,10 +377,10 @@ export class OpenSearchIndexer {
         }
       }
 
-      // Refresh index pattern in OpenSearch Dashboards to make new fields visible
+      // Refresh index patterns in OpenSearch Dashboards to make new fields visible
       // Skip when security is enabled - patterns are created per-tenant by the provisioning service
       if (!this.securityEnabled) {
-        await this.refreshIndexPattern();
+        await this.refreshIndexPattern(orgId);
       }
 
       return { indexName, documentCount: documents.length };
@@ -407,13 +407,12 @@ export class OpenSearchIndexer {
   }
 
   /**
-   * Refresh the index pattern in OpenSearch Dashboards to make new fields visible.
-   * Two-step process:
-   * 1. Get fresh field mappings from OpenSearch via _fields_for_wildcard API
-   * 2. Update the saved index pattern object with the new fields
+   * Refresh index patterns in OpenSearch Dashboards to make new fields visible.
+   * Ensures both the generic `security-findings-*` and org-specific
+   * `security-findings-{orgId}-*` patterns exist and have up-to-date field mappings.
    * Fails silently if Dashboards URL is not configured or refresh fails.
    */
-  private async refreshIndexPattern(): Promise<void> {
+  private async refreshIndexPattern(orgId?: string): Promise<void> {
     if (!this.dashboardsUrl) {
       console.debug(
         '[OpenSearchIndexer] Dashboards URL not configured, skipping index pattern refresh',
@@ -421,8 +420,21 @@ export class OpenSearchIndexer {
       return;
     }
 
-    const indexPatternId = 'security-findings-*';
+    const patterns = ['security-findings-*'];
+    if (orgId) {
+      patterns.push(`security-findings-${orgId.toLowerCase()}-*`);
+    }
 
+    for (const indexPatternId of patterns) {
+      await this.ensureAndRefreshPattern(indexPatternId);
+    }
+  }
+
+  /**
+   * Ensure a single index pattern exists in Dashboards and refresh its fields.
+   * Creates the pattern if it doesn't exist, then updates field mappings.
+   */
+  private async ensureAndRefreshPattern(indexPatternId: string): Promise<void> {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -442,19 +454,43 @@ export class OpenSearchIndexer {
       const fieldsResponse = await fetch(fieldsUrl, { method: 'GET', headers });
 
       if (!fieldsResponse.ok) {
-        console.warn(`[OpenSearchIndexer] Failed to get fresh fields: ${fieldsResponse.status}`);
+        console.warn(
+          `[OpenSearchIndexer] Failed to get fresh fields for ${indexPatternId}: ${fieldsResponse.status}`,
+        );
         return;
       }
 
       const fieldsData = (await fieldsResponse.json()) as { fields?: unknown[] };
       const freshFields = fieldsData.fields || [];
 
-      // Step 2: Get current index pattern to preserve other attributes
+      // Step 2: Check if index pattern exists
       const patternUrl = `${this.dashboardsUrl}/api/saved_objects/index-pattern/${encodeURIComponent(indexPatternId)}`;
       const patternResponse = await fetch(patternUrl, { method: 'GET', headers });
 
       if (!patternResponse.ok) {
-        console.warn(`[OpenSearchIndexer] Index pattern not found: ${patternResponse.status}`);
+        // Pattern doesn't exist - create it
+        console.debug(`[OpenSearchIndexer] Creating index pattern: ${indexPatternId}`);
+        const createResponse = await fetch(patternUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            attributes: {
+              title: indexPatternId,
+              timeFieldName: '@timestamp',
+              fields: JSON.stringify(freshFields),
+            },
+          }),
+        });
+
+        if (createResponse.ok) {
+          console.debug(
+            `[OpenSearchIndexer] Created index pattern ${indexPatternId} (${freshFields.length} fields)`,
+          );
+        } else {
+          console.warn(
+            `[OpenSearchIndexer] Failed to create index pattern ${indexPatternId}: ${createResponse.status}`,
+          );
+        }
         return;
       }
 
@@ -480,16 +516,16 @@ export class OpenSearchIndexer {
 
       if (updateResponse.ok) {
         console.debug(
-          `[OpenSearchIndexer] Index pattern fields refreshed (${freshFields.length} fields)`,
+          `[OpenSearchIndexer] Index pattern ${indexPatternId} fields refreshed (${freshFields.length} fields)`,
         );
       } else {
         console.warn(
-          `[OpenSearchIndexer] Failed to update index pattern: ${updateResponse.status}`,
+          `[OpenSearchIndexer] Failed to update index pattern ${indexPatternId}: ${updateResponse.status}`,
         );
       }
     } catch (error) {
       // Non-critical failure - log but don't throw
-      console.warn('[OpenSearchIndexer] Failed to refresh index pattern:', error);
+      console.warn(`[OpenSearchIndexer] Failed to refresh index pattern ${indexPatternId}:`, error);
     }
   }
 
