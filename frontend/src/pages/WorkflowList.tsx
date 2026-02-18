@@ -37,8 +37,8 @@ import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
 import { useGitHubStore } from '@/store/githubStore';
-import { useWebhookStore } from '@/store/webhookStore';
-import { useScheduleStore } from '@/store/scheduleStore';
+import { useWebhooks } from '@/hooks/queries/useWebhookQueries';
+import { useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/lib/queryKeys';
@@ -100,10 +100,8 @@ export function WorkflowList() {
   // Trigger data for showing icons
   const triggerRules = useGitHubStore((state) => state.triggerRules);
   const fetchTriggerRules = useGitHubStore((state) => state.fetchTriggerRules);
-  const webhooks = useWebhookStore((state) => state.webhooks);
-  const fetchWebhooks = useWebhookStore((state) => state.fetchWebhooks);
-  const schedules = useScheduleStore((state) => state.schedules);
-  const fetchSchedules = useScheduleStore((state) => state.fetchSchedules);
+  const { data: webhooks = [] } = useWebhooks();
+  const { data: schedules = [] } = useSchedules();
 
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
@@ -149,9 +147,7 @@ export function WorkflowList() {
   // Fetch trigger data for icons
   useEffect(() => {
     fetchTriggerRules().catch(() => undefined);
-    fetchWebhooks().catch(() => undefined);
-    fetchSchedules().catch(() => undefined);
-  }, [fetchTriggerRules, fetchWebhooks, fetchSchedules]);
+  }, [fetchTriggerRules]);
 
   // Build lookup: workflowId -> trigger types
   const triggerTypesMap = useMemo(() => {
