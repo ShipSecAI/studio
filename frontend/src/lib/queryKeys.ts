@@ -67,4 +67,14 @@ export const queryKeys = {
     runtimeInputs: (workflowId: string) =>
       ['workflowRuntimeInputs', getOrgScope(), workflowId] as const,
   },
+  github: {
+    status: () => ['github', getOrgScope(), 'status'] as const,
+    installations: () => ['github', getOrgScope(), 'installations'] as const,
+    repositories: () => ['github', getOrgScope(), 'repositories'] as const,
+    branches: (repoId: string) => ['github', getOrgScope(), 'branches', repoId] as const,
+    triggerRules: () => ['github', getOrgScope(), 'triggerRules'] as const,
+    scans: (filters?: Record<string, unknown>) =>
+      ['github', getOrgScope(), 'scans', filters] as const,
+    scan: (id: string) => ['github', getOrgScope(), 'scan', id] as const,
+  },
 } as const;

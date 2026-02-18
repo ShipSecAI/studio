@@ -48,12 +48,13 @@ import {
   FileSpreadsheet,
   AlertCircle,
 } from 'lucide-react';
+import type { GitHubScanResult, GitHubRepo, TriggerRule } from '@/store/githubStore';
 import {
-  useGitHubStore,
-  type GitHubScanResult,
-  type GitHubRepo,
-  type TriggerRule,
-} from '@/store/githubStore';
+  useTriggerScan,
+  useGitHubScanResult,
+  useGitHubRepositories,
+  useTriggerRules,
+} from '@/hooks/queries/useGithubQueries';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/services/api';
 import {
@@ -172,7 +173,7 @@ function RerunScanModal({
   triggerRule,
   onSuccess,
 }: RerunScanModalProps) {
-  const triggerScan = useGitHubStore((s) => s.triggerScan);
+  const { mutateAsync: triggerScan } = useTriggerScan();
   const { toast } = useToast();
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
@@ -251,7 +252,7 @@ function RerunScanModal({
     }
     setTriggering(workflowId);
     try {
-      await triggerScan(repository.id, workflowId, selectedBranch || undefined);
+      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
       toast({
         title: 'Scan started',
         description: `Security scan started for ${repository.fullName}`,
@@ -666,26 +667,11 @@ function LoadingSkeleton() {
 export function ScanResultPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const getScanResult = useGitHubStore((s) => s.getScanResult);
-  const repositories = useGitHubStore((s) => s.repositories);
-  const fetchRepositories = useGitHubStore((s) => s.fetchRepositories);
-  const triggerRules = useGitHubStore((s) => s.triggerRules);
-  const fetchTriggerRules = useGitHubStore((s) => s.fetchTriggerRules);
-
-  const [scan, setScan] = useState<GitHubScanResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: scan, isLoading: loading, error: scanQueryError } = useGitHubScanResult(id ?? '');
+  const { data: repositories = [] } = useGitHubRepositories();
+  const { data: triggerRules = [] } = useTriggerRules();
+  const error = scanQueryError instanceof Error ? scanQueryError.message : scanQueryError ? 'Failed to load scan result' : null;
   const [showRerunModal, setShowRerunModal] = useState(false);
-
-  useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    Promise.all([getScanResult(id), fetchRepositories(), fetchTriggerRules()])
-      .then(([scanResult]) => setScan(scanResult))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load scan result'))
-      .finally(() => setLoading(false));
-  }, [id, getScanResult, fetchRepositories, fetchTriggerRules]);
 
   const handleRerunSuccess = () => {
     navigate('/github?tab=scans');

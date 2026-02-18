@@ -48,7 +48,7 @@ import {
 import { API_V1_URL, api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useApiKeys, useApiKeyUiStore } from '@/hooks/queries/useApiKeyQueries';
-import { useGitHubStore } from '@/store/githubStore';
+import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
 import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
@@ -314,8 +314,10 @@ export function ConfigPanel({
   const schedulesContext = useOptionalWorkflowSchedulesContext();
 
   // GitHub App installations for installation dropdown
-  const ghInstallations = useGitHubStore((s) => s.installations);
-  const ghFetchInstallations = useGitHubStore((s) => s.fetchInstallations);
+  const isGitHubAppComponentEarly =
+    typeof (selectedNode?.data as { type?: string } | undefined)?.type === 'string' &&
+    ((selectedNode?.data as { type?: string }).type ?? '').startsWith('github.');
+  const { data: ghInstallations = [] } = useGitHubInstallations();
 
   // Get API key for curl command
 
@@ -536,15 +538,6 @@ export function ConfigPanel({
       }
     };
   }, [component?.id, JSON.stringify(manualParameters), JSON.stringify(inputOverrides)]); // Deep compare parameters and overrides
-
-  // Lazy-fetch GitHub installations when a GitHub component is selected
-  const isGitHubAppComponent = component?.id?.startsWith('github.') ?? false;
-  const ghFetchedRef = useRef(false);
-  useEffect(() => {
-    if (!isGitHubAppComponent || ghFetchedRef.current) return;
-    ghFetchedRef.current = true;
-    ghFetchInstallations().catch(() => {});
-  }, [isGitHubAppComponent, ghFetchInstallations]);
 
   const componentInputs = dynamicInputs ?? component.inputs ?? [];
   const componentOutputs = dynamicOutputs ?? component.outputs ?? [];
@@ -1114,7 +1107,7 @@ export function ConfigPanel({
                                 placeholder={manualPlaceholder}
                                 onChange={(value) => handleInputOverrideChange(input.id, value)}
                               />
-                            ) : isGitHubAppComponent && input.id === 'installationId' ? (
+                            ) : isGitHubAppComponentEarly && input.id === 'installationId' ? (
                               <div className="space-y-1.5">
                                 <select
                                   id={`manual-${input.id}`}

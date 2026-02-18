@@ -62,7 +62,21 @@ import {
   ChevronRight,
   ChevronsUpDown,
 } from 'lucide-react';
-import { useGitHubStore, type GitHubRepo, type GitHubScanResult } from '@/store/githubStore';
+import type { GitHubRepo, GitHubScanResult } from '@/store/githubStore';
+import {
+  useGitHubStatus,
+  useGitHubInstallations,
+  useGitHubRepositories,
+  useTriggerRules,
+  useGitHubScanResults,
+  useSetupInstallation,
+  useToggleRepoScans,
+  useSyncRepositories,
+  useDeleteTriggerRule,
+  useTriggerScan,
+} from '@/hooks/queries/useGithubQueries';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 import { api } from '@/services/api';
 import { ScanDetailPanel } from '@/components/scans/ScanDetailPanel';
 import {
@@ -194,7 +208,7 @@ interface WorkflowPickerModalProps {
 }
 
 function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowPickerModalProps) {
-  const triggerScan = useGitHubStore((s) => s.triggerScan);
+  const { mutateAsync: triggerScan } = useTriggerScan();
   const { toast } = useToast();
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
@@ -266,7 +280,7 @@ function WorkflowPickerModal({ open, onClose, repository, onSuccess }: WorkflowP
     }
     setTriggering(workflowId);
     try {
-      await triggerScan(repository.id, workflowId, selectedBranch || undefined);
+      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
       toast({
         title: 'Scan started',
         description: `Security scan started for ${repository.fullName}`,
@@ -418,8 +432,8 @@ function parseInstallationId(input: string): number | null {
 
 function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
   const { toast } = useToast();
-  const setupInstallation = useGitHubStore((s) => s.setupInstallation);
-  const fetchStatus = useGitHubStore((s) => s.fetchStatus);
+  const { mutateAsync: setupInstallation } = useSetupInstallation();
+  const qc = useQueryClient();
   const [installationRef, setInstallationRef] = useState('');
   const [linking, setLinking] = useState(false);
 
@@ -437,7 +451,7 @@ function NotConfiguredState({ installUrl }: { installUrl: string | null }) {
     setLinking(true);
     try {
       await setupInstallation(installationId);
-      await fetchStatus();
+      qc.invalidateQueries({ queryKey: queryKeys.github.status() });
       setInstallationRef('');
       toast({
         title: 'GitHub linked',
@@ -519,11 +533,10 @@ interface RepositoriesTabProps {
 
 function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const repositories = useGitHubStore((s) => s.repositories);
-  const loading = useGitHubStore((s) => s.repositoriesLoading);
-  const fetchRepositories = useGitHubStore((s) => s.fetchRepositories);
-  const syncRepositories = useGitHubStore((s) => s.syncRepositories);
-  const toggleRepoScans = useGitHubStore((s) => s.toggleRepoScans);
+  const { data: repositories = [], isLoading: loading } = useGitHubRepositories();
+  const { mutateAsync: syncRepositories } = useSyncRepositories();
+  const { mutateAsync: toggleRepoScans } = useToggleRepoScans();
+  const qc = useQueryClient();
   const { toast } = useToast();
   const [toggling, setToggling] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -561,14 +574,10 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
     setSearchParams(next, { replace: true });
   };
 
-  useEffect(() => {
-    fetchRepositories().catch(() => {});
-  }, [fetchRepositories]);
-
   const handleToggle = async (repo: GitHubRepo) => {
     setToggling(repo.id);
     try {
-      await toggleRepoScans(repo.id, !repo.scansEnabled);
+      await toggleRepoScans({ id: repo.id, enabled: !repo.scansEnabled });
       toast({
         title: repo.scansEnabled ? 'Scans disabled' : 'Scans enabled',
         description: `Scans ${repo.scansEnabled ? 'disabled' : 'enabled'} for ${repo.fullName}`,
@@ -590,7 +599,7 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
       });
     } catch {
       // Fall back to a force fetch of the last known backend state
-      fetchRepositories({ force: true }).catch(() => {});
+      qc.invalidateQueries({ queryKey: queryKeys.github.repositories() });
       toast({
         title: 'Sync failed',
         description: 'Could not sync from GitHub. Showing last known repositories.',
@@ -978,12 +987,9 @@ function RepositoriesTab({ onRunScan }: RepositoriesTabProps) {
 function TriggerRulesTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const triggerRules = useGitHubStore((s) => s.triggerRules);
-  const loading = useGitHubStore((s) => s.triggerRulesLoading);
-  const repositories = useGitHubStore((s) => s.repositories);
-  const fetchTriggerRules = useGitHubStore((s) => s.fetchTriggerRules);
-  const fetchScanResults = useGitHubStore((s) => s.fetchScanResults);
-  const deleteTriggerRule = useGitHubStore((s) => s.deleteTriggerRule);
+  const { data: triggerRules = [], isLoading: loading } = useTriggerRules();
+  const { data: repositories = [] } = useGitHubRepositories();
+  const { mutateAsync: deleteTriggerRule } = useDeleteTriggerRule();
   const { toast } = useToast();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [pendingDeleteRuleId, setPendingDeleteRuleId] = useState<string | null>(null);
@@ -1010,10 +1016,6 @@ function TriggerRulesTab() {
     () => new Map(repositories.map((repo) => [repo.id, repo.fullName])),
     [repositories],
   );
-
-  useEffect(() => {
-    fetchTriggerRules().catch(() => {});
-  }, [fetchTriggerRules]);
 
   const updateTriggerParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -1077,31 +1079,34 @@ function TriggerRulesTab() {
     setRecentTriggersLoading(true);
     setRecentTriggersError(null);
     updateTriggerParams({ trRunsQ: null });
-    fetchScanResults({
-      force: true,
-      triggerRuleId: selectedRuleId,
-      limit: 25,
-      offset: 0,
-    })
-      .then((rows) => {
-        if (cancelled) return;
-        setRecentTriggers(rows);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setRecentTriggersError(
-          error instanceof Error ? error.message : 'Failed to load rule trigger history.',
-        );
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setRecentTriggersLoading(false);
-      });
+
+    import('@/services/api').then(({ API_BASE_URL, getApiAuthHeaders }) =>
+      getApiAuthHeaders().then((headers) => {
+        const params = new URLSearchParams({ triggerRuleId: selectedRuleId, limit: '26' });
+        return fetch(`${API_BASE_URL}/api/v1/github/scans?${params}`, {
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        });
+      }),
+    ).then((res) => {
+      if (!res.ok) throw new Error('Failed to load rule trigger history.');
+      return res.json() as Promise<GitHubScanResult[]>;
+    }).then((rows) => {
+      if (cancelled) return;
+      setRecentTriggers(rows.slice(0, 25));
+    }).catch((error) => {
+      if (cancelled) return;
+      setRecentTriggersError(
+        error instanceof Error ? error.message : 'Failed to load rule trigger history.',
+      );
+    }).finally(() => {
+      if (cancelled) return;
+      setRecentTriggersLoading(false);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [fetchScanResults, selectedRuleId, updateTriggerParams]);
+  }, [selectedRuleId, updateTriggerParams]);
 
   const pendingDeleteRule = useMemo(
     () => triggerRules.find((rule) => rule.id === pendingDeleteRuleId) ?? null,
@@ -1687,14 +1692,9 @@ function ScansTab() {
   const SCAN_PAGE_SIZE = 25;
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const scanResults = useGitHubStore((s) => s.scanResults);
-  const loading = useGitHubStore((s) => s.scanResultsLoading);
-  const hasMore = useGitHubStore((s) => s.scanResultsHasMore);
-  const fetchScanResults = useGitHubStore((s) => s.fetchScanResults);
-  const repositories = useGitHubStore((s) => s.repositories);
-  const fetchRepositories = useGitHubStore((s) => s.fetchRepositories);
-  const triggerRules = useGitHubStore((s) => s.triggerRules);
-  const fetchTriggerRules = useGitHubStore((s) => s.fetchTriggerRules);
+  const qc = useQueryClient();
+  const { data: repositories = [] } = useGitHubRepositories();
+  const { data: triggerRules = [] } = useTriggerRules();
   const isMobile = useIsMobile();
   const [stoppingRunId, setStoppingRunId] = useState<string | null>(null);
 
@@ -1738,36 +1738,20 @@ function ScansTab() {
         ? 'desc'
         : 'asc';
 
-  // Fetch repositories for the filter dropdown
-  useEffect(() => {
-    fetchRepositories().catch(() => {});
-  }, [fetchRepositories]);
-
-  // Fetch trigger rules for source-aware filtering
-  useEffect(() => {
-    fetchTriggerRules().catch(() => {});
-  }, [fetchTriggerRules]);
-
-  // Fetch scan results when filters change
-  useEffect(() => {
-    fetchScanResults({
-      limit: SCAN_PAGE_SIZE,
-      offset,
-      repositoryId: repositoryFilter || undefined,
-      status: statusFilterValue || undefined,
-      source: sourceFilter || undefined,
-      scheduleId: scheduleIdFilter || undefined,
-      triggerRuleId: triggerRuleIdFilter || undefined,
-    }).catch(() => {});
-  }, [
-    fetchScanResults,
+  const {
+    data: scanResultsData,
+    isLoading: loading,
+  } = useGitHubScanResults({
+    limit: SCAN_PAGE_SIZE,
     offset,
-    repositoryFilter,
-    scheduleIdFilter,
-    triggerRuleIdFilter,
-    sourceFilter,
-    statusFilterValue,
-  ]);
+    repositoryId: repositoryFilter || undefined,
+    status: statusFilterValue || undefined,
+    source: (sourceFilter as 'pr' | 'push' | 'manual' | 'schedule') || undefined,
+    scheduleId: scheduleIdFilter || undefined,
+    triggerRuleId: triggerRuleIdFilter || undefined,
+  });
+  const scanResults = scanResultsData?.data ?? [];
+  const hasMore = scanResultsData?.hasMore ?? false;
 
   const getRepoName = (repoId: string) => {
     const repo = repositories.find((r) => r.id === repoId);
@@ -1909,16 +1893,7 @@ function ScansTab() {
   };
 
   const handleRefresh = () => {
-    fetchScanResults({
-      force: true,
-      limit: SCAN_PAGE_SIZE,
-      offset,
-      repositoryId: repositoryFilter || undefined,
-      status: statusFilterValue || undefined,
-      source: sourceFilter || undefined,
-      scheduleId: scheduleIdFilter || undefined,
-      triggerRuleId: triggerRuleIdFilter || undefined,
-    }).catch(() => {});
+    qc.invalidateQueries({ queryKey: queryKeys.github.scans() });
   };
 
   const handleCopyViewLink = useCallback(async () => {
@@ -2540,9 +2515,9 @@ function ConnectionOverview({
   const [syncing, setSyncing] = useState(false);
   const [installationRef, setInstallationRef] = useState('');
   const [linking, setLinking] = useState(false);
-  const syncRepositories = useGitHubStore((s) => s.syncRepositories);
-  const setupInstallation = useGitHubStore((s) => s.setupInstallation);
-  const fetchStatus = useGitHubStore((s) => s.fetchStatus);
+  const { mutateAsync: syncRepositories } = useSyncRepositories();
+  const { mutateAsync: setupInstallation } = useSetupInstallation();
+  const qc = useQueryClient();
   const { toast } = useToast();
 
   const handleLinkExistingInstallation = async () => {
@@ -2559,7 +2534,7 @@ function ConnectionOverview({
     setLinking(true);
     try {
       await setupInstallation(installationId);
-      await fetchStatus();
+      qc.invalidateQueries({ queryKey: queryKeys.github.status() });
       setInstallationRef('');
       toast({
         title: 'GitHub linked',
@@ -2740,15 +2715,13 @@ function ConnectionOverview({
 
 export function GitHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const isConfigured = useGitHubStore((s) => s.isConfigured);
-  const installUrl = useGitHubStore((s) => s.installUrl);
-  const installations = useGitHubStore((s) => s.installations);
-  const repositories = useGitHubStore((s) => s.repositories);
-  const fetchStatus = useGitHubStore((s) => s.fetchStatus);
-  const fetchInstallations = useGitHubStore((s) => s.fetchInstallations);
-  const fetchRepositories = useGitHubStore((s) => s.fetchRepositories);
-  const fetchScanResults = useGitHubStore((s) => s.fetchScanResults);
-  const setupInstallation = useGitHubStore((s) => s.setupInstallation);
+  const { data: statusData } = useGitHubStatus();
+  const isConfigured = statusData?.configured ?? null;
+  const installUrl = statusData?.installUrl ?? null;
+  const { data: installations = [] } = useGitHubInstallations();
+  const { data: repositories = [] } = useGitHubRepositories();
+  const { mutateAsync: setupInstallation } = useSetupInstallation();
+  const qc = useQueryClient();
   const { toast } = useToast();
 
   // Modal state for workflow picker
@@ -2837,7 +2810,7 @@ export function GitHubPage() {
                 'Your GitHub account has been connected and repositories synced successfully.',
             });
             // Refresh status to ensure the page re-renders as configured
-            fetchStatus();
+            qc.invalidateQueries({ queryKey: queryKeys.github.status() });
           })
           .catch(() => {
             // Fallback: try refreshing data even if setup endpoint fails
@@ -2845,9 +2818,9 @@ export function GitHubPage() {
               title: 'GitHub App connected',
               description: 'Syncing your repositories. This may take a moment.',
             });
-            fetchInstallations({ force: true });
-            fetchRepositories({ force: true });
-            fetchStatus();
+            qc.invalidateQueries({ queryKey: queryKeys.github.installations() });
+            qc.invalidateQueries({ queryKey: queryKeys.github.repositories() });
+            qc.invalidateQueries({ queryKey: queryKeys.github.status() });
           })
           .finally(() => {
             setSettingUp(false);
@@ -2858,12 +2831,6 @@ export function GitHubPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchStatus();
-    fetchInstallations().catch(() => {});
-    fetchRepositories().catch(() => {});
-  }, [fetchStatus, fetchInstallations, fetchRepositories]);
-
   const handleRunScan = (repo: GitHubRepo) => {
     setSelectedRepoForScan(repo);
   };
@@ -2871,7 +2838,7 @@ export function GitHubPage() {
   const handleScanSuccess = () => {
     // Switch to Scans tab and refresh scan results
     setActiveTab('scans');
-    fetchScanResults({ force: true }).catch(() => {});
+    qc.invalidateQueries({ queryKey: queryKeys.github.scans() });
   };
 
   // Setting up after callback redirect
@@ -2933,7 +2900,7 @@ export function GitHubPage() {
               installations={installations}
               repositories={repositories}
               installUrl={installUrl}
-              onSync={() => fetchRepositories({ force: true })}
+              onSync={() => qc.invalidateQueries({ queryKey: queryKeys.github.repositories() })}
             />
             <RepositoriesTab onRunScan={handleRunScan} />
           </div>

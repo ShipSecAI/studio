@@ -22,7 +22,7 @@ import { useArtifactLibrary } from '@/hooks/queries/useArtifactQueries';
 import { useWorkflowsList } from '@/hooks/queries/useWorkflowQueries';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { useQueryClient } from '@tanstack/react-query';
-import { useGitHubStore } from '@/store/githubStore';
+import { useGitHubInstallations, useGitHubRepositories, useGitHubBranches } from '@/hooks/queries/useGithubQueries';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -103,32 +103,15 @@ export function ParameterField({
   const isGitHubCloneComponent = componentId === 'github.repo.clone';
   const isRepoSelector = isGitHubCloneComponent && parameter.id === 'repository';
   const isBranchSelector = isGitHubCloneComponent && parameter.id === 'branch';
-  const isGitHubAppComponent = componentId?.startsWith('github.') ?? false;
 
-  const ghInstallations = useGitHubStore((s) => s.installations);
-  const ghRepositories = useGitHubStore((s) => s.repositories);
-  const ghBranchesByRepo = useGitHubStore((s) => s.branchesByRepo);
-  const ghBranchesLoading = useGitHubStore((s) => s.branchesLoading);
-  const ghFetchInstallations = useGitHubStore((s) => s.fetchInstallations);
-  const ghFetchRepositories = useGitHubStore((s) => s.fetchRepositories);
-  const ghFetchBranches = useGitHubStore((s) => s.fetchBranches);
-  const ghHasFetchedRef = useRef(false);
+  const { data: ghInstallations = [] } = useGitHubInstallations();
+  const { data: ghRepositories = [] } = useGitHubRepositories();
 
-  // Lazily fetch GitHub data when a GitHub App component is detected
-  useEffect(() => {
-    if (!isGitHubAppComponent || ghHasFetchedRef.current) return;
-    ghHasFetchedRef.current = true;
-    ghFetchInstallations().catch(() => {});
-    ghFetchRepositories().catch(() => {});
-  }, [isGitHubAppComponent, ghFetchInstallations, ghFetchRepositories]);
-
-  // For branch selector: resolve repo ID from current repo value and fetch branches
+  // For branch selector: resolve repo ID from current repo value
   const selectedRepoFullName =
     isGitHubCloneComponent && typeof (parameters as any)?.repository === 'string'
       ? (parameters as any).repository
-      : typeof currentValue === 'string' && isBranchSelector
-        ? undefined
-        : undefined;
+      : undefined;
 
   const selectedGhRepo = useMemo(
     () =>
@@ -138,10 +121,9 @@ export function ParameterField({
     [ghRepositories, selectedRepoFullName],
   );
 
-  useEffect(() => {
-    if (!isBranchSelector || !selectedGhRepo) return;
-    ghFetchBranches(selectedGhRepo.id).catch(() => {});
-  }, [isBranchSelector, selectedGhRepo, ghFetchBranches]);
+  const { data: ghBranchesForRepo = [], isLoading: ghBranchesLoading } = useGitHubBranches(
+    selectedGhRepo?.id ?? '',
+  );
 
   const githubConnections = useMemo(
     () => integrationConnections.filter((connection) => connection.provider === 'github'),
@@ -522,8 +504,8 @@ export function ParameterField({
 
   // GitHub App - Branch selector dropdown
   if (isBranchSelector && selectedGhRepo) {
-    const branches = ghBranchesByRepo[selectedGhRepo.id] ?? [];
-    const loading = ghBranchesLoading === selectedGhRepo.id;
+    const branches = ghBranchesForRepo;
+    const loading = ghBranchesLoading;
 
     return (
       <div className="space-y-2">

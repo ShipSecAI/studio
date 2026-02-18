@@ -51,12 +51,13 @@ import {
   Search,
   Package,
 } from 'lucide-react';
+import type { GitHubScanResult, GitHubRepo, TriggerRule } from '@/store/githubStore';
 import {
-  useGitHubStore,
-  type GitHubScanResult,
-  type GitHubRepo,
-  type TriggerRule,
-} from '@/store/githubStore';
+  useTriggerScan,
+  useGitHubScanResult,
+  useGitHubRepositories,
+  useTriggerRules,
+} from '@/hooks/queries/useGithubQueries';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/services/api';
 import {
@@ -189,7 +190,7 @@ function RerunScanModal({
   triggerRule: TriggerRule | null;
   onSuccess: () => void;
 }) {
-  const triggerScan = useGitHubStore((s) => s.triggerScan);
+  const { mutateAsync: triggerScan } = useTriggerScan();
   const { toast } = useToast();
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([]);
   const [workflowCompatibility, setWorkflowCompatibility] = useState<
@@ -263,7 +264,7 @@ function RerunScanModal({
     }
     setTriggering(workflowId);
     try {
-      await triggerScan(repository.id, workflowId, selectedBranch || undefined);
+      await triggerScan({ repoId: repository.id, workflowId, branch: selectedBranch || undefined });
       toast({
         title: 'Scan started',
         description: `Security scan started for ${repository.fullName}`,
@@ -495,26 +496,13 @@ export function ScanDetailPanel({
   onFindingSelect,
   isMobile,
 }: ScanDetailPanelProps) {
-  const getScanResult = useGitHubStore((s) => s.getScanResult);
-  const repositories = useGitHubStore((s) => s.repositories);
-  const triggerRules = useGitHubStore((s) => s.triggerRules);
-  const fetchScanResults = useGitHubStore((s) => s.fetchScanResults);
+  const { data: scan, isLoading: loading, error: scanError } = useGitHubScanResult(scanId);
+  const { data: repositories = [] } = useGitHubRepositories();
+  const { data: triggerRules = [] } = useTriggerRules();
 
-  const [scan, setScan] = useState<GitHubScanResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const error = scanError instanceof Error ? scanError.message : scanError ? 'Failed to load scan' : null;
   const [showRerunModal, setShowRerunModal] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Fetch scan detail
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    getScanResult(scanId)
-      .then(setScan)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load scan'))
-      .finally(() => setLoading(false));
-  }, [scanId, getScanResult]);
 
   // Scroll to highlighted finding
   useEffect(() => {
@@ -603,7 +591,7 @@ export function ScanDetailPanel({
   const handleExportJson = () => exportToJson(scan, repoFullName);
   const handleExportCsv = () => exportToCsv(scan, repoFullName);
   const handleRerunSuccess = () => {
-    fetchScanResults({ force: true }).catch(() => {});
+    // Scan results will be auto-refreshed by TanStack Query invalidation from useTriggerScan
   };
 
   return (

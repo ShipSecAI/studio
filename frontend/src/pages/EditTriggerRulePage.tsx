@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Loader2, X, Plus } from 'lucide-react';
-import { useGitHubStore } from '@/store/githubStore';
+import { useTriggerRules, useUpdateTriggerRule } from '@/hooks/queries/useGithubQueries';
 import { api } from '@/services/api';
 
 interface Workflow {
@@ -33,9 +33,8 @@ export default function EditTriggerRulePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const triggerRules = useGitHubStore((s) => s.triggerRules);
-  const fetchTriggerRules = useGitHubStore((s) => s.fetchTriggerRules);
-  const updateTriggerRule = useGitHubStore((s) => s.updateTriggerRule);
+  const { data: triggerRules = [] } = useTriggerRules();
+  const { mutateAsync: updateTriggerRule } = useUpdateTriggerRule();
 
   // Loading state
   const [loading, setLoading] = useState(true);
@@ -62,23 +61,19 @@ export default function EditTriggerRulePage() {
   // Submit state
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch rule and workflows on mount
+  // Fetch workflows on mount
   useEffect(() => {
     async function loadData() {
       try {
-        // Fetch workflows
         const list = await api.workflows.list();
         setWorkflows(list.map((w) => ({ id: w.id, name: w.name, description: w.description })));
         setWorkflowsLoading(false);
-
-        // Ensure trigger rules are fetched
-        await fetchTriggerRules();
       } catch {
         toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
       }
     }
     loadData();
-  }, [fetchTriggerRules, toast]);
+  }, [toast]);
 
   // Load rule data when triggerRules updates
   useEffect(() => {
@@ -153,20 +148,23 @@ export default function EditTriggerRulePage() {
 
     setSubmitting(true);
     try {
-      await updateTriggerRule(id, {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        repositoryPattern: repositoryPattern.trim(),
-        event,
-        actions: event === 'pull_request' ? actions : undefined,
-        branches:
-          event === 'repository_added' ? undefined : branches.length > 0 ? branches : undefined,
-        workflowId,
-        postPrComment,
-        postPrReview: event === 'pull_request' ? postPrReview : false,
-        createCheckRun,
-        failOn: createCheckRun ? failOn : undefined,
-        enabled,
+      await updateTriggerRule({
+        id,
+        input: {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          repositoryPattern: repositoryPattern.trim(),
+          event,
+          actions: event === 'pull_request' ? actions : undefined,
+          branches:
+            event === 'repository_added' ? undefined : branches.length > 0 ? branches : undefined,
+          workflowId,
+          postPrComment,
+          postPrReview: event === 'pull_request' ? postPrReview : false,
+          createCheckRun,
+          failOn: createCheckRun ? failOn : undefined,
+          enabled,
+        },
       });
       toast({ title: 'Success', description: 'Trigger rule updated' });
       navigate('/github?tab=triggers');

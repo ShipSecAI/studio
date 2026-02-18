@@ -16,7 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Loader2, X, Plus } from 'lucide-react';
-import { useGitHubStore, type CreateTriggerRuleInput } from '@/store/githubStore';
+import type { CreateTriggerRuleInput } from '@/store/githubStore';
+import { useCreateTriggerRule } from '@/hooks/queries/useGithubQueries';
 import { api } from '@/services/api';
 
 interface Workflow {
@@ -31,7 +32,7 @@ type TriggerEvent = 'pull_request' | 'push' | 'repository_added';
 export default function CreateTriggerRulePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const createTriggerRule = useGitHubStore((s) => s.createTriggerRule);
+  const { mutateAsync: createTriggerRule } = useCreateTriggerRule();
 
   // Form state
   const [name, setName] = useState('');

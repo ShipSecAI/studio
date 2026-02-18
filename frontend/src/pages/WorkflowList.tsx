@@ -36,7 +36,7 @@ import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
-import { useGitHubStore } from '@/store/githubStore';
+import { useTriggerRules } from '@/hooks/queries/useGithubQueries';
 import { useWebhooks } from '@/hooks/queries/useWebhookQueries';
 import { useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
@@ -98,8 +98,7 @@ export function WorkflowList() {
   const trackedRef = useRef(false);
 
   // Trigger data for showing icons
-  const triggerRules = useGitHubStore((state) => state.triggerRules);
-  const fetchTriggerRules = useGitHubStore((state) => state.fetchTriggerRules);
+  const { data: triggerRules = [] } = useTriggerRules();
   const { data: webhooks = [] } = useWebhooks();
   const { data: schedules = [] } = useSchedules();
 
@@ -143,11 +142,6 @@ export function WorkflowList() {
       return prev;
     });
   }, []);
-
-  // Fetch trigger data for icons
-  useEffect(() => {
-    fetchTriggerRules().catch(() => undefined);
-  }, [fetchTriggerRules]);
 
   // Build lookup: workflowId -> trigger types
   const triggerTypesMap = useMemo(() => {
