@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,28 +21,15 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Workflow,
-  AlertCircle,
-  Trash2,
-  Loader2,
-  Info,
-  GripVertical,
-  Github,
-  Webhook,
-  Clock,
-} from 'lucide-react';
-import { api } from '@/services/api';
+import { Workflow, AlertCircle, Trash2, Info, GripVertical } from 'lucide-react';
+import { api, type WorkflowSummary } from '@/services/api';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
-import { WorkflowMetadataSchema, type WorkflowMetadataNormalized } from '@/schemas/workflow';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
-import { useAuth } from '@/auth/auth-context';
-import { useRunStore } from '@/store/runStore';
-import { useGitHubStore } from '@/store/githubStore';
-import { useWebhookStore } from '@/store/webhookStore';
-import { useScheduleStore } from '@/store/scheduleStore';
+import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   DndContext,
   closestCenter,
@@ -86,38 +73,32 @@ function applyOrder<T extends { id: string }>(items: T[], savedOrder: string[]):
   });
 }
 
-export interface WorkflowTriggerTypes {
-  hasGitHub: boolean;
-  hasWebhook: boolean;
-  hasSchedule: boolean;
-}
-
 export function WorkflowList() {
   const navigate = useNavigate();
-  const [workflows, setWorkflows] = useState<WorkflowMetadataNormalized[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const retryCountRef = useRef(0); // Use ref to track actual count
+  const { data: rawWorkflows = [], isLoading, error, refetch } = useWorkflowsSummary();
+  const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
+  const trackedRef = useRef(false);
 
-  // Trigger data for showing icons
-  const triggerRules = useGitHubStore((state) => state.triggerRules);
-  const fetchTriggerRules = useGitHubStore((state) => state.fetchTriggerRules);
-  const webhooks = useWebhookStore((state) => state.webhooks);
-  const fetchWebhooks = useWebhookStore((state) => state.fetchWebhooks);
-  const schedules = useScheduleStore((state) => state.schedules);
-  const fetchSchedules = useScheduleStore((state) => state.fetchSchedules);
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
   const isReadOnly = !canManageWorkflows;
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [workflowToDelete, setWorkflowToDelete] = useState<WorkflowMetadataNormalized | null>(null);
+  const [workflowToDelete, setWorkflowToDelete] = useState<WorkflowSummary | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const token = useAuthStore((state) => state.token);
-  const adminUsername = useAuthStore((state) => state.adminUsername);
+
+  // Sync ordered workflows from query data
+  useEffect(() => {
+    if (rawWorkflows.length > 0) {
+      setWorkflows(applyOrder(rawWorkflows, getSavedOrder()));
+      if (!trackedRef.current) {
+        track(Events.WorkflowListViewed, { workflows_count: rawWorkflows.length });
+        trackedRef.current = true;
+      }
+    } else if (!isLoading) {
+      setWorkflows([]);
+    }
+  }, [rawWorkflows, isLoading]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -139,112 +120,7 @@ export function WorkflowList() {
     });
   }, []);
 
-  const MAX_RETRY_ATTEMPTS = 30; // Try for ~60 seconds (30 attempts × 2s)
-  const RETRY_INTERVAL_MS = 2000; // 2 seconds between retries
-
-  useEffect(() => {
-    // Wait for auth to be ready before loading workflows
-    if (authLoading) {
-      return;
-    }
-
-    // Check if we have authentication (either token or admin credentials)
-    const hasAuth = isAuthenticated || token || adminUsername;
-
-    if (hasAuth) {
-      loadWorkflows();
-    } else {
-      setIsLoading(false);
-      setError('Please log in to view workflows');
-    }
-  }, [isAuthenticated, authLoading, token, adminUsername]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Fetch trigger data for icons
-  useEffect(() => {
-    fetchTriggerRules().catch(() => undefined);
-    fetchWebhooks().catch(() => undefined);
-    fetchSchedules().catch(() => undefined);
-  }, [fetchTriggerRules, fetchWebhooks, fetchSchedules]);
-
-  // Build lookup: workflowId -> trigger types
-  const triggerTypesMap = useMemo(() => {
-    const map = new Map<string, WorkflowTriggerTypes>();
-    const allWorkflowIds = new Set([
-      ...triggerRules.map((r) => r.workflowId),
-      ...webhooks.map((w) => w.workflowId),
-      ...schedules.map((s) => s.workflowId),
-    ]);
-    for (const id of allWorkflowIds) {
-      map.set(id, {
-        hasGitHub: triggerRules.some((r) => r.workflowId === id),
-        hasWebhook: webhooks.some((w) => w.workflowId === id),
-        hasSchedule: schedules.some((s) => s.workflowId === id),
-      });
-    }
-    return map;
-  }, [triggerRules, webhooks, schedules]);
-
-  const loadWorkflows = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await api.workflows.list();
-      const normalized = data.map((workflow) => WorkflowMetadataSchema.parse(workflow));
-      setWorkflows(applyOrder(normalized, getSavedOrder()));
-      setRetryCount(0);
-      retryCountRef.current = 0; // Reset on success
-      setIsLoading(false);
-      // Clear any pending retry timeout
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-        retryTimeoutRef.current = null;
-      }
-      track(Events.WorkflowListViewed, { workflows_count: normalized.length });
-    } catch (err) {
-      console.error('Failed to load workflows:', err);
-
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load workflows';
-
-      // Check if it's a connection error (backend not ready)
-      const isConnectionError =
-        errorMessage.includes('ERR_CONNECTION_REFUSED') ||
-        errorMessage.includes('Failed to fetch') ||
-        errorMessage.includes('fetch');
-
-      // Use ref for accurate count check to prevent going beyond max attempts
-      if (isConnectionError && retryCountRef.current < MAX_RETRY_ATTEMPTS) {
-        // Increment both ref and state
-        retryCountRef.current += 1;
-        setRetryCount(retryCountRef.current);
-
-        // Schedule retry - keep loading spinner visible
-        retryTimeoutRef.current = setTimeout(() => {
-          loadWorkflows();
-        }, RETRY_INTERVAL_MS);
-      } else {
-        // Max retries exhausted or non-connection error
-        setError(errorMessage);
-        setIsLoading(false);
-      }
-    }
-  }, [MAX_RETRY_ATTEMPTS, RETRY_INTERVAL_MS]);
-
-  const handleTryAgain = () => {
-    setRetryCount(0);
-    retryCountRef.current = 0;
-    loadWorkflows();
-  };
-
-  const handleDeleteClick = (event: MouseEvent, workflow: WorkflowMetadataNormalized) => {
+  const handleDeleteClick = (event: MouseEvent, workflow: WorkflowSummary) => {
     event.stopPropagation();
     if (!canManageWorkflows) {
       return;
@@ -271,6 +147,7 @@ export function WorkflowList() {
     try {
       await api.workflows.delete(workflowToDelete.id);
       setWorkflows((prev) => prev.filter((workflow) => workflow.id !== workflowToDelete.id));
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflows.summary() });
       handleDeleteDialogChange(false);
     } catch (err) {
       console.error('Failed to delete workflow:', err);
@@ -330,16 +207,6 @@ export function WorkflowList() {
 
         {isLoading ? (
           <div className="border rounded-lg bg-card overflow-hidden">
-            {retryCount > 0 && (
-              <div className="px-3 md:px-6 py-3 md:py-4 border-b bg-muted/50 text-center">
-                <div className="flex items-center justify-center gap-2 md:gap-3">
-                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin text-primary" />
-                  <span className="text-sm md:text-base font-semibold text-foreground">
-                    Waiting for backend... ({retryCount}/{MAX_RETRY_ATTEMPTS})
-                  </span>
-                </div>
-              </div>
-            )}
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -417,8 +284,8 @@ export function WorkflowList() {
           <div className="text-center py-12 border rounded-lg bg-card border-destructive">
             <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
             <h3 className="text-lg font-semibold mb-2">Failed to load workflows</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={handleTryAgain} variant="outline">
+            <p className="text-muted-foreground mb-4">{error?.message ?? 'Unknown error'}</p>
+            <Button onClick={() => refetch()} variant="outline">
               Try Again
             </Button>
           </div>
@@ -492,7 +359,6 @@ export function WorkflowList() {
                         <WorkflowRowItem
                           key={workflow.id}
                           workflow={workflow}
-                          triggerTypes={triggerTypesMap.get(workflow.id)}
                           canManageWorkflows={canManageWorkflows}
                           isDeleting={isDeleting}
                           isLoading={isLoading}
@@ -550,19 +416,17 @@ export function WorkflowList() {
 }
 
 interface WorkflowRowItemProps {
-  workflow: WorkflowMetadataNormalized;
-  triggerTypes?: WorkflowTriggerTypes;
+  workflow: WorkflowSummary;
   canManageWorkflows: boolean;
   isDeleting: boolean;
   isLoading: boolean;
   formatDate: (dateString: string) => string;
   onRowClick: () => void;
-  onDeleteClick: (event: MouseEvent, workflow: WorkflowMetadataNormalized) => void;
+  onDeleteClick: (event: MouseEvent, workflow: WorkflowSummary) => void;
 }
 
 function WorkflowRowItem({
   workflow,
-  triggerTypes,
   canManageWorkflows,
   isDeleting,
   isLoading,
@@ -570,8 +434,6 @@ function WorkflowRowItem({
   onRowClick,
   onDeleteClick,
 }: WorkflowRowItemProps) {
-  const fetchRuns = useRunStore((state) => state.fetchRuns);
-  const latestRun = useRunStore((state) => state.getLatestRun(workflow.id));
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: workflow.id,
   });
@@ -584,15 +446,14 @@ function WorkflowRowItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  useEffect(() => {
-    fetchRuns({ workflowId: workflow.id }).catch(() => undefined);
-  }, [workflow.id, fetchRuns]);
+  const nodeCount = workflow.nodeCount;
 
-  const nodeCount = workflow.nodes.length;
-
-  const statusBadge = latestRun ? (
-    <Badge variant="outline" className={getStatusBadgeClassFromStatus(latestRun.status, 'text-xs')}>
-      {latestRun.status}
+  const statusBadge = workflow.latestRunStatus ? (
+    <Badge
+      variant="outline"
+      className={getStatusBadgeClassFromStatus(workflow.latestRunStatus, 'text-xs')}
+    >
+      {workflow.latestRunStatus}
     </Badge>
   ) : (
     <Badge variant="outline" className={getStatusBadgeClassFromStatus('NONE', 'text-xs')}>
@@ -618,51 +479,8 @@ function WorkflowRowItem({
         </div>
       </TableCell>
       <TableCell className="font-medium">
-        <div className="flex items-center gap-2">
-          <div className="max-w-[200px] truncate" title={workflow.name}>
-            {workflow.name}
-          </div>
-          {triggerTypes &&
-            (triggerTypes.hasGitHub || triggerTypes.hasWebhook || triggerTypes.hasSchedule) && (
-              <div className="flex items-center gap-1 shrink-0">
-                {triggerTypes.hasGitHub && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Github className="h-3.5 w-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>GitHub trigger</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {triggerTypes.hasWebhook && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Webhook className="h-3.5 w-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Webhook trigger</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {triggerTypes.hasSchedule && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Scheduled (cron) trigger</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-            )}
+        <div className="max-w-[200px] truncate" title={workflow.name}>
+          {workflow.name}
         </div>
       </TableCell>
       <TableCell>

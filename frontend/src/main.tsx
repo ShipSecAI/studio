@@ -4,7 +4,6 @@ import App from './App.tsx';
 import './index.css';
 import { PostHogProvider } from 'posthog-js/react';
 import posthog from 'posthog-js';
-import { initializeTimelineStore } from '@/store/executionTimelineStore';
 import { initializeTheme } from '@/store/themeStore';
 import { isAnalyticsEnabled } from '@/features/analytics/config';
 
@@ -35,8 +34,15 @@ if (hasPostHog) {
   });
 }
 
-initializeTimelineStore();
 initializeTheme();
+
+// Defer timeline store initialization — it's ~1000 lines and only needed for workflow executions.
+// setTimeout(0) defers past the synchronous render cycle but fires before user interaction.
+setTimeout(() => {
+  import('@/store/executionTimelineStore').then(({ initializeTimelineStore }) => {
+    initializeTimelineStore();
+  });
+}, 0);
 
 const appContent = hasPostHog ? (
   <PostHogProvider client={posthog}>

@@ -68,6 +68,8 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@shipsec/backend-client": "workspace:*",
     "@shipsec/shared": "workspace:*",
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-devtools": "^5.91.3",
     "@uiw/react-markdown-preview": "^5.1.5",
     "ai": "^5.0.76",
     "ansi_up": "^6.0.6",

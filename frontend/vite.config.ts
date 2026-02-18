@@ -28,7 +28,7 @@ export default defineConfig({
     port: frontendPort,
     strictPort: true,
     open: false,
-    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai', 'frontend'],
+    allowedHosts: ['studio.shipsec.ai', 'frontend'],
     proxy: {
       '/api/': {
         target: `http://localhost:${backendPort}`,
@@ -43,6 +43,31 @@ export default defineConfig({
     },
   },
   preview: {
-    allowedHosts: ['studio.shipsec.ai', 'studio-next.shipsec.ai', 'frontend'],
+    allowedHosts: ['studio.shipsec.ai', 'frontend'],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-radix': [
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-avatar',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-label',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-select',
+            '@radix-ui/react-slider',
+            '@radix-ui/react-slot',
+            '@radix-ui/react-switch',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-tooltip',
+          ],
+          'vendor-analytics': ['posthog-js'],
+        },
+      },
+    },
   },
 });

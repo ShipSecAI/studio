@@ -37,9 +37,6 @@ export const queryKeys = {
   apiKeys: {
     all: () => ['apiKeys', getOrgScope()] as const,
   },
-  auditLogs: {
-    all: (filters?: Record<string, unknown>) => ['auditLogs', getOrgScope(), filters] as const,
-  },
   webhooks: {
     all: (filters?: Record<string, unknown>) => ['webhooks', getOrgScope(), filters] as const,
     detail: (id: string) => ['webhooks', getOrgScope(), id] as const,
@@ -62,11 +59,6 @@ export const queryKeys = {
     dataFlows: (runId: string) => ['executionDataFlows', getOrgScope(), runId] as const,
     terminalChunks: (runId: string, nodeRef: string, stream: string) =>
       ['executionTerminal', getOrgScope(), runId, nodeRef, stream] as const,
-  },
-  templates: {
-    all: (filters?: Record<string, unknown>) => ['templates', getOrgScope(), filters] as const,
-    categories: () => ['templateCategories', getOrgScope()] as const,
-    tags: () => ['templateTags', getOrgScope()] as const,
   },
   workflows: {
     list: () => ['workflows', getOrgScope()] as const,

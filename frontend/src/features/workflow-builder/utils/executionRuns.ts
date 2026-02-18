@@ -1,6 +1,6 @@
 import { TERMINAL_STATUSES } from '@shipsec/shared';
 import type { ExecutionStatus } from '@/schemas/execution';
-import type { ExecutionRun } from '@/store/runStore';
+import type { ExecutionRun } from '@/hooks/queries/useRunQueries';
 
 /** @deprecated Use TERMINAL_STATUSES from @shipsec/shared instead */
 export const TERMINAL_RUN_STATUSES = TERMINAL_STATUSES;

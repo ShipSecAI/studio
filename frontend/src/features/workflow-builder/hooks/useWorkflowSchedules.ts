@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { api } from '@/services/api';
+import { useSchedules } from '@/hooks/queries/useScheduleQueries';
+import { useQueryClient } from '@tanstack/react-query';
 
 type ToastVariant = 'default' | 'destructive' | 'warning' | 'success';
 
@@ -39,58 +41,22 @@ export function useWorkflowSchedules({
   workflowId,
   toast,
 }: UseWorkflowSchedulesOptions): UseWorkflowSchedulesResult {
-  const [schedules, setSchedules] = useState<WorkflowSchedule[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const {
+    data: schedules = [],
+    isLoading,
+    error: queryError,
+  } = useSchedules(workflowId ? { workflowId } : undefined);
+  const error = queryError?.message ?? null;
+
   const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
   const [scheduleEditorMode, setScheduleEditorMode] = useState<'create' | 'edit'>('create');
   const [editingSchedule, setEditingSchedule] = useState<WorkflowSchedule | null>(null);
   const [schedulePanelExpanded, setSchedulePanelExpanded] = useState(false);
 
-  const lastFetchRef = useRef<{ workflowId: string; time: number } | null>(null);
-  const inflightRef = useRef<{ workflowId: string; promise: Promise<void> } | null>(null);
-
   const refreshSchedules = useCallback(async () => {
-    if (!workflowId) {
-      setSchedules([]);
-      setError(null);
-      return;
-    }
-    // Deduplicate: return inflight promise only if it's for the same workflowId
-    if (inflightRef.current && inflightRef.current.workflowId === workflowId) {
-      return inflightRef.current.promise;
-    }
-    // Skip if same workflowId was fetched within 5 seconds
-    const now = Date.now();
-    if (
-      lastFetchRef.current &&
-      lastFetchRef.current.workflowId === workflowId &&
-      now - lastFetchRef.current.time < 5000
-    ) {
-      return;
-    }
-    setIsLoading(true);
-    const promise = (async () => {
-      try {
-        const list = await api.schedules.list({ workflowId });
-        setSchedules(list);
-        setError(null);
-        lastFetchRef.current = { workflowId, time: Date.now() };
-      } catch (err) {
-        console.error('Failed to load workflow schedules', err);
-        setError(err instanceof Error ? err.message : 'Failed to load schedules');
-      } finally {
-        setIsLoading(false);
-        inflightRef.current = null;
-      }
-    })();
-    inflightRef.current = { workflowId, promise };
-    return promise;
-  }, [workflowId]);
-
-  useEffect(() => {
-    void refreshSchedules();
-  }, [refreshSchedules]);
+    await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+  }, [queryClient]);
 
   const openScheduleDrawer = useCallback(
     (mode: 'create' | 'edit', schedule?: WorkflowSchedule | null) => {
@@ -110,16 +76,9 @@ export function useWorkflowSchedules({
   );
 
   const handleScheduleSaved = useCallback(
-    (schedule: WorkflowSchedule, _mode: 'create' | 'edit') => {
+    (_schedule: WorkflowSchedule, _mode: 'create' | 'edit') => {
       setScheduleEditorOpen(false);
       setEditingSchedule(null);
-      setSchedules((prev) => {
-        const exists = prev.find((item) => item.id === schedule.id);
-        if (exists) {
-          return prev.map((item) => (item.id === schedule.id ? schedule : item));
-        }
-        return [...prev, schedule];
-      });
       void refreshSchedules();
     },
     [refreshSchedules],

@@ -36,7 +36,7 @@ type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
 
-interface TerminalChunkResponse {
+export interface TerminalChunkResponse {
   runId: string;
   cursor?: string;
   chunks: {
@@ -59,6 +59,7 @@ export interface WorkflowSummary {
   isSystem: boolean;
   templateId: string | null;
   lastRun: string | null;
+  latestRunStatus: string | null;
   runCount: number;
   nodeCount: number;
   createdAt: string;
@@ -97,10 +98,7 @@ function resolveApiBaseUrl() {
     }
   }
 
-  // No explicit API URL — use same-origin relative paths.
-  // Works with path-based routing (/api/v1/* routed to backend via Ingress).
-  // For local dev, set VITE_API_URL=http://localhost:3211 in frontend/.env
-  return '';
+  return 'http://localhost:3211';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -607,8 +605,7 @@ export const api = {
       },
     ): Promise<TerminalChunkResponse> => {
       const headers = await getAuthHeaders();
-      const path = `${API_V1_URL}/workflows/runs/${executionId}/terminal`;
-      const url = new URL(path, window.location.origin);
+      const url = new URL(`${API_V1_URL}/workflows/runs/${executionId}/terminal`);
       if (params?.nodeRef) url.searchParams.set('nodeRef', params.nodeRef);
       if (params?.stream) url.searchParams.set('stream', params.stream);
       if (params?.cursor) url.searchParams.set('cursor', params.cursor);

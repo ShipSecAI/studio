@@ -5,7 +5,14 @@ import type { FrontendNodeData } from '@/schemas/node';
 import { api } from '@/services/api';
 import { deserializeNodes, deserializeEdges } from '@/utils/workflowSerializer';
 import { cloneNodes, cloneEdges, type GraphSnapshot } from './useWorkflowGraphControllers';
-import { useRunStore } from '@/store/runStore';
+import {
+  useWorkflowRuns,
+  upsertRunInCache,
+  getRunByIdFromCache,
+  invalidateRunsForWorkflow,
+} from '@/hooks/queries/useRunQueries';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/queryKeys';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useExecutionStore } from '@/store/executionStore';
 import { normalizeRunSummary, isRunLive } from '@/features/workflow-builder/utils/executionRuns';
@@ -75,12 +82,29 @@ export function useWorkflowExecutionLifecycle({
   setExecutionEdges,
   setExecutionDirty,
 }: UseWorkflowExecutionLifecycleOptions): UseWorkflowExecutionLifecycleResult {
-  const fetchRuns = useRunStore((state) => state.fetchRuns);
-  const refreshRuns = useRunStore((state) => state.refreshRuns);
-  const getRunById = useRunStore((state) => state.getRunById);
-  const upsertRun = useRunStore((state) => state.upsertRun);
-  const workflowCacheKey = workflowId ?? '__global__';
-  const workflowRuns = useRunStore((state) => state.cache[workflowCacheKey]?.runs ?? EMPTY_RUNS);
+  // TanStack Query: only enable fetching when in execution mode or navigating to a specific run.
+  // Use workflowId (from route param) rather than metadata.id (from store) to avoid a render
+  // cycle delay that leaves the query disabled on first mount.
+  const shouldFetchRuns =
+    Boolean(workflowId) && workflowId !== 'new' && (mode === 'execution' || Boolean(routeRunId));
+  const { data: runsPage, refetch: refetchRuns } = useWorkflowRuns(
+    shouldFetchRuns ? workflowId : undefined,
+  );
+  const workflowRuns = runsPage?.runs ?? EMPTY_RUNS;
+
+  // Provide a fetchRuns function that matches the old store API for external consumers
+  const fetchRuns = useCallback(async (params: { workflowId: string; force?: boolean }) => {
+    if (params.force) {
+      invalidateRunsForWorkflow(params.workflowId);
+    }
+    // Refetch the workflow-scoped query for the passed workflowId, not whatever
+    // query this hook instance is currently bound to (which may be global/disabled
+    // when in design mode).
+    return queryClient.refetchQueries({
+      queryKey: queryKeys.runs.byWorkflow(params.workflowId),
+    });
+  }, []);
+
   const [historicalVersionId, setHistoricalVersionId] = useState<string | null>(null);
   const prevRunIdRef = useRef<string | null>(null);
   const prevVersionIdRef = useRef<string | null>(null);
@@ -106,15 +130,9 @@ export function useWorkflowExecutionLifecycle({
       useExecutionTimelineStore.getState().reset();
       return;
     }
-
-    // Only fetch runs when in execution mode or navigating to a specific run.
-    // In design mode (the default when opening /workflows/:id), runs aren't
-    // needed — they'll be fetched on-demand when the user switches to the runs
-    // tab or executes the workflow.
-    if (mode === 'execution' || routeRunId) {
-      fetchRuns({ workflowId: metadata.id }).catch(() => undefined);
-    }
-  }, [fetchRuns, metadata.id, mode, routeRunId]);
+    // Run fetching is now handled by useWorkflowRuns via the `shouldFetchRuns` enabled flag.
+    // This effect only handles the timeline reset when metadata.id is cleared.
+  }, [metadata.id]);
 
   useEffect(() => {
     if (!metadata.id || !routeRunId) {
@@ -136,12 +154,13 @@ export function useWorkflowExecutionLifecycle({
     let cancelled = false;
 
     const ensureRouteRun = async () => {
-      let targetRun = getRunById(routeRunId);
+      let targetRun = getRunByIdFromCache(routeRunId);
 
       if (!targetRun) {
         try {
-          await refreshRuns(metadata.id!);
-          targetRun = getRunById(routeRunId);
+          invalidateRunsForWorkflow(metadata.id!);
+          await refetchRuns();
+          targetRun = getRunByIdFromCache(routeRunId);
         } catch (error) {
           console.error('Failed to refresh runs for route:', error);
         }
@@ -152,7 +171,7 @@ export function useWorkflowExecutionLifecycle({
           const runDetails = await api.executions.getRun(routeRunId);
           if (cancelled) return;
           const normalized = normalizeRunSummary(runDetails);
-          upsertRun(normalized);
+          upsertRunInCache(normalized);
           targetRun = normalized;
         } catch (error) {
           if (cancelled) return;
@@ -179,10 +198,15 @@ export function useWorkflowExecutionLifecycle({
       }
 
       // Mark as processed BEFORE calling selectRun to prevent loops
+      // and StrictMode double-fires
       lastProcessedRouteRunIdRef.current = routeRunId;
+
+      // Re-check cancelled after async work above (StrictMode cleanup may have fired)
+      if (cancelled) return;
 
       try {
         await selectRun(routeRunId, isRunLive(targetRun) ? 'live' : 'replay');
+        if (cancelled) return;
         setMode('execution');
         if (isRunLive(targetRun)) {
           useExecutionStore.getState().monitorRun(routeRunId, targetRun.workflowId);
@@ -201,10 +225,8 @@ export function useWorkflowExecutionLifecycle({
     builderRoutePrefix,
     metadata.id,
     navigate,
-    refreshRuns,
+    refetchRuns,
     routeRunId,
-    getRunById,
-    upsertRun,
     toast,
     setMode,
     selectRun,
@@ -251,7 +273,7 @@ export function useWorkflowExecutionLifecycle({
       return;
     }
 
-    let run = getRunById(targetRunId);
+    let run = getRunByIdFromCache(targetRunId);
     if (!run) {
       run = workflowRuns.find((candidate) => candidate.id === targetRunId);
     }
@@ -313,7 +335,7 @@ export function useWorkflowExecutionLifecycle({
           const runDetails = await api.executions.getRun(targetRunId);
           if (latestTargetRunIdRef.current !== targetRunId) return;
           runToUse = normalizeRunSummary(runDetails);
-          upsertRun(runToUse);
+          upsertRunInCache(runToUse);
         } catch (error) {
           if (latestTargetRunIdRef.current !== targetRunId) return;
           console.error('[VersionLoad] Failed to fetch run details:', error);
@@ -338,7 +360,7 @@ export function useWorkflowExecutionLifecycle({
           const runDetails = await api.executions.getRun(targetRunId);
           if (latestTargetRunIdRef.current !== targetRunId) return;
           runToUse = normalizeRunSummary(runDetails);
-          upsertRun(runToUse);
+          upsertRunInCache(runToUse);
         } catch (error) {
           if (latestTargetRunIdRef.current !== targetRunId) return;
           console.error('[VersionLoad] Failed to fetch run details for version resolution:', error);
@@ -442,8 +464,6 @@ export function useWorkflowExecutionLifecycle({
     executionLoadedSnapshotRef,
     preservedExecutionStateRef,
     setExecutionDirty,
-    getRunById,
-    upsertRun,
     toast,
   ]);
 

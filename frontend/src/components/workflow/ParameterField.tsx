@@ -16,10 +16,12 @@ import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
 import type { InputMapping } from '@/schemas/node';
-import { useSecretStore } from '@/store/secretStore';
-import { useIntegrationStore } from '@/store/integrationStore';
-// D17: getCurrentUserId no longer needed for connection fetching
-import { useArtifactStore } from '@/store/artifactStore';
+import { useSecrets } from '@/hooks/queries/useSecretQueries';
+import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
+import { useArtifactLibrary } from '@/hooks/queries/useArtifactQueries';
+import { useWorkflowsList } from '@/hooks/queries/useWorkflowQueries';
+import { getCurrentUserId } from '@/lib/currentUser';
+import { useQueryClient } from '@tanstack/react-query';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -41,7 +43,6 @@ interface ParameterFieldProps {
   componentId?: string;
   parameters?: Record<string, unknown> | undefined;
   onUpdateParameter?: (paramId: string, value: any) => void;
-  nodeLabel?: string;
 }
 
 /**
@@ -55,23 +56,24 @@ export function ParameterField({
   componentId,
   parameters,
   onUpdateParameter,
-  nodeLabel,
 }: ParameterFieldProps) {
   const currentValue = value !== undefined ? value : parameter.default;
   const [jsonError, setJsonError] = useState<string | null>(null);
   const navigate = useNavigate();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const queryClient = useQueryClient();
 
-  const secrets = useSecretStore((state) => state.secrets);
-  const secretsError = useSecretStore((state) => state.error);
-  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
-  const refreshSecrets = useSecretStore((state) => state.refresh);
+  const { data: secrets = [], error: secretsQueryError } = useSecrets();
+  const secretsError = secretsQueryError?.message ?? null;
 
-  const fetchOrgConnections = useIntegrationStore((state) => state.fetchOrgConnections);
-  const orgConnections = useIntegrationStore((state) => state.orgConnections);
-  const integrationLoading = useIntegrationStore((state) => state.loadingOrgConnections);
-  const integrationError = useIntegrationStore((state) => state.error);
-  const hasFetchedConnectionsRef = useRef(false);
+  const currentUserId = useMemo(() => getCurrentUserId(), []);
+  const {
+    data: integrationConnections = [],
+    isLoading: integrationLoading,
+    error: integrationQueryError,
+  } = useIntegrationConnections(currentUserId);
+  const integrationError = integrationQueryError?.message ?? null;
+
   const autoSelectedConnectionRef = useRef(false);
 
   const authModeFromParameters: 'manual' | 'connection' = useMemo(() => {
@@ -89,48 +91,33 @@ export function ParameterField({
   const isRemoveGithubComponent = componentId === 'github.org.membership.remove';
   const isProviderGithubComponent = componentId === 'github.connection.provider';
   const isGitHubConnectionComponent = isRemoveGithubComponent || isProviderGithubComponent;
-  const isGenericCredentialResolver = componentId === 'core.integration.resolve-credentials';
-  const isConnectionSelector =
-    (isGitHubConnectionComponent || isGenericCredentialResolver) && parameter.id === 'connectionId';
+  const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId';
   const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection';
 
   const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id);
   const isWorkflowCallComponent = componentId === 'core.workflow.call';
   const isWorkflowSelector = isWorkflowCallComponent && parameter.id === 'workflowId';
 
-  // D17: use merged connections (combines user-scoped and org-scoped)
   const githubConnections = useMemo(
-    () => orgConnections.filter((connection) => connection.provider === 'github'),
-    [orgConnections],
+    () => integrationConnections.filter((connection) => connection.provider === 'github'),
+    [integrationConnections],
   );
 
-  // For the generic credential resolver, filter by explicit `provider` param or infer from node label
-  const credResolverProviderFilter = useMemo(() => {
-    if (!isGenericCredentialResolver) return undefined;
-    // 1. Explicit provider parameter takes priority
-    const map = (parameters ?? {}) as Record<string, unknown>;
-    const explicit = typeof map?.provider === 'string' ? map.provider.trim().toLowerCase() : '';
-    if (explicit) return explicit;
-    // 2. Infer from node label (e.g. "Resolve AWS Credentials" → "aws")
-    const KNOWN_PROVIDERS = ['aws', 'slack', 'github'];
-    const label = (nodeLabel ?? '').toLowerCase();
-    return KNOWN_PROVIDERS.find((p) => label.includes(p));
-  }, [isGenericCredentialResolver, parameters, nodeLabel]);
-
-  const filteredConnections = useMemo(
+  const {
+    data: rawWorkflowList = [],
+    isLoading: workflowListLoading,
+    error: workflowListError,
+  } = useWorkflowsList();
+  const workflowOptions = useMemo(
     () =>
-      credResolverProviderFilter
-        ? orgConnections.filter((c) => c.provider === credResolverProviderFilter)
-        : orgConnections,
-    [orgConnections, credResolverProviderFilter],
+      rawWorkflowList
+        .filter((w) => w.id !== currentBuilderWorkflowId)
+        .map((w) => ({ id: w.id, name: w.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [rawWorkflowList, currentBuilderWorkflowId],
   );
-
-  // Pick the right list depending on the component
-  const connectionOptions = isGenericCredentialResolver ? filteredConnections : githubConnections;
-
-  const [workflowOptions, setWorkflowOptions] = useState<{ id: string; name: string }[]>([]);
-  const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false);
-  const [workflowOptionsError, setWorkflowOptionsError] = useState<string | null>(null);
+  const workflowOptionsLoading = workflowListLoading;
+  const workflowOptionsError = workflowListError?.message ?? null;
   const [workflowPortSyncError, setWorkflowPortSyncError] = useState<string | null>(null);
 
   const selectedWorkflowId =
@@ -161,37 +148,6 @@ export function ParameterField({
 
   useEffect(() => {
     if (!isWorkflowSelector) return;
-
-    let cancelled = false;
-    setWorkflowOptionsLoading(true);
-    setWorkflowOptionsError(null);
-
-    api.workflows
-      .list()
-      .then((workflows) => {
-        if (cancelled) return;
-        const options = workflows
-          .filter((workflow) => workflow.id !== currentBuilderWorkflowId)
-          .map((workflow) => ({ id: workflow.id, name: workflow.name }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        setWorkflowOptions(options);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setWorkflowOptionsError(error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setWorkflowOptionsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isWorkflowSelector, currentBuilderWorkflowId]);
-
-  useEffect(() => {
-    if (!isWorkflowSelector) return;
     if (!selectedWorkflowId) return;
 
     const existingRuntimeInputs = (parameters as any)?.childRuntimeInputs;
@@ -200,18 +156,6 @@ export function ParameterField({
     if (!shouldSync) return;
     void syncCallWorkflowPorts(selectedWorkflowId);
   }, [isWorkflowSelector, selectedWorkflowId, parameters, syncCallWorkflowPorts]);
-
-  useEffect(() => {
-    if (!isConnectionSelector) {
-      return;
-    }
-    if (hasFetchedConnectionsRef.current) {
-      return;
-    }
-    hasFetchedConnectionsRef.current = true;
-    // Fetch org-scoped connections only (user-scoped is redundant and risks cross-org leak)
-    fetchOrgConnections(undefined, true);
-  }, [isConnectionSelector, fetchOrgConnections]);
 
   useEffect(() => {
     if (!isConnectionSelector || integrationLoading) {
@@ -226,8 +170,8 @@ export function ParameterField({
       return;
     }
 
-    if (connectionOptions.length === 1 && !autoSelectedConnectionRef.current) {
-      const [firstConnection] = connectionOptions;
+    if (githubConnections.length === 1 && !autoSelectedConnectionRef.current) {
+      const [firstConnection] = githubConnections;
       if (firstConnection) {
         autoSelectedConnectionRef.current = true;
         onChange(firstConnection.id);
@@ -240,7 +184,7 @@ export function ParameterField({
     }
   }, [
     isConnectionSelector,
-    connectionOptions,
+    githubConnections,
     integrationLoading,
     currentValue,
     onChange,
@@ -250,7 +194,7 @@ export function ParameterField({
 
   const handleRefreshConnections = async () => {
     try {
-      await fetchOrgConnections(undefined, true);
+      await queryClient.invalidateQueries({ queryKey: ['integrationConnections'] });
     } catch (error) {
       console.error('Failed to refresh integration connections', error);
     }
@@ -260,15 +204,6 @@ export function ParameterField({
 
   // Secret IDs are resolved to actual values at runtime by the worker
   // and selecting from store is mandatory to ensure security and portability.
-
-  useEffect(() => {
-    if (parameter.type !== 'secret') {
-      return;
-    }
-    fetchSecrets().catch((error) => {
-      console.error('Failed to load secrets', error);
-    });
-  }, [parameter.type, fetchSecrets]);
 
   useEffect(() => {
     if (parameter.type !== 'secret' || isReceivingInput) {
@@ -387,6 +322,7 @@ export function ParameterField({
           onChange={(event) => {
             autoSelectedConnectionRef.current = true;
             const nextValue = event.target.value;
+            console.log('Selected GitHub connection ID:', nextValue);
             if (nextValue === '') {
               onChange(undefined);
               if (isRemoveGithubComponent) {
@@ -404,12 +340,10 @@ export function ParameterField({
           className="w-full px-3 py-2 text-sm border rounded-md bg-background"
           disabled={disabled}
         >
-          <option value="">
-            {isGenericCredentialResolver ? 'Select a connection…' : 'Select a GitHub connection…'}
-          </option>
-          {connectionOptions.map((connection) => (
+          <option value="">Select a GitHub connection…</option>
+          {githubConnections.map((connection) => (
             <option key={connection.id} value={connection.id}>
-              {connection.displayName ?? connection.providerName} · {connection.provider}
+              {connection.providerName} · {connection.userId}
             </option>
           ))}
         </select>
@@ -420,11 +354,9 @@ export function ParameterField({
 
         {integrationError && <p className="text-xs text-destructive">{integrationError}</p>}
 
-        {!integrationLoading && connectionOptions.length === 0 && (
+        {!integrationLoading && githubConnections.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            {isGenericCredentialResolver
-              ? 'No active connections yet. Add a connection from the Integrations page.'
-              : 'No active GitHub connections yet. Connect GitHub from the Connections manager.'}
+            No active GitHub connections yet. Connect GitHub from the Connections manager.
           </p>
         )}
 
@@ -579,7 +511,6 @@ export function ParameterField({
       );
 
     case 'boolean':
-    case 'toggle':
       return (
         <div className="flex items-center justify-between">
           <label htmlFor={parameter.id} className="text-sm font-medium cursor-pointer select-none">
@@ -735,7 +666,7 @@ export function ParameterField({
             }}
             disabled={isReceivingInput || disableForGithubConnection}
             onRefresh={() => {
-              void refreshSecrets();
+              void queryClient.invalidateQueries({ queryKey: ['secrets'] });
             }}
           />
 
@@ -847,34 +778,21 @@ function ArtifactSelector({
   onChange: (value: string | undefined) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [hasRequestedLibrary, setHasRequestedLibrary] = useState(false);
-  const fetchLibrary = useArtifactStore((state) => state.fetchLibrary);
-  const libraryLoading = useArtifactStore((state) => state.libraryLoading);
-  const libraryError = useArtifactStore((state) => state.libraryError);
-  const library = useArtifactStore((state) => state.library);
-  const runArtifacts = useArtifactStore((state) => state.runArtifacts);
-
-  useEffect(() => {
-    if (pickerOpen && !hasRequestedLibrary) {
-      setHasRequestedLibrary(true);
-      void fetchLibrary();
-    }
-  }, [pickerOpen, hasRequestedLibrary, fetchLibrary]);
+  const queryClient = useQueryClient();
+  const {
+    data: library = [],
+    isLoading: libraryLoading,
+    error: libraryQueryError,
+  } = useArtifactLibrary();
+  const libraryError = libraryQueryError?.message ?? null;
 
   const knownArtifacts = useMemo(() => {
     const map = new Map<string, ArtifactMetadata>();
     for (const artifact of library) {
       map.set(artifact.id, artifact);
     }
-    Object.values(runArtifacts).forEach((entry) => {
-      entry?.artifacts.forEach((artifact) => {
-        if (!map.has(artifact.id)) {
-          map.set(artifact.id, artifact);
-        }
-      });
-    });
     return map;
-  }, [library, runArtifacts]);
+  }, [library]);
 
   const selectedArtifact = value ? (knownArtifacts.get(value) ?? null) : null;
 
@@ -942,7 +860,7 @@ function ArtifactSelector({
         libraryLoading={libraryLoading}
         libraryError={libraryError}
         artifacts={library}
-        onRefresh={fetchLibrary}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['artifactLibrary'] })}
       />
     </div>
   );
@@ -1095,7 +1013,6 @@ interface ParameterFieldWrapperProps {
   parameters?: Record<string, unknown> | undefined;
   onUpdateParameter?: (paramId: string, value: any) => void;
   allComponentParameters?: Parameter[];
-  nodeLabel?: string;
 }
 
 /**
@@ -1135,8 +1052,7 @@ function isHeaderToggleParameter(
   parameter: Parameter,
   allComponentParameters: Parameter[] | undefined,
 ): boolean {
-  if ((parameter.type !== 'boolean' && parameter.type !== 'toggle') || !allComponentParameters)
-    return false;
+  if (parameter.type !== 'boolean' || !allComponentParameters) return false;
 
   // Check if any other parameter has visibleWhen referencing this param
   return allComponentParameters.some((p) => p.visibleWhen && parameter.id in p.visibleWhen);
@@ -1154,7 +1070,6 @@ export function ParameterFieldWrapper({
   parameters,
   onUpdateParameter,
   allComponentParameters,
-  nodeLabel,
 }: ParameterFieldWrapperProps) {
   // Check visibility conditions
   if (!shouldShowParameter(parameter, parameters)) {
@@ -1284,7 +1199,7 @@ export function ParameterFieldWrapper({
   }
 
   // Standard parameter field rendering
-  const isBooleanParameter = parameter.type === 'boolean' || parameter.type === 'toggle';
+  const isBooleanParameter = parameter.type === 'boolean';
 
   return (
     <div
@@ -1316,7 +1231,6 @@ export function ParameterFieldWrapper({
         componentId={componentId}
         parameters={parameters}
         onUpdateParameter={onUpdateParameter}
-        nodeLabel={nodeLabel}
       />
 
       {/* Description after field (toggle control) - for boolean parameters */}

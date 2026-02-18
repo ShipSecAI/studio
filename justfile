@@ -16,24 +16,24 @@ export OPENSEARCH_DASHBOARDS_PASSWORD := env_var_or_default("OPENSEARCH_DASHBOAR
 init:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🔧 Setting up ShipSec Studio..."
+    echo "🔧  Setting up ShipSec Studio..."
 
     # Install dependencies if needed
     if [ ! -d "node_modules" ]; then
-        echo "📦 Installing dependencies..."
+        echo "📦  Installing dependencies..."
         bun install
-        echo "✅ Dependencies installed"
+        echo "✅  Dependencies installed"
     else
-        echo "✅ Dependencies already installed"
+        echo "✅  Dependencies already installed"
     fi
 
     # Copy env files if they don't exist
-    [ ! -f "backend/.env" ] && cp backend/.env.example backend/.env && echo "✅ Created backend/.env"
-    [ ! -f "worker/.env" ] && cp worker/.env.example worker/.env && echo "✅ Created worker/.env"
-    [ ! -f "frontend/.env" ] && cp frontend/.env.example frontend/.env && echo "✅ Created frontend/.env"
+    [ ! -f "backend/.env" ] && cp backend/.env.example backend/.env && echo "✅  Created backend/.env"
+    [ ! -f "worker/.env" ] && cp worker/.env.example worker/.env && echo "✅  Created worker/.env"
+    [ ! -f "frontend/.env" ] && cp frontend/.env.example frontend/.env && echo "✅  Created frontend/.env"
 
     echo ""
-    echo "🎉 Setup complete!"
+    echo "🎉  Setup complete!"
     echo "   Edit the .env files to configure your environment"
     echo "   Then run: just dev"
 
@@ -77,7 +77,7 @@ dev action="start":
         start)
             # Check for required env files
             if [ ! -f "backend/.env" ] || [ ! -f "worker/.env" ] || [ ! -f "frontend/.env" ]; then
-                echo "❌ Environment files not found!"
+                echo "❌  Environment files not found!"
                 echo ""
                 echo "   Run this first: just init"
                 echo ""
@@ -86,27 +86,27 @@ dev action="start":
             fi
 
             if [ "$SECURE_MODE" = "true" ]; then
-                echo "🔐 Starting development environment (Clerk auth, instance ${INST})..."
+                echo "🔐  Starting development environment (Clerk auth, instance ${INST})..."
 
                 # Auto-generate certificates if they don't exist
                 if [ ! -f "docker/certs/root-ca.pem" ]; then
-                    echo "🔐 Generating TLS certificates..."
+                    echo "🔐  Generating TLS certificates..."
                     chmod +x docker/scripts/generate-certs.sh
                     docker/scripts/generate-certs.sh
-                    echo "✅ Certificates generated"
+                    echo "✅  Certificates generated"
                 fi
 
                 # Start infrastructure with security enabled
                 # Note: dev-ports.yml exposes OpenSearch on localhost for backend tenant provisioning
-                echo "🚀 Starting infrastructure with OpenSearch Security..."
+                echo "🚀  Starting infrastructure with OpenSearch Security..."
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-secure.yml -f docker/docker-compose.dev-ports.yml up -d
 
                 # Wait for Postgres
-                echo "⏳ Waiting for infrastructure..."
+                echo "⏳  Waiting for infrastructure..."
                 timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
 
                 # Wait for OpenSearch to be healthy (security init takes longer)
-                echo "⏳ Waiting for OpenSearch security initialization..."
+                echo "⏳  Waiting for OpenSearch security initialization..."
                 timeout 120s bash -c 'until docker exec shipsec-opensearch curl -sf -u admin:${OPENSEARCH_ADMIN_PASSWORD:-admin} --cacert /usr/share/opensearch/config/certs/root-ca.pem https://localhost:9200/_cluster/health >/dev/null 2>&1; do sleep 2; done' || true
 
                 # Update git SHA and start PM2 with security enabled
@@ -115,7 +115,7 @@ dev action="start":
                     pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
 
                 echo ""
-                echo "✅ Development environment ready (secure mode, instance ${INST})"
+                echo "✅  Development environment ready (secure mode, instance ${INST})"
                 if [ "$INST" = "0" ]; then
                     echo "   App:         http://localhost (via nginx)"
                     echo "   API:         http://localhost/api"
@@ -125,16 +125,16 @@ dev action="start":
                 echo "   Analytics:   http://localhost/analytics (requires login)"
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
-                echo "🔐 OpenSearch Security: ENABLED (multi-tenant isolation active)"
+                echo "🔐  OpenSearch Security: ENABLED (multi-tenant isolation active)"
                 echo "   OpenSearch admin: admin / ${OPENSEARCH_ADMIN_PASSWORD:-admin}"
             else
-                echo "🚀 Starting development environment (local auth, instance ${INST})..."
+                echo "🚀  Starting development environment (local auth, instance ${INST})..."
 
                 # Start infrastructure (no security, with dev ports for analytics)
                 docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
 
                 # Wait for Postgres
-                echo "⏳ Waiting for infrastructure..."
+                echo "⏳  Waiting for infrastructure..."
                 timeout 30s bash -c 'until docker exec shipsec-postgres pg_isready -U shipsec >/dev/null 2>&1; do sleep 1; done' || true
 
                 # Update git SHA and start PM2
@@ -144,7 +144,7 @@ dev action="start":
                     pm2 startOrReload pm2.config.cjs --only "$PM2_APPS" --update-env
 
                 echo ""
-                echo "✅ Development environment ready (local auth, instance ${INST})"
+                echo "✅  Development environment ready (local auth, instance ${INST})"
                 if [ "$INST" = "0" ]; then
                     echo "   App:         http://localhost (via nginx)"
                 fi
@@ -154,25 +154,25 @@ dev action="start":
                 echo "   Temporal UI: http://localhost:8081"
                 echo ""
                 if [ "$INST" != "0" ]; then
-                    echo "💡 Instance ${INST}: access your app directly at http://localhost:${FRONTEND_PORT}"
+                    echo "💡  Instance ${INST}: access your app directly at http://localhost:${FRONTEND_PORT}"
                     echo "   (nginx always routes to instance 0)"
                     echo ""
                 fi
-                echo "💡 To enable Clerk auth + OpenSearch Security:"
+                echo "💡  To enable Clerk auth + OpenSearch Security:"
                 echo "   Set CLERK_SECRET_KEY in backend/.env, then restart"
             fi
 
             echo ""
-            echo "💡 just dev logs   - View application logs"
-            echo "💡 just dev stop   - Stop everything"
-            echo "💡 just dev clean  - Stop and remove all data"
+            echo "💡  just dev logs   - View application logs"
+            echo "💡  just dev stop   - Stop everything"
+            echo "💡  just dev clean  - Stop and remove all data"
             echo ""
 
             # Version check
             bun backend/scripts/version-check-summary.ts 2>/dev/null || true
             ;;
         stop)
-            echo "🛑 Stopping development environment (instance ${INST})..."
+            echo "🛑  Stopping development environment (instance ${INST})..."
             pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
             # Only stop infra if instance 0 (shared infra serves all instances)
             if [ "$INST" = "0" ]; then
@@ -182,7 +182,7 @@ dev action="start":
                     docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down
                 fi
             fi
-            echo "✅ Stopped instance ${INST}"
+            echo "✅  Stopped instance ${INST}"
             ;;
         logs)
             pm2 logs shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST}
@@ -196,7 +196,7 @@ dev action="start":
             fi
             ;;
         clean)
-            echo "🧹 Cleaning development environment (instance ${INST})..."
+            echo "🧹  Cleaning development environment (instance ${INST})..."
             pm2 delete shipsec-frontend-${INST} shipsec-backend-${INST} shipsec-worker-${INST} 2>/dev/null || true
             # Only tear down infra if instance 0
             if [ "$INST" = "0" ]; then
@@ -205,9 +205,9 @@ dev action="start":
                 else
                     docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down -v
                 fi
-                echo "✅ Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
+                echo "✅  Development environment cleaned (PM2 stopped, infrastructure volumes removed)"
             else
-                echo "✅ Instance ${INST} PM2 apps stopped (shared infra left running)"
+                echo "✅  Instance ${INST} PM2 apps stopped (shared infra left running)"
             fi
             ;;
         *)
@@ -241,11 +241,11 @@ prod action="start":
     case "{{action}}" in
         start)
             if [ "$SECURE_MODE" = "true" ]; then
-                echo "🔐 Starting production environment (secure mode)..."
+                echo "🔐  Starting production environment (secure mode)..."
 
                 # Check for required env vars in secure mode
                 if [ -z "${OPENSEARCH_ADMIN_PASSWORD:-}" ] || [ -z "${OPENSEARCH_DASHBOARDS_PASSWORD:-}" ]; then
-                    echo "❌ Required environment variables not set!"
+                    echo "❌  Required environment variables not set!"
                     echo ""
                     echo "   export OPENSEARCH_ADMIN_PASSWORD='your-secure-password'"
                     echo "   export OPENSEARCH_DASHBOARDS_PASSWORD='your-secure-password'"
@@ -254,23 +254,23 @@ prod action="start":
 
                 $COMPOSE_CMD up -d
                 echo ""
-                echo "✅ Production environment ready (secure mode)"
+                echo "✅  Production environment ready (secure mode)"
                 echo "   Analytics:   https://localhost/analytics (requires auth)"
                 echo "   OpenSearch:  https://localhost:9200 (TLS enabled)"
                 echo ""
-                echo "💡 See docker/PRODUCTION.md for customer provisioning"
+                echo "💡  See docker/PRODUCTION.md for customer provisioning"
             else
-                echo "🚀 Starting production environment..."
+                echo "🚀  Starting production environment..."
                 $COMPOSE_CMD up -d
                 echo ""
-                echo "✅ Production environment ready"
+                echo "✅  Production environment ready"
                 echo "   App:         http://localhost"
                 echo "   API:         http://localhost/api"
                 echo "   Analytics:   http://localhost/analytics"
                 echo ""
                 echo "🔒 All internal service ports are disabled (no direct access)"
                 echo ""
-                echo "💡 To enable security + multitenancy:"
+                echo "💡  To enable security + multitenancy:"
                 echo "   Run: just generate-certs"
             fi
 
@@ -279,7 +279,7 @@ prod action="start":
             ;;
         stop)
             $COMPOSE_CMD down
-            echo "✅ Production stopped"
+            echo "✅  Production stopped"
             ;;
         build)
             echo "🔨 Building and starting production..."
@@ -295,7 +295,7 @@ prod action="start":
             fi
 
             $COMPOSE_CMD up -d --build
-            echo "✅ Production built and started"
+            echo "✅  Production built and started"
             echo ""
 
             # Version check
@@ -310,12 +310,12 @@ prod action="start":
         clean)
             $COMPOSE_CMD down -v
             docker system prune -f
-            echo "✅ Production cleaned"
+            echo "✅  Production cleaned"
             ;;
         start-latest)
             echo "🔍 Fetching latest release information from GitHub API..."
             if ! command -v curl &> /dev/null || ! command -v jq &> /dev/null; then
-                echo "❌ curl or jq is not installed. Please install them first."
+                echo "❌  curl or jq is not installed. Please install them first."
                 exit 1
             fi
 
@@ -325,29 +325,29 @@ prod action="start":
             LATEST_TAG="${LATEST_TAG#v}"
 
             if [ "$LATEST_TAG" == "null" ] || [ -z "$LATEST_TAG" ]; then
-                echo "❌ Could not find any releases. Please check the repository at https://github.com/ShipSecAI/studio/releases"
+                echo "❌  Could not find any releases. Please check the repository at https://github.com/ShipSecAI/studio/releases"
                 exit 1
             fi
 
-            echo "📦 Found latest release: $LATEST_TAG"
+            echo "📦  Found latest release: $LATEST_TAG"
 
             echo "📥 Pulling matching images from GHCR..."
             docker pull ghcr.io/shipsecai/studio-backend:$LATEST_TAG
             docker pull ghcr.io/shipsecai/studio-frontend:$LATEST_TAG
             docker pull ghcr.io/shipsecai/studio-worker:$LATEST_TAG
 
-            echo "🚀 Starting production environment with version $LATEST_TAG..."
+            echo "🚀  Starting production environment with version $LATEST_TAG..."
             export SHIPSEC_TAG=$LATEST_TAG
             $COMPOSE_CMD up -d
 
             echo ""
-            echo "✅ ShipSec Studio $LATEST_TAG ready"
+            echo "✅  ShipSec Studio $LATEST_TAG ready"
             echo "   App:         http://localhost"
             echo "   API:         http://localhost/api"
             echo "   Analytics:   http://localhost/analytics"
             echo ""
             echo "🔒 All internal service ports are disabled (no direct access)"
-            echo "💡 Note: Using images tagged as $LATEST_TAG"
+            echo "💡  Note: Using images tagged as $LATEST_TAG"
             ;;
         *)
             echo "Usage: just prod [start|start-latest|stop|build|logs|status|clean]"
@@ -362,7 +362,7 @@ prod-images action="start":
     set -euo pipefail
     case "{{action}}" in
         start)
-            echo "🚀 Starting production environment with GHCR images..."
+            echo "🚀  Starting production environment with GHCR images..."
 
             # Check if images exist locally, pull if needed
             echo "🔍 Checking for local images..."
@@ -370,23 +370,23 @@ prod-images action="start":
                 echo "📥 Pulling GHCR images..."
                 docker pull ghcr.io/shipsecai/studio-frontend:latest || echo "⚠️  Frontend image not found, will build locally"
             else
-                echo "✅ Frontend image found locally"
+                echo "✅  Frontend image found locally"
             fi
             if ! docker images --format "{{{{.Repository}}}}:{{{{.Tag}}}}" | grep -q "ghcr.io/shipsecai/studio-backend"; then
                 docker pull ghcr.io/shipsecai/studio-backend:latest || echo "⚠️  Backend image not found, will build locally"
             else
-                echo "✅ Backend image found locally"
+                echo "✅  Backend image found locally"
             fi
             if ! docker images --format "{{{{.Repository}}}}:{{{{.Tag}}}}" | grep -q "ghcr.io/shipsecai/studio-worker"; then
                 docker pull ghcr.io/shipsecai/studio-worker:latest || echo "⚠️  Worker image not found, will build locally"
             else
-                echo "✅ Worker image found locally"
+                echo "✅  Worker image found locally"
             fi
 
             # Start with GHCR images, fallback to local build
             DOCKER_BUILDKIT=1 docker compose -f docker/docker-compose.full.yml up -d
             echo ""
-            echo "✅ Production environment ready"
+            echo "✅  Production environment ready"
             echo "   App:         http://localhost"
             echo "   API:         http://localhost/api"
             echo "   Analytics:   http://localhost/analytics"
@@ -395,12 +395,12 @@ prod-images action="start":
             ;;
         stop)
             docker compose -f docker/docker-compose.full.yml down
-            echo "✅ Production stopped"
+            echo "✅  Production stopped"
             ;;
         build-test)
             echo "🔨 Building test images with PostHog analytics..."
             if [ -z "${POSTHOG_API_KEY:-}" ] || [ -z "${POSTHOG_HOST:-}" ]; then
-                echo "❌ POSTHOG_API_KEY and POSTHOG_HOST must be set in your environment for this command"
+                echo "❌  POSTHOG_API_KEY and POSTHOG_HOST must be set in your environment for this command"
                 exit 1
             fi
 
@@ -426,7 +426,7 @@ prod-images action="start":
                 -t ghcr.io/shipsecai/studio-worker:latest \
                 .
 
-            echo "✅ Test images built with PostHog analytics"
+            echo "✅  Test images built with PostHog analytics"
             echo "   Run: just prod-images start"
             ;;
         logs)
@@ -438,7 +438,7 @@ prod-images action="start":
         clean)
             docker compose -f docker/docker-compose.full.yml down -v
             docker system prune -f
-            echo "✅ Production cleaned"
+            echo "✅  Production cleaned"
             ;;
         *)
             echo "Usage: just prod-images [start|stop|build-test|logs|status|clean]"
@@ -449,11 +449,11 @@ prod-images action="start":
 generate-certs:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🔐 Generating TLS certificates..."
+    echo "🔐  Generating TLS certificates..."
     chmod +x docker/scripts/generate-certs.sh
     docker/scripts/generate-certs.sh
     echo ""
-    echo "✅ Certificates generated in docker/certs/"
+    echo "✅  Certificates generated in docker/certs/"
     echo ""
     echo "Next steps:"
     echo "  1. export OPENSEARCH_ADMIN_PASSWORD='your-secure-password'"
@@ -464,7 +464,7 @@ generate-certs:
 security-init *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🔐 Initializing OpenSearch Security..."
+    echo "🔐  Initializing OpenSearch Security..."
     chmod +x docker/scripts/security-init.sh
     docker/scripts/security-init.sh {{args}}
 
@@ -488,19 +488,19 @@ infra action="up":
     case "{{action}}" in
         up)
             docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml up -d
-            echo "✅ Infrastructure started (Postgres, Temporal, MinIO, Redis)"
+            echo "✅  Infrastructure started (Postgres, Temporal, MinIO, Redis)"
             echo "   All ports bound to 127.0.0.1 (localhost only)"
             ;;
         down)
             docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down
-            echo "✅ Infrastructure stopped"
+            echo "✅  Infrastructure stopped"
             ;;
         logs)
             docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml logs -f
             ;;
         clean)
             docker compose -f docker/docker-compose.infra.yml -f docker/docker-compose.dev-ports.yml down -v
-            echo "✅ Infrastructure cleaned"
+            echo "✅  Infrastructure cleaned"
             ;;
         *)
             echo "Usage: just infra [up|down|logs|clean]"
@@ -529,17 +529,17 @@ db-reset:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! docker ps --filter "name=shipsec-postgres" --format "{{{{.Names}}}}" | grep -q "shipsec-postgres"; then
-        echo "❌ PostgreSQL not running. Run: just dev" && exit 1
+        echo "❌  PostgreSQL not running. Run: just dev" && exit 1
     fi
     docker exec shipsec-postgres psql -U shipsec -d postgres -c "DROP DATABASE IF EXISTS shipsec;"
     docker exec shipsec-postgres psql -U shipsec -d postgres -c "CREATE DATABASE shipsec;"
     bun --cwd=backend run migration:push
-    echo "✅ Database reset"
+    echo "✅  Database reset"
 
 # Build production images without starting
 build:
     docker compose -f docker/docker-compose.full.yml build
-    echo "✅ Images built"
+    echo "✅  Images built"
 
 # === Help ===
 

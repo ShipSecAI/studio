@@ -30,7 +30,7 @@ import { ConfigPanel } from './ConfigPanel';
 import { ValidationDock } from './ValidationDock';
 import { DataFlowEdge } from '../timeline/DataFlowEdge';
 import { validateConnection } from '@/utils/connectionValidation';
-import { useComponentStore } from '@/store/componentStore';
+import { useComponents } from '@/hooks/queries/useComponentQueries';
 import { useExecutionStore } from '@/store/executionStore';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { track, Events } from '@/features/analytics/events';
@@ -134,7 +134,14 @@ export function Canvas({
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const [selectedNode, setSelectedNode] = useState<Node<NodeData> | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  const { getComponent } = useComponentStore();
+  const { data: componentIndex } = useComponents();
+  const getComponent = (ref: string) => {
+    if (!componentIndex || !ref) return null;
+    if (componentIndex.byId[ref]) return componentIndex.byId[ref];
+    const idFromSlug = componentIndex.slugIndex[ref];
+    if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
+    return null;
+  };
   const { nodeStates } = useExecutionStore();
   const { markDirty } = useWorkflowStore();
   const { dataFlows, selectedNodeId, selectNode, selectEvent } = useExecutionTimelineStore();

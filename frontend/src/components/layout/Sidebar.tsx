@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import * as LucideIcons from 'lucide-react';
-import { useComponentStore } from '@/store/componentStore';
+import { useComponents } from '@/hooks/queries/useComponentQueries';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -201,7 +201,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
-  const { getAllComponents, fetchComponents, loading, error } = useComponentStore();
+  const { data: componentIndex, isLoading: loading, error: componentsError } = useComponents();
+  const error = componentsError?.message ?? null;
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const theme = useThemeStore((state) => state.theme);
@@ -228,15 +229,8 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isScrollingRef = useRef(false);
 
-  // Fetch components on mount
-  useEffect(() => {
-    fetchComponents().catch((error) => {
-      console.error('Failed to load components', error);
-    });
-  }, [fetchComponents]);
-
   const showDemoComponents = useWorkflowUiStore((state) => state.showDemoComponents);
-  const allComponents = getAllComponents();
+  const allComponents = componentIndex ? Object.values(componentIndex.byId) : [];
 
   // Helper to identify demo components
   const isDemoComponent = (component: ComponentMetadata) => {
