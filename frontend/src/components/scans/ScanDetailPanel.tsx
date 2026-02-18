@@ -500,7 +500,8 @@ export function ScanDetailPanel({
   const { data: repositories = [] } = useGitHubRepositories();
   const { data: triggerRules = [] } = useTriggerRules();
 
-  const error = scanError instanceof Error ? scanError.message : scanError ? 'Failed to load scan' : null;
+  const error =
+    scanError instanceof Error ? scanError.message : scanError ? 'Failed to load scan' : null;
   const [showRerunModal, setShowRerunModal] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 

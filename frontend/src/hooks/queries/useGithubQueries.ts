@@ -148,13 +148,10 @@ export function useSetupInstallation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (installationId: number) => {
-      const response = await fetchWithHeaders(
-        `${API_BASE_URL}/api/v1/github/installations/setup`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ installationId }),
-        },
-      );
+      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/installations/setup`, {
+        method: 'POST',
+        body: JSON.stringify({ installationId }),
+      });
       if (!response.ok) throw new Error('Failed to setup installation');
       return response.json() as Promise<GitHubInstallation>;
     },
@@ -169,13 +166,10 @@ export function useToggleRepoScans() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
-      const response = await fetchWithHeaders(
-        `${API_BASE_URL}/api/v1/github/repos/${id}/scans`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ enabled }),
-        },
-      );
+      const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/repos/${id}/scans`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled }),
+      });
       if (!response.ok) throw new Error('Failed to update repository');
       return response.json() as Promise<GitHubRepo>;
     },
@@ -221,13 +215,7 @@ export function useCreateTriggerRule() {
 export function useUpdateTriggerRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      id,
-      input,
-    }: {
-      id: string;
-      input: Partial<CreateTriggerRuleInput>;
-    }) => {
+    mutationFn: async ({ id, input }: { id: string; input: Partial<CreateTriggerRuleInput> }) => {
       const response = await fetchWithHeaders(`${API_BASE_URL}/api/v1/github/triggers/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),

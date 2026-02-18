@@ -22,7 +22,11 @@ import { useArtifactLibrary } from '@/hooks/queries/useArtifactQueries';
 import { useWorkflowsList } from '@/hooks/queries/useWorkflowQueries';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { useQueryClient } from '@tanstack/react-query';
-import { useGitHubInstallations, useGitHubRepositories, useGitHubBranches } from '@/hooks/queries/useGithubQueries';
+import {
+  useGitHubInstallations,
+  useGitHubRepositories,
+  useGitHubBranches,
+} from '@/hooks/queries/useGithubQueries';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';

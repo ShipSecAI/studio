@@ -670,7 +670,12 @@ export function ScanResultPage() {
   const { data: scan, isLoading: loading, error: scanQueryError } = useGitHubScanResult(id ?? '');
   const { data: repositories = [] } = useGitHubRepositories();
   const { data: triggerRules = [] } = useTriggerRules();
-  const error = scanQueryError instanceof Error ? scanQueryError.message : scanQueryError ? 'Failed to load scan result' : null;
+  const error =
+    scanQueryError instanceof Error
+      ? scanQueryError.message
+      : scanQueryError
+        ? 'Failed to load scan result'
+        : null;
   const [showRerunModal, setShowRerunModal] = useState(false);
 
   const handleRerunSuccess = () => {
