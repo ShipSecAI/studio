@@ -2,8 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useGitHubStore } from '@/store/githubStore';
-import { useScheduleStore } from '@/store/scheduleStore';
-import { useIntegrationStore } from '@/store/integrationStore';
+import { useSchedules } from '@/hooks/queries/useScheduleQueries';
+import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
+import { getCurrentUserId } from '@/lib/currentUser';
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
 import { useSecurityViewStore } from '@/store/securityViewStore';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,8 +63,9 @@ export function HomePage() {
     fetchScanResults,
     fetchTriggerRules,
   } = useGitHubStore();
-  const { schedules, fetchSchedules } = useScheduleStore();
-  const { orgConnections, fetchOrgConnections } = useIntegrationStore();
+  const { data: schedules = [] } = useSchedules();
+  const userId = getCurrentUserId();
+  const { data: orgConnections = [] } = useIntegrationConnections(userId);
   const fetchSummary = useSecurityDashboardStore((s) => s.fetchSummary);
   const activeViewId = useSecurityViewStore((s) => s.activeViewId);
 
@@ -79,18 +81,8 @@ export function HomePage() {
     fetchRepositories();
     fetchScanResults({ limit: 5 });
     fetchTriggerRules();
-    fetchSchedules();
-    fetchOrgConnections();
     fetchSummary();
-  }, [
-    fetchInstallations,
-    fetchRepositories,
-    fetchScanResults,
-    fetchTriggerRules,
-    fetchSchedules,
-    fetchOrgConnections,
-    fetchSummary,
-  ]);
+  }, [fetchInstallations, fetchRepositories, fetchScanResults, fetchTriggerRules, fetchSummary]);
 
   // Fetch per-scanner severity breakdown for category grouping (all severities)
   useEffect(() => {

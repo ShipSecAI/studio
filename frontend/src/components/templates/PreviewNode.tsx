@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import * as LucideIcons from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useComponentStore } from '@/store/componentStore';
+import { useComponent } from '@/hooks/queries/useComponentQueries';
 import {
   getCategoryHeaderBackgroundColor,
   getCategorySeparatorColor,
@@ -16,11 +16,10 @@ interface PreviewNodeData {
 }
 
 function PreviewNodeInner({ data }: { data: PreviewNodeData }) {
-  const { getComponent } = useComponentStore();
+  const component = useComponent(data.nodeType);
   const theme = useThemeStore((state) => state.theme);
   const isDarkMode = theme === 'dark';
 
-  const component = getComponent(data.nodeType);
   const visual = getNodeVisual(data.nodeType);
 
   // Use component store data when available, fall back to nodeTypeVisuals

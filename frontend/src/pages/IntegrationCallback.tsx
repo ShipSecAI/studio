@@ -53,7 +53,7 @@ export function IntegrationCallback() {
     }
     exchangeStartedRef.current = true;
 
-    const redirectUri = `${env.VITE_APP_URL}/integrations/callback/${providerId}`;
+    const redirectUri = `${window.location.origin}/integrations/callback/${providerId}`;
 
     async function exchangeCode() {
       try {

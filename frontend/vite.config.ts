@@ -16,31 +16,6 @@ export default defineConfig({
     },
     dedupe: ['react', 'react-dom'],
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // Core React — cached across all pages
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          // UI primitives — used everywhere, cache as one chunk
-          'vendor-radix': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-tooltip',
-            '@radix-ui/react-slot',
-            '@radix-ui/react-avatar',
-            '@radix-ui/react-label',
-            '@radix-ui/react-checkbox',
-            '@radix-ui/react-accordion',
-          ],
-          // Analytics — loaded once, rarely changes
-          'vendor-analytics': ['posthog-js'],
-        },
-      },
-    },
-  },
   optimizeDeps: {
     include: ['react', 'react-dom', '@radix-ui/react-accordion'],
     esbuildOptions: {

@@ -297,19 +297,6 @@ export function Sidebar({ canManageWorkflows = true }: SidebarProps) {
     );
   }, [filteredComponents]);
 
-  // Category display order
-  const categoryOrder = [
-    'input',
-    'output',
-    'notification',
-    'security',
-    'scanners',
-    'mcp',
-    'ai',
-    'transform',
-    'it_ops',
-  ] as const;
-
   // Filter components based on search query
   const filteredComponentsByCategory = useMemo(() => {
     const filtered = searchQuery.trim()

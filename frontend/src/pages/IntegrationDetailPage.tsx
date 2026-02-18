@@ -21,7 +21,6 @@ import {
   Eye,
 } from 'lucide-react';
 
-import { env } from '@/config/env';
 import { useIntegrationStore } from '@/store/integrationStore';
 import { api } from '@/services/api';
 import type { IntegrationCatalogEntry, IntegrationConnection } from '@/services/api';
@@ -670,7 +669,7 @@ function SlackConnectionForm({ onCreated, onCancel }: SlackFormProps) {
     setSubmitting(true);
     setResult(null);
     try {
-      const redirectUri = `${env.VITE_APP_URL}/integrations/callback/slack`;
+      const redirectUri = `${window.location.origin}/integrations/callback/slack`;
       const response = await api.integrations.startOAuth('slack', { redirectUri });
       window.location.href = response.authorizationUrl;
     } catch (err) {
