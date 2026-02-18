@@ -2,47 +2,54 @@
 
 Custom React hooks for reusable state logic and side effects.
 
+## Query Hooks (`queries/`)
+
+**All server-state data fetching uses TanStack Query hooks.** See `frontend/docs/state.md` for the full pattern.
+
+| File                       | Hooks                                                                                                                                    |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `useComponentQueries.ts`   | `useComponents` — Component catalogue with slug/id index                                                                                 |
+| `useWorkflowQueries.ts`    | `useWorkflowsList`, `useWorkflowsSummary`, `useWorkflow`, `useWorkflowRuntimeInputs` — Workflow metadata, detail + inputs                |
+| `useScheduleQueries.ts`    | `useSchedules`, `useCreateSchedule`, `useUpdateSchedule`, `usePauseSchedule`, `useResumeSchedule`, `useRunSchedule`, `useDeleteSchedule` |
+| `useWebhookQueries.ts`     | `useWebhooks`, `useWebhook`, `useWebhookDeliveries`, `useCreateWebhook`, `useUpdateWebhook`, `useDeleteWebhook`                          |
+| `useSecretQueries.ts`      | `useSecrets` — Secret summaries                                                                                                          |
+| `useApiKeyQueries.ts`      | `useApiKeys` — API key management                                                                                                        |
+| `useMcpGroupQueries.ts`    | `useMcpGroups`, `useMcpGroupServers`, `useMcpGroupTemplates`, `useSyncMcpGroupTemplates`                                                 |
+| `useHumanInputQueries.ts`  | `useHumanInputs`, `useInvalidateHumanInputs` — Action center                                                                             |
+| `useExecutionQueries.ts`   | `useExecutionNodeIO`, `useExecutionResult`, `useExecutionRun` — Execution data                                                           |
+| `useRunQueries.ts`         | `useRuns`, `useRunDetail`                                                                                                                |
+| `useArtifactQueries.ts`    | `useArtifactLibrary`, `useRunArtifacts`                                                                                                  |
+| `useIntegrationQueries.ts` | `useIntegrationProviders`, `useIntegrationConnections`, `useProviderConfig`                                                              |
+
+### Adding a New Query Hook
+
+1. Add query keys to `src/lib/queryKeys.ts`
+2. Create `src/hooks/queries/use<Domain>Queries.ts`
+3. Export `use<Domain>` for reads (wraps `useQuery`)
+4. Export `use<Action><Domain>` for writes (wraps `useMutation` + invalidates cache)
+5. Import and use in your component — never call `api.*` directly in components
+
+## Prefetch Hook
+
+- **usePrefetchOnIdle.ts** — Warms TanStack Query cache during browser idle time. Called once in `AppLayout`. Add high-traffic queries here for instant page loads.
+
 ## Real-time Hooks
 
-- **useTerminalStream.ts** - Server-Sent Events for real-time terminal output
-- **useTimelineTerminalStream.ts** - Terminal playback synchronized to timeline position
-- **useWorkflowStream.ts** - WebSocket connections for live workflow status updates
-- **useEventStream.ts** - Execution event processing and timeline generation
-
-## API Hooks
-
-- **useWorkflows.ts** - Workflow CRUD operations and caching
-- **useWorkflowRuns.ts** - Workflow run execution and status tracking
-- **useComponents.ts** - Component catalog and metadata
-- **useFiles.ts** - File upload, download, and management
-- **useSecrets.ts** - Secrets management and credential access
+- **useTerminalStream.ts** — Server-Sent Events for real-time terminal output
+- **useTimelineTerminalStream.ts** — Terminal playback synchronized to timeline position
+- **useWorkflowStream.ts** — WebSocket connections for live workflow status updates
+- **useEventStream.ts** — Execution event processing and timeline generation
 
 ## UI Hooks
 
-- **useDebounce.ts** - Input debouncing for search and filtering
-- **useLocalStorage.ts** - Local storage persistence
-- **useKeyboardShortcuts.ts** - Global keyboard shortcut handling
-- **useModal.ts** - Modal state management
-- **useToast.ts** - Toast notification system
-
-## Real-time Data Flow
-
-```typescript
-// Terminal streaming with timeline synchronization
-const { chunks, isConnected, error } = useTimelineTerminalStream(runId, timelinePosition);
-
-// Live workflow status updates
-const { run, isRunning, progress } = useWorkflowStream(runId);
-
-// Event-driven timeline updates
-const { events, timeline } = useEventStream(runId);
-```
+- **useDebounce.ts** — Input debouncing for search and filtering
+- **useLocalStorage.ts** — Local storage persistence
+- **useKeyboardShortcuts.ts** — Global keyboard shortcut handling
 
 ## Best Practices
 
-- Implement proper cleanup in useEffect hooks
-- Handle connection errors and reconnection logic
-- Use React Query for API data synchronization
+- Use TanStack Query hooks for all API data — never `useState` + `useEffect` for fetching
+- Implement proper cleanup in useEffect hooks (real-time streams only)
+- Use `useMemo` to derive/filter/transform data from query hooks
 - Debounce user inputs to prevent excessive API calls
-- Implement loading and error states for all async operations
 - Use TypeScript generics for reusable hook logic
