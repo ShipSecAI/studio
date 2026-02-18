@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Download, RefreshCw, Copy, ExternalLink } from 'lucide-react';
 import type { ArtifactMetadata } from '@shipsec/shared';
-import { useArtifactStore } from '@/store/artifactStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRunArtifacts, useDownloadArtifact } from '@/hooks/queries/useArtifactQueries';
+import { queryKeys } from '@/lib/queryKeys';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getRemoteUploads } from '@/utils/artifacts';
@@ -29,10 +31,13 @@ interface RunArtifactsPanelProps {
 }
 
 export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
-  const entry = useArtifactStore((state) => (runId ? state.runArtifacts[runId] : undefined));
-  const fetchRunArtifacts = useArtifactStore((state) => state.fetchRunArtifacts);
-  const downloadArtifact = useArtifactStore((state) => state.downloadArtifact);
-  const downloading = useArtifactStore((state) => state.downloading);
+  const queryClient = useQueryClient();
+  const {
+    data: artifacts = [],
+    isLoading: isLoadingArtifacts,
+    error,
+  } = useRunArtifacts(runId ?? undefined);
+  const downloadArtifactMutation = useDownloadArtifact();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedRemoteUri, setCopiedRemoteUri] = useState<string | null>(null);
 
@@ -48,11 +53,11 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
     }
   }, []);
 
-  useEffect(() => {
+  const handleRefresh = useCallback(() => {
     if (runId) {
-      void fetchRunArtifacts(runId);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.artifacts.byRun(runId) });
     }
-  }, [runId, fetchRunArtifacts]);
+  }, [runId, queryClient]);
 
   const content = useMemo(() => {
     if (!runId) {
@@ -63,7 +68,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
       );
     }
 
-    if (!entry || entry.loading) {
+    if (isLoadingArtifacts) {
       return (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
           Loading artifacts…
@@ -71,16 +76,11 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
       );
     }
 
-    if (entry.error) {
+    if (error) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-destructive">
-          <span>{entry.error}</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => fetchRunArtifacts(runId, true)}
-          >
+          <span>{error instanceof Error ? error.message : String(error)}</span>
+          <Button type="button" variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Retry
           </Button>
@@ -88,7 +88,7 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
       );
     }
 
-    if (entry.artifacts.length === 0) {
+    if (artifacts.length === 0) {
       return (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
           No artifacts were saved for this run.
@@ -109,11 +109,13 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
             </tr>
           </thead>
           <tbody>
-            {entry.artifacts.map((artifact) => (
+            {artifacts.map((artifact: ArtifactMetadata) => (
               <ArtifactRow
                 key={artifact.id}
                 artifact={artifact}
-                onDownload={() => downloadArtifact(artifact, { runId })}
+                onDownload={() =>
+                  downloadArtifactMutation.mutate({ artifact, runId: runId ?? undefined })
+                }
                 onCopy={() => handleCopy(artifact.id)}
                 copied={copiedId === artifact.id}
                 onCopyRemoteUri={async (uri: string) => {
@@ -128,7 +130,10 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
                   }
                 }}
                 copiedRemoteUri={copiedRemoteUri}
-                isDownloading={Boolean(downloading[artifact.id])}
+                isDownloading={
+                  downloadArtifactMutation.isPending &&
+                  downloadArtifactMutation.variables?.artifact.id === artifact.id
+                }
               />
             ))}
           </tbody>
@@ -137,19 +142,20 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
     );
   }, [
     runId,
-    entry,
-    fetchRunArtifacts,
-    downloadArtifact,
-    downloading,
+    artifacts,
+    isLoadingArtifacts,
+    error,
+    handleRefresh,
+    downloadArtifactMutation,
     handleCopy,
     copiedId,
     copiedRemoteUri,
   ]);
 
   const handleDownloadAll = () => {
-    if (!entry || !entry.artifacts.length) return;
-    entry.artifacts.forEach((artifact) => {
-      downloadArtifact(artifact, { runId: runId || undefined });
+    if (!artifacts.length) return;
+    artifacts.forEach((artifact: ArtifactMetadata) => {
+      downloadArtifactMutation.mutate({ artifact, runId: runId ?? undefined });
     });
   };
 
@@ -167,15 +173,15 @@ export function RunArtifactsPanel({ runId }: RunArtifactsPanelProps) {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => fetchRunArtifacts(runId, true)}
-            disabled={entry?.loading}
+            onClick={handleRefresh}
+            disabled={isLoadingArtifacts}
             className="gap-2"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
         ) : null}
-        {entry?.artifacts && entry.artifacts.length > 0 && (
+        {artifacts.length > 0 && (
           <Button
             type="button"
             variant="ghost"

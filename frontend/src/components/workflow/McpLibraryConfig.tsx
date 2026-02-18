@@ -4,7 +4,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useMcpServerStore } from '@/store/mcpServerStore';
+import { useMcpServers, useMcpAllTools } from '@/hooks/queries/useMcpServerQueries';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface McpLibraryConfigProps {
   /** Currently selected server IDs */
@@ -23,19 +24,16 @@ interface McpLibraryConfigProps {
  * Fetches available servers from /api/v1/mcp-servers.
  */
 export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibraryConfigProps) {
-  const { servers, tools, isLoading, error, fetchServers, fetchAllTools } = useMcpServerStore();
+  const { data: servers = [], isLoading, error: serversError } = useMcpServers();
+  const { data: tools = [] } = useMcpAllTools();
+  const queryClient = useQueryClient();
+  const error = serversError?.message ?? null;
 
   // Filter out servers that belong to MCP groups - only show custom/individual servers
   const customServers = servers.filter((s) => !s.groupId);
 
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set(value));
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Fetch servers and tools on mount
-  useEffect(() => {
-    fetchServers();
-    fetchAllTools();
-  }, [fetchServers, fetchAllTools]);
 
   // Sync external value changes to local state
   useEffect(() => {
@@ -70,7 +68,10 @@ export function McpLibraryConfig({ value, onChange, disabled = false }: McpLibra
 
     setIsRefreshing(true);
     try {
-      await Promise.all([fetchServers({ force: true }), fetchAllTools()]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['mcpServers'] }),
+        queryClient.invalidateQueries({ queryKey: ['mcpAllTools'] }),
+      ]);
     } finally {
       setIsRefreshing(false);
     }

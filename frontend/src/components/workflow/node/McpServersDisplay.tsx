@@ -1,7 +1,7 @@
 import { Wrench, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { useMcpServerStore } from '@/store/mcpServerStore';
+import { useMcpServers } from '@/hooks/queries/useMcpServerQueries';
 
 interface McpServersDisplayProps {
   enabledServers: string[];
@@ -20,7 +20,7 @@ export function McpServersDisplay({
   position = 'bottom',
   compact = true,
 }: McpServersDisplayProps) {
-  const { servers } = useMcpServerStore();
+  const { data: servers = [] } = useMcpServers();
 
   if (enabledServers.length === 0) {
     return null;

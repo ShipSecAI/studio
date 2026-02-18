@@ -12,7 +12,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { SecretSummary } from '@/schemas/secret';
-import { useSecretStore } from '@/store/secretStore';
+import {
+  useSecrets,
+  useCreateSecret,
+  useUpdateSecret,
+  useRotateSecret,
+  useDeleteSecret,
+} from '@/hooks/queries/useSecretQueries';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
@@ -92,15 +99,13 @@ export function SecretsManager() {
   const roles = useAuthStore((state) => state.roles);
   const canManageSecrets = hasAdminRole(roles);
   const isReadOnly = !canManageSecrets;
-  const secrets = useSecretStore((state) => state.secrets);
-  const loading = useSecretStore((state) => state.loading);
-  const error = useSecretStore((state) => state.error);
-  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
-  const refreshSecrets = useSecretStore((state) => state.refresh);
-  const createSecret = useSecretStore((state) => state.createSecret);
-  const updateSecretMetadata = useSecretStore((state) => state.updateSecret);
-  const deleteSecretEntry = useSecretStore((state) => state.deleteSecret);
-  const rotateSecretValue = useSecretStore((state) => state.rotateSecret);
+  const queryClient = useQueryClient();
+  const { data: secrets = [], isLoading: loading, error: secretsError } = useSecrets();
+  const error = secretsError?.message ?? null;
+  const createSecretMutation = useCreateSecret();
+  const updateSecretMutation = useUpdateSecret();
+  const rotateSecretMutation = useRotateSecret();
+  const deleteSecretMutation = useDeleteSecret();
 
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM);
   const [formError, setFormError] = useState<string | null>(null);
@@ -122,12 +127,6 @@ export function SecretsManager() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const disableDeleting = isReadOnly || isDeleting;
-
-  useEffect(() => {
-    fetchSecrets().catch((err) => {
-      console.error('Failed to load secrets', err);
-    });
-  }, [fetchSecrets]);
 
   useEffect(() => {
     if (error) {
@@ -181,7 +180,7 @@ export function SecretsManager() {
     const normalizedName = formState.name.trim();
     const normalizedTags = parseTags(formState.tags);
     try {
-      await createSecret({
+      await createSecretMutation.mutateAsync({
         name: normalizedName,
         value: formState.value,
         description: formState.description.trim() || undefined,
@@ -257,15 +256,21 @@ export function SecretsManager() {
       let latest = editingSecret;
 
       if (metadataChanged) {
-        latest = await updateSecretMetadata(editingSecret.id, {
-          name: trimmedName,
-          description: normalizedDescription,
-          tags: normalizedTags,
+        latest = await updateSecretMutation.mutateAsync({
+          id: editingSecret.id,
+          input: {
+            name: trimmedName,
+            description: normalizedDescription,
+            tags: normalizedTags,
+          },
         });
       }
 
       if (shouldRotate) {
-        latest = await rotateSecretValue(editingSecret.id, { value: newSecretValue });
+        latest = await rotateSecretMutation.mutateAsync({
+          id: editingSecret.id,
+          input: { value: newSecretValue },
+        });
       }
 
       const actions: string[] = [];
@@ -318,7 +323,7 @@ export function SecretsManager() {
     const secretNameLength = secretName.trim().length;
 
     try {
-      await deleteSecretEntry(deleteTarget.id);
+      await deleteSecretMutation.mutateAsync(deleteTarget.id);
       // Avoid emitting the raw secret name to analytics.
       track(Events.SecretDeleted, { name_length: secretNameLength });
       setListSuccess(`Secret "${secretName}" deleted.`);
@@ -444,7 +449,9 @@ export function SecretsManager() {
                 size="sm"
                 onClick={() => {
                   setListSuccess(null);
-                  refreshSecrets().catch((err) => console.error('Failed to refresh secrets', err));
+                  queryClient
+                    .invalidateQueries({ queryKey: ['secrets'] })
+                    .catch((err) => console.error('Failed to refresh secrets', err));
                 }}
                 disabled={loading}
                 className="self-start sm:self-auto flex-shrink-0"

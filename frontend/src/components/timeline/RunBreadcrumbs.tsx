@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GitBranch, ArrowLeft } from 'lucide-react';
-import { api } from '@/services/api';
+import { useExecutionRun } from '@/hooks/queries/useExecutionQueries';
 import { cn } from '@/lib/utils';
 
 interface RunInfo {
@@ -25,37 +25,20 @@ interface RunBreadcrumbsProps {
  */
 export function RunBreadcrumbs({ currentRun, className, variant = 'inline' }: RunBreadcrumbsProps) {
   const navigate = useNavigate();
-  const [parentRun, setParentRun] = useState<RunInfo | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { data: parentRunData, isLoading: loading } = useExecutionRun(
+    currentRun?.parentRunId ?? null,
+  );
 
-  useEffect(() => {
-    if (!currentRun?.parentRunId) {
-      setParentRun(null);
-      return;
-    }
-
-    const fetchParentRun = async () => {
-      setLoading(true);
-      try {
-        const run = await api.executions.getRun(currentRun.parentRunId!);
-        if (run) {
-          setParentRun({
-            id: run.id as string,
-            workflowId: run.workflowId as string,
-            workflowName: (run as any).workflowName || 'Parent Workflow',
-            parentRunId: (run as any).parentRunId,
-            parentNodeRef: (run as any).parentNodeRef,
-          });
-        }
-      } catch (err) {
-        console.error('Failed to fetch parent run:', err);
-      } finally {
-        setLoading(false);
-      }
+  const parentRun = useMemo<RunInfo | null>(() => {
+    if (!parentRunData) return null;
+    return {
+      id: parentRunData.id as string,
+      workflowId: parentRunData.workflowId as string,
+      workflowName: (parentRunData as any).workflowName || 'Parent Workflow',
+      parentRunId: (parentRunData as any).parentRunId,
+      parentNodeRef: (parentRunData as any).parentNodeRef,
     };
-
-    fetchParentRun();
-  }, [currentRun?.parentRunId]);
+  }, [parentRunData]);
 
   // Only show breadcrumbs if this is a child run
   if (!currentRun?.parentRunId) {

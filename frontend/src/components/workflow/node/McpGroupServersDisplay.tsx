@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { Wrench, CheckCircle2, AlertCircle, HelpCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { mcpGroupsApi, type McpGroupServerResponse } from '@/services/mcpGroupsApi';
+import { useMcpGroups, useMcpGroupServers } from '@/hooks/queries/useMcpGroupQueries';
 
 interface McpGroupServersDisplayProps {
   groupSlug: string;
@@ -20,29 +20,10 @@ export function McpGroupServersDisplay({
   enabledServers,
   position = 'top',
 }: McpGroupServersDisplayProps) {
-  const [servers, setServers] = useState<McpGroupServerResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchGroupServers = async () => {
-      try {
-        setIsLoading(true);
-        const groups = await mcpGroupsApi.listGroups();
-        const group = groups.find((g) => g.slug === groupSlug);
-
-        if (group) {
-          const groupServers = await mcpGroupsApi.getGroupServers(group.id);
-          setServers(groupServers.filter((s) => s.enabled));
-        }
-      } catch (err) {
-        console.error('Failed to load group servers:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchGroupServers();
-  }, [groupSlug]);
+  const { data: groups = [] } = useMcpGroups();
+  const group = useMemo(() => groups.find((g) => g.slug === groupSlug), [groups, groupSlug]);
+  const { data: rawServers = [], isLoading } = useMcpGroupServers(group?.id);
+  const servers = useMemo(() => rawServers.filter((s) => s.enabled), [rawServers]);
 
   // Filter to only enabled servers that are selected
   const selectedServers = servers.filter((s) => enabledServers.includes(s.serverId));

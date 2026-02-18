@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useComponentStore } from '@/store/componentStore';
+import { useComponents } from '@/hooks/queries/useComponentQueries';
 import { ParameterFieldWrapper } from './ParameterField';
 import { WebhookDetails } from './WebhookDetails';
 import { SecretSelect } from '@/components/inputs/SecretSelect';
@@ -47,7 +47,7 @@ import {
 } from '@/utils/portUtils';
 import { API_V1_URL, api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
-import { useApiKeyStore } from '@/store/apiKeyStore';
+import { useApiKeys, useApiKeyUiStore } from '@/hooks/queries/useApiKeyQueries';
 import type { WorkflowSchedule } from '@shipsec/shared';
 import { useOptionalWorkflowSchedulesContext } from '@/features/workflow-builder/contexts/useWorkflowSchedulesContext';
 import { formatScheduleTimestamp, scheduleStatusVariant } from './schedules-utils';
@@ -298,7 +298,14 @@ export function ConfigPanel({
   onViewSchedules,
 }: ConfigPanelProps) {
   const isMobile = useIsMobile();
-  const { getComponent, loading } = useComponentStore();
+  const { data: componentIndex, isLoading: loading } = useComponents();
+  const getComponent = (ref: string) => {
+    if (!componentIndex || !ref) return null;
+    if (componentIndex.byId[ref]) return componentIndex.byId[ref];
+    const idFromSlug = componentIndex.slugIndex[ref];
+    if (idFromSlug && componentIndex.byId[idFromSlug]) return componentIndex.byId[idFromSlug];
+    return null;
+  };
   const { getEdges, getNodes } = useReactFlow();
   const fallbackWorkflowId = useWorkflowStore((state) => state.metadata.id);
   const workflowId = workflowIdProp ?? fallbackWorkflowId;
@@ -307,13 +314,9 @@ export function ConfigPanel({
 
   // Get API key for curl command
 
-  const lastCreatedKey = useApiKeyStore((state) => state.lastCreatedKey);
-  const fetchApiKeys = useApiKeyStore((state) => state.fetchApiKeys);
-
-  // Fetch API keys on mount if not already loaded
-  useEffect(() => {
-    fetchApiKeys().catch(console.error);
-  }, [fetchApiKeys]);
+  const lastCreatedKey = useApiKeyUiStore((state) => state.lastCreatedKey);
+  // API keys are auto-fetched by useApiKeys() used elsewhere; just ensure they're loaded
+  useApiKeys();
 
   // Use lastCreatedKey (full key) if available, otherwise null (will show placeholder)
   const activeApiKey = lastCreatedKey || null;
@@ -380,7 +383,7 @@ export function ConfigPanel({
   const isToolMode = Boolean(
     (nodeData.config as any)?.isToolMode || (nodeData.config as any)?.mode === 'tool',
   );
-  const component = getComponent(componentRef);
+  const component = componentRef ? getComponent(componentRef) : null;
 
   if (!component) {
     if (loading) {

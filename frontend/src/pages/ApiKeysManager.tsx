@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,7 +21,13 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Copy, Trash2, ShieldOff, AlertTriangle } from 'lucide-react';
-import { useApiKeyStore } from '@/store/apiKeyStore';
+import {
+  useApiKeys,
+  useCreateApiKey,
+  useRevokeApiKey,
+  useDeleteApiKey,
+  useApiKeyUiStore,
+} from '@/hooks/queries/useApiKeyQueries';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import type { CreateApiKeyInput } from '@/schemas/apiKey';
@@ -63,15 +69,13 @@ export function ApiKeysManager() {
   const canManageKeys = hasAdminRole(roles);
   const isReadOnly = !canManageKeys;
 
-  const apiKeys = useApiKeyStore((state) => state.apiKeys);
-  const loading = useApiKeyStore((state) => state.loading);
-  const error = useApiKeyStore((state) => state.error);
-  const fetchApiKeys = useApiKeyStore((state) => state.fetchApiKeys);
-  const createApiKey = useApiKeyStore((state) => state.createApiKey);
-  const revokeApiKey = useApiKeyStore((state) => state.revokeApiKey);
-  const deleteApiKey = useApiKeyStore((state) => state.deleteApiKey);
-  const lastCreatedKey = useApiKeyStore((state) => state.lastCreatedKey);
-  const clearLastCreatedKey = useApiKeyStore((state) => state.clearLastCreatedKey);
+  const { data: apiKeys = [], isLoading: loading, error: apiKeysError } = useApiKeys();
+  const error = apiKeysError?.message ?? null;
+  const createApiKeyMutation = useCreateApiKey();
+  const revokeApiKeyMutation = useRevokeApiKey();
+  const deleteApiKeyMutation = useDeleteApiKey();
+  const lastCreatedKey = useApiKeyUiStore((state) => state.lastCreatedKey);
+  const clearLastCreatedKey = useApiKeyUiStore((state) => state.clearLastCreatedKey);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [formState, setFormState] = useState<CreateApiKeyInput>(INITIAL_FORM);
@@ -85,10 +89,6 @@ export function ApiKeysManager() {
     type: 'revoke' | 'delete';
     target: ApiKeyResponseDto;
   } | null>(null);
-
-  useEffect(() => {
-    fetchApiKeys().catch(console.error);
-  }, [fetchApiKeys]);
 
   const handleCreateOpenChange = (open: boolean) => {
     setIsCreateOpen(open);
@@ -131,7 +131,7 @@ export function ApiKeysManager() {
     setIsSubmitting(true);
 
     try {
-      await createApiKey(formState);
+      await createApiKeyMutation.mutateAsync(formState);
       setSuccessMessage('API Key created successfully.');
       // Don't close dialog yet because we need to show the key
     } catch (err) {
@@ -146,10 +146,10 @@ export function ApiKeysManager() {
     if (!confirmAction) return;
     try {
       if (confirmAction.type === 'revoke') {
-        await revokeApiKey(confirmAction.target.id);
+        await revokeApiKeyMutation.mutateAsync(confirmAction.target.id);
         setSuccessMessage(`API Key "${confirmAction.target.name}" revoked.`);
       } else {
-        await deleteApiKey(confirmAction.target.id);
+        await deleteApiKeyMutation.mutateAsync(confirmAction.target.id);
         setSuccessMessage(`API Key "${confirmAction.target.name}" deleted.`);
       }
       setConfirmAction(null);

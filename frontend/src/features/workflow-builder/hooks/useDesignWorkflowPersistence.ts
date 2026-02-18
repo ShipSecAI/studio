@@ -7,8 +7,11 @@ import { serializeWorkflowForCreate, serializeWorkflowForUpdate } from '@/utils/
 import { cloneNodes, cloneEdges, type GraphSnapshot } from './useWorkflowGraphControllers';
 import { track, Events } from '@/features/analytics/events';
 import { getNodeValidationWarnings } from '@/utils/connectionValidation';
-import { useComponentStore } from '@/store/componentStore';
-import { useSecretStore } from '@/store/secretStore';
+import { getComponentFromCache } from '@/hooks/queries/useComponentQueries';
+import { useSecrets } from '@/hooks/queries/useSecretQueries';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/queryKeys';
+import type { SecretSummary } from '@/schemas/secret';
 
 interface WorkflowMetadataShape {
   id: string | null;
@@ -85,17 +88,9 @@ export function useDesignWorkflowPersistence({
   const [lastSavedMetadata, setLastSavedMetadata] = useState<SavedMetadata | null>(null);
   const [hasGraphChanges, setHasGraphChanges] = useState(false);
   const [hasMetadataChanges, setHasMetadataChanges] = useState(false);
-  const secretsInitialized = useSecretStore((state) => state.initialized);
-  const secretsLoading = useSecretStore((state) => state.loading);
-  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
 
-  useEffect(() => {
-    if (!secretsInitialized && !secretsLoading) {
-      fetchSecrets().catch((error) => {
-        console.error('Failed to preload secrets:', error);
-      });
-    }
-  }, [fetchSecrets, secretsInitialized, secretsLoading]);
+  // Preload secrets via TanStack Query (replaces manual Zustand fetch)
+  useSecrets();
 
   useEffect(() => {
     const currentSignature = computeGraphSignature(designNodes, designEdges);
@@ -159,16 +154,16 @@ export function useDesignWorkflowPersistence({
         return;
       }
 
-      // --- NEW: VALIDATION CHECK ---
-      const getComponent = useComponentStore.getState().getComponent;
-      await useSecretStore.getState().fetchSecrets();
-      const secrets = useSecretStore.getState().secrets;
+      // --- VALIDATION CHECK ---
+      // Ensure secrets are fresh in TanStack Query cache
+      await queryClient.refetchQueries({ queryKey: queryKeys.secrets.all() });
+      const secrets = queryClient.getQueryData<SecretSummary[]>(queryKeys.secrets.all()) ?? [];
       const allIssues: string[] = [];
 
       designNodes.forEach((node) => {
         const nodeData = node.data as any;
         const componentRef = nodeData.componentId ?? nodeData.componentSlug;
-        const component = getComponent(componentRef);
+        const component = getComponentFromCache(componentRef);
 
         if (!component) return;
 

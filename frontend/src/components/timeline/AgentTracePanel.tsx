@@ -12,8 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useExecutionTimelineStore } from '@/store/executionTimelineStore';
 import { useWorkflowUiStore } from '@/store/workflowUiStore';
-import { useRunStore } from '@/store/runStore';
-import { api, API_V1_URL, getApiAuthHeaders } from '@/services/api';
+import { getRunByIdFromCache } from '@/hooks/queries/useRunQueries';
+import { useExecutionResult } from '@/hooks/queries/useExecutionQueries';
+import { API_V1_URL, getApiAuthHeaders } from '@/services/api';
 import { cn } from '@/lib/utils';
 import type {
   AgentNodeOutput,
@@ -70,50 +71,26 @@ interface AgentTracePanelProps {
 }
 
 export function AgentTracePanel({ runId }: AgentTracePanelProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [outputs, setOutputs] = useState<Record<string, AgentNodeOutput>>({});
   const selectedNodeId = useExecutionTimelineStore((state) => state.selectedNodeId);
   const selectNode = useExecutionTimelineStore((state) => state.selectNode);
   const timelineEvents = useExecutionTimelineStore((state) => state.events);
   const setInspectorTab = useWorkflowUiStore((state) => state.setInspectorTab);
   const { runId: liveRunId, status: executionStatus } = useWorkflowExecution();
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!runId) {
-      setOutputs({});
-      setError(null);
-      return;
-    }
+  const {
+    data: resultData,
+    isLoading: loading,
+    error: queryError,
+    refetch: refetchResult,
+  } = useExecutionResult(runId);
+  const error = queryError?.message ?? null;
+  const outputs = useMemo(() => {
+    if (!resultData) return {};
+    const typed = resultData as WorkflowRunResult;
+    return typed.result?.outputs ?? {};
+  }, [resultData]);
 
-    const fetchResult = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await api.executions.getResult(runId);
-        if (cancelled) return;
-        const typed = result as WorkflowRunResult;
-        setOutputs(typed.result?.outputs ?? {});
-      } catch (err) {
-        if (cancelled) return;
-        console.error('Failed to load agent outputs', err);
-        setError(err instanceof Error ? err.message : 'Failed to load agent outputs');
-        setOutputs({});
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void fetchResult();
-    return () => {
-      cancelled = true;
-    };
-  }, [runId]);
-
-  const selectedRun = useRunStore((state) => (runId ? state.getRunById(runId) : undefined));
+  const selectedRun = runId ? getRunByIdFromCache(runId) : undefined;
   const runStatus = selectedRun?.status ?? null;
   const executionStatusUpper = executionStatus?.toUpperCase();
   const fallbackStatus =
@@ -200,7 +177,7 @@ export function AgentTracePanel({ runId }: AgentTracePanelProps) {
       <div className="h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
         <p className="text-sm font-medium text-destructive">Failed to load agent trace.</p>
         <p className="text-xs text-muted-foreground">{error}</p>
-        <Button size="sm" variant="outline" onClick={() => setOutputs({})}>
+        <Button size="sm" variant="outline" onClick={() => refetchResult()}>
           Retry
         </Button>
       </div>

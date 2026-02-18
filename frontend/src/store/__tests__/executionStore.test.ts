@@ -67,6 +67,64 @@ mock.module('@/services/api', () => ({
   },
 }));
 
+// Mock authStore so queryKeys.getOrgScope() works in CI where Zustand stores
+// may not initialize properly
+mock.module('@/store/authStore', () => ({
+  useAuthStore: Object.assign(
+    mock(() => ({})),
+    {
+      getState: mock(() => ({ organizationId: 'test-org' })),
+      subscribe: mock(() => () => {}),
+      setState: mock(),
+    },
+  ),
+}));
+
+// Mock executionQueryOptions to avoid queryKeys → authStore dependency chain
+mock.module('@/lib/executionQueryOptions', () => ({
+  executionStatusOptions: (runId: string) => ({
+    queryKey: ['executions', 'status', runId],
+    queryFn: () => mockExecutions.getStatus(),
+    staleTime: 0,
+    gcTime: 30_000,
+    retry: false,
+  }),
+  executionTraceOptions: (runId: string) => ({
+    queryKey: ['executions', 'trace', runId],
+    queryFn: () => mockExecutions.getTrace(),
+    staleTime: 0,
+    gcTime: 30_000,
+    retry: false,
+  }),
+  executionTerminalChunksOptions: (runId: string, nodeRef: string, stream: string) => ({
+    queryKey: ['executions', 'terminalChunks', runId, nodeRef, stream],
+    queryFn: mock(),
+    staleTime: 10_000,
+    gcTime: 30_000,
+  }),
+}));
+
+// Mock queryClient so fetchQuery calls the queryFn from our mocked options
+mock.module('@/lib/queryClient', () => ({
+  queryClient: {
+    fetchQuery: mock(async (options: { queryFn: () => Promise<any> }) => {
+      return options.queryFn();
+    }),
+    getQueryData: mock(() => undefined),
+    setQueryData: mock(),
+    invalidateQueries: mock(),
+    prefetchQuery: mock(),
+  },
+}));
+
+// Mock invalidateRunsForWorkflow to avoid unrelated side effects
+mock.module('@/hooks/queries/useRunQueries', () => ({
+  invalidateRunsForWorkflow: mock(),
+  upsertRunInCache: mock(),
+  fetchMoreRuns: mock(),
+  getRunByIdFromCache: mock(() => null),
+}));
+
 import { useExecutionStore } from '../executionStore';
 import type { ExecutionLog, ExecutionStatusResponse } from '@/schemas/execution';
 

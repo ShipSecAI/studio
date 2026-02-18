@@ -16,10 +16,12 @@ import { SecretSelect } from '@/components/inputs/SecretSelect';
 import { LeanSelect, type SelectOption } from '@/components/inputs/LeanSelect';
 import type { Parameter } from '@/schemas/component';
 import type { InputMapping } from '@/schemas/node';
-import { useSecretStore } from '@/store/secretStore';
-import { useIntegrationStore } from '@/store/integrationStore';
+import { useSecrets } from '@/hooks/queries/useSecretQueries';
+import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
+import { useArtifactLibrary } from '@/hooks/queries/useArtifactQueries';
+import { useWorkflowsList } from '@/hooks/queries/useWorkflowQueries';
 import { getCurrentUserId } from '@/lib/currentUser';
-import { useArtifactStore } from '@/store/artifactStore';
+import { useQueryClient } from '@tanstack/react-query';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -59,19 +61,19 @@ export function ParameterField({
   const [jsonError, setJsonError] = useState<string | null>(null);
   const navigate = useNavigate();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const queryClient = useQueryClient();
 
-  const secrets = useSecretStore((state) => state.secrets);
-  const secretsError = useSecretStore((state) => state.error);
-  const fetchSecrets = useSecretStore((state) => state.fetchSecrets);
-  const refreshSecrets = useSecretStore((state) => state.refresh);
-
-  const integrationConnections = useIntegrationStore((state) => state.connections);
-  const fetchIntegrationConnections = useIntegrationStore((state) => state.fetchConnections);
-  const integrationLoading = useIntegrationStore((state) => state.loadingConnections);
-  const integrationError = useIntegrationStore((state) => state.error);
+  const { data: secrets = [], error: secretsQueryError } = useSecrets();
+  const secretsError = secretsQueryError?.message ?? null;
 
   const currentUserId = useMemo(() => getCurrentUserId(), []);
-  const hasFetchedConnectionsRef = useRef(false);
+  const {
+    data: integrationConnections = [],
+    isLoading: integrationLoading,
+    error: integrationQueryError,
+  } = useIntegrationConnections(currentUserId);
+  const integrationError = integrationQueryError?.message ?? null;
+
   const autoSelectedConnectionRef = useRef(false);
 
   const authModeFromParameters: 'manual' | 'connection' = useMemo(() => {
@@ -101,9 +103,21 @@ export function ParameterField({
     [integrationConnections],
   );
 
-  const [workflowOptions, setWorkflowOptions] = useState<{ id: string; name: string }[]>([]);
-  const [workflowOptionsLoading, setWorkflowOptionsLoading] = useState(false);
-  const [workflowOptionsError, setWorkflowOptionsError] = useState<string | null>(null);
+  const {
+    data: rawWorkflowList = [],
+    isLoading: workflowListLoading,
+    error: workflowListError,
+  } = useWorkflowsList();
+  const workflowOptions = useMemo(
+    () =>
+      rawWorkflowList
+        .filter((w) => w.id !== currentBuilderWorkflowId)
+        .map((w) => ({ id: w.id, name: w.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [rawWorkflowList, currentBuilderWorkflowId],
+  );
+  const workflowOptionsLoading = workflowListLoading;
+  const workflowOptionsError = workflowListError?.message ?? null;
   const [workflowPortSyncError, setWorkflowPortSyncError] = useState<string | null>(null);
 
   const selectedWorkflowId =
@@ -134,37 +148,6 @@ export function ParameterField({
 
   useEffect(() => {
     if (!isWorkflowSelector) return;
-
-    let cancelled = false;
-    setWorkflowOptionsLoading(true);
-    setWorkflowOptionsError(null);
-
-    api.workflows
-      .list()
-      .then((workflows) => {
-        if (cancelled) return;
-        const options = workflows
-          .filter((workflow) => workflow.id !== currentBuilderWorkflowId)
-          .map((workflow) => ({ id: workflow.id, name: workflow.name }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        setWorkflowOptions(options);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setWorkflowOptionsError(error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setWorkflowOptionsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isWorkflowSelector, currentBuilderWorkflowId]);
-
-  useEffect(() => {
-    if (!isWorkflowSelector) return;
     if (!selectedWorkflowId) return;
 
     const existingRuntimeInputs = (parameters as any)?.childRuntimeInputs;
@@ -173,19 +156,6 @@ export function ParameterField({
     if (!shouldSync) return;
     void syncCallWorkflowPorts(selectedWorkflowId);
   }, [isWorkflowSelector, selectedWorkflowId, parameters, syncCallWorkflowPorts]);
-
-  useEffect(() => {
-    if (!isConnectionSelector) {
-      return;
-    }
-    if (hasFetchedConnectionsRef.current) {
-      return;
-    }
-    hasFetchedConnectionsRef.current = true;
-    fetchIntegrationConnections(currentUserId).catch((error) => {
-      console.error('Failed to load integration connections', error);
-    });
-  }, [isConnectionSelector, fetchIntegrationConnections, currentUserId]);
 
   useEffect(() => {
     if (!isConnectionSelector || integrationLoading) {
@@ -224,7 +194,7 @@ export function ParameterField({
 
   const handleRefreshConnections = async () => {
     try {
-      await fetchIntegrationConnections(currentUserId, true);
+      await queryClient.invalidateQueries({ queryKey: ['integrationConnections'] });
     } catch (error) {
       console.error('Failed to refresh integration connections', error);
     }
@@ -234,15 +204,6 @@ export function ParameterField({
 
   // Secret IDs are resolved to actual values at runtime by the worker
   // and selecting from store is mandatory to ensure security and portability.
-
-  useEffect(() => {
-    if (parameter.type !== 'secret') {
-      return;
-    }
-    fetchSecrets().catch((error) => {
-      console.error('Failed to load secrets', error);
-    });
-  }, [parameter.type, fetchSecrets]);
 
   useEffect(() => {
     if (parameter.type !== 'secret' || isReceivingInput) {
@@ -705,7 +666,7 @@ export function ParameterField({
             }}
             disabled={isReceivingInput || disableForGithubConnection}
             onRefresh={() => {
-              void refreshSecrets();
+              void queryClient.invalidateQueries({ queryKey: ['secrets'] });
             }}
           />
 
@@ -817,34 +778,21 @@ function ArtifactSelector({
   onChange: (value: string | undefined) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [hasRequestedLibrary, setHasRequestedLibrary] = useState(false);
-  const fetchLibrary = useArtifactStore((state) => state.fetchLibrary);
-  const libraryLoading = useArtifactStore((state) => state.libraryLoading);
-  const libraryError = useArtifactStore((state) => state.libraryError);
-  const library = useArtifactStore((state) => state.library);
-  const runArtifacts = useArtifactStore((state) => state.runArtifacts);
-
-  useEffect(() => {
-    if (pickerOpen && !hasRequestedLibrary) {
-      setHasRequestedLibrary(true);
-      void fetchLibrary();
-    }
-  }, [pickerOpen, hasRequestedLibrary, fetchLibrary]);
+  const queryClient = useQueryClient();
+  const {
+    data: library = [],
+    isLoading: libraryLoading,
+    error: libraryQueryError,
+  } = useArtifactLibrary();
+  const libraryError = libraryQueryError?.message ?? null;
 
   const knownArtifacts = useMemo(() => {
     const map = new Map<string, ArtifactMetadata>();
     for (const artifact of library) {
       map.set(artifact.id, artifact);
     }
-    Object.values(runArtifacts).forEach((entry) => {
-      entry?.artifacts.forEach((artifact) => {
-        if (!map.has(artifact.id)) {
-          map.set(artifact.id, artifact);
-        }
-      });
-    });
     return map;
-  }, [library, runArtifacts]);
+  }, [library]);
 
   const selectedArtifact = value ? (knownArtifacts.get(value) ?? null) : null;
 
@@ -912,7 +860,7 @@ function ArtifactSelector({
         libraryLoading={libraryLoading}
         libraryError={libraryError}
         artifacts={library}
-        onRefresh={fetchLibrary}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['artifactLibrary'] })}
       />
     </div>
   );
