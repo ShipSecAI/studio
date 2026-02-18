@@ -1,33 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-const ReactQueryDevtools = lazy(() =>
-  import('@tanstack/react-query-devtools').then((mod) => ({
-    default: mod.ReactQueryDevtools,
-  })),
-);
 import { queryClient } from '@/lib/queryClient';
-import { WorkflowList } from '@/pages/WorkflowList';
-import { WorkflowBuilder } from '@/features/workflow-builder/WorkflowBuilder';
-import { SecretsManager } from '@/pages/SecretsManager';
-import { ApiKeysManager } from '@/pages/ApiKeysManager';
-import { IntegrationsManager } from '@/pages/IntegrationsManager';
-import { IntegrationDetailPage } from '@/pages/IntegrationDetailPage';
-import { ArtifactLibrary } from '@/pages/ArtifactLibrary';
-import { McpLibraryPage } from '@/pages/McpLibraryPage';
-import { IntegrationCallback } from '@/pages/IntegrationCallback';
-import { NotFound } from '@/pages/NotFound';
-import { WebhooksPage } from '@/pages/WebhooksPage';
-import { WebhookEditorPage } from '@/pages/WebhookEditorPage';
-import { SchedulesPage } from '@/pages/SchedulesPage';
-import { ActionCenterPage } from '@/pages/ActionCenterPage';
-import { RunRedirect } from '@/pages/RunRedirect';
-import { GitHubPage } from '@/pages/GitHubPage';
-import { ScanResultPage } from '@/pages/ScanResultPage';
-import CreateTriggerRulePage from '@/pages/CreateTriggerRulePage';
-import EditTriggerRulePage from '@/pages/EditTriggerRulePage';
-import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
-import { AwsSecurityDashboard } from '@/pages/AwsSecurityDashboard';
 import { ToastProvider } from '@/components/ui/toast-provider';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthProvider } from '@/auth/auth-context';
@@ -39,6 +13,11 @@ import { useCommandPaletteKeyboard } from '@/features/command-palette/useCommand
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const ReactQueryDevtools = lazy(() =>
+  import('@tanstack/react-query-devtools').then((mod) => ({
+    default: mod.ReactQueryDevtools,
+  })),
+);
 const CommandPalette = lazy(() =>
   import('@/features/command-palette/CommandPalette').then((m) => ({ default: m.CommandPalette })),
 );
@@ -100,43 +79,13 @@ const EditTriggerRulePage = lazy(() => import('@/pages/EditTriggerRulePage'));
 const IntegrationDetailPage = lazy(() =>
   import('@/pages/IntegrationDetailPage').then((m) => ({ default: m.IntegrationDetailPage })),
 );
-const AwsSecurityDashboard = lazy(() =>
-  import('@/pages/AwsSecurityDashboard').then((m) => ({ default: m.AwsSecurityDashboard })),
-);
 const SecurityDashboard = lazy(() =>
   import('@/pages/SecurityDashboard').then((m) => ({ default: m.SecurityDashboardContent })),
 );
-
-// Lazy-load CommandPalette — it pulls in the entire lucide-react barrel (~350KB)
-const CommandPalette = lazy(() =>
-  import('@/features/command-palette/CommandPalette').then((m) => ({
-    default: m.CommandPalette,
-  })),
+const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
+const WorkflowTemplatesPage = lazy(() =>
+  import('@/pages/WorkflowTemplatesPage').then((m) => ({ default: m.WorkflowTemplatesPage })),
 );
-
-function PageSkeleton() {
-  return (
-    <div className="flex-1 flex flex-col">
-      <div className="h-[52px] border-b flex items-center px-4 gap-4">
-        <Skeleton className="h-8 w-8 rounded-lg" />
-        <Skeleton className="h-5 w-48" />
-      </div>
-      <div className="flex-1 p-6 space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-5/6" />
-        <Skeleton className="h-32 w-full rounded-lg" />
-        <div className="grid grid-cols-3 gap-4">
-          <Skeleton className="h-24 rounded-lg" />
-          <Skeleton className="h-24 rounded-lg" />
-          <Skeleton className="h-24 rounded-lg" />
-        </div>
-      </div>
-    </div>
-  );
-}
-import { CommandPalette, useCommandPaletteKeyboard } from '@/features/command-palette';
-import { AnalyticsSettingsPage } from '@/pages/AnalyticsSettingsPage';
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration();
@@ -174,9 +123,26 @@ function App() {
                 <PostHogClerkBridge />
                 <AppLayout>
                   <ProtectedRoute>
-                    <Suspense fallback={<PageSkeleton />}>
+                    <Suspense
+                      fallback={
+                        <div className="container py-6 space-y-6">
+                          <div className="flex items-center justify-between">
+                            <Skeleton className="h-8 w-48" />
+                            <Skeleton className="h-9 w-28" />
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <Skeleton className="h-28 rounded-lg" />
+                            <Skeleton className="h-28 rounded-lg" />
+                            <Skeleton className="h-28 rounded-lg" />
+                          </div>
+                          <Skeleton className="h-64 rounded-lg" />
+                        </div>
+                      }
+                    >
                       <Routes>
-                        <Route path="/" element={<WorkflowList />} />
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/builder" element={<WorkflowList />} />
+                        <Route path="/templates" element={<WorkflowTemplatesPage />} />
                         <Route
                           path="/workflows/:id"
                           element={
@@ -204,8 +170,17 @@ function App() {
                         <Route path="/secrets" element={<SecretsManager />} />
                         <Route path="/api-keys" element={<ApiKeysManager />} />
                         <Route path="/integrations" element={<IntegrationsManager />} />
+                        <Route path="/integrations/github" element={<GitHubPage />} />
+                        <Route
+                          path="/integrations/github/triggers/new"
+                          element={<CreateTriggerRulePage />}
+                        />
+                        <Route
+                          path="/integrations/github/triggers/:id"
+                          element={<EditTriggerRulePage />}
+                        />
+                        <Route path="/integrations/github/scans/:id" element={<ScanResultPage />} />
                         <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
-                        <Route path="/dashboards/aws-security" element={<AwsSecurityDashboard />} />
                         <Route path="/webhooks" element={<WebhooksPage />} />
                         <Route path="/webhooks/new" element={<WebhookEditorPage />} />
                         <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
@@ -214,12 +189,9 @@ function App() {
                         <Route path="/schedules" element={<SchedulesPage />} />
                         <Route path="/action-center" element={<ActionCenterPage />} />
                         <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
+                        <Route path="/dashboards/security" element={<SecurityDashboard />} />
                         <Route path="/artifacts" element={<ArtifactLibrary />} />
                         <Route path="/mcp-library" element={<McpLibraryPage />} />
-                        <Route path="/github" element={<GitHubPage />} />
-                        <Route path="/github/triggers/new" element={<CreateTriggerRulePage />} />
-                        <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
-                        <Route path="/github/scans/:id" element={<ScanResultPage />} />
                         <Route path="/runs/:runId" element={<RunRedirect />} />
                         <Route
                           path="/integrations/callback/:provider"
@@ -232,103 +204,13 @@ function App() {
                 </AppLayout>
               </CommandPaletteProvider>
             </BrowserRouter>
+            {import.meta.env.DEV && import.meta.env.VITE_DISABLE_DEVTOOLS !== 'true' && (
+              <Suspense fallback={null}>
+                <ReactQueryDevtools />
+              </Suspense>
+            )}
           </ToastProvider>
-          {import.meta.env.DEV && import.meta.env.VITE_DISABLE_DEVTOOLS !== 'true' && (
-            <Suspense fallback={null}>
-              <ReactQueryDevtools />
-            </Suspense>
-          )}
         </QueryClientProvider>
-        <ToastProvider>
-          <BrowserRouter>
-            <CommandPaletteProvider>
-              {/* Analytics wiring */}
-              <AnalyticsRouterListener />
-              <PostHogClerkBridge />
-              <AppLayout>
-                <ProtectedRoute>
-                  <Suspense
-                    fallback={
-                      <div className="container py-6 space-y-6">
-                        <div className="flex items-center justify-between">
-                          <Skeleton className="h-8 w-48" />
-                          <Skeleton className="h-9 w-28" />
-                        </div>
-                        <div className="grid gap-4 md:grid-cols-3">
-                          <Skeleton className="h-28 rounded-lg" />
-                          <Skeleton className="h-28 rounded-lg" />
-                          <Skeleton className="h-28 rounded-lg" />
-                        </div>
-                        <Skeleton className="h-64 rounded-lg" />
-                      </div>
-                    }
-                  >
-                    <Routes>
-                      <Route path="/" element={<HomePage />} />
-                      <Route path="/builder" element={<WorkflowList />} />
-                      <Route path="/templates" element={<WorkflowTemplatesPage />} />
-                      <Route
-                        path="/workflows/:id"
-                        element={
-                          <ProtectedRoute>
-                            <WorkflowBuilder />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/workflows/:id/runs"
-                        element={
-                          <ProtectedRoute>
-                            <WorkflowBuilder />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="/workflows/:id/runs/:runId"
-                        element={
-                          <ProtectedRoute>
-                            <WorkflowBuilder />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route path="/secrets" element={<SecretsManager />} />
-                      <Route path="/api-keys" element={<ApiKeysManager />} />
-                      <Route path="/integrations" element={<IntegrationsManager />} />
-                      <Route path="/integrations/github" element={<GitHubPage />} />
-                      <Route
-                        path="/integrations/github/triggers/new"
-                        element={<CreateTriggerRulePage />}
-                      />
-                      <Route
-                        path="/integrations/github/triggers/:id"
-                        element={<EditTriggerRulePage />}
-                      />
-                      <Route path="/integrations/github/scans/:id" element={<ScanResultPage />} />
-                      <Route path="/integrations/:provider" element={<IntegrationDetailPage />} />
-                      <Route path="/webhooks" element={<WebhooksPage />} />
-                      <Route path="/webhooks/new" element={<WebhookEditorPage />} />
-                      <Route path="/webhooks/:id" element={<WebhookEditorPage />} />
-                      <Route path="/webhooks/:id/deliveries" element={<WebhookEditorPage />} />
-                      <Route path="/webhooks/:id/settings" element={<WebhookEditorPage />} />
-                      <Route path="/schedules" element={<SchedulesPage />} />
-                      <Route path="/action-center" element={<ActionCenterPage />} />
-                      <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
-                      <Route path="/dashboards/security" element={<SecurityDashboard />} />
-                      <Route path="/artifacts" element={<ArtifactLibrary />} />
-                      <Route path="/mcp-library" element={<McpLibraryPage />} />
-                      <Route path="/runs/:runId" element={<RunRedirect />} />
-                      <Route
-                        path="/integrations/callback/:provider"
-                        element={<IntegrationCallback />}
-                      />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </Suspense>
-                </ProtectedRoute>
-              </AppLayout>
-            </CommandPaletteProvider>
-          </BrowserRouter>
-        </ToastProvider>
       </AuthIntegration>
     </AuthProvider>
   );

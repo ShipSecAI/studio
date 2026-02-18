@@ -343,6 +343,10 @@ describe('WorkflowsService', () => {
     isEnabled: vi.fn().mockReturnValue(true),
   };
 
+  const systemWorkflowsServiceMock = {
+    ensureSystemWorkflows: vi.fn().mockResolvedValue(undefined),
+  };
+
   const buildTemporalStub = (overrides?: Partial<WorkflowRunStatus>) => {
     const temporalStub: Pick<
       TemporalService,
@@ -407,6 +411,7 @@ describe('WorkflowsService', () => {
       traceRepositoryMock as any,
       temporalService,
       analyticsServiceMock as any,
+      systemWorkflowsServiceMock as any,
     );
   });
 
@@ -664,6 +669,7 @@ describe('WorkflowsService', () => {
       traceRepositoryMock as any,
       failureTemporalService,
       analyticsServiceMock as any,
+      systemWorkflowsServiceMock as any,
     );
 
     const versionRecord = createWorkflowVersionRecord('workflow-id');

@@ -45,6 +45,7 @@ export default function CreateTriggerRulePage() {
   const [workflowId, setWorkflowId] = useState('');
   const [postPrComment, setPostPrComment] = useState(true);
   const [postPrReview, setPostPrReview] = useState(false);
+  const [createCheckRun, setCreateCheckRun] = useState(true);
   const [failOn, setFailOn] = useState('high');
   const [enabled, setEnabled] = useState(true);
 

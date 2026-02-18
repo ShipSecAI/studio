@@ -341,6 +341,10 @@ describe('WorkflowsController', () => {
       isEnabled: vi.fn().mockReturnValue(true),
     };
 
+    const systemWorkflowsServiceMock = {
+      ensureSystemWorkflows: vi.fn().mockResolvedValue(undefined),
+    };
+
     const temporalStub: Pick<
       TemporalService,
       | 'startWorkflow'
@@ -388,6 +392,7 @@ describe('WorkflowsController', () => {
       traceRepositoryStub as any,
       temporalStub as TemporalService,
       analyticsServiceMock as any,
+      systemWorkflowsServiceMock as any,
     );
     const traceService = new TraceService({
       listByRunId: async () => [],
