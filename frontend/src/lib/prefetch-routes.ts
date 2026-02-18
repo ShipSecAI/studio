@@ -9,7 +9,11 @@
 type PrefetchFn = () => void;
 
 const routePrefetchMap: Record<string, PrefetchFn> = {
-  '/': () => void import('@/pages/WorkflowList'),
+  '/': () => void import('@/pages/HomePage'),
+  '/builder': () => void import('@/pages/WorkflowList'),
+  '/templates': () => void import('@/pages/WorkflowTemplatesPage'),
+  '/integrations/github': () => void import('@/pages/GitHubPage'),
+  '/dashboards/security': () => void import('@/pages/SecurityDashboard'),
   '/schedules': () => void import('@/pages/SchedulesPage'),
   '/webhooks': () => void import('@/pages/WebhooksPage'),
   '/action-center': () => void import('@/pages/ActionCenterPage'),
