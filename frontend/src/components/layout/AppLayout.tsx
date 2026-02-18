@@ -334,7 +334,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     },
     {
       label: 'CLOUD SECURITY',
-      items: [{ name: 'Cloud Findings', href: '/dashboards/security', icon: ShieldCheck }],
+      items: [
+        {
+          name: 'Cloud Findings',
+          href: '/dashboards/security?view=cloud-security',
+          icon: ShieldCheck,
+        },
+      ],
     },
     {
       label: 'ATTACK SURFACE',
