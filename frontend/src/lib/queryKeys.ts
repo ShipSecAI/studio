@@ -67,6 +67,19 @@ export const queryKeys = {
     runtimeInputs: (workflowId: string) =>
       ['workflowRuntimeInputs', getOrgScope(), workflowId] as const,
   },
+  security: {
+    findings: (filters?: unknown, viewFilter?: unknown) =>
+      ['security', getOrgScope(), 'findings', filters, viewFilter] as const,
+    timeSeries: (filters?: unknown, viewFilter?: unknown, interval?: string) =>
+      ['security', getOrgScope(), 'timeSeries', filters, viewFilter, interval] as const,
+    findingDetail: (docId: string) => ['security', getOrgScope(), 'findingDetail', docId] as const,
+    findingLifecycle: (hash: string) =>
+      ['security', getOrgScope(), 'findingLifecycle', hash] as const,
+    batchLifecycles: (hashes: string[]) =>
+      ['security', getOrgScope(), 'batchLifecycles', [...hashes].sort()] as const,
+    categoryCounts: () => ['security', getOrgScope(), 'categoryCounts'] as const,
+    summary: (viewFilter?: unknown) => ['security', getOrgScope(), 'summary', viewFilter] as const,
+  },
   github: {
     status: () => ['github', getOrgScope(), 'status'] as const,
     installations: () => ['github', getOrgScope(), 'installations'] as const,

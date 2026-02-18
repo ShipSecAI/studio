@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, FolderGit } from 'lucide-react';
-import { useGitHubStore, type GitHubRepo } from '@/store/githubStore';
+import { useGitHubRepositories, useTriggerScan } from '@/hooks/queries/useGithubQueries';
+import type { GitHubRepo } from '@/store/githubStore';
 import { useToast } from '@/components/ui/use-toast';
 import { QUICK_SCANS } from './constants';
 
@@ -24,23 +25,12 @@ export function FirstScanModal({
   scanCategory: 'code' | 'dependency' | 'container';
 }) {
   const { toast } = useToast();
-  const repositories = useGitHubStore((s) => s.repositories);
-  const repositoriesLoading = useGitHubStore((s) => s.repositoriesLoading);
-  const fetchRepositories = useGitHubStore((s) => s.fetchRepositories);
-  const triggerScan = useGitHubStore((s) => s.triggerScan);
+  const { data: repositories = [], isLoading: repositoriesLoading } = useGitHubRepositories();
+  const triggerScanMutation = useTriggerScan();
 
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [repoSearch, setRepoSearch] = useState('');
   const [triggering, setTriggering] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      fetchRepositories();
-      setSelectedRepo(null);
-      setRepoSearch('');
-      setTriggering(null);
-    }
-  }, [open, fetchRepositories]);
 
   const filteredRepos = useMemo(() => {
     if (!repoSearch.trim()) return repositories;
@@ -57,7 +47,11 @@ export function FirstScanModal({
     if (!selectedRepo) return;
     setTriggering(workflowId);
     try {
-      await triggerScan(selectedRepo.id, workflowId, selectedRepo.defaultBranch ?? undefined);
+      await triggerScanMutation.mutateAsync({
+        repoId: selectedRepo.id,
+        workflowId,
+        branch: selectedRepo.defaultBranch ?? undefined,
+      });
       toast({
         title: 'Scan started',
         description: `Security scan started for ${selectedRepo.fullName}`,

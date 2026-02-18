@@ -1,9 +1,12 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Plug, CheckCircle2, Circle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useIntegrationStore } from '@/store/integrationStore';
+import {
+  useIntegrationCatalog,
+  useIntegrationConnections,
+} from '@/hooks/queries/useIntegrationQueries';
 import { cn } from '@/lib/utils';
 
 /** Static metadata for the two D5 providers (AWS + Slack). */
@@ -42,19 +45,9 @@ const VISIBLE_PROVIDERS = ['aws', 'slack'] as const;
 export function IntegrationsManager() {
   const navigate = useNavigate();
 
-  const {
-    catalog,
-    orgConnections,
-    fetchCatalog,
-    fetchOrgConnections,
-    loadingCatalog,
-    loadingOrgConnections,
-  } = useIntegrationStore();
-
-  useEffect(() => {
-    fetchCatalog();
-    fetchOrgConnections();
-  }, [fetchCatalog, fetchOrgConnections]);
+  const { data: catalog = [], isLoading: loadingCatalog } = useIntegrationCatalog();
+  const { data: orgConnections = [], isLoading: loadingOrgConnections } =
+    useIntegrationConnections();
 
   /** Map provider id -> number of org-scoped connections. */
   const connectionCounts = useMemo(() => {

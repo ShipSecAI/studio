@@ -1,0 +1,235 @@
+import type { SecurityViewFilter } from '@/config/securityViews';
+
+// --- Types ---
+
+export interface FindingLifecycle {
+  firstSeen: string;
+  lastSeen: string;
+  occurrences: number;
+}
+
+export interface SecurityFinding {
+  _id: string;
+  scanner: string;
+  finding_hash: string;
+  severity: string;
+  status: string;
+  title: string | null;
+  description: string | null;
+  region: string | null;
+  asset_key: string | null;
+  account_id: string | null;
+  service_name: string | null;
+  resource_tags: Record<string, string> | null;
+  check_name: string | null;
+  compliance: string[] | null;
+  finding_types: string[] | null;
+  remediationText: string | null;
+  recommendationUrl: string | null;
+  shipsec: {
+    workflow_id: string;
+    workflow_name: string;
+    run_id: string;
+    component_id: string;
+  };
+  '@timestamp': string;
+}
+
+export interface SecurityDashboardFilters {
+  account: string | null;
+  severity: string[];
+  status: string[];
+  region: string[];
+  service: string[];
+  tags: string[];
+  compliance: string[];
+  checkName: string[];
+  search: string;
+  from: string | null;
+  to: string | null;
+  page: number;
+  sort: string;
+  order: 'asc' | 'desc';
+}
+
+export interface SeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface TimeSeriesBucket {
+  date: string;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface AggBucket {
+  key: string;
+  doc_count: number;
+}
+
+export interface SecuritySummary {
+  severityCounts: SeverityCounts;
+  accounts: AggBucket[];
+  regions: AggBucket[];
+  services: AggBucket[];
+  complianceFrameworks: AggBucket[];
+  checkNames: AggBucket[];
+  statusCounts: AggBucket[];
+}
+
+export interface SecurityFindingsResult {
+  findings: SecurityFinding[];
+  total: number;
+  summary: SecuritySummary;
+}
+
+// --- Constants ---
+
+export const PAGE_SIZE = 25;
+
+export const INITIAL_FILTERS: SecurityDashboardFilters = {
+  account: null,
+  severity: [],
+  status: [],
+  region: [],
+  service: [],
+  tags: [],
+  compliance: [],
+  checkName: [],
+  search: '',
+  from: null,
+  to: null,
+  page: 1,
+  sort: '@timestamp',
+  order: 'desc',
+};
+
+export const INITIAL_SEVERITY_COUNTS: SeverityCounts = {
+  critical: 0,
+  high: 0,
+  medium: 0,
+  low: 0,
+};
+
+// --- Helpers ---
+
+export function buildBaseFilter(
+  filters: SecurityDashboardFilters,
+  viewFilter?: SecurityViewFilter,
+) {
+  const must: Record<string, any>[] = [];
+
+  if (viewFilter?.scannerTerms && viewFilter.scannerTerms.length > 0) {
+    if (viewFilter.scannerTerms.length === 1) {
+      must.push({ term: { 'scanner.keyword': viewFilter.scannerTerms[0] } });
+    } else {
+      must.push({ terms: { 'scanner.keyword': viewFilter.scannerTerms } });
+    }
+  }
+
+  if (filters.search.trim()) {
+    must.push({
+      multi_match: {
+        query: filters.search.trim(),
+        fields: ['title', 'description'],
+      },
+    });
+  }
+
+  const filter: Record<string, any>[] = [];
+
+  if (filters.account) {
+    filter.push({ term: { 'account_id.keyword': filters.account } });
+  }
+
+  if (filters.severity.length > 0) {
+    filter.push({ terms: { 'severity.keyword': filters.severity } });
+  }
+
+  if (filters.status.length > 0) {
+    filter.push({ terms: { 'status.keyword': filters.status } });
+  }
+
+  if (filters.region.length > 0) {
+    filter.push({ terms: { 'region.keyword': filters.region } });
+  }
+
+  if (filters.service.length > 0) {
+    filter.push({ terms: { 'service_name.keyword': filters.service } });
+  }
+
+  if (filters.tags.length > 0) {
+    for (const tagKey of filters.tags) {
+      filter.push({ exists: { field: `resource_tags.${tagKey}` } });
+    }
+  }
+
+  if (filters.compliance.length > 0) {
+    filter.push({ terms: { 'compliance.keyword': filters.compliance } });
+  }
+
+  if (filters.checkName.length > 0) {
+    filter.push({ terms: { 'check_name.keyword': filters.checkName } });
+  }
+
+  if (filters.from || filters.to) {
+    const range: Record<string, any> = {};
+    if (filters.from) range.gte = filters.from;
+    if (filters.to) range.lte = filters.to;
+    filter.push({ range: { '@timestamp': range } });
+  }
+
+  return { bool: { must, filter } };
+}
+
+export function buildSort(filters: SecurityDashboardFilters): Record<string, any>[] {
+  const field = filters.sort === '@timestamp' ? '@timestamp' : `${filters.sort}.keyword`;
+  return [{ [field]: filters.order }];
+}
+
+/** Parse a hit from the analytics API into a SecurityFinding */
+export function parseFinding(hit: any): SecurityFinding {
+  return {
+    _id: hit._id,
+    scanner: hit._source.scanner ?? 'unknown',
+    finding_hash: hit._source.finding_hash ?? '',
+    severity: hit._source.severity ?? 'unknown',
+    status: hit._source.status ?? 'UNKNOWN',
+    title: hit._source.title ?? null,
+    description: hit._source.description ?? null,
+    region: hit._source.region ?? null,
+    asset_key: hit._source.asset_key ?? null,
+    account_id: hit._source.account_id ?? null,
+    service_name: hit._source.service_name ?? null,
+    resource_tags: hit._source.resource_tags ?? null,
+    check_name: hit._source.check_name ?? null,
+    compliance: hit._source.compliance ?? null,
+    finding_types: hit._source.finding_types ?? null,
+    remediationText: hit._source.remediationText ?? null,
+    recommendationUrl: hit._source.recommendationUrl ?? null,
+    shipsec: hit._source.shipsec ?? {
+      workflow_id: hit._source.workflow_id ?? '',
+      workflow_name: hit._source.workflow_name ?? '',
+      run_id: hit._source.run_id ?? '',
+      component_id: hit._source.component_id ?? '',
+    },
+    '@timestamp': hit._source['@timestamp'] ?? '',
+  };
+}
+
+/** Parse severity count buckets into a SeverityCounts object */
+export function parseSeverityCounts(buckets: any[]): SeverityCounts {
+  const counts = { ...INITIAL_SEVERITY_COUNTS };
+  for (const bucket of buckets) {
+    const key = bucket.key?.toLowerCase();
+    if (key in counts) {
+      counts[key as keyof SeverityCounts] = bucket.doc_count;
+    }
+  }
+  return counts;
+}

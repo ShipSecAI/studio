@@ -13,7 +13,7 @@ import { ExternalLink, Copy, Check, ChevronDown, ChevronRight, Workflow } from '
 import { MarkdownView } from '@/components/ui/markdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { SecurityFinding, FindingLifecycle } from '@/store/securityDashboardStore';
+import type { SecurityFinding, FindingLifecycle } from '@/lib/securityQueryHelpers';
 
 interface FindingDetailSheetProps {
   finding: SecurityFinding | null;

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,9 +27,17 @@ import {
   PlayCircle,
 } from 'lucide-react';
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
-import type { SecurityFinding } from '@/store/securityDashboardStore';
 import { useSecurityViewStore } from '@/store/securityViewStore';
-import { useGitHubStore } from '@/store/githubStore';
+import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
+import {
+  useSecurityFindings,
+  useSecurityTimeSeries,
+  useFindingDetail,
+  useFindingLifecycle,
+  useBatchLifecycles,
+  useNewFindingHighlights,
+} from '@/hooks/queries/useSecurityQueries';
+import type { SecurityFinding } from '@/lib/securityQueryHelpers';
 import { FindingDetailSheet } from '@/components/security/FindingDetailSheet';
 import { SeverityBadge, StatusBadge, formatTimestamp } from '@/components/security/SeverityBadge';
 import { FilterPopover } from '@/components/security/FilterPopover';
@@ -43,48 +51,72 @@ export function SecurityDashboardContent() {
   const [searchInput, setSearchInput] = useState('');
   const [timeRange, setTimeRange] = useState('7d');
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
-  // Store state
+  // Store state (UI/filter state only)
   const filters = useSecurityDashboardStore((s) => s.filters);
-  const findings = useSecurityDashboardStore((s) => s.findings);
-  const total = useSecurityDashboardStore((s) => s.total);
-  const severityCounts = useSecurityDashboardStore((s) => s.severityCounts);
-  const accounts = useSecurityDashboardStore((s) => s.accounts);
-  const regions = useSecurityDashboardStore((s) => s.regions);
-  const services = useSecurityDashboardStore((s) => s.services);
-  const complianceFrameworks = useSecurityDashboardStore((s) => s.complianceFrameworks);
-  const checkNames = useSecurityDashboardStore((s) => s.checkNames);
-  const statusCounts = useSecurityDashboardStore((s) => s.statusCounts);
-  const timeSeries = useSecurityDashboardStore((s) => s.timeSeries);
-  const findingsLoading = useSecurityDashboardStore((s) => s.findingsLoading);
-  const summaryLoading = useSecurityDashboardStore((s) => s.summaryLoading);
-  const timeSeriesLoading = useSecurityDashboardStore((s) => s.timeSeriesLoading);
+  const viewFilter = useSecurityDashboardStore((s) => s.viewFilter);
   const selectedFinding = useSecurityDashboardStore((s) => s.selectedFinding);
   const setFilters = useSecurityDashboardStore((s) => s.setFilters);
   const resetFilters = useSecurityDashboardStore((s) => s.resetFilters);
-  const fetchAll = useSecurityDashboardStore((s) => s.fetchAll);
-  const fetchTimeSeries = useSecurityDashboardStore((s) => s.fetchTimeSeries);
-  const fetchFindingById = useSecurityDashboardStore((s) => s.fetchFindingById);
   const setSelectedFinding = useSecurityDashboardStore((s) => s.setSelectedFinding);
-  const viewFilter = useSecurityDashboardStore((s) => s.viewFilter);
-  const newFindingIds = useSecurityDashboardStore((s) => s.newFindingIds);
-  const findingLifecycles = useSecurityDashboardStore((s) => s.findingLifecycles);
-  const findingLifecyclesLoading = useSecurityDashboardStore((s) => s.findingLifecyclesLoading);
-  const selectedFindingLifecycle = useSecurityDashboardStore((s) => s.selectedFindingLifecycle);
-  const selectedFindingLifecycleLoading = useSecurityDashboardStore(
-    (s) => s.selectedFindingLifecycleLoading,
-  );
-  const fetchFindingLifecycle = useSecurityDashboardStore((s) => s.fetchFindingLifecycle);
-  const error = useSecurityDashboardStore((s) => s.error);
-  const startPolling = useSecurityDashboardStore((s) => s.startPolling);
-  const stopPolling = useSecurityDashboardStore((s) => s.stopPolling);
 
-  // Start/stop polling on mount/unmount
+  // TanStack Query hooks for data fetching
+  const interval = TIME_RANGES.find((t) => t.key === timeRange)?.interval ?? 'day';
+  const {
+    data: findingsData,
+    isLoading: findingsLoading,
+    error,
+  } = useSecurityFindings(filters, viewFilter);
+  const { data: timeSeriesData, isLoading: timeSeriesLoading } = useSecurityTimeSeries(
+    filters,
+    viewFilter,
+    interval,
+  );
+
+  // Derived data from findings query
+  const findings = findingsData?.findings ?? [];
+  const total = findingsData?.total ?? 0;
+  const severityCounts = findingsData?.summary.severityCounts ?? {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+  };
+  const accounts = findingsData?.summary.accounts ?? [];
+  const regions = findingsData?.summary.regions ?? [];
+  const services = findingsData?.summary.services ?? [];
+  const complianceFrameworks = findingsData?.summary.complianceFrameworks ?? [];
+  const checkNames = findingsData?.summary.checkNames ?? [];
+  const statusCounts = findingsData?.summary.statusCounts ?? [];
+  const timeSeries = timeSeriesData ?? [];
+  const summaryLoading = findingsLoading;
+
+  // Batch lifecycles for findings table
+  const findingHashes = useMemo(
+    () => findings.map((f) => f.finding_hash).filter(Boolean),
+    [findings],
+  );
+  const { data: findingLifecycles = {}, isLoading: findingLifecyclesLoading } =
+    useBatchLifecycles(findingHashes);
+
+  // Deep-linked finding detail
+  const deepLinkedFindingId = searchParams.get('finding');
+  const { data: deepLinkedFinding } = useFindingDetail(deepLinkedFindingId);
+
+  // Set deep-linked finding when it loads
   useEffect(() => {
-    startPolling();
-    return () => stopPolling();
-  }, [startPolling, stopPolling]);
+    if (deepLinkedFinding && !selectedFinding) {
+      setSelectedFinding(deepLinkedFinding);
+    }
+  }, [deepLinkedFinding, selectedFinding, setSelectedFinding]);
+
+  // Selected finding lifecycle
+  const selectedFindingHash = selectedFinding?.finding_hash ?? null;
+  const { data: selectedFindingLifecycle = null, isLoading: selectedFindingLifecycleLoading } =
+    useFindingLifecycle(selectedFindingHash);
+
+  // New finding highlights
+  const newFindingIds = useNewFindingHighlights(findings);
 
   // Parse URL params on mount
   useEffect(() => {
@@ -103,7 +135,6 @@ export function SecurityDashboardContent() {
     const page = searchParams.get('page');
     const sort = searchParams.get('sort');
     const order = searchParams.get('order');
-    const finding = searchParams.get('finding');
 
     if (account) initial.account = account;
     if (severity) initial.severity = severity.split(',');
@@ -126,15 +157,9 @@ export function SecurityDashboardContent() {
     if (Object.keys(initial).length > 0) {
       setFilters(initial);
     }
-
-    // Deep-link finding
-    if (finding) {
-      fetchFindingById(finding);
-    }
   }, []);
 
-  // Sync filters → URL (preserve view param from store, not URL — avoids race
-  // condition where SecurityTabBar's setSearchParams hasn't committed yet)
+  // Sync filters -> URL
   useEffect(() => {
     setSearchParams(
       () => {
@@ -165,38 +190,6 @@ export function SecurityDashboardContent() {
     );
   }, [filters, selectedFinding, setSearchParams]);
 
-  // Fetch data when filters change
-  useEffect(() => {
-    // Abort previous request
-    if (abortRef.current) {
-      abortRef.current.abort();
-    }
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    fetchAll(controller.signal);
-
-    return () => {
-      controller.abort();
-    };
-  }, [
-    viewFilter,
-    filters.account,
-    filters.severity,
-    filters.status,
-    filters.region,
-    filters.service,
-    filters.tags,
-    filters.compliance,
-    filters.checkName,
-    filters.search,
-    filters.from,
-    filters.to,
-    filters.page,
-    filters.sort,
-    filters.order,
-  ]);
-
   // Debounced search
   const handleSearchInput = useCallback(
     (value: string) => {
@@ -221,15 +214,10 @@ export function SecurityDashboardContent() {
     [filters.severity, setFilters],
   );
 
-  // Time range change — re-fetch time series with the right interval
-  const handleTimeRangeChange = useCallback(
-    (range: string) => {
-      setTimeRange(range);
-      const interval = TIME_RANGES.find((t) => t.key === range)?.interval ?? 'day';
-      fetchTimeSeries(undefined, interval);
-    },
-    [fetchTimeSeries],
-  );
+  // Time range change
+  const handleTimeRangeChange = useCallback((range: string) => {
+    setTimeRange(range);
+  }, []);
 
   // Multi-select toggles
   const toggleStatusFilter = useCallback(
@@ -349,11 +337,8 @@ export function SecurityDashboardContent() {
   const handleFindingClick = useCallback(
     (finding: SecurityFinding) => {
       setSelectedFinding(finding);
-      if (finding.finding_hash) {
-        fetchFindingLifecycle(finding.finding_hash);
-      }
     },
-    [setSelectedFinding, fetchFindingLifecycle],
+    [setSelectedFinding],
   );
 
   const handleSheetClose = useCallback(
@@ -383,7 +368,7 @@ export function SecurityDashboardContent() {
     !!filters.search ||
     !!filters.account;
 
-  // Format AWS account ID: "006514117437" → "0065-1411-7437"
+  // Format AWS account ID: "006514117437" -> "0065-1411-7437"
   const formatAccountId = useCallback((id: string) => {
     if (/^\d{12}$/.test(id)) {
       return `${id.slice(0, 4)}-${id.slice(4, 8)}-${id.slice(8)}`;
@@ -392,8 +377,7 @@ export function SecurityDashboardContent() {
   }, []);
 
   // GitHub connection status (for code/dependency empty states)
-  const githubInstallations = useGitHubStore((s) => s.installations);
-  const fetchInstallations = useGitHubStore((s) => s.fetchInstallations);
+  const { data: githubInstallations = [] } = useGitHubInstallations();
   const [firstScanModalOpen, setFirstScanModalOpen] = useState(false);
 
   const hasGitHub = githubInstallations.length > 0;
@@ -402,16 +386,10 @@ export function SecurityDashboardContent() {
     activeViewId === 'dependency-security' ||
     activeViewId === 'container-security';
 
-  // Fetch GitHub installations on mount so we know connection status
-  useEffect(() => {
-    if (isGitHubView) {
-      fetchInstallations();
-    }
-  }, [isGitHubView, fetchInstallations]);
+  const errorMessage = error instanceof Error ? error.message : error ? String(error) : null;
 
-  // --- Empty state: no findings and no active filters → show CTA ---
-  // Also trigger when there's an error (e.g. no index exists for this scanner type)
-  if (totalFindings === 0 && !hasActiveFilters && (!summaryLoading || error)) {
+  // --- Empty state: no findings and no active filters -> show CTA ---
+  if (totalFindings === 0 && !hasActiveFilters && (!summaryLoading || errorMessage)) {
     // For code/dependency views when GitHub is already connected, show "Run First Scan"
     if (isGitHubView && hasGitHub) {
       const scanCategory =
@@ -704,7 +682,7 @@ export function SecurityDashboardContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {findingsLoading && !error && findings.length === 0
+              {findingsLoading && findings.length === 0
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={`skel-${i}`}>
                       <TableCell>

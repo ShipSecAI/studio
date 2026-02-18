@@ -1,14 +1,18 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useGitHubStore } from '@/store/githubStore';
+import {
+  useGitHubInstallations,
+  useGitHubRepositories,
+  useGitHubScanResults,
+  useTriggerRules,
+} from '@/hooks/queries/useGithubQueries';
 import { useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
 import { getCurrentUserId } from '@/lib/currentUser';
-import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
 import { useSecurityViewStore } from '@/store/securityViewStore';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api } from '@/services/api';
+import { useCategoryCounts } from '@/hooks/queries/useSecurityQueries';
 
 // Lazy-load the heavy SecurityDashboardContent (pulls in recharts, markdown-it, etc.)
 const SecurityDashboardContent = lazy(() =>
@@ -52,81 +56,27 @@ const EMPTY_COUNTS: CategoryCounts = { critical: 0, high: 0, medium: 0, low: 0 }
 
 type UserState = 'new' | 'partial' | 'complete';
 
+const CATEGORY_KEYS = ['cloud-security', 'code-security', 'dependency-security'];
+
 export function HomePage() {
-  const {
-    installations,
-    repositories,
-    scanResults,
-    triggerRules,
-    fetchInstallations,
-    fetchRepositories,
-    fetchScanResults,
-    fetchTriggerRules,
-  } = useGitHubStore();
+  const { data: installations = [] } = useGitHubInstallations();
+  const { data: repositories = [] } = useGitHubRepositories();
+  const { data: scanResultsData } = useGitHubScanResults({ limit: 5 });
+  const scanResults = scanResultsData?.data ?? [];
+  const { data: triggerRules = [] } = useTriggerRules();
   const { data: schedules = [] } = useSchedules();
   const userId = getCurrentUserId();
   const { data: orgConnections = [] } = useIntegrationConnections(userId);
-  const fetchSummary = useSecurityDashboardStore((s) => s.fetchSummary);
   const activeViewId = useSecurityViewStore((s) => s.activeViewId);
 
-  // Per-category severity counts from analytics
-  const [categoryCounts, setCategoryCounts] = useState<Record<string, CategoryCounts>>({
-    'cloud-security': { ...EMPTY_COUNTS },
-    'code-security': { ...EMPTY_COUNTS },
-    'dependency-security': { ...EMPTY_COUNTS },
-  });
-
-  useEffect(() => {
-    fetchInstallations();
-    fetchRepositories();
-    fetchScanResults({ limit: 5 });
-    fetchTriggerRules();
-    fetchSummary();
-  }, [fetchInstallations, fetchRepositories, fetchScanResults, fetchTriggerRules, fetchSummary]);
-
-  // Fetch per-scanner severity breakdown for category grouping (all severities)
-  useEffect(() => {
-    let cancelled = false;
-    api.analytics
-      .query({
-        query: { match_all: {} },
-        size: 0,
-        aggs: {
-          by_scanner: {
-            terms: { field: 'scanner.keyword', size: 20 },
-            aggs: {
-              by_severity: { terms: { field: 'severity.keyword' } },
-            },
-          },
-        },
-      })
-      .then((result) => {
-        if (cancelled) return;
-        const counts: Record<string, CategoryCounts> = {
-          'cloud-security': { ...EMPTY_COUNTS },
-          'code-security': { ...EMPTY_COUNTS },
-          'dependency-security': { ...EMPTY_COUNTS },
-        };
-        const scannerBuckets = result.aggregations?.by_scanner?.buckets ?? [];
-        for (const bucket of scannerBuckets) {
-          const category = SCANNER_TO_CATEGORY[bucket.key];
-          if (!category || !counts[category]) continue;
-          for (const sev of bucket.by_severity?.buckets ?? []) {
-            const key = sev.key?.toLowerCase() as keyof CategoryCounts;
-            if (key in EMPTY_COUNTS) {
-              counts[category][key] += sev.doc_count;
-            }
-          }
-        }
-        setCategoryCounts(counts);
-      })
-      .catch(() => {
-        // Silently ignore
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Per-category severity counts from analytics via TanStack Query
+  const {
+    data: categoryCounts = {
+      'cloud-security': { ...EMPTY_COUNTS },
+      'code-security': { ...EMPTY_COUNTS },
+      'dependency-security': { ...EMPTY_COUNTS },
+    },
+  } = useCategoryCounts(SCANNER_TO_CATEGORY, CATEGORY_KEYS);
 
   // Getting started checklist
   const checklist = useMemo(() => {
