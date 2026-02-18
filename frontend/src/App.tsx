@@ -87,6 +87,7 @@ const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m
 const WorkflowTemplatesPage = lazy(() =>
   import('@/pages/WorkflowTemplatesPage').then((m) => ({ default: m.WorkflowTemplatesPage })),
 );
+const ReconPage = lazy(() => import('@/pages/ReconPage').then((m) => ({ default: m.ReconPage })));
 
 function AuthIntegration({ children }: { children: React.ReactNode }) {
   useAuthStoreIntegration();
@@ -200,6 +201,7 @@ function App() {
                         <Route path="/dashboards/security" element={<SecurityDashboard />} />
                         <Route path="/artifacts" element={<ArtifactLibrary />} />
                         <Route path="/mcp-library" element={<McpLibraryPage />} />
+                        <Route path="/recon" element={<ReconPage />} />
                         <Route path="/runs/:runId" element={<RunRedirect />} />
                         <Route
                           path="/integrations/callback/:provider"
