@@ -12,6 +12,7 @@ import { PostHogClerkBridge } from '@/features/analytics/PostHogClerkBridge';
 import { useCommandPaletteKeyboard } from '@/features/command-palette/useCommandPaletteKeyboard';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { env } from '@/config/env';
 
 const ReactQueryDevtools = lazy(() =>
   import('@tanstack/react-query-devtools').then((mod) => ({
@@ -92,6 +93,28 @@ function AuthIntegration({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PageSkeleton() {
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="h-[52px] border-b flex items-center px-4 gap-4">
+        <Skeleton className="h-8 w-8 rounded-lg" />
+        <Skeleton className="h-5 w-48" />
+      </div>
+      <div className="flex-1 p-6 space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+        <Skeleton className="h-32 w-full rounded-lg" />
+        <div className="grid grid-cols-3 gap-4">
+          <Skeleton className="h-24 rounded-lg" />
+          <Skeleton className="h-24 rounded-lg" />
+          <Skeleton className="h-24 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
   useCommandPaletteKeyboard();
   const isOpen = useCommandPaletteStore((s) => s.isOpen);
@@ -123,22 +146,7 @@ function App() {
                 <PostHogClerkBridge />
                 <AppLayout>
                   <ProtectedRoute>
-                    <Suspense
-                      fallback={
-                        <div className="container py-6 space-y-6">
-                          <div className="flex items-center justify-between">
-                            <Skeleton className="h-8 w-48" />
-                            <Skeleton className="h-9 w-28" />
-                          </div>
-                          <div className="grid gap-4 md:grid-cols-3">
-                            <Skeleton className="h-28 rounded-lg" />
-                            <Skeleton className="h-28 rounded-lg" />
-                            <Skeleton className="h-28 rounded-lg" />
-                          </div>
-                          <Skeleton className="h-64 rounded-lg" />
-                        </div>
-                      }
-                    >
+                    <Suspense fallback={<PageSkeleton />}>
                       <Routes>
                         <Route path="/" element={<HomePage />} />
                         <Route path="/builder" element={<WorkflowList />} />
@@ -204,7 +212,7 @@ function App() {
                 </AppLayout>
               </CommandPaletteProvider>
             </BrowserRouter>
-            {import.meta.env.DEV && import.meta.env.VITE_DISABLE_DEVTOOLS !== 'true' && (
+            {import.meta.env.DEV && env.VITE_ENABLE_DEVTOOLS && (
               <Suspense fallback={null}>
                 <ReactQueryDevtools />
               </Suspense>

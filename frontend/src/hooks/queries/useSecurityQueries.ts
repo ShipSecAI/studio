@@ -82,7 +82,13 @@ export function useSecurityTimeSeries(
         size: 0,
         aggs: {
           over_time: {
-            date_histogram: { field: '@timestamp', calendar_interval: interval },
+            date_histogram: {
+              field: '@timestamp',
+              ...(['minute', 'hour', 'day', 'week', 'month', 'quarter', 'year'].includes(interval)
+                ? { calendar_interval: interval }
+                : { fixed_interval: interval }),
+              min_doc_count: 0,
+            },
             aggs: {
               by_severity: { terms: { field: 'severity.keyword' } },
             },

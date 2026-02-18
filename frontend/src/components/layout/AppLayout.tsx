@@ -15,6 +15,7 @@ import {
   Plus,
   Plug,
   Archive,
+  BarChart3,
   CalendarClock,
   Sun,
   Moon,
@@ -22,12 +23,16 @@ import {
   ShieldCheck,
   Search,
   Command,
-  Zap,
   Webhook,
   ServerCog,
   Settings,
   ChevronDown,
-  BarChart2,
+  Home,
+  Globe,
+  GitPullRequest,
+  ScanSearch,
+  LayoutTemplate,
+  type LucideIcon,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -41,6 +46,7 @@ import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-stat
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
 import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
+import { SecurityTabBar } from '@/components/security/SecurityTabBar';
 
 // Thin loading bar shown during lazy-loaded route transitions.
 // React Router v7 wraps navigations in startTransition, so React 19
@@ -294,59 +300,74 @@ export function AppLayout({ children }: AppLayoutProps) {
     toggle: handleToggle,
   };
 
-  const navigationItems = [
+  interface NavItem {
+    name: string;
+    href: string;
+    icon: LucideIcon;
+    external?: boolean;
+    newTab?: boolean;
+  }
+
+  interface NavGroup {
+    label?: string;
+    items: NavItem[];
+  }
+
+  const homeItem: NavItem = {
+    name: 'Home',
+    href: '/',
+    icon: Home,
+  };
+
+  const navigationGroups: NavGroup[] = [
     {
-      name: 'Workflow Builder',
-      href: '/',
-      icon: Workflow,
+      label: 'CODE SECURITY',
+      items: [
+        { name: 'Repositories', href: '/integrations/github', icon: Archive },
+        { name: 'Scan Results', href: '/integrations/github?tab=scans', icon: ScanSearch },
+        {
+          name: 'PR Protection',
+          href: '/integrations/github?tab=triggers',
+          icon: GitPullRequest,
+        },
+      ],
     },
     {
-      name: 'Schedules',
-      href: '/schedules',
-      icon: CalendarClock,
+      label: 'CLOUD SECURITY',
+      items: [{ name: 'Cloud Findings', href: '/dashboards/security', icon: ShieldCheck }],
     },
     {
-      name: 'Webhooks',
-      href: '/webhooks',
-      icon: Webhook,
+      label: 'ATTACK SURFACE',
+      items: [{ name: 'Recon', href: '/recon', icon: Globe }],
     },
     {
-      name: 'Action Center',
-      href: '/action-center',
-      icon: Zap,
-    },
-    {
-      name: 'Security',
-      href: '/dashboards/aws-security',
-      icon: ShieldCheck,
-    },
-    ...(env.VITE_ENABLE_CONNECTIONS
-      ? [
-          {
-            name: 'Integrations',
-            href: '/integrations',
-            icon: Plug,
-          },
-        ]
-      : []),
-    {
-      name: 'Artifact Library',
-      href: '/artifacts',
-      icon: Archive,
+      label: 'WORKFLOWS',
+      items: [
+        { name: 'Builder', href: '/builder', icon: Workflow },
+        { name: 'Templates', href: '/templates', icon: LayoutTemplate },
+        { name: 'Schedules', href: '/schedules', icon: CalendarClock },
+        { name: 'Webhooks', href: '/webhooks', icon: Webhook },
+      ],
     },
     ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
       ? [
           {
-            name: 'Dashboards',
-            href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
-            icon: BarChart2,
-            external: true,
+            label: undefined,
+            items: [
+              {
+                name: 'Dashboards',
+                href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
+                icon: BarChart3,
+                external: true,
+              },
+            ],
           },
         ]
       : []),
   ];
 
-  const settingsItems = [
+  const settingsItems: NavItem[] = [
+    { name: 'Integrations', href: '/integrations', icon: Plug },
     {
       name: 'Secrets',
       href: '/secrets',
@@ -373,16 +394,52 @@ export function AppLayout({ children }: AppLayoutProps) {
       : []),
   ];
 
+  // Collect all base paths that have query-param siblings (e.g. /integrations/github has ?tab=scans, ?tab=triggers)
+  const queryParamPaths = new Set<string>();
+  for (const group of navigationGroups) {
+    for (const item of group.items) {
+      if (item.href.includes('?')) {
+        queryParamPaths.add(item.href.split('?')[0]);
+      }
+    }
+  }
+  // Also check home-level query-param items
+  if (navigationGroups.some((g) => g.items.some((i) => i.href.startsWith('/?')))) {
+    queryParamPaths.add('/');
+  }
+
   const isActive = (path: string) => {
     if (path === '/') {
-      return location.pathname === '/' || location.pathname.startsWith('/workflows');
+      return location.pathname === '/' && !location.search;
+    }
+    if (path === '/builder') {
+      return location.pathname === '/builder' || location.pathname.startsWith('/workflows');
+    }
+    // Handle query-param-based nav items like /integrations/github?tab=triggers or /?view=all-findings
+    if (path.includes('?')) {
+      const [basePath, queryString] = path.split('?');
+      const queryParams = new URLSearchParams(queryString);
+      const locationParams = new URLSearchParams(location.search);
+
+      // Base path must match
+      if (location.pathname !== basePath) return false;
+
+      // All query params in the nav item must match location params
+      for (const [key, value] of queryParams.entries()) {
+        if (locationParams.get(key) !== value) return false;
+      }
+      return true;
+    }
+    // For paths that have query-param siblings, only match exact pathname (not startsWith)
+    if (queryParamPaths.has(path)) {
+      return location.pathname === path && !location.search;
     }
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
   // Get page-specific actions
   const getPageActions = () => {
-    if (location.pathname === '/') {
+    if (location.pathname === '/builder') {
       return (
         <Button
           onClick={() => {
@@ -468,105 +525,151 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarHeader>
 
           <SidebarContent className="py-0">
-            <div className={cn('px-2 mt-2 space-y-1')}>
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                const isExternal = 'external' in item && item.external;
-                const openInNewTab = isExternal && 'newTab' in item ? item.newTab !== false : true;
-
-                // Render external link
-                if (isExternal) {
-                  return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      target={openInNewTab ? '_blank' : undefined}
-                      rel={openInNewTab ? 'noopener noreferrer' : undefined}
-                      onClick={() => {
-                        // Close sidebar on mobile after clicking
-                        if (isMobile) {
-                          setSidebarOpen(false);
-                        }
-                      }}
-                    >
-                      <SidebarItem
-                        isActive={false}
-                        className={cn(
-                          'flex items-center gap-3',
-                          sidebarOpen ? 'justify-start px-4' : 'justify-center',
-                        )}
-                      >
-                        <Icon className="h-5 w-5 flex-shrink-0" />
-                        <span
-                          className={cn(
-                            'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
-                            sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                          )}
-                          style={{
-                            transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                            transitionProperty: 'opacity, max-width',
-                          }}
-                        >
-                          {item.name}
-                        </span>
-                      </SidebarItem>
-                    </a>
-                  );
-                }
-
-                // Render internal link (React Router)
-                return (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    onMouseEnter={() => prefetchRoute(item.href)}
-                    onClick={(e) => {
-                      // If modifier key is held (CMD+click, Ctrl+click), link opens in new tab
-                      // Don't update sidebar state in this case
-                      if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                        return;
-                      }
-                      // Close sidebar on mobile after navigation
-                      if (isMobile) {
-                        setSidebarOpen(false);
-                        return;
-                      }
-                      // Keep sidebar open when navigating to non-workflow routes (desktop)
-                      if (!item.href.startsWith('/workflows')) {
-                        setSidebarOpen(true);
-                        setWasExplicitlyOpened(true);
-                      }
+            {/* Home navigation item */}
+            <div className="px-2 mt-2 space-y-1">
+              <Link
+                to={homeItem.href}
+                onMouseEnter={() => prefetchRoute(homeItem.href)}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                  if (isMobile) {
+                    setSidebarOpen(false);
+                    return;
+                  }
+                  setSidebarOpen(true);
+                  setWasExplicitlyOpened(true);
+                }}
+              >
+                <SidebarItem
+                  isActive={isActive(homeItem.href)}
+                  className={cn(
+                    'flex items-center gap-3',
+                    sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                  )}
+                >
+                  <Home className="h-5 w-5 flex-shrink-0" />
+                  <span
+                    className={cn(
+                      'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                      sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                    )}
+                    style={{
+                      transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                      transitionProperty: 'opacity, max-width',
                     }}
                   >
-                    <SidebarItem
-                      isActive={active}
-                      className={cn(
-                        'flex items-center gap-3',
-                        sidebarOpen ? 'justify-start px-4' : 'justify-center',
-                      )}
-                    >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
-                      <span
-                        className={cn(
-                          'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
-                          sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
-                        )}
-                        style={{
-                          transitionDelay: sidebarOpen ? '200ms' : '0ms',
-                          transitionProperty: 'opacity, max-width',
-                        }}
-                      >
-                        {item.name}
-                      </span>
-                    </SidebarItem>
-                  </Link>
-                );
-              })}
+                    Home
+                  </span>
+                </SidebarItem>
+              </Link>
             </div>
 
-            {/* Manage Collapsible Section */}
-            <div className="px-2 mt-2">
+            {/* Grouped navigation */}
+            {navigationGroups.map((group) => (
+              <div key={group.label ?? 'ungrouped'} className="px-2 mt-1">
+                {group.label && sidebarOpen && (
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-3 pt-4 pb-1">
+                    {group.label}
+                  </div>
+                )}
+                {!sidebarOpen && group.label && (
+                  <div className="border-t border-border/40 mx-2 mt-2 mb-1" />
+                )}
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.href);
+                    const isExternal = item.external;
+                    const openInNewTab = isExternal && item.newTab !== false;
+
+                    if (isExternal) {
+                      return (
+                        <a
+                          key={item.href}
+                          href={item.href}
+                          target={openInNewTab ? '_blank' : undefined}
+                          rel={openInNewTab ? 'noopener noreferrer' : undefined}
+                          onClick={() => {
+                            if (isMobile) setSidebarOpen(false);
+                          }}
+                        >
+                          <SidebarItem
+                            isActive={false}
+                            className={cn(
+                              'flex items-center gap-3',
+                              sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                            )}
+                          >
+                            <Icon className="h-5 w-5 flex-shrink-0" />
+                            <span
+                              className={cn(
+                                'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                                sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                              )}
+                              style={{
+                                transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                                transitionProperty: 'opacity, max-width',
+                              }}
+                            >
+                              {item.name}
+                            </span>
+                          </SidebarItem>
+                        </a>
+                      );
+                    }
+
+                    return (
+                      <Link
+                        key={item.href}
+                        to={item.href}
+                        onMouseEnter={() => prefetchRoute(item.href)}
+                        onClick={(e) => {
+                          if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                          if (isMobile) {
+                            setSidebarOpen(false);
+                            return;
+                          }
+                          if (!item.href.startsWith('/workflows')) {
+                            setSidebarOpen(true);
+                            setWasExplicitlyOpened(true);
+                          }
+                        }}
+                      >
+                        <SidebarItem
+                          isActive={active}
+                          className={cn(
+                            'flex items-center gap-3',
+                            sidebarOpen ? 'justify-start px-4' : 'justify-center',
+                          )}
+                        >
+                          <Icon className="h-5 w-5 flex-shrink-0" />
+                          <span
+                            className={cn(
+                              'transition-all duration-300 whitespace-nowrap overflow-hidden flex-1',
+                              sidebarOpen ? 'opacity-100' : 'opacity-0 max-w-0',
+                            )}
+                            style={{
+                              transitionDelay: sidebarOpen ? '200ms' : '0ms',
+                              transitionProperty: 'opacity, max-width',
+                            }}
+                          >
+                            {item.name}
+                          </span>
+                        </SidebarItem>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Settings Collapsible Section */}
+            <div className="px-2 mt-1">
+              {sidebarOpen && (
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-3 pt-4 pb-1">
+                  SETTINGS
+                </div>
+              )}
               <button
                 onClick={() => setSettingsOpen(!settingsOpen)}
                 className={cn(
@@ -770,6 +873,13 @@ export function AppLayout({ children }: AppLayoutProps) {
                 sidebarOpen={sidebarOpen}
                 onSidebarToggle={handleToggle}
                 actions={getPageActions()}
+                afterTitle={
+                  location.pathname === '/' ||
+                  location.pathname.startsWith('/security') ||
+                  location.pathname.startsWith('/dashboards/security') ? (
+                    <SecurityTabBar />
+                  ) : undefined
+                }
                 isMobile={isMobile}
               />
             )}

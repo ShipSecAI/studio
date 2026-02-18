@@ -266,19 +266,17 @@ export function CommandPalette() {
       },
     ];
 
-    // Add connections navigation if enabled
-    if (env.VITE_ENABLE_CONNECTIONS) {
-      commands.push({
-        id: 'nav-connections',
-        type: 'navigation',
-        label: 'Connections',
-        description: 'Manage third-party integrations',
-        category: 'navigation',
-        icon: Plug,
-        keywords: ['connections', 'integrations', 'oauth'],
-        href: '/integrations',
-      });
-    }
+    // Add connections navigation
+    commands.push({
+      id: 'nav-connections',
+      type: 'navigation',
+      label: 'Connections',
+      description: 'Manage third-party integrations',
+      category: 'navigation',
+      icon: Plug,
+      keywords: ['connections', 'integrations', 'oauth'],
+      href: '/integrations',
+    });
 
     return commands;
   }, [theme, navigate, close, startTransition]);

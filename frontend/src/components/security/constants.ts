@@ -13,7 +13,7 @@ export const TIME_RANGES = [
   { key: '1h', label: '1h', days: 1 / 24, interval: 'minute' },
   { key: '6h', label: '6h', days: 0.25, interval: 'minute' },
   { key: '1d', label: '1d', days: 1, interval: 'hour' },
-  { key: '7d', label: '7d', days: 7, interval: 'hour' },
+  { key: '7d', label: '7d', days: 7, interval: '6h' },
   { key: '30d', label: '30d', days: 30, interval: 'day' },
   { key: '90d', label: '90d', days: 90, interval: 'day' },
 ] as const;
