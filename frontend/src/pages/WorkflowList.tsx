@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,12 +21,24 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Workflow, AlertCircle, Trash2, Info, GripVertical } from 'lucide-react';
+import {
+  Workflow,
+  AlertCircle,
+  Trash2,
+  Info,
+  GripVertical,
+  Github,
+  Webhook,
+  Clock,
+} from 'lucide-react';
 import { api, type WorkflowSummary } from '@/services/api';
 import { getStatusBadgeClassFromStatus } from '@/utils/statusBadgeStyles';
 import { useAuthStore } from '@/store/authStore';
 import { hasAdminRole } from '@/utils/auth';
 import { track, Events } from '@/features/analytics/events';
+import { useGitHubStore } from '@/store/githubStore';
+import { useWebhookStore } from '@/store/webhookStore';
+import { useScheduleStore } from '@/store/scheduleStore';
 import { useWorkflowsSummary } from '@/hooks/queries/useWorkflowQueries';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/lib/queryKeys';
@@ -73,11 +85,25 @@ function applyOrder<T extends { id: string }>(items: T[], savedOrder: string[]):
   });
 }
 
+export interface WorkflowTriggerTypes {
+  hasGitHub: boolean;
+  hasWebhook: boolean;
+  hasSchedule: boolean;
+}
+
 export function WorkflowList() {
   const navigate = useNavigate();
   const { data: rawWorkflows = [], isLoading, error, refetch } = useWorkflowsSummary();
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const trackedRef = useRef(false);
+
+  // Trigger data for showing icons
+  const triggerRules = useGitHubStore((state) => state.triggerRules);
+  const fetchTriggerRules = useGitHubStore((state) => state.fetchTriggerRules);
+  const webhooks = useWebhookStore((state) => state.webhooks);
+  const fetchWebhooks = useWebhookStore((state) => state.fetchWebhooks);
+  const schedules = useScheduleStore((state) => state.schedules);
+  const fetchSchedules = useScheduleStore((state) => state.fetchSchedules);
 
   const roles = useAuthStore((state) => state.roles);
   const canManageWorkflows = hasAdminRole(roles);
@@ -119,6 +145,31 @@ export function WorkflowList() {
       return prev;
     });
   }, []);
+
+  // Fetch trigger data for icons
+  useEffect(() => {
+    fetchTriggerRules().catch(() => undefined);
+    fetchWebhooks().catch(() => undefined);
+    fetchSchedules().catch(() => undefined);
+  }, [fetchTriggerRules, fetchWebhooks, fetchSchedules]);
+
+  // Build lookup: workflowId -> trigger types
+  const triggerTypesMap = useMemo(() => {
+    const map = new Map<string, WorkflowTriggerTypes>();
+    const allWorkflowIds = new Set([
+      ...triggerRules.map((r) => r.workflowId),
+      ...webhooks.map((w) => w.workflowId),
+      ...schedules.map((s) => s.workflowId),
+    ]);
+    for (const id of allWorkflowIds) {
+      map.set(id, {
+        hasGitHub: triggerRules.some((r) => r.workflowId === id),
+        hasWebhook: webhooks.some((w) => w.workflowId === id),
+        hasSchedule: schedules.some((s) => s.workflowId === id),
+      });
+    }
+    return map;
+  }, [triggerRules, webhooks, schedules]);
 
   const handleDeleteClick = (event: MouseEvent, workflow: WorkflowSummary) => {
     event.stopPropagation();
@@ -359,6 +410,7 @@ export function WorkflowList() {
                         <WorkflowRowItem
                           key={workflow.id}
                           workflow={workflow}
+                          triggerTypes={triggerTypesMap.get(workflow.id)}
                           canManageWorkflows={canManageWorkflows}
                           isDeleting={isDeleting}
                           isLoading={isLoading}
@@ -417,6 +469,7 @@ export function WorkflowList() {
 
 interface WorkflowRowItemProps {
   workflow: WorkflowSummary;
+  triggerTypes?: WorkflowTriggerTypes;
   canManageWorkflows: boolean;
   isDeleting: boolean;
   isLoading: boolean;
@@ -427,6 +480,7 @@ interface WorkflowRowItemProps {
 
 function WorkflowRowItem({
   workflow,
+  triggerTypes,
   canManageWorkflows,
   isDeleting,
   isLoading,
@@ -479,8 +533,51 @@ function WorkflowRowItem({
         </div>
       </TableCell>
       <TableCell className="font-medium">
-        <div className="max-w-[200px] truncate" title={workflow.name}>
-          {workflow.name}
+        <div className="flex items-center gap-2">
+          <div className="max-w-[200px] truncate" title={workflow.name}>
+            {workflow.name}
+          </div>
+          {triggerTypes &&
+            (triggerTypes.hasGitHub || triggerTypes.hasWebhook || triggerTypes.hasSchedule) && (
+              <div className="flex items-center gap-1 shrink-0">
+                {triggerTypes.hasGitHub && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Github className="h-3.5 w-3.5 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>GitHub trigger</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                {triggerTypes.hasWebhook && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Webhook className="h-3.5 w-3.5 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Webhook trigger</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                {triggerTypes.hasSchedule && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Scheduled (cron) trigger</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            )}
         </div>
       </TableCell>
       <TableCell>

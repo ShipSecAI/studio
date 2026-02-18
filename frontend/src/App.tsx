@@ -64,6 +64,14 @@ const RunRedirect = lazy(() =>
 const AnalyticsSettingsPage = lazy(() =>
   import('@/pages/AnalyticsSettingsPage').then((m) => ({ default: m.AnalyticsSettingsPage })),
 );
+const GitHubPage = lazy(() =>
+  import('@/pages/GitHubPage').then((m) => ({ default: m.GitHubPage })),
+);
+const ScanResultPage = lazy(() =>
+  import('@/pages/ScanResultPage').then((m) => ({ default: m.ScanResultPage })),
+);
+const CreateTriggerRulePage = lazy(() => import('@/pages/CreateTriggerRulePage'));
+const EditTriggerRulePage = lazy(() => import('@/pages/EditTriggerRulePage'));
 
 // Lazy-load CommandPalette — it pulls in the entire lucide-react barrel (~350KB)
 const CommandPalette = lazy(() =>
@@ -175,6 +183,10 @@ function App() {
                         <Route path="/analytics-settings" element={<AnalyticsSettingsPage />} />
                         <Route path="/artifacts" element={<ArtifactLibrary />} />
                         <Route path="/mcp-library" element={<McpLibraryPage />} />
+                        <Route path="/github" element={<GitHubPage />} />
+                        <Route path="/github/triggers/new" element={<CreateTriggerRulePage />} />
+                        <Route path="/github/triggers/:id" element={<EditTriggerRulePage />} />
+                        <Route path="/github/scans/:id" element={<ScanResultPage />} />
                         <Route path="/runs/:runId" element={<RunRedirect />} />
                         <Route
                           path="/integrations/callback/:provider"

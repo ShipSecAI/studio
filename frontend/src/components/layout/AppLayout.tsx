@@ -24,9 +24,9 @@ import {
   Zap,
   Webhook,
   ServerCog,
-  BarChart3,
   Settings,
   ChevronDown,
+  Github,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -302,16 +302,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/artifacts',
       icon: Archive,
     },
-    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
-      ? [
-          {
-            name: 'Dashboards',
-            href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
-            icon: BarChart3,
-            external: true,
-          },
-        ]
-      : []),
+    {
+      name: 'GitHub',
+      href: '/github',
+      icon: Github,
+    },
   ];
 
   const settingsItems = [

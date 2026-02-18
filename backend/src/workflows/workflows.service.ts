@@ -3,6 +3,8 @@ import { randomUUID, createHash } from 'node:crypto';
 import {
   Injectable,
   Logger,
+  Optional,
+  Inject,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -154,6 +156,12 @@ export class WorkflowsService {
     private readonly traceRepository: TraceRepository,
     private readonly temporalService: TemporalService,
     private readonly analyticsService: AnalyticsService,
+    @Optional()
+    @Inject('GitHubAppService')
+    private readonly githubAppService?: {
+      isConfigured(): boolean;
+      resolveInstallationForRepo(repoFullName: string): Promise<{ installationId: number } | null>;
+    },
   ) {}
 
   private resolveOrganizationId(auth?: AuthContext | null): string | null {
@@ -790,6 +798,10 @@ export class WorkflowsService {
         string,
         { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
       >;
+      /** Inject inputOverrides into all actions matching a given componentId */
+      componentInputs?: Record<string, Record<string, unknown>>;
+      /** Inject params into all actions matching a given componentId */
+      componentParams?: Record<string, Record<string, unknown>>;
       runId?: string;
       idempotencyKey?: string;
     } = {},
@@ -797,6 +809,8 @@ export class WorkflowsService {
     const prepared = await this.prepareRunPayload(id, request, auth, {
       trigger: options.trigger,
       nodeOverrides: options.nodeOverrides,
+      componentInputs: options.componentInputs,
+      componentParams: options.componentParams,
       runId: options.runId,
       idempotencyKey: options.idempotencyKey,
     });
@@ -944,6 +958,10 @@ export class WorkflowsService {
         string,
         { params?: Record<string, unknown>; inputOverrides?: Record<string, unknown> }
       >;
+      /** Inject inputOverrides into all actions matching a given componentId */
+      componentInputs?: Record<string, Record<string, unknown>>;
+      /** Inject params into all actions matching a given componentId */
+      componentParams?: Record<string, Record<string, unknown>>;
       runId?: string;
       idempotencyKey?: string;
       parentRunId?: string;
@@ -965,6 +983,25 @@ export class WorkflowsService {
 
     const nodeOverrides = options.nodeOverrides ?? {};
     let definitionWithOverrides = this.applyNodeOverrides(compiledDefinition, nodeOverrides);
+
+    // Auto-resolve GitHub installationId when not explicitly provided
+    const autoGitHubInputs = await this.resolveGitHubComponentInputs(
+      definitionWithOverrides,
+      options.componentInputs,
+    );
+    const mergedComponentInputs = autoGitHubInputs
+      ? { ...autoGitHubInputs, ...options.componentInputs }
+      : options.componentInputs;
+
+    definitionWithOverrides = this.applyComponentInputs(
+      definitionWithOverrides,
+      mergedComponentInputs,
+    );
+
+    definitionWithOverrides = this.applyComponentParams(
+      definitionWithOverrides,
+      options.componentParams,
+    );
 
     // Inject retry policies from component registry
     definitionWithOverrides = {
@@ -1545,6 +1582,139 @@ export class WorkflowsService {
       ...definition,
       actions: updatedActions,
     };
+  }
+
+  /**
+   * Inject inputOverrides into all actions that match a given componentId.
+   * Used by server-side trigger methods to pass values (like installationId)
+   * to all instances of a component type without requiring manual wiring
+   * in the workflow graph.
+   */
+  private applyComponentInputs(
+    definition: WorkflowDefinition,
+    componentInputs?: Record<string, Record<string, unknown>>,
+  ): WorkflowDefinition {
+    if (!componentInputs || Object.keys(componentInputs).length === 0) {
+      return definition;
+    }
+
+    const updatedActions = definition.actions.map((action) => {
+      const overrides = componentInputs[action.componentId];
+      if (!overrides || Object.keys(overrides).length === 0) {
+        return action;
+      }
+
+      return {
+        ...action,
+        inputOverrides: {
+          ...(action.inputOverrides ?? {}),
+          ...overrides,
+        },
+      };
+    });
+
+    return {
+      ...definition,
+      actions: updatedActions,
+    };
+  }
+
+  /**
+   * Inject params into all actions that match a given componentId.
+   * Used by trigger handlers to override component parameters (like
+   * repository, branch, ref) without requiring manual wiring in the
+   * workflow graph.
+   */
+  private applyComponentParams(
+    definition: WorkflowDefinition,
+    componentParams?: Record<string, Record<string, unknown>>,
+  ): WorkflowDefinition {
+    if (!componentParams || Object.keys(componentParams).length === 0) {
+      return definition;
+    }
+
+    const updatedActions = definition.actions.map((action) => {
+      const overrides = componentParams[action.componentId];
+      if (!overrides || Object.keys(overrides).length === 0) {
+        return action;
+      }
+
+      return {
+        ...action,
+        params: { ...(action.params ?? {}), ...overrides },
+      };
+    });
+
+    return { ...definition, actions: updatedActions };
+  }
+
+  private static readonly GITHUB_COMPONENT_IDS = [
+    'github.repo.clone',
+    'github.pr.comment',
+    'github.check.create',
+    'github.check.update',
+  ] as const;
+
+  /**
+   * Auto-detect GitHub components in the workflow and resolve the
+   * installation token from the repository configured in the clone-repo action.
+   * This ensures manual runs from the workflow editor UI can clone private repos.
+   */
+  private async resolveGitHubComponentInputs(
+    definition: WorkflowDefinition,
+    existingComponentInputs?: Record<string, Record<string, unknown>>,
+  ): Promise<Record<string, Record<string, unknown>> | undefined> {
+    if (!this.githubAppService || !this.githubAppService.isConfigured()) {
+      return undefined;
+    }
+
+    // Check if any action uses a GitHub component
+    const hasGitHubComponents = definition.actions.some((action) =>
+      WorkflowsService.GITHUB_COMPONENT_IDS.includes(action.componentId as any),
+    );
+    if (!hasGitHubComponents) {
+      return undefined;
+    }
+
+    // Skip if GitHub componentInputs are already provided (e.g. from triggerScan)
+    if (existingComponentInputs?.['github.repo.clone']?.installationId) {
+      return undefined;
+    }
+
+    // Find the clone-repo action and extract the repository name
+    const cloneAction = definition.actions.find(
+      (action) => action.componentId === 'github.repo.clone',
+    );
+    const repoName =
+      (cloneAction?.inputOverrides?.repository as string) ??
+      (cloneAction?.params?.repository as string);
+
+    if (!repoName) {
+      return undefined;
+    }
+
+    try {
+      const resolved = await this.githubAppService.resolveInstallationForRepo(repoName);
+      if (!resolved) {
+        this.logger.debug(`GitHub repo ${repoName} not found in database, skipping auto-inject`);
+        return undefined;
+      }
+
+      this.logger.log(
+        `Auto-injecting installationId ${resolved.installationId} for GitHub components (repo: ${repoName})`,
+      );
+
+      const inputs = { installationId: resolved.installationId };
+      return {
+        'github.repo.clone': inputs,
+        'github.pr.comment': inputs,
+        'github.check.create': inputs,
+        'github.check.update': inputs,
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to auto-resolve GitHub installationId for ${repoName}: ${error}`);
+      return undefined;
+    }
   }
 
   private buildEntryPointTriggerMetadata(auth?: AuthContext | null): {

@@ -22,6 +22,7 @@ import { useArtifactLibrary } from '@/hooks/queries/useArtifactQueries';
 import { useWorkflowsList } from '@/hooks/queries/useWorkflowQueries';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { useQueryClient } from '@tanstack/react-query';
+import { useGitHubStore } from '@/store/githubStore';
 import { env } from '@/config/env';
 import { api } from '@/services/api';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -97,6 +98,50 @@ export function ParameterField({
   const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id);
   const isWorkflowCallComponent = componentId === 'core.workflow.call';
   const isWorkflowSelector = isWorkflowCallComponent && parameter.id === 'workflowId';
+
+  // GitHub App component detection (clone repo)
+  const isGitHubCloneComponent = componentId === 'github.repo.clone';
+  const isRepoSelector = isGitHubCloneComponent && parameter.id === 'repository';
+  const isBranchSelector = isGitHubCloneComponent && parameter.id === 'branch';
+  const isGitHubAppComponent = componentId?.startsWith('github.') ?? false;
+
+  const ghInstallations = useGitHubStore((s) => s.installations);
+  const ghRepositories = useGitHubStore((s) => s.repositories);
+  const ghBranchesByRepo = useGitHubStore((s) => s.branchesByRepo);
+  const ghBranchesLoading = useGitHubStore((s) => s.branchesLoading);
+  const ghFetchInstallations = useGitHubStore((s) => s.fetchInstallations);
+  const ghFetchRepositories = useGitHubStore((s) => s.fetchRepositories);
+  const ghFetchBranches = useGitHubStore((s) => s.fetchBranches);
+  const ghHasFetchedRef = useRef(false);
+
+  // Lazily fetch GitHub data when a GitHub App component is detected
+  useEffect(() => {
+    if (!isGitHubAppComponent || ghHasFetchedRef.current) return;
+    ghHasFetchedRef.current = true;
+    ghFetchInstallations().catch(() => {});
+    ghFetchRepositories().catch(() => {});
+  }, [isGitHubAppComponent, ghFetchInstallations, ghFetchRepositories]);
+
+  // For branch selector: resolve repo ID from current repo value and fetch branches
+  const selectedRepoFullName =
+    isGitHubCloneComponent && typeof (parameters as any)?.repository === 'string'
+      ? (parameters as any).repository
+      : typeof currentValue === 'string' && isBranchSelector
+        ? undefined
+        : undefined;
+
+  const selectedGhRepo = useMemo(
+    () =>
+      selectedRepoFullName
+        ? ghRepositories.find((r) => r.fullName === selectedRepoFullName)
+        : undefined,
+    [ghRepositories, selectedRepoFullName],
+  );
+
+  useEffect(() => {
+    if (!isBranchSelector || !selectedGhRepo) return;
+    ghFetchBranches(selectedGhRepo.id).catch(() => {});
+  }, [isBranchSelector, selectedGhRepo, ghFetchBranches]);
 
   const githubConnections = useMemo(
     () => integrationConnections.filter((connection) => connection.provider === 'github'),
@@ -423,6 +468,86 @@ export function ParameterField({
         onChange={onChange}
         disabled={isReceivingInput}
       />
+    );
+  }
+
+  // GitHub App - Repository selector dropdown
+  if (isRepoSelector && ghRepositories.length > 0) {
+    const reposByInstallation = ghInstallations
+      .map((inst) => ({
+        installation: inst,
+        repos: ghRepositories.filter((r) => r.installationId === inst.id),
+      }))
+      .filter((g) => g.repos.length > 0);
+
+    return (
+      <div className="space-y-2">
+        <select
+          id={parameter.id}
+          value={currentValue || ''}
+          onChange={(e) => {
+            const next = e.target.value;
+            onChange(next || undefined);
+            // Reset branch when repo changes
+            if (next !== currentValue) {
+              onUpdateParameter?.('branch', undefined);
+            }
+          }}
+          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
+          disabled={isReceivingInput}
+        >
+          <option value="">Select a repository…</option>
+          {reposByInstallation.map(({ installation, repos }) => (
+            <optgroup
+              key={installation.id}
+              label={`${installation.accountLogin}${installation.accountType === 'Organization' ? ' (org)' : ''}`}
+            >
+              {repos.map((repo) => (
+                <option key={repo.id} value={repo.fullName}>
+                  {repo.fullName}
+                  {repo.isPrivate ? ' 🔒' : ''}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {ghRepositories.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No repositories connected. Install the GitHub App first.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // GitHub App - Branch selector dropdown
+  if (isBranchSelector && selectedGhRepo) {
+    const branches = ghBranchesByRepo[selectedGhRepo.id] ?? [];
+    const loading = ghBranchesLoading === selectedGhRepo.id;
+
+    return (
+      <div className="space-y-2">
+        <select
+          id={parameter.id}
+          value={currentValue || ''}
+          onChange={(e) => onChange(e.target.value || undefined)}
+          className="w-full px-3 py-2 text-sm border rounded-md bg-background"
+          disabled={isReceivingInput || loading}
+        >
+          <option value="">{loading ? 'Loading branches…' : 'Default branch'}</option>
+          {branches.map((b) => (
+            <option key={b.name} value={b.name}>
+              {b.name}
+              {b.isDefault ? ' (default)' : ''}
+            </option>
+          ))}
+        </select>
+        {!loading && branches.length === 0 && selectedGhRepo && (
+          <p className="text-xs text-muted-foreground">
+            Could not load branches. You can type a branch name manually below.
+          </p>
+        )}
+      </div>
     );
   }
 

@@ -232,14 +232,6 @@ async function main() {
 
   console.log(`✅ Service adapters initialized`);
 
-  // Register K8s runner override if EXECUTION_MODE=k8s
-  if (process.env.EXECUTION_MODE === 'k8s') {
-    const { runComponentInK8sJob } = await import('../../utils/k8s-runner');
-    const { setDockerRunnerOverride } = await import('@shipsec/component-sdk');
-    setDockerRunnerOverride(runComponentInK8sJob);
-    console.log('[Worker] K8s execution mode enabled — docker runner overridden with K8s Jobs');
-  }
-
   console.log(`🏗️ Creating Temporal worker...`);
   console.log(
     `   - Activities: ${Object.keys({

@@ -1033,6 +1033,8 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                       input.editor === 'secret' ||
                       (input.connectionType?.kind === 'primitive' &&
                         input.connectionType.name === 'secret');
+                    const isGitHubCloneRepositoryInput =
+                      component?.id === 'github.repo.clone' && input.id === 'repository';
 
                     if (isSecretInput && manualDisplayVal) {
                       const secret = secrets.find(
@@ -1042,7 +1044,9 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                     }
 
                     const previewText =
-                      manualDisplay.length > 24 ? `${manualDisplay.slice(0, 24)}…` : manualDisplay;
+                      isGitHubCloneRepositoryInput || manualDisplay.length <= 24
+                        ? manualDisplay
+                        : `${manualDisplay.slice(0, 24)}…`;
                     const handleClassName = cn(
                       '!w-[10px] !h-[10px] !border-2 !rounded-full',
                       input.required
@@ -1070,7 +1074,10 @@ export const WorkflowNode = ({ data, selected, id }: NodeProps<NodeData>) => {
                             <div className="mt-0.5">
                               <span
                                 className={cn(
-                                  'font-mono px-1 py-0.5 rounded text-[10px] truncate max-w-[120px] inline-flex items-center gap-1',
+                                  'font-mono px-1 py-0.5 rounded text-[10px] inline-flex items-center gap-1',
+                                  isGitHubCloneRepositoryInput
+                                    ? 'max-w-[180px] whitespace-normal break-all text-[9px] leading-tight'
+                                    : 'truncate max-w-[120px]',
                                   isSecretInput
                                     ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 font-semibold'
                                     : 'text-foreground bg-muted',
