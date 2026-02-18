@@ -25,9 +25,9 @@ import {
   Zap,
   Webhook,
   ServerCog,
-  BarChart3,
   Settings,
   ChevronDown,
+  Github,
 } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -39,6 +39,8 @@ import { useThemeStore } from '@/store/themeStore';
 import { cn } from '@/lib/utils';
 import { setMobilePlacementSidebarClose } from '@/components/layout/sidebar-state';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
+import { usePrefetchOnIdle } from '@/hooks/usePrefetchOnIdle';
+import { prefetchIdleRoutes, prefetchRoute } from '@/lib/prefetch-routes';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -65,6 +67,12 @@ function useIsMobile(breakpoint = 768) {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  usePrefetchOnIdle();
+
+  // Prefetch all route chunks during idle time
+  useEffect(() => {
+    prefetchIdleRoutes();
+  }, []);
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [, setIsHovered] = useState(false);
@@ -300,16 +308,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       href: '/artifacts',
       icon: Archive,
     },
-    ...(env.VITE_OPENSEARCH_DASHBOARDS_URL
-      ? [
-          {
-            name: 'Dashboards',
-            href: env.VITE_OPENSEARCH_DASHBOARDS_URL,
-            icon: BarChart3,
-            external: true,
-          },
-        ]
-      : []),
+    {
+      name: 'GitHub',
+      href: '/github',
+      icon: Github,
+    },
   ];
 
   const settingsItems = [
@@ -485,6 +488,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Link
                     key={item.href}
                     to={item.href}
+                    onMouseEnter={() => prefetchRoute(item.href)}
                     onClick={(e) => {
                       // If modifier key is held (CMD+click, Ctrl+click), link opens in new tab
                       // Don't update sidebar state in this case
@@ -578,6 +582,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     <Link
                       key={item.href}
                       to={item.href}
+                      onMouseEnter={() => prefetchRoute(item.href)}
                       onClick={(e) => {
                         if (e.metaKey || e.ctrlKey || e.shiftKey) {
                           return;

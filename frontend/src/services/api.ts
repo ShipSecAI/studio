@@ -32,7 +32,7 @@ type CreateApiKeyResponseDto = components['schemas']['CreateApiKeyResponseDto'];
 type CreateApiKeyDto = components['schemas']['CreateApiKeyDto'];
 type UpdateApiKeyDto = components['schemas']['UpdateApiKeyDto'];
 
-interface TerminalChunkResponse {
+export interface TerminalChunkResponse {
   runId: string;
   cursor?: string;
   chunks: {
@@ -45,6 +45,21 @@ interface TerminalChunkResponse {
     origin?: string;
     runnerKind?: string;
   }[];
+}
+
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  organizationId: string | null;
+  isSystem: boolean;
+  templateId: string | null;
+  lastRun: string | null;
+  latestRunStatus: string | null;
+  runCount: number;
+  nodeCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type IntegrationProvider = IntegrationProviderResponse;
@@ -209,6 +224,13 @@ export const api = {
       const response = await apiClient.listWorkflows();
       if (response.error) throw new Error('Failed to fetch workflows');
       return response.data || [];
+    },
+
+    listSummary: async (): Promise<WorkflowSummary[]> => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_V1_URL}/workflows/summary`, { headers });
+      if (!response.ok) throw new Error('Failed to fetch workflow summaries');
+      return response.json();
     },
 
     get: async (id: string): Promise<WorkflowResponseDto> => {
@@ -846,7 +868,12 @@ export const api = {
       return { success: true };
     },
 
-    listRuns: async (options?: { workflowId?: string; status?: string; limit?: number }) => {
+    listRuns: async (options?: {
+      workflowId?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }) => {
       const response = await apiClient.listWorkflowRuns(options);
       if (response.error) throw new Error('Failed to fetch runs');
       return response.data || { runs: [] };

@@ -48,6 +48,7 @@ interface ParameterFieldProps {
   componentId?: string;
   parameters?: Record<string, unknown> | undefined;
   onUpdateParameter?: (paramId: string, value: any) => void;
+  nodeLabel?: string;
 }
 
 /**
@@ -61,6 +62,7 @@ export function ParameterField({
   componentId,
   parameters,
   onUpdateParameter,
+  nodeLabel,
 }: ParameterFieldProps) {
   const currentValue = value !== undefined ? value : parameter.default;
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -96,7 +98,9 @@ export function ParameterField({
   const isRemoveGithubComponent = componentId === 'github.org.membership.remove';
   const isProviderGithubComponent = componentId === 'github.connection.provider';
   const isGitHubConnectionComponent = isRemoveGithubComponent || isProviderGithubComponent;
-  const isConnectionSelector = isGitHubConnectionComponent && parameter.id === 'connectionId';
+  const isGenericCredentialResolver = componentId === 'core.integration.resolve-credentials';
+  const isConnectionSelector =
+    (isGitHubConnectionComponent || isGenericCredentialResolver) && parameter.id === 'connectionId';
   const isGithubConnectionMode = isRemoveGithubComponent && authModeFromParameters === 'connection';
 
   const currentBuilderWorkflowId = useWorkflowStore((state) => state.metadata.id);
@@ -133,6 +137,26 @@ export function ParameterField({
     () => integrationConnections.filter((connection) => connection.provider === 'github'),
     [integrationConnections],
   );
+
+  const credResolverProviderFilter = useMemo(() => {
+    if (!isGenericCredentialResolver) return undefined;
+    const map = (parameters ?? {}) as Record<string, unknown>;
+    const explicit = typeof map?.provider === 'string' ? map.provider.trim().toLowerCase() : '';
+    if (explicit) return explicit;
+    const KNOWN_PROVIDERS = ['aws', 'slack', 'github'];
+    const label = (nodeLabel ?? '').toLowerCase();
+    return KNOWN_PROVIDERS.find((p) => label.includes(p));
+  }, [isGenericCredentialResolver, parameters, nodeLabel]);
+
+  const filteredConnections = useMemo(
+    () =>
+      credResolverProviderFilter
+        ? integrationConnections.filter((c) => c.provider === credResolverProviderFilter)
+        : integrationConnections,
+    [integrationConnections, credResolverProviderFilter],
+  );
+
+  const connectionOptions = isGenericCredentialResolver ? filteredConnections : githubConnections;
 
   const {
     data: rawWorkflowList = [],
@@ -201,8 +225,8 @@ export function ParameterField({
       return;
     }
 
-    if (githubConnections.length === 1 && !autoSelectedConnectionRef.current) {
-      const [firstConnection] = githubConnections;
+    if (connectionOptions.length === 1 && !autoSelectedConnectionRef.current) {
+      const [firstConnection] = connectionOptions;
       if (firstConnection) {
         autoSelectedConnectionRef.current = true;
         onChange(firstConnection.id);
@@ -215,7 +239,7 @@ export function ParameterField({
     }
   }, [
     isConnectionSelector,
-    githubConnections,
+    connectionOptions,
     integrationLoading,
     currentValue,
     onChange,
@@ -372,7 +396,7 @@ export function ParameterField({
           disabled={disabled}
         >
           <option value="">Select a GitHub connection…</option>
-          {githubConnections.map((connection) => (
+          {connectionOptions.map((connection) => (
             <option key={connection.id} value={connection.id}>
               {connection.providerName} · {connection.userId}
             </option>
@@ -385,7 +409,7 @@ export function ParameterField({
 
         {integrationError && <p className="text-xs text-destructive">{integrationError}</p>}
 
-        {!integrationLoading && githubConnections.length === 0 && (
+        {!integrationLoading && connectionOptions.length === 0 && (
           <p className="text-xs text-muted-foreground">
             No active GitHub connections yet. Connect GitHub from the Connections manager.
           </p>
@@ -1124,6 +1148,7 @@ interface ParameterFieldWrapperProps {
   parameters?: Record<string, unknown> | undefined;
   onUpdateParameter?: (paramId: string, value: any) => void;
   allComponentParameters?: Parameter[];
+  nodeLabel?: string;
 }
 
 /**
@@ -1181,6 +1206,7 @@ export function ParameterFieldWrapper({
   parameters,
   onUpdateParameter,
   allComponentParameters,
+  nodeLabel,
 }: ParameterFieldWrapperProps) {
   // Check visibility conditions
   if (!shouldShowParameter(parameter, parameters)) {
@@ -1342,6 +1368,7 @@ export function ParameterFieldWrapper({
         componentId={componentId}
         parameters={parameters}
         onUpdateParameter={onUpdateParameter}
+        nodeLabel={nodeLabel}
       />
 
       {/* Description after field (toggle control) - for boolean parameters */}

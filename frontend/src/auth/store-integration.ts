@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAuth, useAuthProvider } from './auth-context';
 import { useAuthStore } from '../store/authStore';
+import { useIntegrationStore } from '../store/integrationStore';
 import { queryClient } from '@/lib/queryClient';
 
 /**
@@ -22,11 +23,12 @@ export function useAuthStoreIntegration() {
     }
   }, [isAuthenticated]);
 
-  // Clear query cache on org change
+  // Clear query cache and reset integration store on org change
   useEffect(() => {
     if (prevOrgRef.current !== organizationId) {
       queryClient.cancelQueries();
       queryClient.clear();
+      useIntegrationStore.getState().resetForOrgSwitch();
       prevOrgRef.current = organizationId;
     }
   }, [organizationId]);

@@ -16,6 +16,8 @@ export const frontendEnvSchema = z
   .object({
     // API URL — defaults to localhost for dev/test compatibility
     VITE_API_URL: z.string().optional().default('http://localhost:3211'),
+    // App URL — defaults to current origin
+    VITE_APP_URL: z.string().optional().default(''),
 
     // Application metadata
     VITE_APP_NAME: z.string().optional().default(''),

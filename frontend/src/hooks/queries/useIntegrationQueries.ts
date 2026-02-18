@@ -24,11 +24,10 @@ export function useIntegrationProviders() {
   });
 }
 
-export function useIntegrationConnections(userId: string | undefined) {
+export function useIntegrationConnections(_userId?: string | undefined) {
   return useQuery({
-    queryKey: queryKeys.integrations.connections(userId),
-    queryFn: () => api.integrations.listConnections(userId!),
-    enabled: !!userId,
+    queryKey: queryKeys.integrations.connections(),
+    queryFn: () => api.integrations.listOrgConnections(),
     staleTime: 60_000,
     select: sortConnections,
   });
@@ -48,8 +47,7 @@ export function useProviderConfig(providerId: string | undefined, enabled = true
 export function useRefreshConnection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, userId }: { id: string; userId: string }) =>
-      api.integrations.refreshConnection(id, userId),
+    mutationFn: ({ id }: { id: string }) => api.integrations.refreshConnection(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrationConnections'] });
     },
@@ -59,8 +57,7 @@ export function useRefreshConnection() {
 export function useDisconnectIntegration() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, userId }: { id: string; userId: string }) =>
-      api.integrations.disconnect(id, userId),
+    mutationFn: ({ id }: { id: string }) => api.integrations.disconnect(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrationConnections'] });
     },

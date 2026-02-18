@@ -324,6 +324,7 @@ export type ComponentParameterType =
   | 'textarea'
   | 'number'
   | 'boolean'
+  | 'toggle'
   | 'select'
   | 'multi-select'
   | 'json'
