@@ -13,6 +13,7 @@ async function bootstrap() {
   await enforceVersionCheck();
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn'],
+    rawBody: true,
   });
 
   // Enable cookie parsing for session auth

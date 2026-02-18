@@ -4,6 +4,7 @@ export const COMPONENT_CATEGORIES = [
   'ai',
   'mcp',
   'security',
+  'scanners',
   'it_ops',
   'notification',
   'manual_action',
@@ -112,6 +113,22 @@ export const COMPONENT_CATEGORY_DESCRIPTORS: Record<ComponentCategory, Component
     headerBackgroundColor: {
       light: 'rgb(255 250 250)',
       dark: 'rgb(69 10 10 / 0.15)',
+    },
+  },
+  scanners: {
+    label: 'Scanners',
+    description: 'Code and secret scanning tools',
+    emoji: '🔍',
+    icon: 'Search',
+    color: 'text-rose-600',
+    textColorClass: 'text-rose-600 dark:text-rose-400',
+    separatorColor: {
+      light: 'rgb(253 164 175)',
+      dark: 'rgb(253 164 175)',
+    },
+    headerBackgroundColor: {
+      light: 'rgb(255 251 252)',
+      dark: 'rgb(76 5 25 / 0.15)',
     },
   },
   it_ops: {
@@ -234,6 +251,7 @@ export const COMPONENT_CATEGORY_ORDER: readonly ComponentCategory[] = [
   'output',
   'notification',
   'security',
+  'scanners',
   'mcp',
   'cloud',
   'ai',

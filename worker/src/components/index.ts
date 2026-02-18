@@ -56,10 +56,17 @@ import './security/terminal-demo';
 import './security/virustotal';
 import './security/abuseipdb';
 import './security/aws-mcp-group';
+import './security/findings-normalize';
+import './security/findings-markdown';
 
 // GitHub components
 import './github/connection-provider';
 import './github/remove-org-membership';
+import './github/clone-repo';
+import './github/post-pr-comment';
+import './github/create-check-run';
+import './github/update-check-run';
+import './github/pr-context';
 
 // IT Automation components
 import './it-automation/google-workspace-license-unassign';
@@ -73,6 +80,12 @@ import './test/sleep-parallel';
 import './test/live-event-heartbeat';
 import './test/simple-http-mcp';
 import './test/analytics-fixture';
+
+// Scanner components (GitHub integration)
+import './scanners/trufflehog';
+import './scanners/opengrep';
+import './scanners/dependency';
+import './scanners/trivy';
 
 // Export registry for external use
 export { componentRegistry } from '@shipsec/component-sdk';

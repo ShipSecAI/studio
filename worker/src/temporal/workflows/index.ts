@@ -757,12 +757,12 @@ export async function shipsecWorkflowRun(
             // Cleanup any MCP containers that were started before failure
             if (startedContainerId) {
               console.warn(
-                `[Workflow] Cleaning up MCP container ${startedContainerId} after registration failure`,
+                `[Workflow] Cleaning up run resources after MCP registration failure (container: ${startedContainerId})`,
               );
               try {
                 await cleanupRunResourcesActivity({ runId: input.runId });
               } catch (cleanupError) {
-                console.error(`[Workflow] Failed to cleanup MCP container: ${cleanupError}`);
+                console.error(`[Workflow] Failed to cleanup run resources: ${cleanupError}`);
               }
             }
             throw error;
@@ -1057,10 +1057,10 @@ export async function shipsecWorkflowRun(
     );
   } finally {
     console.log(
-      `[Workflow] Cleaning up MCP containers for run ${input.runId} (success=${workflowCompletedSuccessfully})`,
+      `[Workflow] Cleaning up run resources (containers + volumes) for run ${input.runId} (success=${workflowCompletedSuccessfully})`,
     );
     await cleanupRunResourcesActivity({ runId: input.runId }).catch((err) => {
-      console.error(`[Workflow] Failed to cleanup MCP containers for run ${input.runId}`, err);
+      console.error(`[Workflow] Failed to cleanup run resources for run ${input.runId}`, err);
     });
     await finalizeRunActivity({ runId: input.runId }).catch((err) => {
       console.error(`[Workflow] Failed to finalize run ${input.runId}`, err);
