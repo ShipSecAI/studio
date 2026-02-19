@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, X, Clock, Loader2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatRelativeTime } from '@/components/scans/scan-utils';
 import type { GitHubScanResult, GitHubRepo } from '@/store/githubStore';
 
@@ -9,13 +9,42 @@ interface RecentActivityFeedProps {
   repositories: GitHubRepo[];
 }
 
-const STATUS_CONFIG: Record<string, { icon: typeof Check; color: string; bg: string }> = {
-  success: { icon: Check, color: 'text-green-500', bg: 'bg-green-500/10' },
-  failure: { icon: X, color: 'text-red-500', bg: 'bg-red-500/10' },
-  error: { icon: X, color: 'text-red-500', bg: 'bg-red-500/10' },
-  running: { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-  pending: { icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+const STATUS_DOT_COLOR: Record<string, string> = {
+  success: 'bg-green-500',
+  failure: 'bg-red-500',
+  error: 'bg-red-500',
+  running: 'bg-blue-500 animate-pulse',
+  pending: 'bg-yellow-500',
 };
+
+/** Provider logo paths keyed by scan source type */
+const PROVIDER_LOGO: Record<string, { src: string; alt: string }> = {
+  github: { src: '/icons/github.svg', alt: 'GitHub' },
+  aws: { src: '/icons/aws.png', alt: 'AWS' },
+};
+
+function getProviderLogo(scan: GitHubScanResult) {
+  // Cloud security scans (Prowler) target AWS
+  if (
+    scan.workflowName?.toLowerCase().includes('prowler') ||
+    scan.workflowName?.toLowerCase().includes('cloud')
+  ) {
+    return PROVIDER_LOGO.aws;
+  }
+  // Default: GitHub repo scan
+  return PROVIDER_LOGO.github;
+}
+
+function formatFullTimestamp(dateString: string): string {
+  return new Date(dateString).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
 
 export function RecentActivityFeed({ scanResults, repositories }: RecentActivityFeedProps) {
   const recentScans = scanResults
@@ -27,43 +56,56 @@ export function RecentActivityFeed({ scanResults, repositories }: RecentActivity
     .slice(0, 5);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Recent Scans</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {recentScans.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No scans yet.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {recentScans.map((scan) => {
-              const repo = repositories.find((r) => r.id === scan.repositoryId);
-              const repoName = repo?.fullName?.split('/').pop() ?? 'Unknown';
-              const config = STATUS_CONFIG[scan.status] ?? STATUS_CONFIG.pending;
-              const Icon = config.icon;
-              const time = formatRelativeTime(scan.completedAt ?? scan.createdAt);
+    <TooltipProvider>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent Scans</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentScans.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No scans yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {recentScans.map((scan) => {
+                const repo = repositories.find((r) => r.id === scan.repositoryId);
+                const repoName = repo?.fullName?.split('/').pop() ?? 'Unknown';
+                const dotColor = STATUS_DOT_COLOR[scan.status] ?? STATUS_DOT_COLOR.pending;
+                const rawTimestamp = scan.completedAt ?? scan.createdAt;
+                const time = formatRelativeTime(rawTimestamp);
+                const logo = getProviderLogo(scan);
 
-              return (
-                <Link
-                  key={scan.id}
-                  to={`/integrations/github/scans/${scan.id}`}
-                  className="flex items-center gap-2 text-xs hover:bg-muted/50 rounded p-1.5 -mx-1 transition-colors"
-                >
-                  <div
-                    className={`w-6 h-6 rounded flex items-center justify-center flex-shrink-0 ${config.bg}`}
+                return (
+                  <Link
+                    key={scan.id}
+                    to={`/github/scans/${scan.id}`}
+                    className="flex items-center gap-2 text-xs hover:bg-muted/50 rounded p-1.5 -mx-1 transition-colors"
                   >
-                    <Icon
-                      className={`h-3 w-3 ${config.color} ${scan.status === 'running' ? 'animate-spin' : ''}`}
-                    />
-                  </div>
-                  <span className="truncate flex-1 min-w-0">{repoName}</span>
-                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{time}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                    <div className="relative w-6 h-6 flex-shrink-0">
+                      <img
+                        src={logo.src}
+                        alt={logo.alt}
+                        className="w-6 h-6 rounded object-contain"
+                      />
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background ${dotColor}`}
+                      />
+                    </div>
+                    <span className="truncate flex-1 min-w-0">{repoName}</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0 cursor-default">
+                          {time}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>{formatFullTimestamp(rawTimestamp)}</TooltipContent>
+                    </Tooltip>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </TooltipProvider>
   );
 }

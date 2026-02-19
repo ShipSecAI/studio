@@ -36,63 +36,91 @@ export function GettingStartedChecklist({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const total = checklist.length;
   const progressPercent = (completedCount / total) * 100;
+  const collapsible = completedCount > 0;
 
   if (mode === 'expanded') {
     return (
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className={collapsible && !isOpen ? 'py-3' : 'pb-3'}>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Getting Started</CardTitle>
-            <span className="text-xs text-muted-foreground">
-              {completedCount}/{total}
-            </span>
-          </div>
-          {/* Progress bar */}
-          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-2">
-            <div
-              className="h-full bg-primary rounded-full transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            {checklist.map((step) => {
-              return (
-                <Link
-                  key={step.label}
-                  to={step.href}
-                  className={`group relative flex flex-col items-center text-center p-4 rounded-lg border transition-all hover:border-primary/50 hover:bg-primary/5 ${
-                    step.done ? 'border-green-500/30 bg-green-500/5' : 'border-border'
-                  }`}
-                >
+            {collapsible ? (
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              >
+                <CardTitle className="text-base">Getting Started</CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  {completedCount}/{total}
+                </span>
+                <div className="flex-1 max-w-32 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
-                      step.done ? 'bg-green-500/10' : 'bg-muted'
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+            ) : (
+              <>
+                <CardTitle className="text-base">Getting Started</CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  {completedCount}/{total}
+                </span>
+              </>
+            )}
+          </div>
+          {/* Progress bar — only show standalone when not collapsible */}
+          {!collapsible && (
+            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-2">
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
+        </CardHeader>
+        {(!collapsible || isOpen) && (
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {checklist.map((step) => {
+                return (
+                  <Link
+                    key={step.label}
+                    to={step.href}
+                    className={`group relative flex flex-col items-center text-center p-4 rounded-lg border transition-all hover:border-primary/50 hover:bg-primary/5 ${
+                      step.done ? 'border-green-500/30 bg-green-500/5' : 'border-border'
                     }`}
                   >
-                    <img
-                      src={step.icon}
-                      alt={step.label}
-                      className={`h-5 w-5 ${step.done ? 'opacity-50' : ''}`}
-                    />
-                  </div>
-                  <span
-                    className={`text-xs font-medium ${step.done ? 'text-muted-foreground line-through' : ''}`}
-                  >
-                    {step.label}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground mt-0.5">
-                    {step.description}
-                  </span>
-                  {step.done && (
-                    <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-green-500" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        </CardContent>
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
+                        step.done ? 'bg-green-500/10' : 'bg-muted'
+                      }`}
+                    >
+                      <img
+                        src={step.icon}
+                        alt={step.label}
+                        className={`h-5 w-5 ${step.done ? 'opacity-50' : ''}`}
+                      />
+                    </div>
+                    <span
+                      className={`text-xs font-medium ${step.done ? 'text-muted-foreground line-through' : ''}`}
+                    >
+                      {step.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">
+                      {step.description}
+                    </span>
+                    {step.done && (
+                      <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-green-500" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        )}
       </Card>
     );
   }

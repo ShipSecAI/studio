@@ -29,6 +29,7 @@ import {
 import { useSecurityDashboardStore } from '@/store/securityDashboardStore';
 import { useSecurityViewStore } from '@/store/securityViewStore';
 import { useGitHubInstallations } from '@/hooks/queries/useGithubQueries';
+import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
 import {
   useSecurityFindings,
   useSecurityTimeSeries,
@@ -43,6 +44,7 @@ import { SeverityBadge, StatusBadge, formatTimestamp } from '@/components/securi
 import { FilterPopover } from '@/components/security/FilterPopover';
 import { TimeSeriesChart } from '@/components/security/TimeSeriesChart';
 import { FirstScanModal } from '@/components/security/FirstScanModal';
+import { CloudFirstScanModal } from '@/components/security/CloudFirstScanModal';
 import { SEVERITY_CONFIG, TIME_RANGES, PAGE_SIZE } from '@/components/security/constants';
 import { cn } from '@/lib/utils';
 
@@ -396,9 +398,11 @@ export function SecurityDashboardContent() {
 
   // GitHub connection status (for code/dependency empty states)
   const { data: githubInstallations = [] } = useGitHubInstallations();
+  const { data: orgConnections = [] } = useIntegrationConnections();
   const [firstScanModalOpen, setFirstScanModalOpen] = useState(false);
 
   const hasGitHub = githubInstallations.length > 0;
+  const hasAws = orgConnections.some((c) => c.provider === 'aws');
   const isGitHubView =
     activeViewId === 'code-security' ||
     activeViewId === 'dependency-security' ||
@@ -408,6 +412,34 @@ export function SecurityDashboardContent() {
 
   // --- Empty state: no findings and no active filters -> show CTA ---
   if (totalFindings === 0 && !hasActiveFilters && (!summaryLoading || errorMessage)) {
+    // For cloud-security view when AWS is already connected, show "Run First Scan"
+    if (activeViewId === 'cloud-security' && hasAws) {
+      return (
+        <div className="flex-1 bg-background">
+          <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <Scan className="h-7 w-7 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold mb-1">No cloud findings yet</h2>
+            <p className="text-sm text-muted-foreground max-w-md mb-6">
+              AWS is connected. Run your first Prowler scan to discover cloud security findings.
+            </p>
+            <button
+              onClick={() => setFirstScanModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <PlayCircle className="h-4 w-4" />
+              Run First Scan
+            </button>
+          </div>
+          <CloudFirstScanModal
+            open={firstScanModalOpen}
+            onClose={() => setFirstScanModalOpen(false)}
+          />
+        </div>
+      );
+    }
+
     // For code/dependency views when GitHub is already connected, show "Run First Scan"
     if (isGitHubView && hasGitHub) {
       const scanCategory =
@@ -462,26 +494,26 @@ export function SecurityDashboardContent() {
         title: 'No cloud findings yet',
         description:
           'Connect your AWS account and run a Prowler scan to discover cloud security findings.',
-        href: '/integrations/aws',
+        href: '/cloud/accounts',
         linkLabel: 'Connect AWS',
       },
       'code-security': {
         title: 'No code findings yet',
         description:
           'Connect GitHub and run your first code security scan to discover vulnerabilities.',
-        href: '/integrations/github',
+        href: '/github/repositories',
         linkLabel: 'Connect GitHub',
       },
       'dependency-security': {
         title: 'No dependency findings yet',
         description: 'Connect GitHub and run a dependency scan to discover vulnerable packages.',
-        href: '/integrations/github',
+        href: '/github/repositories',
         linkLabel: 'Connect GitHub',
       },
       'container-security': {
         title: 'No container findings yet',
         description: 'Connect GitHub and run a container scan to discover image vulnerabilities.',
-        href: '/integrations/github',
+        href: '/github/repositories',
         linkLabel: 'Connect GitHub',
       },
     };

@@ -23,24 +23,68 @@ const formatLabel = (label: ReactNode) => {
   return String(label);
 };
 
+// Only render a dot when the value is non-zero
+const makeDot = (color: string) => (props: Record<string, unknown>) => {
+  const value = props.value as number;
+  if (value === 0 || value == null)
+    return (
+      <circle
+        key={`dot-${props.cx}-${props.cy}`}
+        cx={props.cx as number}
+        cy={props.cy as number}
+        r={0}
+      />
+    );
+  return (
+    <circle
+      key={`dot-${props.cx}-${props.cy}`}
+      cx={props.cx as number}
+      cy={props.cy as number}
+      r={3}
+      fill={color}
+      stroke="white"
+      strokeWidth={1}
+    />
+  );
+};
+
+const SERIES = [
+  { key: 'low', stroke: '#22c55e', fillOpacity: 0.12 },
+  { key: 'medium', stroke: '#f59e0b', fillOpacity: 0.15 },
+  { key: 'high', stroke: '#8b5cf6', fillOpacity: 0.18 },
+  { key: 'critical', stroke: '#dc2626', fillOpacity: 0.2 },
+] as const;
+
 export function FindingsTrendChartInner({ data }: FindingsTrendChartInnerProps) {
+  // Only render a series if it has at least one non-zero data point
+  const activeSeries = SERIES.filter((s) => data.some((d) => (d[s.key] ?? 0) > 0));
+
   return (
     <div className="h-40">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 16 }}>
           <XAxis
             dataKey="date"
             tickFormatter={formatDate}
             tick={{ fontSize: 10 }}
             tickLine={false}
-            axisLine={false}
+            axisLine={{ stroke: 'hsl(var(--border))' }}
             className="text-muted-foreground"
+            label={{ value: 'Date', position: 'insideBottom', offset: -10, fontSize: 10 }}
           />
           <YAxis
             tick={{ fontSize: 10 }}
             tickLine={false}
-            axisLine={false}
+            axisLine={{ stroke: 'hsl(var(--border))' }}
             className="text-muted-foreground"
+            label={{
+              value: 'Findings',
+              angle: -90,
+              position: 'insideLeft',
+              offset: 10,
+              fontSize: 10,
+            }}
+            width={45}
           />
           <Tooltip
             labelFormatter={formatLabel}
@@ -51,38 +95,18 @@ export function FindingsTrendChartInner({ data }: FindingsTrendChartInnerProps) 
               fontSize: '11px',
             }}
           />
-          <Area
-            type="monotone"
-            dataKey="critical"
-            stackId="1"
-            stroke="#dc2626"
-            fill="#dc2626"
-            fillOpacity={0.6}
-          />
-          <Area
-            type="monotone"
-            dataKey="high"
-            stackId="1"
-            stroke="#ea580c"
-            fill="#ea580c"
-            fillOpacity={0.5}
-          />
-          <Area
-            type="monotone"
-            dataKey="medium"
-            stackId="1"
-            stroke="#ca8a04"
-            fill="#ca8a04"
-            fillOpacity={0.4}
-          />
-          <Area
-            type="monotone"
-            dataKey="low"
-            stackId="1"
-            stroke="#2563eb"
-            fill="#2563eb"
-            fillOpacity={0.3}
-          />
+          {activeSeries.map((s) => (
+            <Area
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              stroke={s.stroke}
+              fill={s.stroke}
+              fillOpacity={s.fillOpacity}
+              dot={makeDot(s.stroke)}
+              activeDot={false}
+            />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     </div>
