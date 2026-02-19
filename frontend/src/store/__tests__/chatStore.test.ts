@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test';
 import { useChatStore } from '../chatStore';
+
+// Save original fetch to restore after tests
+const originalFetch = globalThis.fetch;
 
 // Mock fetch globally for server-backed session operations
 const mockFetch = mock(() =>
@@ -9,7 +12,6 @@ const mockFetch = mock(() =>
     json: () => Promise.resolve({}),
   } as Response),
 );
-globalThis.fetch = mockFetch as any;
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -95,6 +97,9 @@ function mockListSessionsResponse(sessions: any[] = []) {
 
 describe('chatStore', () => {
   beforeEach(() => {
+    // Set up mock fetch for this file's tests
+    globalThis.fetch = mockFetch as any;
+
     localStorageMock.clear();
     sessionCounter = 0;
     mockFetch.mockClear();
@@ -108,6 +113,11 @@ describe('chatStore', () => {
       selectedWorkflowId: null,
       isSidebarOpen: true,
     });
+  });
+
+  afterEach(() => {
+    // Restore original fetch to prevent contaminating other test files
+    globalThis.fetch = originalFetch;
   });
 
   describe('Initial State', () => {
