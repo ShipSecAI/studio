@@ -233,6 +233,10 @@ function generateGitHubUrl(
   const params = new URLSearchParams();
   params.set('filename', filename);
   params.set('message', `Add template: ${templateName}`);
+  params.set(
+    'value',
+    '// Paste your copied template JSON below this line, then delete this comment before creating the PR\n',
+  );
   params.set('quick_pull', '1');
 
   return `${baseUrl}?${params.toString()}`;
@@ -246,7 +250,7 @@ function sanitizeFilename(name: string): string {
     name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') + '.json'
+      .replace(/^-+|-+$/g, '') + '.jsonc'
   );
 }
 
@@ -453,8 +457,8 @@ export function PublishTemplateModal({
                 </p>
                 <ol className="text-left list-decimal list-inside space-y-2 text-muted-foreground">
                   <li>
-                    <strong>Paste</strong> the copied template code into the GitHub editor that
-                    opened
+                    <strong>Replace</strong> the placeholder comment in the GitHub editor with the
+                    copied template code
                   </li>
                   <li>
                     <strong>Important:</strong> Click &quot;Propose new file&quot; (NOT &quot;Commit

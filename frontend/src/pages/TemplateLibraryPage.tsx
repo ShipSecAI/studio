@@ -370,51 +370,52 @@ function TemplateCard({ template, onUse, canUse }: TemplateCardProps) {
           </p>
         )}
 
-        {/* Tags */}
-        {template.tags && template.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {template.tags.slice(0, 3).map((tag) => (
+        {/* Spacer to push tags/metadata and actions to bottom */}
+        <div className="flex-1" />
+
+        {/* Tags & Metadata — side by side */}
+        <div className="flex items-center justify-between gap-2 mb-3">
+          {/* Tags (left) */}
+          <div className="flex flex-wrap gap-1 min-w-0">
+            {template.tags?.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/60 text-muted-foreground"
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/80 text-muted-foreground border border-border/40"
               >
                 {tag}
               </span>
             ))}
-            {template.tags.length > 3 && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/60 text-muted-foreground">
+            {template.tags && template.tags.length > 3 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/80 text-muted-foreground border border-border/40">
                 +{template.tags.length - 3}
               </span>
             )}
           </div>
-        )}
 
-        {/* Spacer to push metadata and actions to bottom */}
-        <div className="flex-1" />
-
-        {/* Metadata row */}
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground mb-3">
-          {template.author && (
-            <span className="flex items-center gap-1 truncate" title={template.author}>
-              <Users className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate max-w-[80px]">{template.author}</span>
-            </span>
-          )}
-          {template.popularity > 0 && (
-            <span className="flex items-center gap-1">
-              <Star className="h-3 w-3 flex-shrink-0 text-amber-500" />
-              {template.popularity}
-            </span>
-          )}
-          {template.requiredSecrets && template.requiredSecrets.length > 0 && (
-            <span
-              className="flex items-center gap-1"
-              title={`${template.requiredSecrets.length} secret(s) required`}
-            >
-              <KeyRound className="h-3 w-3 flex-shrink-0" />
-              {template.requiredSecrets.length}
-            </span>
-          )}
+          {/* Metadata (right) */}
+          <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground flex-shrink-0">
+            {template.author && (
+              <span className="flex items-center gap-1" title={template.author}>
+                <Users className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate max-w-[70px]">{template.author}</span>
+              </span>
+            )}
+            {template.popularity > 0 && (
+              <span className="flex items-center gap-1">
+                <Star className="h-3 w-3 flex-shrink-0 text-amber-500" />
+                {template.popularity}
+              </span>
+            )}
+            {template.requiredSecrets && template.requiredSecrets.length > 0 && (
+              <span
+                className="flex items-center gap-1"
+                title={`${template.requiredSecrets.length} secret(s) required`}
+              >
+                <KeyRound className="h-3 w-3 flex-shrink-0" />
+                {template.requiredSecrets.length}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Actions */}

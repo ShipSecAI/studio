@@ -242,11 +242,65 @@ export class GitHubSyncService implements OnModuleInit {
   }
 
   /**
-   * Parse and validate template JSON.
+   * Strip JSONC comments (single-line and multi-line) from a string.
+   * Preserves comment-like sequences inside JSON strings.
+   */
+  private stripJsonComments(text: string): string {
+    let result = '';
+    let i = 0;
+    let inString = false;
+
+    while (i < text.length) {
+      if (!inString && text[i] === '"') {
+        inString = true;
+        result += text[i];
+        i++;
+        continue;
+      }
+
+      if (inString) {
+        if (text[i] === '\\') {
+          result += text[i] + (text[i + 1] || '');
+          i += 2;
+          continue;
+        }
+        if (text[i] === '"') {
+          inString = false;
+        }
+        result += text[i];
+        i++;
+        continue;
+      }
+
+      // Single-line comment
+      if (text[i] === '/' && text[i + 1] === '/') {
+        while (i < text.length && text[i] !== '\n') i++;
+        continue;
+      }
+
+      // Multi-line comment
+      if (text[i] === '/' && text[i + 1] === '*') {
+        i += 2;
+        while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+        i += 2;
+        continue;
+      }
+
+      result += text[i];
+      i++;
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse and validate template JSON/JSONC.
+   * Strips comments before parsing to support JSONC format.
    */
   private parseTemplateJson(content: string, path: string): TemplateJson | null {
     try {
-      const template = JSON.parse(content) as TemplateJson;
+      const stripped = this.stripJsonComments(content);
+      const template = JSON.parse(stripped) as TemplateJson;
 
       if (!template._metadata?.name) {
         this.logger.warn(`Template missing _metadata.name: ${path}`);
@@ -311,7 +365,7 @@ export class GitHubSyncService implements OnModuleInit {
 
       for (const file of files) {
         if (file.type !== 'file') continue;
-        if (!file.name.endsWith('.json')) continue;
+        if (!file.name.endsWith('.json') && !file.name.endsWith('.jsonc')) continue;
 
         try {
           const { content, cached: fileCacheHit } = await this.fetchFileContent(file.path);
