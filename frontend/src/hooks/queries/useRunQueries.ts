@@ -165,6 +165,14 @@ export function useRecentRuns(limit = 10) {
   });
 }
 
+export function useRunActivity(days = 90) {
+  return useQuery({
+    queryKey: queryKeys.runs.activity({ days }),
+    queryFn: () => api.executions.getRunActivity({ days }),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 /** Upsert a single run into all matching cache entries */
 export function upsertRunInCache(run: ExecutionRun) {
   const upsert = (old: RunsPage | undefined): RunsPage => {

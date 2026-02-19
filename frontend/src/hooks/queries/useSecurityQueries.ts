@@ -9,6 +9,7 @@ import {
   parseFinding,
   parseSeverityCounts,
   PAGE_SIZE,
+  INITIAL_FILTERS,
   type SecurityDashboardFilters,
   type SecurityFinding,
   type SecurityFindingsResult,
@@ -87,6 +88,7 @@ export function useSecurityTimeSeries(
               ...(['minute', 'hour', 'day', 'week', 'month', 'quarter', 'year'].includes(interval)
                 ? { calendar_interval: interval }
                 : { fixed_interval: interval }),
+              time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               min_doc_count: 0,
             },
             aggs: {
@@ -114,6 +116,17 @@ export function useSecurityTimeSeries(
     staleTime: 30_000,
     refetchInterval: 20_000,
   });
+}
+
+// ── Heatmap Time Series (90-day window) ─────────────────────────────
+
+export function useSecurityTimeSeriesForHeatmap(days = 90) {
+  const filters: SecurityDashboardFilters = {
+    ...INITIAL_FILTERS,
+    from: new Date(Date.now() - days * 86_400_000).toISOString(),
+    to: new Date().toISOString(),
+  };
+  return useSecurityTimeSeries(filters, {}, 'day');
 }
 
 // ── Finding Detail ──────────────────────────────────────────────────

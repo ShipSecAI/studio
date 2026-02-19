@@ -41,6 +41,8 @@ import {
   WorkflowVersionResponseDto,
   WorkflowRuntimeInputsResponseDto,
   ENTRY_POINT_COMPONENT_IDS,
+  RunActivityQuerySchema,
+  type RunActivityQueryDto,
   type RuntimeInput,
 } from './dto/workflow-graph.dto';
 import {
@@ -309,6 +311,33 @@ export class WorkflowsController {
   })
   async listSummary(@CurrentAuth() auth: AuthContext | null) {
     return this.workflowsService.listSummary(auth);
+  }
+
+  @Get('/runs/activity')
+  @ApiOkResponse({
+    description: 'Aggregated run counts per day',
+    schema: {
+      type: 'object',
+      properties: {
+        totalRuns: { type: 'number' },
+        activity: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', format: 'date' },
+              count: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+  })
+  async getRunActivity(
+    @CurrentAuth() auth: AuthContext | null,
+    @Query(new ZodValidationPipe(RunActivityQuerySchema)) query: RunActivityQueryDto,
+  ) {
+    return this.workflowsService.getRunActivity(auth, query.days);
   }
 
   @Get('/runs')

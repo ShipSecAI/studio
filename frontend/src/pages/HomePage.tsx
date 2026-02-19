@@ -36,6 +36,7 @@ import { NeedsAttentionCard } from '@/components/home/NeedsAttentionCard';
 import { RecentActivityFeed } from '@/components/home/RecentActivityFeed';
 import { CoverageDetailCard } from '@/components/home/CoverageDetailCard';
 import { FindingsTrendChart } from '@/components/home/FindingsTrendChart';
+import { ActivityHeatmap } from '@/components/home/ActivityHeatmap';
 
 /** Map scanner names to category key using the built-in view definitions */
 const SCANNER_TO_CATEGORY: Record<string, string> = {};
@@ -281,6 +282,10 @@ export function HomePage() {
           />
 
           <QueryErrorBoundary>
+            <ActivityHeatmap />
+          </QueryErrorBoundary>
+
+          <QueryErrorBoundary>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2">
                 <NeedsAttentionCard categories={attentionCategories} mode="normal" />
@@ -348,6 +353,10 @@ export function HomePage() {
           securityScore={analyticsError ? 0 : securityScore}
           showScore
         />
+
+        <QueryErrorBoundary>
+          <ActivityHeatmap />
+        </QueryErrorBoundary>
 
         <QueryErrorBoundary>
           <NeedsAttentionCard categories={attentionCategories} mode="prominent" />

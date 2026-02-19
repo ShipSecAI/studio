@@ -273,5 +273,10 @@ export class WorkflowRuntimeInputsResponseDto extends createZodDto(
   WorkflowRuntimeInputsResponseSchema,
 ) {}
 
+export const RunActivityQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(365).default(90),
+});
+export type RunActivityQueryDto = z.infer<typeof RunActivityQuerySchema>;
+
 // Constants for entry point component identification
 export const ENTRY_POINT_COMPONENT_IDS = ['core.workflow.entrypoint', 'entry-point'] as const;

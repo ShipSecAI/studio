@@ -703,6 +703,13 @@ export class WorkflowsService {
     };
   }
 
+  async getRunActivity(auth: AuthContext | null, days: number) {
+    const organizationId = this.requireOrganizationId(auth);
+    const activity = await this.runRepository.getActivityByDay(organizationId, days);
+    const totalRuns = activity.reduce((sum, d) => sum + d.count, 0);
+    return { totalRuns, activity };
+  }
+
   async listRuns(
     auth?: AuthContext | null,
     options: {

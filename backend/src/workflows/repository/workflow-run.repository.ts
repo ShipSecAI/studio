@@ -205,6 +205,26 @@ export class WorkflowRunRepository {
       .where(eq(workflowRunsTable.runId, runId));
   }
 
+  async getActivityByDay(
+    organizationId: string,
+    days: number,
+  ): Promise<{ date: string; count: number }[]> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+
+    const result = await this.db.execute(sql`
+      SELECT DATE(${workflowRunsTable.createdAt} AT TIME ZONE 'UTC') as date,
+             COUNT(*)::int as count
+      FROM ${workflowRunsTable}
+      WHERE ${workflowRunsTable.organizationId} = ${organizationId}
+        AND ${workflowRunsTable.parentRunId} IS NULL
+        AND ${workflowRunsTable.createdAt} >= ${cutoff}
+      GROUP BY DATE(${workflowRunsTable.createdAt} AT TIME ZONE 'UTC')
+      ORDER BY date
+    `);
+    return result.rows as { date: string; count: number }[];
+  }
+
   private buildRunFilter(runId: string, organizationId?: string | null) {
     const base = eq(workflowRunsTable.runId, runId);
     if (!organizationId) {

@@ -17,6 +17,7 @@ import {
   Undo2,
   Redo2,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -83,7 +84,8 @@ export function TopBar({
   // For Clerk auth, org context is ready when organizationId is set to a real value (not default)
   // For other providers (local, custom), org context is always ready
   const isOrgReady = authProvider !== 'clerk' || organizationId !== DEFAULT_ORG_ID;
-  const canEdit = Boolean(canManageWorkflows);
+  const isSystemWorkflow = metadata.isSystem === true;
+  const canEdit = Boolean(canManageWorkflows) && !isSystemWorkflow;
 
   const handleChangeWorkflowName = () => {
     const trimmed = (tempWorkflowName ?? '').trim();
@@ -274,12 +276,12 @@ export function TopBar({
     );
 
   return (
-    <div className="h-14 border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
+    <div className="min-h-[56px] md:min-h-[60px] border-b bg-background flex flex-nowrap items-center px-2 md:px-4 gap-1.5 md:gap-3 py-0">
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => navigate('/')}
-        aria-label="Back to workflows"
+        onClick={() => navigate(-1)}
+        aria-label="Go back"
         className="h-9 w-9 flex-shrink-0"
       >
         <ArrowLeft className="h-5 w-5" />
@@ -336,6 +338,21 @@ export function TopBar({
               <span className="hidden lg:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border/60 flex-shrink-0">
                 v{metadata.currentVersion}
               </span>
+            )}
+            {isSystemWorkflow && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-muted text-muted-foreground border border-border/60 flex-shrink-0">
+                      <Lock className="h-2.5 w-2.5" />
+                      System
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>System workflow — read-only</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
           {/* Mode toggle - flex-centered, won't overlap with other elements */}

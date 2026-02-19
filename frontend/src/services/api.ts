@@ -881,6 +881,12 @@ export const api = {
       return response.data || { runs: [] };
     },
 
+    getRunActivity: async (options?: { days?: number }) => {
+      const response = await apiClient.getRunActivity(options);
+      if (response.error) throw new Error('Failed to fetch run activity');
+      return response.data || { totalRuns: 0, activity: [] };
+    },
+
     getRun: async (runId: string) => {
       const response = await apiClient.getWorkflowRun(runId);
       if (response.error) throw new Error('Failed to fetch run');

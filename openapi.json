@@ -15,6 +15,57 @@
         ]
       }
     },
+    "/api/v1/auth/validate": {
+      "get": {
+        "operationId": "AppController_validateAuth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "AppController_login",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AppController_logout",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/api/v1/agents/{agentRunId}/parts": {
       "get": {
         "operationId": "AgentsController_parts",
@@ -243,6 +294,111 @@
         ]
       }
     },
+    "/api/v1/workflows/summary": {
+      "get": {
+        "operationId": "WorkflowsController_listSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Lightweight workflow list without graph data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "isSystem": {
+                        "type": "boolean"
+                      },
+                      "templateId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                      },
+                      "lastRun": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                      },
+                      "runCount": {
+                        "type": "integer"
+                      },
+                      "nodeCount": {
+                        "type": "integer"
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/runs/activity": {
+      "get": {
+        "operationId": "WorkflowsController_getRunActivity",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Aggregated run counts per day",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalRuns": {
+                      "type": "number"
+                    },
+                    "activity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
     "/api/v1/workflows/runs": {
       "get": {
         "operationId": "WorkflowsController_listRuns",
@@ -265,6 +421,24 @@
             }
           },
           {
+            "name": "triggerType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -272,6 +446,17 @@
               "minimum": 1,
               "maximum": 200,
               "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "default": 0,
               "type": "integer"
             }
           }
@@ -293,6 +478,9 @@
                             "type": "string"
                           },
                           "workflowId": {
+                            "type": "string"
+                          },
+                          "organizationId": {
                             "type": "string"
                           },
                           "status": {
@@ -411,6 +599,9 @@
                       "type": "string"
                     },
                     "workflowId": {
+                      "type": "string"
+                    },
+                    "organizationId": {
                       "type": "string"
                     },
                     "status": {
@@ -2456,6 +2647,147 @@
         ]
       }
     },
+    "/api/v1/analytics/query": {
+      "post": {
+        "operationId": "AnalyticsController_queryAnalytics",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 99
+            }
+          },
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum number of requests allowed per minute",
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsQueryRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query analytics data for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsQueryResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/settings": {
+      "get": {
+        "operationId": "AnalyticsController_getAnalyticsSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get analytics settings for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      },
+      "put": {
+        "operationId": "AnalyticsController_updateAnalyticsSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAnalyticsSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update analytics settings for the authenticated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSettingsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/ensure-tenant": {
+      "post": {
+        "operationId": "AnalyticsController_ensureTenant",
+        "parameters": [
+          {
+            "name": "x-internal-token",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ensure tenant resources exist for organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "securityEnabled": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/v1/api-keys": {
       "get": {
         "operationId": "ApiKeysController_list",
@@ -3007,20 +3339,23 @@
                           "type": "string"
                         }
                       },
-                      "agentTool": {
+                      "toolProvider": {
                         "type": "object",
                         "nullable": true,
                         "properties": {
-                          "enabled": {
-                            "type": "boolean"
-                          },
-                          "toolName": {
+                          "kind": {
                             "type": "string",
-                            "nullable": true
+                            "enum": [
+                              "component",
+                              "mcp-server",
+                              "mcp-group"
+                            ]
                           },
-                          "toolDescription": {
-                            "type": "string",
-                            "nullable": true
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
                           }
                         }
                       }
@@ -3543,6 +3878,20 @@
         ]
       }
     },
+    "/api/v1/integrations/catalog": {
+      "get": {
+        "operationId": "IntegrationsController_getCatalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns the integration provider catalog (AWS + Slack)"
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/integrations/providers": {
       "get": {
         "operationId": "IntegrationsController_listProviders",
@@ -3689,6 +4038,39 @@
         ]
       }
     },
+    "/api/v1/integrations/org/connections": {
+      "get": {
+        "operationId": "IntegrationsController_listOrgConnections",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/integrations/{provider}/start": {
       "post": {
         "operationId": "IntegrationsController_startOAuth",
@@ -3782,16 +4164,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefreshConnectionDto"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "",
@@ -3822,16 +4194,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DisconnectConnectionDto"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Connection removed"
@@ -3855,7 +4217,7 @@
             }
           },
           {
-            "name": "x-internal-token",
+            "name": "x-organization-id",
             "required": true,
             "in": "header",
             "schema": {
@@ -3873,6 +4235,210 @@
                 }
               }
             }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/connections/{id}/credentials": {
+      "post": {
+        "operationId": "IntegrationsController_resolveCredentials",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-organization-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionCredentialsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/aws/setup-info": {
+      "get": {
+        "operationId": "IntegrationsController_getAwsSetupInfo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwsSetupInfoResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/aws/connections": {
+      "post": {
+        "operationId": "IntegrationsController_createAwsConnection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAwsConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/aws/connections/{id}/validate": {
+      "post": {
+        "operationId": "IntegrationsController_validateAwsConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateAwsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/aws/connections/{id}/discover-org": {
+      "post": {
+        "operationId": "IntegrationsController_discoverOrgAccounts",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverOrgAccountsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/slack/connections": {
+      "post": {
+        "operationId": "IntegrationsController_createSlackWebhookConnection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSlackWebhookConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationConnectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/integrations/slack/connections/{id}/test": {
+      "post": {
+        "operationId": "IntegrationsController_testSlackConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test result for Slack connection"
           }
         },
         "tags": [
@@ -5177,6 +5743,14 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "includeServers",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -5236,7 +5810,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupTemplateDto"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "List available MCP group templates",
@@ -5733,40 +6317,16 @@
         ]
       }
     },
-    "/api/v1/internal/mcp/register-remote": {
+    "/api/v1/internal/mcp/register-mcp-server": {
       "post": {
-        "operationId": "InternalMcpController_registerRemote",
+        "operationId": "InternalMcpController_registerMcpServer",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RegisterRemoteMcpInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "InternalMcp"
-        ]
-      }
-    },
-    "/api/v1/internal/mcp/register-local": {
-      "post": {
-        "operationId": "InternalMcpController_registerLocal",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterLocalMcpInput"
+                "$ref": "#/components/schemas/RegisterMcpServerInput"
               }
             }
           }
@@ -6107,6 +6667,20 @@
         ]
       }
     },
+    "/api/v1/github/quick-scan-workflows": {
+      "get": {
+        "operationId": "GitHubAppController_getQuickScanWorkflows",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "GitHubApp"
+        ]
+      }
+    },
     "/api/v1/github/repos/{id}/scan": {
       "post": {
         "operationId": "GitHubAppController_triggerScan",
@@ -6365,6 +6939,205 @@
         },
         "tags": [
           "GitHubApp"
+        ]
+      }
+    },
+    "/api/v1/studio-mcp": {
+      "get": {
+        "operationId": "StudioMcpController_handleMcp_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      },
+      "post": {
+        "operationId": "StudioMcpController_handleMcp_post",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      },
+      "put": {
+        "operationId": "StudioMcpController_handleMcp_put",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      },
+      "delete": {
+        "operationId": "StudioMcpController_handleMcp_delete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      },
+      "patch": {
+        "operationId": "StudioMcpController_handleMcp_patch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      },
+      "options": {
+        "operationId": "StudioMcpController_handleMcp_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      },
+      "head": {
+        "operationId": "StudioMcpController_handleMcp_head",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      },
+      "search": {
+        "operationId": "StudioMcpController_handleMcp_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Studio MCP endpoint (Streamable HTTP) for external agents",
+        "tags": [
+          "studio-mcp"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates": {
+      "get": {
+        "operationId": "WorkflowTemplatesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      },
+      "post": {
+        "operationId": "WorkflowTemplatesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates/{id}": {
+      "get": {
+        "operationId": "WorkflowTemplatesController_getById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      },
+      "delete": {
+        "operationId": "WorkflowTemplatesController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflow-templates"
+        ]
+      }
+    },
+    "/api/v1/workflow-templates/{id}/instantiate": {
+      "post": {
+        "operationId": "WorkflowTemplatesController_instantiate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Creates a new workflow from the template"
+          }
+        },
+        "tags": [
+          "workflow-templates"
         ]
       }
     },
@@ -6944,6 +7717,15 @@
           "compiledDefinition": {
             "nullable": true
           },
+          "isSystem": {
+            "type": "boolean"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          },
           "lastRun": {
             "type": "string",
             "nullable": true
@@ -6977,6 +7759,8 @@
           "name",
           "graph",
           "compiledDefinition",
+          "isSystem",
+          "templateId",
           "lastRun",
           "runCount",
           "createdAt",
@@ -8081,6 +8865,148 @@
           "artifacts"
         ]
       },
+      "AnalyticsQueryRequestDto": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "description": "OpenSearch DSL query object",
+            "example": {
+              "match_all": {}
+            }
+          },
+          "size": {
+            "type": "number",
+            "description": "Number of results to return",
+            "example": 10,
+            "default": 10,
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "from": {
+            "type": "number",
+            "description": "Offset for pagination",
+            "example": 0,
+            "default": 0,
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "aggs": {
+            "type": "object",
+            "description": "OpenSearch aggregations object",
+            "example": {
+              "components": {
+                "terms": {
+                  "field": "component_id"
+                }
+              }
+            }
+          },
+          "sort": {
+            "description": "Sort specification",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AnalyticsQueryResponseDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "description": "Total number of matching documents",
+            "example": 100
+          },
+          "hits": {
+            "type": "array",
+            "description": "Search hits",
+            "items": {
+              "type": "object"
+            }
+          },
+          "aggregations": {
+            "type": "object",
+            "description": "Aggregation results"
+          }
+        },
+        "required": [
+          "total",
+          "hits"
+        ]
+      },
+      "AnalyticsSettingsResponseDto": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "description": "Organization ID",
+            "example": "org_abc123"
+          },
+          "subscriptionTier": {
+            "type": "string",
+            "description": "Subscription tier",
+            "enum": [
+              "free",
+              "pro",
+              "enterprise"
+            ],
+            "example": "free"
+          },
+          "analyticsRetentionDays": {
+            "type": "number",
+            "description": "Data retention period in days",
+            "example": 30
+          },
+          "maxRetentionDays": {
+            "type": "number",
+            "description": "Maximum retention days allowed for this tier",
+            "example": 30
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Timestamp when settings were created",
+            "example": "2026-01-20T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Timestamp when settings were last updated",
+            "example": "2026-01-20T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "organizationId",
+          "subscriptionTier",
+          "analyticsRetentionDays",
+          "maxRetentionDays",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateAnalyticsSettingsDto": {
+        "type": "object",
+        "properties": {
+          "analyticsRetentionDays": {
+            "type": "number",
+            "description": "Data retention period in days (must be within tier limits)",
+            "example": 30,
+            "minimum": 1,
+            "maximum": 365
+          },
+          "subscriptionTier": {
+            "type": "string",
+            "description": "Subscription tier (optional - usually set by billing system)",
+            "enum": [
+              "free",
+              "pro",
+              "enterprise"
+            ]
+          }
+        }
+      },
       "ApiKeyResponseDto": {
         "type": "object",
         "properties": {
@@ -8694,6 +9620,15 @@
           "userId": {
             "type": "string"
           },
+          "credentialType": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
           "scopes": {
             "type": "array",
             "items": {
@@ -8704,6 +9639,15 @@
             "type": "string"
           },
           "expiresAt": {
+            "type": "string"
+          },
+          "lastValidatedAt": {
+            "type": "string"
+          },
+          "lastValidationStatus": {
+            "type": "string"
+          },
+          "lastUsedAt": {
             "type": "string"
           },
           "createdAt": {
@@ -8735,6 +9679,8 @@
           "provider",
           "providerName",
           "userId",
+          "credentialType",
+          "displayName",
           "scopes",
           "tokenType",
           "createdAt",
@@ -8747,10 +9693,6 @@
       "StartOAuthDto": {
         "type": "object",
         "properties": {
-          "userId": {
-            "type": "string",
-            "description": "Application user identifier to associate the connection with"
-          },
           "redirectUri": {
             "type": "string",
             "description": "Frontend callback URL that receives the OAuth code"
@@ -8764,7 +9706,6 @@
           }
         },
         "required": [
-          "userId",
           "redirectUri"
         ]
       },
@@ -8796,10 +9737,6 @@
       "CompleteOAuthDto": {
         "type": "object",
         "properties": {
-          "userId": {
-            "type": "string",
-            "description": "Application user identifier to associate the connection with"
-          },
           "redirectUri": {
             "type": "string",
             "description": "Frontend callback URL that receives the OAuth code"
@@ -8821,34 +9758,9 @@
           }
         },
         "required": [
-          "userId",
           "redirectUri",
           "state",
           "code"
-        ]
-      },
-      "RefreshConnectionDto": {
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "string",
-            "description": "Application user identifier that owns the connection"
-          }
-        },
-        "required": [
-          "userId"
-        ]
-      },
-      "DisconnectConnectionDto": {
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "string",
-            "description": "Application user identifier that owns the connection"
-          }
-        },
-        "required": [
-          "userId"
         ]
       },
       "ConnectionTokenResponseDto": {
@@ -8882,6 +9794,169 @@
           "accessToken",
           "tokenType",
           "scopes"
+        ]
+      },
+      "ConnectionCredentialsResponseDto": {
+        "type": "object",
+        "properties": {
+          "credentialType": {
+            "type": "string",
+            "description": "Credential type discriminator"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "description": "Type-specific credential data"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Provider account identifier (e.g. AWS 12-digit account ID)"
+          },
+          "region": {
+            "type": "string",
+            "description": "Default region from the connection"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Display name of the connection"
+          }
+        },
+        "required": [
+          "credentialType",
+          "provider",
+          "data"
+        ]
+      },
+      "AwsSetupInfoResponseDto": {
+        "type": "object",
+        "properties": {
+          "platformRoleArn": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "setupToken": {
+            "type": "string"
+          },
+          "trustPolicyTemplate": {
+            "type": "string"
+          },
+          "externalIdDisplay": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "platformRoleArn",
+          "externalId",
+          "setupToken",
+          "trustPolicyTemplate"
+        ]
+      },
+      "CreateAwsConnectionDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "Display name for this connection"
+          },
+          "roleArn": {
+            "type": "string",
+            "description": "IAM role ARN for ShipSec to assume"
+          },
+          "region": {
+            "type": "string",
+            "description": "Default AWS region"
+          },
+          "externalId": {
+            "type": "string",
+            "description": "External ID from setup-info endpoint"
+          },
+          "setupToken": {
+            "type": "string",
+            "description": "Signed setup token from setup-info endpoint"
+          }
+        },
+        "required": [
+          "displayName",
+          "roleArn",
+          "externalId",
+          "setupToken"
+        ]
+      },
+      "ValidateAwsResponseDto": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "arn": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "valid"
+        ]
+      },
+      "OrgAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ]
+      },
+      "DiscoverOrgAccountsResponseDto": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrgAccountDto"
+            }
+          }
+        },
+        "required": [
+          "accounts"
+        ]
+      },
+      "CreateSlackWebhookConnectionDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "Display name for this webhook connection"
+          },
+          "webhookUrl": {
+            "type": "string",
+            "description": "Slack incoming webhook URL"
+          }
+        },
+        "required": [
+          "displayName",
+          "webhookUrl"
         ]
       },
       "CreateScheduleRequestDto": {
@@ -10106,7 +11181,9 @@
             "propertyNames": {
               "type": "string"
             },
-            "additionalProperties": {},
+            "additionalProperties": {
+              "type": "string"
+            },
             "nullable": true
           },
           "defaultDockerImage": {
@@ -10144,6 +11221,118 @@
           "updatedAt"
         ]
       },
+      "GroupTemplateDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "credentialContractName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "credentialMapping": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "defaultDockerImage": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "object",
+            "properties": {
+              "major": {
+                "type": "number"
+              },
+              "minor": {
+                "type": "number"
+              },
+              "patch": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "major",
+              "minor",
+              "patch"
+            ]
+          },
+          "servers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "transportType": {
+                  "type": "string",
+                  "enum": [
+                    "http",
+                    "stdio",
+                    "sse",
+                    "websocket"
+                  ]
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "recommended": {
+                  "type": "boolean"
+                },
+                "defaultSelected": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "transportType",
+                "recommended",
+                "defaultSelected"
+              ]
+            }
+          },
+          "templateHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "credentialContractName",
+          "defaultDockerImage",
+          "version",
+          "servers",
+          "templateHash"
+        ]
+      },
       "CreateMcpGroupDto": {
         "type": "object",
         "properties": {
@@ -10168,7 +11357,9 @@
             "propertyNames": {
               "type": "string"
             },
-            "additionalProperties": {},
+            "additionalProperties": {
+              "type": "string"
+            },
             "nullable": true
           },
           "defaultDockerImage": {
@@ -10205,7 +11396,9 @@
             "propertyNames": {
               "type": "string"
             },
-            "additionalProperties": {},
+            "additionalProperties": {
+              "type": "string"
+            },
             "nullable": true
           },
           "defaultDockerImage": {
@@ -10399,7 +11592,9 @@
                 "propertyNames": {
                   "type": "string"
                 },
-                "additionalProperties": {},
+                "additionalProperties": {
+                  "type": "string"
+                },
                 "nullable": true
               },
               "defaultDockerImage": {
@@ -10447,11 +11642,7 @@
         "type": "object",
         "properties": {}
       },
-      "RegisterRemoteMcpInput": {
-        "type": "object",
-        "properties": {}
-      },
-      "RegisterLocalMcpInput": {
+      "RegisterMcpServerInput": {
         "type": "object",
         "properties": {}
       },

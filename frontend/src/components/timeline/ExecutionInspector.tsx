@@ -452,7 +452,7 @@ export function ExecutionInspector({ onRerunRun }: ExecutionInspectorProps = {})
                   <span>{`${filteredLogs.length} log entries`}</span>
                   {triggerDisplay && (
                     <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/80">
-                      <span aria-hidden="true">{triggerDisplay.icon}</span>
+                      <triggerDisplay.icon className="h-3 w-3" aria-hidden="true" />
                       Triggered by {triggerDisplay.label}
                     </span>
                   )}
