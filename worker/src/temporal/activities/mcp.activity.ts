@@ -19,6 +19,7 @@ const DEFAULT_API_BASE_URL =
   process.env.STUDIO_API_BASE_URL ??
   process.env.SHIPSEC_API_BASE_URL ??
   process.env.API_BASE_URL ??
+  process.env.BACKEND_URL ??
   'http://localhost:3211';
 
 function normalizeBaseUrl(url: string): string {
@@ -37,7 +38,7 @@ async function callInternalApi(path: string, body: any) {
   }
 
   const baseUrl = normalizeBaseUrl(DEFAULT_API_BASE_URL);
-  const url = `${baseUrl}/internal/mcp/${path}`;
+  const url = `${baseUrl}/api/v1/internal/mcp/${path}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {

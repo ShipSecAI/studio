@@ -141,7 +141,10 @@ function wrapCommandForOutput(runner: DockerRunnerConfig): { command: string[]; 
   }
 
   if (command.length > 0) {
-    return { command: [command[0]], args: command.slice(1) };
+    // No entrypoint set → image uses its own default ENTRYPOINT.
+    // Pass all command elements as args (K8s `args` overrides CMD, not ENTRYPOINT),
+    // so the image binary runs with these as its arguments.
+    return { command: [], args: command };
   }
 
   return { command: [], args: [] };
@@ -676,21 +679,9 @@ function parseOutputFromLogs<O>(logs: string, context: ExecutionContext): O {
     }
   }
 
-  // Fallback: try parsing the last line as JSON
-  const lines = cleanLogs.trim().split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim();
-    if (line.startsWith('{') || line.startsWith('[')) {
-      try {
-        return JSON.parse(line) as O;
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  // Fallback: return raw logs as string output
-  context.logger.warn('[K8sRunner] No structured output found, returning raw stdout');
+  // No delimiter found → binary wrote directly to stdout (distroless / no shell wrapper).
+  // Return raw stdout as a string so the component can parse it (e.g. dnsx JSON lines).
+  context.logger.info('[K8sRunner] No output delimiter found, returning raw stdout');
   return cleanLogs.trim() as unknown as O;
 }
 
