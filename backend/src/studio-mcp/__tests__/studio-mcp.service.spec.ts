@@ -60,16 +60,18 @@ describe('StudioMcpService Unit Tests', () => {
       expect(server).toBeInstanceOf(McpServer);
     });
 
-    it('registers all 9 expected tools', () => {
+    it('registers all 13 expected tools', () => {
       const server = service.createServer(mockAuthContext);
       const registeredTools = getRegisteredTools(server);
 
       expect(registeredTools).toBeDefined();
-      expect(Object.keys(registeredTools).length).toBe(9);
+      expect(Object.keys(registeredTools).length).toBe(13);
 
       const toolNames = Object.keys(registeredTools).sort();
       expect(toolNames).toEqual([
         'cancel_run',
+        'create_workflow',
+        'delete_workflow',
         'get_component',
         'get_run_result',
         'get_run_status',
@@ -78,6 +80,8 @@ describe('StudioMcpService Unit Tests', () => {
         'list_runs',
         'list_workflows',
         'run_workflow',
+        'update_workflow',
+        'update_workflow_metadata',
       ]);
     });
 
@@ -129,7 +133,7 @@ describe('StudioMcpService Unit Tests', () => {
           trigger: {
             type: 'api',
             sourceId: mockAuthContext.userId,
-            label: 'Studio MCP',
+            label: 'Studio',
           },
         },
       );
