@@ -9,6 +9,7 @@ import {
 } from '@/hooks/queries/useGithubQueries';
 import { useSchedules } from '@/hooks/queries/useScheduleQueries';
 import { useIntegrationConnections } from '@/hooks/queries/useIntegrationQueries';
+import { useRecentRuns } from '@/hooks/queries/useRunQueries';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { useSecurityViewStore } from '@/store/securityViewStore';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -69,6 +70,7 @@ export function HomePage() {
   const userId = getCurrentUserId();
   const { data: orgConnections = [], isLoading: connectionsLoading } =
     useIntegrationConnections(userId);
+  const { data: recentRuns = [] } = useRecentRuns(10);
   const activeViewId = useSecurityViewStore((s) => s.activeViewId);
 
   // True until we have enough data to determine the user's onboarding state
@@ -88,7 +90,7 @@ export function HomePage() {
   const checklist = useMemo(() => {
     const hasGitHub = installations.length > 0;
     const hasAws = orgConnections.some((c) => c.provider === 'aws');
-    const hasScans = scanResults.length > 0;
+    const hasScans = scanResults.length > 0 || recentRuns.length > 0;
     const hasTriggers = triggerRules.length > 0;
     return [
       {
@@ -127,7 +129,7 @@ export function HomePage() {
         icon: CHECKLIST_ICONS.template,
       },
     ];
-  }, [installations, scanResults, triggerRules, orgConnections]);
+  }, [installations, scanResults, triggerRules, orgConnections, recentRuns]);
 
   const completedCount = checklist.filter((s) => s.done).length;
 
@@ -145,20 +147,7 @@ export function HomePage() {
   }, [completedCount, stageOverride]);
 
   // Derived stats — compute from our own independent query, not the shared dashboard store
-  const totalFindings = useMemo(() => {
-    let total = 0;
-    for (const cat of Object.values(categoryCounts)) {
-      total += cat.critical + cat.high + cat.medium + cat.low;
-    }
-    return total;
-  }, [categoryCounts]);
-
-  const integrationsConnected = useMemo(() => {
-    return installations.length + orgConnections.length;
-  }, [installations, orgConnections]);
-
-  // Aggregate severity counts across all categories
-  const allSeverityCounts = useMemo(() => {
+  const { totalFindings, allSeverityCounts } = useMemo(() => {
     const totals = { critical: 0, high: 0, medium: 0, low: 0 };
     for (const cat of Object.values(categoryCounts)) {
       totals.critical += cat.critical;
@@ -166,8 +155,22 @@ export function HomePage() {
       totals.medium += cat.medium;
       totals.low += cat.low;
     }
-    return totals;
+    return {
+      totalFindings: totals.critical + totals.high + totals.medium + totals.low,
+      allSeverityCounts: totals,
+    };
   }, [categoryCounts]);
+
+  const integrationsConnected = useMemo(() => {
+    return installations.length + orgConnections.length;
+  }, [installations, orgConnections]);
+
+  // Total scans: GitHub scans + non-GitHub workflow runs (deduped)
+  const totalScans = useMemo(() => {
+    const githubRunIds = new Set(scanResults.map((s) => s.workflowRunId));
+    const nonGithubRuns = recentRuns.filter((r) => !githubRunIds.has(r.id));
+    return scanResults.length + nonGithubRuns.length;
+  }, [scanResults, recentRuns]);
 
   // Security score: 100 minus deductions
   const securityScore = useMemo(() => {
@@ -267,7 +270,7 @@ export function HomePage() {
           <QuickStatsRow
             totalFindings={analyticsError ? 0 : totalFindings}
             totalRepos={repositories.length}
-            totalScans={scanResults.length}
+            totalScans={totalScans}
             integrationsConnected={integrationsConnected}
           />
 
@@ -282,7 +285,12 @@ export function HomePage() {
               <div className="lg:col-span-2">
                 <NeedsAttentionCard categories={attentionCategories} mode="normal" />
               </div>
-              <RecentActivityFeed scanResults={scanResults} repositories={repositories} />
+              <RecentActivityFeed
+                scanResults={scanResults}
+                repositories={repositories}
+                recentRuns={recentRuns}
+                connections={orgConnections}
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -335,7 +343,7 @@ export function HomePage() {
         <QuickStatsRow
           totalFindings={analyticsError ? 0 : totalFindings}
           totalRepos={repositories.length}
-          totalScans={scanResults.length}
+          totalScans={totalScans}
           integrationsConnected={integrationsConnected}
           securityScore={analyticsError ? 0 : securityScore}
           showScore
@@ -348,7 +356,12 @@ export function HomePage() {
             <div className="lg:col-span-2">
               <FindingsTrendChart />
             </div>
-            <RecentActivityFeed scanResults={scanResults} repositories={repositories} />
+            <RecentActivityFeed
+              scanResults={scanResults}
+              repositories={repositories}
+              recentRuns={recentRuns}
+              connections={orgConnections}
+            />
           </div>
         </QueryErrorBoundary>
 

@@ -149,6 +149,22 @@ export async function fetchMoreRuns(workflowId: string | null | undefined) {
   });
 }
 
+/**
+ * Fetch recent workflow runs across all workflows (for dashboard).
+ * Excludes child runs (parentRunId != null) to avoid clutter.
+ */
+export function useRecentRuns(limit = 10) {
+  return useQuery({
+    queryKey: [...queryKeys.runs.global(), 'recent', limit] as const,
+    queryFn: async (): Promise<ExecutionRun[]> => {
+      const response = await api.executions.listRuns({ limit });
+      const rawRuns = response.runs ?? [];
+      return sortRuns(rawRuns.map(normalizeRun)).filter((r) => !r.parentRunId);
+    },
+    staleTime: 30_000,
+  });
+}
+
 /** Upsert a single run into all matching cache entries */
 export function upsertRunInCache(run: ExecutionRun) {
   const upsert = (old: RunsPage | undefined): RunsPage => {
